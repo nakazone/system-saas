@@ -1,16 +1,3 @@
-:root {
-  color-scheme: light;
-  --partner-ink: #202735;
-  --partner-muted: #667085;
-  --partner-line: #e3e7ec;
-  --partner-surface: #fff;
-  --partner-background: #f5f7f9;
-  --partner-accent: #99562a;
-  --partner-accent-dark: #84481f;
-  --partner-green: #147a56;
-  font-family: Inter, Geist, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-}
-
 * { box-sizing: border-box; }
 body { margin: 0; min-height: 100vh; color: var(--partner-ink); background: var(--partner-background); }
 button, input { font: inherit; }
@@ -202,4 +189,229 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+}
+:root {
+  color-scheme: light;
+  --partner-ink: #221e1a;
+  --partner-muted: #667085;
+  --partner-faint: #98a2b3;
+  --partner-line: #e5e7eb;
+  --partner-surface: #fff;
+  --partner-surface-muted: #f1f3f5;
+  --partner-background: #f7f8fa;
+  --partner-accent: #e7792c;
+  --partner-accent-dark: #b4561a;
+  --partner-accent-soft: #fdf0e6;
+  --partner-green: #536249;
+  --partner-shadow: 0 1px 2px rgba(16, 24, 40, .04);
+  font-family: "Geist", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid rgba(231, 121, 44, .35); outline-offset: 2px; }
+
+/* ObraMate partner workspace: neutral chrome, charcoal text and terracotta actions. */
+html { min-width: 320px; background: var(--partner-background); }
+body { -webkit-font-smoothing: antialiased; }
+
+.partner-auth-page {
+  min-height: 100vh;
+  padding: 24px;
+  background: var(--partner-background);
+}
+.partner-auth-card {
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 18px 44px rgba(34, 30, 26, .07);
+}
+.partner-auth-card h1 { color: var(--partner-ink); }
+.partner-brand { color: var(--partner-ink); }
+.partner-brand img { border-radius: 11px; }
+.partner-form input,
+.partner-document-search input,
+.partner-provider-tools select,
+.partner-request-grid input,
+.partner-request-grid textarea {
+  border-color: var(--partner-line);
+  border-radius: 11px;
+  box-shadow: var(--partner-shadow);
+  transition: border-color .16s ease, box-shadow .16s ease;
+}
+.partner-form input:focus,
+.partner-document-search input:focus,
+.partner-provider-tools select:focus,
+.partner-request-grid input:focus,
+.partner-request-grid textarea:focus {
+  border-color: var(--partner-accent);
+  box-shadow: 0 0 0 3px rgba(231, 121, 44, .12);
+  outline: 0;
+}
+.partner-button,
+.partner-document-open,
+.partner-invoice-open {
+  background: var(--partner-accent);
+  border-color: var(--partner-accent);
+  border-radius: 11px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .08);
+}
+.partner-button:hover:not(:disabled),
+.partner-document-open:hover,
+.partner-invoice-open:hover {
+  background: #d96b20;
+  border-color: #d96b20;
+}
+
+.partner-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  min-height: 72px;
+  padding-inline: max(24px, calc((100vw - 1280px) / 2));
+  background: rgba(247, 248, 250, .92);
+  border-bottom-color: var(--partner-line);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.partner-topbar .partner-brand { flex: 0 0 auto; }
+.partner-account { gap: 12px; color: var(--partner-muted); }
+.partner-account > span { font-weight: 600; color: var(--partner-ink); }
+.partner-link-button {
+  background: #fff;
+  border-color: var(--partner-line);
+  border-radius: 10px;
+  box-shadow: var(--partner-shadow);
+}
+.partner-link-button:hover { background: var(--partner-surface-muted); }
+.partner-provider-tools select { max-width: 240px; }
+
+.partner-main {
+  width: min(100% - 48px, 1280px);
+  padding-top: 34px;
+}
+.partner-welcome { margin-bottom: 28px; }
+.partner-eyebrow {
+  color: var(--partner-accent-dark);
+  letter-spacing: .045em;
+}
+.partner-welcome h1 {
+  font-size: clamp(28px, 4vw, 36px);
+  font-weight: 750;
+  letter-spacing: -.04em;
+}
+.partner-panel,
+.partner-item,
+.partner-empty,
+.partner-document-card,
+.partner-summary-card,
+.partner-calendar,
+.partner-invoice-row,
+.partner-request-card {
+  border-color: var(--partner-line);
+  box-shadow: var(--partner-shadow);
+}
+.partner-panel { border-radius: 16px; }
+.partner-item,
+.partner-empty,
+.partner-summary-card,
+.partner-invoice-row,
+.partner-request-card,
+.partner-document-card { border-radius: 14px; }
+.partner-item:hover,
+.partner-document-card:hover,
+.partner-request-card:hover {
+  border-color: #d6d9df;
+  box-shadow: 0 4px 14px rgba(34, 30, 26, .06);
+}
+.partner-section-heading { margin-top: 34px; }
+.partner-section-heading h2,
+.partner-panel h2 { color: var(--partner-ink); font-weight: 700; }
+.partner-count {
+  color: var(--partner-muted);
+  background: #fff;
+  border-color: var(--partner-line);
+}
+
+.partner-portal-tabs {
+  position: sticky;
+  top: 72px;
+  z-index: 10;
+  gap: 4px;
+  margin: 0 -2px;
+  padding: 10px 2px;
+  overflow-x: auto;
+  background: rgba(247, 248, 250, .94);
+  border-bottom: 1px solid var(--partner-line);
+  scrollbar-width: thin;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.partner-portal-tabs button {
+  flex: 0 0 auto;
+  min-height: 42px;
+  padding-inline: 15px;
+  border-radius: 10px;
+  transition: color .16s ease, background-color .16s ease;
+}
+.partner-portal-tabs button:hover { color: var(--partner-ink); background: #fff; }
+.partner-portal-tabs button[aria-selected="true"] {
+  color: var(--partner-accent-dark);
+  background: var(--partner-accent-soft);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.partner-summary-card { padding: 18px; }
+.partner-summary-card span { color: var(--partner-muted); }
+.partner-summary-card strong { color: var(--partner-ink); font-size: 28px; }
+.partner-status,
+.partner-invoice-status { color: #475467; background: var(--partner-surface-muted); }
+.partner-invoice-status.is-open { color: #8a501f; background: var(--partner-accent-soft); }
+.partner-invoice-status.is-paid,
+.partner-request-form .partner-success { color: var(--partner-green); background: #eef1ec; }
+.partner-document-filters button { border-color: var(--partner-line); }
+.partner-document-filters button[aria-pressed="true"] {
+  color: var(--partner-accent-dark);
+  background: var(--partner-accent-soft);
+  border-color: transparent;
+}
+.partner-document-preview,
+.partner-document-preview--file { background: var(--partner-surface-muted); }
+.partner-document-preview--file { background: linear-gradient(135deg, #f1f3f5, #e8eaed); }
+.partner-document-preview--file span {
+  color: var(--partner-accent-dark);
+  border-radius: 10px;
+}
+.partner-calendar { border-radius: 14px; }
+.partner-calendar-weekday { background: #f7f8fa; }
+.partner-calendar-day.is-selected { background: var(--partner-accent-soft); }
+.partner-calendar-day.is-today .partner-calendar-date { color: var(--partner-accent-dark); }
+.partner-calendar-event { color: #8a501f; background: #fdf0e6; }
+.partner-calendar-event:hover { background: #f9dfca; }
+.partner-request-grid input[type="file"] { background: #fff; }
+.partner-inline-link { color: var(--partner-accent-dark); }
+
+@media (max-width: 760px) {
+  .partner-topbar { position: static; padding-inline: 18px; }
+  .partner-main { width: min(100% - 32px, 1280px); padding-top: 26px; }
+  .partner-portal-tabs { top: 0; }
+}
+@media (max-width: 540px) {
+  .partner-auth-page { padding: 16px; }
+  .partner-topbar { position: static; align-items: flex-start; flex-direction: column; gap: 12px; padding: 12px 16px; }
+  .partner-account { width: 100%; justify-content: space-between; }
+  .partner-account > span { max-width: none; }
+  .partner-provider-tools { width: auto; order: initial; }
+  .partner-provider-tools select { max-width: 42vw; }
+  .partner-main { width: min(100% - 28px, 1280px); padding-top: 22px; padding-bottom: 48px; }
+  .partner-portal-tabs {
+    top: 0;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    padding-block: 9px;
+    overflow: visible;
+  }
+  .partner-portal-tabs button { min-width: 0; padding: 8px 5px; font-size: 12px; }
+  .partner-section-heading { margin-top: 28px; }
+  .partner-calendar { overflow-x: auto; }
+  .partner-calendar-grid { min-width: 420px; }
+  .partner-calendar-head { position: sticky; left: 0; }
 }
