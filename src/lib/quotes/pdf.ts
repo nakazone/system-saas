@@ -291,6 +291,7 @@ export type QuotePdfInput = {
     name?: string | null;
     title?: string | null;
     imageUrl?: string | null;
+    image_url?: string | null;
   } | null;
 };
 
@@ -1164,8 +1165,9 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
     doc.text("CLIENT APPROVAL", totalsX, y, { lineBreak: false });
     y += 14;
 
-    const ownerBuf = dataUrlToBuffer(input.ownerSignature?.imageUrl);
-    const clientBuf = dataUrlToBuffer(input.signatureUrl);
+    const ownerSrc = input.ownerSignature?.imageUrl || input.ownerSignature?.image_url;
+    const ownerBuf = await loadLogoBuffer(ownerSrc);
+    const clientBuf = await loadLogoBuffer(input.signatureUrl);
     const sigBoxH = 40;
 
     if (ownerBuf) {

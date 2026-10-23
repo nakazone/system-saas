@@ -116,6 +116,7 @@
         name: prepared.name || d.organizationName,
         line: [prepared.title, prepared.email].filter(Boolean).join(' · '),
       },
+      signatures: signaturesFromApi(d),
       floorArea: Number(d.floorAreaSqft) || (d.rooms || []).reduce((s, r) => s + (Number(r.areaSqft) || 0), 0) || 0,
       subtotal: Number(d.subtotal) || 0,
       discount: 0,
@@ -125,6 +126,37 @@
       lines,
     };
   }
+  function signaturesFromApi(d) {
+    const owner = d.ownerSignature || {};
+    const clientImage = d.signatureUrl || '';
+    const clientName = d.signedByName || '';
+    return {
+      signed: !!(clientName || clientImage || d.signedAt),
+      ownerName: owner.name || '',
+      ownerTitle: owner.title || '',
+      ownerImage: owner.imageUrl || owner.image_url || '',
+      clientName,
+      clientImage,
+      clientDate: d.signedAt || null,
+    };
+  }
+
+  function signaturesHtml(model) {
+    const s = model.signatures;
+    if (!s || !s.signed) return '';
+    const box = (url, alt, fallback) =>
+      `<div class="qp-sig__box">${
+        url ? `<img src="${esc(url)}" alt="${esc(alt)}" />` : `<span>${esc(fallback)}</span>`
+      }</div>`;
+    const owner = `<div class="qp-sig__col"><b>Authorized by</b>${box(s.ownerImage, 'Assinatura da empresa', s.ownerName || '—')}${
+      s.ownerName ? `<strong>${esc(s.ownerName)}</strong>` : ''
+    }${s.ownerTitle ? `<small>${esc(s.ownerTitle)}</small>` : ''}</div>`;
+    const client = `<div class="qp-sig__col"><b>Client approval</b>${box(s.clientImage, 'Assinatura do cliente', 'Signed')}${
+      s.clientName ? `<strong>${esc(s.clientName)}</strong>` : ''
+    }<small>${esc(fmtDate(s.clientDate))}</small></div>`;
+    return `<section class="qp-sig">${owner}${client}</section>`;
+  }
+
   function orgFromApi(d) {
     return {
       name: d.organizationName || '',
@@ -207,7 +239,7 @@
     return `<div class="qp-tr qp-tr--ed${opts.focusKey === l.key ? ' is-on' : ''}" data-k="${esc(l.key)}">
       <div class="qp-c qp-c--d">
         <input class="qp-in qp-in--name" data-f="name" value="${esc(l.name)}" placeholder="Serviço — busque na Tabela de Valor" autocomplete="off" aria-label="Serviço" />
-        <textarea class="qp-in qp-in--desc" data-f="description" rows="1" data-crm-rich="off" placeholder="Descrição que o cliente vê (opcional)" aria-label="Descrição">${esc(l.description || '')}</textarea>
+        <textarea class="qp-in qp-in--desc" data-f="description" rows="1" data-crm-rich="off" placeholder="Descrição que o cliente vê. Enter segue · Shift+Enter quebra a linha" aria-label="Descrição">${esc(l.description || '')}</textarea>
       </div>
       <div class="qp-c qp-c--q"><input class="qp-in qp-in--num" data-f="quantity" inputmode="decimal" value="${esc(numVal(l.quantity))}" aria-label="Quantidade" />${unitSelect(l.unit)}</div>
       <div class="qp-c qp-c--r"><span class="qp-cur">$</span><input class="qp-in qp-in--num" data-f="rate" inputmode="decimal" value="${esc((Number(l.rate) || 0).toFixed(2))}" aria-label="Preço unitário" /></div>
@@ -279,6 +311,7 @@
           <div class="qp-total"><span>TOTAL</span><b data-qp-total2>${money(model.total)}</b></div>
         </div>
       </div>
+      ${signaturesHtml(model)}
       <footer class="qp-ft"><span>${esc(numLabel)} · ${esc((model.bill || {}).name || '')}</span><span><i class="qp-om-i"></i>Made with ObraMate</span><span>Page 1 of 2</span></footer>
     </div>`;
   }
@@ -311,6 +344,7 @@
     refreshNumbers,
     fromApi,
     orgFromApi,
+    signaturesFromApi,
     sectionOf,
     bodyWithoutTitle,
     lineAmount,

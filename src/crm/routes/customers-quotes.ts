@@ -542,6 +542,8 @@ function mapQuote(q: {
   validUntil: Date | null;
   viewedAt: Date | null;
   signedAt?: Date | null;
+  signedByName?: string | null;
+  signatureUrl?: string | null;
   payload: unknown;
   createdAt: Date;
   updatedAt: Date;
@@ -632,6 +634,10 @@ function mapQuote(q: {
     property_label: propertyLabel,
     work_order_id: q.workOrderId ?? null,
     signed_at: q.signedAt ?? null,
+    signed_by_name: q.signedByName ?? null,
+    client_signed_name: q.signedByName ?? null,
+    has_client_signature: Boolean(q.signatureUrl || q.signedByName),
+    client_signature_url: q.signatureUrl ?? null,
     public_token: q.publicToken,
     has_invoice_pdf: Boolean(q.invoicePdfPath),
     invoice_pdf_url: q.invoicePdfPath ? `/api/quotes/${q.id}/invoice-pdf` : null,
@@ -675,6 +681,7 @@ function mapQuote(q: {
         catalog_customer_notes: meta.catalog_customer_notes != null ? String(meta.catalog_customer_notes) : null,
         service_type: serviceTypeFromMetaOrPayload(meta, payloadItems[idx]),
         service_catalog_id: meta.service_catalog_id != null ? String(meta.service_catalog_id) : null,
+        pricing_item_id: meta.pricing_item_id != null ? String(meta.pricing_item_id) : null,
         product_id: meta.product_id != null ? String(meta.product_id) : null,
         notes: meta.notes != null ? String(meta.notes) : null,
       };
@@ -1635,7 +1642,15 @@ customersQuotesRouter.get("/api/quotes", requireCrmAuth, async (req: AuthedReque
       if (leadId) where.leadId = leadId;
       if (customerId) where.customerId = customerId;
       if (search) {
-        where.OR = quoteSearchWhere(search);
+        const contains = { contains: search, mode: "insensitive" as const };
+        const leadHits = await tx.lead.findMany({
+          where: { OR: [{ name: contains }, { email: contains }, { phone: contains }] },
+          select: { id: true },
+          take: 40,
+        });
+        const or = quoteSearchWhere(search);
+        if (leadHits.length) or.push({ leadId: { in: leadHits.map((l) => l.id) } });
+        where.OR = or;
       }
       const count = await tx.quote.count({ where });
       const list = await tx.quote.findMany({

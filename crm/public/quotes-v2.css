@@ -65,6 +65,7 @@
 .qs-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; color: #221E1A !important; text-decoration: none !important; }
 .qs-row:hover { background: #FAFBFC; }
 .qs-row.is-on { background: #fff; box-shadow: 0 0 0 1px #E5E7EB, 0 6px 16px -10px rgba(16, 24, 40, .25); }
+.qs-row.is-kb { box-shadow: 0 0 0 2px #E7792C; }
 .qs-row__b { flex: 1; min-width: 0; }
 .qs-row__b b { display: block; font-size: 14px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .qs-row__b small { display: block; font-size: 12.5px; color: #667085; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

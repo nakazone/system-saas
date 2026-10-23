@@ -112,6 +112,7 @@
   function inSeg(q) {
     const g = groupOf(q);
     if (st.archived) return g === 'archived';
+    if (st.q) return g !== 'archived';
     if (st.seg === 'open') return g === 'draft' || g === 'waiting' || g === 'changes';
     if (st.seg === 'approved') return g === 'approved';
     if (st.seg === 'expired') return g === 'expired';
@@ -518,11 +519,12 @@
       }
     }
     renderList();
-    if (!st.sel && !narrow()) {
-      const first = st.rows.find(inSeg);
-      if (first) {
-        st.sel = first.id;
-        void loadPaper(first.id);
+    if (!narrow()) {
+      const visible = st.rows.filter(inSeg);
+      const curOk = visible.some((r) => String(r.id) === String(st.sel));
+      if ((!st.sel || (st.q && !curOk)) && visible[0]) {
+        st.sel = visible[0].id;
+        void loadPaper(visible[0].id);
         renderList();
       }
     }
@@ -629,6 +631,21 @@
         st.q = $('filterQ').value.trim();
         loadRows().catch(() => {});
       }, 260);
+    });
+    $('filterQ').addEventListener('keydown', (e) => {
+      const rows = Array.from($('qsRows').querySelectorAll('.qs-row'));
+      if (!rows.length || (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Enter')) return;
+      e.preventDefault();
+      let i = rows.findIndex((r) => r.classList.contains('is-kb'));
+      if (e.key === 'Enter') {
+        const pick = rows[i] || rows[0];
+        if (pick) select(pick.getAttribute('data-id'), narrow());
+        return;
+      }
+      if (i < 0) i = e.key === 'ArrowDown' ? 0 : rows.length - 1;
+      else i = (i + (e.key === 'ArrowDown' ? 1 : -1) + rows.length) % rows.length;
+      rows.forEach((r, n) => r.classList.toggle('is-kb', n === i));
+      rows[i].scrollIntoView({ block: 'nearest' });
     });
     window.addEventListener('popstate', () => {
       const id = new URLSearchParams(location.search).get('id');

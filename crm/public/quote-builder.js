@@ -657,18 +657,18 @@
     }
     const descOpen = $('qbSaveDescModal') && !$('qbSaveDescModal').classList.contains('hidden');
     if (descOpen) return;
-    const it = items[opts.itemIdx];
-    if (!it) return;
-    const row = opts.row || catalogRowForItem(it);
+    const it = opts.itemIdx != null && opts.itemIdx >= 0 ? items[opts.itemIdx] : null;
+    if (opts.itemIdx != null && opts.itemIdx >= 0 && !it) return;
+    const row = opts.row || (it ? catalogRowForItem(it) : null);
     const pricingItemId = opts.pricingItemId || catalogPricingItemId(row);
     if (!pricingItemId) return;
     const tableDesc =
       opts.tableDesc != null ? String(opts.tableDesc) : catalogDescriptionForRow(row);
-    const newDesc = opts.newDesc != null ? String(opts.newDesc) : String(it.description || '');
+    const newDesc = opts.newDesc != null ? String(opts.newDesc) : String((it && it.description) || '');
     if (normalizeDescText(newDesc) === normalizeDescText(tableDesc)) return;
     openSaveDescModal({
       itemIdx: opts.itemIdx,
-      serviceName: it.name || (row && row.name) || '',
+      serviceName: (it && it.name) || opts.serviceName || (row && row.name) || '',
       newDesc,
       tableDesc,
       pricingItemId,
@@ -1407,7 +1407,7 @@
     const builderSearch = $('qbBuilderSearchWrap');
     const orgSearch = $('qbOrgCustomerSearchWrap');
     const orgHint = $('qbOrgCustomerHint');
-    if (leadSearch) leadSearch.classList.toggle('hidden', selected && party === 'lead');
+    if (leadSearch) leadSearch.classList.toggle('hidden', selected);
     if (leadActions) leadActions.classList.toggle('hidden', selected && party === 'lead');
     if (builderSearch) builderSearch.classList.toggle('hidden', selected && party === 'builder');
     if (orgSearch) orgSearch.classList.toggle('hidden', selected && party === 'loja');
@@ -2299,57 +2299,116 @@
     return Array.isArray(data.data) ? data.data : [];
   }
 
+  function clientCategory(c) {
+    const t = String((c && c.customer_type) || 'particular').toLowerCase();
+    if (t === 'builder' || t === 'contractor') return 'builder';
+    if (t === 'loja') return 'loja';
+    return 'particular';
+  }
+
+  function clientCategoryLabel(kind) {
+    if (kind === 'lead') return 'Lead';
+    if (kind === 'builder') return 'Builder';
+    if (kind === 'loja') return 'Loja';
+    return 'Particular';
+  }
+
+  async function fetchCustomersAny(query) {
+    const params = new URLSearchParams({ limit: '40', page: '1' });
+    const q = String(query || '').trim();
+    if (q) params.set('q', q);
+    const r = await api(`/api/customers?${params.toString()}`);
+    return Array.isArray(r.data) ? r.data : [];
+  }
+
   async function fetchLeadParticularSearch(query) {
-    const [leads, particulars] = await Promise.all([
-      fetchLeadsForClientSearch(query),
-      fetchCustomersByType('particular', query).catch(() => []),
+    const q = String(query || '').trim();
+    if (!quoteBuilders.length) {
+      try {
+        await loadQuoteBuilders();
+      } catch (_) {
+        /* a lista de builders é opcional na busca */
+      }
+    }
+    const [leads, customers] = await Promise.all([
+      fetchLeadsForClientSearch(q).catch(() => []),
+      fetchCustomersAny(q).catch(() => []),
     ]);
-    particulars.forEach(upsertClientInCache);
-    return { leads, particulars };
+    customers.forEach(upsertClientInCache);
+    const builders = filterQuoteBuilders(q).filter((b) => {
+      const name = String(b.company || b.label || b.name || '').trim().toLowerCase();
+      const email = String(b.email || '').trim().toLowerCase();
+      return !customers.some((c) => {
+        if (clientCategory(c) !== 'builder') return false;
+        const cn = String(c.company || c.name || '').trim().toLowerCase();
+        const ce = String(c.email || '').trim().toLowerCase();
+        return (name && cn === name) || (email && ce === email);
+      });
+    });
+    return { leads, customers, builders };
+  }
+
+  let clientSearchActive = 0;
+
+  function syncClientSearchActive() {
+    const box = $('customerSearchResults');
+    if (!box) return;
+    const buttons = Array.from(box.querySelectorAll('.qb-client-search__item'));
+    if (!buttons.length) return;
+    if (clientSearchActive < 0) clientSearchActive = 0;
+    if (clientSearchActive >= buttons.length) clientSearchActive = buttons.length - 1;
+    buttons.forEach((btn, i) => {
+      const on = i === clientSearchActive;
+      btn.classList.toggle('is-active', on);
+      btn.setAttribute('aria-selected', on ? 'true' : 'false');
+      if (on) btn.scrollIntoView({ block: 'nearest' });
+    });
+  }
+
+  function clientResultButton(kind, id, name, meta) {
+    const attr =
+      kind === 'lead'
+        ? `data-lead-id="${escapeAttr(id)}"`
+        : kind === 'builder-dir'
+          ? `data-builder-id="${escapeAttr(id)}"`
+          : `data-customer-id="${escapeAttr(id)}" data-customer-kind="${escapeAttr(kind)}"`;
+    return `<button type="button" class="qb-client-search__item" ${attr} role="option">
+      <span class="qb-client-search__item-name">${escapeHtmlText(name)}</span>
+      <span class="qb-client-search__item-meta">${meta}</span>
+    </button>`;
   }
 
   function renderClientSearchResults(payload) {
     const leads = Array.isArray(payload) ? payload : payload?.leads || [];
-    const particulars = Array.isArray(payload) ? [] : payload?.particulars || [];
-    if (!leads.length && !particulars.length) {
-      showClientSearchResults('<div class="qb-client-search__empty">Nenhum lead ou particular encontrado.</div>');
+    const customers = Array.isArray(payload) ? [] : payload?.customers || payload?.particulars || [];
+    const builders = Array.isArray(payload) ? [] : payload?.builders || [];
+    const cap = 12;
+    const parts = [];
+    leads.slice(0, cap).forEach((lead) => {
+      const id = String(lead.id);
+      const stage = lead.pipeline_stage_name || lead.pipeline_stage_slug || lead.status || '';
+      const meta = ['Lead', lead.email, lead.phone, stage].filter(Boolean).map(escapeHtmlText).join(' · ');
+      parts.push(clientResultButton('lead', id, lead.name || `Lead ${id.slice(0, 8)}`, meta));
+    });
+    customers.slice(0, cap).forEach((c) => {
+      const kind = clientCategory(c);
+      const id = String(c.id);
+      const meta = [clientCategoryLabel(kind), c.company, c.email, c.phone].filter(Boolean).map(escapeHtmlText).join(' · ');
+      parts.push(clientResultButton(kind, id, c.name || c.company || `Cliente ${id.slice(0, 8)}`, meta));
+    });
+    builders.slice(0, cap).forEach((b) => {
+      const id = String(b.id);
+      const name = b.label || b.company || b.full_name || b.name || `Builder ${id.slice(0, 8)}`;
+      const meta = ['Builder', b.email, b.phone].filter(Boolean).map(escapeHtmlText).join(' · ');
+      parts.push(clientResultButton('builder-dir', id, name, meta));
+    });
+    clientSearchActive = 0;
+    if (!parts.length) {
+      showClientSearchResults('<div class="qb-client-search__empty">Nenhum cliente encontrado.</div>');
       return;
     }
-    const leadHtml = leads
-      .map((lead) => {
-        const id = String(lead.id);
-        const stage = lead.pipeline_stage_name || lead.pipeline_stage_slug || lead.status || '';
-        const meta = [
-          'Lead',
-          lead.email ? escapeHtmlText(lead.email) : '',
-          lead.phone ? escapeHtmlText(lead.phone) : '',
-          stage ? escapeHtmlText(stage) : '',
-        ]
-          .filter(Boolean)
-          .join(' · ');
-        return `<button type="button" class="qb-client-search__item" data-lead-id="${escapeAttr(id)}" role="option">
-          <span class="qb-client-search__item-name">${escapeHtmlText(lead.name || `Lead ${id.slice(0, 8)}`)}</span>
-          <span class="qb-client-search__item-meta">${meta}</span>
-        </button>`;
-      })
-      .join('');
-    const particularHtml = particulars
-      .map((c) => {
-        const id = String(c.id);
-        const meta = [
-          'Particular',
-          c.email ? escapeHtmlText(c.email) : '',
-          c.phone ? escapeHtmlText(c.phone) : '',
-        ]
-          .filter(Boolean)
-          .join(' · ');
-        return `<button type="button" class="qb-client-search__item" data-particular-id="${escapeAttr(id)}" role="option">
-          <span class="qb-client-search__item-name">${escapeHtmlText(c.name || `Cliente ${id.slice(0, 8)}`)}</span>
-          <span class="qb-client-search__item-meta">${meta}</span>
-        </button>`;
-      })
-      .join('');
-    showClientSearchResults(leadHtml + particularHtml);
+    showClientSearchResults(parts.join(''));
+    syncClientSearchActive();
   }
 
   async function resolveCustomerForLead(leadId) {
@@ -3606,6 +3665,91 @@
     }, 220);
   }
 
+  function applyParticularCustomer(c) {
+    setQuoteParty('lead', { applyPrices: false });
+    selectedQuoteLead = null;
+    pendingLeadId = null;
+    loadedQuoteLeadId = null;
+    selectedOrgCustomer = null;
+    selectedQuoteBuilder = null;
+    $('customerId').value = String(c.id);
+    upsertClientInCache(c);
+    const searchEl = $('customerSearch');
+    if (searchEl) searchEl.value = formatCustomerLabel(c);
+    hideClientSearchResults();
+    renderClientDetails();
+    updateClientActionButtons();
+    applyPricingFromCustomer(c);
+    refreshRatesForCatalogLines();
+    renderItems();
+    syncPartyTabsVisibility();
+  }
+
+  function selectBuilderCustomer(c) {
+    setQuoteParty('builder', { applyPrices: false });
+    const match = quoteBuilders.find((b) => {
+      const name = String(b.company || b.label || b.name || '').trim().toLowerCase();
+      const email = String(b.email || '').trim().toLowerCase();
+      const cn = String(c.company || c.name || '').trim().toLowerCase();
+      const ce = String(c.email || '').trim().toLowerCase();
+      return (name && cn === name) || (email && ce === email);
+    });
+    const b = match
+      ? { ...match, customer_id: c.id }
+      : {
+          id: c.id,
+          customer_id: c.id,
+          label: c.company || c.name,
+          company: c.company || c.name,
+          name: c.responsible_name || c.name,
+          email: c.email,
+          phone: c.phone,
+          address: customerAddress(c),
+        };
+    applySelectedBuilder(b, { applyPrices: true });
+    $('customerId').value = String(c.id);
+    const searchEl = $('customerSearch');
+    if (searchEl) searchEl.value = formatCustomerLabel(c) || b.label || '';
+    hideClientSearchResults();
+    syncPartyTabsVisibility();
+  }
+
+  function selectLojaCustomer(c) {
+    setQuoteParty('loja', { applyPrices: false });
+    selectOrgCustomer(c, { applyPrices: true });
+    const searchEl = $('customerSearch');
+    if (searchEl) searchEl.value = c.name || c.company || '';
+    hideClientSearchResults();
+  }
+
+  function selectCustomerById(id, kind) {
+    const apply = (c) => {
+      if (kind === 'builder' || clientCategory(c) === 'builder') selectBuilderCustomer(c);
+      else if (kind === 'loja' || clientCategory(c) === 'loja') selectLojaCustomer(c);
+      else applyParticularCustomer(c);
+    };
+    const cached = clients.find((x) => sameId(x.id, id));
+    if (cached) {
+      apply(cached);
+      return;
+    }
+    api(`/api/customers/${encodeURIComponent(id)}`)
+      .then((r) => {
+        if (r.data) apply(r.data);
+      })
+      .catch(() => qbToast('Erro ao carregar cliente.', 'error'));
+  }
+
+  function selectActiveClientResult() {
+    const box = $('customerSearchResults');
+    if (!box || box.classList.contains('hidden')) return false;
+    const buttons = Array.from(box.querySelectorAll('.qb-client-search__item'));
+    const btn = buttons[clientSearchActive] || buttons[0];
+    if (!btn) return false;
+    btn.click();
+    return true;
+  }
+
   function wireClientLeadSearch() {
     const search = $('customerSearch');
     const box = $('customerSearchResults');
@@ -3626,40 +3770,43 @@
       scheduleClientLeadSearch();
     });
     search.addEventListener('keydown', (e) => {
+      const open = box && !box.classList.contains('hidden') && box.querySelector('.qb-client-search__item');
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        if (!open) return;
+        e.preventDefault();
+        const n = box.querySelectorAll('.qb-client-search__item').length;
+        clientSearchActive = (clientSearchActive + (e.key === 'ArrowDown' ? 1 : -1) + n) % n;
+        syncClientSearchActive();
+        return;
+      }
+      if (e.key === 'Enter') {
+        if (!open) return;
+        e.preventDefault();
+        selectActiveClientResult();
+        return;
+      }
       if (e.key === 'Escape') hideClientSearchResults();
     });
 
     box.addEventListener('click', (e) => {
-      const particularBtn = e.target.closest('[data-particular-id]');
-      if (particularBtn) {
-        const id = particularBtn.getAttribute('data-particular-id');
-        const cached = clients.find((x) => sameId(x.id, id));
-        const applyParticular = (c) => {
-          setQuoteParty('lead', { applyPrices: false });
-          selectedQuoteLead = null;
-          pendingLeadId = null;
-          selectedOrgCustomer = null;
-          $('customerId').value = String(c.id);
-          upsertClientInCache(c);
-          const searchEl = $('customerSearch');
-          if (searchEl) searchEl.value = formatCustomerLabel(c);
-          hideClientSearchResults();
-          renderClientDetails();
-          updateClientActionButtons();
-          applyPricingFromCustomer(c);
-          refreshRatesForCatalogLines();
-          renderItems();
-          syncPartyTabsVisibility();
-        };
-        if (cached) {
-          applyParticular(cached);
-          return;
-        }
-        api(`/api/customers/${encodeURIComponent(id)}`)
-          .then((r) => {
-            if (r.data) applyParticular(r.data);
-          })
-          .catch(() => qbToast('Erro ao carregar particular.', 'error'));
+      const customerBtn = e.target.closest('[data-customer-id]');
+      if (customerBtn) {
+        selectCustomerById(
+          customerBtn.getAttribute('data-customer-id'),
+          customerBtn.getAttribute('data-customer-kind') || 'particular',
+        );
+        return;
+      }
+      const builderBtn = e.target.closest('[data-builder-id]');
+      if (builderBtn) {
+        const id = builderBtn.getAttribute('data-builder-id');
+        const b = quoteBuilders.find((x) => sameId(x.id, id));
+        if (!b) return;
+        setQuoteParty('builder', { applyPrices: false });
+        applySelectedBuilder(b, { applyPrices: true });
+        const searchEl = $('customerSearch');
+        if (searchEl) searchEl.value = String(b.label || b.company || b.name || '').trim();
+        hideClientSearchResults();
         return;
       }
       const btn = e.target.closest('[data-lead-id]');
@@ -5638,21 +5785,28 @@
     const panel = $('qbClientSignaturePanel');
     if (!panel) return;
     const approved = isQuoteApprovedStatus(q?.status);
-    const hasSig = !!(q?.has_client_signature || q?.client_signed_name);
+    const hasSig = !!(q?.has_client_signature || q?.client_signed_name || q?.client_signature_url);
     if (!approved || !hasSig) {
       panel.classList.add('hidden');
       return;
     }
     panel.classList.remove('hidden');
     const img = $('clientSignPreview');
-    if (img && q.client_signature_url) {
-      img.src = `${q.client_signature_url}?t=${Date.now()}`;
-      img.classList.remove('hidden');
+    if (img) {
+      if (q.client_signature_url) {
+        img.src = `${q.client_signature_url}?t=${Date.now()}`;
+        img.hidden = false;
+        img.classList.remove('hidden');
+      } else {
+        img.removeAttribute('src');
+        img.hidden = true;
+      }
     }
     const meta = $('clientSignMeta');
     if (meta) {
       const who = q.client_signed_name || 'Cliente';
-      const when = q.approved_at ? String(q.approved_at).slice(0, 10) : '—';
+      const whenRaw = q.signed_at || q.approved_at;
+      const when = whenRaw ? String(whenRaw).slice(0, 10) : '—';
       meta.textContent = `${who} · ${when}`;
     }
   }
@@ -6306,13 +6460,11 @@
     $('modalServiceMarkup')?.addEventListener('keydown', handleServiceFormEnter);
     $('inlineItemNote')?.addEventListener('keydown', handleServiceFormEnter);
     $('modalServiceDesc')?.addEventListener('keydown', (e) => {
-      // Enter = nova linha (deixar o browser inserir \n). Ctrl/⌘+Enter = salvar.
-      if (e.key !== 'Enter') return;
+      // Enter confirma a linha. Shift+Enter quebra a linha.
+      if (e.key !== 'Enter' || e.shiftKey) return;
+      e.preventDefault();
       e.stopPropagation();
-      if (e.metaKey || e.ctrlKey) {
-        e.preventDefault();
-        confirmAddServiceLine();
-      }
+      confirmAddServiceLine();
     });
 
     $('btnAddClientManual')?.addEventListener('click', () => {
@@ -7070,6 +7222,7 @@
     totals: qbBridgeTotals,
     toast: (m, t) => qbToast(m, t),
     save: () => saveQuote(),
+    offerDescriptionChange: (opts) => maybeOfferDescPersist(opts || {}),
   };
 
   /** Links vindos da lista: ?services=1 abre o documento editável, ?send=1 abre o envio. */

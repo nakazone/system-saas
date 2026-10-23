@@ -131,6 +131,7 @@
         name: prepared.name || pd.organizationName || '',
         line: [prepared.title, prepared.email].filter(Boolean).join(' · '),
       },
+      signatures: P.signaturesFromApi ? P.signaturesFromApi(pd) : null,
       floorArea: h.floorArea || Number(pd.floorAreaSqft) || 0,
       subtotal: t.sub,
       discount: t.disc,
@@ -387,6 +388,55 @@
     if (q) q.focus();
   }
 
+  const descAck = new Set();
+  function normDesc(s) {
+    return String(s == null ? '' : s).trim().replace(/\s+/g, ' ');
+  }
+  function rowForItem(it) {
+    if (!it) return null;
+    if (it.row) return it.row;
+    const cat = (B().catalog && B().catalog()) || [];
+    const sid = it.service_catalog_id != null ? String(it.service_catalog_id) : '';
+    if (sid) {
+      const hit = cat.find((r) => String(r.id) === sid);
+      if (hit) return hit;
+    }
+    const pid = it.pricing_item_id != null ? String(it.pricing_item_id) : '';
+    if (pid) {
+      const hit = cat.find((r) => {
+        const ids = B().catalogIds(r);
+        return String(r.id) === pid || String(ids.pricing_item_id || '') === pid;
+      });
+      if (hit) return hit;
+    }
+    const name = String(it.name || '').trim().toLowerCase();
+    if (!name) return null;
+    return cat.find((r) => String(r.name || '').trim().toLowerCase() === name) || null;
+  }
+  /** Pergunta se a descrição nova fica só neste quote ou entra na Tabela de Valores. */
+  function offerDesc(it, idx) {
+    if (!it || !B().offerDescriptionChange) return;
+    const row = rowForItem(it);
+    if (!row) return;
+    const pid = B().catalogIds(row).pricing_item_id;
+    if (!pid) return;
+    const tableDesc = B().descFor(row, it.name || row.name);
+    const newDesc = String(it.description || '');
+    if (normDesc(newDesc) === normDesc(tableDesc)) return;
+    const key = String(pid) + '\n' + normDesc(newDesc);
+    if (descAck.has(key)) return;
+    descAck.add(key);
+    if (idx != null && idx >= 0) sync(true);
+    B().offerDescriptionChange({
+      itemIdx: idx != null ? idx : -1,
+      serviceName: it.name || row.name || '',
+      newDesc,
+      tableDesc,
+      pricingItemId: String(pid),
+      row,
+    });
+  }
+
   function onPaperKey(e) {
     if (ddState && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
       e.preventDefault();
@@ -394,7 +444,8 @@
       E.qpeDD.querySelectorAll('[data-dd]').forEach((b, i) => b.classList.toggle('is-on', i === ddState.on));
       return;
     }
-    if (e.key === 'Enter' && e.target.matches('.qp-in') && !e.target.matches('textarea')) {
+    if (e.key === 'Enter' && e.target.matches('.qp-in')) {
+      if (e.target.matches('textarea') && e.shiftKey) return;
       e.preventDefault();
       if (ddState && e.target === ddState.input) {
         pickDD(ddState.on);
@@ -528,7 +579,7 @@
         <p class="qpe-calc" id="qpeCalc">${calcHtml()}</p>`;
     }
     if (id === 4) {
-      return `<label class="qpe-f"><span>Descrição</span><textarea class="qpe-in" id="qpeDesc" rows="3" data-crm-rich="off" placeholder="Ex.: Remove and reinstall baseboards">${esc(draft.description)}</textarea></label>
+      return `<label class="qpe-f"><span>Descrição</span><textarea class="qpe-in" id="qpeDesc" rows="3" data-crm-rich="off" placeholder="Enter segue · Shift+Enter quebra a linha">${esc(draft.description)}</textarea></label>
         <label class="qpe-f"><span>Observação <em>opcional · aparece como “Note:”</em></span><input class="qpe-in" id="qpeNotes" value="${esc(draft.notes)}" /></label>`;
     }
     const cur = B().normalizeServiceType(draft.service_type);
@@ -832,9 +883,17 @@
         const v = num(e.target.value);
         e.target.value = e.target.matches('[data-f="rate"]') ? v.toFixed(2) : String(Math.round(v * 100) / 100);
       }
+      if (e.target.matches('[data-f="description"]')) {
+        const row = e.target.closest('.qp-tr');
+        const k = Number(row && row.getAttribute('data-k'));
+        if (W[k]) offerDesc(W[k], k);
+      }
     });
     E.qpeWrap.addEventListener('scroll', hideDD, { passive: true });
     E.qpeSteps.addEventListener('input', onStepInput);
+    E.qpeSteps.addEventListener('focusout', (e) => {
+      if (e.target && e.target.id === 'qpeDesc') offerDesc(draft, -1);
+    });
     E.qpeSteps.addEventListener('keydown', (e) => {
       if (step === 1 && e.target && e.target.id === 'qpeQ') {
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -859,7 +918,14 @@
           return;
         }
       }
-      if (e.key !== 'Enter' || e.target.matches('textarea')) return;
+      if (e.target && e.target.matches('textarea')) {
+        if (e.key !== 'Enter' || e.shiftKey) return;
+        e.preventDefault();
+        if (step < 5) goStep(step + 1);
+        else addDraft();
+        return;
+      }
+      if (e.key !== 'Enter') return;
       e.preventDefault();
       if (step === 1) {
         const q = String(draft.query || '').trim().toLowerCase();
