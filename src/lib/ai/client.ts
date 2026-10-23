@@ -168,7 +168,15 @@ export async function aiTextToSpeech(params: {
   const blocked = await takeAiUse();
   if (blocked) return { ok: false, error: blocked, provider: "none" };
 
-  const model = process.env.ELEVENLABS_TTS_MODEL?.trim() || "eleven_multilingual_v2";
+  const model = process.env.ELEVENLABS_TTS_MODEL?.trim() || "eleven_v4";
+  const isV4 = model === "eleven_v4" || model === "eleven_v4_turbo";
+  const isV3 = model === "eleven_v3";
+  const speechText = isV4 || isV3 ? `[warmly, conversational tone] ${text}` : text;
+  const voiceSettings = isV4
+    ? { stability: 0.4, similarity_boost: 0.75 }
+    : isV3
+      ? { stability: 0.4, style: 0.15 }
+      : { stability: 0.4, similarity_boost: 0.75, style: 0.15, speed: 0.98, use_speaker_boost: true };
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), params.timeoutMs ?? 45_000);
   try {
@@ -177,15 +185,9 @@ export async function aiTextToSpeech(params: {
       headers: { "xi-api-key": key, "Content-Type": "application/json", Accept: "audio/mpeg" },
       signal: controller.signal,
       body: JSON.stringify({
-        text,
+        text: speechText,
         model_id: model,
-        voice_settings: {
-          stability: 0.45,
-          similarity_boost: 0.75,
-          style: 0.15,
-          speed: 0.97,
-          ...(model === "eleven_v3" ? {} : { use_speaker_boost: true }),
-        },
+        voice_settings: voiceSettings,
       }),
     });
     if (!response.ok) {

@@ -118,22 +118,19 @@
   }
 
   function portugueseVoices() {
-    return state.voiceOptions.filter((voice) => [...(voice.languages || []), voice.labels?.language].filter(Boolean)
+    return state.voiceOptions.filter((voice) => [...(voice.languages || []), voice.labels?.language, voice.labels?.accent].filter(Boolean)
       .some((language) => /(^pt\b|portuguese)/i.test(language)));
   }
 
   function preferredVoiceId(agent) {
     const saved = state.voicePrefs.voices?.[agent.key];
     if (saved === 'browser') return '';
-    if (saved) return saved;
-    if (agent.key === 'mate' && state.defaultVoiceId) return state.defaultVoiceId;
+    if (saved && saved !== 'recommended') return saved;
+    if (state.defaultVoiceId) return state.defaultVoiceId;
     const portuguese = portugueseVoices();
-    const otherAgents = state.agents.filter((item) => item.key !== 'mate');
-    const index = agent.key === 'mate' ? 0 : Math.max(0, otherAgents.findIndex((item) => item.key === agent.key)) + (state.defaultVoiceId ? 0 : 1);
-    const distinctPortuguese = portuguese.filter((voice) => voice.voiceId !== state.defaultVoiceId);
-    const voicePool = agent.key === 'mate' || !distinctPortuguese.length ? portuguese : distinctPortuguese;
-    if (voicePool.length) return voicePool[index % voicePool.length]?.voiceId || '';
-    return state.voiceOptions.length ? state.voiceOptions[index % state.voiceOptions.length]?.voiceId || '' : '';
+    const brazilian = portuguese.find((voice) => [...(voice.languages || []), voice.labels?.language, voice.labels?.accent]
+      .filter(Boolean).some((language) => /pt[-_]br|brazil/i.test(language)));
+    return brazilian?.voiceId || portuguese[0]?.voiceId || '';
   }
 
   function setVoiceMessage(message, isError) {
@@ -158,13 +155,13 @@
         state.defaultVoiceId = String(data.data?.default_voice_id || '');
         state.voiceError = '';
         setVoiceMessage(state.voiceOptions.length
-          ? 'ElevenLabs está pronto. Você também pode escolher a voz do navegador.'
-          : 'Nenhuma voz ElevenLabs foi encontrada. A voz do navegador continua disponível.');
+          ? 'ElevenLabs está conectado. A voz recomendada usa o modelo mais expressivo; teste cada pessoa antes de ativar os avisos.'
+          : 'Nenhuma voz foi encontrada na conta ElevenLabs. Configure uma voz brasileira para ativar a fala.');
       } catch (error) {
         state.voiceOptions = [];
         state.defaultVoiceId = '';
         state.voiceError = String(error?.message || 'ElevenLabs está indisponível.');
-        setVoiceMessage(`${state.voiceError} Você ainda pode usar a voz do navegador.`, true);
+        setVoiceMessage(`${state.voiceError} A fala não será trocada silenciosamente pela voz do navegador.`, true);
       } finally {
         state.voiceLoaded = true;
         state.voiceLoading = false;
@@ -200,8 +197,15 @@
       select.id = selectId;
       select.dataset.officeVoiceAgent = agent.key;
       select.setAttribute('aria-label', `Voz de ${agent.name}`);
-      select.appendChild(new Option('Voz do navegador', 'browser'));
-      state.voiceOptions.forEach((voice) => {
+      select.appendChild(new Option('Recomendada · ElevenLabs', 'recommended'));
+      select.appendChild(new Option('Voz do navegador · menos natural', 'browser'));
+      const options = [...state.voiceOptions].sort((left, right) => {
+        const score = (voice) => [...(voice.languages || []), voice.labels?.language, voice.labels?.accent]
+          .filter(Boolean).some((language) => /pt[-_]br|brazil/i.test(language)) ? 0
+          : [...(voice.languages || []), voice.labels?.language].filter(Boolean).some((language) => /(^pt\b|portuguese)/i.test(language)) ? 1 : 2;
+        return score(left) - score(right) || left.name.localeCompare(right.name);
+      });
+      options.forEach((voice) => {
         const language = (voice.languages || []).find((item) => /^pt/i.test(item));
         select.appendChild(new Option(`${voice.name}${language ? ` · ${language}` : ''}`, voice.voiceId));
       });
@@ -214,11 +218,9 @@
       test.setAttribute('aria-label', `Testar a voz de ${agent.name}`);
       row.append(identity, label, test);
 
-      const chosen = state.voicePrefs.voices?.[agent.key]
-        || preferredVoiceId(agent)
-        || 'browser';
+      const chosen = state.voicePrefs.voices?.[agent.key] || 'recommended';
       select.value = chosen;
-      if (!Array.from(select.options).some((option) => option.value === chosen)) select.value = 'browser';
+      if (!Array.from(select.options).some((option) => option.value === chosen)) select.value = 'recommended';
       return row;
     }));
   }
@@ -251,12 +253,24 @@
   }
 
   async function speakAgent(agent, text) {
-    const cleanText = String(text || '').trim().slice(0, 2000);
+    const cleanText = String(text || '')
+      .replace(/\[([^\]]+)\]\((?:https?:\/\/[^)]+)\)/g, '$1')
+      .replace(/https?:\/\/\S+/g, '')
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/[`*_#>]/g, '')
+      .replace(/^\s*[-•]+\s*/gm, '')
+      .replace(/\n+/g, '. ')
+      .replace(/\s+/g, ' ')
+      .trim().slice(0, 2000);
     if (!agent || !cleanText) return false;
     stopAgentSpeech();
     if (!state.voiceLoaded) await loadVoiceOptions();
+    if (state.voicePrefs.voices?.[agent.key] === 'browser') return speakWithBrowser(cleanText);
     const voiceId = preferredVoiceId(agent);
-    if (!voiceId) return speakWithBrowser(cleanText);
+    if (!voiceId) {
+      setVoiceMessage('Não encontrei uma voz ElevenLabs em português. Escolha uma voz na lista ou configure ELEVENLABS_VOICE_ID.', true);
+      return false;
+    }
     try {
       const response = await fetch('/api/virtual-office/speech', {
         method: 'POST',
@@ -276,9 +290,10 @@
       state.speechAudio.addEventListener('ended', stopAgentSpeech, { once: true });
       await state.speechAudio.play();
       return true;
-    } catch (_) {
+    } catch (error) {
       stopAgentSpeech();
-      return speakWithBrowser(cleanText);
+      setVoiceMessage(error instanceof Error ? error.message : 'A voz ElevenLabs não conseguiu gerar o áudio. Confira a voz selecionada.', true);
+      return false;
     }
   }
 
@@ -302,7 +317,7 @@
 
     if (state.voicePrefs.speakPending) {
       const intro = `${greeting} Aqui é ${owner.name}, ${area}.`;
-      const spoken = `${intro} ${first.title}. ${first.detail ? `${first.detail}. ` : ''}O próximo passo é ${first.run?.label || 'revisar isso comigo'}.${suggestions.length > 1 ? ` Também há mais ${suggestions.length - 1} ${suggestions.length === 2 ? 'ação' : 'ações'} esperando.` : ''}`;
+      const spoken = `${intro} Tenho uma atualização: ${first.title}. ${first.detail ? `${first.detail}. ` : ''}Você pode ${first.run?.label?.toLowerCase() || 'revisar isso comigo'}.${suggestions.length > 1 ? ` Também deixei mais ${suggestions.length - 1} ${suggestions.length === 2 ? 'ação' : 'ações'} para você.` : ''}`;
       void speakAgent(owner, spoken);
     }
   }
@@ -1764,13 +1779,15 @@
       const played = await speakAgent(agent, `Oi, aqui é ${agent.name}, ${agent.title.toLowerCase()}. Vou avisar você com clareza quando houver um próximo passo importante na minha área.`);
       button.disabled = false;
       button.textContent = played ? 'Ouvir' : 'Indisponível';
-      setVoiceMessage(played ? `Você ouviu a voz de ${agent.name}.` : 'Este navegador não tem uma voz disponível.');
+      if (played) setVoiceMessage(`Você ouviu a voz de ${agent.name}.`);
+      else if (state.voicePrefs.voices?.[agent.key] === 'browser') setVoiceMessage('A voz do navegador não está disponível neste aparelho.', true);
     });
     $('#officeVoiceTest')?.addEventListener('click', async () => {
       const agent = activeAgent();
       if (!agent) return;
       const played = await speakAgent(agent, `Oi${state.userName ? `, ${state.userName}` : ''}! Aqui é ${agent.name}. Esta é a voz que vou usar para conversar e avisar você sobre ações pendentes.`);
-      setVoiceMessage(played ? `Você ouviu a voz de ${agent.name}.` : 'Este navegador não tem uma voz disponível.');
+      if (played) setVoiceMessage(`Você ouviu a voz de ${agent.name}.`);
+      else if (state.voicePrefs.voices?.[agent.key] === 'browser') setVoiceMessage('A voz do navegador não está disponível neste aparelho.', true);
     });
     $('#officeAlertDismiss')?.addEventListener('click', () => {
       const toast = $('#officeAlertToast');

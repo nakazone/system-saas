@@ -34,6 +34,10 @@
   var agentMode = Boolean(agentKey && document.getElementById('mateAiInline'));
   var agentProfile = null;
   var agentUnavailable = false;
+  var agentSpeechAudio = null;
+  var agentSpeechUrl = '';
+  var agentSpeechVoiceId = null;
+  var agentSpeechVoicePromise = null;
   var KEY_THREAD = 'mateAi.thread.v2' + (agentMode ? '.agent.' + agentKey : '');
   var KEY_HIDDEN = 'mateAi.hidden.v1';
   var KEY_CATALOG = 'mateAi.catalog.v1';
@@ -203,21 +207,84 @@
     if (window.OfficeAgentVoice && typeof window.OfficeAgentVoice.speak === 'function') {
       return Promise.resolve(window.OfficeAgentVoice.speak(agent, text));
     }
-    if (!window.speechSynthesis || typeof window.SpeechSynthesisUtterance !== 'function') return Promise.resolve(false);
-    try {
-      window.speechSynthesis.cancel();
-      var utterance = new window.SpeechSynthesisUtterance(String(text || '').slice(0, 2000));
-      utterance.lang = voiceLang();
-      utterance.rate = 0.98;
-      var voices = window.speechSynthesis.getVoices();
-      utterance.voice = voices.find(function (voice) { return String(voice.lang || '').toLowerCase() === utterance.lang.toLowerCase(); })
-        || voices.find(function (voice) { return String(voice.lang || '').toLowerCase().indexOf(utterance.lang.slice(0, 2).toLowerCase()) === 0; })
-        || null;
-      window.speechSynthesis.speak(utterance);
-      return Promise.resolve(true);
-    } catch (_) {
-      return Promise.resolve(false);
+    if (agentSpeechAudio) {
+      agentSpeechAudio.pause();
+      agentSpeechAudio.src = '';
+      agentSpeechAudio = null;
     }
+    if (agentSpeechUrl) {
+      URL.revokeObjectURL(agentSpeechUrl);
+      agentSpeechUrl = '';
+    }
+    if (!agentSpeechVoicePromise && agentSpeechVoiceId === null) {
+      agentSpeechVoicePromise = fetch('/api/virtual-office/voices', { credentials: 'include', cache: 'no-store' })
+        .then(function (response) {
+          if (!response.ok) throw new Error('Vozes ElevenLabs indisponíveis.');
+          return response.json();
+        })
+        .then(function (data) {
+          var voiceList = data && data.data && Array.isArray(data.data.voices) ? data.data.voices : [];
+          var configured = data && data.data && data.data.default_voice_id;
+          var portuguese = voiceList.filter(function (voice) {
+            return [].concat(voice.languages || [], voice.labels && voice.labels.language || [], voice.labels && voice.labels.accent || [])
+              .some(function (language) { return /(^pt\b|portuguese)/i.test(String(language)); });
+          });
+          var brazilian = portuguese.find(function (voice) {
+            return [].concat(voice.languages || [], voice.labels && voice.labels.language || [], voice.labels && voice.labels.accent || [])
+              .some(function (language) { return /pt[-_]br|brazil/i.test(String(language)); });
+          });
+          agentSpeechVoiceId = configured || brazilian && brazilian.voiceId || portuguese[0] && portuguese[0].voiceId || '';
+          return agentSpeechVoiceId;
+        })
+        .catch(function () {
+          agentSpeechVoiceId = '';
+          return '';
+        })
+        .finally(function () { agentSpeechVoicePromise = null; });
+    }
+    var cleanSpeech = String(text || '')
+      .replace(/\[([^\]]+)\]\((?:https?:\/\/[^)]+)\)/g, '$1')
+      .replace(/https?:\/\/\S+/g, '')
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/[`*_#>]/g, '')
+      .replace(/^\s*[-•]+\s*/gm, '')
+      .replace(/\n+/g, '. ')
+      .replace(/\s+/g, ' ')
+      .trim().slice(0, 2000);
+    var voicePromise = agentSpeechVoicePromise || Promise.resolve(agentSpeechVoiceId || '');
+    return voicePromise.then(function (voiceId) {
+      return fetch('/api/virtual-office/speech', {
+      method: 'POST',
+      credentials: 'include',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: cleanSpeech, voice_id: voiceId || undefined }),
+      });
+    }).then(function (response) {
+      if (!response.ok) return response.json().catch(function () { return {}; }).then(function (data) {
+        throw new Error(data.error || 'A voz ElevenLabs não está disponível.');
+      });
+      return response.blob();
+    }).then(function (blob) {
+      if (!blob.size) throw new Error('O áudio retornou vazio.');
+      agentSpeechUrl = URL.createObjectURL(blob);
+      agentSpeechAudio = new Audio(agentSpeechUrl);
+      agentSpeechAudio.addEventListener('ended', function () {
+        if (agentSpeechUrl) URL.revokeObjectURL(agentSpeechUrl);
+        agentSpeechUrl = '';
+        agentSpeechAudio = null;
+      }, { once: true });
+      return agentSpeechAudio.play().then(function () { return true; });
+    }).catch(function () {
+      if (agentSpeechAudio) {
+        agentSpeechAudio.pause();
+        agentSpeechAudio.src = '';
+        agentSpeechAudio = null;
+      }
+      if (agentSpeechUrl) URL.revokeObjectURL(agentSpeechUrl);
+      agentSpeechUrl = '';
+      return false;
+    });
   }
 
   /** The record on screen, from the URL. */
