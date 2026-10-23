@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f7f8fa" />
   <title>Portal do parceiro · ObraMate</title>
   <link rel="icon" href="/favicon.ico" sizes="any" />
-  <link rel="stylesheet" href="partner-portal.css?v=20261022-2" />
+  <link rel="stylesheet" href="partner-portal.css?v=20261023-1" />
 </head>
 <body class="partner-portal-page">
   <header class="partner-topbar">
@@ -16,6 +16,11 @@
     </a>
     <div class="partner-account">
       <span id="partnerAccountName">Carregando…</span>
+      <div id="partnerProviderTools" class="partner-provider-tools" hidden>
+        <label for="partnerProviderSelect">Fornecedor</label>
+        <select id="partnerProviderSelect" aria-label="Selecionar fornecedor"></select>
+        <button type="button" class="partner-link-button" id="partnerProviderSwitch">Trocar</button>
+      </div>
       <button type="button" class="partner-link-button" id="partnerLogout">Sair</button>
     </div>
   </header>
@@ -39,16 +44,58 @@
     </section>
 
     <nav id="partnerPortalTabs" class="partner-portal-tabs" role="tablist" aria-label="Navegação do portal" hidden>
-      <button type="button" id="partnerJobsTab" role="tab" aria-selected="true" aria-controls="partnerProjectsSection">Obras</button>
+      <button type="button" id="partnerJobsTab" role="tab" aria-selected="true" aria-controls="partnerProjectsSection">Jobs</button>
+      <button type="button" id="partnerCalendarTab" role="tab" aria-selected="false" aria-controls="partnerCalendarSection" tabindex="-1">Calendário</button>
+      <button type="button" id="partnerHistoryTab" role="tab" aria-selected="false" aria-controls="partnerHistorySection" tabindex="-1">Histórico</button>
+      <button type="button" id="partnerInvoicesTab" role="tab" aria-selected="false" aria-controls="partnerInvoicesSection" tabindex="-1">Invoices</button>
+      <button type="button" id="partnerRequestsTab" role="tab" aria-selected="false" aria-controls="partnerRequestsSection" tabindex="-1">Solicitar job</button>
       <button type="button" id="partnerDocumentsTab" role="tab" aria-selected="false" aria-controls="partnerDocumentsSection" tabindex="-1">Documentos</button>
     </nav>
 
     <section id="partnerProjectsSection" role="tabpanel" aria-labelledby="partnerJobsTab" hidden>
       <div class="partner-section-heading">
-        <div><p class="partner-eyebrow">Atualizações compartilhadas</p><h2>Projetos e jobs</h2></div>
+        <div><p class="partner-eyebrow">Painel de jobs</p><h2>Jobs ativos</h2></div>
         <span id="partnerItemCount" class="partner-count"></span>
       </div>
+      <div class="partner-summary-grid" id="partnerJobSummary" aria-label="Resumo dos jobs"></div>
       <div id="partnerItems" class="partner-items" aria-live="polite"></div>
+    </section>
+
+    <section id="partnerCalendarSection" role="tabpanel" aria-labelledby="partnerCalendarTab" hidden>
+      <div class="partner-section-heading"><div><p class="partner-eyebrow">Agenda dos seus jobs</p><h2>Calendário</h2></div></div>
+      <div class="partner-calendar" id="partnerCalendar"></div>
+      <div id="partnerCalendarJobs" class="partner-items" aria-live="polite"></div>
+    </section>
+
+    <section id="partnerHistorySection" role="tabpanel" aria-labelledby="partnerHistoryTab" hidden>
+      <div class="partner-section-heading"><div><p class="partner-eyebrow">Obras finalizadas</p><h2>Histórico de jobs</h2></div><span id="partnerHistoryCount" class="partner-count"></span></div>
+      <div id="partnerHistoryItems" class="partner-items" aria-live="polite"></div>
+    </section>
+
+    <section id="partnerInvoicesSection" role="tabpanel" aria-labelledby="partnerInvoicesTab" hidden>
+      <div class="partner-section-heading"><div><p class="partner-eyebrow">Faturamento do fornecedor selecionado</p><h2>Invoices</h2></div><span id="partnerInvoiceCount" class="partner-count"></span></div>
+      <div id="partnerInvoices" class="partner-invoices" aria-live="polite"></div>
+    </section>
+
+    <section id="partnerRequestsSection" role="tabpanel" aria-labelledby="partnerRequestsTab" hidden>
+      <div class="partner-section-heading"><div><p class="partner-eyebrow">Envie os detalhes para a equipe</p><h2>Solicitar um job</h2></div></div>
+      <form id="partnerRequestForm" class="partner-panel partner-request-form">
+        <div class="partner-request-grid">
+          <div><label for="requestTitle">Título do job *</label><input id="requestTitle" name="title" maxlength="160" required placeholder="Ex.: Instalação de piso — cozinha" /></div>
+          <div><label for="requestService">Tipo de serviço</label><input id="requestService" name="service_type" maxlength="100" placeholder="Ex.: Instalação de hardwood" /></div>
+          <div class="partner-request-wide"><label for="requestAddress">Endereço da obra *</label><input id="requestAddress" name="address" maxlength="300" required autocomplete="street-address" placeholder="Endereço completo" /></div>
+          <div><label for="requestContact">Contato no local</label><input id="requestContact" name="contact_name" maxlength="120" /></div>
+          <div><label for="requestPhone">Telefone</label><input id="requestPhone" name="contact_phone" type="tel" maxlength="40" autocomplete="tel" /></div>
+          <div><label for="requestEmail">E-mail de contato</label><input id="requestEmail" name="contact_email" type="email" maxlength="254" autocomplete="email" /></div>
+          <div><label for="requestPreferredDate">Data desejada</label><input id="requestPreferredDate" name="preferred_date" type="date" /></div>
+          <div class="partner-request-wide"><label for="requestNotes">Informações gerais</label><textarea id="requestNotes" name="notes" maxlength="5000" rows="4" placeholder="Medidas, material, acesso ao imóvel, instruções…"></textarea></div>
+          <div class="partner-request-wide"><label for="requestFiles">Fotos e arquivos <span>(até 5 arquivos, 10 MB no total; JPG, PNG, WebP ou PDF)</span></label><input id="requestFiles" name="files" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple /><small id="requestFileSummary" class="partner-muted"></small></div>
+        </div>
+        <p id="partnerRequestError" class="partner-error" role="alert" hidden></p>
+        <button class="partner-button" id="partnerRequestSubmit" type="submit">Enviar solicitação</button>
+      </form>
+      <div class="partner-section-heading"><div><p class="partner-eyebrow">Acompanhamento</p><h2>Meus pedidos</h2></div><span id="partnerRequestCount" class="partner-count"></span></div>
+      <div id="partnerRequests" class="partner-request-list" aria-live="polite"></div>
     </section>
 
     <section id="partnerDocumentsSection" role="tabpanel" aria-labelledby="partnerDocumentsTab" hidden>
@@ -73,6 +120,6 @@
 
     <p id="partnerPortalError" class="partner-error partner-page-error" role="alert" hidden></p>
   </main>
-  <script src="partner-portal.js?v=20261022-2" defer></script>
+  <script src="partner-portal.js?v=20261023-1" defer></script>
 </body>
 </html>

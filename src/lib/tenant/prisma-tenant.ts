@@ -42,6 +42,7 @@ const TENANT_MODELS = new Set([
   "ChecklistResponse",
   "SiteAssessment",
   "PartnerUser",
+  "PartnerJobRequest",
   "Builder",
   "PricingItem",
   "Supplier",

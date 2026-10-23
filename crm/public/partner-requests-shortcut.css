@@ -1,0 +1,3 @@
+.jcm-partner-requests { display: block; width: fit-content; margin: 10px 0 2px; color: #84481f; font-size: 13px; font-weight: 700; text-decoration: none; }
+.jcm-partner-requests:hover { text-decoration: underline; }
+@media (min-width: 761px) { .jcm-partner-requests { display: none; } }
