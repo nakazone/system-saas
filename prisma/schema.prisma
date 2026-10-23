@@ -787,6 +787,7 @@ model Organization {
   quotes             Quote[]
   estimateRules      EstimateRule[]
   partnerUsers       PartnerUser[]
+  partnerJobRequests PartnerJobRequest[]
   builders           Builder[]
   pricingItems       PricingItem[]
   suppliers          Supplier[]
@@ -1061,11 +1062,44 @@ model PartnerUser {
   lastLoginAt    DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+  jobRequests    PartnerJobRequest[]
 
   @@unique([organizationId, email])
   @@index([organizationId])
   @@index([organizationId, builderId])
   @@index([organizationId, customerId])
+}
+
+/// Service requests submitted by Builders through their tenant-scoped partner portal.
+/// A request becomes a native WorkOrder only after the tenant team accepts it.
+model PartnerJobRequest {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  partnerUserId  String    @db.Uuid
+  partnerUser    PartnerUser @relation(fields: [partnerUserId], references: [id], onDelete: Cascade)
+  workOrderId    String?   @db.Uuid
+  workOrder      WorkOrder? @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  customerId     String?   @db.Uuid
+  builderId      String?   @db.Uuid
+  title          String
+  address        String
+  contactName    String?
+  contactEmail   String?
+  contactPhone   String?
+  serviceType    String?
+  preferredDate  DateTime?
+  notes          String?   @db.Text
+  status         String    @default("pending") // pending | accepted | declined
+  files          Json      @default("[]")
+  reviewedAt     DateTime?
+  reviewNote     String?   @db.Text
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([organizationId, status, createdAt])
+  @@index([partnerUserId, createdAt])
+  @@index([workOrderId])
 }
 
 // ---------------------------------------------------------------------------
@@ -2543,6 +2577,7 @@ model WorkOrder {
   quotes      Quote[]
   financeCosts FinanceCost[]
   invoices    QuoteInvoice[]
+  partnerRequests PartnerJobRequest[]
   inspections JobInspection[]
   measurements JobMeasurement[]
   chatConversation ChatConversation?

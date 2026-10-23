@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#f5f7f9" />
+  <title>Pedidos de parceiros · ObraMate</title>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="stylesheet" href="partner-requests-admin.css?v=20261023-1" />
+</head>
+<body>
+  <header class="requests-header">
+    <a href="jobs.html" class="requests-back">← Jobs</a>
+    <div><span>Portal do parceiro</span><h1>Pedidos de jobs</h1></div>
+    <div class="requests-tools"><label for="requestStatusFilter">Mostrar</label><select id="requestStatusFilter"><option value="pending">Pendentes</option><option value="all">Todos</option></select><button type="button" id="requestsRefresh">Atualizar</button></div>
+  </header>
+  <main class="requests-main">
+    <p class="requests-intro">Solicitações enviadas pelos Builders atendidos por este tenant. Ao aceitar, o sistema cria um Job em rascunho para a equipe completar e agendar.</p>
+    <p id="requestsError" class="requests-error" role="alert" hidden></p>
+    <div id="requestsList" class="requests-list" aria-live="polite"><div class="requests-empty">Carregando pedidos…</div></div>
+  </main>
+  <script src="partner-requests-admin.js?v=20261023-1" defer></script>
+</body>
+</html>

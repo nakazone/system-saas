@@ -100,6 +100,72 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
 .partner-document-download { color: var(--partner-ink); background: #fff; }
 .partner-document-download:hover { background: var(--partner-background); }
 
+.partner-account { flex-wrap: wrap; justify-content: flex-end; }
+.partner-provider-tools { display: flex; align-items: center; gap: 7px; }
+.partner-provider-tools[hidden] { display: none; }
+.partner-provider-tools label { color: var(--partner-muted); font-size: 12px; font-weight: 650; }
+.partner-provider-tools select { min-height: 42px; max-width: 190px; padding: 7px 30px 7px 10px; color: var(--partner-ink); background: #fff; border: 1px solid var(--partner-line); border-radius: 8px; font: inherit; font-size: 13px; }
+.partner-summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0 0 18px; }
+.partner-summary-card { padding: 16px 18px; background: #fff; border: 1px solid var(--partner-line); border-radius: 13px; }
+.partner-summary-card span { display: block; color: var(--partner-muted); font-size: 13px; }
+.partner-summary-card strong { display: block; margin-top: 7px; font-size: 25px; line-height: 1; }
+.partner-calendar { overflow: hidden; margin-bottom: 20px; background: #fff; border: 1px solid var(--partner-line); border-radius: 15px; }
+.partner-calendar-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--partner-line); }
+.partner-calendar-head strong { font-size: 17px; }
+.partner-calendar-controls { display: flex; align-items: center; gap: 6px; }
+.partner-calendar-controls button { min-width: 40px; min-height: 40px; padding: 6px 10px; color: var(--partner-ink); background: #fff; border: 1px solid var(--partner-line); border-radius: 8px; font-weight: 650; cursor: pointer; }
+.partner-calendar-controls button:hover { background: var(--partner-background); }
+.partner-calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.partner-calendar-weekday { padding: 10px 4px; color: var(--partner-muted); background: #fafbfc; border-bottom: 1px solid var(--partner-line); text-align: center; font-size: 12px; font-weight: 700; }
+.partner-calendar-day { min-height: 96px; padding: 8px; border-right: 1px solid var(--partner-line); border-bottom: 1px solid var(--partner-line); }
+.partner-calendar-day:nth-child(7n) { border-right: 0; }
+.partner-calendar-day.is-outside { background: #fafbfc; color: #a1a9b4; }
+.partner-calendar-day.is-selected { background: #f7f0eb; box-shadow: inset 0 0 0 2px var(--partner-accent); }
+.partner-calendar-day.is-today .partner-calendar-date { color: var(--partner-accent-dark); font-weight: 800; }
+.partner-calendar-date { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; font-size: 13px; }
+.partner-calendar-date-button { display: block; padding: 0; color: inherit; background: transparent; border: 0; cursor: pointer; }
+.partner-calendar-more { display: block; margin-top: 4px; color: var(--partner-muted); font-size: 10px; }
+.partner-calendar-event { display: block; width: 100%; overflow: hidden; margin-top: 5px; padding: 5px 6px; color: #74401f; background: #f7e8dc; border: 0; border-radius: 6px; text-align: left; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 650; cursor: pointer; }
+.partner-calendar-event:hover { background: #f0d7c3; }
+.partner-invoices { display: grid; gap: 10px; }
+.partner-invoice-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 16px; padding: 16px 18px; background: #fff; border: 1px solid var(--partner-line); border-radius: 13px; }
+.partner-invoice-row h3 { margin: 0; font-size: 16px; }
+.partner-invoice-row p { margin: 5px 0 0; color: var(--partner-muted); font-size: 13px; }
+.partner-invoice-amount { text-align: right; }
+.partner-invoice-amount strong { display: block; font-size: 16px; }
+.partner-invoice-amount small { display: block; margin-top: 4px; color: var(--partner-muted); font-size: 12px; }
+.partner-invoice-status { padding: 6px 9px; color: #475467; background: #f0f2f5; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.partner-invoice-status.is-open { color: #8a501f; background: #fff0df; }
+.partner-invoice-status.is-paid { color: #17644a; background: #e7f5ee; }
+.partner-invoice-open { display: inline-flex; min-height: 42px; align-items: center; padding: 8px 12px; color: #fff; background: var(--partner-accent); border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 700; white-space: nowrap; }
+.partner-request-form { display: grid; gap: 18px; }
+.partner-request-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; }
+.partner-request-grid > div { display: grid; align-content: start; gap: 7px; min-width: 0; }
+.partner-request-grid .partner-request-wide { grid-column: 1 / -1; }
+.partner-request-grid label { font-size: 14px; font-weight: 650; }
+.partner-request-grid label span { color: var(--partner-muted); font-weight: 400; }
+.partner-request-grid input, .partner-request-grid textarea { width: 100%; min-height: 46px; padding: 10px 12px; color: var(--partner-ink); background: #fff; border: 1px solid #cfd5dd; border-radius: 9px; font: inherit; }
+.partner-request-grid input[type="file"] { padding: 8px; }
+.partner-request-grid textarea { min-height: 110px; resize: vertical; }
+.partner-request-grid small { font-size: 12px; }
+.partner-request-form .partner-success { color: #17644a; background: #e7f5ee; border-color: #b9e2cd; }
+.partner-request-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.partner-request-card { min-width: 0; padding: 18px; background: #fff; border: 1px solid var(--partner-line); border-radius: 13px; }
+.partner-request-card h3 { margin: 11px 0 6px; font-size: 17px; overflow-wrap: anywhere; }
+.partner-request-card p { margin: 5px 0 0; color: var(--partner-muted); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.partner-request-card .partner-request-files { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.partner-request-files a { display: inline-flex; min-height: 38px; align-items: center; padding: 6px 9px; border: 1px solid var(--partner-line); border-radius: 8px; text-decoration: none; font-size: 12px; font-weight: 650; }
+.partner-request-files a:hover { background: var(--partner-background); }
+.partner-request-review { margin-top: 10px !important; padding: 10px 12px; color: #475467 !important; background: #f7f8fa; border-radius: 8px; }
+.partner-inline-link { color: var(--partner-accent-dark); font-weight: 700; }
+
+@media (max-width: 760px) {
+  .partner-summary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .partner-calendar-day { min-height: 78px; padding: 5px; }
+  .partner-calendar-event { padding: 4px; font-size: 10px; }
+  .partner-request-list { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 760px) {
   .partner-items { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .partner-documents { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -114,6 +180,25 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   .partner-items, .partner-documents, .partner-form-inline { grid-template-columns: 1fr; }
   .partner-form-inline .partner-button, .partner-form-inline .partner-error { grid-column: auto; }
   .partner-section-heading { align-items: start; }
+  .partner-account { gap: 7px; }
+  .partner-provider-tools { order: 3; width: 100%; justify-content: flex-end; }
+  .partner-provider-tools label { display: none; }
+  .partner-provider-tools select { max-width: min(190px, 58vw); }
+  .partner-summary-grid { gap: 7px; }
+  .partner-summary-card { padding: 12px 10px; }
+  .partner-summary-card span { font-size: 11px; line-height: 1.35; }
+  .partner-summary-card strong { font-size: 21px; }
+  .partner-calendar-head { align-items: flex-start; flex-direction: column; }
+  .partner-calendar-day { min-height: 56px; padding: 3px; }
+  .partner-calendar-weekday { font-size: 10px; }
+  .partner-calendar-date { width: 23px; height: 23px; font-size: 12px; }
+  .partner-calendar-event { height: 7px; margin-top: 2px; padding: 0; color: transparent; font-size: 0; }
+  .partner-invoice-row { grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
+  .partner-invoice-amount { grid-column: 1; text-align: left; }
+  .partner-invoice-status { grid-column: 2; grid-row: 1; }
+  .partner-invoice-open { grid-column: 1 / -1; justify-content: center; }
+  .partner-request-grid { grid-template-columns: 1fr; }
+  .partner-request-grid .partner-request-wide { grid-column: auto; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }

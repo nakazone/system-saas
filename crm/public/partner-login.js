@@ -14,9 +14,18 @@
 
   async function init() {
     try {
+      if (new URLSearchParams(location.search).get('switch') === '1') {
+        await request('/api/partner-auth/exchange', { method: 'POST' });
+        location.replace('partner-portal.html');
+        return;
+      }
       const state = await request('/api/partner-auth/session');
       if (state.authenticated) location.replace('partner-portal.html');
     } catch (_) {
+      if (new URLSearchParams(location.search).get('switch') === '1') {
+        error.textContent = 'Não foi possível trocar de fornecedor. Entre novamente pelo portal.';
+        error.hidden = false;
+      }
       // A tela de login também é usada sem uma sessão ativa.
     }
   }
