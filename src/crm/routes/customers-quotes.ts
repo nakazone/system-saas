@@ -375,6 +375,17 @@ function normalizeYnStatus(raw: unknown): string | null {
   return null;
 }
 
+/** Rewrite an auto calendar title when the client ID changes. Leaves custom titles alone. */
+function retitleForClientCode(title: string, oldLabel: string, newLabel: string): string | null {
+  const t = String(title || "").trim();
+  if (!oldLabel || !t || oldLabel === newLabel) return null;
+  if (t === oldLabel) return newLabel;
+  for (const sep of [" — ", " – "]) {
+    if (t.startsWith(oldLabel + sep)) return newLabel + t.slice(oldLabel.length);
+  }
+  return null;
+}
+
 /** Display label: "Name - ID" when clientCode is set; never mutates Customer.name. */
 export function customerDisplayName(name: string | null | undefined, clientCode?: string | null): string {
   const n = String(name || "").trim();
@@ -1412,6 +1423,22 @@ customersQuotesRouter.put(
             });
           } else {
             await tx.partnerUser.updateMany({ where: { customerId: id }, data: { status: "suspended" } });
+          }
+        }
+        if (body.client_code !== undefined) {
+          const oldLabel = customerDisplayName(existing.name, existing.clientCode);
+          const newLabel = customerDisplayName(row.name, row.clientCode);
+          if (oldLabel && oldLabel !== newLabel) {
+            const jobs = await tx.workOrder.findMany({
+              where: { customerId: id },
+              select: { id: true, title: true },
+            });
+            for (const job of jobs) {
+              const next = retitleForClientCode(job.title, oldLabel, newLabel);
+              if (next && next !== job.title) {
+                await tx.workOrder.update({ where: { id: job.id }, data: { title: next } });
+              }
+            }
           }
         }
         return { kind: "updated" as const, row };

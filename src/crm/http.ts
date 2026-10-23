@@ -50,6 +50,7 @@ export function asSnakeBuilder(b: {
   email: string | null;
   phone: string | null;
   company: string | null;
+  nickname?: string | null;
   type: string;
   status: string;
   address: string | null;
@@ -65,6 +66,7 @@ export function asSnakeBuilder(b: {
     email: b.email,
     phone: b.phone,
     company: b.company,
+    nickname: b.nickname ? String(b.nickname).trim() || null : null,
     type: b.type,
     status: b.status,
     address: b.address,

@@ -1631,6 +1631,8 @@ model Builder {
   email          String?
   phone          String?
   company        String?
+  /// Short label shown on the calendar (e.g. CFC for Colorado Floor Company).
+  nickname       String?
   type           String   @default("builder")
   status         String   @default("active") // active | pending | inactive
   address        String?

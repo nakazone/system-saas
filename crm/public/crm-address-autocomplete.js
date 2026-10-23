@@ -441,7 +441,20 @@
     list.className = 'crm-photon-ac';
     list.hidden = true;
     list.setAttribute('role', 'listbox');
-    (parent || inputEl).appendChild(list);
+    var floatList = !!(inputEl.closest && inputEl.closest('.ag-sheet, .ag-pop'));
+    if (floatList) document.body.appendChild(list);
+    else (parent || inputEl).appendChild(list);
+
+    function placeFloat() {
+      if (!floatList) return;
+      var r = inputEl.getBoundingClientRect();
+      list.style.position = 'fixed';
+      list.style.left = Math.max(8, r.left) + 'px';
+      list.style.top = r.bottom + 4 + 'px';
+      list.style.width = Math.max(220, r.width) + 'px';
+      list.style.right = 'auto';
+      list.style.zIndex = '13050';
+    }
 
     var timer = null;
     var items = [];
@@ -458,6 +471,7 @@
     }
 
     function render() {
+      placeFloat();
       list.innerHTML = '';
       items.forEach(function (it, idx) {
         var li = document.createElement('li');
@@ -594,6 +608,10 @@
     options = options || {};
     if (!inputEl || inputEl.tagName !== 'INPUT') return false;
     if (attached.has(inputEl)) return true;
+    // Google's dropdown is positioned against the page, so it misses inputs inside a transformed sheet.
+    if (inputEl.closest && inputEl.closest('.ag-sheet, .ag-pop')) {
+      return attachPhotonAutocomplete(inputEl, options);
+    }
 
     var country = normalizeCountryCode(options.country) || (await fetchOrgCountry());
     options = Object.assign({}, options, { country: country });

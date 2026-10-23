@@ -219,6 +219,7 @@
     canManage: false,
     users: [],
     sidebar: false,
+    dayPanel: false,
     filters: { types: { job: true, visit: true, meeting: true }, cals: {}, users: null, mine: false },
     calendars: [], // Configurações › Agenda: jobs, meetings + custom agendas (visits are built in)
     mmode: 'month', // phone: month | day
@@ -233,6 +234,7 @@
       if (p.view && ['day', 'week', 'month', 'year'].includes(p.view)) S.view = p.view;
       if (typeof p.sidebar === 'boolean') S.sidebar = p.sidebar;
       else S.sidebar = window.innerWidth >= 1280;
+      if (typeof p.dayPanel === 'boolean') S.dayPanel = p.dayPanel;
       if (p.types) Object.assign(S.filters.types, p.types);
       if (p.cals && typeof p.cals === 'object') S.filters.cals = p.cals;
       if (Array.isArray(p.users)) S.filters.users = new Set(p.users);
@@ -245,7 +247,7 @@
     try {
       localStorage.setItem(
         'om_agenda_prefs',
-        JSON.stringify({ view: S.view, sidebar: S.sidebar, types: S.filters.types, cals: S.filters.cals, users: S.filters.users ? Array.from(S.filters.users) : null, mine: S.filters.mine })
+        JSON.stringify({ view: S.view, sidebar: S.sidebar, dayPanel: S.dayPanel, types: S.filters.types, cals: S.filters.cals, users: S.filters.users ? Array.from(S.filters.users) : null, mine: S.filters.mine })
       );
     } catch (_) {}
   }
@@ -407,6 +409,20 @@
     const c = e.color || '#98a2b3';
     return `--ev:${c};--ev-bg:${mixHex(c, 0.88)};--ev-bg2:${mixHex(c, 0.78)};--ev-ink:#221e1a`;
   };
+  /** All-day chips keep a fill. A specific time stays as text on the grid. */
+  const toneCls = (e) => (e.allDay ? 'is-allday' : 'is-timed');
+  /** Jobs stay on the grid without a clock. Meetings and visits show the time. */
+  const showClock = (e) => e.type !== 'job' && !e.allDay;
+  const clockHtml = (e) => (showClock(e) ? `<time>${esc(fmtTime(e.start))}</time>` : '');
+  function ticketTitle(e) {
+    const b = (e.meta && e.meta.builder) || {};
+    const nick = String(b.nickname || '').trim();
+    const company = String(b.company || '').trim();
+    const text = String(e.title || '');
+    if (!nick || !company) return text;
+    const re = new RegExp(company.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'ig');
+    return re.test(text) ? text.replace(re, nick) : text;
+  }
   const typeIcon = (e) =>
     e.type === 'job'
       ? '<svg viewBox="0 0 24 24"><path d="M4 8h16v11H4z"/><path d="M9 8V5h6v3"/></svg>'
@@ -424,6 +440,8 @@
     const side = $('#agSide');
     side.hidden = phone || !S.sidebar;
     if (!side.hidden) renderSide();
+    $$('[data-ag-act="toggle-side"]').forEach((b) => b.classList.toggle('is-on', !!S.sidebar && !phone));
+    $$('[data-ag-act="toggle-day"]').forEach((b) => b.classList.toggle('is-on', !!S.dayPanel && !phone));
     renderTitle();
     if (phone) {
       if (S.view === 'year') renderYear();
@@ -498,7 +516,7 @@
           <div class="ag-day__n">${routeBtn}<span class="${isT ? 'is-today' : ''}">${d.getDate() === 1 && !isT ? `${MON3[d.getMonth()]} ${d.getDate()}` : d.getDate()}</span></div>
           <div class="ag-day__list" style="margin-top:${Math.min(lanes, slots) * 21}px">${show
             .map(
-              (e) => `<button type="button" class="ag-row" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i></i><span>${esc(e.title)}</span><time>${esc(fmtTime(e.start))}</time></button>`
+              (e) => `<button type="button" class="ag-row ${toneCls(e)}" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i></i><span>${esc(ticketTitle(e))}</span>${clockHtml(e)}</button>`
             )
             .join('')}${hidden > 0 ? `<button type="button" class="ag-more" data-ag-goday="${ymd(d)}">+${hidden} mais</button>` : ''}</div>
         </div>`;
@@ -507,8 +525,8 @@
       html += `<div class="ag-bars">${bars
         .filter((b) => b.lane < slots)
         .map(
-          (b) => `<button type="button" class="ag-bar${b.contL ? ' cont-l' : ''}${b.contR ? ' cont-r' : ''}" data-ag-ev="${esc(b.e.id)}" style="${evStyle(b.e)};--s:${b.s};--n:${b.en - b.s + 1};--lane:${b.lane}">
-            <span class="ag-bar__ic">${typeIcon(b.e)}</span><span>${esc(b.e.title)}</span></button>`
+          (b) => `<button type="button" class="ag-bar is-allday${b.contL ? ' cont-l' : ''}${b.contR ? ' cont-r' : ''}" data-ag-ev="${esc(b.e.id)}" style="${evStyle(b.e)};--s:${b.s};--n:${b.en - b.s + 1};--lane:${b.lane}">
+            <span class="ag-bar__ic">${typeIcon(b.e)}</span><span>${esc(ticketTitle(b.e))}</span></button>`
         )
         .join('')}</div></div>`;
     }
@@ -532,7 +550,7 @@
       .join('')}</div>
       <div class="ag-tg__all" style="--n:${n};height:${allH}px"><div class="ag-tg__gutter"><small>dia inteiro</small></div><div class="ag-tg__allin">${bars
         .map(
-          (b) => `<button type="button" class="ag-bar${b.contL ? ' cont-l' : ''}${b.contR ? ' cont-r' : ''}" data-ag-ev="${esc(b.e.id)}" style="${evStyle(b.e)};--s:${b.s};--n:${b.en - b.s + 1};--lane:${b.lane};--cols:${n}"><span class="ag-bar__ic">${typeIcon(b.e)}</span><span>${esc(b.e.title)}</span></button>`
+          (b) => `<button type="button" class="ag-bar is-allday${b.contL ? ' cont-l' : ''}${b.contR ? ' cont-r' : ''}" data-ag-ev="${esc(b.e.id)}" style="${evStyle(b.e)};--s:${b.s};--n:${b.en - b.s + 1};--lane:${b.lane};--cols:${n}"><span class="ag-bar__ic">${typeIcon(b.e)}</span><span>${esc(ticketTitle(b.e))}</span></button>`
         )
         .join('')}</div></div>`;
     let grid = `<div class="ag-tg__scroll" id="agScroll"><div class="ag-tg__grid" style="--n:${n};height:${24 * HOUR_PX}px"><div class="ag-tg__hours">${Array.from(
@@ -547,9 +565,10 @@
           const e = p.e;
           const h = (p.bottom - p.top) * HOUR_PX;
           const sizeCls = h < 30 ? ' is-short' : h < 48 ? ' is-compact' : '';
-          const meta = h >= 30 ? `<small>${esc(fmtTime(e.start))}${e.address ? ' · ' + esc(e.address) : ''}</small>` : '';
-          return `<button type="button" class="ag-blk${sizeCls}${e.status === 'completed' ? ' is-done' : ''}" data-ag-ev="${esc(e.id)}" style="${evStyle(e)};top:${p.top * HOUR_PX}px;height:${Math.max(16, h - 2)}px;left:calc(${(p.col / p.cols) * 100}% + 2px);width:calc(${100 / p.cols}% - 4px)">
-            <b>${esc(e.title)}</b>${meta}</button>`;
+          const metaBits = [showClock(e) ? fmtTime(e.start) : '', e.address || ''].filter(Boolean);
+          const meta = h >= 30 && metaBits.length ? `<small>${esc(metaBits.join(' · '))}</small>` : '';
+          return `<button type="button" class="ag-blk ${toneCls(e)}${sizeCls}${e.status === 'completed' ? ' is-done' : ''}" data-ag-ev="${esc(e.id)}" style="${evStyle(e)};top:${p.top * HOUR_PX}px;height:${Math.max(16, h - 2)}px;left:calc(${(p.col / p.cols) * 100}% + 2px);width:calc(${100 / p.cols}% - 4px)">
+            <b>${esc(ticketTitle(e))}</b>${meta}</button>`;
         })
         .join('')}${sameDay(d, today) ? `<div class="ag-now" style="top:${((Date.now() - d) / 3600e3) * HOUR_PX}px"></div>` : ''}</div>`;
     });
@@ -631,7 +650,6 @@
       const m = e.meta || {};
       const bits = [];
       if (e.type === 'job') {
-        if (m.number != null) bits.push(`#${m.number}`);
         const st = JOB_STATUS[e.status];
         if (st && e.status !== 'scheduled') bits.push(st.toLowerCase());
         const ppl = peopleOf(e);
@@ -641,6 +659,7 @@
       return bits.join(' · ');
     };
     return `<div class="ag-dp__hd"><h3>${isT ? 'Hoje · ' : ''}${esc(WDL[d.getDay()])}, ${d.getDate()} ${esc(MON3[d.getMonth()])}</h3>
+        <button type="button" class="ag-dp__collapse" data-ag-act="toggle-day">Recolher</button>
         <p>${parts.length ? esc(parts.join(' · ')) : 'Nada agendado'}</p>
         ${dayRouteBtnHtml(d)}
         ${S.canManage ? `<button type="button" class="ag-dp__add" data-ag-dp-new="${ymd(d)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Agendar neste dia</button>` : ''}
@@ -654,9 +673,10 @@
                 const t2 = multi
                   ? `${fmtDateShort(e.start)} – ${fmtDateShort(e.lastDay)}`
                   : `${Math.max(15, Math.round((e.end - e.start) / 60000)) >= 60 ? Math.round(((e.end - e.start) / 3600000) * 10) / 10 + ' h' : Math.round((e.end - e.start) / 60000) + ' min'}`;
+                const clock = e.type !== 'job';
                 return `<button type="button" class="ag-dp__it${e.status === 'completed' ? ' is-done' : ''}" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}">
-                  <time>${esc(t1)}<small>${esc(t2)}</small></time><i></i>
-                  <span class="ag-dp__b"><em>${esc(typeInfo(e.type).one)}${e.status === 'canceled' ? ' · cancelado' : ''}</em><b>${esc(e.title)}</b>${sub(e) ? `<small>${esc(sub(e))}</small>` : ''}</span>
+                  ${clock ? `<time>${esc(t1)}<small>${esc(t2)}</small></time>` : ''}<i></i>
+                  <span class="ag-dp__b ${toneCls(e)}"><em>${esc(typeInfo(e.type).one)}${e.status === 'canceled' ? ' · cancelado' : ''}</em><b>${esc(ticketTitle(e))}</b>${sub(e) ? `<small>${esc(sub(e))}</small>` : ''}</span>
                 </button>`;
               })
               .join('')
@@ -666,7 +686,7 @@
   function renderDayPanel() {
     const panel = $('#agDayPanel');
     if (!panel) return;
-    const show = !isPhone() && (S.view === 'month' || S.view === 'week' || S.view === 'day');
+    const show = !isPhone() && S.dayPanel && (S.view === 'month' || S.view === 'week' || S.view === 'day');
     panel.hidden = !show;
     if (!show) return;
     const d = S.view === 'day' ? sod(S.cursor) : S.selected;
@@ -680,8 +700,8 @@
         list.length
           ? list
               .map(
-                (e) => `<button type="button" class="ag-li" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i></i><div><b>${esc(e.title)}</b><small>${esc(
-                  e.allDay ? 'Dia inteiro' : `${fmtTime(e.start)} – ${fmtTime(e.end)}`
+                (e) => `<button type="button" class="ag-li ${toneCls(e)}" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i></i><div><b>${esc(ticketTitle(e))}</b><small>${esc(
+                  e.type === 'job' ? (e.allDay ? 'Dia inteiro' : '') : e.allDay ? 'Dia inteiro' : `${fmtTime(e.start)} – ${fmtTime(e.end)}`
                 )}${e.needs_delivery ? ' · Delivery' : ''}${e.address ? ' · ' + esc(e.address) : ''}</small></div></button>`
               )
               .join('')
@@ -712,7 +732,7 @@
             .map(
               ([d, l]) => `<section><div class="ag-list__hd"><h3 class="${sameDay(d, from) ? 'is-today' : ''}">${esc(fmtDateLong(d))}</h3>${dayRouteBtnHtml(d, 'ag-btn ag-btn--sm')}</div>${l
                 .map(
-                  (e) => `<button type="button" class="ag-li" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i></i><time>${esc(e.allDay ? 'dia inteiro' : fmtTime(e.start))}</time><div><b>${esc(e.title)}</b><small>${esc(
+                  (e) => `<button type="button" class="ag-li ${toneCls(e)}" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i></i>${showClock(e) || e.allDay ? `<time>${esc(e.allDay ? 'dia inteiro' : fmtTime(e.start))}</time>` : ''}<div><b>${esc(ticketTitle(e))}</b><small>${esc(
                     [typeInfo(e.type).one, e.needs_delivery ? 'Delivery' : null, e.address].filter(Boolean).join(' · ')
                   )}</small></div></button>`
                 )
@@ -739,7 +759,7 @@
     const tc = (t) => td.filter((e) => e.type === t).length;
     const todayBlk = `<button type="button" class="ag-today-blk" data-ag-goday="${ymd(sod(new Date()))}" title="Abrir o dia de hoje"><span class="ag-today-blk__t">Hoje · ${esc(WD[new Date().getDay()].toLowerCase())} ${new Date().getDate()}</span>
       <span class="ag-today-blk__g"><span><b>${tc('job')}</b>${tc('job') === 1 ? 'job' : 'jobs'}</span><span><b>${tc('visit')}</b>${tc('visit') === 1 ? 'visita' : 'visitas'}</span><span><b>${tc('meeting')}</b>${tc('meeting') === 1 ? 'compromisso' : 'compromissos'}</span></span></button>`;
-    $('#agSide').innerHTML = `${miniMonthHtml(S.cursor, { dots: true, year: true })}${todayBlk}
+    $('#agSide').innerHTML = `<button type="button" class="ag-side__collapse" data-ag-act="toggle-side">Recolher</button>${miniMonthHtml(S.cursor, { dots: true, year: true })}${todayBlk}
       <div class="ag-side__sec"><h3>Calendários ${
         canEditCals() ? '<button type="button" class="ag-link" data-ag-act="mcal" data-ag-cal-open="edit">Editar</button>' : ''
       }</h3>${calList()
@@ -808,7 +828,7 @@
         const routeBtn = '';
         html += `<div class="ag-md${i === 0 || i === 6 ? ' is-we' : ''}" data-ag-mday="${ymd(d)}" role="button" tabindex="0"><span class="ag-md__top"><span class="ag-md__n${sameDay(d, today) ? ' is-today' : ''}">${d.getDate()}</span>${routeBtn}</span>
           <span class="ag-md__list" style="margin-top:${Math.min(lanesAll, maxLanes) * 19}px">${show
-            .map((e) => `<button type="button" class="ag-pill" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i>${typeIcon(e)}</i><span>${esc(e.title)}</span></button>`)
+            .map((e) => `<button type="button" class="ag-pill ${toneCls(e)}" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i>${typeIcon(e)}</i><span>${esc(ticketTitle(e))}</span>${showClock(e) ? `<small>${esc(fmtTime(e.start))}</small>` : ''}</button>`)
             .join('')}${more > 0 ? `<button type="button" class="ag-pill ag-pill--more" data-ag-daylist="${ymd(d)}">+${more}</button>` : ''}</span></div>`;
       }
       html += `<div class="ag-bars ag-bars--m">${bars
@@ -820,7 +840,7 @@
           while (s <= en && addDays(ws, s).getMonth() !== m.getMonth()) s++;
           while (en >= s && addDays(ws, en).getMonth() !== m.getMonth()) en--;
           if (en < s) return '';
-          return `<button type="button" class="ag-bar${b.contL || s > b.s ? ' cont-l' : ''}${b.contR || en < b.en ? ' cont-r' : ''}" data-ag-ev="${esc(b.e.id)}" style="${evStyle(b.e)};--s:${s};--n:${en - s + 1};--lane:${b.lane}"><span class="ag-bar__ic">${typeIcon(b.e)}</span><span>${esc(b.e.title)}</span></button>`;
+          return `<button type="button" class="ag-bar is-allday${b.contL || s > b.s ? ' cont-l' : ''}${b.contR || en < b.en ? ' cont-r' : ''}" data-ag-ev="${esc(b.e.id)}" style="${evStyle(b.e)};--s:${s};--n:${en - s + 1};--lane:${b.lane}"><span class="ag-bar__ic">${typeIcon(b.e)}</span><span>${esc(ticketTitle(b.e))}</span></button>`;
         })
         .join('')}</div></div>`;
     }
@@ -892,7 +912,7 @@
     html += `<div class="ag-mday" id="agMDay">${
       all.length
         ? `<div class="ag-mday__all">${all
-            .map((e) => `<button type="button" class="ag-pill ag-pill--wide" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i>${typeIcon(e)}</i><span>${esc(e.title)}</span><small>${esc(fmtDateShort(e.start))} – ${esc(fmtDateShort(e.lastDay))}</small></button>`)
+            .map((e) => `<button type="button" class="ag-pill ag-pill--wide is-allday" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i>${typeIcon(e)}</i><span>${esc(ticketTitle(e))}</span><small>${esc(fmtDateShort(e.start))} – ${esc(fmtDateShort(e.lastDay))}</small></button>`)
             .join('')}</div>`
         : ''
     }<div class="ag-mday__scroll" id="agScroll"><div class="ag-mday__grid" style="height:${24 * HOUR_PX}px">${Array.from(
@@ -903,8 +923,9 @@
         const e = p.e;
         const h = (p.bottom - p.top) * HOUR_PX;
         const sizeCls = h < 30 ? ' is-short' : h < 48 ? ' is-compact' : '';
-        const meta = h >= 30 ? `<small>${esc(fmtTime(e.start))}${e.address ? ' · ' + esc(e.address) : ''}</small>` : '';
-        return `<button type="button" class="ag-blk${sizeCls}" data-ag-ev="${esc(e.id)}" style="${evStyle(e)};top:${p.top * HOUR_PX}px;height:${Math.max(16, h - 2)}px;left:calc(${(p.col / p.cols) * 100}% + 2px);width:calc(${100 / p.cols}% - 4px)"><b>${esc(e.title)}</b>${meta}</button>`;
+        const metaBits = [showClock(e) ? fmtTime(e.start) : '', e.address || ''].filter(Boolean);
+        const meta = h >= 30 && metaBits.length ? `<small>${esc(metaBits.join(' · '))}</small>` : '';
+        return `<button type="button" class="ag-blk ${toneCls(e)}${sizeCls}" data-ag-ev="${esc(e.id)}" style="${evStyle(e)};top:${p.top * HOUR_PX}px;height:${Math.max(16, h - 2)}px;left:calc(${(p.col / p.cols) * 100}% + 2px);width:calc(${100 / p.cols}% - 4px)"><b>${esc(ticketTitle(e))}</b>${meta}</button>`;
       })
       .join('')}${sameDay(d, today) ? `<div class="ag-now" style="top:${((Date.now() - d) / 3600e3) * HOUR_PX}px"></div>` : ''}</div></div></div>
       ${!list.length ? '<p class="ag-empty ag-empty--float">Nada agendado neste dia.</p>' : ''}
@@ -1100,7 +1121,7 @@
         ? `<button type="button" class="ag-dtl__tap${extraClass ? ' ' + extraClass : ''}" data-ag-tap="${esc(field)}" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" title="Clique para editar">${inner}</button>`
         : inner;
 
-    const titleInner = `<h2>${esc(e.title)}</h2>`;
+    const titleInner = `<h2>${esc(ticketTitle(e))}</h2>`;
     const whenInner = `<p>${esc(w.date)}</p><p>${esc(w.time)}</p>`;
     const calInner = `<b><i class="ag-dot" style="background:${esc(calOf(e).color)}"></i>${esc(calOf(e).name)}${
       e.type === 'job' && e.meta.crew ? ' · ' + esc(e.meta.crew.name) : ''
@@ -1933,7 +1954,25 @@
       window.sfAttachAddressAutocomplete(addr, { map: { combined: addr } }).catch(() => {});
     }
     wireAllDayToggle();
+    if (isVisit) wireVisitHour();
     if (isVisit && !ev) wireLeadPicker();
+  }
+
+  function wireVisitHour() {
+    const start = $('#agForm [name="start"]');
+    const end = $('#agForm [name="end"]');
+    if (!start) return;
+    const sync = () => {
+      if (!start.value || start.disabled) return;
+      const [h, m] = start.value.split(':').map(Number);
+      if (!Number.isFinite(h)) return;
+      const d = new Date(2000, 0, 1, h || 0, m || 0, 0, 0);
+      d.setHours(d.getHours() + 1);
+      const next = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+      if (end) end.value = next;
+    };
+    start.addEventListener('change', sync);
+    start.addEventListener('input', sync);
   }
 
   function wireAllDayToggle() {
@@ -2120,7 +2159,7 @@
     box.innerHTML = hits.length
       ? hits
           .map(
-            (e) => `<button type="button" class="ag-li" data-ag-hit="${esc(e.id)}" style="${evStyle(e)}"><i></i><time>${esc(fmtDateShort(e.start))}<br/><small>${esc(e.allDay ? 'dia inteiro' : fmtTime(e.start))}</small></time><div><b>${esc(e.title)}</b><small>${esc(
+            (e) => `<button type="button" class="ag-li ${toneCls(e)}" data-ag-hit="${esc(e.id)}" style="${evStyle(e)}"><i></i><time>${esc(fmtDateShort(e.start))}<br/><small>${esc(e.type === 'job' ? (e.allDay ? 'dia inteiro' : '') : e.allDay ? 'dia inteiro' : fmtTime(e.start))}</small></time><div><b>${esc(ticketTitle(e))}</b><small>${esc(
               [typeInfo(e.type).one, e.address].filter(Boolean).join(' · ')
             )}</small></div></button>`
           )
@@ -2779,6 +2818,16 @@
           return go();
         }
         if (a === 'sidebar') return openCalSheet();
+        if (a === 'toggle-side') {
+          S.sidebar = !S.sidebar;
+          savePrefs();
+          return render();
+        }
+        if (a === 'toggle-day') {
+          S.dayPanel = !S.dayPanel;
+          savePrefs();
+          return render();
+        }
         if (a === 'list') return setView(S.view === 'list' ? 'month' : 'list');
         if (a === 'new') return openNewMenu(el);
         if (a === 'mback') {

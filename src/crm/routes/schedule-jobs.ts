@@ -185,7 +185,7 @@ function mapWorkOrder(wo: {
   createdAt: Date;
   updatedAt: Date;
   customer?: { id: string; name: string; clientCode?: string | null; customerType?: string | null; email?: string | null; phone?: string | null } | null;
-  builder?: { id: string; firstName: string; lastName: string; company: string | null } | null;
+  builder?: { id: string; firstName: string; lastName: string; company: string | null; nickname?: string | null } | null;
   assignedUser?: { id: string; name: string } | null;
   crew?: { id: string; name: string; color: string | null } | null;
   relatedWorkOrder?: { id: string; number: number | null; title: string; sector: string | null; status: string } | null;
@@ -310,6 +310,7 @@ function mapWorkOrder(wo: {
           id: wo.builder.id,
           name: [wo.builder.firstName, wo.builder.lastName].filter(Boolean).join(" ").trim(),
           company: wo.builder.company,
+          nickname: wo.builder.nickname ? String(wo.builder.nickname).trim() || null : null,
         }
       : null,
     assigned_user: wo.assignedUser
@@ -403,7 +404,7 @@ const relatedWoSelect = {
 
 const woInclude = {
   customer: { select: { id: true, name: true, clientCode: true, customerType: true, email: true, phone: true } },
-  builder: { select: { id: true, firstName: true, lastName: true, company: true } },
+  builder: { select: { id: true, firstName: true, lastName: true, company: true, nickname: true } },
   assignedUser: { select: { id: true, name: true } },
   crew: { select: { id: true, name: true, color: true } },
   relatedWorkOrder: { select: relatedWoSelect },

@@ -30,6 +30,19 @@ const FEED_PAST_DAYS = 30;
 const FEED_FUTURE_DAYS = 180;
 const CAL_ID_RE = /^(jobs|visits|meetings|[0-9a-f-]{36})$/i;
 
+/** Calendar label: "Colorado Floor Company" → "CFC" when the builder has a nickname. */
+function withBuilderNickname(
+  title: string,
+  builder?: { company?: string | null; nickname?: string | null } | null,
+): string {
+  const nick = String(builder?.nickname || "").trim();
+  const company = String(builder?.company || "").trim();
+  const text = String(title || "").trim();
+  if (!nick || !company || !text) return text;
+  const re = new RegExp(company.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+  return re.test(text) ? text.replace(re, nick) : text;
+}
+
 function canManageFeed(req: AuthedRequest): boolean {
   const perms = req.user?.permissions || [];
   if (req.user?.roleKey === "admin") return true;
@@ -260,6 +273,7 @@ async function loadFeedEvents(
         title: true,
         number: true,
         address: true,
+        builder: { select: { company: true, nickname: true } },
         notes: true,
         status: true,
         sector: true,
@@ -312,14 +326,13 @@ async function loadFeedEvents(
       if (filterCal && resolveJobCalendar(settings, wo.sector).id !== filterCal.id) continue;
       const start = wo.scheduledStart;
       const end = wo.scheduledEnd || new Date(start.getTime() + 60 * 60 * 1000);
-      const ref = wo.number != null ? `#${wo.number} ` : "";
       const descParts = [
         wo.status ? `Status: ${wo.status}` : "",
         wo.notes ? String(wo.notes).slice(0, 800) : "",
       ].filter(Boolean);
       events.push({
         uid: `job-${wo.id}@obramate.com`,
-        summary: `${ref}${wo.title}`.trim(),
+        summary: withBuilderNickname(wo.title, wo.builder),
         location: wo.address || null,
         description: descParts.join("\n") || undefined,
         start,

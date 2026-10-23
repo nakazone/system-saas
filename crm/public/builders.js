@@ -2,6 +2,7 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   let partnerWorkspaceSlug = '';
+  let builderRows = [];
   const TYPE_LABELS = {
     builder: 'Builder / Construtora',
     contractor: 'General Contractor',
@@ -60,6 +61,7 @@
     if (st) params.set('status', st);
     try {
       const j = await api(`/api/builders?${params}`);
+      builderRows = j.data || [];
       renderMetrics(j.stats || {});
       const rows = j.data || [];
       if (!rows.length) {
@@ -79,7 +81,7 @@
             <td>${i + 1}</td>
             <td><strong>${name}</strong><br><span style="font-size:11px;color:#6b7280">${escapeHtml(b.email)}</span></td>
             <td>${badgeType(b.type)}</td>
-            <td>${escapeHtml(b.company || '—')}</td>
+            <td>${escapeHtml(b.company || '—')}${b.nickname ? `<br><span style="font-size:11px;color:#6b7280">${escapeHtml(b.nickname)}</span>` : ''}</td>
             <td>${b.project_count || 0}</td>
             <td>${badgeStatus(b.status)}</td>
             <td><span class="bp-badge bp-badge--${portalBadge}">${portalLabel}</span></td>
@@ -88,6 +90,7 @@
               <a href="partner-login.html${partnerWorkspaceSlug ? `?workspace=${encodeURIComponent(partnerWorkspaceSlug)}` : ''}" target="_blank" rel="noopener" title="Abrir o acesso do parceiro">Portal</a> ·
               <button type="button" class="btn btn-sm" data-portal-action="${portalAction}" data-builder-id="${escapeHtml(b.id)}" data-has-users="${hasPartnerUsers ? '1' : '0'}">${portalActionLabel}</button>
               ${b.portal_access ? ` · <button type="button" class="btn btn-sm" data-portal-action="reset" data-builder-id="${escapeHtml(b.id)}">Redefinir senha</button>` : ''} ·
+              <button type="button" class="btn btn-sm" data-edit-builder="${escapeHtml(b.id)}">Editar</button> ·
               <button type="button" class="btn btn-sm btn-danger" data-del-builder="${b.id}">Excluir</button>
             </td>
           </tr>`;
@@ -149,15 +152,34 @@
       void changePortalAccess(portalBtn);
       return;
     }
+    const edit = target.closest('[data-edit-builder]');
+    if (edit) {
+      const row = builderRows.find((b) => String(b.id) === edit.getAttribute('data-edit-builder'));
+      if (row) openModal(row);
+      return;
+    }
     const btn = target.closest('[data-del-builder]');
     if (!btn) return;
     e.preventDefault();
     void deleteBuilderCadastro(btn.getAttribute('data-del-builder'));
   });
 
-  function openModal() {
-    $('builderForm').reset();
-    $('modalTitle').textContent = 'Novo Builder';
+  function openModal(row) {
+    const form = $('builderForm');
+    form.reset();
+    form.dataset.id = row && row.id ? String(row.id) : '';
+    $('modalTitle').textContent = row ? 'Editar builder' : 'Novo Builder';
+    if (row) {
+      form.elements.first_name.value = row.first_name || '';
+      form.elements.last_name.value = row.last_name || '';
+      form.elements.email.value = row.email || '';
+      form.elements.phone.value = row.phone || '';
+      form.elements.company.value = row.company || '';
+      form.elements.nickname.value = row.nickname || '';
+      if (form.elements.type) form.elements.type.value = row.type || 'builder';
+      if (form.elements.status) form.elements.status.value = row.status || 'active';
+      if (form.elements.internal_note) form.elements.internal_note.value = row.notes || row.internal_note || '';
+    }
     $('builderModal').classList.add('open');
   }
 
@@ -183,6 +205,7 @@
       email: fd.get('email'),
       phone: fd.get('phone') || null,
       company: fd.get('company') || null,
+      nickname: fd.get('nickname') || null,
       website: fd.get('website') || null,
       type: fd.get('type'),
       status: fd.get('status'),
@@ -190,8 +213,9 @@
       portal_access: !!$('portalAccess').checked,
     };
     try {
-      const j = await api('/api/builders', {
-        method: 'POST',
+      const editId = $('builderForm').dataset.id;
+      const j = await api(editId ? `/api/builders/${encodeURIComponent(editId)}` : '/api/builders', {
+        method: editId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
@@ -200,7 +224,7 @@
         const loginUrl = `${location.origin}/partner-login.html${partnerWorkspaceSlug ? `?workspace=${encodeURIComponent(partnerWorkspaceSlug)}` : ''}`;
         crmNotify(`Cadastro e portal criados. Login: ${loginUrl} · Senha temporária: ${j.data.temp_password}. O parceiro trocará a senha no primeiro acesso.`, 'success', 16000);
       } else {
-        crmNotify('Builder criado.', 'success');
+        crmNotify(editId ? 'Builder atualizado.' : 'Builder criado.', 'success');
       }
       loadList();
     } catch (err) {
