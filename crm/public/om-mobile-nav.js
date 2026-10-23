@@ -765,6 +765,11 @@
     ensureCss();
     ensureAppleChrome();
 
+    if (/^field-quote\.html$/i.test(fileName())) {
+      ensureAppTop();
+      return;
+    }
+
     const field = await resolveFieldRole();
     if (field) {
       ensureFieldTabbar();

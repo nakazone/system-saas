@@ -23,19 +23,22 @@ body.om-app .dashboard-main.fq-main { background: var(--fq-cream, #F7F8FA); back
 .fq-loading { padding: 60px 0; text-align: center; color: var(--fq-mut); font-weight: 700; }
 .fq-loading[hidden] { display: none; }
 
-/* No celular o Field Quote é tela cheia: o CTA fixo precisa ficar acima do conteúdo, sem uma barra global sobre ele.
-   O tema do app reaplica a barra com seletor mais forte; este bloco precisa ganhar dele. */
+/* No celular o Field Quote é tela cheia. O tema reaplica a barra com
+   html body.dashboard-app-body.om-device-mobile .om-tabbar--ios { display:grid !important },
+   então o seletor daqui inclui .om-device-mobile para ganhar dele. */
 body.fq-body #mobileTabBar,
 body.fq-body .mobile-tab-bar,
 body.fq-body .sf-bottom-nav,
 body.fq-body .om-tabbar,
 body.fq-body #omDock,
 body.fq-body .om-dock,
-html body.dashboard-app-body.fq-body .om-tabbar,
-html body.dashboard-app-body.fq-body .om-tabbar.om-tabbar--ios,
-html body.dashboard-app-body.fq-body .om-tabbar.om-tabbar--field,
-html body.dashboard-app-body.fq-body .om-tabbar-search,
-html body.dashboard-app-body.fq-body #omTabbarSearch { display: none !important; }
+html body.dashboard-app-body.om-device-mobile.fq-body .om-tabbar,
+html body.dashboard-app-body.om-device-mobile.fq-body .om-tabbar.om-tabbar--ios,
+html body.dashboard-app-body.om-device-mobile.fq-body .om-tabbar.om-tabbar--field,
+html body.dashboard-app-body.om-device-mobile.fq-body #omTabbar,
+html body.dashboard-app-body.om-device-mobile.fq-body .om-tabbar-search,
+html body.dashboard-app-body.om-device-mobile.fq-body.om-has-tabbar .om-tabbar-search,
+html body.dashboard-app-body.om-device-mobile.fq-body #omTabbarSearch { display: none !important; }
 body.fq-sheet-open { overflow: hidden; }
 
 /* ---------- type */
@@ -133,7 +136,7 @@ body.fq-sheet-open { overflow: hidden; }
 
 /* sticky total bar */
 .fq-bar {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 80;
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 220 !important;
   display: flex; align-items: center; gap: 14px;
   padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
   background: rgba(255, 255, 255, .96); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
