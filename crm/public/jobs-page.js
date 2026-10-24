@@ -316,7 +316,7 @@
         ? `Nenhum job para “${I().esc(q)}”. Abra o quote e use Abrir job, ou busque pelo builder, endereço ou número do quote.`
         : all.length
           ? "Nenhum job neste filtro."
-          : 'Nenhum job ainda. Use + Job ou aprove um quote.';
+          : 'Nenhum job ainda. Use Job ou aprove um quote.';
       host.innerHTML = `<p class="jx-empty">${empty}</p>`;
       return rows;
     }
@@ -1164,7 +1164,7 @@
       applyStep(Number(stepEl.getAttribute("data-jx-step"))).catch((err) => notify(err.message || "Erro", "error"));
     });
     $("btnNewJob")?.addEventListener("click", () => {
-      window.__crmJobModal.openCreate({ allDay: true, openServices: true }).catch((e) => notify(e.message, "error"));
+      window.__crmJobModal.openCreate({ allDay: true }).catch((e) => notify(e.message, "error"));
     });
     $("jxCal")?.addEventListener("click", (e) => {
       const day = e.target.closest("[data-jx-day]");
