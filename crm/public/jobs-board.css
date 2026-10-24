@@ -65,7 +65,7 @@
   max-height: calc(100vh - var(--crm-topbar-height, 56px) - 150px); max-height: calc(100dvh - var(--crm-topbar-height, 56px) - 150px);
   display: flex; flex-direction: column; background: #fff; border-radius: 22px; box-shadow: 0 0 0 1px var(--jx-line); overflow: hidden;
 }
-.jx-list__top { position: relative; z-index: 2; padding: 14px 14px 10px; border-bottom: 1px solid var(--jx-line); }
+.jx-list__top { position: relative; z-index: 6; padding: 14px 14px 10px; border-bottom: 1px solid var(--jx-line); }
 .jx-search { position: relative; display: flex; align-items: center; margin: 0; }
 .jx-search svg { position: absolute; left: 11px; color: var(--jx-ink3); pointer-events: none; }
 .jx-search input {
