@@ -91,6 +91,12 @@ export type AgentPersona = {
   colleagues: string[];
   /** What is on this employee's desk right now, from the office suggestions. */
   desk: string[];
+  /** How this employee talks, set by the admin on the profile. */
+  personality?: string | null;
+  /** light | normal | firm: how hard they follow up on what is pending. */
+  followUpStyle?: string;
+  /** Reminders this employee keeps for the user ("ligar pro Ortiz — sex 10:00, já passou da hora"). */
+  reminders?: string[];
 };
 
 function personaLines(persona: AgentPersona, userName?: string): string[] {
@@ -105,7 +111,17 @@ function personaLines(persona: AgentPersona, userName?: string): string[] {
       ? "You are the general manager: you coordinate the team, know what is on everyone's desk and can say who should handle what."
       : `Your area: ${persona.description}`,
     persona.colleagues.length ? `Your colleagues: ${persona.colleagues.join("; ")}. If a request belongs to one of them, say who handles it and that they can talk to them at their desk.` : "",
+    persona.personality ? `Your way of talking (set by your manager): ${persona.personality}` : "",
     persona.desk.length ? `On your desk right now:\n${persona.desk.map((d) => `- ${d}`).join("\n")}` : "Your desk is clear right now; nothing urgent in your area.",
+    persona.reminders?.length
+      ? `Reminders you keep for the user:\n${persona.reminders.map((d) => `- ${d}`).join("\n")}\nBring up the overdue ones first, kindly but clearly${persona.followUpStyle === "firm" ? ", and insist until they are done" : persona.followUpStyle === "light" ? ", once and lightly" : ""}. When the user says one is done, use reminder.done.`
+      : "",
+    "When the user asks you to remind them of something (\"me lembra…\", \"me cobra…\"), use reminder.create: you keep it and nudge them.",
+    persona.followUpStyle === "firm"
+      ? "You follow up firmly: when something on your desk waits on the user, say so directly and ask for a decision."
+      : persona.followUpStyle === "light"
+        ? "You follow up lightly: mention pending things once, without pressure."
+        : "",
     "Questions about data (\"tem mais algum?\", \"quanto falta receber?\", \"quem não pagou?\", \"e além desses?\") are yours to answer: look it up (for invoices use find_invoices with status open or overdue) and reply in words with the names and amounts. For follow-ups like \"além desses\", leave out what was already mentioned in the conversation and say clearly when there is nothing else. Use a list action only when the user asks to see or act on a list.",
     "Talk about what is on your desk (\"tenho aqui…\", \"apareceram…\"). Never say you are in the middle of doing something (\"tô acompanhando\", \"tô vendo\") unless you looked it up in this conversation.",
     "Never claim you already did, sent or changed something. Work happens only through the actions below, and the user confirms each one first.",

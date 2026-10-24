@@ -64,6 +64,11 @@
   const query = new URLSearchParams(location.search);
   const requestedAgent = query.get('agent') || 'mate';
   const requestedSuggestion = query.get('sugestao') || '';
+  /** ?agent=… opens that employee's desk as its own page; without it, the office floor. */
+  const view = query.has('agent') ? 'desk' : 'office';
+  document.body.dataset.officeView = view;
+  const API_REMINDERS = '/api/virtual-office/reminders';
+  const SEEN_KEY = 'om.office.seen.';
   const state = {
     suggestions: [], agents: [], busy: false, canManage: false, userName: '', userInitial: '', orgName: '',
     activeAgentKey: /^[a-z0-9_-]{1,60}$/i.test(requestedAgent) ? requestedAgent.toLowerCase() : 'mate',
@@ -71,20 +76,25 @@
     chatKey: '', chatTyping: false, planScale: 1, pedidoRun: false,
     organizationId: '', userId: '', voicePrefs: { speakPending: false, voices: {} }, voiceOptions: [], defaultVoiceId: '',
     voiceLoading: false, voiceLoaded: false, voiceLoadPromise: null, voiceError: '', speechAudio: null, speechUrl: '', suggestionsLoaded: false, alertTimer: 0,
+    reminders: [], remindersLoaded: false, alertAgentKey: '', editorPhotoUrl: '',
   };
   const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const $ = (selector, root) => (root || document).querySelector(selector);
   const $$ = (selector, root) => Array.from((root || document).querySelectorAll(selector));
 
-  function makeFace(avatarKey, agentKey) {
+  function makeFace(avatarKey, agentKey, photoUrl) {
     const image = document.createElement('img');
     image.className = `office-avatar-image${agentKey === 'mate' ? ' office-avatar-image--mate' : ''}`;
-    image.src = agentKey === 'mate' ? MATE_IMAGE : (FACE_IMAGES[avatarKey] || FACE_IMAGES['avatar-1']);
+    image.src = agentKey === 'mate' ? MATE_IMAGE : (photoUrl || FACE_IMAGES[avatarKey] || FACE_IMAGES['avatar-1']);
     image.alt = '';
     image.setAttribute('aria-hidden', 'true');
     image.loading = 'lazy';
     image.decoding = 'async';
     return image;
+  }
+
+  function faceFor(agent) {
+    return makeFace(agent?.avatarKey, agent?.key, agent?.photoUrl);
   }
 
   function voicePrefsStorageKey() {
@@ -124,6 +134,8 @@
 
   function preferredVoiceId(agent) {
     const saved = state.voicePrefs.voices?.[agent.key];
+    if (saved && saved !== 'browser' && state.voiceOptions.some((voice) => voice.voiceId === saved)) return saved;
+    if (agent.voiceId && (!state.voiceOptions.length || state.voiceOptions.some((voice) => voice.voiceId === agent.voiceId))) return agent.voiceId;
     if (saved === 'browser') return '';
     if (saved && saved !== 'recommended') return saved;
     if (state.defaultVoiceId) return state.defaultVoiceId;
@@ -184,7 +196,7 @@
       const row = makeNode('div', 'office-voice-row');
       const identity = makeNode('div', 'office-voice-row__identity');
       const face = makeNode('span', 'office-voice-row__face');
-      face.appendChild(makeFace(agent.avatarKey, agent.key));
+      face.appendChild(faceFor(agent));
       face.setAttribute('aria-hidden', 'true');
       const identityCopy = makeNode('span');
       identityCopy.append(makeNode('strong', '', agent.name), makeNode('small', '', agent.title || AGENT_DEPARTMENTS[agent.department] || 'Equipe'));
@@ -236,6 +248,7 @@
       state.speechUrl = '';
     }
     if (window.speechSynthesis) window.speechSynthesis.cancel();
+    stopLoopAudio();
   }
 
   function speakWithBrowser(text) {
@@ -252,8 +265,8 @@
     return true;
   }
 
-  async function speakAgent(agent, text) {
-    const cleanText = String(text || '')
+  function cleanSpeech(text) {
+    return String(text || '')
       .replace(/\[([^\]]+)\]\((?:https?:\/\/[^)]+)\)/g, '$1')
       .replace(/https?:\/\/\S+/g, '')
       .replace(/\*\*(.*?)\*\*/g, '$1')
@@ -262,29 +275,40 @@
       .replace(/\n+/g, '. ')
       .replace(/\s+/g, ' ')
       .trim().slice(0, 2000);
-    if (!agent || !cleanText) return false;
-    stopAgentSpeech();
+  }
+
+  /** ElevenLabs audio for this employee's voice (null when the voice is the browser's or missing). */
+  async function fetchSpeech(agent, cleanText) {
     if (!state.voiceLoaded) await loadVoiceOptions();
-    if (state.voicePrefs.voices?.[agent.key] === 'browser') return speakWithBrowser(cleanText);
+    if (state.voicePrefs.voices?.[agent.key] === 'browser') return null;
     const voiceId = preferredVoiceId(agent);
     if (!voiceId) {
       setVoiceMessage('Não encontrei uma voz ElevenLabs em português. Escolha uma voz na lista ou configure ELEVENLABS_VOICE_ID.', true);
-      return false;
+      return null;
     }
+    const response = await fetch('/api/virtual-office/speech', {
+      method: 'POST',
+      credentials: 'include',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: cleanText, voice_id: voiceId }),
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || 'ElevenLabs não conseguiu gerar este áudio.');
+    }
+    const blob = await response.blob();
+    if (!blob.size) throw new Error('O áudio retornou vazio.');
+    return blob;
+  }
+
+  async function speakAgent(agent, text) {
+    const cleanText = cleanSpeech(text);
+    if (!agent || !cleanText) return false;
+    stopAgentSpeech();
     try {
-      const response = await fetch('/api/virtual-office/speech', {
-        method: 'POST',
-        credentials: 'include',
-        cache: 'no-store',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: cleanText, voice_id: voiceId }),
-      });
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || 'ElevenLabs não conseguiu gerar este áudio.');
-      }
-      const blob = await response.blob();
-      if (!blob.size) throw new Error('O áudio retornou vazio.');
+      const blob = await fetchSpeech(agent, cleanText);
+      if (!blob) return state.voicePrefs.voices?.[agent.key] === 'browser' ? speakWithBrowser(cleanText) : false;
       state.speechUrl = URL.createObjectURL(blob);
       state.speechAudio = new Audio(state.speechUrl);
       state.speechAudio.addEventListener('ended', stopAgentSpeech, { once: true });
@@ -309,6 +333,8 @@
     const greeting = state.userName ? `Oi, ${state.userName}!` : 'Oi!';
     const area = ({ central: 'da Coordenação', commercial: 'do Comercial', operations: 'de Operações', finance: 'do Financeiro' })[owner.department] || 'da equipe';
     const detail = `${greeting} Aqui é ${owner.name}, ${area}. ${first.title}${first.detail ? ` — ${first.detail}` : ''}. O próximo passo é ${first.run?.label || 'revisar com a equipe'}.`;
+    state.alertAgentKey = '';
+    setText('#officeAlertOpen', 'Ver pendência');
     setText('#officeAlertTitle', title);
     setText('#officeAlertMessage', suggestions.length > 1 ? `${detail} Também há outras ações esperando sua revisão.` : detail);
     toast.hidden = false;
@@ -353,18 +379,19 @@
     const url = new URL('escritorio-ia.html', location.href);
     url.searchParams.set('agent', agent.key);
     Object.entries(extra || {}).forEach(([key, value]) => url.searchParams.set(key, value));
-    return `${url.pathname}${url.search}#officeDesk`;
+    return `${url.pathname}${url.search}`;
   }
 
   function renderActiveAgent() {
     const agent = activeAgent();
     if (!agent) return;
+    if (view !== 'desk') return;
     if (agent.key !== state.activeAgentKey) {
       location.replace(agentHref(agent));
       return;
     }
     const avatar = $('#officeActiveAvatar');
-    if (avatar) avatar.replaceChildren(makeFace(agent.avatarKey, agent.key));
+    if (avatar) avatar.replaceChildren(faceFor(agent));
     setText('#officeActiveName', deskTitle(agent));
     setText('#officeActiveTitle', agent.title || AGENT_DEPARTMENTS[agent.department] || 'Funcionário virtual');
     setText('#officeActiveDepartment', `${agent.key === 'mate' ? 'GERÊNCIA' : 'MESA'} · ${(AGENT_DEPARTMENTS[agent.department] || 'ESCRITÓRIO').toUpperCase()}`);
@@ -373,6 +400,7 @@
     const edit = $('#officeEditActive');
     if (edit) edit.hidden = !state.canManage;
     document.title = `${deskTitle(agent)} · Escritório ObraMate`;
+    renderDeskTop(agent);
   }
 
   function setCurrentEmpty() {
@@ -682,6 +710,8 @@
   }
 
   function bubbleLines(agent) {
+    const due = dueReminders(agent.key)[0];
+    if (due) return ['Lembrete pra você', shortText(due.text, 30)];
     if (agent.key === 'mate') {
       const total = state.suggestions.length;
       return total ? [plural(total, 'papel na mesa', 'papéis na mesa'), 'Coordenando a equipe'] : ['Equipe em dia'];
@@ -694,6 +724,7 @@
   }
 
   function seatTone(agent) {
+    if (dueReminders(agent.key).length) return 'waiting';
     if (agent.key === 'mate') return state.suggestions.length ? 'busy' : 'idle';
     const items = itemsFor(agent);
     if (needsYou(items)) return 'waiting';
@@ -720,7 +751,7 @@
     setText('#officeUrgentCount', String(urgent));
     setText('#officeAgentCount', String(agents.length));
     const faces = $('#officeAgentFaces');
-    if (faces) faces.replaceChildren(...agents.slice(0, 4).map((agent) => makeFace(agent.avatarKey, agent.key)));
+    if (faces) faces.replaceChildren(...agents.slice(0, 4).map((agent) => faceFor(agent)));
   }
 
   /* ───────── floor plan ───────── */
@@ -780,7 +811,7 @@
     face.type = 'button';
     face.dataset.chat = agent.key;
     face.setAttribute('aria-label', `Conversar com ${agent.name}, ${agent.title}. ${lines[0]}.`);
-    face.appendChild(makeFace(agent.avatarKey, agent.key));
+    face.appendChild(faceFor(agent));
     if (agent.key !== 'mate') face.appendChild(makeNode('span', 'office-seat__ai', 'IA'));
     const desk = makeNode('span', `office-seat__desk${agent.key === 'mate' ? ' office-seat__desk--wide' : ''}`);
     desk.setAttribute('aria-hidden', 'true');
@@ -855,7 +886,7 @@
         const paper = makeNode('span', 'office-table__paper');
         paper.style.setProperty('--tilt', `${(index % 2 ? 1 : -1) * (3 + index)}deg`);
         const owner = ownerFor(item);
-        if (owner) paper.appendChild(makeFace(owner.avatarKey, owner.key));
+        if (owner) paper.appendChild(faceFor(owner));
         table.appendChild(paper);
       });
       const total = state.suggestions.length;
@@ -960,7 +991,7 @@
         button.type = 'button';
         button.dataset.chat = agent.key;
         const face = makeNode('span', 'office-corridor__face');
-        face.appendChild(makeFace(agent.avatarKey, agent.key));
+        face.appendChild(faceFor(agent));
         const copy = makeNode('span', 'office-corridor__copy');
         const title = makeNode('strong', '', agent.name);
         title.appendChild(makeNode('span', '', ` · ${room.label}`));
@@ -1019,6 +1050,13 @@
 
   function greetingFor(agent) {
     const name = state.userName ? `, ${state.userName}` : '';
+    const due = dueReminders(agent.key)[0];
+    if (due) {
+      const again = due.nudges > 0 ? 'De novo: ' : '';
+      return `${hello()}${name}! ${again ? 'De novo: você' : 'Você'} me pediu para lembrar: ${due.text}. Já deu para fazer?`;
+    }
+    const nag = nagLine(agent);
+    if (nag) return nag;
     if (agent.key === 'mate') {
       const total = state.suggestions.length;
       return `${hello()}${name}! A equipe está toda nas mesas. ${total ? `Tem ${plural(total, 'papel', 'papéis')} te esperando na mesa de aprovações.` : 'Nada urgente hoje.'} Quer um resumo do dia?`;
@@ -1031,6 +1069,14 @@
   }
 
   function chipsFor(agent) {
+    const due = dueReminders(agent.key)[0];
+    if (due) {
+      return [
+        { text: 'Já fiz', reminder: due.id, op: 'done' },
+        { text: 'Me lembra em 1 hora', reminder: due.id, op: 'snooze', minutes: 60 },
+        { text: 'Amanhã cedo', reminder: due.id, op: 'snooze', minutes: minutesUntilTomorrow(9) },
+      ];
+    }
     const items = agent.key === 'mate' ? state.suggestions : itemsFor(agent);
     const chips = [];
     if (agent.key === 'mate') chips.push({ text: 'Me dá um resumo do dia' });
@@ -1106,6 +1152,12 @@
         if (message.card.more) card.appendChild(makeNode('small', 'office-chat__more', `e mais ${message.card.more}`));
         row.appendChild(card);
       }
+      if (message.confirm && !message.confirmed) {
+        const confirm = makeNode('button', 'office-chat__confirm', message.confirm.label);
+        confirm.type = 'button';
+        confirm.dataset.confirmAt = String(message.at);
+        row.appendChild(confirm);
+      }
       if (message.pedido) {
         const open = makeNode('a', 'office-chat__open', message.link || 'Abrir na minha mesa');
         open.href = agentHref(agent, { pedido: message.pedido });
@@ -1155,7 +1207,7 @@
     const room = roomById(agent.department);
     if (room && window.matchMedia('(min-width: 761px)').matches) placeMe(doorPoint(room));
     const face = $('#officeChatFace');
-    if (face) face.replaceChildren(makeFace(agent.avatarKey, agent.key));
+    if (face) face.replaceChildren(faceFor(agent));
     setText('#officeChatName', agent.name);
     setText('#officeChatTitle', agent.title);
     const badge = $('#officeChatBadge');
@@ -1191,6 +1243,7 @@
   }
 
   function closeChat() {
+    if (voice.active && voice.target === 'chat') voiceStop();
     stopAgentSpeech();
     const chat = $('#officeChat');
     if (chat) chat.hidden = true;
@@ -1202,7 +1255,12 @@
   async function sendChat(text) {
     const agent = state.agents.find((item) => item.key === state.chatKey);
     const message = String(text || '').trim();
-    if (!agent || !message || state.chatTyping) return;
+    if (!agent || !message || state.chatTyping) return null;
+    const open = chatThread(agent.key).slice().reverse().find((item) => item.confirm && !item.confirmed);
+    if (open && /^(pode|pode sim|sim|isso|confirma|confirmo|manda|beleza|ok|okay|fechado|combinado)\b[.!]?$/i.test(message)) {
+      const result = await confirmChat(agent, open.at, message);
+      return result ? { text: result, speech: result } : null;
+    }
     const key = agent.key;
     const thread = chatThread(key);
     const memory = thread.slice(-8).map((item) => ({ role: item.role === 'user' ? 'user' : 'assistant', text: String(item.text).slice(0, 900) }));
@@ -1229,6 +1287,13 @@
         reply.text = String(data.message || (reply.card.rows.length ? 'Olha o que eu achei:' : 'Não achei nada por aqui.'));
         reply.pedido = message;
         reply.link = 'Ver na mesa';
+      } else if (data.type === 'card' && data.card?.confirm && data.card.confirm.tone === 'normal' && data.card.confirm.exec) {
+        // Simple, internal changes (a reminder, a note) are confirmed right here in the chat.
+        reply.card = summarizeCard(data.card);
+        reply.text = String(data.message || `Posso fazer assim: ${data.card.title}?`);
+        reply.confirm = { label: String(data.card.confirm.label || 'Confirmar'), endpoint: String(data.card.confirm.exec.endpoint || ''), body: data.card.confirm.exec.body || {} };
+        reply.pedido = message;
+        reply.link = 'Ajustar na mesa';
       } else {
         const heading = data.card?.title ? `“${data.card.title}”` : 'isso';
         reply.text = data.type === 'error'
@@ -1247,6 +1312,10 @@
       renderChat();
     }
     flashBubble(key, reply.text);
+    const rows = reply.card?.rows || [];
+    reply.speech = [reply.text, ...rows.slice(0, 3).map((row) => [row.title, row.detail].filter(Boolean).join(', '))].join('. ');
+    if (reply.confirm) reply.speech += `. Se estiver certo, diga "pode" ou toque em ${reply.confirm.label}.`;
+    return reply;
   }
 
   /** Compact text version of an answer card (lists, fields, totals, tables, notes). */
@@ -1271,6 +1340,7 @@
     if (!button || !agent) return;
     const chip = chipsFor(agent)[Number(button.dataset.chip)];
     if (!chip) return;
+    if (chip.reminder) { answerReminder(agent, chip); return; }
     if (chip.run) { walkTo(roomById(agent.department), agentHref(agent, { sugestao: chip.run.run.action })); return; }
     sendChat(chip.text);
   }
@@ -1363,7 +1433,7 @@
 
     const mark = makeNode('span', 'office-task__mark');
     mark.setAttribute('aria-hidden', 'true');
-    if (owner) mark.appendChild(makeFace(owner.avatarKey, owner.key));
+    if (owner) mark.appendChild(faceFor(owner));
     else mark.textContent = details.icon;
 
     const body = makeNode('div', 'office-task__body');
@@ -1463,7 +1533,7 @@
     reports.slice(0, shown).forEach((report) => {
       const row = makeNode('article', `office-meeting__report${report.waiting ? ' office-meeting__report--waiting' : ''}`);
       const face = makeNode('span', 'office-meeting__face');
-      face.appendChild(makeFace(report.agent.avatarKey, report.agent.key));
+      face.appendChild(faceFor(report.agent));
       const copy = makeNode('div', 'office-meeting__copy');
       const who = makeNode('strong', '', report.agent.name);
       who.appendChild(makeNode('small', '', report.agent.title));
@@ -1512,7 +1582,7 @@
     const selected = $('.office-avatar-choice[aria-pressed="true"]')?.dataset.avatarKey
       || state.agents.find((agent) => agent.key === key)?.avatarKey || 'avatar-1';
     const photo = $('#agentBadgePhoto');
-    if (photo) photo.replaceChildren(makeFace(selected, key));
+    if (photo) photo.replaceChildren(makeFace(selected, key, state.editorPhotoUrl));
     setText('#agentBadgeName', name);
     setText('#agentBadgeTitle', title);
     setText('#agentBadgeSeal', key === 'mate' ? `GERENTE GERAL · ${department.toUpperCase()}` : `ASSISTENTE DE IA · ${department.toUpperCase()}`);
@@ -1577,6 +1647,7 @@
     $('#agentDepartment').value = agent.department;
     $('#agentDescription').value = agent.description;
     $('#agentEnabled').checked = Boolean(agent.enabled);
+    fillProfileExtras(agent);
     const fixed = agent.key === 'mate';
     $('#agentName').readOnly = fixed;
     setText('#agentDialogTitle', `Editar perfil · ${agent.name}`);
@@ -1600,6 +1671,7 @@
       description: $('#agentDescription').value.trim(),
       capabilities: $$('input[name="capabilities"]:checked').map((input) => input.value),
       enabled: $('#agentEnabled').checked,
+      ...profileExtras(),
     };
     const save = $('#agentSave');
     const error = $('#agentFormError');
@@ -1616,6 +1688,7 @@
       const data = await response.json().catch(() => ({}));
       if (!response.ok || data.success === false) throw new Error(data.error || 'Não foi possível salvar o perfil.');
       state.agents = state.agents.map((agent) => agent.key === key ? data.data : agent);
+      if (payload.voiceId !== undefined && state.voicePrefs.voices?.[key]) { delete state.voicePrefs.voices[key]; saveVoicePrefs(); }
       renderOffice();
       $('#agentDialog').close();
       setText('#officeUpdated', `Perfil de ${data.data?.name || 'funcionário'} salvo`);
@@ -1634,9 +1707,13 @@
   function renderOffice() {
     renderCounts();
     renderActiveAgent();
-    renderPlan();
-    renderCorridor();
-    renderTasks();
+    if (view === 'office') {
+      renderPlan();
+      renderCorridor();
+      renderTasks();
+    } else {
+      renderDeskSide();
+    }
     if (!state.entityShown) setCurrentEmpty();
   }
 
@@ -1699,6 +1776,7 @@
       if (newUrgent.length) showOfficeAlert(newUrgent);
     }
     state.suggestionsLoaded = true;
+    rememberSeen();
     if (typeof window.pullCrmNotifications === 'function') window.pullCrmNotifications();
   }
 
@@ -1715,8 +1793,9 @@
     }
     try {
       await loadSession();
-      const results = await Promise.allSettled([loadSuggestions(), loadAgents()]);
+      const results = await Promise.allSettled([loadSuggestions(), loadAgents(), loadReminders()]);
       renderOffice();
+      announceDueReminders();
       updateTimestamp();
       if (first === true && !query.has('agent') && !entranceSeenToday()) showEntrance();
       runRequestedSuggestion();
@@ -1762,10 +1841,18 @@
     $('#officeVoiceRows')?.addEventListener('change', (event) => {
       const target = event.target;
       if (!(target instanceof HTMLSelectElement) || !target.dataset.officeVoiceAgent) return;
+      const agent = state.agents.find((item) => item.key === target.dataset.officeVoiceAgent);
+      if (state.canManage && agent && target.value && target.value !== 'browser') {
+        delete state.voicePrefs.voices[agent.key];
+        saveVoicePrefs();
+        patchAgent(agent.key, { voiceId: target.value })
+          .then(() => setVoiceMessage(`A voz de ${agent.name} foi salva para toda a empresa.`))
+          .catch((error) => setVoiceMessage(String(error?.message || 'Não foi possível salvar a voz.'), true));
+        return;
+      }
       state.voicePrefs.voices[target.dataset.officeVoiceAgent] = target.value || 'browser';
       saveVoicePrefs();
-      const agent = state.agents.find((item) => item.key === target.dataset.officeVoiceAgent);
-      setVoiceMessage(`A voz de ${agent?.name || 'funcionário'} foi atualizada.`);
+      setVoiceMessage(`A voz de ${agent?.name || 'funcionário'} foi atualizada neste aparelho.`);
     });
     $('#officeVoiceRows')?.addEventListener('click', async (event) => {
       const target = event.target;
@@ -1796,6 +1883,15 @@
       state.alertTimer = 0;
     });
     $('#officeAlertOpen')?.addEventListener('click', () => {
+      const agentKey = state.alertAgentKey;
+      if (agentKey) {
+        const toast = $('#officeAlertToast');
+        if (toast) toast.hidden = true;
+        const agent = state.agents.find((item) => item.key === agentKey);
+        if (view === 'office' && agent) openChat(agent.key);
+        else if (agent && agent.key !== state.activeAgentKey) location.href = agentHref(agent);
+        return;
+      }
       const panel = $('#officeApprovals');
       panel?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
       panel?.focus({ preventScroll: true });
@@ -1805,6 +1901,7 @@
     $('#officePlan')?.addEventListener('click', onRoomClick);
     $('#officeCorridor')?.addEventListener('click', onRoomClick);
     $('#officeTasks')?.addEventListener('click', onTaskClick);
+    bindV4Controls();
     $('#officeChatClose')?.addEventListener('click', closeChat);
     $('#officeChatChips')?.addEventListener('click', onChatChip);
     $('#officeChatForm')?.addEventListener('submit', (event) => {
@@ -1869,6 +1966,800 @@
       });
       overlay.addEventListener('click', close);
     }
+  }
+
+  /* ───────── reminders (bilhetes) ───────── */
+
+  function dueReminders(agentKey) {
+    return state.reminders.filter((item) => item.status === 'open' && item.overdue && (!agentKey || item.agent_key === agentKey));
+  }
+
+  function openReminders(agentKey) {
+    return state.reminders.filter((item) => item.status === 'open' && (!agentKey || item.agent_key === agentKey));
+  }
+
+  function minutesUntilTomorrow(hour) {
+    const next = new Date();
+    next.setDate(next.getDate() + 1);
+    next.setHours(hour, 0, 0, 0);
+    return Math.max(5, Math.round((next.getTime() - Date.now()) / 60000));
+  }
+
+  function whenLabel(iso) {
+    const date = new Date(iso);
+    const today = new Date();
+    const tomorrow = new Date(); tomorrow.setDate(today.getDate() + 1);
+    const time = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    if (date.toDateString() === today.toDateString()) return `hoje às ${time}`;
+    if (date.toDateString() === tomorrow.toDateString()) return `amanhã às ${time}`;
+    return `${date.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })} às ${time}`;
+  }
+
+  async function loadReminders() {
+    const response = await fetch(API_REMINDERS, { credentials: 'include', cache: 'no-store' });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.success === false) throw new Error(data.error || 'Não foi possível carregar os lembretes.');
+    state.reminders = Array.isArray(data.data) ? data.data : [];
+    state.remindersLoaded = true;
+  }
+
+  async function updateReminder(id, body) {
+    const response = await fetch(`${API_REMINDERS}/${encodeURIComponent(id)}`, {
+      method: 'PATCH', credentials: 'include', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.success === false) throw new Error(data.error || 'Não foi possível atualizar o lembrete.');
+    state.reminders = state.reminders.map((item) => item.id === id ? data.data : item);
+    return data.data;
+  }
+
+  /** Each due reminder is brought up once per nudge: a toast, the bubble and, if enabled, the voice. */
+  function announceDueReminders() {
+    const due = dueReminders();
+    if (!due.length) return;
+    let seen = {};
+    try { seen = JSON.parse(sessionStorage.getItem('om.office.announced') || '{}'); } catch (_) {}
+    const fresh = due.filter((item) => seen[item.id] !== item.nudges);
+    if (!fresh.length) return;
+    fresh.forEach((item) => { seen[item.id] = item.nudges; });
+    try { sessionStorage.setItem('om.office.announced', JSON.stringify(seen)); } catch (_) {}
+    const first = fresh[0];
+    const agent = state.agents.find((item) => item.key === first.agent_key) || activeAgent();
+    if (!agent) return;
+    const toast = $('#officeAlertToast');
+    const message = `${state.userName ? `${state.userName}, ` : ''}você me pediu para lembrar: ${first.text}.`;
+    if (toast) {
+      state.alertAgentKey = agent.key;
+      setText('#officeAlertTitle', `${agent.name}: lembrete`);
+      setText('#officeAlertMessage', fresh.length > 1 ? `${message} E tem mais ${fresh.length - 1}.` : message);
+      setText('#officeAlertOpen', view === 'office' ? `Falar com ${agent.name}` : 'Ver bilhetes');
+      toast.hidden = false;
+      if (state.alertTimer) window.clearTimeout(state.alertTimer);
+      state.alertTimer = window.setTimeout(() => { toast.hidden = true; }, 16_000);
+    }
+    if (view === 'office') flashBubble(agent.key, `Lembrete: ${first.text}`);
+    if (state.voicePrefs.speakPending && !voice.active) void speakAgent(agent, `${hello()}! Aqui é ${agent.name}. ${message} Já deu para fazer?`);
+  }
+
+  async function answerReminder(agent, chip) {
+    const thread = chatThread(agent.key);
+    thread.push({ role: 'user', text: chip.text, at: Date.now() });
+    saveThread(agent.key, thread);
+    state.chatTyping = true;
+    renderChat();
+    let text;
+    try {
+      if (chip.op === 'done') {
+        await updateReminder(chip.reminder, { action: 'done' });
+        text = 'Boa! Tirei da minha mesa.';
+      } else {
+        const item = await updateReminder(chip.reminder, { action: 'snooze', minutes: chip.minutes });
+        text = `Combinado, eu volto a te chamar ${whenLabel(item.due_at)}.`;
+      }
+    } catch (error) {
+      text = String(error?.message || 'Não consegui atualizar agora. Tenta de novo?');
+    }
+    const next = chatThread(agent.key);
+    next.push({ role: 'assistant', text, at: Date.now() });
+    saveThread(agent.key, next);
+    state.chatTyping = false;
+    renderOffice();
+    if (state.chatKey === agent.key) renderChat();
+    if (voice.active && voice.agentKey === agent.key) {
+      setVoicePhase('speaking', `${agent.name} está falando… toque aqui para interromper.`);
+      await speakLoop(agent, text);
+      if (voice.active) voiceListen();
+    }
+  }
+
+  /* ───────── what has been waiting, and since when ───────── */
+
+  function seenStore() {
+    try { return JSON.parse(localStorage.getItem(SEEN_KEY + (state.organizationId || location.host)) || '{}'); } catch (_) { return {}; }
+  }
+
+  function rememberSeen() {
+    const store = seenStore();
+    const now = Date.now();
+    const next = {};
+    state.suggestions.forEach((item) => { next[item.id] = store[item.id] || now; });
+    try { localStorage.setItem(SEEN_KEY + (state.organizationId || location.host), JSON.stringify(next)); } catch (_) {}
+  }
+
+  function waitingDays(item) {
+    const since = seenStore()[item.id];
+    return since ? Math.floor((Date.now() - since) / 86_400_000) : 0;
+  }
+
+  /** The employee insists on what has been sitting on the desk (unless they follow up lightly). */
+  function nagLine(agent) {
+    if (agent.followUpStyle === 'light') return '';
+    const items = agent.key === 'mate' ? state.suggestions : itemsFor(agent);
+    const urgent = items.filter((item) => item.tone === 'critical' || item.tone === 'warning');
+    const oldest = urgent.map((item) => ({ item, days: waitingDays(item) })).sort((a, b) => b.days - a.days)[0];
+    if (!oldest || oldest.days < 1) return '';
+    const name = state.userName ? `${state.userName}, ` : '';
+    const since = oldest.days === 1 ? 'desde ontem' : `há ${oldest.days} dias`;
+    const title = String(oldest.item.title || '').trim();
+    if (agent.followUpStyle === 'firm') return `${name}preciso de você nisso, está parado ${since}: ${title}. Bora resolver agora?`;
+    return `${hello()}${state.userName ? `, ${state.userName}` : ''}! Isso continua na minha mesa ${since}: ${title}. Quer que eu prepare?`;
+  }
+
+  /* ───────── desk page ───────── */
+
+  function renderDeskTop(agent) {
+    const face = $('#officeDeskFace');
+    if (face) face.replaceChildren(faceFor(agent));
+    setText('#officeDeskKicker', `ESCRITÓRIO · ${(AGENT_DEPARTMENTS[agent.department] || 'EQUIPE').toUpperCase()}`);
+    setText('#officeDeskName', deskTitle(agent));
+    setText('#officeDeskRole', agent.title || 'Funcionário virtual');
+    const badge = $('#officeDeskBadge');
+    if (badge) badge.hidden = agent.key === 'mate';
+    const items = agent.key === 'mate' ? state.suggestions : itemsFor(agent);
+    const late = dueReminders(agent.key).length;
+    const mood = $('#officeDeskMood');
+    if (mood) {
+      mood.dataset.tone = late || needsYou(items) ? 'waiting' : items.length ? 'busy' : 'idle';
+      mood.textContent = late
+        ? `${plural(late, 'lembrete', 'lembretes')} para você`
+        : needsYou(items) ? 'Precisa de você' : items.length ? plural(items.length, 'coisa na mesa', 'coisas na mesa') : 'Em dia';
+    }
+    const edit = $('#officeDeskEdit');
+    if (edit) edit.hidden = !state.canManage;
+  }
+
+  function renderDeskSide() {
+    const agent = activeAgent();
+    if (!agent) return;
+    renderNotes(agent);
+    const host = $('#officeDeskTasks');
+    if (!host) return;
+    const items = agent.key === 'mate' ? state.suggestions : itemsFor(agent);
+    setText('#officeDeskPendingTitle', items.length ? `${plural(items.length, 'papel', 'papéis')} esperando você` : 'Esperando você');
+    if (!items.length) {
+      const empty = makeNode('div', 'office-empty');
+      empty.append(makeNode('strong', '', 'Mesa limpa'), makeNode('span', '', `Quando ${agent.name} precisar do seu OK, o papel aparece aqui.`));
+      host.replaceChildren(empty);
+      return;
+    }
+    host.replaceChildren(...items.map((item) => makeTask(item, state.suggestions.indexOf(item))));
+  }
+
+  function renderNotes(agent) {
+    const list = $('#officeNotes');
+    if (!list) return;
+    const rows = state.reminders.filter((item) => item.agent_key === agent.key || agent.key === 'mate');
+    const open = rows.filter((item) => item.status === 'open');
+    const done = rows.filter((item) => item.status === 'done').slice(0, 3);
+    if (!open.length && !done.length) {
+      const empty = makeNode('li', 'office-note office-note--empty');
+      empty.append(makeNode('strong', '', 'Nenhum bilhete'), makeNode('span', '', `Peça para ${agent.name}: “me lembra amanhã às 10 de ligar pro cliente”.`));
+      list.replaceChildren(empty);
+      return;
+    }
+    list.replaceChildren(...open.concat(done).map((item) => {
+      const li = makeNode('li', `office-note${item.overdue ? ' office-note--late' : ''}${item.status === 'done' ? ' office-note--done' : ''}`);
+      li.dataset.reminder = item.id;
+      li.appendChild(makeNode('p', 'office-note__text', item.text));
+      const owner = agent.key === 'mate' && item.agent_key !== 'mate' ? state.agents.find((a) => a.key === item.agent_key)?.name : '';
+      const meta = item.status === 'done'
+        ? 'Feito'
+        : `${item.overdue ? 'Passou da hora · ' : ''}${whenLabel(item.due_at)}${owner ? ` · ${owner}` : ''}`;
+      li.appendChild(makeNode('small', 'office-note__meta', meta));
+      if (item.status === 'open') {
+        const actions = makeNode('div', 'office-note__actions');
+        [['done', 'Feito'], ['snooze60', '+1 hora'], ['tomorrow', 'Amanhã']].forEach(([op, label]) => {
+          const button = makeNode('button', '', label);
+          button.type = 'button';
+          button.dataset.noteOp = op;
+          actions.appendChild(button);
+        });
+        li.appendChild(actions);
+      } else {
+        const undo = makeNode('button', 'office-note__undo', 'Reabrir');
+        undo.type = 'button';
+        undo.dataset.noteOp = 'reopen';
+        li.appendChild(undo);
+      }
+      return li;
+    }));
+  }
+
+  function fillNoteWhen() {
+    const select = $('#officeNoteWhen');
+    if (!select || select.options.length) return;
+    const now = new Date();
+    const at = (days, hour, minute) => { const d = new Date(); d.setDate(d.getDate() + days); d.setHours(hour, minute || 0, 0, 0); return d; };
+    const options = [['in60', 'Daqui a 1 hora', new Date(now.getTime() + 3_600_000)]];
+    if (now.getHours() < 17) options.push(['today', 'Hoje às 17:30', at(0, 17, 30)]);
+    options.push(['tomorrow', 'Amanhã às 9:00', at(1, 9)]);
+    const monday = at(((8 - now.getDay()) % 7) || 7, 9);
+    options.push(['monday', `Segunda às 9:00`, monday]);
+    options.forEach(([value, label, date]) => {
+      const option = document.createElement('option');
+      option.value = date.toISOString();
+      option.textContent = label;
+      select.appendChild(option);
+    });
+    const custom = document.createElement('option');
+    custom.value = 'custom';
+    custom.textContent = 'Escolher dia e hora…';
+    select.appendChild(custom);
+    select.selectedIndex = Math.min(2, select.options.length - 2);
+  }
+
+  async function addNote(event) {
+    event.preventDefault();
+    const agent = activeAgent();
+    const text = $('#officeNoteText')?.value.trim();
+    const when = $('#officeNoteWhen')?.value;
+    const custom = $('#officeNoteCustom')?.value;
+    const due = when === 'custom' ? (custom ? new Date(custom) : null) : new Date(when);
+    if (!agent || !text || !due || Number.isNaN(due.getTime())) return;
+    const button = $('#officeNoteForm button[type="submit"]');
+    if (button) button.disabled = true;
+    try {
+      const response = await fetch(API_REMINDERS, {
+        method: 'POST', credentials: 'include', cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent_key: agent.key, text, due_at: due.toISOString() }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.success === false) throw new Error(data.error || 'Não foi possível deixar o bilhete.');
+      state.reminders = state.reminders.concat(data.data).sort((a, b) => a.due_at.localeCompare(b.due_at));
+      $('#officeNoteText').value = '';
+      renderOffice();
+      setText('#officeUpdated', `${agent.name} vai te lembrar ${whenLabel(data.data.due_at)}`);
+    } catch (error) {
+      setText('#officeUpdated', String(error?.message || 'Não foi possível deixar o bilhete.'));
+    } finally {
+      if (button) button.disabled = false;
+    }
+  }
+
+  async function onNotesClick(event) {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const button = target.closest('[data-note-op]');
+    const row = target.closest('[data-reminder]');
+    if (!button || !row) return;
+    const op = button.dataset.noteOp;
+    const body = op === 'done' ? { action: 'done' }
+      : op === 'reopen' ? { action: 'reopen' }
+        : op === 'snooze60' ? { action: 'snooze', minutes: 60 }
+          : { action: 'snooze', minutes: minutesUntilTomorrow(9) };
+    button.disabled = true;
+    try {
+      await updateReminder(row.dataset.reminder, body);
+      renderOffice();
+    } catch (error) {
+      setText('#officeUpdated', String(error?.message || 'Não foi possível atualizar o lembrete.'));
+      button.disabled = false;
+    }
+  }
+
+  /* ───────── confirming simple cards right in the chat ───────── */
+
+  async function confirmChat(agent, at, spoken) {
+    const thread = chatThread(agent.key);
+    const message = thread.find((item) => item.at === at && item.confirm && !item.confirmed);
+    if (!message) return '';
+    if (spoken) thread.push({ role: 'user', text: spoken, at: Date.now() });
+    message.confirmed = true;
+    saveThread(agent.key, thread);
+    state.chatTyping = true;
+    renderChat();
+    let text;
+    try {
+      const response = await fetch(message.confirm.endpoint, {
+        method: 'POST', credentials: 'include', cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(message.confirm.body),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.success === false) throw new Error(data.error || 'Não consegui concluir.');
+      text = String(data.result?.title || 'Feito!');
+      await loadReminders().catch(() => {});
+    } catch (error) {
+      text = String(error?.message || 'Não consegui concluir agora.');
+      const again = chatThread(agent.key);
+      const original = again.find((item) => item.at === at);
+      if (original) { original.confirmed = false; saveThread(agent.key, again); }
+    }
+    const next = chatThread(agent.key);
+    next.push({ role: 'assistant', text, at: Date.now() });
+    saveThread(agent.key, next);
+    state.chatTyping = false;
+    renderOffice();
+    if (state.chatKey === agent.key) renderChat();
+    flashBubble(agent.key, text);
+    return text;
+  }
+
+  /* ───────── profile: voice, way of talking, follow-up, hours, photo ───────── */
+
+  function agentPayload(agent) {
+    return {
+      name: agent.name, title: agent.title, department: agent.department, avatarKey: agent.avatarKey,
+      description: agent.description, capabilities: agent.capabilities || [], enabled: Boolean(agent.enabled),
+      voiceId: agent.voiceId || null, personality: agent.personality || null, followUpStyle: agent.followUpStyle || 'normal',
+      workStartHour: agent.workStartHour ?? 8, workEndHour: agent.workEndHour ?? 18,
+    };
+  }
+
+  async function patchAgent(key, changes) {
+    const agent = state.agents.find((item) => item.key === key);
+    if (!agent) throw new Error('Funcionário não encontrado.');
+    const response = await fetch(`${API_AGENTS}/${encodeURIComponent(key)}`, {
+      method: 'PATCH', credentials: 'include', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...agentPayload(agent), ...changes }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.success === false) throw new Error(data.error || 'Não foi possível salvar.');
+    state.agents = state.agents.map((item) => item.key === key ? data.data : item);
+    return data.data;
+  }
+
+  function hourLabel(hour) {
+    return `${String(hour % 24).padStart(2, '0')}:00${hour === 24 ? ' (meia-noite)' : ''}`;
+  }
+
+  async function fillVoiceSelect(agent) {
+    const select = $('#agentVoice');
+    if (!select) return;
+    const note = $('#agentVoiceNote');
+    select.replaceChildren(new Option('Voz padrão da empresa', ''));
+    await loadVoiceOptions();
+    const portuguese = new Set(portugueseVoices().map((voice) => voice.voiceId));
+    const sorted = state.voiceOptions.slice().sort((a, b) => Number(portuguese.has(b.voiceId)) - Number(portuguese.has(a.voiceId)) || a.name.localeCompare(b.name));
+    sorted.forEach((voice) => {
+      const accent = voice.labels?.accent || voice.labels?.language || '';
+      select.appendChild(new Option(`${voice.name}${accent ? ` · ${accent}` : ''}${portuguese.has(voice.voiceId) ? '' : ' (outro idioma)'}`, voice.voiceId));
+    });
+    select.value = agent.voiceId && sorted.some((voice) => voice.voiceId === agent.voiceId) ? agent.voiceId : '';
+    if (note) note.textContent = state.voiceError ? state.voiceError : sorted.length ? 'Vozes da sua conta ElevenLabs. As em português aparecem primeiro.' : 'Nenhuma voz encontrada na conta ElevenLabs.';
+  }
+
+  function fillProfileExtras(agent) {
+    const personality = $('#agentPersonality');
+    if (personality) personality.value = agent.personality || '';
+    const style = agent.followUpStyle || 'normal';
+    $$('input[name="followUpStyle"]').forEach((input) => { input.checked = input.value === style; });
+    const start = $('#agentWorkStart');
+    const end = $('#agentWorkEnd');
+    if (start && !start.options.length) for (let hour = 0; hour <= 23; hour += 1) start.appendChild(new Option(hourLabel(hour), String(hour)));
+    if (end && !end.options.length) for (let hour = 1; hour <= 24; hour += 1) end.appendChild(new Option(hourLabel(hour), String(hour)));
+    if (start) start.value = String(agent.workStartHour ?? 8);
+    if (end) end.value = String(agent.workEndHour ?? 18);
+    state.editorPhotoUrl = agent.photoUrl || '';
+    const box = $('#agentPhotoBox');
+    if (box) box.hidden = agent.key === 'mate';
+    const consent = $('#agentPhotoConsent');
+    if (consent) consent.checked = Boolean(agent.photoUrl);
+    const remove = $('#agentPhotoRemove');
+    if (remove) remove.hidden = !agent.photoUrl;
+    setText('#agentPhotoNote', agent.photoUrl ? 'Usando a foto enviada. O selo de IA continua aparecendo.' : '');
+    $('#agentAvatarChoices')?.classList.toggle('is-muted', Boolean(agent.photoUrl));
+    void fillVoiceSelect(agent);
+  }
+
+  function profileExtras() {
+    const start = Number($('#agentWorkStart')?.value ?? 8);
+    const end = Number($('#agentWorkEnd')?.value ?? 18);
+    return {
+      personality: $('#agentPersonality')?.value.trim() || null,
+      voiceId: $('#agentVoice')?.value || null,
+      followUpStyle: $('input[name="followUpStyle"]:checked')?.value || 'normal',
+      workStartHour: start,
+      workEndHour: Math.max(start + 1, end),
+    };
+  }
+
+  function shrinkPhoto(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('Não consegui ler a foto.'));
+      reader.onload = () => {
+        const image = new Image();
+        image.onerror = () => reject(new Error('Esse arquivo não parece uma foto.'));
+        image.onload = () => {
+          const size = Math.min(640, image.width, image.height);
+          const crop = Math.min(image.width, image.height);
+          const canvas = document.createElement('canvas');
+          canvas.width = size; canvas.height = size;
+          canvas.getContext('2d').drawImage(image, (image.width - crop) / 2, (image.height - crop) / 2, crop, crop, 0, 0, size, size);
+          resolve(canvas.toDataURL('image/jpeg', 0.86));
+        };
+        image.src = String(reader.result);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function savePhoto(dataUrl) {
+    const key = $('#agentKey')?.value;
+    if (!key) return;
+    setText('#agentPhotoNote', dataUrl ? 'Enviando foto…' : 'Voltando para o rosto da galeria…');
+    try {
+      const response = await fetch(`${API_AGENTS}/${encodeURIComponent(key)}/photo`, {
+        method: 'PUT', credentials: 'include', cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data_url: dataUrl }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || data.success === false) throw new Error(data.error || 'Não foi possível salvar a foto.');
+      state.agents = state.agents.map((item) => item.key === key ? data.data : item);
+      fillProfileExtras(data.data);
+      updateBadge();
+      renderOffice();
+    } catch (error) {
+      setText('#agentPhotoNote', String(error?.message || 'Não foi possível salvar a foto.'));
+    }
+  }
+
+  /* ───────── voice conversation: talk, listen, answer, listen again ───────── */
+
+  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const canRecord = Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+  const voice = { active: false, target: '', agentKey: '', phase: 'idle', stream: null, ctx: null, analyser: null, recorder: null, recognition: null, source: null, idleRounds: 0, browserMode: !canRecord, ticker: 0 };
+  const GOODBYE = /^(tchau|at[eé] (mais|logo|amanh[aã])|pode parar|para de ouvir|encerrar|chega por hoje|[eé] s[oó] isso|s[oó] isso,? obrigad)/i;
+
+  function voiceAgent() {
+    return state.agents.find((item) => item.key === voice.agentKey) || activeAgent();
+  }
+
+  function voiceButtons() {
+    return [$('#officeChatMic'), $('#officeDeskVoice')].filter(Boolean);
+  }
+
+  function setVoicePhase(phase, text) {
+    voice.phase = phase;
+    ['#officeChatVoiceLive', '#officeDeskVoiceLive'].forEach((selector) => {
+      const el = $(selector);
+      if (!el) return;
+      const mine = (selector === '#officeDeskVoiceLive') === (voice.target === 'desk');
+      el.hidden = !mine || phase === 'idle';
+      el.dataset.phase = phase;
+      el.textContent = mine ? (text || '') : '';
+    });
+    voiceButtons().forEach((button) => {
+      const on = voice.active && ((button.id === 'officeDeskVoice') === (voice.target === 'desk'));
+      button.setAttribute('aria-pressed', String(on));
+      button.classList.toggle('is-live', on);
+      const label = button.querySelector('span');
+      if (label) label.textContent = on ? 'Encerrar conversa' : 'Conversar por voz';
+      if (button.id === 'officeChatMic') button.setAttribute('aria-label', on ? 'Encerrar conversa por voz' : 'Conversar por voz');
+    });
+  }
+
+  function stopLoopAudio() {
+    if (!voice.source) return;
+    try { voice.source.onended = null; voice.source.stop(); } catch (_) {}
+    const done = voice.source.__done;
+    voice.source = null;
+    if (done) done();
+  }
+
+  /** Plays through the AudioContext opened by the tap, so phones allow every next answer. */
+  async function speakLoop(agent, text) {
+    const clean = cleanSpeech(text);
+    if (!clean || !voice.active) return;
+    stopAgentSpeech();
+    let blob = null;
+    try { blob = await fetchSpeech(agent, clean); } catch (_) { blob = null; }
+    if (!voice.active) return;
+    if (blob && voice.ctx) {
+      try {
+        const buffer = await voice.ctx.decodeAudioData(await blob.arrayBuffer());
+        await new Promise((resolve) => {
+          const source = voice.ctx.createBufferSource();
+          source.buffer = buffer;
+          source.connect(voice.ctx.destination);
+          source.__done = resolve;
+          source.onended = () => { if (voice.source === source) voice.source = null; resolve(); };
+          voice.source = source;
+          source.start();
+        });
+        return;
+      } catch (_) { /* fall through to the browser voice */ }
+    }
+    if (!window.speechSynthesis || typeof window.SpeechSynthesisUtterance !== 'function') return;
+    await new Promise((resolve) => {
+      speakWithBrowser(clean);
+      const started = Date.now();
+      const poll = window.setInterval(() => {
+        const busy = window.speechSynthesis.speaking || window.speechSynthesis.pending;
+        if ((!busy && Date.now() - started > 400) || !voice.active || Date.now() - started > 60_000) { window.clearInterval(poll); resolve(); }
+      }, 200);
+    });
+  }
+
+  function pickMime() {
+    const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+    return types.find((type) => window.MediaRecorder.isTypeSupported && window.MediaRecorder.isTypeSupported(type)) || '';
+  }
+
+  function transcribeBlob(blob) {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onerror = () => resolve('');
+      reader.onloadend = async () => {
+        try {
+          const response = await fetch('/api/mate-ai/transcribe', {
+            method: 'POST', credentials: 'include', cache: 'no-store',
+            headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data_url: reader.result, language: 'pt' }),
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok || data.success === false) {
+            if (data.fallback === 'browser' && SpeechRec) { voice.browserMode = true; resolve(await listenBrowser()); return; }
+            throw new Error(data.error || 'Não consegui entender o áudio.');
+          }
+          resolve(String(data.text || '').trim());
+        } catch (error) {
+          setVoicePhase('error', String(error?.message || 'Não consegui entender o áudio.'));
+          resolve('');
+        }
+      };
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  /** Records until the person stops talking (about a second of silence). */
+  function listenRecorder() {
+    return new Promise((resolve) => {
+      const mime = pickMime();
+      let recorder;
+      try { recorder = mime ? new MediaRecorder(voice.stream, { mimeType: mime }) : new MediaRecorder(voice.stream); } catch (_) { resolve(''); return; }
+      voice.recorder = recorder;
+      const chunks = [];
+      const samples = new Float32Array(voice.analyser.fftSize);
+      const started = performance.now();
+      let floor = 0.006;
+      let spoke = false;
+      let lastLoud = 0;
+      const live = $(voice.target === 'desk' ? '#officeDeskVoiceLive' : '#officeChatVoiceLive');
+      recorder.ondataavailable = (event) => { if (event.data && event.data.size) chunks.push(event.data); };
+      recorder.onstop = async () => {
+        window.clearInterval(voice.ticker);
+        voice.recorder = null;
+        if (live) live.style.removeProperty('--level');
+        if (!voice.active || recorder.__discard || !spoke) { resolve(''); return; }
+        const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+        if (blob.size < 1500) { resolve(''); return; }
+        setVoicePhase('thinking', 'Entendendo…');
+        resolve(await transcribeBlob(blob));
+      };
+      voice.ticker = window.setInterval(() => {
+        voice.analyser.getFloatTimeDomainData(samples);
+        let sum = 0;
+        for (let i = 0; i < samples.length; i += 1) sum += samples[i] * samples[i];
+        const rms = Math.sqrt(sum / samples.length);
+        const now = performance.now();
+        if (now - started < 350) { floor = Math.min(0.04, Math.max(floor, rms)); return; }
+        const threshold = Math.max(0.018, floor * 2.4);
+        if (live) live.style.setProperty('--level', String(Math.min(1, rms / (threshold * 2))));
+        if (rms > threshold) { spoke = true; lastLoud = now; }
+        const stop = (spoke && now - lastLoud > 1100) || (!spoke && now - started > 9000) || now - started > 45_000;
+        if (stop && recorder.state === 'recording') recorder.stop();
+      }, 60);
+      recorder.start(250);
+    });
+  }
+
+  function listenBrowser() {
+    return new Promise((resolve) => {
+      if (!SpeechRec) { resolve(''); return; }
+      const recognition = new SpeechRec();
+      voice.recognition = recognition;
+      recognition.lang = 'pt-BR';
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      let text = '';
+      const timer = window.setTimeout(() => { try { recognition.stop(); } catch (_) {} }, 15_000);
+      recognition.onresult = (event) => { text = Array.from(event.results).map((result) => result[0]?.transcript || '').join(' ').trim(); };
+      recognition.onerror = () => {};
+      recognition.onend = () => { window.clearTimeout(timer); voice.recognition = null; resolve(voice.active ? text : ''); };
+      try { recognition.start(); } catch (_) { window.clearTimeout(timer); resolve(''); }
+    });
+  }
+
+  /** On the desk the big conversation answers; we wait for its reply to speak it. */
+  function askDesk(text) {
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = (speech) => {
+        if (done) return;
+        done = true;
+        window.removeEventListener('mateai:reply', onReply);
+        window.clearTimeout(timer);
+        resolve(speech);
+      };
+      const onReply = (event) => finish(String(event.detail?.speech || ''));
+      window.addEventListener('mateai:reply', onReply);
+      const timer = window.setTimeout(() => finish(''), 45_000);
+      if (window.MateAI && typeof window.MateAI.ask === 'function') window.MateAI.ask(text);
+      else finish('');
+    });
+  }
+
+  async function voiceListen() {
+    if (!voice.active) return;
+    const agent = voiceAgent();
+    if (!agent) { voiceStop(); return; }
+    setVoicePhase('listening', `Ouvindo… pode falar com ${agent.name}.`);
+    const text = voice.browserMode ? await listenBrowser() : await listenRecorder();
+    if (!voice.active) return;
+    if (!text) {
+      voice.idleRounds += 1;
+      if (voice.idleRounds >= 2) { voiceStop(); setVoiceNote('Fiquei esperando você falar. Toque no microfone quando quiser continuar.'); return; }
+      voiceListen();
+      return;
+    }
+    voice.idleRounds = 0;
+    if (GOODBYE.test(text.trim())) {
+      setVoicePhase('speaking', `${agent.name} está falando…`);
+      await speakLoop(agent, `Combinado${state.userName ? `, ${state.userName}` : ''}! Qualquer coisa, é só chamar.`);
+      voiceStop();
+      return;
+    }
+    setVoicePhase('thinking', `“${shortText(text, 70)}” · ${agent.name} está pensando…`);
+    let speech = '';
+    if (voice.target === 'desk') speech = await askDesk(text);
+    else {
+      const reply = await sendChat(text);
+      speech = reply?.speech || reply?.text || '';
+    }
+    if (!voice.active) return;
+    if (speech) {
+      setVoicePhase('speaking', `${agent.name} está falando… toque aqui para interromper.`);
+      await speakLoop(agent, speech);
+    }
+    if (voice.active) voiceListen();
+  }
+
+  function setVoiceNote(text) {
+    const el = $(voice.target === 'desk' ? '#officeDeskVoiceLive' : '#officeChatVoiceLive');
+    if (!el) return;
+    el.hidden = false;
+    el.dataset.phase = 'note';
+    el.textContent = text;
+    window.setTimeout(() => { if (!voice.active && el.dataset.phase === 'note') el.hidden = true; }, 7000);
+  }
+
+  async function voiceStart(target) {
+    const agent = target === 'desk' ? activeAgent() : state.agents.find((item) => item.key === state.chatKey);
+    if (!agent) return;
+    if (voice.active) {
+      const same = voice.target === target;
+      voiceStop();
+      if (same) return;
+    }
+    if (!canRecord && !SpeechRec) {
+      voice.target = target;
+      setVoiceNote('Este navegador não grava voz. Digite a mensagem.');
+      return;
+    }
+    voice.active = true;
+    voice.target = target;
+    voice.agentKey = agent.key;
+    voice.idleRounds = 0;
+    stopAgentSpeech();
+    try {
+      const Context = window.AudioContext || window.webkitAudioContext;
+      voice.ctx = Context ? new Context() : null;
+      if (voice.ctx && voice.ctx.state === 'suspended') await voice.ctx.resume();
+    } catch (_) { voice.ctx = null; }
+    if (canRecord && !voice.browserMode) {
+      try {
+        voice.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+        if (!voice.ctx) throw new Error('no-context');
+        voice.analyser = voice.ctx.createAnalyser();
+        voice.analyser.fftSize = 1024;
+        voice.ctx.createMediaStreamSource(voice.stream).connect(voice.analyser);
+      } catch (error) {
+        if (voice.stream) voice.stream.getTracks().forEach((track) => track.stop());
+        voice.stream = null;
+        if (SpeechRec && String(error?.message) === 'no-context') voice.browserMode = true;
+        else {
+          voice.active = false;
+          setVoicePhase('idle');
+          setVoiceNote('O navegador bloqueou o microfone. Libere a permissão e toque de novo.');
+          return;
+        }
+      }
+    }
+    if (target === 'chat') $('#officeChatInput')?.blur();
+    voiceListen();
+  }
+
+  function voiceStop() {
+    voice.active = false;
+    window.clearInterval(voice.ticker);
+    if (voice.recorder && voice.recorder.state === 'recording') { voice.recorder.__discard = true; voice.recorder.stop(); }
+    voice.recorder = null;
+    if (voice.recognition) { try { voice.recognition.abort(); } catch (_) {} voice.recognition = null; }
+    if (voice.stream) voice.stream.getTracks().forEach((track) => track.stop());
+    voice.stream = null;
+    stopLoopAudio();
+    stopAgentSpeech();
+    if (voice.ctx) { voice.ctx.close().catch(() => {}); voice.ctx = null; }
+    voice.analyser = null;
+    setVoicePhase('idle');
+  }
+
+  /** Tapping the status line while someone talks interrupts them and listens to you. */
+  function interruptVoice() {
+    if (!voice.active || voice.phase !== 'speaking') return;
+    stopLoopAudio();
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+  }
+
+  function bindV4Controls() {
+    $('#officeChatMic')?.addEventListener('click', () => voiceStart('chat'));
+    $('#officeDeskVoice')?.addEventListener('click', () => voiceStart('desk'));
+    $('#officeChatVoiceLive')?.addEventListener('click', interruptVoice);
+    $('#officeDeskVoiceLive')?.addEventListener('click', interruptVoice);
+    $('#officeDeskEdit')?.addEventListener('click', () => { const agent = activeAgent(); if (agent) openAgentEditor(agent.key); });
+    $('#officeDeskTasks')?.addEventListener('click', onTaskClick);
+    $('#officeNotes')?.addEventListener('click', onNotesClick);
+    $('#officeNoteForm')?.addEventListener('submit', addNote);
+    $('#officeNoteWhen')?.addEventListener('change', (event) => {
+      const custom = $('#officeNoteCustom');
+      if (custom) custom.hidden = event.target.value !== 'custom';
+    });
+    fillNoteWhen();
+    $('#officeChatLog')?.addEventListener('click', (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const button = target.closest('[data-confirm-at]');
+      const agent = state.agents.find((item) => item.key === state.chatKey);
+      if (button && agent) { button.disabled = true; confirmChat(agent, Number(button.dataset.confirmAt)); }
+    });
+    $('#agentVoiceTest')?.addEventListener('click', async () => {
+      const key = $('#agentKey')?.value;
+      const agent = state.agents.find((item) => item.key === key);
+      if (!agent) return;
+      const button = $('#agentVoiceTest');
+      button.disabled = true;
+      button.textContent = 'Preparando…';
+      const name = $('#agentName')?.value.trim() || agent.name;
+      const played = await speakAgent({ ...agent, voiceId: $('#agentVoice')?.value || null }, `Oi${state.userName ? `, ${state.userName}` : ''}! Aqui é ${name}. É assim que eu vou falar com você no escritório.`);
+      button.disabled = false;
+      button.textContent = played ? 'Ouvir de novo' : 'Indisponível';
+    });
+    $('#agentPhotoFile')?.addEventListener('change', async (event) => {
+      const input = event.target;
+      const file = input.files && input.files[0];
+      input.value = '';
+      if (!file) return;
+      if (!$('#agentPhotoConsent')?.checked) { setText('#agentPhotoNote', 'Marque a autorização da pessoa antes de enviar a foto.'); return; }
+      try { await savePhoto(await shrinkPhoto(file)); } catch (error) { setText('#agentPhotoNote', String(error?.message || 'Não foi possível usar essa foto.')); }
+    });
+    $('#agentPhotoRemove')?.addEventListener('click', () => savePhoto(null));
+    window.setInterval(() => {
+      if (document.visibilityState !== 'visible' || state.busy) return;
+      loadReminders().then(() => { renderOffice(); announceDueReminders(); }).catch(() => {});
+    }, 30_000);
+    window.addEventListener('pagehide', voiceStop);
   }
 
   window.OfficeAgentVoice = { speak: speakAgent };
