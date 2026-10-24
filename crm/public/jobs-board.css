@@ -65,7 +65,7 @@
   max-height: calc(100vh - var(--crm-topbar-height, 56px) - 150px); max-height: calc(100dvh - var(--crm-topbar-height, 56px) - 150px);
   display: flex; flex-direction: column; background: #fff; border-radius: 22px; box-shadow: 0 0 0 1px var(--jx-line); overflow: hidden;
 }
-.jx-list__top { padding: 14px 14px 10px; border-bottom: 1px solid var(--jx-line); }
+.jx-list__top { position: relative; z-index: 6; padding: 14px 14px 10px; border-bottom: 1px solid var(--jx-line); }
 .jx-search { position: relative; display: flex; align-items: center; margin: 0; }
 .jx-search svg { position: absolute; left: 11px; color: var(--jx-ink3); pointer-events: none; }
 .jx-search input {
@@ -90,9 +90,22 @@
 .jx-sel.is-on select { color: #fff; }
 .jx-sel.is-on select option { color: var(--jx-ink, #221E1A); background: #fff; }
 .jx-count { margin-left: auto; font-size: 12px; color: var(--jx-ink2); white-space: nowrap; }
-.jx-cal { margin: 8px 10px 4px; padding: 10px; border-radius: 16px; background: #fff; box-shadow: 0 0 0 1px var(--jx-line, rgba(33,29,26,.08)); }
+.jx-list__find { position: relative; display: flex; align-items: center; gap: 8px; }
+.jx-list__find .jx-search { flex: 1; min-width: 0; }
+.jx-cal-btn {
+  width: 38px; height: 38px; flex: none; display: inline-flex; align-items: center; justify-content: center;
+  padding: 0; border: 0; border-radius: 11px; background: #EEF0F3; color: var(--jx-ink); cursor: pointer;
+}
+.jx-cal-btn:hover { background: #e4e7eb; }
+.jx-cal-btn.is-on, .jx-cal-btn[aria-expanded="true"] { background: var(--jx-ink); color: #fff; }
+.jx-cal {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 8; width: min(280px, 100%);
+  margin: 0; padding: 10px; border-radius: 16px; background: #fff;
+  box-shadow: 0 12px 32px -16px rgba(16, 24, 40, .45), 0 0 0 1px var(--jx-line, rgba(33,29,26,.08));
+}
+.jx-cal[hidden] { display: none; }
 .jx-cal__bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.jx-cal__bar b { font-size: 13px; font-weight: 750; text-transform: capitalize; }
+.jx-cal__bar b { font-size: 13px; font-weight: 750; }
 .jx-cal__bar button, .jx-cal__all { border: 0; background: #f4efe6; border-radius: 999px; height: 28px; min-width: 28px; cursor: pointer; font: inherit; font-weight: 700; }
 .jx-cal__wd, .jx-cal__days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-top: 6px; }
 .jx-cal__wd span { text-align: center; font-size: 10px; font-weight: 700; color: var(--jx-ink3, #8a8076); }

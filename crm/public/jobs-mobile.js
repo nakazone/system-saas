@@ -458,7 +458,7 @@
       });
     });
     $("jobsMobAdd")?.addEventListener("click", () => {
-      window.__crmJobModal?.openCreate({ allDay: true, openServices: true }).catch((e) => window.crmToast?.error?.(e.message || "Não foi possível abrir o job"));
+      window.__crmJobModal?.openCreate({ allDay: true }).catch((e) => window.crmToast?.error?.(e.message || "Não foi possível abrir o job"));
     });
     $("jobsMobQ")?.addEventListener("input", (e) => {
       clearTimeout(e.target._t);
