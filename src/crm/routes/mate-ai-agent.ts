@@ -36,6 +36,7 @@ import { PRICING_MORE_ACTIONS } from "../../lib/mate-ai/actions/pricing-more.js"
 import { MEDIA_CHAT_ACTIONS } from "../../lib/mate-ai/actions/media-chat.js";
 import { REPORT_SETTINGS_ACTIONS } from "../../lib/mate-ai/actions/reports-settings.js";
 import { EXTRA_ACTIONS } from "../../lib/mate-ai/actions/extras.js";
+import { REMINDER_ACTIONS, REMINDER_ACTION_NAMES } from "../../lib/mate-ai/actions/reminders.js";
 import { addJobNote, createJob, scheduleJob, setJobStatus } from "../../lib/mate-ai/actions/jobs.js";
 import { invoiceFromQuote, recordPayment, sendInvoice } from "../../lib/mate-ai/actions/money.js";
 import { createCustomer, createLead, moveLead } from "../../lib/mate-ai/actions/crm.js";
@@ -52,6 +53,7 @@ import {
   uninvoicedJobs,
 } from "../../lib/mate-ai/actions/insights.js";
 import { jobCustomerName, jobLabel, quoteLabel } from "../../lib/mate-ai/actions/resolve.js";
+import { fmtDateTime } from "../../lib/mate-ai/actions/time.js";
 import type { ActionContext, ActionDef, Card, ExecuteContext, PrepareResult, ScreenContext } from "../../lib/mate-ai/actions/types.js";
 import { money, unitLabel } from "../../lib/mate-ai/actions/types.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
@@ -407,6 +409,7 @@ for (const def of [
   ...MEDIA_CHAT_ACTIONS,
   ...REPORT_SETTINGS_ACTIONS,
   ...EXTRA_ACTIONS,
+  ...REMINDER_ACTIONS,
   setPrice,
   quoteCreate,
   editQuote,
@@ -541,17 +544,27 @@ const SUGGESTION_DEPARTMENTS: Record<string, string> = {
 /** The employee's voice: who they are, their colleagues and what is on their desk now. */
 async function agentPersona(
   req: AuthedRequest,
-  agent: { key: string; name: string; title: string; department: string; description: string },
+  agent: { key: string; name: string; title: string; department: string; description: string; personality?: string | null; followUpStyle?: string },
 ): Promise<AgentPersona> {
   const organizationId = req.organizationId!;
-  const [org, team, suggestions] = await Promise.all([
+  const timezone = await orgTimezone(organizationId);
+  const [org, team, suggestions, reminders] = await Promise.all([
     withTenantTransaction(organizationId, (tx) => tx.organization.findFirst({ where: { id: organizationId }, select: { name: true } })),
     withTenantTransaction(organizationId, (tx) =>
       tx.virtualAgent.findMany({ where: { organizationId, enabled: true }, select: { key: true, name: true, title: true, department: true } }),
     ),
     officeSuggestions(req).catch(() => [] as Suggestion[]),
+    withTenantTransaction(organizationId, (tx) =>
+      tx.officeReminder.findMany({
+        where: { organizationId, userId: req.user!.id, status: "open", ...(agent.department === "central" ? {} : { agentKey: agent.key }) },
+        orderBy: { dueAt: "asc" },
+        take: 8,
+        select: { text: true, dueAt: true },
+      }),
+    ).catch(() => [] as Array<{ text: string; dueAt: Date }>),
   ]);
   const manager = agent.department === "central";
+  const now = Date.now();
   const mine = suggestions.filter((item) => manager || SUGGESTION_DEPARTMENTS[item.run.action] === agent.department);
   return {
     name: agent.name,
@@ -567,10 +580,15 @@ async function agentPersona(
       const owner = manager ? DEPARTMENT_LABELS[SUGGESTION_DEPARTMENTS[item.run.action] || "central"] : "";
       return `${owner ? `[${owner}] ` : ""}${item.title}${item.detail ? ` (${item.detail})` : ""}`;
     }),
+    personality: agent.personality || null,
+    followUpStyle: agent.followUpStyle || "normal",
+    reminders: reminders.map((r) => `${r.text} — ${fmtDateTime(r.dueAt, timezone)}${r.dueAt.getTime() <= now ? " (já passou da hora)" : ""}`),
   };
 }
 
 function agentCanUseAction(capabilities: unknown, action: string): boolean {
+  // Every employee keeps personal reminders for the user, whatever their area.
+  if (REMINDER_ACTION_NAMES.has(action)) return true;
   if (!Array.isArray(capabilities)) return false;
   return capabilities.some((capability) =>
     typeof capability === "string" && AGENT_ACTIONS[capability]?.includes(action),
@@ -599,7 +617,7 @@ mateAiAgentRouter.post("/api/mate-ai/act", requireCrmAuth, async (req: AuthedReq
       ? await withTenantTransaction(organizationId, (tx) =>
           tx.virtualAgent.findFirst({
             where: { organizationId, key: agentKey, enabled: true },
-            select: { key: true, name: true, title: true, department: true, description: true, capabilities: true },
+            select: { key: true, name: true, title: true, department: true, description: true, capabilities: true, personality: true, followUpStyle: true },
           }),
         )
       : null;
@@ -697,6 +715,7 @@ mateAiAgentRouter.post("/api/mate-ai/act", requireCrmAuth, async (req: AuthedReq
           .filter((e): e is { type: string; id: string } => Boolean(e && e.id))
           .reverse(),
         sign: (exec) => signActionToken({ k: "exec", a: def.name, o: organizationId, u: user.id, e: exec, ...(agent ? { agentKey: agent.key } : {}), ttlMs: EXEC_TTL_MS }).token,
+        agentKey: agent?.key,
       };
       return def.prepare(ctx, args);
     });

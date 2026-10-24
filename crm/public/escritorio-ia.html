@@ -11,8 +11,8 @@
   <link rel="stylesheet" href="crm-shell.css?v=20261019-logout2" />
   <link rel="stylesheet" href="crm-shared-nav.css?v=20261015-refnav1" />
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" />
-  <link rel="stylesheet" href="mate-panel.css?v=20261023-officevoice2" />
-  <link rel="stylesheet" href="escritorio-ia.css?v=20261023-officevoice2" />
+  <link rel="stylesheet" href="mate-panel.css?v=20261024-officev4" />
+  <link rel="stylesheet" href="escritorio-ia.css?v=20261024-officev4" />
 </head>
 <body class="dashboard-app-body office-page-body">
   <script src="/om-reload.js?v=20261013-rl8"></script>
@@ -136,8 +136,10 @@
                 </header>
                 <div class="office-chat__log" id="officeChatLog" aria-live="polite"></div>
                 <div class="office-chat__chips" id="officeChatChips"></div>
+                <p class="office-voice-live" id="officeChatVoiceLive" role="status" aria-live="polite" hidden></p>
                 <form class="office-chat__form" id="officeChatForm" autocomplete="off">
                   <label class="office-sr-only" for="officeChatInput">Mensagem</label>
+                  <button class="office-chat__mic" id="officeChatMic" type="button" aria-label="Conversar por voz" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
                   <input id="officeChatInput" maxlength="600" placeholder="Fale com…" />
                   <button type="submit" aria-label="Enviar">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
@@ -163,7 +165,54 @@
           </div>
         </section>
 
+        <section class="office-desk-top" id="officeDeskTop" aria-labelledby="officeDeskName">
+          <a class="office-back" href="escritorio-ia.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg> Escritório</a>
+          <div class="office-desk-top__person">
+            <span class="office-desk-top__face" id="officeDeskFace" aria-hidden="true"></span>
+            <div class="office-desk-top__who">
+              <span class="office-section-kicker" id="officeDeskKicker">ESCRITÓRIO</span>
+              <h1 id="officeDeskName">Mesa</h1>
+              <p><span id="officeDeskRole">—</span> <span class="office-ai-badge" id="officeDeskBadge">IA</span> <span class="office-desk-top__mood" id="officeDeskMood"></span></p>
+            </div>
+          </div>
+          <div class="office-desk-top__actions">
+            <button class="office-button office-button--dark office-voice-cta" id="officeDeskVoice" type="button" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg> <span>Conversar por voz</span></button>
+            <button class="office-button office-button--quiet" id="officeDeskEdit" type="button" hidden>Editar perfil</button>
+          </div>
+          <p class="office-voice-live" id="officeDeskVoiceLive" role="status" aria-live="polite" hidden></p>
+        </section>
+
         <section class="office-workspace" id="officeDesk" aria-label="Mesa do funcionário selecionado">
+          <aside class="office-desk-side" aria-label="Bilhetes e pendências">
+            <section class="office-notes office-surface" aria-labelledby="officeNotesTitle">
+              <div class="office-panel__head">
+                <div>
+                  <span class="office-section-kicker">BILHETES NO MONITOR</span>
+                  <h2 id="officeNotesTitle">O que você pediu para lembrar</h2>
+                </div>
+              </div>
+              <ul class="office-notes__list" id="officeNotes" aria-live="polite"></ul>
+              <form class="office-notes__form" id="officeNoteForm" autocomplete="off">
+                <label class="office-sr-only" for="officeNoteText">Novo lembrete</label>
+                <input id="officeNoteText" maxlength="280" placeholder="Me lembra de…" required />
+                <div class="office-notes__row">
+                  <label class="office-sr-only" for="officeNoteWhen">Quando</label>
+                  <select id="officeNoteWhen"></select>
+                  <button class="office-button office-button--dark" type="submit">Deixar bilhete</button>
+                </div>
+                <input id="officeNoteCustom" type="datetime-local" hidden aria-label="Dia e hora do lembrete" />
+              </form>
+            </section>
+            <section class="office-desk-pending office-surface" aria-labelledby="officeDeskPendingTitle">
+              <div class="office-panel__head">
+                <div>
+                  <span class="office-section-kicker">NA MESA</span>
+                  <h2 id="officeDeskPendingTitle">Esperando você</h2>
+                </div>
+              </div>
+              <div class="office-tasks" id="officeDeskTasks" aria-live="polite"></div>
+            </section>
+          </aside>
           <section class="office-conversation office-surface" aria-label="Conversa com o funcionário selecionado">
             <header class="office-conversation__header">
               <div class="office-active-avatar" id="officeActiveAvatar" aria-hidden="true"></div>
@@ -242,10 +291,45 @@
           </select>
         </label>
         <label class="office-field office-field--full"><span>Apresentação</span><textarea id="agentDescription" name="description" rows="3" required maxlength="500"></textarea></label>
+        <label class="office-field office-field--full"><span>Jeito de falar</span><textarea id="agentPersonality" name="personality" rows="2" maxlength="600" placeholder="Ex.: direta e bem-humorada, chama o cliente pelo nome, fala pouco de números"></textarea></label>
+        <div class="office-field office-field--full office-voice-field">
+          <label for="agentVoice"><span>Voz</span></label>
+          <div class="office-voice-field__row">
+            <select id="agentVoice" name="voiceId"><option value="">Voz padrão da empresa</option></select>
+            <button class="office-button office-button--quiet" id="agentVoiceTest" type="button">Ouvir</button>
+          </div>
+          <small id="agentVoiceNote">Vozes da ElevenLabs em português.</small>
+        </div>
+        <fieldset class="office-field office-field--full office-followup-field">
+          <legend>Como cobra você</legend>
+          <div class="office-followup-options" role="radiogroup">
+            <label><input type="radio" name="followUpStyle" value="light" /><span><strong>Leve</strong><small>Lembra uma vez e mais uma no dia seguinte.</small></span></label>
+            <label><input type="radio" name="followUpStyle" value="normal" /><span><strong>Normal</strong><small>Lembra na hora e volta a cada 3 horas, até 4 vezes.</small></span></label>
+            <label><input type="radio" name="followUpStyle" value="firm" /><span><strong>Firme</strong><small>Volta a cada hora até você resolver (até 8 vezes).</small></span></label>
+          </div>
+        </fieldset>
+        <div class="office-field office-hours-field">
+          <span>Expediente</span>
+          <div class="office-hours-field__row">
+            <label class="office-sr-only" for="agentWorkStart">Início</label><select id="agentWorkStart"></select>
+            <span aria-hidden="true">até</span>
+            <label class="office-sr-only" for="agentWorkEnd">Fim</label><select id="agentWorkEnd"></select>
+          </div>
+          <small>Fora desse horário, só o primeiro aviso de cada lembrete.</small>
+        </div>
         <fieldset class="office-field office-field--full office-avatar-field">
           <legend>Rosto</legend>
           <p class="office-avatar-note">Pessoas fictícias, feitas para o ObraMate. O selo de IA aparece sempre.</p>
           <div class="office-avatar-choices" id="agentAvatarChoices" role="group" aria-label="Escolher rosto do funcionário"></div>
+          <div class="office-photo-upload" id="agentPhotoBox">
+            <label class="office-photo-upload__consent"><input id="agentPhotoConsent" type="checkbox" /><span>Tenho autorização da pessoa para usar a foto dela.</span></label>
+            <div class="office-photo-upload__row">
+              <label class="office-button office-button--quiet office-photo-upload__pick" for="agentPhotoFile">Enviar foto</label>
+              <input id="agentPhotoFile" type="file" accept="image/jpeg,image/png,image/webp" class="office-sr-only" />
+              <button class="office-button office-button--quiet" id="agentPhotoRemove" type="button" hidden>Usar rosto da galeria</button>
+              <small id="agentPhotoNote" role="status"></small>
+            </div>
+          </div>
         </fieldset>
         <fieldset class="office-field office-field--full office-capability-field">
           <legend>Capacidades permitidas</legend>
@@ -279,9 +363,9 @@
     </form>
   </dialog>
 
-  <script src="crm-shell.js?v=20261023-officevoice2"></script>
+  <script src="crm-shell.js?v=20261024-officev4"></script>
   <script src="crm-shared-nav.js?v=20261022-office3"></script>
-  <script src="mate-panel.js?v=20261023-officevoice2"></script>
-  <script src="escritorio-ia.js?v=20261023-officevoice2"></script>
+  <script src="mate-panel.js?v=20261024-officev4"></script>
+  <script src="escritorio-ia.js?v=20261024-officev4"></script>
 </body>
 </html>

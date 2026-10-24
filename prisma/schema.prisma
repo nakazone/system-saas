@@ -864,6 +864,7 @@ model Organization {
   referralRewards    ReferralReward[]
   referralLedgerEntries ReferralLedgerEntry[]
   virtualAgents      VirtualAgent[]
+  officeReminders    OfficeReminder[]
 }
 
 /// Digital employees configured for an organization's virtual office.
@@ -881,11 +882,46 @@ model VirtualAgent {
   description    String       @db.Text
   capabilities   String[]     @default([])
   enabled        Boolean      @default(true)
+  /// Uploaded photo (only with the person's consent); overrides avatarKey when set.
+  photoUrl       String?
+  /// ElevenLabs voice for this employee (null = company default).
+  voiceId        String?
+  /// How this employee talks ("direta e bem-humorada, chama o cliente pelo nome").
+  personality    String?      @db.Text
+  /// How hard they follow up on what is pending: light | normal | firm.
+  followUpStyle  String       @default("normal")
+  /// Working hours (company timezone) for repeated nudges.
+  workStartHour  Int          @default(8)
+  workEndHour    Int          @default(18)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
   @@unique([organizationId, key])
   @@index([organizationId, department, enabled])
+}
+
+/// Something a user asked an office employee to remember ("Marina, me lembra sexta de ligar pro Ortiz").
+/// The employee brings it up in the office and nudges by bell/push until it is done.
+model OfficeReminder {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String       @db.Uuid
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// VirtualAgent.key of the employee who will remind.
+  agentKey       String
+  text           String
+  dueAt          DateTime
+  /// open | done | canceled
+  status         String       @default("open")
+  nudgeCount     Int          @default(0)
+  lastNudgedAt   DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, userId, status, dueAt])
+  @@index([status, dueAt])
 }
 
 // ---------------------------------------------------------------------------
@@ -927,6 +963,7 @@ model User {
   supportTickets SupportTicket[] @relation("SupportTicketAuthor")
   pushSubscriptions PushSubscription[]
   staffNotifications StaffNotification[]
+  officeReminders OfficeReminder[]
   assignedWorkOrders WorkOrder[] @relation("WorkOrderAssignee")
   assignedMeetings Meeting[] @relation("MeetingAssignee")
   workOrderMemberships WorkOrderMember[]

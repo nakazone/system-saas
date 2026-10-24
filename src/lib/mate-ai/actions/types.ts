@@ -110,6 +110,8 @@ export type ActionContext = {
   recent?: Array<{ type: string; id: string }>;
   /** Signs an execution payload for this action (10-minute token). */
   sign: (exec: Record<string, unknown>) => string;
+  /** The office employee handling the request, when the user is talking to one. */
+  agentKey?: string;
 };
 
 export type ExecuteContext = {

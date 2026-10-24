@@ -1463,15 +1463,29 @@
       var r = await api('POST', API.act, { text: t, screen: screenForRequest(), memory: memory().slice(0, -1), pending: pending, attachment: photo || undefined, agent_key: agentMode ? agentKey : undefined });
       var m = fromResponse(r);
       replace(thinking.id, m);
+      announceReply(m);
       if (r.ai_error) {
         push({ role: 'mate', kind: 'error', message: 'A IA não respondeu (' + String(r.ai_error).slice(0, 220) + '). Usei a leitura básica. Só administradores veem este aviso.' });
       }
       if (r.message && m.kind !== 'reply' && m.kind !== 'error') hint(r.message);
     } catch (err) {
       replace(thinking.id, { role: 'mate', kind: 'error', message: err.message || 'Não consegui agora. Tente de novo.' });
+      announceReply({ kind: 'error', message: err.message || 'Não consegui agora. Tente de novo.' });
     } finally {
       setBusy(false);
     }
+  }
+
+  /** Lets the office voice conversation speak what was just answered. */
+  function announceReply(m) {
+    var speech = '';
+    if (m.kind === 'reply' || m.kind === 'error') speech = m.message || '';
+    else if (m.kind === 'clarify') speech = (m.clarify && m.clarify.question) || m.message || '';
+    else if (m.kind === 'answer') speech = [m.message, m.card && m.card.title].filter(Boolean).join('. ');
+    else if (m.card) speech = (m.message ? m.message + ' ' : '') + 'Preparei ' + (m.card.title || 'isso') + '. Confere na tela e me diz se posso seguir.';
+    try {
+      window.dispatchEvent(new CustomEvent('mateai:reply', { detail: { kind: m.kind, speech: String(speech || '') } }));
+    } catch (_) {}
   }
 
   /** Re-prepare without the AI: a choice, a card edit, a row action, a suggestion. */
