@@ -186,7 +186,7 @@
         : wo.status === "scheduled" || wo.status === "draft"
           ? canManage
             ? !wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start)
-              ? `<button type="button" class="jmx-b jmx-b--or" data-job-action="start-date" data-id="${escapeHtml(wo.id)}">Start Job</button>`
+              ? `<button type="button" class="jmx-b jmx-b--or" data-job-action="start-date" data-id="${escapeHtml(wo.id)}">Schedule Job</button>`
               : `<button type="button" class="jmx-b jmx-b--or" data-job-action="start" data-id="${escapeHtml(wo.id)}">Iniciar</button><button type="button" class="jmx-b" data-job-action="complete" data-id="${escapeHtml(wo.id)}">Já concluído</button>`
             : wo.scheduled_start
               ? `<a class="jmx-b jmx-b--or" href="campo/ticket.html?id=${encodeURIComponent(wo.id)}">Campo</a>`

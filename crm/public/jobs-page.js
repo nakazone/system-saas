@@ -189,7 +189,7 @@
     const when = undated ? "Sem data" : wo.status === "completed" ? `concluído ${J.dayShort(wo.scheduled_end || wo.scheduled_start)}` : J.dateRange(wo);
     const sub = lt ? `<em class="is-hot">${J.esc(lt.label)}</em>` : `<em class="${undated ? "is-hot" : ""}">${J.esc(when)}</em>`;
     const href = `job-detail.html?id=${encodeURIComponent(wo.id)}`;
-    const startBtn = undated && canManage ? `<button type="button" class="jx-start" data-jx-start="${J.esc(wo.id)}">Start Job</button>` : "";
+    const startBtn = undated && canManage ? `<button type="button" class="jx-start" data-jx-start="${J.esc(wo.id)}">Schedule Job</button>` : "";
     const showBill = canFaturar(wo);
     const showDel = canManage && wo.status !== "canceled";
     const body = `<div class="jx-rowwrap${undated ? " is-nodate" : ""}">
@@ -384,7 +384,7 @@
     const b = wo.billing;
     // Field/ops status first — Faturar must not hide Iniciar/Concluir (incl. late jobs).
     if (canManage) {
-      if (!wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start)) return { label: "Start Job", act: "start-date" };
+      if (!wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start)) return { label: "Schedule Job", act: "start-date" };
       if (!(wo.line_items || []).length) return { label: "Adicionar serviços", act: "services" };
       if (wo.status === "draft" || wo.status === "scheduled") return { label: "Iniciar job", act: "start" };
       if (wo.status === "in_progress") return { label: "Concluir job", act: "complete" };

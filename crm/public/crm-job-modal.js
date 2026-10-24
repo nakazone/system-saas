@@ -2967,7 +2967,7 @@
     wrap.innerHTML = `<div class="jm-start" id="jmStartBox" hidden>
       <div class="jm-start__panel" role="dialog" aria-modal="true" aria-labelledby="jmStartHeading">
         <button type="button" class="jm-start__x" id="jmStartClose" aria-label="Fechar">×</button>
-        <h2 id="jmStartHeading">Start Job</h2>
+        <h2 id="jmStartHeading">Schedule Job</h2>
         <p class="jm-hint" id="jmStartTitle"></p>
         <label class="jm-field" id="jmStartDateLabel">Data de início<input type="date" id="jmStartDate" class="jm-in" /></label>
         <label class="jm-field" id="jmStartSandWrap" hidden>Início Sand & Finish<input type="date" id="jmStartSand" class="jm-in" /></label>
