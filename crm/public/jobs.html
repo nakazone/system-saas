@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="job-comms.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="jobs-customers-mobile.css?v=20261013-jvis1" />
   <link rel="stylesheet" href="om-gestures.css?v=20261013-rl4" />
-  <link rel="stylesheet" href="jobs-board.css?v=20261023-job1" />
+  <link rel="stylesheet" href="jobs-board.css?v=20261024-job3" />
   <link rel="stylesheet" href="partner-requests-shortcut.css?v=20261023-1" />
   <link rel="stylesheet" href="jobs-mobile-v2.css?v=20261023-job1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -125,9 +125,12 @@
         <div class="jx-tiles" id="jxTiles" role="group" aria-label="Filtrar por etapa"></div>
         <div class="jx-split" id="jxSplit">
           <section class="jx-list" aria-label="Lista de jobs">
-            <div class="jx-cal" id="jxCal" aria-label="Semana"></div>
             <div class="jx-list__top">
-              <label class="jx-search"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input type="search" id="jxQ" placeholder="Builder, endereço, quote ou cliente" autocomplete="off" /></label>
+              <div class="jx-list__find">
+                <label class="jx-search"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input type="search" id="jxQ" placeholder="Builder, endereço, quote ou cliente" autocomplete="off" /></label>
+                <button type="button" class="jx-cal-btn" id="jxCalBtn" aria-label="Filtrar por semana" aria-expanded="false" aria-controls="jxCal"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></button>
+                <div class="jx-cal" id="jxCal" hidden aria-label="Semana"></div>
+              </div>
               <div class="jx-list__bar">
                 <label class="jx-sel" id="jxSourceWrap"><span>Origem</span>
                   <select id="jxSource" aria-label="Origem">
@@ -168,7 +171,7 @@
   <script src="crm-confirm.js?v=20261014-c1"></script>
   <script src="job-chat-comms.js?v=20260929-obranames1"></script>
   <script src="jobs-info.js?v=20261023-job1"></script>
-  <script src="jobs-page.js?v=20261024-job2"></script>
+  <script src="jobs-page.js?v=20261024-job3"></script>
   <script src="jobs-mobile.js?v=20261024-job2"></script>
 </body>
 </html>

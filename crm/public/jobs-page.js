@@ -26,6 +26,7 @@
   /** Sunday of the selected week, or null to show every week. */
   let weekFilter = null;
   let calCursor = new Date();
+  let calOpen = false;
 
   const SOURCE = { particular: "Particular", builder: "Builder", contractor: "Builder", loja: "Builder", internal: "Interno", other: "Outro" };
   const SVG = {
@@ -277,7 +278,17 @@
   }
   function renderWeekCal() {
     const host = $("jxCal");
+    const btn = $("jxCalBtn");
+    if (btn) {
+      btn.classList.toggle("is-on", Boolean(weekFilter));
+      btn.setAttribute("aria-expanded", calOpen ? "true" : "false");
+    }
     if (!host) return;
+    host.hidden = !calOpen;
+    if (!calOpen) {
+      host.innerHTML = "";
+      return;
+    }
     const y = calCursor.getFullYear();
     const m = calCursor.getMonth();
     const first = new Date(y, m, 1);
@@ -287,7 +298,8 @@
     const marked = new Set(all.map(jobAnchor).filter(Boolean).map((d) => ymd(d)));
     const today = ymd(new Date());
     const sel = weekFilter ? ymd(weekFilter) : "";
-    const label = calCursor.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+    const rawLabel = calCursor.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+    const label = rawLabel.charAt(0).toUpperCase() + rawLabel.slice(1);
     host.innerHTML = `<div class="jx-cal__bar"><button type="button" data-jx-cal="prev" aria-label="Mês anterior">‹</button><b>${I().esc(label)}</b><button type="button" data-jx-cal="next" aria-label="Próximo mês">›</button></div>
       <div class="jx-cal__wd">${["D", "S", "T", "Q", "Q", "S", "S"].map((d) => `<span>${d}</span>`).join("")}</div>
       <div class="jx-cal__days">${days
@@ -1166,7 +1178,13 @@
     $("btnNewJob")?.addEventListener("click", () => {
       window.__crmJobModal.openCreate({ allDay: true }).catch((e) => notify(e.message, "error"));
     });
+    $("jxCalBtn")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      calOpen = !calOpen;
+      renderWeekCal();
+    });
     $("jxCal")?.addEventListener("click", (e) => {
+      e.stopPropagation();
       const day = e.target.closest("[data-jx-day]");
       const act = e.target.closest("[data-jx-cal]");
       if (day) {
@@ -1174,6 +1192,7 @@
         const [yy, mm, dd] = String(raw || "").split("-").map(Number);
         if (!yy) return;
         weekFilter = weekSunday(new Date(yy, mm - 1, dd));
+        calOpen = false;
         renderList();
         return;
       }
@@ -1181,8 +1200,21 @@
       const k = act.getAttribute("data-jx-cal");
       if (k === "prev") calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() - 1, 1);
       else if (k === "next") calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() + 1, 1);
-      else if (k === "all") weekFilter = null;
+      else if (k === "all") {
+        weekFilter = null;
+        calOpen = false;
+      }
       renderList();
+    });
+    document.addEventListener("click", () => {
+      if (!calOpen) return;
+      calOpen = false;
+      renderWeekCal();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape" || !calOpen) return;
+      calOpen = false;
+      renderWeekCal();
     });
     window.__crmJobModal.onSaved((data) => {
       if (data && data.id) {
