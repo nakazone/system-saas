@@ -965,6 +965,41 @@
     placeMe(entranceOpen || !active ? ENTRANCE_POINT : doorPoint(roomById(active.department)));
     if (state.chatKey) markTalking(state.chatKey);
     fitPlan();
+    syncShowroom();
+  }
+
+  /* ───────── showroom 3D (visão geral) ───────── */
+
+  let showroom = null;
+  function faceUrl(agent) {
+    return agent.key === 'mate' ? MATE_IMAGE : (agent.photoUrl || FACE_IMAGES[agent.avatarKey] || FACE_IMAGES['avatar-1']);
+  }
+  function syncShowroom() {
+    const host = $('#officeShowroom');
+    const floor = $('.office-floor');
+    const api = window.OfficeShowroom;
+    if (!host || !floor || !api || !api.supported()) return;
+    if (!showroom) {
+      host.hidden = false;
+      floor.classList.add('has-showroom');
+      showroom = api.mount(host, { onPick: (key) => openChat(key) });
+    }
+    const taken = new Set();
+    const agents = enabledAgents().filter((agent) => {
+      if (taken.has(agent.department)) return false;
+      taken.add(agent.department);
+      return true;
+    }).map((agent) => ({
+      key: agent.key,
+      name: agent.name,
+      title: agent.title,
+      department: agent.department,
+      tone: seatTone(agent),
+      line: shortText(bubbleLines(agent)[0] || '', 40),
+      face: faceUrl(agent),
+      seated: api.seatedFor(agent),
+    }));
+    showroom.update({ agents, pending: state.suggestions.length, chatKey: state.chatKey });
   }
 
   function renderCorridor() {
@@ -1097,6 +1132,7 @@
   }
 
   function flashBubble(key, text) {
+    if (showroom) showroom.say(key, shortText(text, 90));
     const bubble = seatOf(key)?.querySelector('.office-seat__bubble');
     if (!bubble) return;
     bubble.textContent = shortText(text, 34);
@@ -1112,6 +1148,7 @@
     const chat = $('#officeChat');
     const floor = $('.office-floor');
     if (!chat || chat.hidden || !floor || !state.chatKey) return;
+    if (showroom) { chat.style.left = ''; chat.style.top = ''; return; }
     if (window.matchMedia('(max-width: 760px)').matches) { chat.style.left = ''; chat.style.top = ''; return; }
     const seat = seatOf(state.chatKey);
     if (!seat) return;
@@ -1218,6 +1255,7 @@
     if (input) input.placeholder = `Fale com ${agent.name}…`;
     chat.hidden = false;
     markTalking(agent.key);
+    if (showroom) { showroom.focus(agent.key); syncShowroom(); }
     const thread = chatThread(agent.key);
     const last = thread[thread.length - 1];
     const stale = !last || Date.now() - (last.at || 0) > 30 * 60 * 1000;
@@ -1250,6 +1288,7 @@
     state.chatKey = '';
     state.chatTyping = false;
     markTalking('');
+    if (showroom) { showroom.overview(); syncShowroom(); }
   }
 
   async function sendChat(text) {
