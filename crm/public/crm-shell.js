@@ -1157,8 +1157,8 @@
     }
     // Mate AI on every screen, the field crew app included (field actions only, by permission).
     if (!window.__mateAiPanel && !document.querySelector('script[src*="mate-panel.js"]')) {
-      ensureStylesheet("mate-panel.css?v=20261021-b1");
-      jobs.push(ensureScript("mate-panel.js?v=20261021-b1").catch(() => {}));
+      ensureStylesheet("mate-panel.css?v=20261025-voz1");
+      jobs.push(ensureScript("mate-panel.js?v=20261025-voz1").catch(() => {}));
     }
     if (!document.querySelector('script[src*="saas-branding.js"]')) {
       jobs.push(ensureScript("saas-branding.js?v=20261002-branddoc1").catch(() => {}));

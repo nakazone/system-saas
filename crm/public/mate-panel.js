@@ -25,6 +25,7 @@
     ctx: '/api/mate-ai/context',
     status: '/api/mate-ai/status',
     transcribe: '/api/mate-ai/transcribe',
+    speak: '/api/mate-ai/speak',
     catalog: '/api/mate-ai/catalog',
     convs: '/api/mate-ai/conversations',
   };
@@ -47,6 +48,8 @@
   var CARD_TTL_MS = 9 * 60 * 1000;
   var MAX_TODO = 3;
   var KEY_LANG = 'mateAiVoiceLang';
+  /** 'auto' = the Mate answers out loud only when the request was spoken; 'always'; 'off'. */
+  var KEY_SPEAK = 'mateAi.speak';
   var MAX_THREAD = 40;
 
   var ICON = {
@@ -524,6 +527,8 @@
     '<span class="mate-pal__links">' +
     '<button type="button" class="mate-pal__link mate-pal__new" data-mate="clear">Nova conversa</button>' +
     '<button type="button" class="mate-pal__link" data-mate="history-open">Histórico</button>' +
+    (agentMode ? '' : '<button type="button" class="mate-pal__link" data-mate="speak-pref" id="mateSpeakPref" title="Quando o Mate responde em voz alta: só quando você fala, sempre ou nunca">Voz ao falar</button>') +
+    (agentMode ? '' : '<button type="button" class="mate-pal__link" data-mate="wake" id="mateWakeBtn" hidden title="Mãos livres: diga Ei, Mate e o pedido">Ei, Mate desligado</button>') +
     '</span>' +
     '</footer>';
 
@@ -680,6 +685,7 @@
   var lastFocus = null;
 
   function open(opts) {
+    paintVoiceLinks();
     if (inlineHost) return;
     if (!state.open) {
       lastFocus = document.activeElement;
@@ -920,8 +926,61 @@
       html += '</div><p class="mate-hello">' + esc(agentProfile.name) + ' prepara a ação; você revisa e confirma antes de enviar.</p></div>';
       return html;
     }
+    html += pushInviteHtml();
     html += catalogHtml();
     return html + '</div>';
+  }
+
+  /* ───────── phone alerts (Web Push) ───────── */
+
+  var KEY_PUSH_INVITE = 'mateAi.pushInvite.v1';
+
+  function pushState() {
+    var ios = /iPad|iPhone|iPod/.test(navigator.userAgent || '') || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    var standalone = false;
+    try {
+      standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+    } catch (_) {}
+    if (ios && !standalone) return 'install';
+    if (!('Notification' in window) || !('PushManager' in window) || !('serviceWorker' in navigator)) return 'none';
+    return Notification.permission === 'default' ? 'ask' : 'none';
+  }
+
+  /** crm-push.js comes with the office shell; the field app loads it on demand. */
+  function withPushClient() {
+    if (typeof window.enableCrmPush === 'function') return Promise.resolve();
+    return new Promise(function (resolve, reject) {
+      var sc = document.createElement('script');
+      sc.src = '/crm-push.js?v=20261022-inbox1';
+      sc.onload = function () {
+        if (typeof window.enableCrmPush === 'function') resolve();
+        else reject(new Error('Avisos indisponíveis neste aparelho.'));
+      };
+      sc.onerror = function () {
+        reject(new Error('Não consegui carregar os avisos. Tente de novo.'));
+      };
+      document.head.appendChild(sc);
+    });
+  }
+
+  /** Once, on the start screen: the Mate's alerts can reach the phone with the app closed. */
+  function pushInviteHtml() {
+    var dismissed = '0';
+    try {
+      dismissed = localStorage.getItem(KEY_PUSH_INVITE) || '0';
+    } catch (_) {}
+    if (dismissed === '1') return '';
+    var st = pushState();
+    if (st === 'none') return '';
+    var text = st === 'install'
+      ? 'Para receber os avisos do Mate com o app fechado, no Safari toque em Compartilhar › Adicionar à Tela de Início e abra o ObraMate pelo ícone.'
+      : 'Receba no celular os avisos do Mate (quote aberto, lead novo, problema na obra) mesmo com o app fechado.';
+    return '<div class="mate-push">' +
+      '<p>' + esc(text) + '</p>' +
+      '<div class="mate-push__row">' +
+      (st === 'ask' ? '<button type="button" class="mate-push__yes" data-mate="push-on">Ativar avisos</button>' : '') +
+      '<button type="button" class="mate-push__no" data-mate="push-later">' + (st === 'ask' ? 'Agora não' : 'Entendi') + '</button>' +
+      '</div></div>';
   }
 
   function catalogModules() {
@@ -1443,9 +1502,42 @@
     inputEl.readOnly = on;
   }
 
-  async function ask(text) {
+  /** Spoken answers to an open card: "pode", "manda", "confirma" run it; "não", "cancela" drop it. */
+  var YES_RE = /^(sim|pode|pode sim|pode mandar|pode seguir|manda|mande|manda ver|confirma|confirmo|confirmar|isso|isso mesmo|ok|okay|beleza|fechado|vai|segue|yes|yeah|yep|go ahead|do it|send it|confirm|s[ií]|dale|claro|adelante|env[ií]alo)[.!, ]*$/i;
+  var NO_RE = /^(n[aã]o|nao|cancela|cancelar|cancele|esquece|deixa|deixa pra l[aá]|para|pare|no|nope|cancel|stop|never ?mind|no gracias)[.!, ]*$/i;
+
+  function spokenAnswer(t) {
+    var a = actionable();
+    if (!a || a.working) return false;
+    var clean = t.replace(/^(ei,?\s*)?mate[,!]?\s*/i, '').trim();
+    if (YES_RE.test(clean)) {
+      if (a.card.confirm.checkbox && !a.acked) {
+        mateSpeak('Precisa marcar a caixinha do card antes. Confere na tela.');
+        return true;
+      }
+      push({ role: 'user', text: t });
+      confirm(a);
+      return true;
+    }
+    if (NO_RE.test(clean)) {
+      push({ role: 'user', text: t });
+      a.stale = true;
+      a.canceled = true;
+      persist();
+      render();
+      mateSpeak('Tudo bem, não fiz nada.');
+      return true;
+    }
+    return false;
+  }
+
+  async function ask(text, opts) {
     var t = String(text || '').trim();
     if (!t || state.busy) return;
+    opts = opts || {};
+    state.voiceTurn = Boolean(opts.voice);
+    stopSpeaking();
+    if (opts.voice && spokenAnswer(t)) return;
     if (!state.open && !inlineHost) open({ focus: false });
     var pending = pendingForRequest();
     var photo = state.attachment || null;
@@ -1486,6 +1578,146 @@
     try {
       window.dispatchEvent(new CustomEvent('mateai:reply', { detail: { kind: m.kind, speech: String(speech || '') } }));
     } catch (_) {}
+    if (shouldSpeak()) mateSpeak(spokenText(m), { listenAfter: m.kind === 'card' || m.kind === 'clarify' });
+  }
+
+  /* ───────── the Mate speaks (ElevenLabs v4 Turbo on the server, cached per phrase) ───────── */
+
+  var speechAudio = null;
+  var speechUrl = '';
+  var speechServerOff = false;
+  var speechSeq = 0;
+
+  function speakPref() {
+    try {
+      var v = localStorage.getItem(KEY_SPEAK);
+      if (v === 'always' || v === 'off') return v;
+    } catch (_) {}
+    return 'auto';
+  }
+
+  function shouldSpeak() {
+    if (agentMode || officePage) return false; // the office speaks with each agent's own voice
+    var pref = speakPref();
+    if (pref === 'off') return false;
+    return pref === 'always' || Boolean(state.voiceTurn);
+  }
+
+  function firstSentence(text) {
+    var t = String(text || '').replace(/\s+/g, ' ').trim();
+    var m = /^(.{12,160}?[.!?])(\s|$)/.exec(t);
+    return m ? m[1] : t.slice(0, 160);
+  }
+
+  /** Two short sentences at most: the card stays on the screen, the voice carries the decision. */
+  function spokenText(m) {
+    if (!m) return '';
+    if (m.kind === 'reply' || m.kind === 'error') return String(m.message || '').slice(0, 300);
+    if (m.kind === 'clarify') return firstSentence((m.clarify && m.clarify.question) || m.message);
+    if (m.kind === 'answer') return [firstSentence(m.message), m.card && m.card.title].filter(Boolean).join('. ').slice(0, 300);
+    if (m.kind === 'card' && m.card) return (m.card.title || 'Preparei isso') + '. Posso seguir?';
+    if (m.kind === 'done' && m.result) return 'Pronto. ' + firstSentence(m.result.title || '');
+    return '';
+  }
+
+  function stopSpeaking() {
+    speechSeq += 1;
+    if (speechAudio) {
+      try {
+        speechAudio.pause();
+      } catch (_) {}
+      speechAudio = null;
+    }
+    if (speechUrl) {
+      URL.revokeObjectURL(speechUrl);
+      speechUrl = '';
+    }
+    try {
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+    } catch (_) {}
+    try {
+      window.dispatchEvent(new CustomEvent('mateai:speaking', { detail: { on: false } }));
+    } catch (_) {}
+  }
+
+  function speakingOn() {
+    try {
+      window.dispatchEvent(new CustomEvent('mateai:speaking', { detail: { on: true } }));
+    } catch (_) {}
+  }
+
+  function spokenEnd(opts) {
+    try {
+      window.dispatchEvent(new CustomEvent('mateai:spoken', { detail: { listenAfter: Boolean(opts && opts.listenAfter) } }));
+    } catch (_) {}
+  }
+
+  function deviceVoice(text, opts) {
+    if (!window.speechSynthesis || typeof window.SpeechSynthesisUtterance !== 'function') {
+      spokenEnd(opts);
+      return;
+    }
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = voiceLang();
+    var voices = window.speechSynthesis.getVoices() || [];
+    var match = voices.filter(function (v) {
+      return v.lang && v.lang.toLowerCase().indexOf(u.lang.slice(0, 2).toLowerCase()) === 0;
+    });
+    if (match.length) u.voice = match[0];
+    u.rate = 1.04;
+    u.onstart = speakingOn;
+    u.onend = function () {
+      spokenEnd(opts);
+    };
+    u.onerror = function () {
+      spokenEnd(opts);
+    };
+    window.speechSynthesis.speak(u);
+  }
+
+  /** Speaks with the Mate voice; any problem falls back to the device voice instead of silence. */
+  async function mateSpeak(text, opts) {
+    var t = String(text || '').trim();
+    if (!t) return;
+    stopSpeaking();
+    var seq = speechSeq;
+    if (speechServerOff) {
+      deviceVoice(t, opts);
+      return;
+    }
+    try {
+      var res = await fetch(API.speak, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: t }),
+      });
+      if (seq !== speechSeq) return;
+      if (!res.ok) {
+        var info = await res.json().catch(function () {
+          return {};
+        });
+        // Not configured or out of the plan: stop asking the server in this page.
+        if (res.status === 503 || res.status === 402) speechServerOff = true;
+        if (info && info.reason === 'limit') hint(info.error || '');
+        deviceVoice(t, opts);
+        return;
+      }
+      var blob = await res.blob();
+      if (seq !== speechSeq) return;
+      speechUrl = URL.createObjectURL(blob);
+      speechAudio = new Audio(speechUrl);
+      speechAudio.onended = function () {
+        spokenEnd(opts);
+      };
+      speechAudio.onerror = function () {
+        spokenEnd(opts);
+      };
+      speakingOn();
+      await speechAudio.play();
+    } catch (_) {
+      if (seq === speechSeq) deviceVoice(t, opts);
+    }
   }
 
   /** Re-prepare without the AI: a choice, a card edit, a row action, a suggestion. */
@@ -1528,6 +1760,7 @@
       if (res.entity && res.entity.id && res.entity.type) state.screen = officeEntity(res.entity);
       publishOfficeContext(res.entity || state.screen || entityFromItems(state.thread));
       replace(m.id, done);
+      if (shouldSpeak()) mateSpeak(spokenText(done));
       if (done.undo) tickUndo(done.id);
       handleClient(res.client);
       state.suggestionsAt = 0;
@@ -1781,6 +2014,34 @@
         push({ role: 'user', text: s.title });
         act(s.run.action, s.run.args);
       }
+    } else if (what === 'push-on' || what === 'push-later') {
+      try {
+        localStorage.setItem(KEY_PUSH_INVITE, '1');
+      } catch (_) {}
+      if (what === 'push-on') {
+        withPushClient()
+          .then(function () {
+            return window.enableCrmPush();
+          })
+          .then(function () {
+            hint('Pronto: os avisos do Mate chegam neste aparelho.');
+            if (typeof window.refreshCrmPushStatus === 'function') window.refreshCrmPushStatus();
+          })
+          .catch(function (err) {
+            hint((err && err.message) || 'Não consegui ativar os avisos.');
+          });
+      }
+      render();
+    } else if (what === 'speak-pref') {
+      var next = { auto: 'always', always: 'off', off: 'auto' }[speakPref()] || 'auto';
+      try {
+        localStorage.setItem(KEY_SPEAK, next);
+      } catch (_) {}
+      if (next === 'off') stopSpeaking();
+      paintVoiceLinks();
+    } else if (what === 'wake') {
+      if (window.MateWake) window.MateWake.toggle();
+      paintVoiceLinks();
     } else if (what === 'confirm') confirm(m);
     else if (what === 'cancel' && m) {
       m.stale = true;
@@ -2113,6 +2374,9 @@
 
   function setListening(on) {
     listening = on;
+    try {
+      window.dispatchEvent(new CustomEvent('mateai:mic', { detail: { on: Boolean(on) } }));
+    } catch (_) {}
     micEl.classList.toggle('is-recording', on);
     micEl.innerHTML = on ? ICON.stop : ICON.mic;
     micEl.setAttribute('aria-label', on ? 'Parar e enviar' : 'Gravar pedido');
@@ -2129,6 +2393,7 @@
 
   async function startVoice() {
     if (listening) return;
+    stopSpeaking();
     if (voiceMode === 'server' && canRecord) {
       try {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -2190,7 +2455,7 @@
       try {
         var r = await api('POST', API.transcribe, { data_url: reader.result, language: voiceLang().slice(0, 2) });
         hint('');
-        ask(r.text);
+        ask(r.text, { voice: true });
       } catch (err) {
         if (err.data && err.data.fallback === 'browser' && SR) {
           voiceMode = 'browser';
@@ -2241,7 +2506,7 @@
         setListening(false);
         if (!recognition.__discard && heard && inputEl.value.trim()) {
           hint('');
-          ask(inputEl.value);
+          ask(inputEl.value, { voice: true });
         }
       };
     }
@@ -2301,12 +2566,75 @@
 
   /* ───────── boot ───────── */
 
+  function paintVoiceLinks() {
+    var sp = panel.querySelector('#mateSpeakPref');
+    if (sp) sp.textContent = { auto: 'Voz ao falar', always: 'Voz sempre', off: 'Sem voz' }[speakPref()];
+    var wk = panel.querySelector('#mateWakeBtn');
+    if (wk) {
+      var supported = Boolean(window.MateWake && window.MateWake.supported);
+      wk.hidden = !supported;
+      if (supported) wk.textContent = window.MateWake.isOn() ? 'Ei, Mate ligado' : 'Ei, Mate desligado';
+    }
+  }
+
+  /** "Ei, Mate" lives in its own file; one place loads it for every page that has the Mate. */
+  (function loadWake() {
+    if (agentMode || window.__mateWake || document.querySelector('script[src*="mate-wake.js"]')) {
+      paintVoiceLinks();
+      return;
+    }
+    var sc = document.createElement('script');
+    sc.src = '/mate-wake.js?v=20261025-voz1';
+    sc.defer = true;
+    sc.onload = paintVoiceLinks;
+    document.head.appendChild(sc);
+    paintVoiceLinks();
+  })();
+
+  (function askFromLink() {
+    if (agentMode) return;
+    var params;
+    try {
+      params = new URLSearchParams(location.search);
+    } catch (_) {
+      return;
+    }
+    var q = params.get('mate_ask');
+    if (!q) return;
+    params.delete('mate_ask');
+    try {
+      var rest = params.toString();
+      history.replaceState(null, '', location.pathname + (rest ? '?' + rest : '') + location.hash);
+    } catch (_) {}
+    setTimeout(function () {
+      open({ focus: false });
+      ask(String(q).slice(0, 300));
+    }, 400);
+  })();
+
   window.MateAI = {
     open: open,
     close: close,
-    ask: function (text) {
+    ask: function (text, opts) {
       open({ focus: false });
-      ask(text);
+      ask(text, opts);
+    },
+    /** Says a short phrase with the Mate voice (used by "Ei, Mate"). */
+    say: function (text, opts) {
+      mateSpeak(text, opts);
+    },
+    stopSpeaking: function () {
+      stopSpeaking();
+    },
+    /** True while the panel itself is recording a request. */
+    isListening: function () {
+      return listening;
+    },
+    speakPref: speakPref,
+    setSpeakPref: function (v) {
+      try {
+        localStorage.setItem(KEY_SPEAK, v === 'always' || v === 'off' ? v : 'auto');
+      } catch (_) {}
     },
     fill: function (text) {
       if (!state.open && !inlineHost) open();

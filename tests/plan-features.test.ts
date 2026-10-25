@@ -30,7 +30,7 @@ describe("Recursos por plano — regra de decisão", () => {
   it("padrão: tudo liberado e sem limite (nada muda no deploy)", () => {
     const e = resolveEntitlements({ plan: null, planKey: "starter", globals: {}, overrides: [] });
     expect(Object.values(e.features).every((f) => f.on)).toBe(true);
-    expect(e.limits).toEqual({ users: null, photos_month: null, ai_month: null });
+    expect(e.limits).toEqual({ users: null, photos_month: null, ai_month: null, voice_chars_month: null });
   });
 
   it("plano tira módulo; exceção devolve; desligado global vence exceção; beta só com exceção; exceção vencida some", () => {
@@ -38,7 +38,7 @@ describe("Recursos por plano — regra de decisão", () => {
     const p = plan({ chat: false, payroll: true }, { users: 5, photos_month: "x", ai_month: -1 });
     let e = resolveEntitlements({ plan: p, planKey: "p", globals: {}, overrides: [], now });
     expect(e.features.chat).toMatchObject({ on: false, source: "plan" });
-    expect(e.limits).toEqual({ users: 5, photos_month: null, ai_month: null });
+    expect(e.limits).toEqual({ users: 5, photos_month: null, ai_month: null, voice_chars_month: null });
 
     e = resolveEntitlements({ plan: p, planKey: "p", globals: {}, overrides: [{ featureKey: "chat", enabled: true, endsAt: null }], now });
     expect(e.features.chat).toMatchObject({ on: true, source: "override" });

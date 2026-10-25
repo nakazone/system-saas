@@ -6,6 +6,7 @@ import { env } from "../../config/env.js";
 import { recordActivity } from "../../lib/activity/record.js";
 import { aiTranscribeAudio, isAiConfigured } from "../../lib/ai/client.js";
 import { hasFeature } from "../../lib/features/index.js";
+import { isMateSpeechConfigured, speakForMate } from "../../lib/mate-ai/speech.js";
 import { computeNewInvoiceAmount, invoiceKindLabel } from "../../lib/invoices/core.js";
 import { createJobInvoice, jobBilling, jobBillingLabel } from "../../lib/invoices/job.js";
 import { calculateQuoteTotals } from "../../lib/quotes/totals.js";
@@ -798,7 +799,52 @@ async function serverVoiceStatus(organizationId: string): Promise<{ ok: boolean;
 mateAiRouter.get("/api/mate-ai/status", requireCrmAuth, async (req: AuthedRequest, res, next) => {
   try {
     const voice = await serverVoiceStatus(req.organizationId!);
-    res.json({ success: true, ai: isAiConfigured(), server_voice: voice.ok, reason: voice.reason || null });
+    res.json({ success: true, ai: isAiConfigured(), server_voice: voice.ok, speech: isMateSpeechConfigured(), reason: voice.reason || null });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/** Per-user guard so a stuck page can't burn voice credits: 40 phrases a minute. */
+const speakHits = new Map<string, number[]>();
+function speakAllowed(userId: string, now = Date.now()): boolean {
+  const recent = (speakHits.get(userId) || []).filter((t) => now - t < 60_000);
+  if (recent.length >= 40) {
+    speakHits.set(userId, recent);
+    return false;
+  }
+  recent.push(now);
+  speakHits.set(userId, recent);
+  if (speakHits.size > 5000) speakHits.clear();
+  return true;
+}
+
+/**
+ * The Mate's spoken reply (ElevenLabs v4 Turbo, cached per phrase). Any failure answers
+ * `fallback: "browser"` so the panel speaks with the device voice instead of staying silent.
+ */
+mateAiRouter.post("/api/mate-ai/speak", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const text = String(((req.body || {}) as Record<string, unknown>).text || "").slice(0, 2000);
+    if (!text.trim()) {
+      res.status(400).json({ success: false, error: "Nada para falar.", fallback: "browser" });
+      return;
+    }
+    if (!speakAllowed(req.user!.id)) {
+      res.status(429).json({ success: false, error: "Muitas falas seguidas.", fallback: "browser" });
+      return;
+    }
+    const result = await speakForMate(req.organizationId!, text);
+    if (!result.ok) {
+      const status = result.reason === "limit" ? 402 : result.reason === "error" ? 502 : 503;
+      res.status(status).json({ success: false, error: result.error, reason: result.reason, fallback: "browser" });
+      return;
+    }
+    res.setHeader("Content-Type", "audio/mpeg");
+    res.setHeader("Cache-Control", "private, max-age=86400");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Mate-Speech", result.cached ? "cache" : "new");
+    res.status(200).send(result.audio);
   } catch (error) {
     next(error);
   }
@@ -830,11 +876,15 @@ mateAiRouter.post(
       }
       const organizationId = req.organizationId!;
       const vocabulary = await withTenantTransaction(organizationId, async (tx) => {
-        const [catalog, customers] = await Promise.all([
+        const [catalog, customers, leads, users] = await Promise.all([
           loadCatalog(tx, organizationId),
           tx.customer.findMany({ where: { organizationId }, select: { name: true }, orderBy: { updatedAt: "desc" }, take: 40 }),
+          tx.lead.findMany({ where: { organizationId }, select: { name: true }, orderBy: { updatedAt: "desc" }, take: 30 }),
+          tx.user.findMany({ where: { organizationId, status: "active" }, select: { name: true }, take: 30 }),
         ]);
-        return [...new Set([...catalog.map((c) => c.name), ...customers.map((c) => c.name)])];
+        // Team and lead names too: "Naka" used to come out as "ACA".
+        const names = [...customers, ...leads, ...users].map((r) => String(r.name || "").trim()).filter((n) => n.length > 1);
+        return [...new Set([...catalog.map((c) => c.name), ...names, "Mate", "ObraMate"])].slice(0, 120);
       });
       const language = ["pt", "en", "es"].includes(String(raw.language)) ? String(raw.language) : undefined;
       const model = mateAiTranscribeModel();

@@ -17,7 +17,7 @@ import type { AuthedRequest } from "../../middleware/auth.js";
 
 export type FeatureKey = "field_quote" | "job_media" | "ai" | "payroll" | "finance" | "chat" | "reports" | "campo" | "public_portfolio";
 export type FeatureState = "off" | "beta" | "on";
-export type LimitKey = "users" | "photos_month" | "ai_month";
+export type LimitKey = "users" | "photos_month" | "ai_month" | "voice_chars_month";
 
 export type FeatureDef = {
   key: FeatureKey;
@@ -111,6 +111,7 @@ export const LIMITS: { key: LimitKey; name: string; unit: string }[] = [
   { key: "users", name: "Usuários", unit: "usuários" },
   { key: "photos_month", name: "Fotos por mês", unit: "fotos" },
   { key: "ai_month", name: "Usos de IA por mês", unit: "usos" },
+  { key: "voice_chars_month", name: "Voz do Mate por mês", unit: "caracteres" },
 ];
 
 export function featureDef(key: string): FeatureDef | undefined {
@@ -240,9 +241,10 @@ export async function getUsage(organizationId: string, now = new Date()): Promis
         tx.jobMedia.count({ where: { organizationId, createdAt: { gte: start } } }),
       ]),
     ),
-    prisma.usageCounter.findUnique({ where: { organizationId_metric_period: { organizationId, metric: "ai_month", period } } }).then((r) => r?.count ?? 0),
+    prisma.usageCounter.findMany({ where: { organizationId, period, metric: { in: ["ai_month", "voice_chars_month"] } } }),
   ]);
-  return { users: users + invites, photos_month: photos, ai_month: ai };
+  const counted = (metric: string) => ai.find((r) => r.metric === metric)?.count ?? 0;
+  return { users: users + invites, photos_month: photos, ai_month: counted("ai_month"), voice_chars_month: counted("voice_chars_month") };
 }
 
 export type LimitCheck = { ok: true; used: number; limit: number | null } | { ok: false; used: number; limit: number; message: string };
@@ -251,6 +253,7 @@ const LIMIT_MESSAGE: Record<LimitKey, (limit: number) => string> = {
   users: (n) => `Seu plano inclui até ${n} usuários. Para adicionar mais, mude de plano em Configurações › Plano e cobrança.`,
   photos_month: (n) => `Seu plano inclui ${n} fotos por mês e esse limite foi atingido. As fotos voltam no dia 1 — ou mude de plano em Configurações › Plano e cobrança.`,
   ai_month: (n) => `Seu plano inclui ${n} usos de IA por mês e esse limite foi atingido. Volta no dia 1 — ou mude de plano.`,
+  voice_chars_month: (n) => `Seu plano inclui ${n.toLocaleString("pt-BR")} caracteres de voz do Mate por mês e esse limite foi atingido. O Mate segue falando com a voz do aparelho até o dia 1.`,
 };
 
 /** Checks whether `adding` more units fit in the plan limit. Only that resource is blocked, never the system. */
@@ -285,6 +288,24 @@ export async function takeAiUse(): Promise<string | null> {
   } catch (error) {
     console.error("[features] ai usage check failed", error);
     return null;
+  }
+}
+
+/**
+ * Adds spoken characters (ElevenLabs) to the month counter. Cached phrases are not counted:
+ * only audio that was actually generated costs money.
+ */
+export async function addVoiceChars(organizationId: string, chars: number): Promise<void> {
+  if (!organizationId || chars <= 0) return;
+  try {
+    const { period } = monthStart();
+    await prisma.usageCounter.upsert({
+      where: { organizationId_metric_period: { organizationId, metric: "voice_chars_month", period } },
+      create: { organizationId, metric: "voice_chars_month", period, count: Math.round(chars) },
+      update: { count: { increment: Math.round(chars) } },
+    });
+  } catch (error) {
+    console.error("[features] voice usage count failed", error);
   }
 }
 

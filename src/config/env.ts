@@ -13,6 +13,10 @@ const envSchema = z.object({
   ELEVENLABS_API_KEY: z.string().optional(),
   ELEVENLABS_VOICE_ID: z.string().optional(),
   ELEVENLABS_TTS_MODEL: z.string().optional(),
+  /** Model for the Mate voice replies (default eleven_v4_turbo: half the price of v4). */
+  MATE_AI_TTS_MODEL: z.string().optional(),
+  /** Voice for the Mate replies; falls back to ELEVENLABS_VOICE_ID. */
+  MATE_AI_VOICE_ID: z.string().optional(),
   PORT: z.coerce.number().default(3000),
   PRODUCT_NAME: z.string().min(1).default("ObraMate"),
   APP_ROOT_DOMAIN: z.string().min(1),

@@ -8,6 +8,7 @@ import { refreshPlans } from "./master/plans.js";
 import { startPlatformJobs } from "./lib/billing/jobs.js";
 import { startDailyBriefJob } from "./lib/mate-ai/daily-brief.js";
 import { startOfficeReminderJob } from "./lib/virtual-office/reminders.js";
+import { startMateAlertsJob } from "./lib/mate-ai/alerts.js";
 
 const app = createApp();
 const host = process.env.HOST ?? "0.0.0.0";
@@ -24,4 +25,5 @@ app.listen(env.PORT, host, () => {
   startPlatformJobs();
   startDailyBriefJob();
   startOfficeReminderJob();
+  startMateAlertsJob();
 });

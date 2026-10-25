@@ -3162,7 +3162,7 @@ model StaffNotification {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   userId         String    @db.Uuid
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  /// lead.created | quote.approved | quote.signed | quote.changes_requested | quote.viewed | invoice.payment | job.assigned | job.updated | job.reminder | chat.message | chat.mention | payroll.returned | payroll.paid | visit.scheduled | mate.brief
+  /// lead.created | quote.approved | quote.signed | quote.changes_requested | quote.viewed | invoice.payment | job.assigned | job.updated | job.reminder | chat.message | chat.mention | payroll.returned | payroll.paid | visit.scheduled | mate.brief | job.problem | jobs.nocrew
   type           String
   title          String
   body           String    @db.Text

@@ -56,6 +56,7 @@ import {
 import { aiTranscribeAudio, isAiConfigured } from "../../lib/ai/client.js";
 import { Prisma } from "@prisma/client";
 import { recordActivity } from "../../lib/activity/record.js";
+import { alertFieldProblem } from "../../lib/mate-ai/alerts.js";
 import { prisma } from "../../lib/prisma.js";
 
 export const campoJobsRouter = Router();
@@ -846,9 +847,17 @@ campoJobsRouter.post(
           data: { campoProblemNote: body.data.note.trim() },
           include: woTicketInclude,
         });
-        return mapTicket(updated);
+        return { ticket: mapTicket(updated), job: { id: updated.id, number: updated.number, title: updated.title, customerName: clientLabel(updated) } };
       });
-      res.json({ success: true, data });
+      // The office hears it on the phone right away (bell + push).
+      void alertFieldProblem({
+        organizationId: req.organizationId!,
+        reporterId: req.user!.id,
+        reporterName: req.user!.name,
+        job: data.job,
+        note: body.data.note,
+      }).catch((error) => console.error("[campo] problem alert failed", error));
+      res.json({ success: true, data: data.ticket });
     } catch (error: unknown) {
       const err = error as { status?: number; message?: string };
       if (err?.status) {

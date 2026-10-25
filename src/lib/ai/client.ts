@@ -154,6 +154,14 @@ export async function aiTextToSpeech(params: {
   text: string;
   voiceId?: string;
   timeoutMs?: number;
+  /** Overrides ELEVENLABS_TTS_MODEL (the Mate uses the cheaper v4 Turbo). */
+  model?: string;
+  /** Style tag like "[warmly…]" in front of v3/v4 text. Tags are billed as characters, so the Mate turns it off. */
+  styleTag?: boolean;
+  /** ElevenLabs output_format (default mp3_44100_128). */
+  outputFormat?: string;
+  /** The caller counts usage itself (voice characters), so this call is not counted as one AI use. */
+  skipAiUse?: boolean;
 }): Promise<{ ok: true; audio: Buffer; model: string } | AiErrorResult> {
   const key = elevenLabsApiKey();
   if (!key) {
@@ -166,13 +174,16 @@ export async function aiTextToSpeech(params: {
   const text = String(params.text || "").trim();
   if (!text) return { ok: false, error: "O texto para narração está vazio.", provider: "elevenlabs" };
 
-  const blocked = await takeAiUse();
-  if (blocked) return { ok: false, error: blocked, provider: "none" };
+  if (!params.skipAiUse) {
+    const blocked = await takeAiUse();
+    if (blocked) return { ok: false, error: blocked, provider: "none" };
+  }
 
-  const model = process.env.ELEVENLABS_TTS_MODEL?.trim() || "eleven_v4";
+  const model = params.model?.trim() || process.env.ELEVENLABS_TTS_MODEL?.trim() || "eleven_v4";
   const isV4 = model === "eleven_v4" || model === "eleven_v4_turbo";
   const isV3 = model === "eleven_v3";
-  const speechText = isV4 || isV3 ? `[warmly, conversational tone] ${text}` : text;
+  const speechText = (isV4 || isV3) && params.styleTag !== false ? `[warmly, conversational tone] ${text}` : text;
+  const outputFormat = /^[a-z0-9_]{3,40}$/.test(params.outputFormat || "") ? params.outputFormat! : "mp3_44100_128";
   const voiceSettings = isV4
     ? { stability: 0.4, similarity_boost: 0.75 }
     : isV3
@@ -181,7 +192,7 @@ export async function aiTextToSpeech(params: {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), params.timeoutMs ?? 45_000);
   try {
-    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=mp3_44100_128`, {
+    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=${outputFormat}`, {
       method: "POST",
       headers: { "xi-api-key": key, "Content-Type": "application/json", Accept: "audio/mpeg" },
       signal: controller.signal,
