@@ -16,6 +16,9 @@ import { requireCrmAuth, requireCrmPermission } from "../http.js";
 import { env } from "../../config/env.js";
 import { subdomainTenantsSupported, workspaceHomeUrl } from "../../lib/tenant/workspace-url.js";
 import { ensureInvoicePublicToken, publicInvoiceUrl } from "../../lib/invoices/service.js";
+import { parseChecklist } from "../lib/campo-shared.js";
+import { isJobChecklistEnabled } from "../../lib/settings/jobs.js";
+import { formatQuantity, formatTicketWhen, mapsChoiceUrls, parseLockbox, stripLockbox, ticketStatus } from "../../modules/work-orders/public-ticket.js";
 import { findJobMatch, isIntakeReaderConfigured, readWorkOrder, type IntakeFile } from "../../lib/partner-intake/extract.js";
 
 type PartnerRequest = TenantRequest & {
@@ -854,9 +857,23 @@ partnerPortalRouter.get("/api/partner-portal/jobs/:id", requirePartnerAuth, asyn
           deliveryAttachmentName: true,
           deliveryAttachmentSharedWithPartners: true,
           crew: { select: { name: true } },
+          notes: true,
+          campoAttention: true,
+          campoChecklist: true,
+          sector: true,
+          assignedUser: { select: { name: true } },
+          members: { select: { user: { select: { name: true } } } },
+          lineItems: {
+            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+            select: { serviceName: true, quantitySqft: true, notes: true, pricingItem: { select: { unit: true } } },
+          },
         },
       });
       if (!job) return null;
+      const organization = await tx.organization.findFirst({
+        where: { id: user.organizationId },
+        select: { timezone: true, featureFlags: true },
+      });
       const invoiceScopes = await partnerInvoiceScopes(tx, user);
       const [media, reports, invoices, requests] = await Promise.all([
         tx.jobMedia.findMany({
@@ -902,6 +919,35 @@ partnerPortalRouter.get("/api/partner-portal/jobs/:id", requirePartnerAuth, asyn
           crew: job.crew?.name || null,
           external_ref: requests.find((r) => r.externalRef)?.externalRef || null,
         },
+        // Same work information the crew sees on the job ticket (no prices or costs).
+        ticket: (() => {
+          const notes = stripLockbox(job.notes);
+          const checklist = isJobChecklistEnabled(organization?.featureFlags) && Array.isArray(job.campoChecklist)
+            ? parseChecklist(job.campoChecklist).map((c) => ({ text: c.text, done: Boolean(c.done) }))
+            : [];
+          const team = [job.assignedUser?.name, ...job.members.map((m) => m.user.name)].filter(
+            (n, i, arr): n is string => Boolean(n) && arr.indexOf(n!) === i,
+          );
+          return {
+            status: ({ "Em andamento": "Na obra", Rascunho: "Aguardando agenda" } as Record<string, string>)[ticketStatus(job.status, job.fieldStatus).label]
+              || ticketStatus(job.status, job.fieldStatus).label,
+            when: formatTicketWhen(job.scheduledStart, job.scheduledEnd, organization?.timezone),
+            all_day: job.allDay,
+            sector: job.sector === "sand_finish" ? "Lixa e acabamento" : job.sector === "installation" ? "Instalação" : null,
+            maps: job.address ? mapsChoiceUrls(job.address) : null,
+            lockbox: parseLockbox(job.notes),
+            attention: (job.campoAttention || "").trim() || null,
+            notes: notes || null,
+            services: job.lineItems.map((li) => ({
+              name: li.serviceName,
+              qty: Number(li.quantitySqft) > 0 ? formatQuantity(Number(li.quantitySqft), li.pricingItem?.unit) : null,
+              notes: li.notes || null,
+            })),
+            checklist,
+            checklist_done: checklist.filter((c) => c.done).length,
+            team: job.crew?.name ? [job.crew.name, ...team.filter((n) => n !== job.crew?.name)] : team,
+          };
+        })(),
         photos: media.map((item) => ({
           id: item.id,
           type: item.type === "video" ? "video" : "photo",

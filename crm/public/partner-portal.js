@@ -505,6 +505,68 @@
     return { title: 'A equipe vai agendar', text: 'Você recebe a data aqui assim que o job for agendado.', action: `<button type="button" class="pp-btn pp-btn--light" data-update-job>Enviar atualização</button>` };
   }
 
+  function ticketHtml(job, t) {
+    if (!t) return '';
+    const when = t.when;
+    const services = t.services || [];
+    const checklist = t.checklist || [];
+    const pct = checklist.length ? Math.round((t.checklist_done / checklist.length) * 100) : 0;
+    return `
+      <section class="pp-card pp-ticket" id="ppTicket" aria-labelledby="ppTicketTitle">
+        <div class="pp-ticket-print">${esc(providerName())} · Ticket do job${job.number ? ` #${esc(job.number)}` : ''}</div>
+        <div class="pp-block-head">
+          <h3 id="ppTicketTitle">Ticket do job${job.number ? ` <span class="pp-muted" style="font-weight:500">#${esc(job.number)}</span>` : ''}</h3>
+          <div class="pp-ticket-actions">
+            ${t.maps ? `<a class="pp-btn pp-btn--sec pp-btn--sm" href="${esc(t.maps.google)}" target="_blank" rel="noopener">Mapa</a>` : ''}
+            <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-print-ticket>Imprimir</button>
+          </div>
+        </div>
+        <div class="pp-ticket-print pp-ticket-print--title">${esc(job.title || 'Job')}</div>
+
+        <div class="pp-ticket-grid">
+          <div class="pp-ticket-cell">
+            <span class="pp-lbl">Quando</span>
+            ${when
+              ? `<strong class="pp-ticket-big">${esc(when.day)}</strong><span>${t.all_day ? 'Dia todo' : `${esc(when.start)}${when.until ? ` · ${esc(when.until)}` : ''} <span class="pp-muted">${esc(when.zone)}</span>`}</span><span class="pp-chip" style="align-self:flex-start;margin-top:4px">${esc(when.relative)}</span>`
+              : '<strong class="pp-ticket-big">Sem data ainda</strong><span class="pp-muted">A equipe vai agendar.</span>'}
+          </div>
+          <div class="pp-ticket-cell">
+            <span class="pp-lbl">Endereço</span>
+            <strong class="pp-ticket-big">${esc(job.address || '—')}</strong>
+            ${t.maps ? `<span><a class="pp-link" href="${esc(t.maps.apple)}" target="_blank" rel="noopener">Apple Maps</a> · <a class="pp-link" href="${esc(t.maps.google)}" target="_blank" rel="noopener">Google Maps</a></span>` : ''}
+            ${t.lockbox ? `<span class="pp-ticket-lock">Código da caixa: <b>${esc(t.lockbox)}</b></span>` : ''}
+          </div>
+          <div class="pp-ticket-cell">
+            <span class="pp-lbl">Situação</span>
+            <strong class="pp-ticket-big">${esc(t.status)}</strong>
+            ${t.sector ? `<span>${esc(t.sector)}</span>` : ''}
+          </div>
+          <div class="pp-ticket-cell">
+            <span class="pp-lbl">Equipe</span>
+            <strong class="pp-ticket-big">${esc((t.team && t.team[0]) || job.crew || 'A definir')}</strong>
+            ${t.team && t.team.length > 1 ? `<span>${esc(t.team.slice(1).join(', '))}</span>` : ''}
+          </div>
+        </div>
+
+        ${t.attention ? `<div class="pp-ticket-attention"><span class="pp-lbl" style="color:var(--pp-late-ink)">Atenção</span><p>${esc(t.attention)}</p></div>` : ''}
+
+        <div class="pp-ticket-sec">
+          <span class="pp-lbl">Serviços · ${services.length}</span>
+          ${services.length
+            ? `<ul class="pp-ticket-list">${services.map((sv) => `<li><div class="pp-ticket-line"><strong>${esc(sv.name)}</strong>${sv.qty ? `<span>${esc(sv.qty)}</span>` : ''}</div>${sv.notes ? `<p>${esc(sv.notes)}</p>` : ''}</li>`).join('')}</ul>`
+            : '<p class="pp-muted" style="margin:0">A equipe ainda não lançou os serviços deste job.</p>'}
+        </div>
+
+        ${t.notes ? `<div class="pp-ticket-sec"><span class="pp-lbl">Observações</span><p class="pp-ticket-notes">${esc(t.notes)}</p></div>` : ''}
+
+        ${checklist.length ? `<div class="pp-ticket-sec">
+          <div style="display:flex;justify-content:space-between;gap:8px"><span class="pp-lbl">Checklist da obra</span><span class="pp-lbl">${t.checklist_done} de ${checklist.length}</span></div>
+          <div class="pp-progress" aria-hidden="true" style="height:6px"><i style="animation:none;width:${pct}%;transform:none"></i></div>
+          <ul class="pp-ticket-list pp-ticket-check">${checklist.map((c) => `<li class="${c.done ? 'done' : ''}"><span class="pp-check" aria-hidden="true">${c.done ? '✓' : ''}</span><span>${esc(c.text)}</span><span class="pp-sr">${c.done ? 'feito' : 'a fazer'}</span></li>`).join('')}</ul>
+        </div>` : ''}
+      </section>`;
+  }
+
   function jobDetailHtml(data) {
     const job = data.job;
     const i = jobStepIndex(job);
@@ -535,11 +597,7 @@
       </div>
       <div class="pp-cols">
         <div class="pp-col-main">
-          <div class="pp-facts">
-            <div class="pp-card pp-fact"><span class="pp-lbl">Início</span><b>${job.scheduled_start ? esc(fmtWeekday(job.scheduled_start)) : '—'}</b></div>
-            <div class="pp-card pp-fact"><span class="pp-lbl">Término</span><b>${job.scheduled_end ? esc(fmtWeekday(job.scheduled_end)) : '—'}</b></div>
-            <div class="pp-card pp-fact"><span class="pp-lbl">Equipe</span><b>${esc(job.crew || '—')}</b></div>
-          </div>
+          ${ticketHtml(job, data.ticket)}
           <div class="pp-card pp-block" id="ppPhotos">
             <div class="pp-block-head"><h3>Fotos · ${data.photos.length}</h3><a class="pp-link" href="#documentos" style="font-size:13px">Todas as fotos</a></div>
             ${photoColumns(data.photos)}
@@ -564,6 +622,11 @@
   function bindJobDetail(data) {
     if (!data || data.error) return;
     view.querySelectorAll('[data-back]').forEach((b) => b.addEventListener('click', () => { location.hash = b.getAttribute('data-back'); }));
+    view.querySelectorAll('[data-print-ticket]').forEach((b) => b.addEventListener('click', () => {
+      document.body.classList.add('pp-printing');
+      window.print();
+      setTimeout(() => document.body.classList.remove('pp-printing'), 500);
+    }));
     view.querySelectorAll('[data-update-job]').forEach((b) => b.addEventListener('click', () => {
       state.send = newSend();
       state.send.presetJob = { id: data.job.id, number: data.job.number, title: data.job.title, address: data.job.address };
