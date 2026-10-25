@@ -2,136 +2,85 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#f7f8fa" />
-  <title>Portal do parceiro · ObraMate</title>
+  <title>Portal do builder · ObraMate</title>
   <link rel="icon" href="/favicon.ico" sizes="any" />
-  <link rel="stylesheet" href="partner-portal.css?v=20261023-3" />
+  <link rel="stylesheet" href="partner-portal-v2.css?v=20261025-pp1" />
 </head>
-<body class="partner-portal-page">
-  <header class="partner-topbar">
-    <a class="partner-brand" href="partner-portal.html" aria-label="ObraMate">
-      <img src="/assets/obramate-logo.png" alt="ObraMate" width="128" height="52" />
-      <span class="partner-brand-context">Portal do parceiro</span>
-    </a>
-    <div class="partner-account">
-      <span id="partnerAccountName">Carregando…</span>
-      <div id="partnerProviderTools" class="partner-provider-tools" hidden>
-        <label for="partnerProviderSelect">Fornecedor</label>
-        <select id="partnerProviderSelect" aria-label="Selecionar fornecedor"></select>
-        <button type="button" class="partner-link-button" id="partnerProviderSwitch">Trocar</button>
+<body class="pp">
+  <header class="pp-top">
+    <div class="pp-top-in">
+      <a class="pp-brand" href="#inicio" aria-label="Início do portal">
+        <span class="pp-mark" id="ppMark" aria-hidden="true">·</span>
+        <span class="pp-brand-text"><strong id="ppProvider">Carregando…</strong><span>Portal do builder</span></span>
+      </a>
+      <label class="pp-search" for="ppSearch">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+        <span class="pp-sr">Buscar</span>
+        <input id="ppSearch" type="search" autocomplete="off" placeholder="Buscar jobs, endereços, invoices…" />
+        <span class="pp-kbd" aria-hidden="true">⌘K</span>
+      </label>
+      <div class="pp-top-actions">
+        <a class="pp-btn pp-btn--pri pp-send-top" href="#enviar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Enviar trabalho
+        </a>
+        <a class="pp-ibtn pp-plus-mobile" href="#enviar" aria-label="Enviar trabalho">
+          <svg viewBox="0 0 24 24" aria-hidden="true" style="width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round"><path d="M12 5v14M5 12h14"/></svg>
+        </a>
+        <button type="button" class="pp-ibtn pp-avatar" id="ppAvatar" aria-haspopup="true" aria-expanded="false" aria-controls="ppMenu">··</button>
+        <div class="pp-menu" id="ppMenu" hidden>
+          <div class="pp-menu-head"><strong id="ppUserName"></strong><span id="ppUserEmail"></span></div>
+          <div id="ppProviderTools" hidden>
+            <label for="ppProviderSelect">Fornecedor</label>
+            <select id="ppProviderSelect"></select>
+            <button type="button" class="pp-menu-item" id="ppProviderSwitch">Trocar de fornecedor</button>
+          </div>
+          <button type="button" class="pp-menu-item" id="ppLogout">Sair</button>
+        </div>
       </div>
-      <button type="button" class="partner-link-button" id="partnerLogout">Sair</button>
     </div>
   </header>
-  <main class="partner-main">
-    <section class="partner-welcome">
-      <p class="partner-eyebrow">Seu espaço de trabalho</p>
-      <h1>Olá, <span id="partnerName">parceiro</span></h1>
-      <p id="partnerCompany" class="partner-muted"></p>
-    </section>
 
-    <section id="changePasswordPanel" class="partner-panel partner-change-password" hidden>
-      <p class="partner-eyebrow">Primeiro acesso</p>
-      <h2>Crie sua senha pessoal</h2>
-      <p class="partner-muted">Por segurança, troque a senha temporária antes de abrir seus projetos.</p>
-      <form id="changePasswordForm" class="partner-form partner-form-inline">
-        <div><label for="newPassword">Nova senha</label><input id="newPassword" type="password" minlength="10" autocomplete="new-password" required /></div>
-        <div><label for="confirmPassword">Confirme a nova senha</label><input id="confirmPassword" type="password" minlength="10" autocomplete="new-password" required /></div>
-        <p id="passwordError" class="partner-error" role="alert" hidden></p>
-        <button class="partner-button" id="changePasswordButton" type="submit">Salvar senha</button>
-      </form>
-    </section>
-
-    <nav id="partnerPortalTabs" class="partner-portal-tabs" role="tablist" aria-label="Navegação do portal" hidden>
-      <button type="button" id="partnerJobsTab" role="tab" aria-selected="true" aria-controls="partnerProjectsSection">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18M10 12v2h4v-2"/></svg><span>Jobs</span>
-      </button>
-      <button type="button" id="partnerCalendarTab" role="tab" aria-selected="false" aria-controls="partnerCalendarSection" tabindex="-1">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg><span>Calendário</span>
-      </button>
-      <button type="button" id="partnerHistoryTab" role="tab" aria-selected="false" aria-controls="partnerHistorySection" tabindex="-1">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 2.64-6.36L3 8M3 3v5h5M12 7v5l3 2"/></svg><span>Histórico</span>
-      </button>
-      <button type="button" id="partnerInvoicesTab" role="tab" aria-selected="false" aria-controls="partnerInvoicesSection" tabindex="-1">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16l3-1.5 3 1.5 3-1.5 3 1.5V8z"/><path d="M14 2v6h6M8 12h6M8 16h6"/></svg><span>Invoices</span>
-      </button>
-      <button type="button" id="partnerRequestsTab" role="tab" aria-selected="false" aria-controls="partnerRequestsSection" tabindex="-1">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg><span>Solicitar job</span>
-      </button>
-      <button type="button" id="partnerDocumentsTab" role="tab" aria-selected="false" aria-controls="partnerDocumentsSection" tabindex="-1">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 9h18"/></svg><span>Documentos</span>
-      </button>
-    </nav>
-
-    <section id="partnerProjectsSection" role="tabpanel" aria-labelledby="partnerJobsTab" hidden>
-      <div class="partner-section-heading">
-        <div><p class="partner-eyebrow">Painel de jobs</p><h2>Jobs ativos</h2></div>
-        <span id="partnerItemCount" class="partner-count"></span>
-      </div>
-      <div class="partner-summary-grid" id="partnerJobSummary" aria-label="Resumo dos jobs"></div>
-      <div id="partnerItems" class="partner-items" aria-live="polite"></div>
-    </section>
-
-    <section id="partnerCalendarSection" role="tabpanel" aria-labelledby="partnerCalendarTab" hidden>
-      <div class="partner-section-heading"><div><p class="partner-eyebrow">Agenda dos seus jobs</p><h2>Calendário</h2></div></div>
-      <div class="partner-calendar" id="partnerCalendar"></div>
-      <div id="partnerCalendarJobs" class="partner-items" aria-live="polite"></div>
-    </section>
-
-    <section id="partnerHistorySection" role="tabpanel" aria-labelledby="partnerHistoryTab" hidden>
-      <div class="partner-section-heading"><div><p class="partner-eyebrow">Obras finalizadas</p><h2>Histórico de jobs</h2></div><span id="partnerHistoryCount" class="partner-count"></span></div>
-      <div id="partnerHistoryItems" class="partner-items" aria-live="polite"></div>
-    </section>
-
-    <section id="partnerInvoicesSection" role="tabpanel" aria-labelledby="partnerInvoicesTab" hidden>
-      <div class="partner-section-heading"><div><p class="partner-eyebrow">Faturamento do fornecedor selecionado</p><h2>Invoices</h2></div><span id="partnerInvoiceCount" class="partner-count"></span></div>
-      <div id="partnerInvoices" class="partner-invoices" aria-live="polite"></div>
-    </section>
-
-    <section id="partnerRequestsSection" role="tabpanel" aria-labelledby="partnerRequestsTab" hidden>
-      <div class="partner-section-heading"><div><p class="partner-eyebrow">Envie os detalhes para a equipe</p><h2>Solicitar um job</h2></div></div>
-      <form id="partnerRequestForm" class="partner-panel partner-request-form">
-        <div class="partner-request-grid">
-          <div><label for="requestTitle">Título do job *</label><input id="requestTitle" name="title" maxlength="160" required placeholder="Ex.: Instalação de piso — cozinha" /></div>
-          <div><label for="requestService">Tipo de serviço</label><input id="requestService" name="service_type" maxlength="100" placeholder="Ex.: Instalação de hardwood" /></div>
-          <div class="partner-request-wide"><label for="requestAddress">Endereço da obra *</label><input id="requestAddress" name="address" maxlength="300" required autocomplete="street-address" placeholder="Endereço completo" /></div>
-          <div><label for="requestContact">Contato no local</label><input id="requestContact" name="contact_name" maxlength="120" /></div>
-          <div><label for="requestPhone">Telefone</label><input id="requestPhone" name="contact_phone" type="tel" maxlength="40" autocomplete="tel" /></div>
-          <div><label for="requestEmail">E-mail de contato</label><input id="requestEmail" name="contact_email" type="email" maxlength="254" autocomplete="email" /></div>
-          <div><label for="requestPreferredDate">Data desejada</label><input id="requestPreferredDate" name="preferred_date" type="date" /></div>
-          <div class="partner-request-wide"><label for="requestNotes">Informações gerais</label><textarea id="requestNotes" name="notes" maxlength="5000" rows="4" placeholder="Medidas, material, acesso ao imóvel, instruções…"></textarea></div>
-          <div class="partner-request-wide"><label for="requestFiles">Fotos e arquivos <span>(até 5 arquivos, 10 MB no total; JPG, PNG, WebP ou PDF)</span></label><input id="requestFiles" name="files" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple /><small id="requestFileSummary" class="partner-muted"></small></div>
-        </div>
-        <p id="partnerRequestError" class="partner-error" role="alert" hidden></p>
-        <button class="partner-button" id="partnerRequestSubmit" type="submit">Enviar solicitação</button>
-      </form>
-      <div class="partner-section-heading"><div><p class="partner-eyebrow">Acompanhamento</p><h2>Meus pedidos</h2></div><span id="partnerRequestCount" class="partner-count"></span></div>
-      <div id="partnerRequests" class="partner-request-list" aria-live="polite"></div>
-    </section>
-
-    <section id="partnerDocumentsSection" role="tabpanel" aria-labelledby="partnerDocumentsTab" hidden>
-      <div class="partner-section-heading">
-        <div><p class="partner-eyebrow">Arquivos liberados pela equipe</p><h2>Documentos das obras</h2></div>
-        <span id="partnerDocumentCount" class="partner-count"></span>
-      </div>
-      <div class="partner-document-tools">
-        <label class="partner-document-search" for="partnerDocumentSearch">
-          <span>Buscar por obra ou documento</span>
-          <input id="partnerDocumentSearch" type="search" autocomplete="off" placeholder="Ex.: fotos da cozinha, relatório…" />
-        </label>
-        <div id="partnerDocumentFilters" class="partner-document-filters" role="group" aria-label="Filtrar documentos">
-          <button type="button" data-doc-filter="all" aria-pressed="true">Todos</button>
-          <button type="button" data-doc-filter="photo" aria-pressed="false">Fotos e vídeos</button>
-          <button type="button" data-doc-filter="report" aria-pressed="false">Relatórios</button>
-          <button type="button" data-doc-filter="file" aria-pressed="false">Arquivos</button>
-        </div>
-      </div>
-      <div id="partnerDocuments" class="partner-documents" aria-live="polite"></div>
-    </section>
-
-    <p id="partnerPortalError" class="partner-error partner-page-error" role="alert" hidden></p>
+  <main class="pp-wrap" id="ppView" aria-live="polite">
+    <div class="pp-empty"><strong>Carregando o portal…</strong></div>
   </main>
-  <script src="partner-portal.js?v=20261023-2" defer></script>
+
+  <nav class="pp-dock" id="ppDock" aria-label="Navegação" hidden>
+    <a class="pp-di" href="#inicio" data-nav="inicio"><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9H4z"/></svg></span>Início</a>
+    <span class="pp-sep" aria-hidden="true"></span>
+    <a class="pp-di" href="#jobs" data-nav="jobs"><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16v12H4z"/><path d="M9 8V5h6v3"/></svg></span>Jobs</a>
+    <a class="pp-di" href="#calendario" data-nav="calendario"><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v14H4z"/><path d="M8 3v5M16 3v5M4 11h16"/></svg></span>Calendário</a>
+    <a class="pp-di" href="#documentos" data-nav="documentos"><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>Fotos e docs</a>
+    <span class="pp-sep" aria-hidden="true"></span>
+    <a class="pp-di" href="#invoices" data-nav="invoices"><span class="pp-count" data-count="invoices" hidden></span><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg></span>Invoices</a>
+    <a class="pp-di" href="#enviar" data-nav="enviar"><span class="pp-count" data-count="pedidos" hidden></span><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></span>Pedidos</a>
+  </nav>
+
+  <nav class="pp-tabs" id="ppTabs" aria-label="Abas" hidden>
+    <a class="pp-tab" href="#inicio" data-nav="inicio"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9H4z"/></svg>Início</a>
+    <a class="pp-tab" href="#jobs" data-nav="jobs"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16v12H4z"/><path d="M9 8V5h6v3"/></svg>Jobs</a>
+    <a class="pp-tab" href="#calendario" data-nav="calendario"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v14H4z"/><path d="M8 3v5M16 3v5M4 11h16"/></svg>Calendário</a>
+    <a class="pp-tab" href="#invoices" data-nav="invoices"><span class="pp-count" data-count="invoices" hidden></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>Invoices</a>
+    <a class="pp-tab" href="#mais" data-nav="mais"><span class="pp-count" data-count="pedidos" hidden></span><svg viewBox="0 0 24 24" aria-hidden="true" style="fill:currentColor;stroke:none"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>Mais</a>
+  </nav>
+  <button type="button" class="pp-search-fab" id="ppSearchFab" aria-label="Buscar" hidden>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+  </button>
+  <div class="pp-search-sheet" id="ppSearchSheet" hidden>
+    <div style="display:flex;gap:10px;align-items:center">
+      <label class="pp-search" for="ppSearchMobile" style="flex:1">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+        <span class="pp-sr">Buscar</span>
+        <input id="ppSearchMobile" type="search" autocomplete="off" placeholder="Jobs, endereços, invoices…" />
+      </label>
+      <button type="button" class="pp-link" id="ppSearchClose" style="text-decoration:none">Cancelar</button>
+    </div>
+    <div id="ppSearchResults" class="pp-card" style="overflow:hidden"></div>
+  </div>
+
+  <input type="file" id="ppFileInput" accept="image/jpeg,image/png,image/webp,application/pdf" multiple hidden />
+  <input type="file" id="ppCameraInput" accept="image/*" capture="environment" hidden />
+  <script src="partner-portal.js?v=20261025-pp1" defer></script>
 </body>
 </html>

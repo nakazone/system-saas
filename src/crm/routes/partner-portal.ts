@@ -16,6 +16,7 @@ import { requireCrmAuth, requireCrmPermission } from "../http.js";
 import { env } from "../../config/env.js";
 import { subdomainTenantsSupported, workspaceHomeUrl } from "../../lib/tenant/workspace-url.js";
 import { ensureInvoicePublicToken, publicInvoiceUrl } from "../../lib/invoices/service.js";
+import { findJobMatch, isIntakeReaderConfigured, readWorkOrder, type IntakeFile } from "../../lib/partner-intake/extract.js";
 
 type PartnerRequest = TenantRequest & {
   partnerUser?: {
@@ -624,6 +625,9 @@ partnerPortalRouter.get("/api/partner-portal/requests", requirePartnerAuth, asyn
         review_note: row.reviewNote,
         created_at: row.createdAt,
         job_id: row.workOrderId,
+        external_ref: row.externalRef,
+        target_job_id: row.targetWorkOrderId,
+        read_by_ai: Boolean(row.intake && typeof row.intake === "object" && (row.intake as { source?: string }).source === "ai"),
         files: requestFiles(row.files).map((file, index) => ({
           name: file.name,
           size: file.size,
@@ -651,10 +655,27 @@ partnerPortalRouter.post("/api/partner-portal/requests", requirePartnerAuth, asy
       preferred_date: z.union([z.string().date(), z.literal("")]).optional().default(""),
       notes: z.string().trim().max(5000).optional().default(""),
       files: z.array(z.object({ name: z.string().trim().min(1).max(180), data_url: z.string().min(1).max(14_000_000) })).max(5).optional().default([]),
+      external_ref: z.string().trim().max(60).optional().default(""),
+      target_job_id: z.union([z.string().uuid(), z.literal("")]).optional().default(""),
+      intake: z.object({
+        source: z.enum(["ai", "manual"]),
+        fields_checked: z.array(z.string().max(40)).max(20).optional().default([]),
+        model: z.string().max(80).optional(),
+      }).optional(),
     }).safeParse(req.body || {});
     if (!parsed.success) {
       res.status(400).json({ success: false, error: "Confira os campos do pedido e tente novamente." });
       return;
+    }
+    if (parsed.data.target_job_id) {
+      const target = await withTenantTransaction(user.organizationId, (tx) => tx.workOrder.findFirst({
+        where: { id: parsed.data.target_job_id, organizationId: user.organizationId, ...partnerJobScope(user), status: { not: "canceled" } },
+        select: { id: true },
+      }));
+      if (!target) {
+        res.status(400).json({ success: false, error: "Esse job não está mais disponível. Envie como um job novo." });
+        return;
+      }
     }
     const uploads: Array<{ name: string; dataUrl: string }> = parsed.data.files.map((file) => ({ name: file.name, dataUrl: file.data_url }));
     let totalBytes = 0;
@@ -693,6 +714,9 @@ partnerPortalRouter.post("/api/partner-portal/requests", requirePartnerAuth, asy
           preferredDate: parsed.data.preferred_date ? new Date(`${parsed.data.preferred_date}T12:00:00.000Z`) : null,
           notes: parsed.data.notes || null,
           files: [] as Prisma.InputJsonValue,
+          externalRef: parsed.data.external_ref || null,
+          targetWorkOrderId: parsed.data.target_job_id || null,
+          ...(parsed.data.intake ? { intake: parsed.data.intake as Prisma.InputJsonValue } : {}),
         },
       }),
     );
@@ -717,6 +741,224 @@ partnerPortalRouter.post("/api/partner-portal/requests", requirePartnerAuth, asy
       throw error;
     }
     res.status(201).json({ success: true, data: { id: row.id, status: "pending" } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/** Reads a work order / PO / schedule export with AI and suggests the request fields. Nothing is saved. */
+partnerPortalRouter.post("/api/partner-portal/requests/read", requirePartnerAuth, async (req: PartnerRequest, res, next) => {
+  try {
+    const user = req.partnerUser!;
+    if (!partnerDocsReady(user, res)) return;
+    const parsed = z.object({
+      text: z.string().max(20_000).optional().default(""),
+      files: z.array(z.object({ name: z.string().trim().min(1).max(180), data_url: z.string().min(1).max(14_000_000) })).max(5).optional().default([]),
+    }).safeParse(req.body || {});
+    if (!parsed.success) {
+      res.status(400).json({ success: false, error: "Envie até 5 arquivos (JPG, PNG, WebP ou PDF) ou cole o texto." });
+      return;
+    }
+    const files: IntakeFile[] = [];
+    let totalBytes = 0;
+    for (const file of parsed.data.files) {
+      const match = /^data:([^;]+);base64,(.+)$/.exec(file.data_url);
+      const contentType = match?.[1]?.toLowerCase() || "";
+      const body = match ? Buffer.from(match[2]!, "base64") : Buffer.alloc(0);
+      totalBytes += body.length;
+      if (!match || !validUploadSignature(contentType, body)) {
+        res.status(400).json({ success: false, error: `O tipo do arquivo ${file.name} não é aceito. Use JPG, PNG, WebP ou PDF.` });
+        return;
+      }
+      files.push({ name: safeFileName(file.name, "arquivo"), contentType, dataUrl: file.data_url });
+    }
+    if (totalBytes > 10 * 1024 * 1024) {
+      res.status(400).json({ success: false, error: "O total dos arquivos deve ser menor que 10 MB." });
+      return;
+    }
+    if (!files.length && !parsed.data.text.trim()) {
+      res.status(400).json({ success: false, error: "Envie um arquivo ou cole o texto do pedido." });
+      return;
+    }
+    if (!isIntakeReaderConfigured()) {
+      res.json({ success: true, data: { ai_available: false, fields: null, check: [], warnings: [], match: null } });
+      return;
+    }
+    const read = await readWorkOrder({ files, text: parsed.data.text });
+    if (!read.ok) {
+      res.status(422).json({ success: false, error: read.error, code: "read_failed" });
+      return;
+    }
+    const match = await withTenantTransaction(user.organizationId, async (tx) => {
+      const [jobs, linked] = await Promise.all([
+        tx.workOrder.findMany({
+          where: { organizationId: user.organizationId, ...partnerJobScope(user), status: { not: "canceled" } },
+          select: { id: true, number: true, title: true, address: true, status: true },
+          orderBy: { updatedAt: "desc" },
+          take: 300,
+        }),
+        tx.partnerJobRequest.findMany({
+          where: { organizationId: user.organizationId, partnerUserId: user.id, externalRef: { not: null }, workOrderId: { not: null } },
+          select: { externalRef: true, workOrderId: true },
+          take: 500,
+        }),
+      ]);
+      const refs = new Map<string, string[]>();
+      for (const row of linked) {
+        const list = refs.get(row.workOrderId!) || [];
+        list.push(row.externalRef!);
+        refs.set(row.workOrderId!, list);
+      }
+      return findJobMatch(
+        jobs.map((job) => ({ ...job, externalRefs: refs.get(job.id) || [] })),
+        { address: read.result.fields.address, externalRef: read.result.fields.external_ref },
+      );
+    });
+    res.json({
+      success: true,
+      data: {
+        ai_available: true,
+        model: read.model,
+        fields: read.result.fields,
+        check: read.result.check,
+        warnings: read.result.warnings,
+        match,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/** One job as the builder sees it: dates, stage, shared photos/reports/files, invoices and the requests behind it. */
+partnerPortalRouter.get("/api/partner-portal/jobs/:id", requirePartnerAuth, async (req: PartnerRequest, res, next) => {
+  try {
+    const user = req.partnerUser!;
+    if (!partnerDocsReady(user, res)) return;
+    const data = await withTenantTransaction(user.organizationId, async (tx) => {
+      const job = await tx.workOrder.findFirst({
+        where: { id: String(req.params.id), organizationId: user.organizationId, ...partnerJobScope(user), status: { not: "canceled" } },
+        select: {
+          id: true,
+          number: true,
+          title: true,
+          status: true,
+          fieldStatus: true,
+          address: true,
+          scheduledStart: true,
+          scheduledEnd: true,
+          allDay: true,
+          createdAt: true,
+          updatedAt: true,
+          deliveryAttachmentKey: true,
+          deliveryAttachmentName: true,
+          deliveryAttachmentSharedWithPartners: true,
+          crew: { select: { name: true } },
+        },
+      });
+      if (!job) return null;
+      const invoiceScopes = await partnerInvoiceScopes(tx, user);
+      const [media, reports, invoices, requests] = await Promise.all([
+        tx.jobMedia.findMany({
+          where: { organizationId: user.organizationId, workOrderId: job.id, sharedWithPartners: true, deletedAt: null },
+          orderBy: { createdAt: "desc" },
+          take: 60,
+          select: { id: true, type: true, caption: true, stage: true, createdAt: true },
+        }),
+        tx.jobReport.findMany({
+          where: { organizationId: user.organizationId, workOrderId: job.id, sharedWithPartners: true, status: "published" },
+          orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }],
+          take: 20,
+          select: { id: true, title: true, summary: true, publishedAt: true, createdAt: true },
+        }),
+        invoiceScopes.length
+          ? tx.quoteInvoice.findMany({
+            where: { organizationId: user.organizationId, workOrderId: job.id, status: { notIn: ["draft", "void"] }, OR: invoiceScopes },
+            select: { id: true, invoiceNumber: true, status: true, amount: true, dueDate: true, issuedAt: true, receipts: { select: { amount: true } } },
+            orderBy: { createdAt: "desc" },
+            take: 20,
+          })
+          : Promise.resolve([]),
+        tx.partnerJobRequest.findMany({
+          where: { organizationId: user.organizationId, partnerUserId: user.id, OR: [{ workOrderId: job.id }, { targetWorkOrderId: job.id }] },
+          orderBy: { createdAt: "desc" },
+          take: 20,
+          select: { id: true, title: true, status: true, externalRef: true, notes: true, preferredDate: true, reviewNote: true, createdAt: true, files: true },
+        }),
+      ]);
+      return {
+        job: {
+          id: job.id,
+          number: job.number,
+          title: job.title,
+          status: job.status,
+          field_status: job.fieldStatus,
+          address: job.address,
+          scheduled_start: job.scheduledStart,
+          scheduled_end: job.scheduledEnd,
+          all_day: job.allDay,
+          created_at: job.createdAt,
+          updated_at: job.updatedAt,
+          crew: job.crew?.name || null,
+          external_ref: requests.find((r) => r.externalRef)?.externalRef || null,
+        },
+        photos: media.map((item) => ({
+          id: item.id,
+          type: item.type === "video" ? "video" : "photo",
+          stage: item.stage || null,
+          caption: item.caption || "",
+          created_at: item.createdAt,
+          file_url: `/api/partner-portal/documents/media/${encodeURIComponent(item.id)}/file`,
+        })),
+        documents: [
+          ...reports.map((item) => ({
+            id: item.id,
+            type: "report",
+            title: item.title || "Relatório da obra",
+            created_at: item.publishedAt || item.createdAt,
+            file_url: `/api/partner-portal/documents/report/${encodeURIComponent(item.id)}/file`,
+          })),
+          ...(job.deliveryAttachmentSharedWithPartners && job.deliveryAttachmentKey
+            ? [{ id: job.id, type: "file", title: job.deliveryAttachmentName || "Arquivo da obra", created_at: null, file_url: `/api/partner-portal/documents/attachment/${encodeURIComponent(job.id)}/file` }]
+            : []),
+          ...requests.flatMap((row) => requestFiles(row.files).map((file, index) => ({
+            id: `${row.id}-${index}`,
+            type: "sent",
+            title: file.name,
+            created_at: row.createdAt,
+            file_url: `/api/partner-portal/requests/${encodeURIComponent(row.id)}/files/${index}`,
+          }))),
+        ],
+        invoices: invoices.map((invoice) => {
+          const amount = Number(invoice.amount);
+          const paid = invoice.receipts.reduce((sum, r) => sum + Number(r.amount), 0);
+          return {
+            id: invoice.id,
+            number: invoice.invoiceNumber,
+            status: invoice.status,
+            amount,
+            balance: Math.max(0, amount - paid),
+            due_date: invoice.dueDate,
+            issued_at: invoice.issuedAt,
+            invoice_url: `/api/partner-portal/invoices/${encodeURIComponent(invoice.id)}/open`,
+          };
+        }),
+        requests: requests.map((row) => ({
+          id: row.id,
+          title: row.title,
+          status: row.status,
+          notes: row.notes,
+          preferred_date: row.preferredDate,
+          review_note: row.reviewNote,
+          created_at: row.createdAt,
+        })),
+      };
+    });
+    if (!data) {
+      res.status(404).json({ success: false, error: "Job não encontrado." });
+      return;
+    }
+    res.json({ success: true, data });
   } catch (error) {
     next(error);
   }
@@ -775,6 +1017,15 @@ partnerPortalRouter.get("/api/partner-requests", requireCrmAuth, requireCrmPermi
       orderBy: { createdAt: "desc" },
       take: 200,
     }));
+    const targetIds = [...new Set(rows.map((row) => row.targetWorkOrderId).filter((id): id is string => Boolean(id)))];
+    const targets = new Map(
+      targetIds.length
+        ? (await withTenantTransaction(req.organizationId!, (tx) => tx.workOrder.findMany({
+          where: { organizationId: req.organizationId!, id: { in: targetIds } },
+          select: { id: true, number: true, title: true },
+        }))).map((job) => [job.id, job] as const)
+        : [],
+    );
     res.json({
       success: true,
       data: rows.map((row) => ({
@@ -794,6 +1045,9 @@ partnerPortalRouter.get("/api/partner-requests", requireCrmAuth, requireCrmPermi
         partner_email: row.partnerUser.email,
         partner_company: row.partnerUser.companyName || row.partnerUser.builder?.company || row.partnerUser.customer?.company || row.partnerUser.customer?.name || "Builder",
         work_order: row.workOrder,
+        external_ref: row.externalRef,
+        target_job: row.targetWorkOrderId ? targets.get(row.targetWorkOrderId) || null : null,
+        read_by_ai: Boolean(row.intake && typeof row.intake === "object" && (row.intake as { source?: string }).source === "ai"),
         files: requestFiles(row.files).map((file, index) => ({
           name: file.name,
           size: file.size,
@@ -851,6 +1105,31 @@ partnerPortalRouter.post("/api/partner-requests/:id/accept", requireCrmAuth, req
         return { kind: "accepted" as const, job_id: request.workOrderId };
       }
       if (request.status !== "pending") return { kind: "closed" as const };
+      if (request.targetWorkOrderId) {
+        const target = await tx.workOrder.findFirst({
+          where: { id: request.targetWorkOrderId, organizationId: req.organizationId!, status: { not: "canceled" } },
+          select: { id: true, notes: true },
+        });
+        if (target) {
+          const stamp = new Date().toISOString().slice(0, 10);
+          const update = [
+            `Atualização do builder pelo portal (${stamp}): ${request.title}`,
+            request.externalRef ? `Nº do builder: ${request.externalRef}` : "",
+            request.serviceType ? `Serviço: ${request.serviceType}` : "",
+            request.preferredDate ? `Data solicitada: ${request.preferredDate.toISOString().slice(0, 10)}` : "",
+            request.notes ? `Detalhes: ${request.notes}` : "",
+          ].filter(Boolean).join("\n");
+          await tx.workOrder.update({
+            where: { id: target.id },
+            data: { notes: [target.notes, update].filter(Boolean).join("\n\n") },
+          });
+          await tx.partnerJobRequest.update({
+            where: { id: request.id },
+            data: { status: "accepted", workOrderId: target.id, reviewedAt: new Date(), reviewNote: parsed.data.review_note || null },
+          });
+          return { kind: "accepted" as const, job_id: target.id, updated: true };
+        }
+      }
       const partnerType = (request.partnerUser.builder?.type || request.partnerUser.customer?.customerType || "builder").toLowerCase();
       const sourceType = partnerType === "contractor" ? "contractor" : "builder";
       const sourceName = request.partnerUser.companyName || request.partnerUser.builder?.company || request.partnerUser.customer?.company || request.partnerUser.customer?.name || "Builder";
@@ -860,6 +1139,7 @@ partnerPortalRouter.post("/api/partner-requests/:id/accept", requireCrmAuth, req
         request.contactPhone ? `Telefone: ${request.contactPhone}` : "",
         request.serviceType ? `Serviço: ${request.serviceType}` : "",
         request.preferredDate ? `Data solicitada: ${request.preferredDate.toISOString().slice(0, 10)}` : "",
+        request.externalRef ? `Nº do builder: ${request.externalRef}` : "",
         request.notes ? `Detalhes: ${request.notes}` : "",
       ].filter(Boolean).join("\n");
       await tx.$executeRaw`

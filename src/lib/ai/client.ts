@@ -10,6 +10,7 @@ export type AiChatMessage = {
     | Array<
         | { type: "text"; text: string }
         | { type: "image_url"; image_url: { url: string } }
+        | { type: "file"; file: { filename: string; file_data: string } }
       >;
 };
 
@@ -236,6 +237,8 @@ export async function aiChatJson(params: {
   system: string;
   user: string;
   imageUrls?: string[];
+  /** PDFs as data URLs (sent as file parts; vision-capable models read them page by page). */
+  files?: Array<{ filename: string; dataUrl: string }>;
   timeoutMs?: number;
   /** Overrides the default chat model for this call. */
   model?: string;
@@ -256,14 +259,19 @@ export async function aiChatJson(params: {
     .filter((u) => typeof u === "string" && u.length > 0)
     .slice(0, 8);
 
+  const files = (params.files || []).filter((f) => f && f.dataUrl).slice(0, 5);
   const userContent: AiChatMessage["content"] =
-    images.length === 0
+    images.length === 0 && files.length === 0
       ? params.user
       : [
           { type: "text", text: params.user },
           ...images.map((url) => ({
             type: "image_url" as const,
             image_url: { url },
+          })),
+          ...files.map((f) => ({
+            type: "file" as const,
+            file: { filename: f.filename, file_data: f.dataUrl },
           })),
         ];
 

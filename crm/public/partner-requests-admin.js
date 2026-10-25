@@ -54,7 +54,9 @@
       const statusClass = item.status === 'accepted' ? 'is-accepted' : item.status === 'declined' ? 'is-declined' : '';
       const files = (item.files || []).map((file) => `<a href="${escapeHtml(file.file_url)}" target="_blank" rel="noopener">${escapeHtml(file.name)}</a>`).join('');
       const details = [
+        item.target_job ? `<p><strong>Atualização do job:</strong> #${escapeHtml(item.target_job.number || '')} ${escapeHtml(item.target_job.title)}</p>` : '',
         `<p><strong>Builder:</strong> ${escapeHtml(item.partner_company)} · ${escapeHtml(item.partner_name)} (${escapeHtml(item.partner_email)})</p>`,
+        item.external_ref ? `<p><strong>Nº do builder:</strong> ${escapeHtml(item.external_ref)}</p>` : '',
         `<p><strong>Endereço:</strong> ${escapeHtml(item.address)}</p>`,
         `<p><strong>Contato no local:</strong> ${escapeHtml(item.contact_name || '—')}${item.contact_phone ? ` · ${escapeHtml(item.contact_phone)}` : ''}${item.contact_email ? ` · ${escapeHtml(item.contact_email)}` : ''}</p>`,
         `<p><strong>Serviço:</strong> ${escapeHtml(item.service_type || '—')}</p>`,
@@ -64,8 +66,8 @@
         item.review_note ? `<p><strong>Resposta enviada:</strong> ${escapeHtml(item.review_note)}</p>` : '',
         item.work_order ? `<p><strong>Job criado:</strong> #${escapeHtml(item.work_order.number || '')} ${escapeHtml(item.work_order.title)}</p>` : '',
       ].join('');
-      const review = item.status === 'pending' ? `<div class="requests-review"><label for="review-${escapeHtml(item.id)}">Mensagem para o Builder (opcional)</label><textarea id="review-${escapeHtml(item.id)}" maxlength="2000" placeholder="Confirmação, pedido de informação ou motivo da recusa…"></textarea><div class="requests-actions"><button type="button" data-action="accept" data-id="${escapeHtml(item.id)}">Aceitar e criar Job</button><button type="button" data-action="decline" data-id="${escapeHtml(item.id)}">Não aprovar</button></div></div>` : '';
-      return `<article class="requests-card"><div class="requests-card-head"><div><h2>${escapeHtml(item.title)}</h2><p class="requests-meta">${escapeHtml(item.partner_company)} · ${escapeHtml(formatDate(item.created_at))}</p></div><span class="requests-status ${statusClass}">${statusLabel(item.status)}</span></div><div class="requests-info">${details}</div>${files ? `<div class="requests-files">${files}</div>` : ''}${review}</article>`;
+      const review = item.status === 'pending' ? `<div class="requests-review"><label for="review-${escapeHtml(item.id)}">Mensagem para o Builder (opcional)</label><textarea id="review-${escapeHtml(item.id)}" maxlength="2000" placeholder="Confirmação, pedido de informação ou motivo da recusa…"></textarea><div class="requests-actions"><button type="button" data-action="accept" data-id="${escapeHtml(item.id)}">${item.target_job ? 'Aceitar e atualizar o Job' : 'Aceitar e criar Job'}</button><button type="button" data-action="decline" data-id="${escapeHtml(item.id)}">Não aprovar</button></div></div>` : '';
+      return `<article class="requests-card"><div class="requests-card-head"><div><h2>${escapeHtml(item.title)}</h2><p class="requests-meta">${escapeHtml(item.partner_company)} · ${escapeHtml(formatDate(item.created_at))}${item.read_by_ai ? ' · lido pela IA a partir do arquivo' : ''}${item.target_job ? ' · atualização' : ''}</p></div><span class="requests-status ${statusClass}">${statusLabel(item.status)}</span></div><div class="requests-info">${details}</div>${files ? `<div class="requests-files">${files}</div>` : ''}${review}</article>`;
     }).join('');
   }
 

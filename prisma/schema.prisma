@@ -1131,12 +1131,19 @@ model PartnerJobRequest {
   files          Json      @default("[]")
   reviewedAt     DateTime?
   reviewNote     String?   @db.Text
+  /// The builder's own job / PO number, read from their work order.
+  externalRef    String?
+  /// Set when the builder asked to update a job that already exists (no FK: the job may be deleted).
+  targetWorkOrderId String? @db.Uuid
+  /// { source: "ai" | "manual", fields_checked: string[], model?: string }
+  intake         Json?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   @@index([organizationId, status, createdAt])
   @@index([partnerUserId, createdAt])
   @@index([workOrderId])
+  @@index([organizationId, externalRef])
 }
 
 // ---------------------------------------------------------------------------
