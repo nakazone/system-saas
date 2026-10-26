@@ -416,14 +416,14 @@
       ['Aguardando agenda', list.filter((j) => jobStageKey(j) === 'recebido')],
       ['Concluídos', list.filter((j) => jobStageKey(j) === 'concluido')],
     ].filter(([, rows]) => rows.length);
-    const selectedId = id || (window.matchMedia('(max-width: 767px)').matches ? '' : (groups[0] && groups[0][1][0] && groups[0][1][0].id) || '');
+    const selectedId = id || (window.matchMedia('(max-width: 1023px)').matches ? '' : (groups[0] && groups[0][1][0] && groups[0][1][0].id) || '');
     const late = all.filter((j) => jobLate(j)).length;
     await loadInvoices().catch(() => {});
     if (token !== renderToken) return;
     const openSum = state.invoices.filter((inv) => invoiceState(inv).key !== 'paid').reduce((s, inv) => s + Number(inv.balance || 0), 0);
     const done30 = all.filter((j) => !jobIsActive(j) && daysBetween(toDate(j.updatedAt) || now, now) <= 30).length;
 
-    const stage = (key, label) => `<button type="button" class="pp-stage" data-stage="${key}" aria-pressed="${state.jobStage === key}">${esc(label)}<b>${counts[key]}</b></button>`;
+    const stage = (key, label) => `<button type="button" data-stage="${key}" aria-pressed="${state.jobStage === key}">${esc(label)} · ${counts[key]}</button>`;
     const row = (j) => `<button type="button" class="pp-row" data-job="${esc(j.id)}" aria-current="${j.id === selectedId}">
         <span class="pp-row-main">
           <span class="pp-row-top"><strong>${esc(j.title || 'Job')}</strong><span>${j.number ? `#${esc(j.number)}` : ''}</span></span>
@@ -442,10 +442,10 @@
         <div class="pp-card pp-num pp-hide-phone"><span class="pp-lbl">Concluídos · 30 dias</span><b>${done30}</b></div>
         <div class="pp-card pp-num pp-hide-phone"><span class="pp-lbl">Invoices em aberto</span><b>${moneyShort(openSum)}</b></div>
       </div>
-      <div class="pp-stages" role="group" aria-label="Etapa">${stage('all', 'Todos')}${stage('recebido', 'Aguardando agenda')}${stage('agendado', 'Agendados')}${stage('obra', 'Na obra')}${stage('concluido', 'Concluídos')}</div>
       <div class="pp-split pp-split--list ${id ? 'is-open' : ''}">
         <aside class="pp-card pp-side" aria-label="Lista de jobs">
           <div class="pp-side-search"><label>${icon('search')}<span class="pp-sr">Buscar jobs</span><input id="ppJobSearch" type="search" placeholder="Endereço, título ou nº" value="${esc(state.q)}" /></label></div>
+          <div class="pp-filter pp-side-filter" role="group" aria-label="Etapa">${stage('all', 'Todos')}${stage('obra', 'Na obra')}${stage('agendado', 'Agendados')}${stage('recebido', 'Aguardando agenda')}${stage('concluido', 'Concluídos')}</div>
           ${groups.length ? groups.map(([label, rows]) => `<div class="pp-group">${esc(label)} · ${rows.length}</div>${rows.map(row).join('')}`).join('') : `<div class="pp-empty"><strong>${q ? 'Nada encontrado' : 'Nenhum job ainda'}</strong>${q ? 'Tente outra busca.' : 'Envie um trabalho e ele aparece aqui quando a equipe aceitar.'}</div>`}
           ${state.projects.length ? `<div class="pp-group">Projetos · ${state.projects.length}</div>${state.projects.map((p) => `<div class="pp-row" style="cursor:default"><span class="pp-row-main"><span class="pp-row-top"><strong>${esc(p.name || 'Projeto')}</strong><span>${p.number ? `nº ${esc(p.number)}` : ''}</span></span><span class="pp-row-sub">${esc(p.address || '')}</span></span></div>`).join('')}` : ''}
         </aside>
@@ -462,7 +462,7 @@
       render().then(() => { const s = $('ppJobSearch'); if (s) { s.focus(); s.setSelectionRange(pos, pos); } });
     });
     if (selectedId) {
-      if (id) document.body.classList.add('pp-focus');
+      document.body.classList.add('pp-focus');
       const data = await loadJob(selectedId).catch((err) => ({ error: err.message }));
       if (token !== renderToken) return;
       $('ppJobPane').innerHTML = data.error ? `<p class="pp-error">${esc(data.error)}</p>` : jobDetailHtml(data);
@@ -595,9 +595,9 @@
         </div>
         <div>${barsWithLabels(i, JOB_STEPS, i === 3, dates)}</div>
       </div>
+      ${ticketHtml(job, data.ticket)}
       <div class="pp-cols">
         <div class="pp-col-main">
-          ${ticketHtml(job, data.ticket)}
           <div class="pp-card pp-block" id="ppPhotos">
             <div class="pp-block-head"><h3>Fotos · ${data.photos.length}</h3><a class="pp-link" href="#documentos" style="font-size:13px">Todas as fotos</a></div>
             ${photoColumns(data.photos)}
@@ -662,7 +662,7 @@
       ['Pagas', list.filter((x) => x.st.key === 'paid')],
     ].filter(([, rows]) => rows.length);
     const firstId = groups[0] && groups[0][1][0] && groups[0][1][0].inv.id;
-    const selectedId = id || (window.matchMedia('(max-width: 767px)').matches ? '' : firstId || '');
+    const selectedId = id || (window.matchMedia('(max-width: 1023px)').matches ? '' : firstId || '');
     const selected = withState.find((x) => x.inv.id === selectedId);
     const filterBtn = (key, label, rows) => `<button type="button" class="pp-stage" data-inv-filter="${key}" aria-pressed="${state.invoiceFilter === key}">${esc(label)} · ${rows.length}<b>${moneyShort(sum(rows.map ? rows : []))}</b></button>`;
     const totalOf = (rows) => rows.reduce((s, x) => s + Number(x.inv.amount || 0), 0);
@@ -1322,7 +1322,7 @@
       if (route().name !== 'enviar') location.hash = '#enviar'; else renderSendBody();
     });
     window.addEventListener('hashchange', () => { window.scrollTo({ top: 0 }); render(); });
-    window.addEventListener('resize', (() => { let mobile = window.matchMedia('(max-width: 767px)').matches; return () => { const now = window.matchMedia('(max-width: 767px)').matches; if (now !== mobile) { mobile = now; if (['jobs', 'invoices'].includes(route().name)) render(); } }; })());
+    window.addEventListener('resize', (() => { let mobile = window.matchMedia('(max-width: 1023px)').matches; return () => { const now = window.matchMedia('(max-width: 1023px)').matches; if (now !== mobile) { mobile = now; if (['jobs', 'invoices'].includes(route().name)) render(); } }; })());
   }
 
   async function boot() {
