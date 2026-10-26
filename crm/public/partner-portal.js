@@ -470,20 +470,6 @@
     }
   }
 
-  function photoColumns(photos) {
-    const cols = [['before', 'Antes'], ['during', 'Durante'], ['after', 'Depois']];
-    const general = photos.filter((p) => !['before', 'during', 'after'].includes(p.stage));
-    const thumb = (p) => p.type === 'video'
-      ? `<a class="pp-thumb pp-thumb-empty" href="${esc(p.file_url)}" target="_blank" rel="noopener">Vídeo${p.caption ? ` · ${esc(p.caption)}` : ''}</a>`
-      : `<a class="pp-thumb" href="${esc(p.file_url)}" target="_blank" rel="noopener"><img src="${esc(p.file_url)}" alt="${esc(p.caption || 'Foto da obra')}" loading="lazy" /></a>`;
-    const html = cols.map(([key, label]) => {
-      const list = photos.filter((p) => p.stage === key);
-      return `<div class="pp-photo-col"><span class="pp-lbl">${label} · ${list.length}</span>${list.length ? list.slice(0, 4).map(thumb).join('') : '<div class="pp-thumb-empty">Sem fotos ainda</div>'}</div>`;
-    }).join('');
-    const extra = general.length ? `<div><span class="pp-lbl">Geral · ${general.length}</span><div class="pp-photos" style="margin-top:8px">${general.slice(0, 6).map(thumb).join('')}</div></div>` : '';
-    return `<div class="pp-photos">${html}</div>${extra}`;
-  }
-
   function jobNextStep(job, invoices) {
     const i = jobStepIndex(job);
     const start = toDate(job.scheduled_start);
@@ -505,116 +491,114 @@
     return { title: 'A equipe vai agendar', text: 'Você recebe a data aqui assim que o job for agendado.', action: `<button type="button" class="pp-btn pp-btn--light" data-update-job>Enviar atualização</button>` };
   }
 
-  function ticketHtml(job, t) {
-    if (!t) return '';
-    const when = t.when;
-    const services = t.services || [];
-    const checklist = t.checklist || [];
-    const pct = checklist.length ? Math.round((t.checklist_done / checklist.length) * 100) : 0;
-    return `
-      <section class="pp-card pp-ticket" id="ppTicket" aria-labelledby="ppTicketTitle">
-        <div class="pp-ticket-print">${esc(providerName())} · Ticket do job${job.number ? ` #${esc(job.number)}` : ''}</div>
-        <div class="pp-block-head">
-          <h3 id="ppTicketTitle">Ticket do job${job.number ? ` <span class="pp-muted" style="font-weight:500">#${esc(job.number)}</span>` : ''}</h3>
-          <div class="pp-ticket-actions">
-            ${t.maps ? `<a class="pp-btn pp-btn--sec pp-btn--sm" href="${esc(t.maps.google)}" target="_blank" rel="noopener">Mapa</a>` : ''}
-            <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-print-ticket>Imprimir</button>
-          </div>
-        </div>
-        <div class="pp-ticket-print pp-ticket-print--title">${esc(job.title || 'Job')}</div>
+  const ICON = {
+    pin: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/></svg>',
+    lock: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
+    check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    phone: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>',
+    print: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></svg>',
+  };
 
-        <div class="pp-ticket-grid">
-          <div class="pp-ticket-cell">
-            <span class="pp-lbl">Quando</span>
-            ${when
-              ? `<strong class="pp-ticket-big">${esc(when.day)}</strong><span>${t.all_day ? 'Dia todo' : `${esc(when.start)}${when.until ? ` · ${esc(when.until)}` : ''} <span class="pp-muted">${esc(when.zone)}</span>`}</span><span class="pp-chip" style="align-self:flex-start;margin-top:4px">${esc(when.relative)}</span>`
-              : '<strong class="pp-ticket-big">Sem data ainda</strong><span class="pp-muted">A equipe vai agendar.</span>'}
-          </div>
-          <div class="pp-ticket-cell">
-            <span class="pp-lbl">Endereço</span>
-            <strong class="pp-ticket-big">${esc(job.address || '—')}</strong>
-            ${t.maps ? `<span><a class="pp-link" href="${esc(t.maps.apple)}" target="_blank" rel="noopener">Apple Maps</a> · <a class="pp-link" href="${esc(t.maps.google)}" target="_blank" rel="noopener">Google Maps</a></span>` : ''}
-            ${t.lockbox ? `<span class="pp-ticket-lock">Código da caixa: <b>${esc(t.lockbox)}</b></span>` : ''}
-          </div>
-          <div class="pp-ticket-cell">
-            <span class="pp-lbl">Situação</span>
-            <strong class="pp-ticket-big">${esc(t.status)}</strong>
-            ${t.sector ? `<span>${esc(t.sector)}</span>` : ''}
-          </div>
-          <div class="pp-ticket-cell">
-            <span class="pp-lbl">Equipe</span>
-            <strong class="pp-ticket-big">${esc((t.team && t.team[0]) || job.crew || 'A definir')}</strong>
-            ${t.team && t.team.length > 1 ? `<span>${esc(t.team.slice(1).join(', '))}</span>` : ''}
-          </div>
-        </div>
-
-        ${t.attention ? `<div class="pp-ticket-attention"><span class="pp-lbl" style="color:var(--pp-late-ink)">Atenção</span><p>${esc(t.attention)}</p></div>` : ''}
-
-        <div class="pp-ticket-sec">
-          <span class="pp-lbl">Serviços · ${services.length}</span>
-          ${services.length
-            ? `<ul class="pp-ticket-list">${services.map((sv) => `<li><div class="pp-ticket-line"><strong>${esc(sv.name)}</strong>${sv.qty ? `<span>${esc(sv.qty)}</span>` : ''}</div>${sv.notes ? `<p>${esc(sv.notes)}</p>` : ''}</li>`).join('')}</ul>`
-            : '<p class="pp-muted" style="margin:0">A equipe ainda não lançou os serviços deste job.</p>'}
-        </div>
-
-        ${t.notes ? `<div class="pp-ticket-sec"><span class="pp-lbl">Observações</span><p class="pp-ticket-notes">${esc(t.notes)}</p></div>` : ''}
-
-        ${checklist.length ? `<div class="pp-ticket-sec">
-          <div style="display:flex;justify-content:space-between;gap:8px"><span class="pp-lbl">Checklist da obra</span><span class="pp-lbl">${t.checklist_done} de ${checklist.length}</span></div>
-          <div class="pp-progress" aria-hidden="true" style="height:6px"><i style="animation:none;width:${pct}%;transform:none"></i></div>
-          <ul class="pp-ticket-list pp-ticket-check">${checklist.map((c) => `<li class="${c.done ? 'done' : ''}"><span class="pp-check" aria-hidden="true">${c.done ? '✓' : ''}</span><span>${esc(c.text)}</span><span class="pp-sr">${c.done ? 'feito' : 'a fazer'}</span></li>`).join('')}</ul>
-        </div>` : ''}
-      </section>`;
+  function photoGrid(photos) {
+    const label = { before: 'Antes', during: 'Durante', after: 'Depois' };
+    return `<div class="tk-photos">${photos.slice(0, 9).map((p) => p.type === 'video'
+      ? `<a href="${esc(p.file_url)}" target="_blank" rel="noopener" class="tk-ph tk-ph--video"><span>Vídeo</span>${p.stage && label[p.stage] ? `<b>${label[p.stage]}</b>` : ''}</a>`
+      : `<a href="${esc(p.file_url)}" target="_blank" rel="noopener" class="tk-ph"><img src="${esc(p.file_url)}" alt="${esc(p.caption || 'Foto da obra')}" loading="lazy" />${p.stage && label[p.stage] ? `<b>${label[p.stage]}</b>` : ''}${p.caption ? `<i>${esc(p.caption)}</i>` : ''}</a>`).join('')}</div>`;
   }
 
   function jobDetailHtml(data) {
     const job = data.job;
+    const t = data.ticket || { services: [], checklist: [], team: [] };
     const i = jobStepIndex(job);
-    const dates = [
-      job.created_at ? fmtDay(job.created_at) : '',
-      job.scheduled_start ? fmtDay(job.scheduled_start) : '',
-      job.scheduled_start && i >= 2 ? fmtDay(job.scheduled_start) : '',
-      i === 3 ? fmtDay(job.updated_at) : '',
-    ];
+    const when = t.when;
     const next = jobNextStep(job, data.invoices || []);
-    const chips = [
-      jobChip(job),
-      job.number ? `<span class="pp-chip">Job #${esc(job.number)}</span>` : '',
-      job.external_ref ? `<span class="pp-chip">Seu nº ${esc(job.external_ref)}</span>` : '',
-    ].join('');
+    const services = t.services || [];
+    const checklist = t.checklist || [];
+    const pct = checklist.length ? Math.round((t.checklist_done / checklist.length) * 100) : 0;
     const docs = data.documents || [];
     const invoices = data.invoices || [];
     const requests = data.requests || [];
-    return `
-      <div class="pp-card pp-detail-head">
-        <button type="button" class="pp-back" data-back="#jobs">${icon('back')}Jobs</button>
-        <div class="pp-chips">${chips}</div>
-        <div class="pp-detail-title">
-          <div><h2>${esc(job.title || 'Job')}</h2><p>${esc(job.address || 'Sem endereço')}</p></div>
-          <div class="pp-head-actions"><button type="button" class="pp-btn pp-btn--sec" data-update-job>Enviar atualização</button></div>
-        </div>
-        <div>${barsWithLabels(i, JOB_STEPS, i === 3, dates)}</div>
-      </div>
-      ${ticketHtml(job, data.ticket)}
-      <div class="pp-cols">
-        <div class="pp-col-main">
-          <div class="pp-card pp-block" id="ppPhotos">
-            <div class="pp-block-head"><h3>Fotos · ${data.photos.length}</h3><a class="pp-link" href="#documentos" style="font-size:13px">Todas as fotos</a></div>
-            ${photoColumns(data.photos)}
+    const photos = data.photos || [];
+    const pillTone = i === 3 ? 'done' : i === 2 ? 'accent' : 'info';
+    const office = t.office;
+
+    const work = `
+      <section class="tk-hero" aria-labelledby="tkTitle">
+        <div class="tk-hero-top">
+          <button type="button" class="pp-back" data-back="#jobs">${icon('back')}Jobs</button>
+          <div class="tk-meta">
+            ${job.number ? `<span class="tk-num">JOB #${esc(job.number)}</span>` : ''}
+            <span class="tk-pill tk-pill--${pillTone}">${esc(t.status || 'Agendado')}</span>
+            ${job.external_ref ? `<span class="tk-num">· SEU Nº ${esc(job.external_ref)}</span>` : ''}
           </div>
+          <button type="button" class="tk-iconbtn" data-print-ticket aria-label="Imprimir ticket">${ICON.print}</button>
         </div>
-        <div class="pp-col-side">
-          <div class="pp-card pp-block pp-next"><span class="pp-lbl">Próximo passo</span><strong>${esc(next.title)}</strong><p>${esc(next.text)}</p>${next.action ? `<div>${next.action}</div>` : ''}</div>
-          <div class="pp-card pp-block">
-            <h3>Documentos</h3>
-            ${docs.length ? docs.map((d) => `<a class="pp-doc" href="${esc(d.file_url)}" target="_blank" rel="noopener"><span class="pp-doc-ico">${d.type === 'report' ? 'PDF' : d.type === 'sent' ? 'SEU' : 'ARQ'}</span><span>${esc(d.title)}</span></a>`).join('') : '<p class="pp-muted" style="margin:0;font-size:14px">Relatórios e arquivos liberados pela equipe aparecem aqui.</p>'}
-          </div>
-          <div class="pp-card pp-block">
-            <h3>Invoices</h3>
-            ${invoices.length ? invoices.map((inv) => `<a class="pp-doc" href="#invoices/${encodeURIComponent(inv.id)}"><span class="pp-doc-ico">INV</span><span>${esc(inv.number || 'Invoice')} · ${money(inv.amount)} · ${esc(invoiceState(inv).label)}</span></a>`).join('') : '<p class="pp-muted" style="margin:0;font-size:14px">Nenhuma invoice deste job ainda.</p>'}
-          </div>
-          ${requests.length ? `<div class="pp-card pp-block"><h3>Seus pedidos</h3>${requests.map((r) => `<div class="pp-req" style="padding:8px 0"><div class="pp-req-top"><strong>${esc(r.title)}</strong>${requestStatus(r)}</div><p>${esc(fmtDay(r.created_at))}${r.notes ? ` · ${esc(r.notes)}` : ''}</p>${r.review_note ? `<p class="pp-reply">${esc(r.review_note)}</p>` : ''}</div>`).join('')}</div>` : ''}
-        </div>
+        <h2 id="tkTitle">${esc(job.title || 'Job')}</h2>
+        ${t.sector ? `<p class="tk-sub">${esc(t.sector)}</p>` : ''}
+        ${when
+          ? `<div class="tk-when"><div><div class="tk-time">${t.all_day ? 'Dia todo' : esc(when.start)}${!t.all_day && when.zone ? `<span>${esc(when.zone)}</span>` : ''}</div><div class="tk-day">${esc(when.day)}</div>${when.until ? `<div class="tk-until">${esc(when.until)}</div>` : ''}</div><span class="tk-rel">${esc(when.relative)}</span></div>`
+          : '<div class="tk-when tk-when--none">Data ainda não definida. A equipe vai agendar.</div>'}
+        <div class="tk-steps">${barsWithLabels(i, JOB_STEPS, i === 3)}</div>
+      </section>
+
+      ${t.attention ? `<section class="tk-attn" role="note"><span aria-hidden="true">!</span><div><b>Atenção</b><p>${esc(t.attention)}</p></div></section>` : ''}
+
+      <section class="tk-sec">
+        <h3>Local</h3>
+        <p class="tk-addr">${esc(job.address || 'Sem endereço')}</p>
+        ${t.maps ? `<div class="tk-two"><a class="tk-btn tk-btn--accent" href="${esc(t.maps.apple)}" target="_blank" rel="noopener">${ICON.pin}Apple Maps</a><a class="tk-btn" href="${esc(t.maps.google)}" target="_blank" rel="noopener">Google Maps</a></div>` : ''}
+        ${t.lockbox ? `<div class="tk-lock"><span>${ICON.lock}</span><div><small>Código da lockbox</small><b>${esc(t.lockbox)}</b></div></div>` : ''}
+      </section>
+
+      ${t.notes ? `<section class="tk-sec"><h3>Instruções</h3><p class="tk-notes">${esc(t.notes)}</p></section>` : ''}
+
+      <section class="tk-sec">
+        <h3>Serviços${services.length ? ` <small>${services.length}</small>` : ''}</h3>
+        ${services.length
+          ? `<ul class="tk-list">${services.map((sv) => `<li><span>${esc(sv.name)}${sv.notes ? `<small>${esc(sv.notes)}</small>` : ''}</span>${sv.qty ? `<b>${esc(sv.qty)}</b>` : ''}</li>`).join('')}</ul>`
+          : '<p class="tk-empty">A equipe ainda não lançou os serviços deste job.</p>'}
+      </section>
+
+      ${checklist.length ? `<section class="tk-sec">
+        <h3>Checklist <small>${t.checklist_done} de ${checklist.length} feito${t.checklist_done === 1 ? '' : 's'}</small></h3>
+        <div class="tk-bar" aria-hidden="true"><i style="width:${pct}%"></i></div>
+        <ul class="tk-list tk-ck">${checklist.map((c) => `<li class="${c.done ? 'on' : ''}"><span class="tk-box" aria-label="${c.done ? 'Feito' : 'Pendente'}">${c.done ? ICON.check : ''}</span><span>${esc(c.text)}</span></li>`).join('')}</ul>
+      </section>` : ''}
+
+      <section class="tk-sec">
+        <h3>Equipe</h3>
+        ${(t.team || []).length ? `<div class="tk-team">${t.team.map((n) => `<span class="tk-who"><i>${esc(initials(n))}</i>${esc(n)}</span>`).join('')}</div>` : '<p class="tk-empty">A equipe ainda não foi definida.</p>'}
+      </section>`;
+
+    const side = `
+      <section class="tk-next">
+        <small>Próximo passo</small>
+        <strong>${esc(next.title)}</strong>
+        <p>${esc(next.text)}</p>
+        <button type="button" class="tk-btn tk-btn--light" data-update-job>Enviar atualização</button>
+      </section>
+
+      <section class="tk-sec" id="ppPhotos">
+        <h3>Fotos${photos.length ? ` <small>${photos.length}</small>` : ''}</h3>
+        ${photos.length ? photoGrid(photos) : '<p class="tk-empty">Nenhuma foto liberada ainda. As fotos de antes, durante e depois aparecem aqui.</p>'}
+        ${photos.length > 9 ? '<a class="pp-link" href="#documentos" style="font-size:14px">Ver todas</a>' : ''}
+      </section>
+
+      <section class="tk-sec">
+        <h3>Invoices</h3>
+        ${invoices.length ? `<ul class="tk-list">${invoices.map((inv) => { const st = invoiceState(inv); return `<li><a href="#invoices/${encodeURIComponent(inv.id)}" class="tk-row"><span>${esc(inv.number || 'Invoice')}<small class="${['overdue', 'soon'].includes(st.key) ? 'pp-late' : ''}">${esc(st.label)}</small></span><b>${money(st.key === 'paid' ? inv.amount : inv.balance)}</b></a></li>`; }).join('')}</ul>` : '<p class="tk-empty">Nenhuma invoice deste job ainda.</p>'}
+      </section>
+
+      ${docs.length ? `<section class="tk-sec"><h3>Documentos</h3><ul class="tk-list">${docs.map((d) => `<li><a href="${esc(d.file_url)}" target="_blank" rel="noopener" class="tk-row"><span>${esc(d.title)}<small>${d.type === 'report' ? 'Relatório' : d.type === 'sent' ? 'Você enviou' : 'Arquivo'}</small></span><b>Abrir</b></a></li>`).join('')}</ul></section>` : ''}
+
+      ${requests.length ? `<section class="tk-sec"><h3>Seus pedidos</h3>${requests.map((r) => `<div class="pp-req" style="padding:8px 0"><div class="pp-req-top"><strong>${esc(r.title)}</strong>${requestStatus(r)}</div><p>${esc(fmtDay(r.created_at))}</p>${r.review_note ? `<p class="pp-reply">${esc(r.review_note)}</p>` : ''}</div>`).join('')}</section>` : ''}
+
+      ${office ? `<section class="tk-sec"><h3>Dúvidas? Fale com ${esc(office.name)}</h3><p class="tk-sub" style="margin:0 0 10px">${esc(office.phone)}</p><div class="tk-two"><a class="tk-btn" href="tel:+${esc(office.digits)}">${ICON.phone}Ligar</a><a class="tk-btn" href="https://wa.me/${esc(office.digits)}?text=${encodeURIComponent(`Olá, sobre o job${job.number ? ` #${job.number}` : ''} (${job.title || ''}): `)}" target="_blank" rel="noopener">WhatsApp</a></div></section>` : ''}`;
+
+    return `<div class="tk" id="ppTicket">
+        <div class="tk-print-head">${esc(providerName())} · Ticket do job${job.number ? ` #${esc(job.number)}` : ''}</div>
+        <div class="tk-col">${work}</div>
+        <div class="tk-col tk-col--side">${side}</div>
       </div>
       <div class="pp-fixbar"><a class="pp-btn pp-btn--sec" href="#ppPhotos">Fotos</a><button type="button" class="pp-btn pp-btn--pri" data-update-job>Enviar atualização</button></div>`;
   }

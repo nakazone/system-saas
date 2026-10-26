@@ -18,7 +18,7 @@ import { subdomainTenantsSupported, workspaceHomeUrl } from "../../lib/tenant/wo
 import { ensureInvoicePublicToken, publicInvoiceUrl } from "../../lib/invoices/service.js";
 import { parseChecklist } from "../lib/campo-shared.js";
 import { isJobChecklistEnabled } from "../../lib/settings/jobs.js";
-import { formatQuantity, formatTicketWhen, mapsChoiceUrls, parseLockbox, stripLockbox, ticketStatus } from "../../modules/work-orders/public-ticket.js";
+import { formatQuantity, formatTicketWhen, mapsChoiceUrls, parseLockbox, phoneDigits, stripLockbox, ticketStatus } from "../../modules/work-orders/public-ticket.js";
 import { findJobMatch, isIntakeReaderConfigured, readWorkOrder, type IntakeFile } from "../../lib/partner-intake/extract.js";
 
 type PartnerRequest = TenantRequest & {
@@ -872,7 +872,7 @@ partnerPortalRouter.get("/api/partner-portal/jobs/:id", requirePartnerAuth, asyn
       if (!job) return null;
       const organization = await tx.organization.findFirst({
         where: { id: user.organizationId },
-        select: { timezone: true, featureFlags: true },
+        select: { timezone: true, featureFlags: true, name: true, contactPhone: true },
       });
       const invoiceScopes = await partnerInvoiceScopes(tx, user);
       const [media, reports, invoices, requests] = await Promise.all([
@@ -946,6 +946,9 @@ partnerPortalRouter.get("/api/partner-portal/jobs/:id", requirePartnerAuth, asyn
             checklist,
             checklist_done: checklist.filter((c) => c.done).length,
             team: job.crew?.name ? [job.crew.name, ...team.filter((n) => n !== job.crew?.name)] : team,
+            office: organization?.contactPhone
+              ? { name: organization.name, phone: organization.contactPhone, digits: phoneDigits(organization.contactPhone) || null }
+              : null,
           };
         })(),
         photos: media.map((item) => ({
