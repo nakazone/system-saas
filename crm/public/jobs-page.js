@@ -23,6 +23,9 @@
   let commsCtl = null;
   let mediaCache = null;
   let fieldCache = null;
+  /** Photos and reports the partner can see for the open job. */
+  let partnerDocs = null;
+  let partnerDocsSeq = 0;
   /** Sunday of the selected week, or null to show every week. */
   let weekFilter = null;
   let calCursor = new Date();
@@ -448,6 +451,102 @@
     billingCtl = null;
   }
 
+  function hasPartnerPortal(wo) {
+    const customerType = String(wo?.customer_type || "").toLowerCase();
+    return Boolean(wo?.builder_id) || customerType === "builder" || customerType === "contractor";
+  }
+  function partnerShareButton(attr, id, on, onLabel, offLabel, extra) {
+    const J = I();
+    if (!canManage) return on ? "No portal" : "Oculto";
+    return `<button type="button" class="jx-share${on ? " is-on" : ""}" ${attr}="${J.esc(id)}" data-on="${on ? "1" : "0"}"${extra ? ` ${extra}` : ""}>${on ? onLabel : offLabel}</button>`;
+  }
+  function partnerDocsHtml(wo) {
+    const J = I();
+    if (!partnerDocs || String(partnerDocs.jobId) !== String(wo.id)) return `<p class="jx-none" id="jxPartnerWait">Carregando o que o parceiro vê…</p>`;
+    const rows = [];
+    const file = wo.delivery_attachment;
+    if (file?.url) {
+      rows.push(`<li><span><b>${J.esc(file.name || "Arquivo")}</b><small>Delivery</small></span>${file.key ? partnerShareButton("data-jx-partner-file", wo.id, Boolean(file.shared_with_partners), "No portal", "Compartilhar") : ""}</li>`);
+    }
+    (partnerDocs.media || []).forEach((m) => {
+      const stage = m.stage === "before" ? "Antes" : m.stage === "during" ? "Durante" : m.stage === "after" ? "Depois" : "Foto";
+      rows.push(`<li><span><b>${J.esc(m.caption || stage)}</b><small>${J.esc(stage)}</small></span>${partnerShareButton("data-jx-partner-media", m.id, Boolean(m.shared_with_partners), "No portal", "Compartilhar")}</li>`);
+    });
+    (partnerDocs.reports || []).forEach((r) => {
+      const published = r.status === "published";
+      rows.push(`<li><span><b>${J.esc(r.title || "Relatório")}</b><small>${published ? "Relatório publicado" : "Publique o relatório antes de compartilhar"}</small></span>${partnerShareButton("data-jx-partner-report", r.id, Boolean(r.shared_with_partners), "No portal", "Compartilhar", published || r.shared_with_partners ? "" : 'disabled title="Publique o relatório antes de compartilhar"')}</li>`);
+    });
+    if (!rows.length) return `<p class="jx-none">Nada para liberar ainda. Fotos, relatórios e o arquivo de delivery aparecem aqui.</p>`;
+    return `<ul class="jx-partner-list">${rows.join("")}</ul>`;
+  }
+  function partnerBox(wo) {
+    if (!hasPartnerPortal(wo)) return "";
+    const J = I();
+    const who = J.builderName(wo) || J.client(wo);
+    const access = wo.customer_id ? `customers.html?id=${encodeURIComponent(wo.customer_id)}` : "";
+    return `<div class="jx-box"><h3>Portal do parceiro</h3>
+      <p class="jx-note">${J.esc(who)} vê este job na sessão Jobs do portal. Só entra em Documentos o que estiver liberado abaixo.</p>
+      <div class="jx-partner">
+        <a class="jx-btn" href="partner-login.html" target="_blank" rel="noopener">Abrir portal</a>
+        ${access ? `<a class="jx-btn" href="${J.esc(access)}">Acesso do parceiro</a>` : ""}
+      </div>
+      <div id="jxPartnerDocs">${partnerDocsHtml(wo)}</div>
+    </div>`;
+  }
+  function ensurePartnerDocs(wo) {
+    if (!wo || !hasPartnerPortal(wo)) return;
+    if (partnerDocs && String(partnerDocs.jobId) === String(wo.id)) return;
+    const id = wo.id;
+    const seq = ++partnerDocsSeq;
+    Promise.all([
+      api(`/api/work-orders/${encodeURIComponent(id)}/media`).catch(() => ({ data: [] })),
+      api(`/api/work-orders/${encodeURIComponent(id)}/reports`).catch(() => ({ data: [] })),
+    ]).then(([media, reports]) => {
+      if (seq !== partnerDocsSeq || String(selId) !== String(id)) return;
+      partnerDocs = { jobId: id, media: media.data || [], reports: reports.data || [] };
+      const host = $("jxPartnerDocs");
+      const current = detailWo && String(detailWo.id) === String(id) ? detailWo : all.find((w) => String(w.id) === String(id));
+      if (host && current) host.innerHTML = partnerDocsHtml(current);
+    }).catch(() => {
+      const host = $("jxPartnerDocs");
+      if (host && seq === partnerDocsSeq) host.innerHTML = `<p class="jx-none">Não foi possível carregar o portal do parceiro.</p>`;
+    });
+  }
+  async function togglePartnerShare(btn, kind) {
+    const id = selId;
+    if (!id || !canManage) return;
+    const next = btn.getAttribute("data-on") !== "1";
+    const prev = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Salvando…";
+    const target = kind === "media"
+      ? `/api/work-orders/${encodeURIComponent(id)}/media/${encodeURIComponent(btn.getAttribute("data-jx-partner-media") || "")}/partner-share`
+      : kind === "report"
+        ? `/api/work-orders/${encodeURIComponent(id)}/reports/${encodeURIComponent(btn.getAttribute("data-jx-partner-report") || "")}/partner-share`
+        : `/api/work-orders/${encodeURIComponent(id)}/delivery-attachment/share-with-partner`;
+    try {
+      const j = await api(target, { method: "PATCH", body: JSON.stringify({ shared_with_partners: next }) });
+      if (kind === "media" && partnerDocs) {
+        partnerDocs.media = (partnerDocs.media || []).map((m) => (m.id === j.data?.id ? j.data : m));
+      } else if (kind === "report" && partnerDocs) {
+        partnerDocs.reports = (partnerDocs.reports || []).map((r) => (r.id === j.data?.id ? j.data : r));
+      } else {
+        const apply = (wo) => wo?.delivery_attachment ? { ...wo, delivery_attachment: { ...wo.delivery_attachment, shared_with_partners: next } } : wo;
+        if (detailWo && String(detailWo.id) === String(id)) detailWo = apply(detailWo);
+        const ix = all.findIndex((w) => String(w.id) === String(id));
+        if (ix >= 0) all[ix] = apply(all[ix]);
+      }
+      const current = detailWo && String(detailWo.id) === String(id) ? detailWo : all.find((w) => String(w.id) === String(id));
+      const host = $("jxPartnerDocs");
+      if (host && current) host.innerHTML = partnerDocsHtml(current);
+      notify(next ? "Liberado no portal do parceiro." : "Removido do portal do parceiro.", "success");
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = prev;
+      notify(err.message || "Não foi possível atualizar o portal.", "error");
+    }
+  }
+
   function panelGeral(wo) {
     const J = I();
     const maps = wo.address ? `https://maps.google.com/?q=${encodeURIComponent(wo.address)}` : "";
@@ -510,6 +609,7 @@
       </div>
       <div>
         ${money}
+        ${partnerBox(wo)}
         <div class="jx-box"><h3>Equipe${canManage ? `<button type="button" class="jx-lnk" data-jx-act="team">Gerir</button>` : ""}</h3>${teamHtml}</div>
       </div>
     </div>`;
@@ -531,7 +631,7 @@
 
   function panelFotos(wo) {
     const n = mediaCache ? mediaCache.length : null;
-    return `<div class="jx-box">
+    return `${partnerBox(wo)}<div class="jx-box">
       <h3>Fotos${n != null ? `<span class="jx-ch__n">${n}</span>` : ""}<a class="jx-lnk" href="job-media-board.html?job=${encodeURIComponent(wo.id)}">ObraCam</a></h3>
       <div id="jxPhotos">${n == null ? `<p class="jx-none">A carregar fotos…</p>` : ""}</div>
     </div>`;
@@ -862,6 +962,7 @@
         ([k, label]) => `<button type="button" role="tab" class="${k === tab ? "is-on" : ""}" data-jx-tab="${k}" aria-selected="${k === tab}">${label}</button>`,
       ).join("")}</nav>
       <div class="jx-panel" data-jx-panel="${tab}">${body}</div>`;
+    if (hasPartnerPortal(wo) && (tab === "geral" || tab === "fotos")) ensurePartnerDocs(wo);
     mountLazyPanels(wo);
   }
 
@@ -926,6 +1027,8 @@
       detailFetchSeq += 1;
       mediaCache = null;
       fieldCache = null;
+      partnerDocs = null;
+      partnerDocsSeq += 1;
       destroyDetailMounts();
     }
     $("jxRows").querySelectorAll("[data-jx-id]").forEach((a) => a.classList.toggle("is-on", a.getAttribute("data-jx-id") === String(id)));
@@ -1095,6 +1198,13 @@
       if (e.target.closest("[data-jx-back]")) {
         e.preventDefault();
         select(null, true);
+        return;
+      }
+      const partnerBtn = e.target.closest("[data-jx-partner-media], [data-jx-partner-report], [data-jx-partner-file]");
+      if (partnerBtn) {
+        e.preventDefault();
+        const kind = partnerBtn.hasAttribute("data-jx-partner-media") ? "media" : partnerBtn.hasAttribute("data-jx-partner-report") ? "report" : "file";
+        togglePartnerShare(partnerBtn, kind);
         return;
       }
       const tabBtn = e.target.closest("[data-jx-tab]");

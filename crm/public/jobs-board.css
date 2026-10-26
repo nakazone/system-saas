@@ -327,6 +327,15 @@
 .jx-kv dd { margin: 0; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
 .jx-kv dd a:hover { text-decoration: underline; text-decoration-color: var(--jx-or); }
 .jx-mu { color: var(--jx-ink3); font-weight: 500; }
+.jx-partner { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.jx-partner-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.jx-partner-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; }
+.jx-partner-list li > span { min-width: 0; display: grid; }
+.jx-partner-list b { font-size: 13.5px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jx-partner-list small { font-size: 12px; color: var(--jx-ink2); }
+.jx-share { border: 0; border-radius: 999px; background: #f4efe6; color: var(--jx-ink); font: inherit; font-size: 12px; font-weight: 750; padding: 6px 10px; cursor: pointer; flex: none; }
+.jx-share.is-on { background: #221e1a; color: #fff; }
+.jx-share:disabled { opacity: .55; cursor: not-allowed; }
 .jx-none { margin: 0; font-size: 13px; color: var(--jx-ink2); }
 .jx-tm { display: flex; align-items: center; gap: 10px; padding: 5px 0; font-size: 13.5px; }
 .jx-tm > span:last-child { min-width: 0; }
