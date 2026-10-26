@@ -472,7 +472,15 @@ partnerPortalRouter.get("/api/partner-portal/overview", requirePartnerAuth, asyn
           take: 100,
         }),
       ]);
-      return { projects, jobs };
+      const totals = jobs.length
+        ? await tx.workOrderLineItem.groupBy({
+          by: ["workOrderId"],
+          where: { organizationId: user.organizationId, workOrderId: { in: jobs.map((job) => job.id) } },
+          _sum: { lineTotal: true },
+        })
+        : [];
+      const totalByJob = new Map(totals.map((row) => [row.workOrderId, Number(row._sum.lineTotal) || 0]));
+      return { projects, jobs: jobs.map((job) => ({ ...job, total: totalByJob.get(job.id) || 0 })) };
     });
 
     res.json({ success: true, data });
@@ -856,16 +864,13 @@ partnerPortalRouter.get("/api/partner-portal/jobs/:id", requirePartnerAuth, asyn
           deliveryAttachmentKey: true,
           deliveryAttachmentName: true,
           deliveryAttachmentSharedWithPartners: true,
-          crew: { select: { name: true } },
           notes: true,
           campoAttention: true,
           campoChecklist: true,
           sector: true,
-          assignedUser: { select: { name: true } },
-          members: { select: { user: { select: { name: true } } } },
           lineItems: {
             orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-            select: { serviceName: true, quantitySqft: true, notes: true, pricingItem: { select: { unit: true } } },
+            select: { serviceName: true, quantitySqft: true, unitPrice: true, lineTotal: true, notes: true, pricingItem: { select: { unit: true } } },
           },
         },
       });
@@ -916,18 +921,14 @@ partnerPortalRouter.get("/api/partner-portal/jobs/:id", requirePartnerAuth, asyn
           all_day: job.allDay,
           created_at: job.createdAt,
           updated_at: job.updatedAt,
-          crew: job.crew?.name || null,
           external_ref: requests.find((r) => r.externalRef)?.externalRef || null,
         },
-        // Same work information the crew sees on the job ticket (no prices or costs).
+        // Work information from the job ticket, with the job value (no costs or crew names).
         ticket: (() => {
           const notes = stripLockbox(job.notes);
           const checklist = isJobChecklistEnabled(organization?.featureFlags) && Array.isArray(job.campoChecklist)
             ? parseChecklist(job.campoChecklist).map((c) => ({ text: c.text, done: Boolean(c.done) }))
             : [];
-          const team = [job.assignedUser?.name, ...job.members.map((m) => m.user.name)].filter(
-            (n, i, arr): n is string => Boolean(n) && arr.indexOf(n!) === i,
-          );
           return {
             status: ({ "Em andamento": "Na obra", Rascunho: "Aguardando agenda" } as Record<string, string>)[ticketStatus(job.status, job.fieldStatus).label]
               || ticketStatus(job.status, job.fieldStatus).label,
@@ -942,10 +943,12 @@ partnerPortalRouter.get("/api/partner-portal/jobs/:id", requirePartnerAuth, asyn
               name: li.serviceName,
               qty: Number(li.quantitySqft) > 0 ? formatQuantity(Number(li.quantitySqft), li.pricingItem?.unit) : null,
               notes: li.notes || null,
+              unit_price: Number(li.unitPrice) || 0,
+              total: Number(li.lineTotal) || 0,
             })),
+            total: Math.round(job.lineItems.reduce((sum, li) => sum + (Number(li.lineTotal) || 0), 0) * 100) / 100,
             checklist,
             checklist_done: checklist.filter((c) => c.done).length,
-            team: job.crew?.name ? [job.crew.name, ...team.filter((n) => n !== job.crew?.name)] : team,
             office: organization?.contactPhone
               ? { name: organization.name, phone: organization.contactPhone, digits: phoneDigits(organization.contactPhone) || null }
               : null,

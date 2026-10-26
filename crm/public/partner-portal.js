@@ -428,7 +428,7 @@
         <span class="pp-row-main">
           <span class="pp-row-top"><strong>${esc(j.title || 'Job')}</strong><span>${j.number ? `#${esc(j.number)}` : ''}</span></span>
           <span class="pp-row-sub">${esc(j.address || 'Sem endereço')}</span>
-          <span class="pp-row-next">${jobWhen(j)}</span>
+          <span class="pp-row-next pp-row-split"><span>${jobWhen(j)}</span>${j.total ? `<b>${moneyShort(j.total)}</b>` : ''}</span>
           ${bars(jobStepIndex(j), JOB_STEPS, jobStepIndex(j) === 3)}
         </span>
       </button>`;
@@ -535,6 +535,7 @@
         </div>
         <h2 id="tkTitle">${esc(job.title || 'Job')}</h2>
         ${t.sector ? `<p class="tk-sub">${esc(t.sector)}</p>` : ''}
+        ${t.total ? `<div class="tk-value"><span>Valor do job</span><b>${money(t.total)}</b></div>` : ''}
         ${when
           ? `<div class="tk-when"><div><div class="tk-time">${t.all_day ? 'Dia todo' : esc(when.start)}${!t.all_day && when.zone ? `<span>${esc(when.zone)}</span>` : ''}</div><div class="tk-day">${esc(when.day)}</div>${when.until ? `<div class="tk-until">${esc(when.until)}</div>` : ''}</div><span class="tk-rel">${esc(when.relative)}</span></div>`
           : '<div class="tk-when tk-when--none">Data ainda não definida. A equipe vai agendar.</div>'}
@@ -555,7 +556,7 @@
       <section class="tk-sec">
         <h3>Serviços${services.length ? ` <small>${services.length}</small>` : ''}</h3>
         ${services.length
-          ? `<ul class="tk-list">${services.map((sv) => `<li><span>${esc(sv.name)}${sv.notes ? `<small>${esc(sv.notes)}</small>` : ''}</span>${sv.qty ? `<b>${esc(sv.qty)}</b>` : ''}</li>`).join('')}</ul>`
+          ? `<ul class="tk-list tk-svc">${services.map((sv) => `<li><span>${esc(sv.name)}${sv.notes ? `<small>${esc(sv.notes)}</small>` : ''}</span><span class="tk-amt">${sv.total ? `<b>${money(sv.total)}</b>` : ''}${sv.qty ? `<small>${esc(sv.qty)}${sv.unit_price ? ` × ${money(sv.unit_price)}` : ''}</small>` : ''}</span></li>`).join('')}${t.total ? `<li class="tk-total"><span>Total</span><b>${money(t.total)}</b></li>` : ''}</ul>`
           : '<p class="tk-empty">A equipe ainda não lançou os serviços deste job.</p>'}
       </section>
 
@@ -563,12 +564,7 @@
         <h3>Checklist <small>${t.checklist_done} de ${checklist.length} feito${t.checklist_done === 1 ? '' : 's'}</small></h3>
         <div class="tk-bar" aria-hidden="true"><i style="width:${pct}%"></i></div>
         <ul class="tk-list tk-ck">${checklist.map((c) => `<li class="${c.done ? 'on' : ''}"><span class="tk-box" aria-label="${c.done ? 'Feito' : 'Pendente'}">${c.done ? ICON.check : ''}</span><span>${esc(c.text)}</span></li>`).join('')}</ul>
-      </section>` : ''}
-
-      <section class="tk-sec">
-        <h3>Equipe</h3>
-        ${(t.team || []).length ? `<div class="tk-team">${t.team.map((n) => `<span class="tk-who"><i>${esc(initials(n))}</i>${esc(n)}</span>`).join('')}</div>` : '<p class="tk-empty">A equipe ainda não foi definida.</p>'}
-      </section>`;
+      </section>` : ''}`;
 
     const side = `
       <section class="tk-next">

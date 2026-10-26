@@ -245,6 +245,16 @@ body.pp {
 .tk-iconbtn svg, .tk-btn svg, .tk-lock svg, .tk-box svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 .tk-hero h2 { margin: 0; font-size: 24px; line-height: 1.25; font-weight: 700; letter-spacing: -.01em; }
 .tk-sub { margin: 4px 0 0; color: var(--pp-muted); font-size: 14.5px; font-weight: 500; }
+.tk-value { margin-top: 12px; display: inline-flex; align-items: baseline; gap: 10px; background: var(--pp-surface); border-radius: 10px; padding: 8px 12px; }
+.tk-value span { font-size: 13px; color: var(--pp-muted); font-weight: 600; }
+.tk-value b { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tk-svc .tk-amt { text-align: right; flex: none; }
+.tk-svc .tk-amt b { display: block; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tk-svc .tk-amt small { white-space: nowrap; }
+.tk-svc li.tk-total { border-top: 2px solid var(--pp-ink); font-weight: 700; font-size: 16px; }
+.tk-svc li.tk-total b { font-size: 18px; }
+.pp-row-split { display: flex; justify-content: space-between; gap: 8px; }
+.pp-row-split b { font-weight: 600; white-space: nowrap; }
 .tk-when { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--pp-border); display: flex; gap: 14px; align-items: flex-start; }
 .tk-time { font-size: 36px; font-weight: 700; line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
 .tk-time span { font-size: 12px; font-weight: 600; color: var(--pp-muted); margin-left: 6px; letter-spacing: .02em; }
