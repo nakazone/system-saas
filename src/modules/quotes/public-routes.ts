@@ -113,7 +113,10 @@ async function loadPublicTour(
     customer: { name: string | null } | null;
     organization: { name: string } | null;
     paymentSchedule: { items: Array<{ label: string; percent: Prisma.Decimal | null; fixedAmount: Prisma.Decimal | null }> } | null;
-    lineItems: Array<{ name: string | null; description: string; quantity: Prisma.Decimal; unit: string; amount: Prisma.Decimal; itemType: string; meta: Prisma.JsonValue; isSelected: boolean; isOptional: boolean }>;
+    lineItems: Array<{ name: string | null; description: string; quantity: Prisma.Decimal; unit: string; amount: Prisma.Decimal; itemType: string; meta: Prisma.JsonValue; isSelected: boolean; isOptional: boolean; optionGroupId: string | null }>;
+    optionGroups?: Array<{ id: string; name: string; flooringType: string | null }>;
+    selectedOptionGroupId?: string | null;
+    taxRate?: Prisma.Decimal | null;
   },
 ): Promise<Tour | null> {
   try {
@@ -132,6 +135,10 @@ async function loadPublicTour(
       validUntil: quote.validUntil,
       deposit: tourDeposit(quote.paymentSchedule, total),
       lines: quote.lineItems.filter((l) => l.isSelected && !l.isOptional),
+      groups: quote.optionGroups || [],
+      selectedGroupId: quote.selectedOptionGroupId ?? null,
+      taxRate: quote.taxRate ?? 0,
+      schedule: quote.paymentSchedule,
     });
     return tour.rooms.length ? tour : null;
   } catch {

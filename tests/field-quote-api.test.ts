@@ -147,6 +147,60 @@ describe.skipIf(!privileged)("Field Quote — medição no local vira orçamento
     expect(order?.campoAttention).toContain("Pets");
   });
 
+  it("Opção A / Opção B: grupos no quote, troca de opção, apresentação e preço dos aprovados", async () => {
+    const created = await call("POST", "/api/field-quotes", { client_name: "Option Client" });
+    const fqId = created.json.data.id;
+    const room = { id: "r1", label: "Sala", en: "Living room", mode: "dims", l_ft: 10, l_in: 0, w_ft: 10, w_in: 0, services: ["installation"] };
+    await call("PUT", `/api/field-quotes/${fqId}`, { data: { services: ["installation"], svc: { installation: { material: "lvp" } }, rooms: [room] } });
+    const q = await call("POST", "/api/quotes/full", {
+      status: "draft",
+      items: [
+        { name: "LVP installation", quantity: 100, rate: 5, unit_type: "sq_ft", item_type: "service" },
+        { name: "Engineered hardwood installation", quantity: 100, rate: 8, unit_type: "sq_ft", item_type: "service" },
+        { name: "Haul away & disposal", quantity: 1, rate: 300, unit_type: "fixed", item_type: "service" },
+      ],
+      tax_total: 0,
+    });
+    const quoteId = q.json.data.id;
+    await call("POST", `/api/field-quotes/${fqId}/link-quote`, { quote_id: quoteId });
+
+    const groups = [
+      { name: "Option A · LVP", flooring_type: "lvp", line_indexes: [0] },
+      { name: "Option B · Engineered hardwood", flooring_type: "engineered_wood", line_indexes: [1] },
+    ];
+    const set = await call("POST", `/api/field-quotes/${fqId}/quote-options`, { quote_id: quoteId, groups, selected_index: 0 });
+    expect(set.status).toBe(200);
+    expect(set.json.data.groups).toHaveLength(2);
+    expect(set.json.data.total).toBe(800);
+    const bId = set.json.data.groups[1].id;
+
+    const pick = await call("POST", `/api/field-quotes/${fqId}/quote-options`, { quote_id: quoteId, select_group_id: bId });
+    expect(pick.json.data.total).toBe(1100);
+
+    const tour = await call("GET", `/api/field-quotes/${fqId}/tour`);
+    expect(tour.status).toBe(200);
+    expect(tour.json.data.options).toHaveLength(2);
+    expect(tour.json.data.selected_option).toBe(bId);
+    expect(tour.json.data.total).toBe(1100);
+    expect(tour.json.data.options[0].total).toBe(800);
+    expect(tour.json.data.floor.label).toBe("Engineered hardwood");
+
+    // Another visit's quote can't be touched through this one.
+    const other = await call("POST", "/api/field-quotes", { client_name: "Other" });
+    const denied = await call("POST", `/api/field-quotes/${other.json.data.id}/quote-options`, { quote_id: quoteId, groups });
+    expect(denied.status).toBe(404);
+
+    // Approved quotes keep their options; their prices feed the comparison.
+    await withTenantTransaction(orgId, (tx) => tx.quote.update({ where: { id: quoteId }, data: { status: "approved" } }));
+    const locked = await call("POST", `/api/field-quotes/${fqId}/quote-options`, { quote_id: quoteId, groups: [] });
+    expect(locked.status).toBe(409);
+    const ref = await call("GET", `/api/field-quotes/ai/price-check?name=${encodeURIComponent("LVP installation")}&name=${encodeURIComponent("Tile installation")}`);
+    expect(ref.status).toBe(200);
+    expect(ref.json.data[0]).toMatchObject({ name: "LVP installation", median: 5 });
+    expect(ref.json.data[0].quotes).toBeGreaterThanOrEqual(1);
+    expect(ref.json.data[1]).toMatchObject({ quotes: 0, median: null });
+  });
+
   it("respeita o módulo desligado", async () => {
     await prisma.organization.update({ where: { id: orgId }, data: { featureFlags: { field_quote: false } } });
     const r = await call("GET", "/api/field-quotes");

@@ -94,15 +94,33 @@
     return 'If everything looks right, you can approve and sign right here.';
   }
 
-  const state = { t: null, opts: null, el: null, i: 0, playing: false, narr: false, timer: null, raf: null, keys: null };
+  const state = { t: null, opts: null, el: null, i: 0, playing: false, narr: false, timer: null, raf: null, keys: null, opt: null };
 
-  function texture(t, still) {
+  /** The tour as the client sees it right now: with Option A / B, the chosen option's floor and numbers. */
+  function view() {
+    const t = state.t;
+    const o = t.options && t.options.find((x) => x.id === state.opt);
+    if (!o) return t;
+    return Object.assign({}, t, {
+      floor: o.floor || t.floor,
+      total: o.total,
+      per_sqft: o.per_sqft,
+      deposit: o.deposit,
+      categories: o.categories,
+      details: o.details,
+      rooms: t.rooms.map((r, k) => Object.assign({}, r, { price: o.room_prices[k] != null ? o.room_prices[k] : r.price })),
+      option_name: o.name,
+    });
+  }
+
+  function texture(t0, still) {
+    const t = t0 || view();
     const k = t.floor ? TEXTURE[t.floor.id] || 'lvp' : 'wood';
     return `qt-fl qt-fl--${k}${still ? ' is-still' : ''}`;
   }
 
   function stageHtml(id) {
-    const t = state.t;
+    const t = view();
     const L = layout(t);
     const order = (r) => (L.rooms.indexOf(r) * 0.16).toFixed(2);
     const base = id !== 'home';
@@ -133,11 +151,17 @@
     return h + '</div>';
   }
 
+  function optionPicker(t) {
+    if (!state.t.options || state.t.options.length < 2) return '';
+    return `<div class="qt-opts" role="radiogroup" aria-label="Choose your floor">${state.t.options
+      .map((o) => `<button type="button" class="qt-opt${o.id === state.opt ? ' is-on' : ''}" role="radio" aria-checked="${o.id === state.opt}" data-qt-opt="${esc(o.id)}"><span class="qt-swatch qt-swatch--sm ${o.floor ? 'qt-fl qt-fl--' + (TEXTURE[o.floor.id] || 'lvp') + ' is-still' : 'qt-fl qt-fl--wood is-still'}" aria-hidden="true"></span><b>${esc(o.floor ? o.floor.label : o.name)}</b><span>${money(o.total)}</span></button>`)
+      .join('')}</div>`;
+  }
   function panelHtml(id) {
-    const t = state.t;
+    const t = view();
     if (id === 'home') return `<p class="qt-p">We measured every room, ${t.stairs ? 'and the stairs, ' : ''}so the numbers you see are for your home.</p><div class="qt-big"><b>${fmt(t.sqft)}</b><span>sq ft${t.stairs ? ` + ${t.stairs} stair treads` : ''}</span></div>`;
     if (id === 'removal') return `<p class="qt-p">We remove the ${esc(t.removal.existing.join(', ') || 'old flooring')} from ${t.rooms.length === 1 ? 'the room' : 'every room in the scope'} and leave the subfloor clean and ready.</p>${t.categories.some((c) => c.label === 'Haul away') ? '<p class="qt-p">Everything we take out is hauled away.</p>' : ''}`;
-    if (id === 'floor') return `<div class="qt-swatch ${texture(t, true)}" aria-hidden="true"></div><h3 class="qt-h3">${esc(t.floor.label)}</h3><p class="qt-p">${esc(t.floor.note)}</p>`;
+    if (id === 'floor') return optionPicker(t) ? `${optionPicker(t)}<h3 class="qt-h3">${esc(t.floor.label)}</h3><p class="qt-p">${esc(t.floor.note)}</p><p class="qt-p qt-mut">Tap an option to see it in your home.</p>` : `<div class="qt-swatch ${texture(t, true)}" aria-hidden="true"></div><h3 class="qt-h3">${esc(t.floor.label)}</h3><p class="qt-p">${esc(t.floor.note)}</p>`;
     if (id === 'refinish') return `<div class="qt-swatch qt-fl qt-fl--wood is-still" aria-hidden="true"></div><h3 class="qt-h3">${esc(t.refinish.label)}</h3><p class="qt-p">Your existing wood floors, sanded and finished.</p>`;
     if (id === 'details') return `<div class="qt-list">${(t.details || []).map((d, k) => `<div class="qt-li" style="animation-delay:${(0.2 + k * 0.25).toFixed(2)}s"><span>${esc(d.label)}</span><b>${esc(d.value)}</b></div>`).join('')}</div>${t.transitions ? '<p class="qt-p qt-mut">Orange marks show the doorways.</p>' : ''}`;
     if (id === 'invest') {
@@ -145,7 +169,8 @@
       return `<div class="qt-total"><b id="qtCount">${money(0, true)}</b>${t.per_sqft ? `<span>${money(t.per_sqft, true)} per sq ft · everything listed included</span>` : ''}</div>
         <div class="qt-bars">${t.categories.map((c, k) => `<div class="qt-barrow"><div class="qt-barrow__top"><span>${esc(c.label)}</span><b>${money(c.amount, true)}</b></div><div class="qt-track"><i style="width:${Math.max(2, Math.round((c.amount / max) * 100))}%;animation-delay:${(0.15 + k * 0.12).toFixed(2)}s"></i></div></div>`).join('')}</div>`;
     }
-    return `<div class="qt-list">
+    return `${optionPicker(t) ? optionPicker(t) : ''}<div class="qt-list">
+        ${t.option_name ? `<div class="qt-li"><span>Your choice</span><b>${esc(t.floor ? t.floor.label : t.option_name)}</b></div>` : ''}
         <div class="qt-li"><span>Total</span><b>${money(t.total, true)}</b></div>
         ${t.deposit ? `<div class="qt-li qt-li--hl"><span>${esc(t.deposit.label)}</span><b>${money(t.deposit.amount, true)}</b></div>` : ''}
         ${t.valid_until ? `<div class="qt-li"><span>Valid until</span><b>${esc(new Date(t.valid_until + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))}</b></div>` : ''}
@@ -176,7 +201,7 @@
     state.i = Math.max(0, Math.min(steps.length - 1, state.i));
     const st = steps[state.i];
     const last = state.i === steps.length - 1;
-    const say = sayFor(t, st.id);
+    const say = sayFor(view(), st.id);
     state.el.innerHTML = `
       <header class="qt-head">
         <span class="qt-logo" aria-hidden="true">${esc((t.company || 'F').split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase())}</span>
@@ -198,7 +223,7 @@
           ${last ? `<button type="button" class="qt-btn qt-btn--pri" data-qt-approve>${esc(state.opts.approveLabel || 'Approve & sign')}</button>` : `<button type="button" class="qt-btn qt-btn--ink" data-qt-next>Next: ${esc(steps[state.i + 1].name)}</button>`}
         </div>
       </section>`;
-    if (st.id === 'invest') countUp(t.total);
+    if (st.id === 'invest') countUp(view().total);
     if (state.narr && state.opts.speak) state.opts.speak(say);
   }
 
@@ -231,8 +256,14 @@
   }
 
   function onClick(ev) {
-    const el = ev.target.closest('[data-qt-close],[data-qt-next],[data-qt-prev],[data-qt-go],[data-qt-play],[data-qt-narr],[data-qt-approve]');
+    const el = ev.target.closest('[data-qt-close],[data-qt-next],[data-qt-prev],[data-qt-go],[data-qt-play],[data-qt-narr],[data-qt-approve],[data-qt-opt]');
     if (!el) return;
+    if (el.hasAttribute('data-qt-opt')) {
+      stopPlay();
+      state.opt = el.dataset.qtOpt;
+      if (state.opts.onOption) state.opts.onOption(state.opt);
+      return render();
+    }
     if (el.hasAttribute('data-qt-close')) return close();
     if (el.hasAttribute('data-qt-play')) return togglePlay();
     if (el.hasAttribute('data-qt-narr')) {
@@ -246,8 +277,9 @@
     }
     if (el.hasAttribute('data-qt-approve')) {
       const cb = state.opts.onApprove;
+      const chosen = state.opt;
       close();
-      if (cb) cb();
+      if (cb) cb(chosen);
       return;
     }
     stopPlay();
@@ -262,6 +294,7 @@
     state.t = tour;
     state.opts = opts || {};
     state.i = 0;
+    state.opt = tour.selected_option || (tour.options && tour.options[0] && tour.options[0].id) || null;
     state.narr = false;
     state.playing = false;
     const el = document.createElement('div');

@@ -103,6 +103,14 @@ html.qt-open, html.qt-open body { overflow: hidden; }
 .qt-tag { animation-name: qt-tag; }
 @keyframes qt-tag { from { opacity: 0; transform: translate(-50%, 16px); } to { opacity: 1; transform: translate(-50%, 4px); } }
 
+/* Option A / Option B */
+.qt-opts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.qt-opt { appearance: none; display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: 14px; border: 1px solid var(--qt-line); background: #fff; font: inherit; color: var(--qt-ink); text-align: left; cursor: pointer; }
+.qt-opt.is-on { border: 2px solid var(--qt-ink); padding: 9px; }
+.qt-opt b { font-size: 14px; }
+.qt-opt span:last-child { font-size: 14px; color: var(--qt-ink2); font-variant-numeric: tabular-nums; }
+.qt-swatch--sm { height: 44px; border-radius: 8px; }
+
 /* Tablet portrait: steps become a row on top. */
 @media (max-width: 1023px) {
   .qt { grid-template-columns: minmax(0, 1fr) 320px; grid-template-rows: auto auto minmax(0, 1fr); grid-template-areas: "head head" "steps steps" "stage panel"; }

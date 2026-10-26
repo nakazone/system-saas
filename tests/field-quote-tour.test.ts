@@ -53,4 +53,27 @@ describe("field quote client tour", () => {
     expect(tourDeposit({ items: [{ label: "Due on approval", percent: 30, fixedAmount: null }] }, 1000)).toEqual({ label: "Due on approval · 30%", amount: 300 });
     expect(tourDeposit({ items: [] }, 1000)).toBeNull();
   });
+
+  it("compares Option A and Option B with their own floor and totals", () => {
+    const optLines = [
+      { name: "LVP installation", quantity: 232, unit: "sq_ft", amount: 928, optionGroupId: "ga" },
+      { name: "LVP — material", quantity: 256, unit: "sq_ft", amount: 1152, optionGroupId: "ga", meta: { service_type: "Supply" } },
+      { name: "Engineered hardwood installation", quantity: 232, unit: "sq_ft", amount: 1044, optionGroupId: "gb" },
+      { name: "Engineered hardwood — material", quantity: 256, unit: "sq_ft", amount: 2176, optionGroupId: "gb", meta: { service_type: "Supply" } },
+      { name: "Floor removal — carpet", quantity: 232, unit: "sq_ft", amount: 348, meta: { service_type: "Demolition" } },
+    ];
+    const t = buildFieldQuoteTour({
+      data, clientName: "Jen", companyName: "Peak", quoteNumber: "Q-2", total: 2428, lines: optLines,
+      groups: [{ id: "ga", name: "Option A · LVP", flooringType: "lvp" }, { id: "gb", name: "Option B · Engineered hardwood", flooringType: "engineered_wood" }],
+      selectedGroupId: "ga", taxRate: 0,
+    });
+    expect(t.options).toHaveLength(2);
+    expect(t.selected_option).toBe("ga");
+    expect(t.total).toBe(2428);
+    const b = t.options!.find((o) => o.id === "gb")!;
+    expect(b.total).toBe(1044 + 2176 + 348);
+    expect(b.floor?.label).toBe("Engineered hardwood");
+    expect(t.options![0].floor?.label).toBe("Luxury vinyl plank");
+    expect(b.room_prices.reduce((x, y) => x + y, 0)).toBeGreaterThan(t.rooms.reduce((x, r) => x + r.price, 0));
+  });
 });

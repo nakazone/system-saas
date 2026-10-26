@@ -77,6 +77,7 @@
     d.rates = d.rates && typeof d.rates === 'object' && !Array.isArray(d.rates) ? d.rates : {};
     d.floorplan = d.floorplan && typeof d.floorplan === 'object' && !Array.isArray(d.floorplan) ? d.floorplan : null;
     d.photo_analysis = d.photo_analysis && typeof d.photo_analysis === 'object' && !Array.isArray(d.photo_analysis) ? d.photo_analysis : null;
+    d.option_b = d.option_b && typeof d.option_b === 'object' && !Array.isArray(d.option_b) && d.option_b.material ? d.option_b : null;
     d.ai_conversation = Array.isArray(d.ai_conversation) ? d.ai_conversation.filter((m) => m && ['user', 'assistant'].includes(m.role) && typeof m.content === 'string').slice(-40) : [];
     return d;
   }
@@ -106,11 +107,12 @@
 
   const mat = (id) => C.MATERIALS.find((m) => m.id === id) || C.MATERIALS[C.MATERIALS.length - 1];
   const svcDef = (id) => C.SERVICES.find((s) => s.id === id);
-  function installWaste(d) {
+  function installWaste(d, materialOverride) {
     const i = d.svc.installation;
-    if (i.waste != null && i.waste !== '') return Number(i.waste) || 0;
-    if (i.material === 'carpet') return 8;
-    if (i.material === 'tile') return 12;
+    const material = materialOverride || i.material;
+    if (!materialOverride && i.waste != null && i.waste !== '') return Number(i.waste) || 0;
+    if (material === 'carpet') return 8;
+    if (material === 'tile') return 12;
     const p = C.PATTERNS.find((x) => x.id === i.pattern);
     return p ? p.waste : 10;
   }
@@ -120,14 +122,14 @@
 
   // ------------------------------------------------------------------ pricing (Tabela de Valores)
   const ctKey = () => 'price_' + ((S.fq && S.fq.customer_type) || 'particular');
-  function matchPricing(key) {
+  function matchPricing(key, materialOverride) {
     const items = S.pricing.filter((p) => p.active !== 0 && p.active !== false);
     if (!items.length) return null;
     const hay = (p) => `${p.name} ${p.notes || ''}`.toLowerCase();
     const has = (p, words) => words.some((w) => hay(p).includes(w));
     const d = S.d;
     if (key === 'installation' || key === 'supply') {
-      const m = mat(d.svc.installation.material);
+      const m = mat(materialOverride || d.svc.installation.material);
       const cat = key === 'supply' ? ['supply'] : ['installation'];
       const pool = items.filter((p) => cat.includes(p.category) && p.unit === 'sq_ft');
       const byMat = m.keys.length ? pool.filter((p) => has(p, m.keys)) : [];
@@ -145,7 +147,12 @@
     if (!p) return 0;
     return Number(p[ctKey()]) || Number(p.price_particular) || Number(p.price) || 0;
   }
-  function defaultRate(key) {
+  /** Default price when the Tabela de Valores has no item; installation and material vary by material. */
+  function defaultRate(key, materialId) {
+    if (key === 'installation' || key === 'supply') {
+      const m = C.MATERIALS.find((x) => x.id === (materialId || (S.d && S.d.svc.installation.material)));
+      if (m && m[key === 'supply' ? 'supply' : 'install']) return m[key === 'supply' ? 'supply' : 'install'];
+    }
     if (key === 'supply') return C.SUPPLY.rate;
     const s = svcDef(key);
     if (s) return s.rate;
@@ -155,14 +162,16 @@
   /** { rate, source: 'manual'|'tabela'|'padrao', item } */
   function rateFor(key) {
     const o = S.d.rates[key];
+    const base = String(key).replace(/:b$/, '');
+    const matB = key !== base && S.d.option_b ? S.d.option_b.material : null;
     if (o && o.source === 'manual') return { rate: Number(o.rate) || 0, source: 'manual', item: null };
     if (o && o.pricing_item_id) {
       const it = S.pricing.find((p) => p.id === o.pricing_item_id);
       if (it) return { rate: priceOf(it), source: 'tabela', item: it };
     }
-    const it = matchPricing(key);
+    const it = matchPricing(base, matB);
     if (it && priceOf(it) > 0) return { rate: priceOf(it), source: 'tabela', item: it };
-    return { rate: defaultRate(key), source: 'padrao', item: null };
+    return { rate: defaultRate(base, matB), source: 'padrao', item: null };
   }
 
   // ------------------------------------------------------------------ lines
@@ -176,13 +185,16 @@
     if (ex.qty === 'area') return Math.ceil(svcArea(d, 'installation'));
     return Number(st.qty) || 0;
   }
-  function buildLines(d) {
+  /** Lines for one option ('a' = the main material, 'b' = Option B). Without Option B, 'a' is the whole quote. */
+  function buildLines(d, opt) {
     const out = [];
-    const push = (key, name, desc, qty, unit, svc) => {
+    const ob = opt === 'b' && d.option_b ? d.option_b : null;
+    const two = Boolean(d.option_b);
+    const push = (key, name, desc, qty, unit, svc, option) => {
       const rt = rateFor(key);
       const q = r2(qty);
       if (q <= 0) return;
-      out.push({ key, name, description: desc, quantity: q, unit, rate: r2(rt.rate), amount: r2(q * rt.rate), source: rt.source, pricing_item_id: rt.item ? rt.item.id : null, service_type: svc });
+      out.push({ key, name, description: desc, quantity: q, unit, rate: r2(rt.rate), amount: r2(q * rt.rate), source: rt.source, pricing_item_id: rt.item ? rt.item.id : null, service_type: svc, option: option || null });
     };
     C.SERVICES.forEach((s) => {
       if (!d.services.includes(s.id)) return;
@@ -193,13 +205,15 @@
         const ex = (d.answers.demolition.existing || []).map((m) => mat(m).en.toLowerCase());
         push('demolition', ex.length ? `Floor removal — ${ex.join(', ')}` : 'Floor removal', rooms, area, 'sq_ft', 'Demolition');
       } else if (s.id === 'installation') {
-        const m = mat(d.svc.installation.material);
+        const m = mat(ob ? ob.material : d.svc.installation.material);
+        const sfx = ob ? ':b' : '';
+        const tag = two ? (ob ? 'b' : 'a') : null;
         const pat = C.PATTERNS.find((p) => p.id === d.svc.installation.pattern);
         const patTxt = pat && pat.id !== 'straight' && ['solid_hardwood', 'engineered_wood', 'lvp', 'laminate', 'tile'].includes(m.id) ? ` — ${pat.en} pattern` : '';
-        push('installation', `${m.en} installation${patTxt}`, rooms, area, 'sq_ft', 'Installation');
-        if (d.svc.installation.supply) {
-          const w = installWaste(d);
-          push('supply', `${m.en} — material`, `${fmtN(area)} sq ft + ${w}% waste`, Math.ceil(area * (1 + w / 100)), 'sq_ft', 'Supply');
+        push('installation' + sfx, `${m.en} installation${patTxt}`, rooms, area, 'sq_ft', 'Installation', tag);
+        if (ob ? ob.supply : d.svc.installation.supply) {
+          const w = installWaste(d, ob ? ob.material : null);
+          push('supply' + sfx, `${m.en} — material`, `${fmtN(area)} sq ft + ${w}% waste`, Math.ceil(area * (1 + w / 100)), 'sq_ft', 'Supply', tag);
         }
       } else if (s.id === 'sanding') {
         const t = C.SANDING_TYPES.find((x) => x.id === d.svc.sanding.type) || C.SANDING_TYPES[0];
@@ -220,8 +234,8 @@
     });
     return out;
   }
-  function totals(d) {
-    const lines = buildLines(d);
+  function totals(d, opt) {
+    const lines = buildLines(d, opt || 'a');
     const subtotal = r2(lines.reduce((s, l) => s + l.amount, 0));
     const tax = r2((subtotal * (Number(S.taxRate) || 0)) / 100);
     return { lines, subtotal, tax, total: r2(subtotal + tax) };
@@ -382,6 +396,20 @@
     const instRooms = d.rooms.filter((r) => (r.services || []).includes('installation')).length;
     if (inst && instRooms > 1 && !on('transitions')) out.push({ id: 'transitions', text: `${instRooms} cômodos com piso novo e nenhuma transição. Incluir <b>${instRooms - 1} transição${instRooms - 1 > 1 ? 'ões' : ''}</b>?`, apply: (x) => extraOn(x, 'transitions', instRooms - 1) });
     if (inst && instRooms && !on('quarter_round') && !on('baseboard_install') && !on('baseboard_remove')) out.push({ id: 'quarter_round', text: 'Piso novo sem acabamento na parede. Incluir <b>quarter round</b> pelo perímetro?', apply: (x) => extraOn(x, 'quarter_round') });
+    const ref = S.priceRef;
+    if (inst && ref && ref.mat === d.svc.installation.material && svcArea(d, 'installation') > 0) {
+      [['installation', ref.install, 'Instalação'], ['supply', d.svc.installation.supply ? ref.supply : null, 'Material']].forEach(([key, r, label]) => {
+        if (!r || r.quotes < 3 || !r.median) return;
+        const cur = rateFor(key).rate;
+        if (!cur || Math.abs(cur - r.median) / r.median < 0.08) return;
+        out.push({
+          id: `price:${key}:${r.median}`,
+          text: `${label} de ${esc(mat(d.svc.installation.material).pt.split(' (')[0])} a <b>${esc(money(cur))}/pé²</b>. Nos seus últimos ${r.quotes} aprovados: <b>${esc(money(r.median))}/pé²</b> (mediana).`,
+          cta: `Usar ${money(r.median)}`,
+          apply: (x) => { x.rates[key] = { source: 'manual', rate: r.median }; },
+        });
+      });
+    }
     const noPhoto = d.rooms.find((r) => !photosOf(r.id).length);
     if (noPhoto) out.push({ id: 'photo:' + noPhoto.id, text: `<b>${esc(noPhoto.label)}</b> está sem foto. A equipe vai precisar ver o piso atual.`, shoot: noPhoto.id });
     const base = totals(d).total;
@@ -401,13 +429,27 @@
   function tipHtml(t, compact) {
     const right = t.shoot
       ? `<button type="button" class="fq-btn fq-btn--sm" data-fq-shoot="${esc(t.shoot)}">Tirar foto</button>`
-      : `<button type="button" class="fq-btn fq-btn--sm fq-btn--pri" data-fq-tip-yes="${esc(t.id)}">Incluir</button>`;
+      : `<button type="button" class="fq-btn fq-btn--sm fq-btn--pri" data-fq-tip-yes="${esc(t.id)}">${esc(t.cta || 'Incluir')}</button>`;
     return `<div class="fq-tip${compact ? ' fq-tip--row' : ''}"><div class="fq-tip__txt">${t.text}${t.delta ? ` <span class="fq-tip__d">${t.delta > 0 ? '+' : ''}${esc(money(t.delta))}</span>` : ''}</div><div class="fq-tip__acts"><button type="button" class="fq-btn fq-btn--sm fq-btn--quiet" data-fq-tip-no="${esc(t.id)}">Agora não</button>${right}</div></div>`;
   }
   function tipsCard(tips, max) {
     if (!tips.length) return '';
     const shown = tips.slice(0, max || 1);
     return `<section class="fq-mate" aria-label="Sugestões do Mate"><div class="fq-mate__head">${IC.mate()}<b>Mate</b>${tips.length > shown.length ? `<span>${tips.length} sugestões</span>` : ''}</div>${shown.map((t) => tipHtml(t)).join('')}</section>`;
+  }
+
+  /** What this company charged on approved quotes for the same material (median of the last 12 months). */
+  async function loadPriceRef() {
+    const d = S.d;
+    if (!d || !d.services.includes('installation')) return;
+    const m = mat(d.svc.installation.material);
+    if (S.priceRef && S.priceRef.mat === m.id) return;
+    try {
+      const q = [`${m.en} installation`, `${m.en} — material`].map((n) => 'name=' + encodeURIComponent(n)).join('&');
+      const j = await api('/api/field-quotes/ai/price-check?' + q);
+      S.priceRef = { mat: m.id, install: j.data[0], supply: j.data[1] };
+      if (!S.sheet && $('#fqSheet').hidden) renderPanel();
+    } catch (_) {}
   }
 
   // ------------------------------------------------------------------ list view
@@ -548,9 +590,10 @@
   }
   function sideHtml(t, tips) {
     const area = totalArea(S.d);
-    return `${pendingCardHtml()}<section class="fq-live"><span class="fq-lbl2">PROPOSTA AO VIVO</span><b class="fq-live__tot">${esc(money(t.total))}</b><span class="fq-live__sub">${area ? `${fmtN(area)} pé² · ${esc(money(r2(t.total / area)))}/pé²` : 'meça os cômodos'} · preços ${esc((C.CUSTOMER_TYPES.find((x) => x.id === S.fq.customer_type) || {}).pt || '')}</span>
+    const tb = S.d.option_b ? totals(S.d, 'b') : null;
+    return `${pendingCardHtml()}<section class="fq-live"><span class="fq-lbl2">PROPOSTA AO VIVO${tb ? ' · OPÇÃO A' : ''}</span><b class="fq-live__tot">${esc(money(t.total))}</b>${tb ? `<span class="fq-live__b">Opção B · ${esc(mat(S.d.option_b.material).pt.split(' (')[0])}: <b>${esc(money(tb.total))}</b></span>` : ''}<span class="fq-live__sub">${area ? `${fmtN(area)} pé² · ${esc(money(r2(t.total / area)))}/pé²` : 'meça os cômodos'} · preços ${esc((C.CUSTOMER_TYPES.find((x) => x.id === S.fq.customer_type) || {}).pt || '')}</span>
       <div class="fq-live__lines">${t.lines.map((l) => `<button type="button" class="fq-live__ln" data-fq-rate="${esc(l.key)}"><span>${esc(l.name)}${l.source === 'padrao' ? ' <em>preço padrão</em>' : ''}</span><b>${esc(money(l.amount))}</b></button>`).join('') || '<p class="fq-empty">As linhas aparecem aqui enquanto você mede.</p>'}</div></section>
-      ${tipsCard(tips, 3)}`;
+      ${photoTipsHtml()}${tipsCard(tips, 3)}`;
   }
   function renderPanel() {
     const fq = S.fq;
@@ -573,7 +616,7 @@
       </button>
       <div class="fq-prog" aria-label="Andamento da visita">${progress(d).map((p) => `<div class="fq-prog__i ${p.cls}"><i></i><span>${esc(p.name)}</span></div>`).join('')}</div>
       ${quoted ? `<div class="fq-quoted"><div><b>Orçamento ${esc(fq.quote.number)}</b><small>${esc(quoteStatusPt(fq.quote.status))}</small></div><a class="fq-btn fq-btn--sm" href="quote-builder.html?id=${esc(fq.quote_id)}${fq.lead_id ? '&lead_id=' + esc(fq.lead_id) : ''}">Abrir</a><button type="button" class="fq-btn fq-btn--sm fq-btn--ink" data-fq-present-existing>${IC.play()}Apresentar</button></div>` : ''}
-      <div class="fq-only-phone">${pendingCardHtml()}${tipsCard(tips, 1)}</div>
+      <div class="fq-only-phone">${pendingCardHtml()}${photoTipsHtml()}${tipsCard(tips, 1)}</div>
       <section class="fq-sec"><p class="fq-lbl2">O QUE VAI SER FEITO</p><div class="fq-chips">${svcChips(d)}</div></section>
       <section class="fq-sec">
         <div class="fq-sec__head"><p class="fq-lbl2">CÔMODOS${area ? ` · ${fmtN(area)} PÉ²` : ''}</p>${d.services.length ? `<button type="button" class="fq-link2" data-fq-ai-measure>${IC.mic(15)}Ditar medidas</button>` : ''}</div>
@@ -651,6 +694,8 @@
     stopAiAudio();
     if (S.ai) {
       S.ai.conversationOpen = false;
+      S.ai.handsFree = false;
+      clearTimeout(S.ai.relistenTimer);
       if (S.ai.conversationRecognition) {
         const recognition = S.ai.conversationRecognition;
         S.ai.conversationRecognition = null;
@@ -765,8 +810,8 @@
     const nav = S.sheet.isNew
       ? `<h2>Novo cômodo</h2>`
       : `<div class="fq-rnav"><button type="button" class="fq-rnav__b" data-fq-room-go="-1" ${at > 0 ? '' : 'disabled'} aria-label="Cômodo anterior">${IC.back()}</button><h2>${esc(r.label)}<small>${at + 1} de ${ids.length}</small></h2><button type="button" class="fq-rnav__b" data-fq-room-go="1" aria-label="${at < ids.length - 1 ? 'Próximo cômodo' : 'Novo cômodo'}">${IC.chev()}</button></div>`;
-    openSheet(
-      `<header class="fq-sbar"><button type="button" class="fq-link" data-fq-close>Cancelar</button>${nav}<button type="button" class="fq-link fq-link--b" data-fq-room-save>Salvar</button></header>
+    const kp = useKeypad();
+    let html = `<header class="fq-sbar"><button type="button" class="fq-link" data-fq-close>Cancelar</button>${nav}<button type="button" class="fq-link fq-link--b" data-fq-room-save>Salvar</button></header>
       <div class="fq-sbody">
         <div class="fq-chips fq-chips--scroll">${C.ROOMS.map((x) => `<button type="button" class="fq-chip${r.base === x.pt ? ' is-on' : ''}" data-fq-rname="${esc(x.pt)}">${esc(x.pt)}</button>`).join('')}<button type="button" class="fq-chip${r.base === '__custom' ? ' is-on' : ''}" data-fq-rname="__custom">+ Outro</button></div>
         ${r.base === '__custom' ? `<label class="fq-field fq-field--col fq-group"><span>Nome do cômodo</span><input data-fq-r="label" value="${esc(r.label)}" placeholder="ex.: Sala de TV" /></label>` : ''}
@@ -794,12 +839,70 @@
         <div class="fq-row2"><button type="button" class="fq-btn" data-fq-shoot="${esc(r.id)}">${IC.cam()}Foto deste cômodo</button><button type="button" class="fq-btn fq-btn--quiet" data-fq-ai-measure>${IC.mic(18)}Ditar medidas</button></div>
         <button type="button" class="fq-btn fq-btn--ink fq-btn--block fq-btn--next" data-fq-room-next>Salvar e medir o próximo</button>
         ${S.sheet.isNew ? '' : `<div class="fq-row2"><button type="button" class="fq-btn fq-btn--ghost" data-fq-room-dup>Duplicar</button><button type="button" class="fq-btn fq-btn--danger" data-fq-room-del>Excluir cômodo</button></div>`}
-      </div>`,
-      'fq-sheet__card--tall'
-    );
-    const f = focusKey ? $(`[data-fq-r="${focusKey}"]`) : S.sheet.isNew ? $('[data-fq-r="l_ft"], [data-fq-r="sqft"]') : null;
-    if (f && window.innerWidth >= 768) f.focus();
+      </div>`;
+    if (kp) html = html.replace(/inputmode="(numeric|decimal)"/g, 'inputmode="none"') + keypadHtml();
+    openSheet(html, 'fq-sheet__card--tall' + (kp ? ' fq-sheet__card--kp' : ''));
+    const f = focusKey ? $(`[data-fq-r="${focusKey}"]`) : S.sheet.isNew || kp ? $('[data-fq-r="l_ft"], [data-fq-r="sqft"]') : null;
+    if (f && (kp || window.innerWidth >= 768)) f.focus();
+    if (kp) kpLabel();
   }
+  // ---- measuring keypad (touch screens): feet / inches with fractions, no phone keyboard over the sheet
+  const useKeypad = () => Boolean(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  function keypadHtml() {
+    const k = (v, label, cls, aria) => `<button type="button" class="fq-key${cls ? ' ' + cls : ''}" data-fq-key="${v}"${aria ? ` aria-label="${aria}"` : ''}>${label}</button>`;
+    return `<div class="fq-kp" role="group" aria-label="Teclado de medidas">
+      <div class="fq-kp__top"><span id="fqKpLbl">Comprimento · pés</span><button type="button" class="fq-kp__dict" data-fq-ai-measure>${IC.mic(15)}Ditar</button></div>
+      <div class="fq-kp__grid">${k('1', '1')}${k('2', '2')}${k('3', '3')}${k('bs', '⌫', 'fq-key--fn', 'Apagar')}${k('4', '4')}${k('5', '5')}${k('6', '6')}${k('h', '½', 'fq-key--fn', 'Meio')}${k('7', '7')}${k('8', '8')}${k('9', '9')}${k('q', '¼', 'fq-key--fn', 'Um quarto')}${k('.', '.', 'fq-key--fn', 'Ponto')}${k('0', '0')}${k('tq', '¾', 'fq-key--fn', 'Três quartos')}${k('next', 'Próximo', 'fq-key--go', 'Próximo campo')}</div>
+    </div>`;
+  }
+  const KP_LABEL = { l_ft: 'Comprimento · pés', l_in: 'Comprimento · polegadas', w_ft: 'Largura · pés', w_in: 'Largura · polegadas', sqft: 'Área total · pé²', l: 'Área extra · comprimento (pés)', w: 'Área extra · largura (pés)' };
+  function kpFields() {
+    return $$('.fq-sheet input[inputmode="none"]');
+  }
+  function kpTarget() {
+    const a = document.activeElement;
+    return a && a.matches && a.matches('.fq-sheet input[inputmode="none"]') ? a : kpFields()[0];
+  }
+  function kpLabel() {
+    const el = kpTarget();
+    const lb = $('#fqKpLbl');
+    if (lb && el) lb.textContent = KP_LABEL[el.dataset.fqR || el.dataset.k] || 'Medida';
+    const fields = kpFields();
+    const go = $('.fq-key--go');
+    if (go && el) go.textContent = fields.indexOf(el) === fields.length - 1 ? 'OK' : 'Próximo';
+  }
+  function kpPress(k) {
+    const el = kpTarget();
+    if (!el) return;
+    const set = (inp, v) => {
+      inp.value = v;
+      inp.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    const key = el.dataset.fqR || el.dataset.k;
+    const isFt = key === 'l_ft' || key === 'w_ft';
+    if (k === 'next') {
+      const fields = kpFields();
+      const n = fields[fields.indexOf(el) + 1];
+      if (n) n.focus();
+      else el.blur();
+      return kpLabel();
+    }
+    if (k === 'bs') return set(el, el.value.slice(0, -1));
+    if (k === 'h' || k === 'q' || k === 'tq') {
+      if (isFt) {
+        const pair = $(`.fq-sheet input[data-fq-r="${key[0]}_in"]`);
+        if (pair) set(pair, String({ h: 6, q: 3, tq: 9 }[k]));
+        return;
+      }
+      return set(el, String(Math.floor(Number(el.value) || 0) + { h: 0.5, q: 0.25, tq: 0.75 }[k]));
+    }
+    if (k === '.') {
+      if (isFt || el.value.includes('.')) return;
+      return set(el, (el.value || '0') + '.');
+    }
+    set(el, ((el.value === '0' ? '' : el.value) + k).slice(0, 7));
+  }
+
   function updateRoomCalc() {
     const r = S.sheet.room;
     const area = roomArea(r);
@@ -893,7 +996,9 @@
   }
 
   // review → "Resultado"
-  function lineGroup(l) {
+  const baseKey = (k) => String(k || '').replace(/:b$/, '');
+  function lineGroup(l0) {
+    const l = Object.assign({}, l0, { key: baseKey(l0.key) });
     const n = String(l.name || '').toLowerCase();
     if (l.key === 'supply') return 'Material';
     if (l.key === 'installation') return 'Instalação';
@@ -912,13 +1017,14 @@
       const acc = new Map(d.rooms.map((r) => [r.id, 0]));
       let general = 0;
       t.lines.forEach((l) => {
-        const sid = l.key === 'supply' ? 'installation' : l.key;
+        const lk = baseKey(l.key);
+        const sid = lk === 'supply' ? 'installation' : lk;
         if (l.unit === 'sq_ft' && C.SERVICES.some((s) => s.id === sid)) {
           const pool = d.rooms.filter((r) => (r.services || []).includes(sid));
           const a = pool.reduce((s, r) => s + roomArea(r), 0);
           if (a > 0) return pool.forEach((r) => acc.set(r.id, acc.get(r.id) + (l.amount * roomArea(r)) / a));
         }
-        if (l.unit === 'linear_ft' || (l.unit === 'sq_ft' && ['underlayment', 'moisture'].includes(l.key))) {
+        if (l.unit === 'linear_ft' || (l.unit === 'sq_ft' && ['underlayment', 'moisture'].includes(lk))) {
           const pool = d.rooms.filter((r) => (l.unit === 'linear_ft' ? roomPerimeter(r) : roomArea(r)) > 0);
           const tot = pool.reduce((s, r) => s + (l.unit === 'linear_ft' ? roomPerimeter(r) : roomArea(r)), 0);
           if (tot > 0) return pool.forEach((r) => acc.set(r.id, acc.get(r.id) + (l.amount * (l.unit === 'linear_ft' ? roomPerimeter(r) : roomArea(r))) / tot));
@@ -941,8 +1047,40 @@
     if (t.tax) rows.push({ label: 'Imposto', sub: `${S.taxRate}%`, amount: t.tax });
     return rows.filter((r) => r.amount > 0).sort((a, b) => b.amount - a.amount);
   }
+  /** Material the Mate suggests for Option B: the natural step up (or down) from the main material. */
+  function altMaterial(id) {
+    if (['solid_hardwood', 'engineered_wood'].includes(id)) return 'lvp';
+    if (id === 'lvp') return 'engineered_wood';
+    if (id === 'laminate') return 'lvp';
+    return 'engineered_wood';
+  }
+  function optionCards(opt) {
+    const d = S.d;
+    const card = (o, label, total) => `<button type="button" class="fq-optc${opt === o ? ' is-on' : ''}" data-fq-review-opt="${o}" role="radio" aria-checked="${opt === o}"><small>${label}</small><b>${esc(money(total))}</b></button>`;
+    return `<div class="fq-optcs" role="radiogroup" aria-label="Opções do orçamento">${card('a', `OPÇÃO A · ${esc(mat(d.svc.installation.material).pt.split(' (')[0])}`, totals(d, 'a').total)}${card('b', `OPÇÃO B · ${esc(mat(d.option_b.material).pt.split(' (')[0])}`, totals(d, 'b').total)}</div>`;
+  }
+  function optionBHtml() {
+    const d = S.d;
+    if (!d.services.includes('installation')) return '';
+    if (!d.option_b) {
+      const alt = altMaterial(d.svc.installation.material);
+      const c = cloneD();
+      c.option_b = { material: alt, supply: d.svc.installation.supply };
+      const real = S.d;
+      S.d = c;
+      const tb = totals(c, 'b').total;
+      S.d = real;
+      return `<section class="fq-mate"><div class="fq-mate__head">${IC.mate()}<b>Opção B</b></div><div class="fq-tip"><div class="fq-tip__txt">Montar uma <b>Opção B com ${esc(mat(alt).pt.split(' (')[0])}</b>? Os mesmos cômodos, outro piso: <b>${esc(money(tb))}</b>. A cliente compara as duas na apresentação.</div><div class="fq-tip__acts"><button type="button" class="fq-btn fq-btn--sm fq-btn--pri" data-fq-optb-add="${alt}">Montar Opção B</button></div></div></section>`;
+    }
+    const ob = d.option_b;
+    return `<section class="fq-optb"><div class="fq-money__head"><b>Material da Opção B</b><button type="button" class="fq-link2" data-fq-optb-del>Remover</button></div>
+      <div class="fq-chips">${C.MATERIALS.filter((m) => m.id !== 'other' && m.id !== d.svc.installation.material).map((m) => `<button type="button" class="fq-chip${m.id === ob.material ? ' is-on' : ''}" data-fq-optb-mat="${m.id}">${esc(m.pt)}</button>`).join('')}</div>
+      <label class="fq-switch"><input type="checkbox" data-fq-optb-supply ${ob.supply ? 'checked' : ''}/><span></span><div><b>Nós fornecemos o material</b><small>Na Opção B</small></div></label></section>`;
+  }
   function sheetReview() {
-    const t = totals(S.d);
+    const two = Boolean(S.d.option_b);
+    const opt = two ? S.reviewOpt || 'a' : 'a';
+    const t = totals(S.d, opt);
     const fq = S.fq;
     const quoted = fq.quote_id && fq.quote;
     const locked = quoted && ['approved', 'converted'].includes(fq.quote.status);
@@ -955,7 +1093,7 @@
     openSheet(
       `${bar('Resultado', 'none')}
       <div class="fq-sbody fq-result">
-        <div class="fq-bigtotal"><small>Total para o cliente</small><b>${esc(money(t.total))}</b><span>preços ${esc((C.CUSTOMER_TYPES.find((x) => x.id === fq.customer_type) || {}).pt)}</span></div>
+        ${two ? optionCards(opt) : `<div class="fq-bigtotal"><small>Total para o cliente</small><b>${esc(money(t.total))}</b><span>preços ${esc((C.CUSTOMER_TYPES.find((x) => x.id === fq.customer_type) || {}).pt)}</span></div>`}
         <div class="fq-stats">
           <div><small>Por pé²</small><b>${area ? esc(money(r2(t.total / area))) : '—'}</b></div>
           <div><small>Área</small><b>${fmtN(area)} pé²</b></div>
@@ -973,6 +1111,7 @@
             .join('')}
           <p class="fq-hint">${view === 'svc' ? 'Toque numa linha para trocar o preço. O cliente vê os nomes em inglês.' : 'Divisão aproximada pela área e pelo perímetro de cada cômodo.'}</p>
         </section>
+        ${locked ? '' : optionBHtml()}
         ${locked ? `<div class="fq-banner">Orçamento ${esc(fq.quote.number)} já está ${esc(quoteStatusPt(fq.quote.status))}. Mudanças aqui não alteram mais o orçamento.</div>` : ''}
         <section class="fq-mate">
           <div class="fq-mate__head">${IC.mate()}<b>Antes de mostrar ao cliente</b>${tips.length ? `<span>${tips.length} ponto${tips.length > 1 ? 's' : ''}</span>` : ''}</div>
@@ -1012,8 +1151,11 @@
         approveLabel: 'Approve & sign',
         speak: tourSpeak,
         stopSpeak: tourStop,
-        onApprove: async () => {
+        onApprove: async (chosen) => {
           try {
+            if (chosen && j.data.options && j.data.options.length > 1 && chosen !== j.data.selected_option) {
+              await api(`/api/field-quotes/${encodeURIComponent(S.fq.id)}/quote-options`, { method: 'POST', body: { quote_id: S.fq.quote_id, select_group_id: chosen } });
+            }
             const pub = await api(`/api/quotes/${encodeURIComponent(S.fq.quote_id)}/publish-client`, { method: 'POST', body: { mark_sent: true } });
             location.href = pub.public_url;
           } catch (e) { toast(e.message, 'error'); }
@@ -1092,12 +1234,15 @@
       <div class="fq-mate__head">${IC.mate()}<b>Vou aplicar</b>${p.delta ? `<span class="fq-pending__d">${p.delta > 0 ? '+' : ''}${esc(money(p.delta))}</span>` : ''}</div>
       <ul>${p.changes.map((c) => `<li>${esc(String(c).replace(/^Adicionei /, 'Adicionar ').replace(/^Removi /, 'Remover ').replace(/^Atualizei /, 'Atualizar ').replace(/^Registrei /, 'Registrar ').replace(/^Anotei /, 'Anotar '))}</li>`).join('')}</ul>
       <div class="fq-row2"><button type="button" class="fq-btn" data-fq-pending-no>Descartar</button><button type="button" class="fq-btn fq-btn--pri" data-fq-pending-yes>Confirmar</button></div>
+      ${S.ai.handsFree ? '<small class="fq-mut">Diga “pode” para confirmar ou “descarta”.</small>' : ''}
     </section>`;
   }
   function confirmPending(ok) {
     const p = S.ai.pending;
     S.ai.pending = null;
     if (ok && p) {
+      const last = [...(S.d.ai_conversation || [])].reverse().find((m) => m.role === 'assistant' && !m.transient);
+      if (last) last.applied = p.changes.map((c) => String(c).replace(/^Adicionei /, '').replace(/^Atualizei /, '').replace(/^Registrei /, '').replace(/^Removi /, 'sem ')).slice(0, 8);
       applyAiConversationPatch(p.patch);
       markDirty();
       renderPanel();
@@ -1116,10 +1261,12 @@
     const listening = Boolean(S.ai.conversationRecognition);
     const messageHtml = messages.map((message) => {
       const isUser = message.role === 'user';
-      return `<article class="fq-chat__message ${isUser ? 'fq-chat__message--user' : 'fq-chat__message--assistant'}"><p>${esc(message.content)}</p></article>`;
+      const applied = !isUser && Array.isArray(message.applied) && message.applied.length ? `<div class="fq-chat__applied"><span>Entrou no orçamento</span>${message.applied.map((c) => `<i>${IC.check(12)}${esc(c)}</i>`).join('')}</div>` : '';
+      return `<article class="fq-chat__message ${isUser ? 'fq-chat__message--user' : 'fq-chat__message--assistant'}"><p>${esc(message.content)}</p></article>${applied}`;
     }).join('');
+    const hf = Boolean(S.ai.handsFree);
     openSheet(
-      `${bar('Mate', 'none')}
+      `<header class="fq-sbar"><button type="button" class="fq-link" data-fq-close>Fechar</button><h2>Mate</h2>${hasSpeech ? `<button type="button" class="fq-hf${hf ? ' is-on' : ''}" data-fq-handsfree aria-pressed="${hf}">${hf ? 'Mãos livres · ligado' : 'Mãos livres'}</button>` : '<span></span>'}</header>
       <div class="fq-chat">
         <div class="fq-chat__summary"><span>${serviceCount} serviço${serviceCount === 1 ? '' : 's'}</span><span>${roomCount} cômodo${roomCount === 1 ? '' : 's'}</span><b>${esc(money(estimate.total))}</b></div>
         <div class="fq-chat__messages" id="fqAiConversationMessages" role="log" aria-label="Conversa sobre o orçamento" aria-live="polite">
@@ -1128,7 +1275,7 @@
           ${pendingCardHtml()}
         </div>
         <div class="fq-chat__composer">
-          ${listening ? '<div class="fq-listen" role="status"><span class="fq-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>Ouvindo… toque em Parar quando terminar</div>' : ''}
+          ${listening ? `<div class="fq-listen" role="status"><span class="fq-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>${hf ? 'Ouvindo… ande pela casa e vá falando' : 'Ouvindo… toque em Parar quando terminar'}</div>` : hf ? '<div class="fq-listen" role="status">Mãos livres: o Mate volta a ouvir depois de responder.</div>' : ''}
           <div class="fq-chat__composer-row">
             <textarea id="fqAiConversationInput" rows="1" maxlength="1400" aria-label="Descreva o que será feito" placeholder="Digite ou toque no microfone" ${S.ai.conversationBusy ? 'disabled' : ''}></textarea>
             <button type="button" class="fq-round fq-round--ink${listening ? ' is-live' : ''}" data-fq-ai-conversation-mic ${!hasSpeech || S.ai.conversationBusy ? 'disabled' : ''} aria-label="${listening ? 'Parar captura de voz' : 'Falar com o Mate'}">${listening ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>' : IC.mic(20)}</button>
@@ -1398,7 +1545,14 @@
   }
   async function speakAiConversation(text) {
     if (!S.ai.conversationSpeakReplies || !S.ai.conversationOpen) return;
-    await playAiAudio(text);
+    if (S.ai.speechVoiceId) return playAiAudio(text);
+    // No ElevenLabs voice configured: the device's own voice, without an error.
+    if (!window.speechSynthesis) return;
+    const lang = ($('#fqAiConversationLanguage') || {}).value || 'pt-BR';
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(String(text || ''));
+    u.lang = lang;
+    window.speechSynthesis.speak(u);
   }
   function dictateAiConversation() {
     const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1428,15 +1582,49 @@
       transcript = Array.from(event.results || []).map((result) => result[0] && result[0].transcript || '').join(' ').trim();
     };
     recognition.onerror = (event) => {
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') S.ai.handsFree = false;
       if (event.error !== 'no-speech' && event.error !== 'aborted') toast('Não consegui captar a fala. Tente novamente ou digite a mensagem.', 'error');
     };
     recognition.onend = () => {
       if (S.ai.conversationRecognition === recognition) S.ai.conversationRecognition = null;
       if (!S.ai.conversationOpen) return;
-      if (transcript) sendAiConversation(transcript, true);
-      else renderAiConversation();
+      void handleHeard(transcript);
     };
     try { recognition.start(); } catch (_) { toast('O microfone não iniciou. Digite a mensagem para continuar.', 'error'); }
+  }
+  /** What was heard: in hands-free mode "pode" confirms and "descarta" drops the Mate card. */
+  async function handleHeard(text) {
+    const said = String(text || '').trim();
+    if (said && S.ai.pending && /^(pode|confirm|sim\b|ok\b|isso|manda|aplica)/i.test(said)) confirmPending(true);
+    else if (said && S.ai.pending && /^(descart|cancel|n[ãa]o\b|esquece)/i.test(said)) confirmPending(false);
+    else if (said) await sendAiConversation(said, true);
+    else renderAiConversation();
+    if (S.ai.handsFree && S.ai.conversationOpen) relisten();
+  }
+  function relisten() {
+    clearTimeout(S.ai.relistenTimer);
+    const tick = (n) => {
+      if (!S.ai.handsFree || !S.ai.conversationOpen) return;
+      if (S.ai.speechAudio || S.ai.conversationBusy || S.ai.conversationRecognition || (window.speechSynthesis && window.speechSynthesis.speaking)) {
+        if (n < 200) S.ai.relistenTimer = setTimeout(() => tick(n + 1), 300);
+        return;
+      }
+      dictateAiConversation();
+    };
+    S.ai.relistenTimer = setTimeout(() => tick(0), 450);
+  }
+  function toggleHandsFree() {
+    S.ai.handsFree = !S.ai.handsFree;
+    if (S.ai.handsFree) {
+      S.ai.conversationSpeakReplies = true;
+      if (!S.ai.conversationRecognition) dictateAiConversation();
+    } else {
+      clearTimeout(S.ai.relistenTimer);
+      if (S.ai.conversationRecognition) {
+        try { S.ai.conversationRecognition.stop(); } catch (_) {}
+      }
+    }
+    renderAiConversation();
   }
   function sheetAiMeasure() {
     S.ai.measureProposal = null;
@@ -1614,11 +1802,11 @@
     await playAiAudio(text);
   }
   function sheetRate(key) {
-    const t = totals(S.d);
-    const line = t.lines.find((l) => l.key === key);
+    const line = totals(S.d).lines.concat(S.d.option_b ? totals(S.d, 'b').lines : []).find((l) => l.key === key);
     if (!line) return;
     if (key.startsWith('custom:')) return sheetExtras();
-    const cats = key === 'supply' ? ['supply'] : key === 'sanding' ? ['sand_finish', 'installation'] : ['installation', 'supply', 'sand_finish', 'custom'];
+    const baseKey = key.replace(/:b$/, '');
+    const cats = baseKey === 'supply' ? ['supply'] : key === 'sanding' ? ['sand_finish', 'installation'] : ['installation', 'supply', 'sand_finish', 'custom'];
     const items = S.pricing.filter((p) => (p.active !== 0 && p.active !== false) && cats.includes(p.category));
     const cur = rateFor(key);
     openSheet(
@@ -1661,6 +1849,20 @@
       throw e;
     }
   }
+  /** Quote lines: common + Option A, then Option B's own lines (grouped after the quote is saved). */
+  function quoteLines(d) {
+    const a = totals(d, 'a').lines;
+    const b = d.option_b ? totals(d, 'b').lines.filter((l) => l.option === 'b') : [];
+    return a.concat(b);
+  }
+  function optionGroupsFor(d, lines) {
+    if (!d.option_b) return [];
+    const idx = (o) => lines.map((l, i) => (l.option === o ? i : -1)).filter((i) => i >= 0);
+    return [
+      { name: `Option A · ${mat(d.svc.installation.material).en}`, flooring_type: d.svc.installation.material, line_indexes: idx('a') },
+      { name: `Option B · ${mat(d.option_b.material).en}`, flooring_type: d.option_b.material, line_indexes: idx('b') },
+    ];
+  }
   async function finish(mode, btn) {
     const t = totals(S.d);
     if (!t.lines.length) return toast('Adicione serviços e cômodos primeiro.', 'error');
@@ -1687,7 +1889,7 @@
         flooring_type: d.services.includes('installation') ? m.id : 'hardwood',
         area_sqft: totalArea(d),
         waste_percent: d.svc.installation.supply ? installWaste(d) : 0,
-        items: t.lines.map((l) => ({ name: l.name, description: l.description || null, quantity: l.quantity, rate: l.rate, unit_type: l.unit, item_type: 'service', service_type: l.service_type, pricing_item_id: l.pricing_item_id || undefined })),
+        items: quoteLines(d).map((l) => ({ name: l.name, description: l.description || null, quantity: l.quantity, rate: l.rate, unit_type: l.unit, item_type: 'service', service_type: l.service_type, pricing_item_id: l.pricing_item_id || undefined })),
         tax_total: t.tax,
         total: t.total,
         field_quote_id: fq.id,
@@ -1702,6 +1904,16 @@
       }
       const linked = await api(`/api/field-quotes/${encodeURIComponent(fq.id)}/link-quote`, { method: 'POST', body: { quote_id: quoteId, lead_id: leadId } });
       S.fq = Object.assign(S.fq, linked.data, { data: undefined });
+      if (editable || !fq.quote_id) {
+        const groups = optionGroupsFor(d, quoteLines(d));
+        if (groups.length || S.d.quote_has_options) {
+          await api(`/api/field-quotes/${encodeURIComponent(fq.id)}/quote-options`, { method: 'POST', body: { quote_id: quoteId, groups, selected_index: 0 } });
+        }
+        if (Boolean(S.d.quote_has_options) !== groups.length > 0) {
+          S.d.quote_has_options = groups.length > 0;
+          markDirty();
+        }
+      }
       cacheLocal();
       if (mode === 'present') {
         btn.disabled = false;
@@ -1761,14 +1973,42 @@
     });
   }
   let shootRoom = null;
+  /** After a photo, the Mate reads it: what it sees and which extras to consider (nothing is added without a tap). */
+  async function readPhotos(ids) {
+    if (S.ai.photoAi === false || !navigator.onLine || !ids.length) return;
+    S.ai.photoTips = { reading: true, observations: [], extras: [] };
+    renderPanel();
+    try {
+      const j = await api(`/api/field-quotes/${encodeURIComponent(S.fq.id)}/ai/photos`, { method: 'POST', body: { photo_ids: ids.slice(0, 4) } });
+      const extras = (j.data.suggested_extras || []).filter((x) => C.EXTRAS.some((e) => e.id === x.id) && !(S.d.extras[x.id] && S.d.extras[x.id].on));
+      const observations = (j.data.observations || []).slice(0, 3);
+      S.ai.photoTips = observations.length || extras.length ? { reading: false, observations, extras: extras.slice(0, 3) } : null;
+      if (S.ai.photoTips && S.sheet) toast('O Mate leu a foto. Veja as sugestões na visita.', 'info');
+    } catch (e) {
+      if (e.status === 503 || e.status === 403 || e.status === 402) S.ai.photoAi = false;
+      S.ai.photoTips = null;
+    }
+    renderPanel();
+  }
+  function photoTipsHtml() {
+    const p = S.ai.photoTips;
+    if (!p) return '';
+    if (p.reading) return `<section class="fq-mate"><div class="fq-mate__head">${IC.mate()}<b>Lendo a foto…</b><span class="fq-wave" aria-hidden="true"><i></i><i></i><i></i></span></div></section>`;
+    return `<section class="fq-mate" aria-label="O que o Mate viu na foto"><div class="fq-mate__head">${IC.mate()}<b>O Mate viu na foto</b><button type="button" class="fq-btn fq-btn--sm fq-btn--quiet" data-fq-photo-tips-close>Fechar</button></div>
+      ${p.observations.map((o) => `<div class="fq-tip__txt"><b>${esc(o.title)}</b> <span class="fq-tip__d">${esc(o.detail)}</span></div>`).join('')}
+      ${p.extras.map((x) => { const ex = C.EXTRAS.find((e) => e.id === x.id); return `<div class="fq-tip fq-tip--row"><div class="fq-tip__txt">Incluir <b>${esc(ex.pt)}</b>? <span class="fq-tip__d">${esc(x.reason)}</span></div><div class="fq-tip__acts"><button type="button" class="fq-btn fq-btn--sm fq-btn--pri" data-fq-photo-extra="${esc(x.id)}">Incluir</button></div></div>`; }).join('')}
+    </section>`;
+  }
   async function uploadPhotos(files) {
     if (!navigator.onLine) return toast('Sem internet: tire a foto pela câmera e envie quando voltar o sinal.', 'error');
     let ok = 0;
+    const newIds = [];
     for (const f of files) {
       try {
         const data_url = await compress(f);
         const j = await api(`/api/field-quotes/${encodeURIComponent(S.fq.id)}/photos`, { method: 'POST', body: { data_url, room_id: shootRoom, taken_at: new Date(f.lastModified || Date.now()).toISOString() } });
         S.d.photos.push(j.data);
+        newIds.push(j.data.id);
         ok++;
       } catch (e) {
         toast(e.message, 'error');
@@ -1779,14 +2019,36 @@
     if (S.sheet && S.sheet.kind === 'room') renderRoomSheet();
     else if (S.sheet && S.sheet.kind === 'review') { renderPanel(); sheetReview(); }
     else renderPanel();
+    void readPhotos(newIds);
   }
 
   // ------------------------------------------------------------------ events
   function wire() {
+    document.addEventListener('pointerdown', (ev) => {
+      if (ev.target.closest('[data-fq-key]')) ev.preventDefault();
+    });
+    document.addEventListener('focusin', (ev) => {
+      if (ev.target.matches && ev.target.matches('.fq-sheet input[inputmode="none"]')) kpLabel();
+    });
     document.addEventListener('click', async (ev) => {
       const t = ev.target;
       let el;
       if ((el = t.closest('[data-fq-close]'))) return closeSheet();
+      if ((el = t.closest('[data-fq-key]'))) return kpPress(el.dataset.fqKey);
+      if (t.closest('[data-fq-handsfree]')) return toggleHandsFree();
+      if ((el = t.closest('[data-fq-photo-extra]'))) {
+        const id = el.dataset.fqPhotoExtra;
+        extraOn(S.d, id, id === 'stairs' ? 13 : 1);
+        markDirty();
+        if (S.ai.photoTips) S.ai.photoTips.extras = S.ai.photoTips.extras.filter((x) => x.id !== id);
+        toast('Incluído no orçamento.', 'success');
+        if (id === 'stairs' || id === 'transitions') return sheetExtras();
+        return renderPanel();
+      }
+      if (t.closest('[data-fq-photo-tips-close]')) {
+        S.ai.photoTips = null;
+        return renderPanel();
+      }
       if (t.closest('[data-fq-ai-measure]')) return sheetAiMeasure();
       if (t.closest('[data-fq-ai-dictate]')) return dictateMeasure();
       if (t.closest('[data-fq-ai-measure-generate]')) return runAiMeasure();
@@ -1839,6 +2101,30 @@
         S.d.mate_dismissed = [...new Set([...(S.d.mate_dismissed || []), el.dataset.fqTipNo])];
         markDirty();
         return S.sheet && S.sheet.kind === 'review' ? sheetReview() : renderPanel();
+      }
+      if ((el = t.closest('[data-fq-review-opt]'))) {
+        S.reviewOpt = el.dataset.fqReviewOpt;
+        return sheetReviewKeep();
+      }
+      if ((el = t.closest('[data-fq-optb-add]'))) {
+        S.d.option_b = { material: el.dataset.fqOptbAdd, supply: Boolean(S.d.svc.installation.supply) };
+        S.reviewOpt = 'b';
+        markDirty();
+        toast('Opção B montada. Confira os valores.', 'success');
+        return sheetReviewKeep();
+      }
+      if ((el = t.closest('[data-fq-optb-mat]'))) {
+        S.d.option_b.material = el.dataset.fqOptbMat;
+        delete S.d.rates['installation:b'];
+        delete S.d.rates['supply:b'];
+        markDirty();
+        return sheetReviewKeep();
+      }
+      if (t.closest('[data-fq-optb-del]')) {
+        S.d.option_b = null;
+        S.reviewOpt = 'a';
+        markDirty();
+        return sheetReviewKeep();
       }
       if ((el = t.closest('[data-fq-review-view]'))) {
         S.reviewView = el.dataset.fqReviewView;
@@ -1925,7 +2211,9 @@
       if ((el = t.closest('[data-fq-mat]'))) {
         S.d.svc.installation.material = el.dataset.fqMat;
         S.d.svc.installation.waste = null;
+        if (S.d.option_b && S.d.option_b.material === el.dataset.fqMat) S.d.option_b = null;
         markDirty();
+        void loadPriceRef();
         return sheetServices();
       }
       if ((el = t.closest('[data-fq-pat]'))) {
@@ -2147,6 +2435,11 @@
         if (files.length) uploadPhotos(files);
         return;
       }
+      if (t.matches('[data-fq-optb-supply]')) {
+        if (S.d.option_b) S.d.option_b.supply = t.checked;
+        markDirty();
+        return sheetReviewKeep();
+      }
       if (t.matches('[data-fq-supply]')) {
         S.d.svc.installation.supply = t.checked;
         markDirty();
@@ -2180,6 +2473,14 @@
     });
   }
 
+  function sheetReviewKeep() {
+    const body = $('.fq-sheet .fq-sbody');
+    const top = body ? body.scrollTop : 0;
+    renderPanel();
+    sheetReview();
+    const nb = $('.fq-sheet .fq-sbody');
+    if (nb) nb.scrollTop = top;
+  }
   function sheetDetailsKeepScroll() {
     const body = $('.fq-sheet .fq-sbody');
     const top = body ? body.scrollTop : 0;
@@ -2309,6 +2610,7 @@
     delete S.fq.data;
     cacheLocal();
     renderPanel();
+    void loadPriceRef();
     if (isNew) sheetClient();
     else if (!S.d.services.length) sheetServices();
   }

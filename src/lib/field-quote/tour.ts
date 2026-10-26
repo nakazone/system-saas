@@ -16,7 +16,10 @@ export type TourLine = {
   amount: Num;
   itemType?: string | null;
   meta?: unknown;
+  optionGroupId?: string | null;
 };
+
+export type TourGroup = { id: string; name: string; flooringType?: string | null };
 
 export type TourInput = {
   data: unknown; // FieldQuote.data
@@ -28,6 +31,24 @@ export type TourInput = {
   validUntil?: Date | string | null;
   deposit?: { label: string; amount: number } | null;
   lines: TourLine[];
+  /** Quote option groups (Option A / Option B). With 2+ groups the tour lets the client compare them. */
+  groups?: TourGroup[];
+  selectedGroupId?: string | null;
+  taxRate?: Num;
+  /** Raw payment schedule, to work out the deposit of each option. */
+  schedule?: unknown;
+};
+
+export type TourOption = {
+  id: string;
+  name: string;
+  floor: { id: string; label: string; note: string } | null;
+  total: number;
+  per_sqft: number | null;
+  deposit: { label: string; amount: number } | null;
+  room_prices: number[];
+  categories: Array<{ label: string; amount: number }>;
+  details: Array<{ label: string; value: string }>;
 };
 
 export type TourRoom = { name: string; sqft: number; l: number; w: number; services: string[]; price: number; perimeter: number };
@@ -50,6 +71,9 @@ export type Tour = {
   transitions: number;
   details: Array<{ label: string; value: string }>;
   categories: Array<{ label: string; amount: number }>;
+  /** Present when the quote has 2+ option groups; the top-level numbers are the selected option's. */
+  options?: TourOption[];
+  selected_option?: string | null;
 };
 
 const n = (v: Num) => {
@@ -124,7 +148,7 @@ function roomDims(r: Record<string, unknown>) {
   return { l: r2(l), w: r2(w), sqft: area, perimeter };
 }
 
-export function buildFieldQuoteTour(input: TourInput): Tour {
+function buildOne(input: TourInput, materialOverride?: string | null): Tour {
   const d = obj(input.data);
   const services = (Array.isArray(d.services) ? d.services : []).map(String);
   const svc = obj(d.svc);
@@ -183,7 +207,7 @@ export function buildFieldQuoteTour(input: TourInput): Tour {
   const total = r2(n(input.total));
   const demo = obj(answers.demolition);
   const existing = (Array.isArray(demo.existing) ? demo.existing : []).map((m) => EXISTING[String(m)] || "old flooring");
-  const matId = String(inst.material || "lvp");
+  const matId = String(materialOverride || inst.material || "lvp");
   const mat = MATERIAL[matId] || MATERIAL.other;
   const sandType = String(obj(svc.sanding).type || "sand_finish");
   const valid = input.validUntil ? new Date(input.validUntil) : null;
@@ -219,4 +243,27 @@ export function tourDeposit(schedule: unknown, total: number): { label: string; 
   const amount = fixed > 0 ? fixed : pct > 0 ? r2((total * pct) / 100) : 0;
   if (!amount) return null;
   return { label: `${String(first.label || "Due on approval")}${pct > 0 && !(fixed > 0) ? ` · ${pct}%` : ""}`, amount };
+}
+
+/** Tour for a Field Quote proposal; with option groups, each option gets its own floor, prices and total. */
+export function buildFieldQuoteTour(input: TourInput): Tour {
+  const groups = (input.groups || []).filter((g) => g && g.id);
+  if (groups.length < 2) return buildOne(input);
+  const selected = groups.find((g) => g.id === input.selectedGroupId) || groups[0];
+  const taxRate = n(input.taxRate);
+  const options: TourOption[] = groups.map((g) => {
+    const lines = input.lines.filter((l) => !l.optionGroupId || l.optionGroupId === g.id);
+    const subtotal = lines.reduce((s, l) => s + n(l.amount), 0);
+    const total = g.id === selected.id ? r2(n(input.total)) : r2(subtotal * (1 + taxRate / 100));
+    const one = buildOne(
+      { ...input, lines, total, taxTotal: g.id === selected.id ? input.taxTotal : r2(subtotal * (taxRate / 100)), deposit: input.schedule !== undefined ? tourDeposit(input.schedule, total) : input.deposit },
+      g.flooringType || null,
+    );
+    return { id: g.id, name: g.name, floor: one.floor, total: one.total, per_sqft: one.per_sqft, deposit: one.deposit, room_prices: one.rooms.map((r) => r.price), categories: one.categories, details: one.details };
+  });
+  const main = buildOne(
+    { ...input, lines: input.lines.filter((l) => !l.optionGroupId || l.optionGroupId === selected.id), deposit: input.schedule !== undefined ? tourDeposit(input.schedule, n(input.total)) : input.deposit },
+    selected.flooringType || null,
+  );
+  return { ...main, options, selected_option: selected.id };
 }

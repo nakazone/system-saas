@@ -345,7 +345,7 @@
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
   <% if (typeof tour !== 'undefined' && tour) { %>
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/quote-tour.css?v=20261026-tour1" />
+  <link rel="stylesheet" href="/quote-tour.css?v=20261026-tour2" />
   <style>
     .qp-tour-cta { display: flex; align-items: center; gap: 14px; width: 100%; max-width: 860px; margin: 0 auto 16px; padding: 14px 16px; border: 1px solid #E5E7EB; border-radius: 16px; background: #fff; font: inherit; color: #221E1A; text-align: left; cursor: pointer; box-sizing: border-box; }
     .qp-tour-cta__ic { flex: none; width: 46px; height: 46px; border-radius: 23px; background: #221E1A; color: #fff; display: grid; place-items: center; }
@@ -1092,7 +1092,7 @@
   </script>
   <% if (typeof tour !== 'undefined' && tour) { %>
   <script id="qpTourData" type="application/json"><%- JSON.stringify(tour).replace(/</g, '\\u003c') %></script>
-  <script src="/quote-tour.js?v=20261026-tour1"></script>
+  <script src="/quote-tour.js?v=20261026-tour2"></script>
   <script>
     (function () {
       var btn = document.getElementById('qpTourOpen');
@@ -1106,7 +1106,14 @@
           approveLabel: canSign ? 'Approve & sign' : 'Back to the quote',
           speak: window.QuoteTour.browserSpeak,
           stopSpeak: window.QuoteTour.browserStop,
-          onApprove: function () {
+          onApprove: function (chosen) {
+            if (chosen) {
+              var radio = document.querySelector('input[name="selectedOptionGroupId"][value="' + chosen + '"]');
+              if (radio && !radio.checked) {
+                radio.checked = true;
+                radio.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+            }
             if (canSign && window.__qpOpenSign) window.__qpOpenSign();
           }
         });

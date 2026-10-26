@@ -202,3 +202,37 @@ button.fq-mrow { cursor: pointer; }
 
 /* The page has its own Mate bar; the global floating button would cover the rooms. */
 body.fq-body .mate-fab { display: none !important; }
+
+/* ---------- Option A / Option B */
+.fq-optcs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 4px 0 12px; }
+.fq-optc { appearance: none; display: flex; flex-direction: column; gap: 2px; padding: 12px; border-radius: 14px; border: 1px solid var(--fq-line); background: #fff; font: inherit; color: var(--fq-ink); text-align: left; cursor: pointer; }
+.fq-optc.is-on { border: 2px solid var(--fq-ink); padding: 11px; }
+.fq-optc small { font-size: 11.5px; font-weight: 600; color: var(--fq-ink2); letter-spacing: .02em; }
+.fq-optc b { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.fq-optb { background: #fff; border: 1px solid var(--fq-line); border-radius: 16px; padding: 4px 14px 12px; margin-bottom: 14px; }
+.fq-optb .fq-money__head { padding: 10px 0 8px; }
+.fq-optb .fq-chips { margin-bottom: 10px; }
+.fq-live__b { font-size: 13px; color: var(--fq-ink2); margin-bottom: 6px; }
+.fq-live__b b { color: var(--fq-ink); font-variant-numeric: tabular-nums; }
+
+/* ---------- measuring keypad */
+.fq-kp { flex: none; background: #EEF0F3; padding: 8px 8px calc(10px + env(safe-area-inset-bottom)); border-top: 1px solid var(--fq-line); }
+.fq-kp__top { display: flex; align-items: center; justify-content: space-between; padding: 0 4px 8px; font-size: 13px; font-weight: 600; color: var(--fq-ink2); }
+.fq-kp__dict { appearance: none; display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 17px; border: 0; background: var(--fq-ink); color: #fff; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.fq-kp__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.fq-key { appearance: none; height: 48px; border: 0; border-radius: 11px; background: #fff; box-shadow: 0 1px 0 #D0D5DD; font: inherit; font-size: 22px; font-weight: 500; color: var(--fq-ink); cursor: pointer; touch-action: manipulation; }
+.fq-key:active { background: #E4E7EC; }
+.fq-key--fn { background: #DDE1E6; font-size: 18px; }
+.fq-key--go { background: var(--fq-terra); color: #fff; font-size: 15px; font-weight: 600; }
+.fq-sheet__card--kp .fq-sbody { padding-bottom: 16px; }
+.fq-sheet__card--kp input[inputmode="none"]:focus { border-color: var(--fq-terra); box-shadow: 0 0 0 3px rgba(231, 121, 44, .2); background: #FFF8F2; caret-color: transparent; }
+
+/* ---------- hands-free + what went in */
+.fq-hf { appearance: none; border: 1px solid var(--fq-line); background: #fff; color: var(--fq-ink); border-radius: 999px; height: 34px; padding: 0 12px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.fq-hf.is-on { background: var(--fq-terra); border-color: var(--fq-terra); color: #fff; }
+.fq-chat__applied { align-self: flex-start; max-width: 92%; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: -4px; }
+.fq-chat__applied span { width: 100%; font-size: 11.5px; font-weight: 600; color: var(--fq-ink2); }
+.fq-chat__applied i { font-style: normal; display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border-radius: 999px; background: #fff; border: 1px solid var(--fq-line); font-size: 12.5px; font-weight: 500; }
+.fq-chat__applied i svg { color: #536249; }
+.fq-mate__head .fq-wave { margin-left: auto; }
+.fq-mate__head .fq-btn--quiet { margin-left: auto; }

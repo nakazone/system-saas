@@ -24,6 +24,7 @@ import { storage } from "../../lib/storage/index.js";
 import { formatPersonName } from "../../lib/name.js";
 import { aiChatJson, aiListElevenLabsVoices, aiTextToSpeech, isAiConfigured } from "../../lib/ai/client.js";
 import { buildFieldQuoteTour, tourDeposit } from "../../lib/field-quote/tour.js";
+import { persistQuoteTotals, recomputeTotalsFromQuote } from "../../modules/quotes/service.js";
 
 export const fieldQuotesRouter = Router();
 
@@ -892,10 +893,11 @@ fieldQuotesRouter.get("/api/field-quotes/:id/tour", requireCrmAuth, async (req: 
       const quote = await tx.quote.findFirst({
         where: { id: fq.quoteId },
         select: {
-          quoteNumber: true, number: true, total: true, taxTotal: true, validUntil: true,
+          quoteNumber: true, number: true, total: true, taxTotal: true, validUntil: true, taxRate: true, selectedOptionGroupId: true,
           organization: { select: { name: true } },
+          optionGroups: { orderBy: { sortOrder: "asc" }, select: { id: true, name: true, flooringType: true } },
           paymentSchedule: { select: { items: { orderBy: { sortOrder: "asc" }, select: { label: true, percent: true, fixedAmount: true } } } },
-          lineItems: { where: { isSelected: true, isOptional: false }, orderBy: { sortOrder: "asc" }, select: { name: true, description: true, quantity: true, unit: true, amount: true, itemType: true, meta: true } },
+          lineItems: { where: { isSelected: true, isOptional: false }, orderBy: { sortOrder: "asc" }, select: { name: true, description: true, quantity: true, unit: true, amount: true, itemType: true, meta: true, optionGroupId: true } },
         },
       });
       return quote ? { fq, quote } : null;
@@ -918,6 +920,10 @@ fieldQuotesRouter.get("/api/field-quotes/:id/tour", requireCrmAuth, async (req: 
         validUntil: quote.validUntil,
         deposit: tourDeposit(quote.paymentSchedule, total),
         lines: quote.lineItems,
+        groups: quote.optionGroups,
+        selectedGroupId: quote.selectedOptionGroupId,
+        taxRate: quote.taxRate,
+        schedule: quote.paymentSchedule,
       }),
     });
   } catch (e) {
@@ -1201,6 +1207,110 @@ fieldQuotesRouter.post("/api/field-quotes/:id/photos", requireCrmAuth, async (re
       res.status(status).json({ success: false, error: (e as Error).message });
       return;
     }
+    next(e);
+  }
+});
+
+const LOCKED_QUOTE = new Set(["approved", "converted", "accepted", "invoiced"]);
+const quoteOptionsSchema = z.object({
+  quote_id: z.string().regex(UUID_RE),
+  groups: z
+    .array(z.object({ name: z.string().trim().min(1).max(80), flooring_type: z.string().trim().max(40).nullable().optional(), line_indexes: z.array(z.number().int().min(0).max(500)).max(200) }))
+    .max(4)
+    .optional(),
+  selected_index: z.number().int().min(0).max(3).optional(),
+  select_group_id: z.string().regex(UUID_RE).optional(),
+});
+
+/**
+ * Option A / Option B on the quote made from this visit: groups the option lines (by position, as sent to
+ * /api/quotes/full) and recomputes the totals for the selected option. Also used to switch the selected option.
+ */
+fieldQuotesRouter.post("/api/field-quotes/:id/quote-options", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    if (!(await guard(req, res, "edit"))) return;
+    const id = String(req.params.id);
+    const parsed = quoteOptionsSchema.safeParse(req.body || {});
+    if (!UUID_RE.test(id) || !parsed.success) {
+      res.status(400).json({ success: false, error: "Opções inválidas." });
+      return;
+    }
+    const b = parsed.data;
+    const out = await txFor(req, async (tx) => {
+      const fq = await tx.fieldQuote.findFirst({ where: { id }, select: { quoteId: true } });
+      if (!fq || fq.quoteId !== b.quote_id) return { status: 404 as const, error: "Orçamento desta visita não encontrado." };
+      const quote = await tx.quote.findFirst({ where: { id: b.quote_id }, include: { optionGroups: true } });
+      if (!quote) return { status: 404 as const, error: "Orçamento não encontrado." };
+      let selected = quote.selectedOptionGroupId;
+      if (b.groups) {
+        if (LOCKED_QUOTE.has(String(quote.status))) return { status: 409 as const, error: "O orçamento já foi aprovado; as opções não mudam mais." };
+        await tx.quoteLineItem.updateMany({ where: { quoteId: quote.id }, data: { optionGroupId: null } });
+        await tx.quoteOptionGroup.deleteMany({ where: { quoteId: quote.id } });
+        const created: string[] = [];
+        for (let i = 0; i < b.groups.length; i++) {
+          const g = b.groups[i];
+          const row = await tx.quoteOptionGroup.create({
+            data: { organizationId: req.organizationId!, quoteId: quote.id, name: g.name, flooringType: g.flooring_type || null, sortOrder: i },
+          });
+          created.push(row.id);
+          if (g.line_indexes.length) await tx.quoteLineItem.updateMany({ where: { quoteId: quote.id, sortOrder: { in: g.line_indexes } }, data: { optionGroupId: row.id } });
+        }
+        selected = created.length ? created[Math.min(b.selected_index ?? 0, created.length - 1)] : null;
+      } else if (b.select_group_id) {
+        if (!quote.optionGroups.some((g) => g.id === b.select_group_id)) return { status: 400 as const, error: "Opção inválida." };
+        selected = b.select_group_id;
+      }
+      await tx.quote.update({ where: { id: quote.id }, data: { selectedOptionGroupId: selected } });
+      const fresh = await tx.quote.findFirst({ where: { id: quote.id }, include: { lineItems: true, optionGroups: { orderBy: { sortOrder: "asc" } } } });
+      if (!fresh) return { status: 404 as const, error: "Orçamento não encontrado." };
+      const totals = recomputeTotalsFromQuote(fresh);
+      await persistQuoteTotals(tx, fresh.id, totals);
+      return { status: 200 as const, data: { groups: fresh.optionGroups.map((g) => ({ id: g.id, name: g.name, flooring_type: g.flooringType })), selected_group_id: selected, total: totals.total } };
+    });
+    if (out.status !== 200) {
+      res.status(out.status).json({ success: false, error: out.error });
+      return;
+    }
+    res.json({ success: true, data: out.data });
+  } catch (e) {
+    next(e);
+  }
+});
+
+const WON_QUOTE = ["approved", "converted", "accepted", "invoiced"];
+const median = (xs: number[]) => {
+  const a = xs.filter((x) => Number.isFinite(x) && x > 0).sort((p, q) => p - q);
+  if (!a.length) return null;
+  const m = Math.floor(a.length / 2);
+  return Math.round((a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2) * 100) / 100;
+};
+
+/** What this company charged on approved quotes in the last 12 months, for the same line names. */
+fieldQuotesRouter.get("/api/field-quotes/ai/price-check", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    if (!(await guard(req, res, "view"))) return;
+    const names = ([] as unknown[]).concat(req.query.name ?? []).map((v) => String(v).trim().slice(0, 80)).filter((v) => v.length >= 3).slice(0, 6);
+    const since = new Date(Date.now() - 365 * 86400e3);
+    const rows = names.length
+      ? await txFor(req, (tx) =>
+          tx.quoteLineItem.findMany({
+            where: {
+              unit: "sq_ft",
+              OR: names.map((name) => ({ name: { startsWith: name, mode: "insensitive" as const } })),
+              quote: { status: { in: WON_QUOTE }, createdAt: { gte: since } },
+            },
+            select: { name: true, unitPrice: true, quoteId: true },
+            orderBy: { quote: { createdAt: "desc" } },
+            take: 400,
+          }),
+        )
+      : [];
+    const data = names.map((name) => {
+      const hits = rows.filter((r) => String(r.name || "").toLowerCase().startsWith(name.toLowerCase()));
+      return { name, quotes: new Set(hits.map((h) => h.quoteId)).size, median: median(hits.map((h) => Number(h.unitPrice))) };
+    });
+    res.json({ success: true, data });
+  } catch (e) {
     next(e);
   }
 });

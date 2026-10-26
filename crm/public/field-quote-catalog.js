@@ -16,12 +16,12 @@
   const SUPPLY = { id: 'supply', pt: 'Material (fornecido por nós)', en: 'Flooring material', unit: 'sq_ft', rate: 4.5, hints: ['supply', 'material', 'fornec'] };
 
   const MATERIALS = [
-    { id: 'lvp', pt: 'LVP (vinílico)', en: 'LVP', keys: ['lvp', 'vinyl', 'vinil'] },
-    { id: 'solid_hardwood', pt: 'Madeira maciça', en: 'Solid hardwood', keys: ['hardwood', 'solid', 'maciç'] },
-    { id: 'engineered_wood', pt: 'Madeira engenheirada', en: 'Engineered hardwood', keys: ['engineered', 'engenh'] },
-    { id: 'laminate', pt: 'Laminado', en: 'Laminate', keys: ['laminate', 'lamin'] },
-    { id: 'tile', pt: 'Cerâmica / porcelanato', en: 'Tile', keys: ['tile', 'porcel', 'cerâm'] },
-    { id: 'carpet', pt: 'Carpete', en: 'Carpet', keys: ['carpet', 'carpete'] },
+    { id: 'lvp', pt: 'LVP (vinílico)', en: 'LVP', install: 4, supply: 4.5, keys: ['lvp', 'vinyl', 'vinil'] },
+    { id: 'solid_hardwood', pt: 'Madeira maciça', en: 'Solid hardwood', install: 6, supply: 8, keys: ['hardwood', 'solid', 'maciç'] },
+    { id: 'engineered_wood', pt: 'Madeira engenheirada', en: 'Engineered hardwood', install: 5, supply: 6.5, keys: ['engineered', 'engenh'] },
+    { id: 'laminate', pt: 'Laminado', en: 'Laminate', install: 3.5, supply: 3, keys: ['laminate', 'lamin'] },
+    { id: 'tile', pt: 'Cerâmica / porcelanato', en: 'Tile', install: 7, supply: 5, keys: ['tile', 'porcel', 'cerâm'] },
+    { id: 'carpet', pt: 'Carpete', en: 'Carpet', install: 2.5, supply: 3.5, keys: ['carpet', 'carpete'] },
     { id: 'other', pt: 'Outro', en: 'Flooring', keys: [] },
   ];
 
