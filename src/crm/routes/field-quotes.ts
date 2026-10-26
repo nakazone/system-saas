@@ -23,6 +23,7 @@ import { orgScoped } from "../../lib/tenant/org-scoped.js";
 import { storage } from "../../lib/storage/index.js";
 import { formatPersonName } from "../../lib/name.js";
 import { aiChatJson, aiListElevenLabsVoices, aiTextToSpeech, isAiConfigured } from "../../lib/ai/client.js";
+import { buildFieldQuoteTour, tourDeposit } from "../../lib/field-quote/tour.js";
 
 export const fieldQuotesRouter = Router();
 
@@ -871,6 +872,99 @@ fieldQuotesRouter.post("/api/field-quotes/:id/ai/presentation", requireCrmAuth, 
       return;
     }
     res.json({ success: true, data: await createQuotePresentation(quote) });
+  } catch (e) {
+    routeError(e, res, next);
+  }
+});
+
+/** Data for the animated client tour (in person). Built from the visit + the generated quote. */
+fieldQuotesRouter.get("/api/field-quotes/:id/tour", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    if (!(await guard(req, res, "view"))) return;
+    const id = String(req.params.id);
+    if (!UUID_RE.test(id)) {
+      res.status(404).json({ success: false, error: "Field Quote não encontrado" });
+      return;
+    }
+    const found = await txFor(req, async (tx) => {
+      const fq = await tx.fieldQuote.findFirst({ where: { id }, select: { quoteId: true, data: true, clientName: true } });
+      if (!fq?.quoteId) return null;
+      const quote = await tx.quote.findFirst({
+        where: { id: fq.quoteId },
+        select: {
+          quoteNumber: true, number: true, total: true, taxTotal: true, validUntil: true,
+          organization: { select: { name: true } },
+          paymentSchedule: { select: { items: { orderBy: { sortOrder: "asc" }, select: { label: true, percent: true, fixedAmount: true } } } },
+          lineItems: { where: { isSelected: true, isOptional: false }, orderBy: { sortOrder: "asc" }, select: { name: true, description: true, quantity: true, unit: true, amount: true, itemType: true, meta: true } },
+        },
+      });
+      return quote ? { fq, quote } : null;
+    });
+    if (!found) {
+      res.status(409).json({ success: false, error: "Gere o orçamento antes de apresentar ao cliente." });
+      return;
+    }
+    const { fq, quote } = found;
+    const total = Number(quote.total) || 0;
+    res.json({
+      success: true,
+      data: buildFieldQuoteTour({
+        data: fq.data,
+        clientName: fq.clientName,
+        companyName: quote.organization?.name || null,
+        quoteNumber: quote.quoteNumber || (quote.number != null ? `Q-${quote.number}` : null),
+        total,
+        taxTotal: quote.taxTotal,
+        validUntil: quote.validUntil,
+        deposit: tourDeposit(quote.paymentSchedule, total),
+        lines: quote.lineItems,
+      }),
+    });
+  } catch (e) {
+    routeError(e, res, next);
+  }
+});
+
+const aiBriefingSchema = z.object({
+  summary: z.string().trim().min(1).max(500),
+  questions: z.array(z.string().trim().min(1).max(160)).max(3).default([]),
+});
+
+/** Short briefing before a visit: what the lead asked for and what to confirm on site. */
+fieldQuotesRouter.post("/api/field-quotes/ai/briefing", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    if (!(await guard(req, res, "view"))) return;
+    const leadId = str(req.body?.lead_id, 60);
+    if (!leadId || !UUID_RE.test(leadId)) {
+      res.status(400).json({ success: false, error: "Visita sem lead." });
+      return;
+    }
+    const lead = await txFor(req, (tx) => tx.lead.findFirst({ where: { id: leadId }, select: { name: true, source: true, notes: true, metadata: true, createdAt: true } }));
+    if (!lead) {
+      res.status(404).json({ success: false, error: "Lead não encontrado" });
+      return;
+    }
+    if (!isAiConfigured()) {
+      res.status(503).json({ success: false, error: "IA indisponível." });
+      return;
+    }
+    const meta = lead.metadata && typeof lead.metadata === "object" && !Array.isArray(lead.metadata) ? (lead.metadata as Record<string, unknown>) : {};
+    const pick = (k: string) => (meta[k] == null ? undefined : String(meta[k]).slice(0, 600));
+    const context = {
+      source: lead.source,
+      message: pick("message") || pick("client_message") || pick("description"),
+      project: pick("project_type") || pick("service_type") || pick("flooring_type") || pick("service"),
+      area: pick("area") || pick("sqft") || pick("square_feet"),
+      timeline: pick("timeline") || pick("timeframe"),
+      budget: pick("budget"),
+      notes: String(lead.notes || "").slice(0, 1500),
+    };
+    const { data, model } = await askFieldQuoteAi(
+      "You prepare a flooring salesperson for an in-home measuring visit. Answer in short, natural Brazilian Portuguese. Return only JSON: {\"summary\":\"...\",\"questions\":[\"...\"]}. summary: at most 2 sentences with what the client asked for, using only the lead data given. questions: up to 3 neutral questions worth confirming at the visit (occupancy, timeline, subfloor, existing floor, furniture…) that the data does not already answer. Never invent facts, prices or promises. If the lead data says almost nothing, say so briefly.",
+      JSON.stringify(context),
+      aiBriefingSchema,
+    );
+    res.json({ success: true, data: { ...data, model } });
   } catch (e) {
     routeError(e, res, next);
   }

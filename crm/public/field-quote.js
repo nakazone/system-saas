@@ -341,15 +341,103 @@
     el.className = 'fq-save ' + cls;
   }
 
+  // ------------------------------------------------------------------ icons (no emoji)
+  const svg = (p, w) => `<svg width="${w || 20}" height="${w || 20}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+  const IC = {
+    cam: () => svg('<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>'),
+    mic: (w) => svg('<rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>', w),
+    plus: (w) => svg('<path d="M12 5v14M5 12h14"/>', w || 16),
+    check: (w) => svg('<path d="M5 12l5 5 9-10"/>', w || 16),
+    chev: () => svg('<path d="M9 6l6 6-6 6"/>', 18),
+    back: () => svg('<path d="M15 6l-6 6 6 6"/>', 20),
+    route: () => svg('<path d="M3 11l18-8-8 18-2-8z"/>', 18),
+    play: () => '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5l12 7-12 7z"/></svg>',
+    mate: (w) => `<svg width="${w || 20}" height="${w || 20}" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l5.5 5.5h7L21 3v10a9 9 0 0 1-18 0z" fill="#E7792C"/><circle cx="9" cy="13.5" r="1.4" fill="#fff"/><circle cx="15" cy="13.5" r="1.4" fill="#fff"/></svg>`,
+  };
+
+  // ------------------------------------------------------------------ Mate tips (local checks, nothing changes without a tap)
+  const WOOD_LIKE = ['lvp', 'solid_hardwood', 'engineered_wood', 'laminate'];
+  function cloneD() {
+    return JSON.parse(JSON.stringify(S.d));
+  }
+  function extraOn(d, id, qty) {
+    const ex = C.EXTRAS.find((e) => e.id === id);
+    const st = (d.extras[id] = Object.assign({}, d.extras[id] || {}, { on: true }));
+    if (ex.unit === 'fixed') Object.assign(st, { qty: 1, auto: false });
+    else if (ex.qty !== 'manual') Object.assign(st, { qty: null, auto: true });
+    else Object.assign(st, { qty: qty || st.qty || 1, auto: false });
+  }
+  function mateTips() {
+    const d = S.d;
+    const out = [];
+    const dismissed = new Set(d.mate_dismissed || []);
+    const on = (id) => d.extras[id] && d.extras[id].on;
+    const inst = d.services.includes('installation');
+    const subfloor = (d.answers.demolition || {}).subfloor;
+    if (inst && subfloor === 'concrete' && WOOD_LIKE.includes(d.svc.installation.material) && !on('moisture'))
+      out.push({ id: 'moisture', text: `Contrapiso de concreto com ${mat(d.svc.installation.material).pt}. Incluir <b>barreira de umidade</b>?`, apply: (x) => extraOn(x, 'moisture') });
+    const heavy = String((d.answers.general || {}).heavy_items || '').trim();
+    if (heavy && !on('furniture')) out.push({ id: 'furniture', text: `Você anotou “${esc(heavy.slice(0, 40))}”. Incluir <b>mover móveis</b>?`, apply: (x) => extraOn(x, 'furniture') });
+    if (d.services.includes('demolition') && svcArea(d, 'demolition') > 0 && !on('haul_away')) out.push({ id: 'haul_away', text: 'Tem demolição e nenhum descarte. Incluir <b>descarte / caçamba</b>?', apply: (x) => extraOn(x, 'haul_away') });
+    const instRooms = d.rooms.filter((r) => (r.services || []).includes('installation')).length;
+    if (inst && instRooms > 1 && !on('transitions')) out.push({ id: 'transitions', text: `${instRooms} cômodos com piso novo e nenhuma transição. Incluir <b>${instRooms - 1} transição${instRooms - 1 > 1 ? 'ões' : ''}</b>?`, apply: (x) => extraOn(x, 'transitions', instRooms - 1) });
+    if (inst && instRooms && !on('quarter_round') && !on('baseboard_install') && !on('baseboard_remove')) out.push({ id: 'quarter_round', text: 'Piso novo sem acabamento na parede. Incluir <b>quarter round</b> pelo perímetro?', apply: (x) => extraOn(x, 'quarter_round') });
+    const noPhoto = d.rooms.find((r) => !photosOf(r.id).length);
+    if (noPhoto) out.push({ id: 'photo:' + noPhoto.id, text: `<b>${esc(noPhoto.label)}</b> está sem foto. A equipe vai precisar ver o piso atual.`, shoot: noPhoto.id });
+    const base = totals(d).total;
+    return out
+      .filter((t) => !dismissed.has(t.id))
+      .map((t) => {
+        if (!t.apply) return t;
+        const c = cloneD();
+        const real = S.d;
+        S.d = c;
+        t.apply(c);
+        const after = totals(c).total;
+        S.d = real;
+        return Object.assign(t, { delta: r2(after - base) });
+      });
+  }
+  function tipHtml(t, compact) {
+    const right = t.shoot
+      ? `<button type="button" class="fq-btn fq-btn--sm" data-fq-shoot="${esc(t.shoot)}">Tirar foto</button>`
+      : `<button type="button" class="fq-btn fq-btn--sm fq-btn--pri" data-fq-tip-yes="${esc(t.id)}">Incluir</button>`;
+    return `<div class="fq-tip${compact ? ' fq-tip--row' : ''}"><div class="fq-tip__txt">${t.text}${t.delta ? ` <span class="fq-tip__d">${t.delta > 0 ? '+' : ''}${esc(money(t.delta))}</span>` : ''}</div><div class="fq-tip__acts"><button type="button" class="fq-btn fq-btn--sm fq-btn--quiet" data-fq-tip-no="${esc(t.id)}">Agora não</button>${right}</div></div>`;
+  }
+  function tipsCard(tips, max) {
+    if (!tips.length) return '';
+    const shown = tips.slice(0, max || 1);
+    return `<section class="fq-mate" aria-label="Sugestões do Mate"><div class="fq-mate__head">${IC.mate()}<b>Mate</b>${tips.length > shown.length ? `<span>${tips.length} sugestões</span>` : ''}</div>${shown.map((t) => tipHtml(t)).join('')}</section>`;
+  }
+
   // ------------------------------------------------------------------ list view
+  const briefCache = (() => {
+    try { return JSON.parse(sessionStorage.getItem('om_fq_brief') || '{}'); } catch (_) { return {}; }
+  })();
+  async function loadBriefing(leadId, el) {
+    if (!leadId || !el) return;
+    const show = (b) => {
+      el.innerHTML = `<div class="fq-brief__head">${IC.mate(18)}<b>Briefing do Mate</b></div><p>${esc(b.summary)}</p>${(b.questions || []).length ? `<span class="fq-lbl2">PERGUNTE NA VISITA</span><ul>${b.questions.map((q) => `<li>${esc(q)}</li>`).join('')}</ul>` : ''}`;
+      el.hidden = false;
+    };
+    if (briefCache[leadId]) return show(briefCache[leadId]);
+    try {
+      const j = await api('/api/field-quotes/ai/briefing', { method: 'POST', body: { lead_id: leadId } });
+      briefCache[leadId] = j.data;
+      try { sessionStorage.setItem('om_fq_brief', JSON.stringify(briefCache)); } catch (_) {}
+      show(j.data);
+    } catch (_) {
+      el.hidden = true;
+    }
+  }
   async function renderList() {
     document.title = 'Field Quote | ObraMate';
     const v = $('#fqView');
     v.innerHTML = `<div class="fq-list">
-      <header class="fq-head"><div><h1 class="fq-h1">Field Quote</h1><p class="fq-sub">Meça e monte o orçamento na casa do cliente.</p></div>
-        <button type="button" class="fq-btn fq-btn--pri" data-fq-new>+ Nova visita</button></header>
+      <header class="fq-head"><h1 class="fq-h1">Field Quote</h1>
+        <button type="button" class="fq-btn fq-btn--pri" data-fq-new>${IC.plus()}Nova visita</button></header>
       <section id="fqToday"></section>
-      <section class="fq-card" id="fqDrafts"><h3 class="fq-h3">Recentes</h3><p class="fq-empty">Carregando…</p></section>
+      <section id="fqDrafts"><p class="fq-empty">Carregando…</p></section>
     </div>`;
     $('#fqLoading').hidden = true;
     const [list, today] = await Promise.all([
@@ -360,7 +448,7 @@
         const b = new Date(a.getTime() + 2 * 86400e3);
         try {
           const j = await api(`/api/schedule/events?from=${a.toISOString()}&to=${b.toISOString()}`);
-          return (j.data || []).filter((e) => e.type === 'visit' && e.status !== 'canceled');
+          return (j.data || []).filter((e) => e.type === 'visit' && e.status !== 'canceled').sort((x, y) => new Date(x.start) - new Date(y.start));
         } catch (_) {
           return [];
         }
@@ -373,86 +461,146 @@
     const rows = list.data || [];
     const byMeeting = new Set(rows.map((r) => r.meeting_id).filter(Boolean));
     const byLead = new Map(rows.filter((r) => r.status === 'draft').map((r) => [r.lead_id, r]));
-    if (today.length) {
-      $('#fqToday').innerHTML = `<div class="fq-card"><h3 class="fq-h3">Visitas de hoje e amanhã</h3>${today
-        .map((e) => {
-          const st = new Date(e.start);
-          const lead = (e.meta && e.meta.lead) || {};
-          const open = byLead.get(lead.id);
-          return `<div class="fq-row"><div class="fq-row__when"><b>${esc(st.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }))}</b><small>${esc(st.toDateString() === new Date().toDateString() ? 'hoje' : 'amanhã')}</small></div>
-            <div class="fq-row__main"><b>${esc(e.title)}</b><small>${esc((e.meta && e.meta.location) || lead.address || '')}</small></div>
-            ${open ? `<a class="fq-btn fq-btn--sm" href="field-quote.html?id=${esc(open.id)}">Continuar</a>` : byMeeting.has(e.id) ? '' : `<a class="fq-btn fq-btn--sm fq-btn--pri" href="field-quote.html?meeting_id=${esc(e.id)}">Começar</a>`}</div>`;
-        })
-        .join('')}</div>`;
+    const now = Date.now();
+    const upcoming = today.filter((e) => new Date(e.end || e.start).getTime() > now - 3 * 3600e3);
+    const visitAct = (e, big) => {
+      const lead = (e.meta && e.meta.lead) || {};
+      const open = byLead.get(lead.id);
+      const cls = big ? ' fq-btn--pri fq-btn--grow' : ' fq-btn--sm';
+      if (open) return `<a class="fq-btn${cls}" href="field-quote.html?id=${esc(open.id)}">Continuar</a>`;
+      if (byMeeting.has(e.id)) return '';
+      return `<a class="fq-btn${cls}${big ? '' : ' fq-btn--pri'}" href="field-quote.html?meeting_id=${esc(e.id)}">${big ? 'Começar visita' : 'Começar'}</a>`;
+    };
+    const when = (st) => `${st.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+    const dayTxt = (st) => (st.toDateString() === new Date().toDateString() ? 'hoje' : 'amanhã');
+    if (upcoming.length) {
+      const [first, ...rest] = upcoming;
+      const st = new Date(first.start);
+      const lead = (first.meta && first.meta.lead) || {};
+      const addr = (first.meta && first.meta.location) || lead.address || '';
+      $('#fqToday').innerHTML = `<p class="fq-lbl2">PRÓXIMA VISITA</p>
+        <article class="fq-next">
+          <div class="fq-next__top"><span class="fq-next__when">${esc(dayTxt(st) === 'hoje' ? 'Hoje' : 'Amanhã')} · ${esc(when(st))}</span></div>
+          <h2 class="fq-next__name">${esc(first.title)}</h2>
+          ${addr ? `<p class="fq-next__addr">${esc(addr)}</p>` : ''}
+          <div class="fq-brief" id="fqBrief" hidden></div>
+          <div class="fq-next__acts">${addr ? `<a class="fq-btn" href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addr)}" target="_blank" rel="noopener">${IC.route()}Rota</a>` : ''}${visitAct(first, true)}</div>
+        </article>
+        ${rest.length ? `<div class="fq-card fq-card--list">${rest
+          .map((e) => {
+            const s2 = new Date(e.start);
+            const l2 = (e.meta && e.meta.lead) || {};
+            return `<div class="fq-row"><div class="fq-row__when"><b>${esc(when(s2))}</b><small>${esc(dayTxt(s2))}</small></div><div class="fq-row__main"><b>${esc(e.title)}</b><small>${esc((e.meta && e.meta.location) || l2.address || '')}</small></div>${visitAct(e)}</div>`;
+          })
+          .join('')}</div>` : ''}`;
+      if (lead.id && !byLead.get(lead.id)) loadBriefing(lead.id, $('#fqBrief'));
     }
-    $('#fqDrafts').innerHTML = `<h3 class="fq-h3">Recentes</h3>${
-      rows.length
-        ? rows
-            .map(
-              (r) => `<a class="fq-row fq-row--link" href="field-quote.html?id=${esc(r.id)}"><div class="fq-row__main"><b>${esc(r.client_name)}</b><small>${esc([r.address, r.rooms_count ? `${r.rooms_count} cômodos · ${fmtN(r.total_sqft)} pé²` : 'sem medidas'].filter(Boolean).join(' · '))}</small></div>
-              <div class="fq-row__end"><b>${esc(money(r.total))}</b><span class="fq-pill${r.status === 'quoted' ? ' fq-pill--ink' : ''}">${r.status === 'quoted' ? 'Orçado' : 'Rascunho'}</span><small>${esc(relTime(r.updated_at))}</small></div></a>`
-            )
-            .join('')
-        : '<p class="fq-empty">Nenhuma visita ainda. Comece pela agenda (visita do dia) ou em “Nova visita”.</p>'
-    }`;
+    const drafts = rows.filter((r) => r.status !== 'quoted');
+    const quoted = rows.filter((r) => r.status === 'quoted');
+    const row = (r) => {
+      const sub = r.status === 'quoted'
+        ? `<small>${esc([r.address, relTime(r.updated_at)].filter(Boolean).join(' · '))}</small>`
+        : r.rooms_count
+          ? `<small>${esc(`${r.rooms_count} cômodo${r.rooms_count > 1 ? 's' : ''} · ${fmtN(r.total_sqft)} pé² · ${relTime(r.updated_at)}`)}</small>`
+          : `<small class="fq-warn">sem medidas · ${esc(relTime(r.updated_at))}</small>`;
+      return `<a class="fq-row fq-row--link" href="field-quote.html?id=${esc(r.id)}"><div class="fq-row__main"><b>${esc(r.client_name)}</b>${sub}</div><div class="fq-row__end"><b>${esc(money(r.total))}</b>${IC.chev()}</div></a>`;
+    };
+    $('#fqDrafts').innerHTML = rows.length
+      ? `${drafts.length ? `<p class="fq-lbl2">RASCUNHOS</p><div class="fq-card fq-card--list">${drafts.map(row).join('')}</div>` : ''}
+         ${quoted.length ? `<p class="fq-lbl2">ORÇADOS</p><div class="fq-card fq-card--list">${quoted.map(row).join('')}</div>` : ''}`
+      : '<p class="fq-empty">Nenhuma visita ainda. Comece pela visita do dia na agenda ou em “Nova visita”.</p>';
   }
 
   // ------------------------------------------------------------------ panel view
+  function progress(d) {
+    const measured = d.rooms.filter((r) => roomArea(r) > 0).length;
+    const planOpen = d.floorplan && Array.isArray(d.floorplan.rooms) ? d.floorplan.rooms.filter((r) => !d.rooms.find((x) => x.id === r.measured_room_id)).length : 0;
+    const roomsTotal = d.rooms.length + planOpen;
+    const q = countAnswers(d);
+    const withPhoto = d.rooms.filter((r) => photosOf(r.id).length).length;
+    const st = (done, part) => (done ? 'is-done' : part ? 'is-part' : '');
+    return [
+      { name: 'Serviços', cls: st(d.services.length > 0) },
+      { name: roomsTotal ? `Medidas ${measured}/${roomsTotal}` : 'Medidas', cls: st(measured > 0 && !planOpen, measured > 0) },
+      { name: `Fotos ${d.photos.length}`, cls: st(d.rooms.length > 0 && withPhoto === d.rooms.length, d.photos.length > 0) },
+      { name: q.total ? `Detalhes ${q.answered}/${q.total}` : 'Detalhes', cls: st(q.total > 0 && q.answered >= Math.min(3, q.total), q.answered > 0) },
+    ];
+  }
+  function svcChips(d) {
+    const chips = d.services.map((s) => {
+      const def = svcDef(s);
+      let t = def.pt;
+      if (s === 'demolition') {
+        const ex = (d.answers.demolition.existing || []).map((m) => mat(m).pt.split(' ')[0].toLowerCase());
+        t = ex.length ? `Tirar ${ex.join(' e ')}` : 'Demolição';
+      }
+      if (s === 'installation') t = `${mat(d.svc.installation.material).pt.split(' (')[0]}${d.svc.installation.supply ? ' + material' : ''}`;
+      if (s === 'sanding') t = (C.SANDING_TYPES.find((x) => x.id === d.svc.sanding.type) || {}).pt || def.pt;
+      return `<button type="button" class="fq-chip is-on" data-fq-open="services">${esc(t)}</button>`;
+    });
+    return chips.join('') + `<button type="button" class="fq-chip" data-fq-open="services">${IC.plus(14)}${d.services.length ? 'Serviço' : 'Escolher serviços'}</button>`;
+  }
+  function roomCard(r) {
+    const n = photosOf(r.id).length;
+    const area = roomArea(r);
+    const flag = area <= 0 ? '<span class="fq-flag">falta medir</span>' : !n ? '<span class="fq-flag">sem foto</span>' : `<span class="fq-ok" role="img" aria-label="Completo">${IC.check()}</span>`;
+    return `<button type="button" class="fq-rc" data-fq-room="${esc(r.id)}"><span class="fq-rc__top"><b>${esc(r.label)}</b>${flag}</span><span class="fq-rc__area">${fmtN(area)} <small>pé²</small></span><span class="fq-rc__sub">${esc(roomDims(r))}${n ? ` · ${n} foto${n > 1 ? 's' : ''}` : ''}</span></button>`;
+  }
+  function sideHtml(t, tips) {
+    const area = totalArea(S.d);
+    return `${pendingCardHtml()}<section class="fq-live"><span class="fq-lbl2">PROPOSTA AO VIVO</span><b class="fq-live__tot">${esc(money(t.total))}</b><span class="fq-live__sub">${area ? `${fmtN(area)} pé² · ${esc(money(r2(t.total / area)))}/pé²` : 'meça os cômodos'} · preços ${esc((C.CUSTOMER_TYPES.find((x) => x.id === S.fq.customer_type) || {}).pt || '')}</span>
+      <div class="fq-live__lines">${t.lines.map((l) => `<button type="button" class="fq-live__ln" data-fq-rate="${esc(l.key)}"><span>${esc(l.name)}${l.source === 'padrao' ? ' <em>preço padrão</em>' : ''}</span><b>${esc(money(l.amount))}</b></button>`).join('') || '<p class="fq-empty">As linhas aparecem aqui enquanto você mede.</p>'}</div></section>
+      ${tipsCard(tips, 3)}`;
+  }
   function renderPanel() {
     const fq = S.fq;
     const d = S.d;
     document.title = fq.client_name + ' · Field Quote';
     const t = totals(d);
     const ct = C.CUSTOMER_TYPES.find((x) => x.id === fq.customer_type) || C.CUSTOMER_TYPES[0];
-    const svcTxt = d.services.length
-      ? d.services
-          .map((s) => {
-            const def = svcDef(s);
-            if (s === 'installation') return `${def.pt} ${mat(d.svc.installation.material).pt}${d.svc.installation.supply ? ' + material' : ''}`;
-            if (s === 'sanding') return (C.SANDING_TYPES.find((x) => x.id === d.svc.sanding.type) || {}).pt || def.pt;
-            return def.pt;
-          })
-          .join(' · ')
-      : 'Escolha o que vai ser feito';
+    const quoted = fq.quote_id && fq.quote;
+    const tips = mateTips();
     const extrasOn = C.EXTRAS.filter((e) => d.extras[e.id] && d.extras[e.id].on);
     const qCount = countAnswers(d);
-    const quoted = fq.quote_id && fq.quote;
+    const planOpen = d.floorplan && Array.isArray(d.floorplan.rooms) ? d.floorplan.rooms.filter((r) => !d.rooms.find((x) => x.id === r.measured_room_id)) : [];
+    const area = totalArea(d);
     $('#fqView').innerHTML = `<div class="fq-panel">
-      <header class="fq-top"><a class="fq-back" href="field-quote.html">‹ Visitas</a><span class="fq-save" id="fqSave"></span></header>
+      <div class="fq-panel__main">
+      <header class="fq-top"><a class="fq-back" href="field-quote.html">${IC.back()}Visitas</a><span class="fq-save" id="fqSave"></span></header>
       <button type="button" class="fq-client" data-fq-open="client">
         <h1 class="fq-h1">${esc(fq.client_name)}</h1>
-        <p class="fq-sub">${esc(fq.address || 'Adicionar endereço')} · ${esc(ct.pt)} <span class="fq-edit">Editar</span></p>
+        <p class="fq-sub">${esc(fq.address || 'Adicionar endereço')} · ${esc(ct.pt)} · <span class="fq-edit">Editar</span></p>
       </button>
-      ${quoted ? `<div class="fq-banner">Orçamento <b>${esc(fq.quote.number)}</b> gerado · ${esc(quoteStatusPt(fq.quote.status))}<a href="quote-builder.html?id=${esc(fq.quote_id)}${fq.lead_id ? '&lead_id=' + esc(fq.lead_id) : ''}">Abrir orçamento</a></div>
-        <button type="button" class="fq-present-cta" data-fq-present-existing><span class="fq-present-cta__badge" aria-hidden="true">IA</span><span class="fq-present-cta__copy"><b>Apresentar proposta ao cliente</b><small>A IA explica cada serviço do quote, item por item.</small></span><span class="fq-present-cta__action">Começar</span></button>` : ''}
-      ${!quoted ? `<button type="button" class="fq-ai-start" data-fq-ai-conversation><span class="fq-ai-start__badge" aria-hidden="true">IA</span><span class="fq-ai-start__copy"><b>Vamos falar da obra</b><small>Me conte o que será feito. A gente monta os cômodos, serviços e medidas durante a conversa.</small></span><span class="fq-ai-start__action">Começar</span></button>` : ''}
-      <div class="fq-cards">
-        <button type="button" class="fq-card fq-card--btn" data-fq-open="services"><span class="fq-ic">🧰</span><div><b>Serviços</b><small>${esc(svcTxt)}</small></div>${d.services.length ? '<span class="fq-ok">✓</span>' : '<span class="fq-todo"></span>'}</button>
-        <div class="fq-card">
-          <button type="button" class="fq-card__head" data-fq-open="rooms-help"><span class="fq-ic">📐</span><div><b>Cômodos</b><small>${d.rooms.length ? `${d.rooms.length} cômodo${d.rooms.length > 1 ? 's' : ''} · ${fmtN(totalArea(d))} pé²` : 'Meça cada cômodo'}</small></div>${d.rooms.length ? '<span class="fq-ok">✓</span>' : '<span class="fq-todo"></span>'}</button>
-          ${d.rooms
-            .map(
-              (r) => `<button type="button" class="fq-room" data-fq-room="${esc(r.id)}"><span class="fq-room__sw" style="background:${(r.services || []).length ? svcDef(r.services[r.services.length - 1]).color : '#d6c9b8'}"></span><div><b>${esc(r.label)} <strong>${fmtN(roomArea(r))} pé²</strong></b><small>${esc(roomDims(r))}</small><span class="fq-room__tags">${(r.services || [])
-                .map((s) => `<i>${esc(svcDef(s).pt.split(' ')[0])}</i>`)
-                .join('')}${photosOf(r.id).length ? `<i>📷 ${photosOf(r.id).length}</i>` : ''}</span></div><span class="fq-chev">›</span></button>`
-            )
-            .join('')}
-          <div class="fq-row2 fq-room-actions"><button type="button" class="fq-btn" data-fq-room-new ${d.services.length ? '' : 'disabled'}>+ Medir cômodo</button><button type="button" class="fq-btn fq-btn--ghost" data-fq-ai-measure ${d.services.length ? '' : 'disabled'}>Ditar medidas</button></div>
-          ${!d.services.length ? '<p class="fq-hint">Escolha os serviços primeiro.</p>' : ''}
+      <div class="fq-prog" aria-label="Andamento da visita">${progress(d).map((p) => `<div class="fq-prog__i ${p.cls}"><i></i><span>${esc(p.name)}</span></div>`).join('')}</div>
+      ${quoted ? `<div class="fq-quoted"><div><b>Orçamento ${esc(fq.quote.number)}</b><small>${esc(quoteStatusPt(fq.quote.status))}</small></div><a class="fq-btn fq-btn--sm" href="quote-builder.html?id=${esc(fq.quote_id)}${fq.lead_id ? '&lead_id=' + esc(fq.lead_id) : ''}">Abrir</a><button type="button" class="fq-btn fq-btn--sm fq-btn--ink" data-fq-present-existing>${IC.play()}Apresentar</button></div>` : ''}
+      <div class="fq-only-phone">${pendingCardHtml()}${tipsCard(tips, 1)}</div>
+      <section class="fq-sec"><p class="fq-lbl2">O QUE VAI SER FEITO</p><div class="fq-chips">${svcChips(d)}</div></section>
+      <section class="fq-sec">
+        <div class="fq-sec__head"><p class="fq-lbl2">CÔMODOS${area ? ` · ${fmtN(area)} PÉ²` : ''}</p>${d.services.length ? `<button type="button" class="fq-link2" data-fq-ai-measure>${IC.mic(15)}Ditar medidas</button>` : ''}</div>
+        <div class="fq-rooms">${d.rooms.map(roomCard).join('')}
+          ${planOpen.map((r) => `<button type="button" class="fq-rc fq-rc--todo" data-fq-plan-measure="${esc(r.id)}"><span class="fq-rc__top"><b>${esc(r.label)}</b><span class="fq-flag">falta medir</span></span><span class="fq-rc__sub">da planta das fotos</span></button>`).join('')}
+          <button type="button" class="fq-rc fq-rc--add" data-fq-room-new>${IC.plus(22)}<span>Cômodo</span></button>
         </div>
-        <button type="button" class="fq-card fq-card--btn" data-fq-open="extras"><span class="fq-ic">➕</span><div><b>Extras</b><small>${extrasOn.length || d.custom.length ? esc([...extrasOn.map((e) => e.pt), ...d.custom.map((c) => c.name)].join(' · ')) : 'Escada, rodapé, transições, descarte…'}</small></div><span class="fq-chev">›</span></button>
-        <button type="button" class="fq-card fq-card--btn" data-fq-open="details"><span class="fq-ic">📝</span><div><b>Detalhes da obra</b><small>${qCount.answered ? `${qCount.answered} de ${qCount.total} respondidas` : 'Pets, acesso, piso atual, acabamento…'}</small></div>${qCount.answered >= Math.min(3, qCount.total) ? '<span class="fq-ok">✓</span>' : '<span class="fq-todo"></span>'}</button>
-        <div class="fq-card">
-          <div class="fq-card__head"><span class="fq-ic">📷</span><div><b>Fotos</b><small>${d.photos.length ? `${d.photos.length} foto${d.photos.length > 1 ? 's' : ''} · vão para o ObraCam do job` : 'Piso atual, danos, acesso'}</small></div></div>
-          ${d.photos.length ? `<div class="fq-photos">${d.photos.slice(-8).map((p) => `<button type="button" class="fq-photo" data-fq-photo="${esc(p.id)}" style="background-image:url('${esc(p.url)}')"></button>`).join('')}</div>` : ''}
-          <button type="button" class="fq-btn fq-btn--block" data-fq-shoot>📷 Tirar foto</button>
-          <button type="button" class="fq-btn fq-btn--block fq-btn--ghost" data-fq-ai-photos ${d.photos.length ? '' : 'disabled'}>Analisar fotos e sugerir planta</button>
-          ${d.photo_analysis && d.photo_analysis.observations ? `<p class="fq-hint">Última análise: ${d.photo_analysis.observations.length} observação${d.photo_analysis.observations.length === 1 ? '' : 'ões'} · sugestões para confirmar</p>` : ''}
+      </section>
+      <section class="fq-sec fq-list2">
+        <button type="button" class="fq-li2" data-fq-open="extras"><span><b>Extras</b><small>${extrasOn.length || d.custom.length ? esc([...extrasOn.map((e) => e.pt), ...d.custom.map((c) => c.name).filter(Boolean)].join(' · ')) : 'Escada, rodapé, transições, descarte…'}</small></span>${IC.chev()}</button>
+        <button type="button" class="fq-li2" data-fq-open="details"><span><b>Detalhes da obra</b><small>${qCount.answered ? `${qCount.answered} de ${qCount.total} respondidas` : 'Pets, acesso, piso atual, acabamento…'}${attentionSummary(d) ? ' · ' + esc(attentionSummary(d)) : ''}</small></span>${IC.chev()}</button>
+        <div class="fq-li2 fq-li2--photos"><span><b>Fotos</b><small>${d.photos.length ? `${d.photos.length} foto${d.photos.length > 1 ? 's' : ''} · vão para o ObraCam do job` : 'Piso atual, danos, acesso'}</small></span>
+          ${d.photos.length ? `<div class="fq-photos">${d.photos.slice(-8).map((p) => `<button type="button" class="fq-photo" data-fq-photo="${esc(p.id)}" style="background-image:url('${esc(p.url)}')" aria-label="Abrir foto"></button>`).join('')}</div>` : ''}
+          <div class="fq-row2"><button type="button" class="fq-btn" data-fq-shoot>${IC.cam()}Tirar foto</button><button type="button" class="fq-btn fq-btn--quiet" data-fq-ai-photos ${d.photos.length ? '' : 'disabled'}>${IC.mate(18)}Ler fotos</button></div>
+          ${d.photo_analysis && d.photo_analysis.observations && d.photo_analysis.observations.length ? `<small class="fq-mut">O Mate leu as fotos: ${esc(d.photo_analysis.observations.slice(0, 2).map((o) => o.title).join(' · '))}</small>` : ''}
         </div>
-        ${d.floorplan && Array.isArray(d.floorplan.rooms) && d.floorplan.rooms.length ? `<div class="fq-card fq-plan-card"><div class="fq-card__head"><span class="fq-ic" aria-hidden="true">⌂</span><div><b>Planta preliminar</b><small>Esboço visual · sem escala</small></div></div>${renderFloorplanSvg(d.floorplan)}<p class="fq-hint">${esc(d.floorplan.note || 'Confira a planta e meça cada cômodo antes de gerar o orçamento.')}</p><div class="fq-plan-rooms">${d.floorplan.rooms.map((r) => { const measured = d.rooms.find((room) => room.id === r.measured_room_id); return `<div class="fq-plan-room"><span>${esc(r.label)}</span>${measured ? `<small>Medido · ${fmtN(roomArea(measured))} pé²</small>` : `<button type="button" class="fq-mini" data-fq-plan-measure="${esc(r.id)}" ${d.services.length ? '' : 'disabled'}>Medir cômodo</button>`}</div>`; }).join('')}</div></div>` : ''}
-        <label class="fq-card fq-notes"><b>Notas internas</b><textarea id="fqNotes" data-crm-rich="off" rows="3" placeholder="O que a equipe precisa saber (não vai para o cliente)">${esc(d.notes || '')}</textarea></label>
+        <label class="fq-li2 fq-notes"><b>Notas internas</b><textarea id="fqNotes" data-crm-rich="off" rows="3" placeholder="O que a equipe precisa saber (não vai para o cliente)">${esc(d.notes || '')}</textarea></label>
+      </section>
       </div>
-      <footer class="fq-bar"><div class="fq-bar__tot"><small>Total</small><b id="fqTotal">${esc(money(t.total))}</b></div><button type="button" class="fq-btn fq-btn--pri fq-btn--big" data-fq-open="review" ${t.lines.length ? '' : 'disabled'}>Revisar e enviar</button></footer>
+      <aside class="fq-panel__side" aria-label="Proposta e Mate">${sideHtml(t, tips)}</aside>
+      <footer class="fq-bar">
+        <div class="fq-bar__mate">
+          <button type="button" class="fq-round" data-fq-shoot aria-label="Tirar foto">${IC.cam()}</button>
+          <button type="button" class="fq-matebtn" data-fq-ai-conversation="listen">${IC.mic(20)}<span>Fale com o Mate</span></button>
+        </div>
+        <div class="fq-bar__sum"><div class="fq-bar__tot"><small>Total${area ? ` · ${esc(money(r2(t.total / area)))}/pé²` : ''}</small><b id="fqTotal">${esc(money(t.total))}</b></div><button type="button" class="fq-btn fq-btn--pri fq-btn--big" data-fq-open="review" ${t.lines.length ? '' : 'disabled'}>Revisar</button></div>
+      </footer>
     </div>`;
     $('#fqLoading').hidden = true;
     renderSaveState();
@@ -549,7 +697,7 @@
           <label class="fq-field"><span>E-mail</span><input name="client_email" type="email" value="${esc(fq.client_email || '')}" autocomplete="email" /></label>
         </div>
         <div class="fq-group"><label class="fq-field fq-field--col"><span>Endereço da obra</span><input name="address" id="fqAddr" value="${esc(fq.address || '')}" autocomplete="off" /></label>
-          <button type="button" class="fq-btn fq-btn--block fq-btn--ghost" data-fq-geo>📍 Usar minha localização</button></div>
+          <button type="button" class="fq-btn fq-btn--block fq-btn--ghost" data-fq-geo>${IC.route()}Usar minha localização</button></div>
         <p class="fq-lbl">Tipo de cliente (define a coluna da Tabela de Valores)</p>
         <div class="fq-chips">${C.CUSTOMER_TYPES.map((c) => `<button type="button" class="fq-chip${c.id === fq.customer_type ? ' is-on' : ''}" data-fq-ct="${c.id}">${esc(c.pt)}</button>`).join('')}</div>
       </div>`
@@ -567,7 +715,7 @@
       `${bar('Serviços')}
       <div class="fq-sbody">
         <p class="fq-lbl">O que vai ser feito</p>
-        <div class="fq-svcs">${C.SERVICES.map((s) => `<button type="button" class="fq-svc${d.services.includes(s.id) ? ' is-on' : ''}" data-fq-svc="${s.id}" style="--c:${s.color}"><span>${s.icon}</span><b>${esc(s.pt)}</b></button>`).join('')}</div>
+        <div class="fq-svcs">${C.SERVICES.map((s) => `<button type="button" class="fq-svc${d.services.includes(s.id) ? ' is-on' : ''}" data-fq-svc="${s.id}"><span class="fq-svc__ck">${IC.check(14)}</span><b>${esc(s.pt)}</b></button>`).join('')}</div>
         ${
           d.services.includes('installation')
             ? `<div class="fq-group"><p class="fq-lbl fq-lbl--in">Material a instalar</p><div class="fq-chips">${C.MATERIALS.map((m) => `<button type="button" class="fq-chip${m.id === i.material ? ' is-on' : ''}" data-fq-mat="${m.id}">${esc(m.pt)}</button>`).join('')}</div>
@@ -612,8 +760,13 @@
     const area = roomArea(r);
     const per = roomPerimeter(r);
     const w = d.svc.installation.supply && r.services.includes('installation') ? installWaste(d) : 0;
+    const ids = d.rooms.map((x) => x.id);
+    const at = ids.indexOf(r.id);
+    const nav = S.sheet.isNew
+      ? `<h2>Novo cômodo</h2>`
+      : `<div class="fq-rnav"><button type="button" class="fq-rnav__b" data-fq-room-go="-1" ${at > 0 ? '' : 'disabled'} aria-label="Cômodo anterior">${IC.back()}</button><h2>${esc(r.label)}<small>${at + 1} de ${ids.length}</small></h2><button type="button" class="fq-rnav__b" data-fq-room-go="1" aria-label="${at < ids.length - 1 ? 'Próximo cômodo' : 'Novo cômodo'}">${IC.chev()}</button></div>`;
     openSheet(
-      `${bar(S.sheet.isNew ? 'Novo cômodo' : r.label, '<button type="button" class="fq-link fq-link--b" data-fq-room-save>Salvar</button>')}
+      `<header class="fq-sbar"><button type="button" class="fq-link" data-fq-close>Cancelar</button>${nav}<button type="button" class="fq-link fq-link--b" data-fq-room-save>Salvar</button></header>
       <div class="fq-sbody">
         <div class="fq-chips fq-chips--scroll">${C.ROOMS.map((x) => `<button type="button" class="fq-chip${r.base === x.pt ? ' is-on' : ''}" data-fq-rname="${esc(x.pt)}">${esc(x.pt)}</button>`).join('')}<button type="button" class="fq-chip${r.base === '__custom' ? ' is-on' : ''}" data-fq-rname="__custom">+ Outro</button></div>
         ${r.base === '__custom' ? `<label class="fq-field fq-field--col fq-group"><span>Nome do cômodo</span><input data-fq-r="label" value="${esc(r.label)}" placeholder="ex.: Sala de TV" /></label>` : ''}
@@ -638,7 +791,8 @@
         <div class="fq-svcs fq-svcs--sm">${d.services.map((sid) => `<button type="button" class="fq-svc${r.services.includes(sid) ? ' is-on' : ''}" data-fq-rsvc="${sid}" style="--c:${svcDef(sid).color}"><b>${esc(svcDef(sid).pt)}</b></button>`).join('')}</div>
         <label class="fq-field fq-field--col fq-group"><span>Observação</span><input data-fq-r="note" value="${esc(r.note || '')}" placeholder="ex.: rodapé danificado, degrau na porta" /></label>
         ${photosOf(r.id).length ? `<div class="fq-photos">${photosOf(r.id).map((p) => `<span class="fq-photo" style="background-image:url('${esc(p.url)}')"></span>`).join('')}</div>` : ''}
-        <button type="button" class="fq-btn fq-btn--block fq-btn--ghost" data-fq-shoot="${esc(r.id)}">📷 Foto deste cômodo</button>
+        <div class="fq-row2"><button type="button" class="fq-btn" data-fq-shoot="${esc(r.id)}">${IC.cam()}Foto deste cômodo</button><button type="button" class="fq-btn fq-btn--quiet" data-fq-ai-measure>${IC.mic(18)}Ditar medidas</button></div>
+        <button type="button" class="fq-btn fq-btn--ink fq-btn--block fq-btn--next" data-fq-room-next>Salvar e medir o próximo</button>
         ${S.sheet.isNew ? '' : `<div class="fq-row2"><button type="button" class="fq-btn fq-btn--ghost" data-fq-room-dup>Duplicar</button><button type="button" class="fq-btn fq-btn--danger" data-fq-room-del>Excluir cômodo</button></div>`}
       </div>`,
       'fq-sheet__card--tall'
@@ -669,8 +823,12 @@
     }
     markDirty();
     toast(`${r.label}: ${fmtN(roomArea(r))} pé²`, 'success');
-    if (keepOpen) sheetRoom(null);
-    else closeSheet();
+    if (keepOpen) {
+      const ids = S.d.rooms.map((x) => x.id);
+      const next = ids[ids.indexOf(r.id) + 1];
+      const after = S.d.rooms.find((x) => x.id === next && roomArea(x) <= 0);
+      sheetRoom(after ? after.id : null);
+    } else closeSheet();
   }
 
   // extras
@@ -734,39 +892,139 @@
     return `<div class="fq-q fq-q--col"><span>${esc(q.pt)}${q.attention ? ' <i class="fq-att">atenção</i>' : ''}</span><input class="fq-qin" data-fq-ans-in="${k}" value="${esc(v || '')}" /></div>`;
   }
 
-  // review
+  // review → "Resultado"
+  function lineGroup(l) {
+    const n = String(l.name || '').toLowerCase();
+    if (l.key === 'supply') return 'Material';
+    if (l.key === 'installation') return 'Instalação';
+    if (l.key === 'demolition') return 'Remoção do piso';
+    if (l.key === 'sanding') return 'Lixa e acabamento';
+    if (l.key === 'stairs') return 'Escada';
+    if (l.key === 'haul_away') return 'Descarte';
+    if (['baseboard_install', 'baseboard_remove', 'quarter_round', 'transitions'].includes(l.key) || /trim|transition/.test(n)) return 'Acabamentos';
+    if (['underlayment', 'moisture', 'leveling'].includes(l.key)) return 'Preparo do contrapiso';
+    return 'Outros';
+  }
+  function moneyRows(t, view) {
+    const d = S.d;
+    let rows = [];
+    if (view === 'room') {
+      const acc = new Map(d.rooms.map((r) => [r.id, 0]));
+      let general = 0;
+      t.lines.forEach((l) => {
+        const sid = l.key === 'supply' ? 'installation' : l.key;
+        if (l.unit === 'sq_ft' && C.SERVICES.some((s) => s.id === sid)) {
+          const pool = d.rooms.filter((r) => (r.services || []).includes(sid));
+          const a = pool.reduce((s, r) => s + roomArea(r), 0);
+          if (a > 0) return pool.forEach((r) => acc.set(r.id, acc.get(r.id) + (l.amount * roomArea(r)) / a));
+        }
+        if (l.unit === 'linear_ft' || (l.unit === 'sq_ft' && ['underlayment', 'moisture'].includes(l.key))) {
+          const pool = d.rooms.filter((r) => (l.unit === 'linear_ft' ? roomPerimeter(r) : roomArea(r)) > 0);
+          const tot = pool.reduce((s, r) => s + (l.unit === 'linear_ft' ? roomPerimeter(r) : roomArea(r)), 0);
+          if (tot > 0) return pool.forEach((r) => acc.set(r.id, acc.get(r.id) + (l.amount * (l.unit === 'linear_ft' ? roomPerimeter(r) : roomArea(r))) / tot));
+        }
+        general += l.amount;
+      });
+      rows = d.rooms.map((r) => ({ label: r.label, sub: `${fmtN(roomArea(r))} pé²`, amount: r2(acc.get(r.id)) }));
+      if (general > 0) rows.push({ label: 'Geral', sub: 'escada, descarte, itens fixos', amount: r2(general) });
+    } else {
+      const g = new Map();
+      t.lines.forEach((l) => {
+        const k = lineGroup(l);
+        const cur = g.get(k) || { label: k, amount: 0, lines: [] };
+        cur.amount += l.amount;
+        cur.lines.push(l);
+        g.set(k, cur);
+      });
+      rows = [...g.values()].map((x) => ({ label: x.label, sub: x.lines.length === 1 ? `${fmtN(x.lines[0].quantity)} ${C.UNIT_PT[x.lines[0].unit] || ''} × ${money(x.lines[0].rate)}` : `${x.lines.length} itens`, amount: r2(x.amount), lines: x.lines }));
+    }
+    if (t.tax) rows.push({ label: 'Imposto', sub: `${S.taxRate}%`, amount: t.tax });
+    return rows.filter((r) => r.amount > 0).sort((a, b) => b.amount - a.amount);
+  }
   function sheetReview() {
     const t = totals(S.d);
     const fq = S.fq;
     const quoted = fq.quote_id && fq.quote;
     const locked = quoted && ['approved', 'converted'].includes(fq.quote.status);
+    const area = totalArea(S.d);
+    const view = S.reviewView || 'svc';
+    const rows = moneyRows(t, view);
+    const max = Math.max(1, ...rows.map((r) => r.amount));
+    const tips = mateTips();
+    const ai = S.ai.review;
     openSheet(
-      `${bar('Revisar', 'none')}
-      <div class="fq-sbody">
-        <div class="fq-bigtotal"><small>Total para o cliente</small><b>${esc(money(t.total))}</b><span>${fmtN(totalArea(S.d))} pé² · preços ${esc((C.CUSTOMER_TYPES.find((x) => x.id === fq.customer_type) || {}).pt)}</span></div>
-        <div class="fq-group fq-lines">${t.lines
-          .map(
-            (l) => `<button type="button" class="fq-line" data-fq-rate="${esc(l.key)}"><div><b>${esc(l.name)}</b><small>${esc(fmtN(l.quantity))} ${esc(C.UNIT_EN[l.unit] || '')} × ${esc(money(l.rate))}${l.source === 'padrao' ? ' · <em>preço padrão</em>' : l.source === 'manual' ? ' · ajustado' : ''}</small></div><b>${esc(money(l.amount))}</b></button>`
-          )
-          .join('')}
-          ${t.tax ? `<div class="fq-line fq-line--sub"><div><b>Imposto</b><small>${esc(S.taxRate)}%</small></div><b>${esc(money(t.tax))}</b></div>` : ''}
+      `${bar('Resultado', 'none')}
+      <div class="fq-sbody fq-result">
+        <div class="fq-bigtotal"><small>Total para o cliente</small><b>${esc(money(t.total))}</b><span>preços ${esc((C.CUSTOMER_TYPES.find((x) => x.id === fq.customer_type) || {}).pt)}</span></div>
+        <div class="fq-stats">
+          <div><small>Por pé²</small><b>${area ? esc(money(r2(t.total / area))) : '—'}</b></div>
+          <div><small>Área</small><b>${fmtN(area)} pé²</b></div>
+          <div><small>Cômodos</small><b>${S.d.rooms.length}</b></div>
         </div>
-        ${t.lines.some((l) => l.source === 'padrao') ? '<p class="fq-hint fq-hint--warn">Linhas com <em>preço padrão</em> não acharam item na Tabela de Valores. Toque para ajustar.</p>' : '<p class="fq-hint">Toque numa linha para trocar o preço. O cliente vê os nomes em inglês.</p>'}
+        <section class="fq-money">
+          <div class="fq-money__head"><b>Para onde vai o dinheiro</b>
+            <div class="fq-seg fq-seg--sm" role="group" aria-label="Agrupar por"><button type="button" class="${view === 'room' ? 'is-on' : ''}" data-fq-review-view="room" aria-pressed="${view === 'room'}">Cômodo</button><button type="button" class="${view === 'svc' ? 'is-on' : ''}" data-fq-review-view="svc" aria-pressed="${view === 'svc'}">Serviço</button></div></div>
+          ${rows
+            .map((r, i) => {
+              const tap = view === 'svc' && r.lines && r.lines.length === 1 ? ` data-fq-rate="${esc(r.lines[0].key)}"` : '';
+              const warn = r.lines && r.lines.some((l) => l.source === 'padrao') ? ' <em>preço padrão</em>' : '';
+              return `<${tap ? 'button type="button"' : 'div'} class="fq-mrow" style="animation-delay:${(i * 0.06).toFixed(2)}s"${tap}><span class="fq-mrow__top"><span>${esc(r.label)} <small>${esc(r.sub)}</small>${warn}</span><b>${esc(money(r.amount))}</b></span><span class="fq-mrow__bar"><i style="width:${Math.max(2, Math.round((r.amount / max) * 100))}%;animation-delay:${(i * 0.06).toFixed(2)}s"></i></span></${tap ? 'button' : 'div'}>${view === 'svc' && r.lines && r.lines.length > 1 ? r.lines.map((l) => `<button type="button" class="fq-msub" data-fq-rate="${esc(l.key)}"><span>${esc(l.name)}${l.source === 'padrao' ? ' <em>preço padrão</em>' : ''}</span><small>${esc(fmtN(l.quantity))} ${esc(C.UNIT_PT[l.unit] || '')} × ${esc(money(l.rate))}</small><b>${esc(money(l.amount))}</b></button>`).join('') : ''}`;
+            })
+            .join('')}
+          <p class="fq-hint">${view === 'svc' ? 'Toque numa linha para trocar o preço. O cliente vê os nomes em inglês.' : 'Divisão aproximada pela área e pelo perímetro de cada cômodo.'}</p>
+        </section>
         ${locked ? `<div class="fq-banner">Orçamento ${esc(fq.quote.number)} já está ${esc(quoteStatusPt(fq.quote.status))}. Mudanças aqui não alteram mais o orçamento.</div>` : ''}
-        <div class="fq-ai-review">
-          <button type="button" class="fq-btn fq-btn--block fq-btn--ghost" data-fq-ai-review>Revisar proposta com IA</button>
-          <p class="fq-hint">Procura pendências e pontos para confirmar. Não altera serviços nem preços.</p>
-          ${S.ai.review ? `<div class="fq-ai-findings">${S.ai.review.checks.length ? S.ai.review.checks.map((item) => `<article class="fq-ai-finding ${item.severity === 'attention' ? 'is-attention' : ''}"><b>${esc(item.title)}</b><p>${esc(item.detail)}</p></article>`).join('') : '<p class="fq-ai-empty">Nenhuma pendência evidente nas informações atuais.</p>'}${S.ai.review.suggested_extras.length ? `<div class="fq-ai-suggestions"><b>Extras para avaliar</b>${S.ai.review.suggested_extras.map((item) => { const extra = C.EXTRAS.find((x) => x.id === item.id); return `<p><strong>${esc(extra ? extra.pt : item.id)}:</strong> ${esc(item.reason)}</p>`; }).join('')}<button type="button" class="fq-mini" data-fq-open-extras>Revisar extras</button></div>` : ''}<small class="fq-ai-source">Sugestões da IA · confira no local</small></div>` : ''}
-        </div>
-        <div class="fq-acts">
-          <button type="button" class="fq-btn fq-btn--pri fq-btn--big" data-fq-finish="present" ${locked ? 'disabled' : ''}>Gerar e apresentar ao cliente</button>
-          <button type="button" class="fq-btn fq-btn--ink fq-btn--big" data-fq-finish="sign" ${locked ? 'disabled' : ''}>✍️ Cliente aprova e assina agora</button>
-          <div class="fq-row2"><button type="button" class="fq-btn" data-fq-finish="sms" ${locked ? 'disabled' : ''}>Enviar por SMS</button><button type="button" class="fq-btn fq-btn--pri" data-fq-finish="open">${quoted ? 'Atualizar e abrir' : 'Abrir orçamento'}</button></div>
-          <p class="fq-hint">Gera o orçamento ${quoted ? esc(fq.quote.number) : 'no ObraMate'} com essas linhas${fq.lead_id ? '' : ' e cria o lead no funil'}.</p>
-        </div>
-      </div>`,
+        <section class="fq-mate">
+          <div class="fq-mate__head">${IC.mate()}<b>Antes de mostrar ao cliente</b>${tips.length ? `<span>${tips.length} ponto${tips.length > 1 ? 's' : ''}</span>` : ''}</div>
+          ${tips.map((x) => tipHtml(x, true)).join('')}
+          ${ai ? `${ai.checks.map((item) => `<div class="fq-tip fq-tip--row"><div class="fq-tip__txt"><b>${esc(item.title)}</b> ${esc(item.detail)}</div></div>`).join('')}${ai.suggested_extras.length ? `<div class="fq-tip fq-tip--row"><div class="fq-tip__txt">Extras para avaliar: ${ai.suggested_extras.map((item) => { const extra = C.EXTRAS.find((x) => x.id === item.id); return `<b>${esc(extra ? extra.pt : item.id)}</b> (${esc(item.reason)})`; }).join('; ')}</div><div class="fq-tip__acts"><button type="button" class="fq-btn fq-btn--sm" data-fq-open-extras>Revisar extras</button></div></div>` : ''}${!ai.checks.length && !ai.suggested_extras.length ? '<p class="fq-mut">A revisão completa não achou pendências.</p>' : ''}` : `<button type="button" class="fq-btn fq-btn--quiet fq-btn--block" data-fq-ai-review>Revisão completa com o Mate</button>`}
+          <small class="fq-mut">O Mate sugere; nada muda no orçamento sem o seu toque.</small>
+        </section>
+      </div>
+      <footer class="fq-sfoot">
+        <button type="button" class="fq-btn fq-btn--pri fq-btn--big fq-btn--block" data-fq-finish="present" ${locked && !quoted ? 'disabled' : ''}>${IC.play()}Apresentar ao cliente</button>
+        <div class="fq-row2"><button type="button" class="fq-btn" data-fq-finish="sms" ${locked ? 'disabled' : ''}>Enviar link (SMS)</button><button type="button" class="fq-btn" data-fq-finish="open">${quoted ? 'Atualizar e abrir' : 'Abrir no editor'}</button></div>
+        <button type="button" class="fq-link2 fq-link2--c" data-fq-finish="sign" ${locked ? 'disabled' : ''}>Cliente assina agora, sem apresentação</button>
+      </footer>`,
       'fq-sheet__card--tall'
     );
+    S.sheet = { kind: 'review' };
+  }
+
+  // ------------------------------------------------------------------ client tour (animated proposal)
+  function tourSpeak(text) {
+    if (S.ai.speechVoiceId) return playAiAudio(text);
+    if (window.QuoteTour) window.QuoteTour.browserSpeak(text);
+  }
+  function tourStop() {
+    stopAiAudio();
+    if (window.QuoteTour) window.QuoteTour.browserStop();
+  }
+  async function openTour(btn) {
+    if (!window.QuoteTour) return toast('A apresentação não carregou. Atualize a página.', 'error');
+    const label = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Preparando…'; }
+    try {
+      void loadElevenLabsVoices();
+      const j = await api(`/api/field-quotes/${encodeURIComponent(S.fq.id)}/tour`);
+      if (S.sheet || !$('#fqSheet').hidden) closeSheet();
+      const ok = window.QuoteTour.open(j.data, {
+        approveLabel: 'Approve & sign',
+        speak: tourSpeak,
+        stopSpeak: tourStop,
+        onApprove: async () => {
+          try {
+            const pub = await api(`/api/quotes/${encodeURIComponent(S.fq.quote_id)}/publish-client`, { method: 'POST', body: { mark_sent: true } });
+            location.href = pub.public_url;
+          } catch (e) { toast(e.message, 'error'); }
+        },
+      });
+      if (!ok) toast('Meça pelo menos um cômodo para apresentar.', 'error');
+    } catch (e) {
+      toast(e.message, 'error');
+    } finally {
+      if (btn && btn.isConnected) { btn.disabled = false; btn.innerHTML = label; }
+    }
   }
   function sheetAiAssist() {
     S.ai.assistResult = null;
@@ -805,11 +1063,48 @@
       current.forEach((button) => { button.disabled = false; button.textContent = button.closest('.fq-sbar') ? 'Consultar' : 'Consultar copiloto'; });
     }
   }
-  function sheetAiConversation() {
+  function sheetAiConversation(listen) {
     if (!Array.isArray(S.d.ai_conversation)) S.d.ai_conversation = [];
     S.ai.conversationOpen = true;
-    renderAiConversation();
+    renderAiConversation(!listen);
     void loadElevenLabsVoices();
+    if (listen && (window.SpeechRecognition || window.webkitSpeechRecognition)) dictateAiConversation();
+  }
+  /** Preview a Mate patch on a copy, so the card can say exactly what would change. */
+  function previewPatch(patch) {
+    const real = S.d;
+    const before = totals(real).total;
+    S.d = JSON.parse(JSON.stringify(real));
+    let changes = [];
+    let after = before;
+    try {
+      changes = applyAiConversationPatch(patch || {});
+      after = totals(S.d).total;
+    } finally {
+      S.d = real;
+    }
+    return { patch, changes, delta: r2(after - before) };
+  }
+  function pendingCardHtml() {
+    const p = S.ai.pending;
+    if (!p || !p.changes.length) return '';
+    return `<section class="fq-pending" aria-label="Mudanças propostas pelo Mate">
+      <div class="fq-mate__head">${IC.mate()}<b>Vou aplicar</b>${p.delta ? `<span class="fq-pending__d">${p.delta > 0 ? '+' : ''}${esc(money(p.delta))}</span>` : ''}</div>
+      <ul>${p.changes.map((c) => `<li>${esc(String(c).replace(/^Adicionei /, 'Adicionar ').replace(/^Removi /, 'Remover ').replace(/^Atualizei /, 'Atualizar ').replace(/^Registrei /, 'Registrar ').replace(/^Anotei /, 'Anotar '))}</li>`).join('')}</ul>
+      <div class="fq-row2"><button type="button" class="fq-btn" data-fq-pending-no>Descartar</button><button type="button" class="fq-btn fq-btn--pri" data-fq-pending-yes>Confirmar</button></div>
+    </section>`;
+  }
+  function confirmPending(ok) {
+    const p = S.ai.pending;
+    S.ai.pending = null;
+    if (ok && p) {
+      applyAiConversationPatch(p.patch);
+      markDirty();
+      renderPanel();
+      toast('Orçamento atualizado.', 'success');
+      save();
+    }
+    if (S.ai.conversationOpen) renderAiConversation();
   }
   function renderAiConversation(focusInput) {
     const messages = Array.isArray(S.d.ai_conversation) ? S.d.ai_conversation : [];
@@ -818,41 +1113,39 @@
     const roomCount = S.d.rooms.length;
     const hasSpeech = Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
     const hasSpeechOutput = S.ai.speechVoices.length > 0;
-    const voiceOptions = S.ai.speechVoices.map((voice) => {
-      const details = [voice.labels && voice.labels.accent, voice.labels && voice.labels.gender].filter(Boolean).join(' · ');
-      return `<option value="${esc(voice.voiceId)}" ${voice.voiceId === S.ai.speechVoiceId ? 'selected' : ''}>${esc(voice.name)}${details ? ` · ${esc(details)}` : ''}</option>`;
-    }).join('');
+    const listening = Boolean(S.ai.conversationRecognition);
     const messageHtml = messages.map((message) => {
       const isUser = message.role === 'user';
       return `<article class="fq-chat__message ${isUser ? 'fq-chat__message--user' : 'fq-chat__message--assistant'}"><p>${esc(message.content)}</p></article>`;
     }).join('');
     openSheet(
-      `${bar('Vamos montar esse orçamento', '<span class="fq-chat__ai-label">Copiloto da obra</span>')}
+      `${bar('Mate', 'none')}
       <div class="fq-chat">
         <div class="fq-chat__summary"><span>${serviceCount} serviço${serviceCount === 1 ? '' : 's'}</span><span>${roomCount} cômodo${roomCount === 1 ? '' : 's'}</span><b>${esc(money(estimate.total))}</b></div>
         <div class="fq-chat__messages" id="fqAiConversationMessages" role="log" aria-label="Conversa sobre o orçamento" aria-live="polite">
-          ${messages.length ? messageHtml : `<div class="fq-chat__welcome"><b>Pode me contar como você contaria para alguém da equipe.</b><p>Vá cômodo por cômodo, diga o que sai, o que entra e as medidas que já tiver. Se faltar algo, a gente acerta no caminho.</p><small>Por exemplo: “Na sala, tira o carpete e coloca LVP. Ela tem 16 por 12 pés. No corredor vai o mesmo piso, que mede 10 por 4.”</small></div>`}
+          ${messages.length ? messageHtml : `<div class="fq-chat__welcome"><b>Fale como contaria para alguém da equipe.</b><p>Cômodo por cômodo: o que sai, o que entra e as medidas. Eu monto e você confirma.</p><small>Ex.: “Sala dezesseis por doze, tira o carpete e coloca LVP. Corredor dez por quatro, mesmo piso.”</small></div>`}
           ${S.ai.conversationBusy ? '<div class="fq-chat__typing" role="status"><i></i><i></i><i></i><span>Um instante…</span></div>' : ''}
+          ${pendingCardHtml()}
         </div>
         <div class="fq-chat__composer">
-          <textarea id="fqAiConversationInput" rows="2" maxlength="1400" aria-label="Descreva o que será feito" placeholder="O que mais vai ser feito?" ${S.ai.conversationBusy ? 'disabled' : ''}></textarea>
+          ${listening ? '<div class="fq-listen" role="status"><span class="fq-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>Ouvindo… toque em Parar quando terminar</div>' : ''}
           <div class="fq-chat__composer-row">
-            <label class="fq-chat__language"><span>Idioma</span><select id="fqAiConversationLanguage" aria-label="Idioma da fala"><option value="pt-BR">PT-BR</option><option value="en-US">EN-US</option></select></label>
-            <button type="button" class="fq-btn fq-btn--ghost fq-chat__mic" data-fq-ai-conversation-mic ${!hasSpeech || S.ai.conversationBusy ? 'disabled' : ''} aria-label="${S.ai.conversationRecognition ? 'Parar captura de voz' : 'Falar para a IA'}">${S.ai.conversationRecognition ? 'Parar' : 'Falar'}</button>
+            <textarea id="fqAiConversationInput" rows="1" maxlength="1400" aria-label="Descreva o que será feito" placeholder="Digite ou toque no microfone" ${S.ai.conversationBusy ? 'disabled' : ''}></textarea>
+            <button type="button" class="fq-round fq-round--ink${listening ? ' is-live' : ''}" data-fq-ai-conversation-mic ${!hasSpeech || S.ai.conversationBusy ? 'disabled' : ''} aria-label="${listening ? 'Parar captura de voz' : 'Falar com o Mate'}">${listening ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>' : IC.mic(20)}</button>
             <button type="button" class="fq-btn fq-btn--pri fq-chat__send" data-fq-ai-conversation-send ${S.ai.conversationBusy ? 'disabled' : ''}>Enviar</button>
           </div>
-          <label class="fq-chat__voice"><span>Voz da IA</span><select id="fqAiVoiceSelect" aria-label="Escolher voz da ElevenLabs" ${!hasSpeechOutput ? 'disabled' : ''}>${voiceOptions || `<option value="">${S.ai.speechVoicesLoading ? 'Carregando vozes…' : 'Vozes indisponíveis'}</option>`}</select></label>
-          <button type="button" class="fq-chat__speak" data-fq-ai-conversation-speak-toggle aria-pressed="${S.ai.conversationSpeakReplies ? 'true' : 'false'}" ${!hasSpeechOutput ? 'disabled' : ''}>${S.ai.conversationSpeakReplies ? '🔊 Ouvir resposta após ditar' : '🔈 Leitura por voz desligada'}</button>
-          <p class="fq-chat__footnote">Medidas e valores são calculados pelo Field Quote. Confira o que foi adicionado antes de gerar a proposta.</p>
-          ${!hasSpeech ? '<p class="fq-chat__footnote">Ditado por microfone não está disponível neste navegador. Você ainda pode usar o ditado do teclado do celular.</p>' : ''}
-          ${!hasSpeechOutput ? `<p class="fq-chat__footnote">${esc(S.ai.speechVoicesError || (S.ai.speechVoicesLoading ? 'Buscando vozes ElevenLabs…' : 'Configure a chave ELEVENLABS_API_KEY no servidor para ativar a leitura por voz.'))}</p>` : ''}
+          <div class="fq-chat__opts">
+            <label class="fq-chat__language"><span>Fala em</span><select id="fqAiConversationLanguage" aria-label="Idioma da fala"><option value="pt-BR">Português</option><option value="en-US">English</option></select></label>
+            ${hasSpeechOutput ? `<button type="button" class="fq-chat__speak" data-fq-ai-conversation-speak-toggle aria-pressed="${S.ai.conversationSpeakReplies ? 'true' : 'false'}">${S.ai.conversationSpeakReplies ? 'Mate responde em voz' : 'Resposta só em texto'}</button>` : ''}
+          </div>
+          ${!hasSpeech ? '<p class="fq-chat__footnote">Microfone indisponível neste navegador: use o ditado do teclado.</p>' : ''}
         </div>
       </div>`,
       'fq-sheet__card--tall fq-sheet__card--conversation'
     );
     const stream = $('#fqAiConversationMessages');
     if (stream) stream.scrollTop = stream.scrollHeight;
-    if (focusInput) $('#fqAiConversationInput')?.focus();
+    if (focusInput && window.innerWidth >= 768) $('#fqAiConversationInput')?.focus();
   }
   function applyAiConversationPatch(patch) {
     const changes = [];
@@ -973,6 +1266,7 @@
     const input = $('#fqAiConversationInput');
     const text = String(message == null ? (input && input.value || '') : message).trim().slice(0, 1400);
     if (!text || S.ai.conversationBusy) return;
+    S.ai.pending = null;
     const history = (S.d.ai_conversation || []).filter((item) => !item.transient).slice(-20).map((item) => ({ role: item.role, content: item.content }));
     S.d.ai_conversation.push({ role: 'user', content: text });
     S.d.ai_conversation = S.d.ai_conversation.slice(-40);
@@ -990,15 +1284,15 @@
         method: 'POST',
         body: { message: text, history },
       });
-      applyAiConversationPatch(response.data.patch || {});
+      // Nothing changes until the user confirms the card.
+      const pending = previewPatch(response.data.patch || {});
+      S.ai.pending = pending.changes.length ? pending : null;
       S.d.ai_conversation.push({ role: 'assistant', content: response.data.reply });
       S.d.ai_conversation = S.d.ai_conversation.slice(-40);
       S.ai.conversationBusy = false;
       if (fromVoice) void speakAiConversation(response.data.reply);
       markDirty();
-      renderPanel();
       if (S.ai.conversationOpen) renderAiConversation();
-      else toast('Quote atualizado com a conversa.', 'success');
       await save();
     } catch (e) {
       S.ai.conversationBusy = false;
@@ -1128,7 +1422,7 @@
         return;
       }
       S.ai.conversationRecognition = recognition;
-      if (button) { button.textContent = 'Parar'; button.setAttribute('aria-label', 'Parar captura de voz'); button.disabled = false; }
+      renderAiConversation();
     };
     recognition.onresult = (event) => {
       transcript = Array.from(event.results || []).map((result) => result[0] && result[0].transcript || '').join(' ').trim();
@@ -1275,26 +1569,8 @@
     finally { const current = $('[data-fq-ai-review]'); if (current) { current.disabled = false; current.textContent = 'Revisar proposta com IA'; } }
   }
   async function presentExistingQuote(button) {
-    const quoteId = S.fq && S.fq.quote_id;
-    if (!quoteId || !button) return;
-    button.disabled = true;
-    const label = button.textContent;
-    button.textContent = 'Preparando apresentação…';
-    try {
-      const result = await api(`/api/quotes/${encodeURIComponent(quoteId)}/ai/presentation`, { method: 'POST', body: {} });
-      S.ai.presentation = result.data;
-      S.ai.presentationSlide = 0;
-      S.presentationQuoteOnly = false;
-      renderPresentation();
-      void loadElevenLabsVoices();
-    } catch (e) {
-      toast(e.message, 'error');
-    } finally {
-      if (button.isConnected) {
-        button.disabled = false;
-        button.textContent = label;
-      }
-    }
+    if (!S.fq || !S.fq.quote_id) return;
+    await openTour(button);
   }
   function sheetRoomFromPlan(planRoomId) {
     const planRoom = S.d.floorplan && S.d.floorplan.rooms && S.d.floorplan.rooms.find((r) => r.id === planRoomId);
@@ -1391,7 +1667,7 @@
     if (!navigator.onLine) return toast('Sem internet. O rascunho está salvo; gere o orçamento quando voltar o sinal.', 'error');
     if (mode === 'sms' && !S.fq.client_phone) return toast('Adicione o telefone do cliente.', 'error');
     btn.disabled = true;
-    const label = btn.textContent;
+    const label = btn.innerHTML;
     btn.textContent = 'Gerando…';
     try {
       S.dirty = true;
@@ -1428,10 +1704,10 @@
       S.fq = Object.assign(S.fq, linked.data, { data: undefined });
       cacheLocal();
       if (mode === 'present') {
-        const result = await api(`/api/field-quotes/${encodeURIComponent(fq.id)}/ai/presentation`, { method: 'POST', body: {} });
-        S.ai.presentation = result.data;
-        S.ai.presentationSlide = 0;
-        renderPresentation();
+        btn.disabled = false;
+        btn.innerHTML = label;
+        await openTour(btn);
+        renderPanel();
         return;
       }
       if (mode === 'open') {
@@ -1449,12 +1725,12 @@
       location.href = `sms:${String(fq.client_phone).replace(/[^\d+]/g, '')}${ios ? '&' : '?'}body=${encodeURIComponent(msg)}`;
       toast('Orçamento enviado. Marcado como enviado no funil.', 'success');
       btn.disabled = false;
-      btn.textContent = label;
+      btn.innerHTML = label;
       await reloadFq();
     } catch (e) {
       toast(e.message, 'error');
       btn.disabled = false;
-      btn.textContent = label;
+      btn.innerHTML = label;
     }
   }
   async function reloadFq() {
@@ -1501,6 +1777,7 @@
     if (ok) toast(ok === 1 ? 'Foto salva' : `${ok} fotos salvas`, 'success');
     cacheLocal();
     if (S.sheet && S.sheet.kind === 'room') renderRoomSheet();
+    else if (S.sheet && S.sheet.kind === 'review') { renderPanel(); sheetReview(); }
     else renderPanel();
   }
 
@@ -1521,7 +1798,9 @@
       if ((el = t.closest('[data-fq-present-existing]'))) return presentExistingQuote(el);
       if (t.closest('[data-fq-ai-assist]')) return sheetAiAssist();
       if (t.closest('[data-fq-ai-assist-run]')) return runAiAssist();
-      if (t.closest('[data-fq-ai-conversation]')) return sheetAiConversation();
+      if ((el = t.closest('[data-fq-ai-conversation]'))) return sheetAiConversation(el.dataset.fqAiConversation === 'listen');
+      if (t.closest('[data-fq-pending-yes]')) return confirmPending(true);
+      if (t.closest('[data-fq-pending-no]')) return confirmPending(false);
       if (t.closest('[data-fq-ai-conversation-send]')) return sendAiConversation();
       if (t.closest('[data-fq-ai-conversation-mic]')) return dictateAiConversation();
       if (t.closest('[data-fq-ai-conversation-speak-toggle]')) {
@@ -1547,6 +1826,45 @@
         return;
       }
       if (t.closest('[data-fq-new]')) return newVisit();
+      if ((el = t.closest('[data-fq-tip-yes]'))) {
+        const tip = mateTips().find((x) => x.id === el.dataset.fqTipYes);
+        if (tip && tip.apply) {
+          tip.apply(S.d);
+          markDirty();
+          toast('Incluído no orçamento.', 'success');
+        }
+        return S.sheet && S.sheet.kind === 'review' ? sheetReview() : renderPanel();
+      }
+      if ((el = t.closest('[data-fq-tip-no]'))) {
+        S.d.mate_dismissed = [...new Set([...(S.d.mate_dismissed || []), el.dataset.fqTipNo])];
+        markDirty();
+        return S.sheet && S.sheet.kind === 'review' ? sheetReview() : renderPanel();
+      }
+      if ((el = t.closest('[data-fq-review-view]'))) {
+        S.reviewView = el.dataset.fqReviewView;
+        const body = $('.fq-sheet .fq-sbody');
+        const top = body ? body.scrollTop : 0;
+        sheetReview();
+        const nb = $('.fq-sheet .fq-sbody');
+        if (nb) nb.scrollTop = top;
+        return;
+      }
+      if ((el = t.closest('[data-fq-room-go]'))) {
+        const dir = Number(el.dataset.fqRoomGo);
+        const cur = S.sheet && S.sheet.room;
+        if (!cur) return;
+        if (roomArea(cur) > 0 && cur.services.length) {
+          const k = S.d.rooms.findIndex((x) => x.id === cur.id);
+          if (k >= 0) S.d.rooms[k] = cur;
+          else S.d.rooms.push(cur);
+          markDirty();
+        }
+        const ids = S.d.rooms.map((x) => x.id);
+        const at = ids.indexOf(cur.id);
+        const next = ids[at + dir];
+        return next ? sheetRoom(next) : sheetRoom(null);
+      }
+      if (t.closest('[data-fq-room-next]')) return saveRoom(true);
       if ((el = t.closest('[data-fq-open]'))) {
         const k = el.dataset.fqOpen;
         if (k === 'client') return sheetClient();

@@ -28,6 +28,7 @@ import { ensureWorkOrderOnApprove } from "../../lib/work-orders/from-quote.js";
 import { cancelPendingMessages } from "../../lib/automations/schedule.js";
 import { moveLeadForQuoteEvent } from "../../lib/pipeline/move.js";
 import { formatPersonName } from "../../lib/name.js";
+import { buildFieldQuoteTour, tourDeposit, type Tour } from "../../lib/field-quote/tour.js";
 import { publishAppNotification, quoteLabel, usd } from "../../lib/notifications/publish.js";
 
 export const publicQuotesRouter = Router();
@@ -104,6 +105,40 @@ function clientViewFlags(raw: unknown) {
   };
 }
 
+/** Animated tour for quotes that came from a Field Quote (null when the quote was made elsewhere). */
+async function loadPublicTour(
+  organizationId: string,
+  quote: {
+    id: string; quoteNumber: string | null; number: number | null; total: Prisma.Decimal; taxTotal: Prisma.Decimal; validUntil: Date | null;
+    customer: { name: string | null } | null;
+    organization: { name: string } | null;
+    paymentSchedule: { items: Array<{ label: string; percent: Prisma.Decimal | null; fixedAmount: Prisma.Decimal | null }> } | null;
+    lineItems: Array<{ name: string | null; description: string; quantity: Prisma.Decimal; unit: string; amount: Prisma.Decimal; itemType: string; meta: Prisma.JsonValue; isSelected: boolean; isOptional: boolean }>;
+  },
+): Promise<Tour | null> {
+  try {
+    const fq = await withTenantTransaction(organizationId, (tx) =>
+      tx.fieldQuote.findFirst({ where: { organizationId, quoteId: quote.id }, select: { data: true, clientName: true } }),
+    );
+    if (!fq) return null;
+    const total = Number(quote.total) || 0;
+    const tour = buildFieldQuoteTour({
+      data: fq.data,
+      clientName: quote.customer?.name || fq.clientName,
+      companyName: quote.organization?.name || null,
+      quoteNumber: quote.quoteNumber || (quote.number != null ? `Q-${quote.number}` : null),
+      total,
+      taxTotal: quote.taxTotal,
+      validUntil: quote.validUntil,
+      deposit: tourDeposit(quote.paymentSchedule, total),
+      lines: quote.lineItems.filter((l) => l.isSelected && !l.isOptional),
+    });
+    return tour.rooms.length ? tour : null;
+  } catch {
+    return null;
+  }
+}
+
 publicQuotesRouter.get("/quotes/:token", async (req, res, next) => {
   try {
     const token = String(param(req, "token"));
@@ -168,8 +203,10 @@ publicQuotesRouter.get("/quotes/:token", async (req, res, next) => {
       select: { quoteSettings: true, website: true },
     });
     const qs = parseQuoteSettings(orgFull?.quoteSettings);
+    const tour = await loadPublicTour(ref.organizationId, quote);
 
     res.render("quotes/public", {
+      tour,
       title: quote.title,
       organization: quote.organization,
       organizationAddress: documentAddressLine(quote.organization),
