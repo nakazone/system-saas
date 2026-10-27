@@ -69,6 +69,8 @@
       titleTouched: false,
       address: "",
       addressTouched: false,
+      /** Client ID for this job only. Comes from the quote note. */
+      clientRef: "",
       date: "",
       time: "07:30",
       /** Jobs are always all-day. The second date is the Sand & Finish start. */
@@ -259,6 +261,12 @@
     return null;
   }
   /** The party the job is for (and billed to): customer first, else builder. */
+  function jobFacingName(base) {
+    const name = String(base || "").trim();
+    const code = String(st?.clientRef || "").trim();
+    if (code && name && !name.toLowerCase().includes(code.toLowerCase())) return `${name} - ${code}`;
+    return name || code || "Cliente";
+  }
   function clientDisplayLabel(c) {
     if (!c) return "";
     if (c.display_name) return c.display_name;
@@ -272,9 +280,9 @@
     const c = currentCustomer();
     if (c) {
       return {
-        name: clientDisplayLabel(c),
+        name: jobFacingName(c.name || c.company || "Cliente"),
         baseName: c.name || c.company || "Cliente",
-        clientCode: c.client_code || "",
+        clientCode: st.clientRef || "",
         customerId: c.id,
         type: (() => {
           let t = String(c.customer_type || "particular").toLowerCase();
@@ -293,9 +301,9 @@
       if (bType === "contractor") bType = "builder";
       const pc = matchCustomerForBuilder(b);
       return {
-        name: pc ? clientDisplayLabel(pc) : builderName(b),
+        name: jobFacingName(builderName(b)),
         baseName: builderName(b),
-        clientCode: pc?.client_code || "",
+        clientCode: st.clientRef || "",
         customerId: pc?.id || null,
         type: bType,
         sub: [person && person !== builderName(b) ? person : null, b.phone, b.email].filter(Boolean).join(" · "),
@@ -789,13 +797,9 @@
         <small>${esc(card.sub || (card.custom ? "Tabela personalizada" : ""))}</small></span>
         <button type="button" class="jm-link" data-act="change-client">Trocar</button>
       </div>
-      ${
-        card.customerId
-          ? `<label class="jm-field jm-field--wide" style="margin-top:10px">ID do cliente
-              <input type="text" id="jmClientCode" class="jm-in" maxlength="80" value="${esc(card.clientCode || "")}" placeholder="Opcional · aparece como Nome - ID" autocomplete="off" />
-            </label>`
-          : ""
-      }`;
+      <label class="jm-field jm-field--wide" style="margin-top:10px">ID do cliente
+        <input type="text" id="jmClientCode" class="jm-in" maxlength="120" value="${esc(st.clientRef || "")}" placeholder="Só neste job" autocomplete="off" />
+      </label>`;
       return;
     }
     const rows = pickerEntries(st.pickerQuery);
@@ -1864,75 +1868,28 @@
   }
 
   async function saveClientCode(raw) {
-    const card = clientCard();
-    const customerId = card?.customerId || st.customerId;
-    if (!customerId) return;
-    const prevLabel = String(card?.name || "").trim();
-    const code = String(raw || "").trim().slice(0, 80);
+    const code = String(raw || "").trim().slice(0, 120);
+    st.clientRef = code;
     const input = $("jmClientCode");
-    // Preserve caret — do not remount the client block while typing.
     const selStart = input && document.activeElement === input ? input.selectionStart : null;
     const selEnd = input && document.activeElement === input ? input.selectionEnd : null;
+    const fresh = clientCard();
+    const nameEl = $("jmClient")?.querySelector(".jm-picked__txt b");
+    if (nameEl && fresh) {
+      const tag = TYPE_LABEL[fresh.type] || fresh.type || "";
+      nameEl.innerHTML = `${esc(fresh.name || "")} <span class="jm-tag">${esc(tag)}</span>`;
+    }
+    if (input && selStart != null) {
+      try {
+        input.setSelectionRange(selStart, selEnd ?? selStart);
+      } catch (_) {}
+    }
+    if (!st.id) return;
     try {
-      const r = await api(`/api/customers/${encodeURIComponent(customerId)}`, {
+      await api(`/api/work-orders/${encodeURIComponent(st.id)}`, {
         method: "PUT",
-        body: JSON.stringify({ client_code: code || null }),
+        body: JSON.stringify({ client_ref: code || null }),
       });
-      const row = r.data;
-      if (row) rememberCustomer(row);
-      else {
-        const c = customers.find((x) => String(x.id) === String(customerId));
-        if (c) {
-          c.client_code = code || null;
-          c.display_name = code ? `${c.name} - ${code}` : c.name;
-        }
-      }
-      // Update the name label in place; keep the ID input (and focus) intact.
-      const fresh = clientCard();
-      const nameEl = $("jmClient")?.querySelector(".jm-picked__txt b");
-      if (nameEl) {
-        const tag = fresh ? TYPE_LABEL[fresh.type] || fresh.type : "";
-        nameEl.innerHTML = `${esc(fresh?.name || "")} <span class="jm-tag">${esc(tag)}</span>`;
-      }
-      const newLabel = String(fresh?.name || "").trim();
-      let titleChanged = false;
-      // Existing jobs open with titleTouched=true — still rewrite when the title
-      // was the previous auto "Nome - ID — rua" so the Agenda updates.
-      if (newLabel && prevLabel !== newLabel && (!st.titleTouched || titleLooksAutoFrom(prevLabel))) {
-        st.title = autoTitle() || newLabel;
-        titleChanged = true;
-        const titleEl = $("jobTitle");
-        if (titleEl && !st.moreOpen) titleEl.value = st.title;
-      }
-      // Persist title so the Calendar item updates without requiring "Salvar".
-      if (st.id && titleChanged && String(st.title || "").trim().length >= 2) {
-        try {
-          const jr = await api(`/api/work-orders/${encodeURIComponent(st.id)}`, {
-            method: "PUT",
-            body: JSON.stringify({ title: st.title }),
-          });
-          const data = jr?.data || { id: st.id, title: st.title, number: st.number };
-          savedListeners.forEach((fn) => {
-            try {
-              fn(data, { created: false, clientCode: true });
-            } catch (_) {}
-          });
-        } catch (persistErr) {
-          notify(persistErr.message || "ID salvo, mas o título na agenda não atualizou.", "warning");
-        }
-      } else if (st.id && prevLabel !== newLabel) {
-        // Title kept custom — still refresh Agenda meta (display_name / client_code).
-        savedListeners.forEach((fn) => {
-          try {
-            fn({ id: st.id, title: st.title, number: st.number }, { created: false, clientCode: true });
-          } catch (_) {}
-        });
-      }
-      if (input && selStart != null) {
-        try {
-          input.setSelectionRange(selStart, selEnd ?? selStart);
-        } catch (_) {}
-      }
     } catch (err) {
       notify(err.message || "Não foi possível salvar o ID do cliente", "error");
     }
@@ -1973,6 +1930,7 @@
     st.titleTouched = true;
     st.address = wo.address || "";
     st.addressTouched = true;
+    st.clientRef = wo.client_ref || "";
     const s = wo.scheduled_start ? new Date(wo.scheduled_start) : null;
     st.allDay = true;
     if (s) st.date = ymd(s);
@@ -2039,6 +1997,7 @@
       customer_id: st.customerId || null,
       builder_id: st.builderId || null,
       address: st.address.trim() || null,
+      client_ref: String(st.clientRef || "").trim() || null,
       notes: st.notes.trim() || null,
       campo_attention: st.attention.trim() || null,
       needs_delivery: Boolean(st.needsDelivery),

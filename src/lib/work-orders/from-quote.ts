@@ -182,8 +182,7 @@ function jobIdentityFromQuote(quote: QuoteForJob, personName: string) {
   const payload = payloadOf(quote.payload);
   const jobName = String(payload.job_name || "").trim();
   const jobAddress = String(payload.job_address || "").trim();
-  const title = (jobName || personName || quote.title || `Quote ${quote.quoteNumber || quote.number}`).trim().slice(0, 200);
-  const address = formatPropertyAddress(quote.property) || jobAddress || null;
+  const title = (personName || quote.title || `Quote ${quote.quoteNumber || quote.number}`).trim().slice(0, 200);
   let sourceType = resolveSourceType(quote);
   if (quote.builderId && sourceType === "particular") {
     const bt = String(quote.builder?.type || "builder").toLowerCase();
@@ -194,7 +193,17 @@ function jobIdentityFromQuote(quote: QuoteForJob, personName: string) {
       sourceType = ct;
     }
   }
-  return { title: title || "Job", address, sourceType, sourceName: personName.slice(0, 200) || null };
+  const party = String(payload.quote_party || sourceType || "").toLowerCase();
+  const siteFirst = party === "builder" || party === "contractor" || party === "loja";
+  const property = formatPropertyAddress(quote.property);
+  const address = siteFirst ? jobAddress || property : property || jobAddress || null;
+  return {
+    title: title || "Job",
+    address,
+    sourceType,
+    sourceName: personName.slice(0, 200) || null,
+    clientRef: jobName.slice(0, 120) || null,
+  };
 }
 
 function quoteJobLineData(organizationId: string, quote: QuoteForJob) {
@@ -279,7 +288,8 @@ export async function syncLinkedJobFromQuote(
     (job.customerId || null) === (quote.customerId || null) &&
     (job.builderId || null) === (quote.builderId || null) &&
     job.sourceType === ident.sourceType &&
-    (job.sourceName || null) === ident.sourceName;
+    (job.sourceName || null) === ident.sourceName &&
+    (job.clientRef || null) === ident.clientRef;
   if (!sameIdentity) {
     await tx.workOrder.update({
       where: { id: job.id },
@@ -290,6 +300,7 @@ export async function syncLinkedJobFromQuote(
         builderId: quote.builderId,
         sourceType: ident.sourceType,
         sourceName: ident.sourceName,
+        clientRef: ident.clientRef,
       },
     });
   }
@@ -364,6 +375,7 @@ export async function ensureWorkOrderOnApprove(
       status: "draft",
       sourceType: ident.sourceType,
       sourceName: ident.sourceName,
+      clientRef: ident.clientRef,
       customerId: quote.customerId,
       builderId: quote.builderId,
       address: ident.address,

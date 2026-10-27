@@ -154,6 +154,12 @@ async function nextWorkOrderNumber(organizationId: string): Promise<number> {
   });
 }
 
+function quoteNoteOf(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+  const note = String((payload as Record<string, unknown>).job_name || "").trim();
+  return note || null;
+}
+
 function mapWorkOrder(wo: {
   id: string;
   number: number | null;
@@ -165,6 +171,7 @@ function mapWorkOrder(wo: {
   customerId: string | null;
   builderId: string | null;
   address: string | null;
+  clientRef?: string | null;
   notes: string | null;
   campoAttention?: string | null;
   needsDelivery?: boolean;
@@ -200,7 +207,7 @@ function mapWorkOrder(wo: {
     notes: string | null;
     createdAt: Date;
   }[];
-  quotes?: { quoteNumber: string | null; title: string; leadId?: string | null }[];
+  quotes?: { quoteNumber: string | null; title: string; leadId?: string | null; payload?: unknown }[];
   lineItems?: {
     id: string;
     pricingItemId: string | null;
@@ -215,6 +222,7 @@ function mapWorkOrder(wo: {
   invoices?: { amount: unknown; status: string; receipts?: { amount: unknown }[] }[];
 }) {
   const linkedQuote = (wo.quotes || []).find((q) => q.quoteNumber) || wo.quotes?.[0] || null;
+  const quoteNote = quoteNoteOf(linkedQuote?.payload);
   const lineItems = (wo.lineItems || []).map((li) => ({
     id: li.id,
     pricing_item_id: li.pricingItemId,
@@ -243,6 +251,7 @@ function mapWorkOrder(wo: {
     customer_type: wo.customer?.customerType || null,
     builder_id: wo.builderId,
     address: wo.address,
+    client_ref: (wo.clientRef && String(wo.clientRef).trim()) || quoteNote || null,
     notes: wo.notes,
     /** "Atenção" box shown to the field crew in Campo. */
     campo_attention: wo.campoAttention ?? null,
@@ -422,7 +431,7 @@ const woInclude = {
   },
   tempWorkers: { orderBy: { createdAt: "asc" as const } },
   quotes: {
-    select: { quoteNumber: true, title: true, leadId: true },
+    select: { quoteNumber: true, title: true, leadId: true, payload: true },
     orderBy: { createdAt: "desc" as const },
     take: 1,
   },
@@ -718,6 +727,7 @@ scheduleJobsRouter.get(
         ? [
             { title: { contains: q, mode: "insensitive" as const } },
             { sourceName: { contains: q, mode: "insensitive" as const } },
+            { clientRef: { contains: q, mode: "insensitive" as const } },
             ...(stem
               ? [
                   { title: { contains: stem, mode: "insensitive" as const } },
@@ -746,6 +756,7 @@ scheduleJobsRouter.get(
               : []),
             { quotes: { some: { quoteNumber: { contains: q, mode: "insensitive" } } } },
             { quotes: { some: { title: { contains: q, mode: "insensitive" } } } },
+            { quotes: { some: { payload: { path: ["job_name"], string_contains: q } } } },
             ...(leadIds.length ? [{ quotes: { some: { leadId: { in: leadIds } } } }] : []),
             ...(stem ? [{ quotes: { some: { title: { contains: stem, mode: "insensitive" } } } }] : []),
             ...(jobNumber != null ? [{ number: jobNumber }] : []),
@@ -968,6 +979,7 @@ const workOrderBody = z.object({
   customer_id: z.string().uuid().optional().nullable(),
   builder_id: z.string().uuid().optional().nullable(),
   address: z.string().max(500).optional().nullable(),
+  client_ref: z.string().max(120).optional().nullable(),
   notes: z.string().max(8000).optional().nullable(),
   campo_attention: z.string().max(2000).optional().nullable(),
   needs_delivery: z.boolean().optional(),
@@ -1053,6 +1065,7 @@ scheduleJobsRouter.post(
           customerId: d.customer_id || null,
           builderId: d.builder_id || null,
           address: d.address?.trim() || null,
+          clientRef: d.client_ref?.trim() || null,
           notes: d.notes?.trim() || null,
           campoAttention: d.campo_attention?.trim() || null,
           needsDelivery: d.needs_delivery === true,
@@ -1221,6 +1234,7 @@ scheduleJobsRouter.put(
             ? { deliveryAttachmentSharedWithPartners: false }
             : {}),
           ...(d.address !== undefined ? { address: d.address?.trim() || null } : {}),
+          ...(d.client_ref !== undefined ? { clientRef: d.client_ref?.trim().slice(0, 120) || null } : {}),
           // New address → forget the cached job location (re-geocoded on the next work day).
           ...(d.address !== undefined && (d.address?.trim() || null) !== existing.address
             ? { geoLat: null, geoLng: null, geoCheckedAt: null }
@@ -1282,6 +1296,23 @@ scheduleJobsRouter.put(
             tx.jobMedia.updateMany({ where: { workOrderId: existing.id }, data: { sharedWithPartners: false } }),
             tx.jobReport.updateMany({ where: { workOrderId: existing.id }, data: { sharedWithPartners: false } }),
           ]);
+        }
+        if (d.client_ref !== undefined) {
+          const quote = await tx.quote.findFirst({
+            where: { workOrderId: existing.id },
+            orderBy: { updatedAt: "desc" },
+          });
+          if (quote) {
+            const payload =
+              quote.payload && typeof quote.payload === "object" && !Array.isArray(quote.payload)
+                ? { ...(quote.payload as Record<string, unknown>) }
+                : {};
+            payload.job_name = d.client_ref?.trim().slice(0, 120) || null;
+            await tx.quote.update({
+              where: { id: quote.id },
+              data: { payload: payload as Prisma.InputJsonValue },
+            });
+          }
         }
         return updated;
       });

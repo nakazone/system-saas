@@ -202,17 +202,29 @@ function quoteHadClientApproval(quote: { status: string; signatureUrl?: string |
 }
 
 function lineFingerprint(
-  items: Array<{ name?: string | null; description?: string | null; quantity?: unknown; unitPrice?: unknown; unit_price?: unknown; rate?: unknown; sell_price?: unknown }>,
+  items: Array<{
+    name?: string | null;
+    description?: string | null;
+    quantity?: unknown;
+    unit?: string | null;
+    unit_type?: string | null;
+    unitPrice?: unknown;
+    unit_price?: unknown;
+    rate?: unknown;
+    sell_price?: unknown;
+  }>,
   fromDb: boolean,
 ) {
   return items
     .map((it) => {
-      const name = String(it.name || it.description || "").trim();
+      const desc = String(it.description || "").trim();
+      const name = String(it.name || "").trim() || desc;
       const qty = Math.round((Number(it.quantity) || 0) * 100);
       const price = fromDb
         ? Math.round(dec(it.unitPrice as never) * 100)
         : Math.round(lineItemUnitPrice(it) * 100);
-      return `${name}|${qty}|${price}`;
+      const unit = String(it.unit || it.unit_type || "").trim();
+      return `${name}|${desc}|${qty}|${price}|${unit}`;
     })
     .join("\n");
 }
@@ -686,6 +698,7 @@ function mapQuote(q: {
     customer_id: q.customerId,
     customer_name: customerDisplayName(q.customer?.name, q.customer?.clientCode) || q.customer?.name || null,
     client_code: q.customer?.clientCode != null ? String(q.customer.clientCode).trim() || null : null,
+    client_ref: payload.job_name != null && String(payload.job_name).trim() ? String(payload.job_name).trim() : null,
     job_number: q.workOrder?.number ?? null,
     work_order_status: q.workOrder?.status ?? null,
     customer_company: q.customer?.company ?? null,
@@ -2133,26 +2146,11 @@ customersQuotesRouter.put(
           });
         }
         const prevStatus = existing.status;
-        const nextTitle = body.title !== undefined ? String(body.title) : existing.title;
-        const nextNotes = body.notes !== undefined ? body.notes || null : existing.notes;
-        const nextTermsRaw = termsFromBody(body);
-        const nextTerms = nextTermsRaw !== undefined ? nextTermsRaw : existing.terms;
-        const nextValid = parseDateInput(body.expiration_date);
-        const validChanged =
-          nextValid !== undefined &&
-          (nextValid ? nextValid.toISOString().slice(0, 10) : "") !==
-            (existing.validUntil ? existing.validUntil.toISOString().slice(0, 10) : "");
         const linesChanged = items
           ? lineFingerprint(existing.lineItems, true) !== lineFingerprint(items, false)
           : false;
-        const contentChanged =
-          nextTitle !== existing.title ||
-          (nextNotes || null) !== (existing.notes || null) ||
-          (nextTerms || null) !== (existing.terms || null) ||
-          validChanged ||
-          Math.round(total * 100) !== Math.round(dec(existing.total) * 100) ||
-          linesChanged;
-        const invalidate = contentChanged && quoteHadClientApproval(existing);
+        // Notes, address, client ID, terms, and dates stay approved. Only a service change asks for a new signature.
+        const invalidate = linesChanged && quoteHadClientApproval(existing);
         let updated = await tx.quote.update({
           where: { id },
           data: {
@@ -2641,14 +2639,13 @@ customersQuotesRouter.post(
             quote.payload && typeof quote.payload === "object" && !Array.isArray(quote.payload)
               ? { ...(quote.payload as Record<string, unknown>) }
               : {};
-          const dropApproval = quoteHadClientApproval(quote);
+          const keepApproval = quoteHadClientApproval(quote);
           await tx.quote.update({
             where: { id: quote.id },
             data: {
-              status: "sent",
+              ...(keepApproval ? {} : { status: "sent" }),
               publicToken: null,
               salespersonId: quote.salespersonId || req.user?.id || undefined,
-              ...(dropApproval ? clearedClientSignature() : {}),
               ...(leadIdHint && !quote.leadId ? { leadId: leadIdHint } : {}),
               payload: {
                 ...prevPayload,
@@ -2688,7 +2685,7 @@ customersQuotesRouter.post(
           });
         }
 
-        return { issued, leadMoved, leadMoveReason, leadId, approvalReset: markSent && quoteHadClientApproval(quote) };
+        return { issued, leadMoved, leadMoveReason, leadId, approvalReset: false };
       });
 
       if (!result) {
@@ -2771,20 +2768,18 @@ customersQuotesRouter.post(
         const emailSentAt = new Date().toISOString();
         const leadIdHint = asOptionalUuid(body.lead_id);
 
-        const dropApproval = quoteHadClientApproval(quote);
+        const keepApproval = quoteHadClientApproval(quote);
         await tx.quote.update({
           where: { id: quote.id },
           data: {
-            status: "sent",
+            ...(keepApproval ? {} : { status: "sent" }),
             publicToken: null,
             salespersonId: quote.salespersonId || req.user?.id || undefined,
-            ...(dropApproval ? clearedClientSignature() : {}),
             ...(leadIdHint && !quote.leadId ? { leadId: leadIdHint } : {}),
             payload: {
               ...prevPayload,
               email_sent_at: emailSentAt,
               sent_at: emailSentAt,
-              ...(dropApproval ? { approval_reset_at: emailSentAt } : {}),
             } as Prisma.InputJsonValue,
           },
         });
@@ -2823,7 +2818,7 @@ customersQuotesRouter.post(
           emailSentAt,
           leadMoved,
           leadMoveReason,
-          approvalReset: dropApproval,
+          approvalReset: false,
         };
       });
 

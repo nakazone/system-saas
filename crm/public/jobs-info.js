@@ -31,6 +31,20 @@
 
   function client(wo) {
     const lead = String(wo.lead_name || "").trim();
+    const ref = String(wo.client_ref || "").trim();
+    const base = String(
+      (wo.customer && (wo.customer.name || wo.customer.company)) ||
+        wo.builder?.company ||
+        wo.builder?.name ||
+        lead ||
+        wo.source_name ||
+        "",
+    ).trim();
+    if (ref) {
+      if (!base) return ref;
+      if (base.toLowerCase().includes(ref.toLowerCase())) return base;
+      return `${base} - ${ref}`;
+    }
     if (wo.customer) {
       return (
         wo.customer.display_name ||
@@ -70,6 +84,7 @@
       wo.quote_number,
       wo.quote_title,
       wo.lead_name,
+      wo.client_ref,
       wo.address,
       wo.source_name,
       wo.notes,

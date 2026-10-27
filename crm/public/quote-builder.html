@@ -2196,14 +2196,14 @@
                 <div id="qbJobFields" class="qb-job-fields hidden">
                   <p class="qb-job-fields__title">Projeto deste orçamento</p>
                   <div>
-                    <label for="quoteJobAddress">Endereço do projeto</label>
-                    <input type="text" id="quoteJobAddress" autocomplete="off" placeholder="Digite o endereço (Google Maps)..." />
+                    <label for="quoteJobAddress">Endereço do job</label>
+                    <input type="text" id="quoteJobAddress" autocomplete="off" placeholder="Endereço da obra — vai para o job" />
                   </div>
                 </div>
                 <div class="qb-quote-note" id="qbQuoteNote">
-                  <label for="quoteJobName">Nota / referência</label>
-                  <input type="text" id="quoteJobName" autocomplete="off" maxlength="120" placeholder="Ex.: Main floor, Second floor…" />
-                  <p class="qb-quote-note__hint">Aparece na lista de orçamentos para distinguir quotes do mesmo cliente.</p>
+                  <label for="quoteJobName">ID do cliente</label>
+                  <input type="text" id="quoteJobName" autocomplete="off" maxlength="120" placeholder="Ex.: A-1042" />
+                  <p class="qb-quote-note__hint">Só neste quote e no job dele. Não grava nos outros quotes deste cliente.</p>
                 </div>
                 <div class="qb-client-meta">
                   <div class="qb-client-meta__grid">
@@ -2803,8 +2803,8 @@
   <script src="lead-contact-links.js?v=20261015-disc1"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
   <script src="quote-paper.js?v=20261027-om1"></script>
-  <script src="crm-job-modal.js?v=20261023-job1"></script>
-  <script src="quote-builder.js?v=20261027-qs1"></script>
+  <script src="crm-job-modal.js?v=20261027-qid1"></script>
+  <script src="quote-builder.js?v=20261027-qid1"></script>
   <script src="quote-services-popup.js?v=20261023-sig1"></script>
   <script>
     (function () {

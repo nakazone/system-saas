@@ -1451,13 +1451,8 @@
     const hint = document.querySelector('#qbQuoteNote .qb-quote-note__hint');
     const party = getQuoteParty();
     if (!label) return;
-    if (party === 'builder' || party === 'contractor' || party === 'loja') {
-      label.textContent = 'Nota / referência';
-      if (hint) hint.textContent = 'Aparece na lista do orçamento e só como nota na fatura (não como nome do cliente).';
-    } else {
-      label.textContent = 'Nota / referência';
-      if (hint) hint.textContent = 'Aparece na lista de orçamentos e só como nota na fatura (não como nome do cliente).';
-    }
+    label.textContent = 'ID do cliente';
+    if (hint) hint.textContent = 'Só neste quote e no job dele. Não grava nos outros quotes deste cliente.';
   }
 
   function syncQuotePartyUi() {
@@ -1937,22 +1932,10 @@
         phone: info?.phone,
         email: info?.email,
         address: info?.address,
-      }) +
-      (info?.customerId
-        ? `<label class="qb-client-code"><span>ID do cliente</span><input type="text" id="qbClientCode" maxlength="80" value="${escapeAttr(info.clientCode || '')}" placeholder="Opcional · aparece como Nome - ID" autocomplete="off" /></label>`
-        : '');
+      });
     box.classList.remove('hidden');
     updateClientActionButtons();
     syncPartyTabsVisibility();
-    const codeEl = $('qbClientCode');
-    if (codeEl && !codeEl.dataset.bound) {
-      codeEl.dataset.bound = '1';
-      let t = null;
-      codeEl.addEventListener('input', () => {
-        clearTimeout(t);
-        t = setTimeout(() => void saveClientCodeFromQuote(codeEl.value), 450);
-      });
-    }
   }
 
   async function saveClientCodeFromQuote(raw) {
@@ -6004,7 +5987,10 @@
     loadedQuoteLeadId = q.lead_id != null && q.lead_id !== '' ? String(q.lead_id) : null;
     $('customerId').value = q.customer_id || '';
     const payload = q.payload && typeof q.payload === 'object' ? q.payload : {};
-    if ($('quoteJobName')) $('quoteJobName').value = q.job_name || payload.job_name || q.title || '';
+    if ($('quoteJobName')) {
+      const fromPayload = payload.job_name != null ? String(payload.job_name).trim() : '';
+      $('quoteJobName').value = String(q.client_ref || fromPayload || '').trim();
+    }
     if ($('quoteJobAddress')) $('quoteJobAddress').value = q.job_address || payload.job_address || '';
     await loadQuoteBuilders();
     const partyRaw = String(q.quote_party || payload.quote_party || '').toLowerCase();
@@ -6215,7 +6201,7 @@
           const statusEl = $('status');
           if (statusEl && q.status) statusEl.value = q.status;
           if (r.approval_reset) {
-            qbToast('O quote mudou. O cliente precisa aprovar e assinar de novo.', 'success');
+            qbToast('Os serviços mudaram. O cliente precisa aprovar e assinar de novo.', 'success');
           }
           loadedQuoteNumber = q.quote_number != null ? String(q.quote_number).trim() : null;
           $('quoteMeta').textContent = `Orçamento ${q.quote_number || '#' + q.id} · total ${money(q.total_amount)}`;

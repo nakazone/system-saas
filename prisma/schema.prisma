@@ -2572,6 +2572,8 @@ model WorkOrder {
   builderId      String?   @db.Uuid
   builder        Builder?  @relation(fields: [builderId], references: [id], onDelete: SetNull)
   address        String?
+  /// Client ID for this job only (the quote note). Not stored on the customer.
+  clientRef      String?
   notes          String?   @db.Text
   /// Highlight for field workers (ATENÇÃO box)
   campoAttention String?   @db.Text
