@@ -94,6 +94,7 @@ export async function sendDueBriefs(now = new Date()): Promise<{ sent: number }>
     const brief = await buildBrief(org, tz, now);
     if (prefs.channels.includes("push")) {
       await publishAppNotification({
+    fromMate: true,
         organizationId: org,
         type: "mate.brief",
         title: brief.title,

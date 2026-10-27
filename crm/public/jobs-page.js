@@ -332,7 +332,10 @@
         : all.length
           ? "Nenhum job neste filtro."
           : 'Nenhum job ainda. Use Job ou aprove um quote.';
-      host.innerHTML = `<p class="jx-empty">${empty}</p>`;
+      host.innerHTML =
+        !q && !all.length && window.MateFace
+          ? window.MateFace.empty({ pose: "point", title: "Nenhum job ainda", text: "Aprove um quote ou crie um job. Posso montar com você.", ask: "criar um job", askLabel: "Criar com o Mate" })
+          : `<p class="jx-empty">${empty}</p>`;
       return rows;
     }
     const undated = rows.filter((w) => !jobAnchor(w));
@@ -998,6 +1001,14 @@
     }
   }
 
+  // The Mate's face (fox) may load after the first render: draw the empty state again with him.
+  window.addEventListener('mateface:ready', () => {
+    // only when the plain empty text is on screen (never over a list or a loading state)
+    if (!document.querySelector('#jxRows .jx-empty')) return;
+    try {
+      render();
+    } catch (_) {}
+  });
   function render() {
     renderSum();
     renderTiles();

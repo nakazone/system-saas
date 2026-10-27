@@ -279,6 +279,10 @@
     const periodNote = tab === 'all' && !periodAll ? ` · ${periodLabel()}` : '';
     $('ixCount').textContent = `${rows.length} ${rows.length === 1 ? 'fatura' : 'faturas'}${periodNote}`;
     if (!rows.length) {
+      if (!q && !all.length && window.MateFace) {
+        $('invRows').innerHTML = window.MateFace.empty({ pose: 'point', title: 'Nenhuma fatura ainda', text: 'Crie a primeira a partir de um job ou orçamento. Eu ajudo.', ask: 'faturar o último job concluído', askLabel: 'Faturar com o Mate' });
+        return;
+      }
       $('invRows').innerHTML = `<p class="ix-empty">${q ? 'Nada encontrado. Tente outro termo.' : !all.length ? 'Nenhuma fatura ainda. Crie a primeira a partir de um job ou orçamento.' : tab === 'all' && !periodAll ? 'Nenhuma fatura neste mês. Use Tudo ou mude o período.' : 'Nenhuma fatura neste filtro.'}</p>`;
       return;
     }

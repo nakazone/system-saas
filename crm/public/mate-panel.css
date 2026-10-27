@@ -2048,3 +2048,89 @@ body.mate-open .mate-fab {
 }
 
 .mate-pal__links .mate-pal__link { white-space: nowrap; }
+
+/* ───────── Mate's face (the fox is the face of the Mate AI; mate-face.css has the avatar itself) ───────── */
+
+.mate-pal__mark.has-face {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: none;
+}
+
+.mate-pal__mark.has-face .mate-face {
+  --mate-face: 30px;
+}
+
+.mate-fab__spark.has-face {
+  width: 34px;
+  height: 34px;
+  margin-left: -6px;
+  background: none;
+}
+
+.mate-fab__spark.has-face .mate-face {
+  --mate-face: 34px;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+}
+
+/* holding to talk: the fox listens, the pill stays dark (no red) */
+.mate-fab.is-recording:has(.mate-face) {
+  background: var(--mate-ink);
+}
+
+.mate-topbar-btn .mate-face {
+  margin-left: -4px;
+}
+
+.mate-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.mate-who {
+  flex: none;
+  margin-top: 4px;
+}
+
+.mate-line .mate-say {
+  max-width: calc(92% - 32px);
+}
+
+.mate-card__title > .mate-face {
+  flex: none;
+  margin-top: -2px;
+}
+
+.mate-card__title > .mate-face + span {
+  flex: 1;
+}
+
+.mate-done__icon.has-face,
+.mate-toast__icon.has-face {
+  width: auto;
+  height: auto;
+  background: none;
+}
+
+.mate-toast__icon.has-face .mate-face {
+  --mate-face: 40px;
+}
+
+.mate-face-slot {
+  display: inline-grid;
+  place-items: center;
+}
+
+.mate-push.has-art {
+  position: relative;
+  padding-left: 76px;
+}
+
+.mate-push__art {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  height: 64px !important;
+}

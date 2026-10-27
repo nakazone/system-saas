@@ -436,8 +436,20 @@
         <div class="qs-side">${nextCard(q)}${resumoCard(q, pd)}</div>
       </div>`;
   }
+  // The Mate's face (fox) may load after the first render: draw the empty state again with him.
+  window.addEventListener('mateface:ready', () => {
+    // only when the plain empty text is on screen (never over a list or a loading state)
+    if (!document.querySelector('#qsPane .qs-blank')) return;
+    try {
+      renderPane();
+    } catch (_) {}
+  });
   function blankPane() {
-    if (!st.rows.length) return '<div class="qs-blank"><b>Nenhum quote ainda.</b><br />Crie o primeiro em “Novo”.</div>';
+    if (!st.rows.length) {
+      // The Mate offers to make the first one (fox mascot, only on a truly empty list)
+      if (window.MateFace) return '<div class="qs-blank">' + window.MateFace.empty({ pose: 'point', title: 'Nenhum quote ainda', text: 'Crie o primeiro em “Novo” ou me diga para quem é e o que vai no piso.', ask: 'criar um quote', askLabel: 'Criar com o Mate' }) + '</div>';
+      return '<div class="qs-blank"><b>Nenhum quote ainda.</b><br />Crie o primeiro em “Novo”.</div>';
+    }
     return '<div class="qs-blank">Escolha um quote na lista.</div>';
   }
   function renderPane() {

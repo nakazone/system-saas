@@ -366,7 +366,8 @@
     back: () => svg('<path d="M15 6l-6 6 6 6"/>', 20),
     route: () => svg('<path d="M3 11l18-8-8 18-2-8z"/>', 18),
     play: () => '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5l12 7-12 7z"/></svg>',
-    mate: (w) => `<svg width="${w || 20}" height="${w || 20}" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l5.5 5.5h7L21 3v10a9 9 0 0 1-18 0z" fill="#E7792C"/><circle cx="9" cy="13.5" r="1.4" fill="#fff"/><circle cx="15" cy="13.5" r="1.4" fill="#fff"/></svg>`,
+    // The Mate's face (fox mascot); state: neutral | thinking | happy | curious | listening
+    mate: (w, st) => `<span class="fq-mateface" style="width:${(w || 20) + 6}px;height:${(w || 20) + 6}px" data-state="${st || 'neutral'}" aria-hidden="true"><img src="/assets/img/mascot/mate-head-${st || 'neutral'}.webp?v=20261026-m1" alt="" width="${(w || 20) + 6}" height="${(w || 20) + 6}" decoding="async"></span>`,
   };
 
   // ------------------------------------------------------------------ Mate tips (local checks, nothing changes without a tap)
@@ -459,7 +460,7 @@
   async function loadBriefing(leadId, el) {
     if (!leadId || !el) return;
     const show = (b) => {
-      el.innerHTML = `<div class="fq-brief__head">${IC.mate(18)}<b>Briefing do Mate</b></div><p>${esc(b.summary)}</p>${(b.questions || []).length ? `<span class="fq-lbl2">PERGUNTE NA VISITA</span><ul>${b.questions.map((q) => `<li>${esc(q)}</li>`).join('')}</ul>` : ''}`;
+      el.innerHTML = `<div class="fq-brief__head">${IC.mate(22)}<b>Briefing do Mate</b></div><p>${esc(b.summary)}</p>${(b.questions || []).length ? `<span class="fq-lbl2">PERGUNTE NA VISITA</span><ul>${b.questions.map((q) => `<li>${esc(q)}</li>`).join('')}</ul>` : ''}`;
       el.hidden = false;
     };
     if (briefCache[leadId]) return show(briefCache[leadId]);
@@ -1231,7 +1232,7 @@
     const p = S.ai.pending;
     if (!p || !p.changes.length) return '';
     return `<section class="fq-pending" aria-label="Mudanças propostas pelo Mate">
-      <div class="fq-mate__head">${IC.mate()}<b>Vou aplicar</b>${p.delta ? `<span class="fq-pending__d">${p.delta > 0 ? '+' : ''}${esc(money(p.delta))}</span>` : ''}</div>
+      <div class="fq-mate__head">${IC.mate(20, 'listening')}<b>Vou aplicar</b>${p.delta ? `<span class="fq-pending__d">${p.delta > 0 ? '+' : ''}${esc(money(p.delta))}</span>` : ''}</div>
       <ul>${p.changes.map((c) => `<li>${esc(String(c).replace(/^Adicionei /, 'Adicionar ').replace(/^Removi /, 'Remover ').replace(/^Atualizei /, 'Atualizar ').replace(/^Registrei /, 'Registrar ').replace(/^Anotei /, 'Anotar '))}</li>`).join('')}</ul>
       <div class="fq-row2"><button type="button" class="fq-btn" data-fq-pending-no>Descartar</button><button type="button" class="fq-btn fq-btn--pri" data-fq-pending-yes>Confirmar</button></div>
       ${S.ai.handsFree ? '<small class="fq-mut">Diga “pode” para confirmar ou “descarta”.</small>' : ''}
@@ -1993,7 +1994,7 @@
   function photoTipsHtml() {
     const p = S.ai.photoTips;
     if (!p) return '';
-    if (p.reading) return `<section class="fq-mate"><div class="fq-mate__head">${IC.mate()}<b>Lendo a foto…</b><span class="fq-wave" aria-hidden="true"><i></i><i></i><i></i></span></div></section>`;
+    if (p.reading) return `<section class="fq-mate"><div class="fq-mate__head">${IC.mate(20, 'thinking')}<b>Lendo a foto…</b><span class="fq-wave" aria-hidden="true"><i></i><i></i><i></i></span></div></section>`;
     return `<section class="fq-mate" aria-label="O que o Mate viu na foto"><div class="fq-mate__head">${IC.mate()}<b>O Mate viu na foto</b><button type="button" class="fq-btn fq-btn--sm fq-btn--quiet" data-fq-photo-tips-close>Fechar</button></div>
       ${p.observations.map((o) => `<div class="fq-tip__txt"><b>${esc(o.title)}</b> <span class="fq-tip__d">${esc(o.detail)}</span></div>`).join('')}
       ${p.extras.map((x) => { const ex = C.EXTRAS.find((e) => e.id === x.id); return `<div class="fq-tip fq-tip--row"><div class="fq-tip__txt">Incluir <b>${esc(ex.pt)}</b>? <span class="fq-tip__d">${esc(x.reason)}</span></div><div class="fq-tip__acts"><button type="button" class="fq-btn fq-btn--sm fq-btn--pri" data-fq-photo-extra="${esc(x.id)}">Incluir</button></div></div>`; }).join('')}

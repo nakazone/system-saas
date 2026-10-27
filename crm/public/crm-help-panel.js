@@ -55,6 +55,10 @@
       '<p class="crm-help-panel__lead">' +
       esc(u.lead) +
       "</p>" +
+      // The Mate (fox) answers help too: one tap opens him with the question
+      ('<button type="button" class="crm-help-panel__mate" data-crm-help-mate>' +
+          '<span class="crm-help-panel__mateface" aria-hidden="true"><img src="/assets/img/mascot/mate-head-neutral.webp?v=20261026-m1" alt="" width="28" height="28"></span>' +
+          '<span>' + esc({ en: "Ask Mate", es: "Pregúntale a Mate" }[loc()] || "Pergunte ao Mate") + '</span></button>') +
       "</div>" +
       '<button type="button" class="crm-help-panel__close" data-crm-help-close aria-label="' +
       esc(u.close) +
@@ -867,6 +871,15 @@
       var t = e.target;
       if (t.closest("[data-crm-help-close]") || t.closest("#" + BACKDROP_ID)) {
         close();
+        return;
+      }
+      if (t.closest("[data-crm-help-mate]")) {
+        var q = (document.getElementById("crmHelpSearch") || {}).value || "";
+        close();
+        if (window.MateAI) {
+          if (q.trim() && typeof window.MateAI.ask === "function") window.MateAI.ask(q.trim());
+          else if (typeof window.MateAI.open === "function") window.MateAI.open();
+        }
         return;
       }
       var tab = t.closest("[data-crm-help-tab]");

@@ -8,7 +8,7 @@
   const STORAGE_KEY = "crm_sidebar_collapsed";
   const NAV_HISTORY_KEY = "crm_nav_history_v1";
   const NAV_HISTORY_MAX = 50;
-  const SHELL_VER = "20261019-i18n2";
+  const SHELL_VER = "20261026-m1";
 
   const CREATE_MENU_ITEMS = [
     {
@@ -1032,7 +1032,7 @@
       el.src = src;
       document.body.appendChild(el);
     }
-    ensureScript("notification-center.js?v=20261023-officevoice1", "notification-center.js");
+    ensureScript("notification-center.js?v=20261026-m1", "notification-center.js");
     ensureScript("crm-push.js?v=20261022-inbox1", "crm-push.js");
   }
 
@@ -1134,7 +1134,7 @@
     }
     if (!window.__omAccountStatus) {
       // Billing banner (trial ending / payment failed / read-only) + read-only explanation.
-      jobs.push(ensureScript("crm-account-status.js?v=20261015-cm1").catch(() => {}));
+      jobs.push(ensureScript("crm-account-status.js?v=20261026-m1").catch(() => {}));
     }
     if (!window.openCrmCommandPalette) {
       jobs.push(ensureScript(`crm-command-palette.js?v=${SHELL_VER}`).catch(() => {}));
@@ -1156,9 +1156,13 @@
       jobs.push(ensureScript(`crm-help-panel.js?v=${SHELL_VER}`).catch(function () {}));
     }
     // Mate AI on every screen, the field crew app included (field actions only, by permission).
+    // The Mate's face (fox) first: empty states and the bar use it.
+    if (!window.MateFace && !document.querySelector('script[src*="mate-face.js"]')) {
+      jobs.push(ensureScript("mate-face.js?v=20261026-m1").catch(() => {}));
+    }
     if (!window.__mateAiPanel && !document.querySelector('script[src*="mate-panel.js"]')) {
-      ensureStylesheet("mate-panel.css?v=20261025-voz1");
-      jobs.push(ensureScript("mate-panel.js?v=20261025-voz1").catch(() => {}));
+      ensureStylesheet("mate-panel.css?v=20261026-m1");
+      jobs.push(ensureScript("mate-panel.js?v=20261026-m1").catch(() => {}));
     }
     if (!document.querySelector('script[src*="saas-branding.js"]')) {
       jobs.push(ensureScript("saas-branding.js?v=20261002-branddoc1").catch(() => {}));

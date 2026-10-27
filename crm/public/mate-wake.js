@@ -305,10 +305,15 @@
     '.mate-wake-tip button{border:0;border-radius:10px;padding:8px 12px;font:600 13px Geist,system-ui,sans-serif;cursor:pointer}' +
     '.mate-wake-tip__yes{background:#E7792C;color:#fff}.mate-wake-tip__no{background:rgba(255,255,255,.12);color:#fff}' +
     '@media (max-width:719px){.mate-wake{bottom:calc(max(92px,var(--mate-fab-lift,0px)) + env(safe-area-inset-bottom,0px))}.mate-wake-tip{bottom:calc(max(140px,var(--mate-fab-lift,0px) + 48px) + env(safe-area-inset-bottom,0px))}}' +
+    '.mate-wake.has-face{padding:4px 12px 4px 4px}.mate-wake.has-face:not(.is-live) .mate-face{opacity:.55;filter:grayscale(.6)}' +
+    '.mate-wake.is-command .mate-face{box-shadow:0 0 0 2px #E7792C}' +
     '@keyframes mateWakePulse{0%,100%{opacity:1}50%{opacity:.35}}' +
     '@media (prefers-reduced-motion:reduce){.mate-wake.is-live .mate-wake__dot{animation:none}}';
 
   var pill = null;
+  window.addEventListener('mateface:ready', function () {
+    if (pill && !pill.hidden) paint();
+  });
   var liveEl = null;
   var labelEl = null;
 
@@ -357,6 +362,18 @@
           : 'Tocar para ouvir';
     labelEl.textContent = label;
     liveEl.textContent = live && !state.paused ? live : '';
+    // The fox replaces the dot: ears up while it waits for the request.
+    if (window.MateFace) {
+      var faceEl = pill.querySelector('.mate-face');
+      if (!faceEl) {
+        var dot = pill.querySelector('.mate-wake__dot');
+        if (dot) dot.outerHTML = window.MateFace.face('neutral', { size: 'sm' });
+        faceEl = pill.querySelector('.mate-face');
+      }
+      var want = command ? 'listening' : 'neutral';
+      if (faceEl && faceEl.getAttribute('data-state') !== want) window.MateFace.set(faceEl, want);
+      pill.classList.toggle('has-face', Boolean(faceEl));
+    }
     pill.setAttribute('aria-label', label);
   }
 

@@ -757,3 +757,40 @@ body.crm-help-open {
     width: min(100vw, 440px);
   }
 }
+
+/* The Mate (fox) inside help */
+.crm-help-panel__mate {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  margin: 10px 0 0;
+  padding: 0 14px 0 4px;
+  border: 1px solid var(--om-line, #e5e7eb);
+  border-radius: 999px;
+  background: var(--om-card, #fff);
+  color: var(--om-ink, #221e1a);
+  font: 600 13px/1 inherit;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.crm-help-panel__mate:hover {
+  border-color: var(--om-ink3, #98a2b3);
+}
+
+.crm-help-panel__mateface {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #f1f3f5;
+}
+
+.crm-help-panel__mateface img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}

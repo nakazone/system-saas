@@ -148,6 +148,12 @@
     return `${j.number != null ? `#${j.number} · ` : ""}${j.title}`;
   }
 
+  // The Mate (fox) greets before the day starts and thanks at the end. Plain <img>: no dependency on the panel.
+  const MATE_V = "20261026-m1";
+  function mateLine(pose, title, text) {
+    return `<div class="dy-mate"><img class="dy-mate__art" src="/assets/img/mascot/mate-${pose}.webp?v=${MATE_V}" alt="" height="64" decoding="async"><div><b>${esc(title)}</b>${text ? `<span>${esc(text)}</span>` : ""}</div></div>`;
+  }
+
   function renderCard() {
     const box = $("dyCard");
     box.className = "dy-card";
@@ -161,7 +167,7 @@
     const endLbl = emp.schedule.end_time;
     if (!d) {
       const j = S.jobs_today[0];
-      box.innerHTML = `<div class="dy-card__lbl"><span>Seu dia</span><span>Fim padrão ${esc(endLbl)}</span></div>
+      box.innerHTML = `${mateLine("wave", "Bora começar?", "Quando chegar, toque em Começar o dia. Precisa de algo? É só me chamar.")}<div class="dy-card__lbl"><span>Seu dia</span><span>Fim padrão ${esc(endLbl)}</span></div>
         <h2>${j ? esc(jobLine(j)) : "Nenhum job na agenda hoje"}</h2>
         <p class="dy-card__sub">${j ? `${j.start_label ? `${esc(j.start_label)} · ` : ""}${esc(j.client || "")}${j.address ? ` · ${esc(j.address)}` : ""}` : "Você pode começar e escolher o job."}</p>
         <div style="margin-top:16px"><button class="dy-btn dy-btn--terra dy-btn--full" data-act="start">${ICON.play} Começar o dia</button></div>
@@ -199,7 +205,7 @@
     }
     // finished
     const pillCls = d.status;
-    box.innerHTML = `<div class="dy-card__lbl"><span>Dia enviado</span><span class="dy-pill dy-pill--${pillCls}">${esc(d.status_label)}</span></div>
+    box.innerHTML = `${mateLine("thumbs", "Dia enviado. Bom trabalho!", d.status === "approved" ? "Já está na folha da semana." : "Descansa que o resto é com o escritório.")}<div class="dy-card__lbl"><span>Dia enviado</span><span class="dy-pill dy-pill--${pillCls}">${esc(d.status_label)}</span></div>
       <div class="dy-time"><b>${esc(d.worked_label)}</b><span>${esc(d.clock_in_label)} – ${esc(d.clock_out_label || "")}</span></div>
       <div class="dy-stats">
         <div class="dy-stat dy-stat--ot"><small>Extra</small><b>${d.overtime_minutes ? esc(minLabel(d.overtime_minutes)) : "—"}</b></div>

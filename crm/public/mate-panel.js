@@ -63,6 +63,48 @@
     camera: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
     check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   };
+  /* ───────── Mate's face (mate-face.js): the fox is the face of the Mate ───────── */
+  var FACE_VER = '20261026-m1';
+  var PANEL_SRC = (document.currentScript && document.currentScript.src) || '';
+  (function loadFace() {
+    if (window.MateFace || document.querySelector('script[src*="mate-face.js"]')) return;
+    var s = document.createElement('script');
+    s.src = PANEL_SRC ? PANEL_SRC.replace(/mate-panel\.js(\?.*)?$/, 'mate-face.js?v=' + FACE_VER) : '/mate-face.js?v=' + FACE_VER;
+    (document.head || document.documentElement).appendChild(s);
+  })();
+
+  /** The Mate's avatar; office agents keep their own faces. Before mate-face.js loads, a slot is upgraded later. */
+  function faceHtml(st, size, live, fallback) {
+    if (agentMode) return fallback || '';
+    if (window.MateFace) return window.MateFace.face(st, { size: size, live: live });
+    return '<span class="mate-face-slot" data-face-slot="' + st + '|' + size + '|' + (live ? 1 : 0) + '">' + (fallback || '') + '</span>';
+  }
+
+  function upgradeFaces() {
+    if (!window.MateFace) return;
+    document.querySelectorAll('[data-face-slot]').forEach(function (el) {
+      var p = el.getAttribute('data-face-slot').split('|');
+      el.outerHTML = window.MateFace.face(p[0], { size: p[1], live: p[2] === '1' });
+    });
+    if (window.MateFace.liveState() === 'neutral' && state && state.busy) window.MateFace.setLive('thinking');
+  }
+  window.addEventListener('mateface:ready', upgradeFaces);
+
+  /** Expression of the live avatars (bar, FAB, pill). */
+  function mood(st, ms) {
+    try {
+      window.dispatchEvent(new CustomEvent('mateai:state', { detail: { state: st, ms: ms } }));
+    } catch (_) {}
+  }
+
+  function moodFor(m) {
+    if (!m || m.role !== 'mate') return;
+    if (m.kind === 'thinking') mood('thinking');
+    else if (m.kind === 'done') mood('happy', 2600);
+    else if (m.kind === 'error' || m.kind === 'clarify') mood('curious', 4000);
+    else mood('neutral');
+  }
+
 
   /** Used only when the catalog cannot be loaded. */
   var EXAMPLES = [
@@ -507,7 +549,7 @@
   panel.innerHTML =
     '<div class="mate-pal__grab" aria-hidden="true"></div>' +
     '<div class="mate-pal__bar">' +
-    '<span class="mate-pal__mark" aria-hidden="true">' + ICON.spark + '</span>' +
+    '<span class="mate-pal__mark' + (agentMode ? '' : ' has-face') + '" aria-hidden="true">' + faceHtml('neutral', 'md', true, ICON.spark) + '</span>' +
     '<div class="mate-pal__ctx" id="mateContext" hidden></div>' +
     '<label class="mate-pal__field"><span class="mate-sr">Pedido para o Mate AI</span>' +
     '<textarea id="mateInput" rows="1" maxlength="600" placeholder="Peça ao Mate… ex.: quote pro John, 1350 pés de madeira" data-crm-rich="off" enterkeyhint="send"></textarea></label>' +
@@ -590,7 +632,7 @@
     fab.type = 'button';
     fab.className = 'mate-fab';
     fab.setAttribute('aria-label', 'Abrir Mate AI (segure para falar)');
-    fab.innerHTML = '<span class="mate-fab__spark">' + ICON.spark + '</span><span class="mate-fab__label">Mate AI</span>';
+    fab.innerHTML = '<span class="mate-fab__spark has-face">' + faceHtml('neutral', 'md', true, ICON.spark) + '</span><span class="mate-fab__label">Mate AI</span>';
     document.body.appendChild(fab);
     wireFab();
     addTopbarButton();
@@ -658,7 +700,7 @@
       btn.type = 'button';
       btn.id = 'mateTopbarBtn';
       btn.className = 'mate-topbar-btn';
-      btn.innerHTML = ICON.spark + '<span>Peça ao Mate…</span><kbd>' + (mac ? '⌘J' : 'Ctrl J') + '</kbd>';
+      btn.innerHTML = faceHtml('neutral', 'xs', false, ICON.spark) + '<span>Peça ao Mate…</span><kbd>' + (mac ? '⌘J' : 'Ctrl J') + '</kbd>';
       btn.addEventListener('click', function () {
         toggle();
       });
@@ -975,7 +1017,8 @@
     var text = st === 'install'
       ? 'Para receber os avisos do Mate com o app fechado, no Safari toque em Compartilhar › Adicionar à Tela de Início e abra o ObraMate pelo ícone.'
       : 'Receba no celular os avisos do Mate (quote aberto, lead novo, problema na obra) mesmo com o app fechado.';
-    return '<div class="mate-push">' +
+    var pointing = !agentMode && window.MateFace ? window.MateFace.art('point', { size: 'xs', className: 'mate-push__art' }) : '';
+    return '<div class="mate-push' + (pointing ? ' has-art' : '') + '">' + pointing +
       '<p>' + esc(text) + '</p>' +
       '<div class="mate-push__row">' +
       (st === 'ask' ? '<button type="button" class="mate-push__yes" data-mate="push-on">Ativar avisos</button>' : '') +
@@ -1273,9 +1316,12 @@
   function renderMsg(m) {
     if (m.role === 'user') return '<div class="mate-msg mate-msg--user"><p class="mate-echo">' + esc(m.text) + '</p></div>';
     var inner = '';
-    if (m.kind === 'thinking') inner = '<div class="mate-thinking" aria-label="Pensando"><i></i><i></i><i></i></div>';
-    else if (m.kind === 'reply') inner = '<div class="mate-say">' + esc(m.message) + '</div>';
-    else if (m.kind === 'error') inner = '<div class="mate-say mate-say--error">' + esc(m.message) + '</div>';
+    var who = function (st) {
+      return agentMode ? '' : '<span class="mate-who">' + faceHtml(st, 'sm', false, '') + '</span>';
+    };
+    if (m.kind === 'thinking') inner = '<div class="mate-line">' + who('thinking') + '<div class="mate-thinking" aria-label="Pensando"><i></i><i></i><i></i></div></div>';
+    else if (m.kind === 'reply') inner = '<div class="mate-line">' + who('neutral') + '<div class="mate-say">' + esc(m.message) + '</div></div>';
+    else if (m.kind === 'error') inner = '<div class="mate-line">' + who('curious') + '<div class="mate-say mate-say--error">' + esc(m.message) + '</div></div>';
     else if (m.kind === 'clarify') inner = renderClarify(m);
     else if (m.kind === 'card' || m.kind === 'answer') inner = renderCard(m);
     else if (m.kind === 'done') inner = renderDone(m);
@@ -1299,7 +1345,7 @@
     var confirm = c.confirm;
     var isSend = confirm && confirm.tone === 'send';
     var html = '<article class="mate-card' + (isSend ? ' mate-card--send' : '') + (m.stale ? ' is-stale' : '') + '">';
-    html += '<div class="mate-card__head"><h4 class="mate-card__title"><span>' + esc(c.title) + '</span>';
+    html += '<div class="mate-card__head"><h4 class="mate-card__title">' + (agentMode ? '' : faceHtml(m.kind === 'answer' ? 'neutral' : 'listening', 'sm', false, '')) + '<span>' + esc(c.title) + '</span>';
     if (c.badge) html += '<span class="mate-badge mate-badge--' + esc(c.badge.tone) + '">' + esc(c.badge.text) + '</span>';
     html += '</h4>' + (c.subtitle ? '<p class="mate-card__sub">' + esc(c.subtitle) + '</p>' : '') + '</div>';
     (c.sections || []).forEach(function (s) {
@@ -1429,7 +1475,7 @@
 
   function renderDone(m) {
     var r = m.result || {};
-    var html = '<article class="mate-card"><div class="mate-done"><span class="mate-done__icon">' + ICON.check + '</span><div class="mate-done__body">';
+    var html = '<article class="mate-card"><div class="mate-done"><span class="mate-done__icon' + (agentMode ? '' : ' has-face') + '">' + faceHtml('happy', 'md', false, ICON.check) + '</span><div class="mate-done__body">';
     html += '<strong>' + esc(r.title) + '</strong>' + (r.detail ? '<small>' + esc(r.detail) + '</small>' : '');
     html += '<div class="mate-done__row">';
     (r.links || []).forEach(function (l) {
@@ -1459,6 +1505,7 @@
     if (state.thread.length > MAX_THREAD) state.thread = state.thread.slice(-MAX_THREAD);
     persist();
     render();
+    moodFor(m);
     return m;
   }
 
@@ -1473,6 +1520,7 @@
     state.thread[i] = m;
     persist();
     render();
+    moodFor(m);
     return m;
   }
 
@@ -2236,7 +2284,7 @@
       return '<a href="' + esc(safeHref(l.href)) + '">' + esc(l.label) + '</a>';
     });
     var html =
-      '<span class="mate-toast__icon">' + ICON.check + '</span>' +
+      '<span class="mate-toast__icon' + (agentMode ? '' : ' has-face') + '">' + faceHtml('happy', 'lg', false, ICON.check) + '</span>' +
       '<div class="mate-toast__body"><strong>' + esc(r.title) + '</strong>' + (r.detail ? '<small>' + esc(r.detail) + '</small>' : '') +
       '<div class="mate-toast__row">' + links.join('') +
       (m.undo ? '<button type="button" data-toast="undo">Desfazer (<span data-left>' + Math.max(0, Math.ceil((Date.parse(m.undo.expires) - Date.now()) / 1000)) + '</span>)</button>' : '') +
@@ -2584,7 +2632,7 @@
       return;
     }
     var sc = document.createElement('script');
-    sc.src = '/mate-wake.js?v=20261025-voz1';
+    sc.src = '/mate-wake.js?v=20261026-m1';
     sc.defer = true;
     sc.onload = paintVoiceLinks;
     document.head.appendChild(sc);
@@ -2663,6 +2711,90 @@
     else if (m.kind === 'done' && m.undo) m.undo = null;
   });
 
+  /* ───────── milestones: the Mate celebrates once, only recent ones ───────── */
+
+  var MILESTONE_COPY = {
+    first_quote_approved: { title: 'Primeiro quote aprovado!', detail: 'O cliente aprovou. Quer que eu prepare o job?', pose: 'celebrate', action: { label: 'Preparar o job', ask: 'criar o job do quote aprovado mais recente' } },
+    first_invoice_paid: { title: 'Primeira fatura paga!', detail: 'O dinheiro entrou. É assim que começa.', pose: 'thumbs' },
+    first_job_done: { title: 'Primeiro job concluído!', detail: 'Quer que eu peça a avaliação do cliente?', pose: 'celebrate', action: { label: 'Pedir avaliação', ask: 'pedir avaliação do último job concluído' } },
+    jobs: { title: '{0} jobs concluídos!', detail: 'A equipe está voando. Bora para o próximo.', pose: 'celebrate' },
+    quotes: { title: '{0} quotes aprovados!', detail: 'Clientes dizendo sim. Continue assim.', pose: 'thumbs' },
+  };
+  var MILESTONE_RECENT_MS = 21 * 24 * 60 * 60 * 1000;
+  var milestoneBusy = false;
+
+  function checkMilestones() {
+    if (agentMode || milestoneBusy || !window.MateFace) return;
+    milestoneBusy = true;
+    api('GET', '/api/mate-ai/milestones')
+      .then(function (r) {
+        if (r && r.data && r.data.welcome && showWelcome(r.data.welcome)) return;
+        var list = ((r && r.data && r.data.milestones) || []).filter(function (x) {
+          return Date.now() - Date.parse(x.at) < MILESTONE_RECENT_MS;
+        });
+        list.sort(function (a, b) {
+          return Date.parse(b.at) - Date.parse(a.at);
+        });
+        var org = location.hostname.split('.')[0];
+        for (var i = 0; i < list.length; i++) {
+          var x = list[i];
+          var key = 'milestone:' + org + ':' + x.key;
+          if (window.MateFace.wasSeen(key)) continue;
+          var base = MILESTONE_COPY[x.key] || MILESTONE_COPY[x.key.split('_')[0]];
+          if (!base) continue;
+          var copy = Object.assign({}, base, { key: key, title: base.title.replace('{0}', String(x.count)) });
+          // older unseen ones are marked as seen so only one shows at a time
+          list.slice(i + 1).forEach(function (y) {
+            window.MateFace.wasSeen('milestone:' + org + ':' + y.key) || markMilestone('milestone:' + org + ':' + y.key);
+          });
+          window.MateFace.celebrate(copy);
+          break;
+        }
+      })
+      .catch(function () {})
+      .then(function () {
+        milestoneBusy = false;
+      });
+  }
+
+  /** First access: the Mate introduces himself once per person (14 days after joining). */
+  function showWelcome(w) {
+    var key = 'welcome:' + location.hostname.split('.')[0] + ':' + (w.since || '');
+    if (window.MateFace.wasSeen(key)) return false;
+    return window.MateFace.celebrate({
+      key: key,
+      pose: 'hero',
+      title: 'Oi! Eu sou o Mate.',
+      detail: w.admin
+        ? 'Vou te ajudar a montar a empresa aqui. Comece pelos serviços e preços; depois é só me pedir por texto ou voz (Ctrl/⌘ J). Nada muda sem você confirmar.'
+        : 'Sou o assistente da empresa. Peça por texto ou voz (Ctrl/⌘ J) e eu preparo; nada muda sem você confirmar.',
+      action: w.admin ? { label: 'Serviços e preços', href: '/configuracoes.html#categorias-servico' } : { label: 'Testar agora', ask: 'o que tenho para hoje?' },
+      closeLabel: 'Agora não',
+      ms: 20000,
+    });
+  }
+
+  function markMilestone(key) {
+    try {
+      var s = JSON.parse(localStorage.getItem('mateFace.celebrated.v1') || '{}') || {};
+      s[key] = Date.now();
+      localStorage.setItem('mateFace.celebrated.v1', JSON.stringify(s));
+    } catch (_) {}
+  }
+
+  function scheduleMilestones() {
+    if (agentMode) return;
+    var go = function () {
+      setTimeout(checkMilestones, 2200);
+    };
+    if (window.MateFace) go();
+    else window.addEventListener('mateface:ready', go, { once: true });
+  }
+  window.addEventListener('mate:done', function () {
+    setTimeout(checkMilestones, 1200);
+  });
+
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount);
   else mount();
+  scheduleMilestones();
 })();

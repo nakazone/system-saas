@@ -7,6 +7,8 @@ export type PushPayload = {
   body: string;
   url?: string;
   tag?: string;
+  /** Same-origin icon path (e.g. the Mate's face for alerts the Mate sends). The service worker only accepts /assets/ paths. */
+  icon?: string;
 };
 
 /**
@@ -40,6 +42,7 @@ export async function notifyOrganizationPush(
     body: payload.body,
     url: payload.url || "/dashboard.html?page=leads",
     tag: payload.tag || "obramate",
+    ...(payload.icon ? { icon: payload.icon } : {}),
   });
 
   let sent = 0;
@@ -113,6 +116,7 @@ export async function notifyUsersPush(
     body: payload.body,
     url: payload.url || "/jobs.html",
     tag: payload.tag || "obramate",
+    ...(payload.icon ? { icon: payload.icon } : {}),
   });
 
   let sent = 0;

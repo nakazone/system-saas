@@ -31,6 +31,7 @@ export async function alertFieldProblem(input: {
   const who = input.reporterName?.trim() || "A equipe";
   const where = [jobName(input.job), input.job.customerName].filter(Boolean).join(" · ");
   await publishAppNotification({
+    fromMate: true,
     organizationId: input.organizationId,
     type: "job.problem",
     title: `Problema na obra: ${where}`.slice(0, 180),
@@ -83,6 +84,7 @@ export async function processNoCrewTomorrow(now = new Date()): Promise<NoCrewSta
       const names = found.slice(0, 3).map((j) => [jobName(j), j.customer?.name].filter(Boolean).join(" · "));
       const more = found.length > 3 ? ` e mais ${found.length - 3}` : "";
       await publishAppNotification({
+    fromMate: true,
         organizationId: org.id,
         type: "jobs.nocrew",
         title: found.length === 1 ? "1 job amanhã sem equipe" : `${found.length} jobs amanhã sem equipe`,

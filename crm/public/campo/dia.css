@@ -185,3 +185,34 @@ body.dy-lock { overflow: hidden; }
 .dy-lock .dy-toast { top: calc(14px + env(safe-area-inset-top, 0px)); bottom: auto; }
 .hr-nav { display: flex; gap: 6px; }
 .hr-nav .dy-x { font-size: 24px; font-weight: 700; }
+
+/* The Mate greets and thanks (fox mascot) */
+.dy-mate {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin: -6px 0 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--om-line, #e5e7eb);
+}
+
+.dy-mate__art {
+  flex: none;
+  width: auto;
+  height: 64px;
+  margin-top: -14px;
+}
+
+.dy-mate b {
+  display: block;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.dy-mate span {
+  display: block;
+  margin-top: 2px;
+  color: var(--om-ink2, #667085);
+  font-size: 13px;
+  line-height: 1.4;
+}

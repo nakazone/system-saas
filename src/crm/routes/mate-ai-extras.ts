@@ -5,6 +5,7 @@
  *   POST    /api/meetings/:id/send-invite       e-mail the customer/lead a calendar invite (.ics)
  *   POST    /api/chat/jobs/:workOrderId/summary what happened on a job on a day (AI summary)
  *   GET     /api/work-orders/:id/margin         revenue, labor, costs and margin of a job
+ *   GET     /api/mate-ai/milestones             first approved quote / paid invoice / job done and round counts
  */
 import { Router } from "express";
 import { z } from "zod";
@@ -217,6 +218,73 @@ mateAiExtrasRouter.get("/api/work-orders/:id/margin", requireCrmAuth, requireCrm
       return;
     }
     res.json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/* ───────────────────────── milestones (the Mate celebrates once) ───────────────────────── */
+
+const QUOTE_WON = ["approved", "converted"];
+const MILESTONE_COUNTS = { jobs: [1, 10, 50, 100, 250], quotes: [1, 10, 50, 100], invoices: [1] } as const;
+
+type Milestone = { key: string; at: string; count: number };
+
+function can(req: AuthedRequest, perm: string) {
+  return req.user!.roleKey === "admin" || req.user!.permissions.includes(perm);
+}
+
+/**
+ * GET /api/mate-ai/milestones — first approved quote, first paid invoice, first job done and round counts
+ * (10, 50, 100…), each with the date it was reached. The screen celebrates each one once, and only recent ones.
+ * Only what the user can see: quotes.view, invoices.view, work_orders.view.
+ */
+mateAiExtrasRouter.get("/api/mate-ai/milestones", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const wantQuotes = can(req, "quotes.view");
+    const wantInvoices = can(req, "invoices.view");
+    const wantJobs = can(req, "work_orders.view");
+    const out = await withTenantTransaction(req.organizationId!, async (tx) => {
+      const list: Milestone[] = [];
+      // the Nth row by date: one indexed query per threshold reached
+      const nth = async (kind: "jobs" | "quotes" | "invoices", total: number, at: (skip: number) => Promise<Date | null>) => {
+        for (const n of MILESTONE_COUNTS[kind]) {
+          if (total < n) break;
+          const when = await at(n - 1);
+          if (when) list.push({ key: n === 1 ? `first_${kind === "jobs" ? "job_done" : kind === "quotes" ? "quote_approved" : "invoice_paid"}` : `${kind}_${n}`, at: when.toISOString(), count: n });
+        }
+      };
+      if (wantQuotes) {
+        const where = { status: { in: QUOTE_WON } };
+        const total = await tx.quote.count({ where });
+        await nth("quotes", total, async (skip) => {
+          const q = await tx.quote.findFirst({ where, orderBy: [{ updatedAt: "asc" }, { id: "asc" }], skip, select: { signedAt: true, updatedAt: true } });
+          return q ? q.signedAt || q.updatedAt : null;
+        });
+      }
+      if (wantInvoices) {
+        const where = { status: "paid", paidAt: { not: null } };
+        const total = await tx.quoteInvoice.count({ where });
+        await nth("invoices", total, async (skip) => {
+          const i = await tx.quoteInvoice.findFirst({ where, orderBy: [{ paidAt: "asc" }, { id: "asc" }], skip, select: { paidAt: true } });
+          return i?.paidAt ?? null;
+        });
+      }
+      if (wantJobs) {
+        const where = { status: "completed" };
+        const total = await tx.workOrder.count({ where });
+        await nth("jobs", total, async (skip) => {
+          const j = await tx.workOrder.findFirst({ where, orderBy: [{ updatedAt: "asc" }, { id: "asc" }], skip, select: { updatedAt: true } });
+          return j?.updatedAt ?? null;
+        });
+      }
+      return list;
+    });
+    // first access: the Mate introduces himself to people who joined in the last 14 days
+    const me = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { createdAt: true } });
+    const isAdmin = req.user!.roleKey === "admin";
+    const welcome = me && Date.now() - me.createdAt.getTime() < 14 * 86_400_000 ? { since: me.createdAt.toISOString(), admin: isAdmin } : null;
+    res.json({ success: true, data: { milestones: out, welcome } });
   } catch (error) {
     next(error);
   }

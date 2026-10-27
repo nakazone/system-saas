@@ -225,11 +225,22 @@
     </a>`;
   }
 
+  // The Mate's face (fox) may load after the first render: draw the empty state again with him.
+  window.addEventListener('mateface:ready', () => {
+    // only when the plain empty text is on screen (never over a list or a loading state)
+    if (!document.querySelector('#cxRows .cx-empty')) return;
+    try {
+      renderList();
+    } catch (_) {}
+  });
   function renderList() {
     const host = $("cxRows");
     const list = rows.filter(matches);
     if (!list.length) {
-      host.innerHTML = `<p class="cx-empty">${rows.length ? "Nenhum cliente encontrado." : "Nenhum cliente ainda. Cadastre o primeiro em “Novo cliente”."}</p>`;
+      host.innerHTML =
+        !rows.length && window.MateFace
+          ? window.MateFace.empty({ pose: "point", title: "Nenhum cliente ainda", text: "Cadastre o primeiro em “Novo cliente” ou me passe o nome e o telefone.", ask: "cadastrar um cliente", askLabel: "Cadastrar com o Mate" })
+          : `<p class="cx-empty">${rows.length ? "Nenhum cliente encontrado." : "Nenhum cliente ainda. Cadastre o primeiro em “Novo cliente”."}</p>`;
       return;
     }
     const withBal = showMoney ? list.filter((c) => Number(st(c).open_balance) > 0.004) : [];

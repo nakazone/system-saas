@@ -144,3 +144,9 @@ html.qt-open, html.qt-open body { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .qt *, .qt *::before { animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; }
 }
+
+/* The Mate (fox) narrates the tour */
+.qt-mate { flex: none; width: 40px; height: 40px; overflow: hidden; border-radius: 50%; background: #F1F3F5; animation: qt-mate-talk .38s ease-in-out infinite alternate; }
+.qt-mate img { display: block; width: 100%; height: 100%; object-fit: cover; }
+@keyframes qt-mate-talk { from { transform: translateY(0); } to { transform: translateY(-1.5px); } }
+@media (prefers-reduced-motion: reduce) { .qt-mate { animation: none; } }

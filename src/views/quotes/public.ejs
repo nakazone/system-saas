@@ -345,10 +345,16 @@
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
   <% if (typeof tour !== 'undefined' && tour) { %>
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/quote-tour.css?v=20261026-tour2" />
+  <link rel="stylesheet" href="/quote-tour.css?v=20261026-m1" />
   <style>
     .qp-tour-cta { display: flex; align-items: center; gap: 14px; width: 100%; max-width: 860px; margin: 0 auto 16px; padding: 14px 16px; border: 1px solid #E5E7EB; border-radius: 16px; background: #fff; font: inherit; color: #221E1A; text-align: left; cursor: pointer; box-sizing: border-box; }
     .qp-tour-cta__ic { flex: none; width: 46px; height: 46px; border-radius: 23px; background: #221E1A; color: #fff; display: grid; place-items: center; }
+    .qp-tour-cta__ic--mate { overflow: hidden; background: #F1F3F5; }
+    .qp-tour-cta__ic--mate img { display: block; width: 100%; height: 100%; object-fit: cover; }
+    .qp-madewith { display: flex; justify-content: center; margin: 18px 0 8px; }
+    .qp-madewith a { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px 4px 4px; border: 1px solid #E5E7EB; border-radius: 999px; background: #fff; color: #667085; font-size: 12px; text-decoration: none; }
+    .qp-madewith a:hover { color: #221E1A; }
+    .qp-madewith img { width: 24px; height: 24px; border-radius: 50%; background: #F1F3F5; object-fit: cover; }
     .qp-tour-cta__txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
     .qp-tour-cta__txt b { font-size: 16px; }
     .qp-tour-cta__txt span { font-size: 13px; color: #475467; }
@@ -441,7 +447,7 @@
 
     <% if (typeof tour !== 'undefined' && tour) { %>
       <button type="button" class="qp-tour-cta no-print" id="qpTourOpen">
-        <span class="qp-tour-cta__ic" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M7 5l12 7-12 7z"/></svg></span>
+        <span class="qp-tour-cta__ic qp-tour-cta__ic--mate" aria-hidden="true"><img src="/assets/img/mascot/mate-head-talking.webp?v=20261026-m1" alt="" width="46" height="46"></span>
         <span class="qp-tour-cta__txt"><b>See your project, room by room</b><span>A 1-minute walk-through of the work and where every dollar goes.</span></span>
         <span class="qp-tour-cta__go">Start</span>
       </button>
@@ -759,6 +765,7 @@
         </form>
       </div>
     </article>
+    <p class="qp-madewith no-print"><a href="https://obramate.com/?utm_source=customer_quote&utm_medium=footer" target="_blank" rel="noopener"><img src="/assets/img/mascot/mate-head-happy.webp?v=20261026-m1" alt="" width="24" height="24">Made with ObraMate</a></p>
 
     <% if (signed) { %>
       <p class="qp-approved">Thank you — this quote is approved<%= quote.signedByName ? (' and signed by ' + quote.signedByName) : '' %>.</p>
@@ -1092,7 +1099,7 @@
   </script>
   <% if (typeof tour !== 'undefined' && tour) { %>
   <script id="qpTourData" type="application/json"><%- JSON.stringify(tour).replace(/</g, '\\u003c') %></script>
-  <script src="/quote-tour.js?v=20261026-tour2"></script>
+  <script src="/quote-tour.js?v=20261026-m1"></script>
   <script>
     (function () {
       var btn = document.getElementById('qpTourOpen');

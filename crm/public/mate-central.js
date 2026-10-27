@@ -151,7 +151,9 @@
       .then(function (r) {
         var rows = r.data || [];
         if (!rows.length) {
-          actEl.innerHTML = '<p class="mc-empty">Quando você confirmar algo pelo Mate, aparece aqui com o link para abrir.</p>';
+          actEl.innerHTML = window.MateFace
+            ? window.MateFace.empty({ pose: 'laptop', title: 'Nada por aqui ainda', text: 'Quando você confirmar algo pelo Mate, aparece aqui com o link para abrir.' })
+            : '<p class="mc-empty">Quando você confirmar algo pelo Mate, aparece aqui com o link para abrir.</p>';
           return;
         }
         var html = '';

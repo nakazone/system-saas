@@ -29,6 +29,12 @@
       .workspace-option span { font-size: 0.85rem; opacity: 0.7; }
       .login-alt { margin-top: 1rem; font-size: 0.875rem; text-align: center; }
       .login-alt a { color: inherit; }
+      /* The Mate (fox mascot) waves from the top of the box */
+      .login-box { position: relative; }
+      .login-mate { position: absolute; top: -78px; right: 18px; height: 96px; width: auto; pointer-events: none; animation: login-mate-in .5s cubic-bezier(.2,.9,.3,1.2) .15s both; }
+      @keyframes login-mate-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+      @media (prefers-reduced-motion: reduce) { .login-mate { animation: none; } }
+      @media (max-height: 640px) { .login-mate { display: none; } }
     </style>
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
 </head>
@@ -36,6 +42,7 @@
   <script src="/om-reload.js?v=20261013-rl8"></script>
     <div class="login-container">
         <div class="login-box">
+            <img class="login-mate" src="/assets/img/mascot/mate-wave.webp?v=20261026-m1" alt="" height="96" decoding="async">
             <div class="login-header">
                 <img src="/assets/obramate-logo.png"
                      alt="ObraMate"

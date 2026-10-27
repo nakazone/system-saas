@@ -236,3 +236,11 @@ body.fq-body .mate-fab { display: none !important; }
 .fq-chat__applied i svg { color: #536249; }
 .fq-mate__head .fq-wave { margin-left: auto; }
 .fq-mate__head .fq-btn--quiet { margin-left: auto; }
+
+/* The Mate's face (fox mascot) */
+.fq-mateface { display: inline-grid; flex: none; place-items: center; overflow: hidden; border-radius: 50%; background: #F1F3F5; }
+.fq-mateface img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.fq-mateface[data-state='thinking'] img { animation: fq-mate-think 1.6s ease-in-out infinite; }
+@keyframes fq-mate-think { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.5px); } }
+.fq-btn .fq-mateface { margin-left: -4px; }
+@media (prefers-reduced-motion: reduce) { .fq-mateface img { animation: none; } }

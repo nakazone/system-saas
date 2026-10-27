@@ -9,7 +9,36 @@
 }
 
 .mc-head {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 14px;
+  align-items: end;
   margin: 0 0 18px;
+}
+
+.mc-head__mate {
+  grid-row: 1 / span 2;
+  width: auto;
+  height: 96px;
+  margin: -12px 0 -6px;
+}
+
+.mc-head > h1,
+.mc-head > p {
+  grid-column: 2;
+}
+
+.mc-box__head--mate {
+  justify-content: flex-start;
+  gap: 10px;
+}
+
+@media (max-width: 720px) {
+  .mc-head__mate {
+    height: 64px;
+    margin: -6px 0 -2px;
+  }
 }
 
 .mc-head h1 {

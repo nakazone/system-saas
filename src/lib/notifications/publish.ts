@@ -22,7 +22,12 @@ export type AppNotificationInput = {
   /** When omitted, every active office user in the org. */
   userIds?: string[];
   excludeUserId?: string;
+  /** Alerts the Mate sends himself (problem on a job, jobs without crew, daily brief) carry his face. */
+  fromMate?: boolean;
 };
+
+/** Push icon for alerts the Mate sends (the fox in a circle). */
+export const MATE_PUSH_ICON = "/assets/img/mascot/mate-icon-192.png?v=20261026-m1";
 
 export function quoteLabel(quote: {
   quoteNumber?: string | null;
@@ -90,6 +95,7 @@ export async function publishAppNotification(input: AppNotificationInput): Promi
     body: input.body.slice(0, 180),
     url: input.url || "/home.html",
     tag: input.tag || input.dedupeKey,
+    ...(input.fromMate ? { icon: MATE_PUSH_ICON } : {}),
   };
   try {
     const pushed = await notifyUsersPush(organizationId, targets, payload, exclude ? { excludeUserId: exclude } : undefined);

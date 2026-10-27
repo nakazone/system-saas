@@ -59,7 +59,8 @@
     .stamp small { display: block; font-size: 11px; margin-top: 4px; }
     .stamp.partial b { font-size: 16px; }
     .foot { text-align: center; color: var(--muted); font-size: 12px; margin-top: 18px; line-height: 1.5; }
-    .foot .made { color: var(--muted-light); font-size: 11px; margin-top: 4px; }
+    .foot .made { display: inline-flex; align-items: center; gap: 6px; color: var(--muted-light); font-size: 11px; margin-top: 6px; text-decoration: none; }
+    .foot .made img { width: 20px; height: 20px; border-radius: 50%; background: #F1F3F5; object-fit: cover; }
     @media (max-width: 640px) {
       .paper { padding: 22px 18px; }
       .grid { grid-template-columns: 1fr; }
@@ -193,7 +194,7 @@
     </article>
     <p class="foot">
       <%= organization.name %> - Invoice - Thank You!
-      <span class="made">Made with ObraMate</span>
+      <a class="made" href="https://obramate.com/?utm_source=customer_invoice&utm_medium=footer" target="_blank" rel="noopener"><img src="/assets/img/mascot/mate-head-happy.webp?v=20261026-m1" alt="" width="20" height="20">Made with ObraMate</a>
     </p>
   </main>
 </body>

@@ -105,6 +105,10 @@
       .map((it) => {
         const unread = !it.read ? ' notification-item--unread' : '';
         const type = escapeHtml(it.type || 'info');
+        // Alerts the Mate sends himself show his face (fox mascot).
+        const mate = /^(mate\.|job\.problem$|jobs\.nocrew$)/.test(String(it.type || ''))
+          ? '<span class="notification-item-mate" aria-hidden="true" style="display:inline-block;width:20px;height:20px;margin-right:6px;border-radius:50%;overflow:hidden;background:#F1F3F5;vertical-align:-5px"><img src="/assets/img/mascot/mate-head-neutral.webp?v=20261026-m1" alt="" width="20" height="20" style="display:block;width:100%;height:100%;object-fit:cover"></span>'
+          : '';
         return (
           '<div class="notification-item' +
           unread +
@@ -112,6 +116,7 @@
           escapeHtml(it.id) +
           '" role="button" tabindex="0">' +
           '<div class="notification-item-meta"><span class="notification-item-type">' +
+          mate +
           type +
           '</span><span class="notification-item-time">' +
           escapeHtml(formatTime(it.ts)) +

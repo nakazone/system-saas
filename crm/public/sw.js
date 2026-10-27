@@ -1,7 +1,7 @@
 /**
  * ObraMate — service worker (static cache + Campo offline + Web Push).
  */
-const CACHE = "om-static-v61";
+const CACHE = "om-static-v62";
 const API_CACHE = "om-api-v1";
 const BADGE_CACHE = "om-badge-v1";
 const BADGE_URL = "/__om_app_badge_count";
@@ -15,10 +15,10 @@ const PRECACHE = [
   "/campo/horas.html",
   "/campo/ticket.html",
   "/campo/campo.css?v=20261008-modulos1",
-  "/campo/dia.css?v=20261008-modulos1",
+  "/campo/dia.css?v=20261026-m1",
   "/campo/campo-nav.js?v=20261013-off1",
   "/campo/campo-media-queue.js?v=20260928-media1",
-  "/campo/dia.js?v=20261013-off1",
+  "/campo/dia.js?v=20261026-m1",
   "/campo/agenda.js?v=20261013-off1",
   "/campo/horas.js?v=20261013-off1",
   "/campo/ticket.js?v=20261013-off1",
@@ -32,6 +32,7 @@ const PRECACHE = [
   "/obramate-app.css",
   "/manifest.json?v=20260930-native2",
   "/assets/favicon-192.png?v=20260924-pwa",
+  "/assets/img/mascot/mate-sleeping.webp?v=20261026-m1",
   "/crm-shell.css",
   "/crm-pwa-install.css",
 ];
@@ -196,7 +197,8 @@ self.addEventListener("push", (event) => {
       bumpAppBadge(Number.isFinite(unread) && unread >= 0 ? unread : null),
       self.registration.showNotification(data.title || "ObraMate", {
         body: data.body || "",
-        icon: "/assets/favicon-192.png?v=20260924-pwa",
+        // Alerts the Mate sends carry his face; only same-origin /assets/ paths are accepted.
+        icon: typeof data.icon === "string" && /^\/assets\/[\w./?=-]+$/.test(data.icon) ? data.icon : "/assets/favicon-192.png?v=20260924-pwa",
         badge: "/assets/favicon-192.png?v=20260924-pwa",
         tag: data.tag || "obramate",
         renotify: true,
