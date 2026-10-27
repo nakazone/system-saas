@@ -1670,8 +1670,9 @@
   /** Company switcher and builder-only navigation. */
   function paintShell() {
     if (!state.builder) return;
-    const prov = providerName();
-    $('ppProvider').textContent = prov;
+    // The brand is the builder's own account; the selected flooring company is the subtitle.
+    $('ppProvider').textContent = state.builder.account.name;
+    $('ppBrandSub').textContent = state.company ? `Empresa: ${state.company.company_name}` : 'Portal do builder';
     $('ppMark').textContent = initials(state.builder.account.name);
     document.title = `${state.builder.account.name} · Portal do builder`;
     const tools = $('ppProviderTools');
@@ -1847,8 +1848,10 @@
     }
     state.providers = state.user.providers || [];
     const prov = providerName();
-    $('ppProvider').textContent = prov;
-    $('ppMark').textContent = initials(prov);
+    const builderName = state.user.company_name || state.user.name || prov;
+    $('ppProvider').textContent = builderName;
+    $('ppBrandSub').textContent = `Empresa: ${prov}`;
+    $('ppMark').textContent = initials(builderName);
     $('ppAvatar').textContent = initials(state.user.name || state.user.email);
     $('ppAvatar').setAttribute('aria-label', `Conta: ${state.user.name || state.user.email || ''}`);
     $('ppUserName').textContent = state.user.name || '';
