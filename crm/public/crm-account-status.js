@@ -48,7 +48,7 @@
       ".om-ann .om-acct__cta{align-self:center}.om-ann .om-acct__x{align-self:flex-start;margin-top:-2px}" +
       "@media (max-width:640px){.om-ann-wrap{margin:8px 10px 0}}" +
       // The Mate (fox) explains plan status — calm, no pressure
-      ".om-acct__mate{flex:none;width:28px;height:28px;border-radius:50%;overflow:hidden;background:#F1F3F5}.om-acct__mate img{display:block;width:100%;height:100%;object-fit:cover}" +
+      ".om-acct__mate{flex:none;width:30px;height:30px}.om-acct__mate img{display:block;width:100%;height:100%;object-fit:contain}" +
       ".om-ro-card .om-ro-mate{display:block;height:88px;width:auto;margin:-58px 0 6px}";
     document.head.appendChild(st);
   }
@@ -74,7 +74,7 @@
     var face = document.createElement("span");
     face.className = "om-acct__mate";
     face.setAttribute("aria-hidden", "true");
-    face.innerHTML = '<img src="/assets/img/mascot/mate-head-' + (b.tone === "info" ? "neutral" : "curious") + '.webp?v=20261026-m1" alt="" width="28" height="28">';
+    face.innerHTML = '<img src="/assets/img/mascot/mate-head-' + (b.tone === "info" ? "neutral" : "curious") + '.webp?v=20261027-m2" alt="" width="28" height="28">';
     el.appendChild(face);
     var t = document.createElement("span");
     t.className = "om-acct__text";
@@ -113,7 +113,7 @@
     wrap.setAttribute("role", "dialog");
     wrap.setAttribute("aria-modal", "true");
     wrap.innerHTML =
-      '<div class="om-ro-card"><img class="om-ro-mate" src="/assets/img/mascot/mate-tablet.webp?v=20261026-m1" alt="" height="88"><h2>Conta em modo só leitura</h2><p></p><div class="om-ro-row">' +
+      '<div class="om-ro-card"><img class="om-ro-mate" src="/assets/img/mascot/mate-tablet.webp?v=20261027-m2" alt="" height="88"><h2>Conta em modo só leitura</h2><p></p><div class="om-ro-row">' +
       (state.canManage ? '<a class="om-ro-pay" href="' + PLAN_URL + '">Assinar agora</a>' : "") +
       '<button type="button" class="om-ro-close">Entendi</button></div></div>';
     wrap.querySelector("p").textContent =

@@ -213,7 +213,7 @@
         </div>
       </header>
       <nav class="qt-steps" aria-label="Proposal steps">${steps.map((s, k) => `<button type="button" class="qt-step${k === state.i ? ' is-on' : k < state.i ? ' is-done' : ''}" data-qt-go="${k}"><span class="qt-step__n">${k < state.i ? '✓' : k + 1}</span><span class="qt-step__name">${esc(s.name)}</span></button>`).join('')}</nav>
-      <main class="qt-stage" aria-label="Your home">${stageHtml(st.id)}${state.narr ? `<p class="qt-say"><span class="qt-mate" aria-hidden="true"><img src="/assets/img/mascot/mate-head-talking.webp?v=20261026-m1" alt="" width="40" height="40"></span>${esc(say)}</p>` : ''}</main>
+      <main class="qt-stage" aria-label="Your home">${stageHtml(st.id)}${state.narr ? `<p class="qt-say"><span class="qt-mate" aria-hidden="true"><img src="/assets/img/mascot/mate-head-talking.webp?v=20261027-m2" alt="" width="40" height="40"></span>${esc(say)}</p>` : ''}</main>
       <section class="qt-panel" aria-live="polite">
         <span class="qt-kicker">STEP ${state.i + 1} OF ${steps.length}</span>
         <h2 class="qt-h2">${esc(st.name)}</h2>

@@ -810,3 +810,54 @@ body.home-app.om-device-mobile .home-kpi:not(:first-child) .home-kpi__label {
   font-size: 10.5px;
   letter-spacing: -0.01em;
 }
+
+/* The Mate (fox mascot) next to the greeting */
+.home-hello {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 0.85rem;
+}
+
+.home-hello__text {
+  min-width: 0;
+}
+
+.home-hello .home-greeting {
+  margin: 0;
+}
+
+.home-mate {
+  flex: none;
+  margin: -18px -4px -10px 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  transform-origin: 50% 100%;
+  animation: home-mate-in 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.15) 0.15s both;
+}
+
+.home-mate img {
+  display: block;
+  width: auto;
+  height: 104px;
+  filter: drop-shadow(0 8px 10px rgba(16, 24, 40, 0.12));
+  pointer-events: none;
+}
+
+.home-mate--laptop img {
+  height: 82px;
+}
+
+@keyframes home-mate-in {
+  0% { opacity: 0; transform: translateY(14px) scale(0.96); }
+  100% { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-mate {
+    animation: none;
+  }
+}

@@ -49,7 +49,26 @@
   // Desktop dashboard
   // ---------------------------------------------------------------------------
 
+  /** The Mate (fox mascot) next to the greeting: waves in the morning, tablet in the afternoon, laptop at night. */
+  function renderMate() {
+    const img = $("omdMateImg");
+    if (!img || img.dataset.done) return;
+    const h = new Date().getHours();
+    const pose = h >= 18 || h < 4 ? "laptop" : h >= 12 ? "tablet" : "wave";
+    img.src = `/assets/img/mascot/mate-${pose}.webp?v=20261027-m2`;
+    img.dataset.done = "1";
+    const btn = $("omdMate");
+    btn.classList.add("omd-mate--" + pose);
+    btn.addEventListener("click", () => {
+      btn.classList.remove("is-hop");
+      void btn.offsetWidth;
+      btn.classList.add("is-hop");
+      if (window.MateAI && typeof window.MateAI.open === "function") window.MateAI.open();
+    });
+  }
+
   function renderHeader() {
+    renderMate();
     const name = (session && session.user && (session.user.name || session.user.email)) || "";
     $("omdGreeting").textContent = D.greeting(overview, name);
     $("omdDate").textContent = D.dateLabel(overview) || " ";

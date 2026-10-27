@@ -20,7 +20,7 @@
 (function () {
   if (window.MateFace) return;
 
-  var VER = '20261026-m1';
+  var VER = '20261027-m2';
   var BASE = '/assets/img/mascot/';
   var STATES = ['neutral', 'listening', 'thinking', 'talking', 'happy', 'curious', 'sorry'];
   var POSES = ['wave', 'point', 'tablet', 'celebrate', 'reading', 'sleeping', 'thumbs', 'laptop', 'run', 'hero'];
@@ -74,11 +74,11 @@
     else setTimeout(run, 1200);
   }
 
-  /** Round avatar. size: xs 20 · sm 24 · md 28 · lg 40 · xl 52 · hero 64 (px) or a number. */
+  /** Round avatar. size: xs 22 · sm 28 · md 32 · lg 44 · xl 56 · hero 72 (px) or a number. */
   function face(state, opts) {
     opts = opts || {};
     var size = opts.size || 'md';
-    var px = typeof size === 'number' ? size : { xs: 20, sm: 24, md: 28, lg: 40, xl: 52, hero: 64 }[size] || 28;
+    var px = typeof size === 'number' ? size : { xs: 22, sm: 28, md: 32, lg: 44, xl: 56, hero: 72 }[size] || 28;
     var cls = 'mate-face' + (typeof size === 'string' ? ' mate-face--' + size : '') + (opts.ring ? ' mate-face--ring' : '') + (opts.className ? ' ' + opts.className : '');
     var st = norm(state);
     preload();
@@ -132,7 +132,7 @@
         setInterval(function () {
           if (!el.isConnected) return stopTalk(el);
           open = !open;
-          swap(el, headSrc(open ? 'talking' : 'listening'));
+          swap(el, headSrc(open ? 'talking' : 'neutral'));
         }, 190)
       );
     }

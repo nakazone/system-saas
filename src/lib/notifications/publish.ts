@@ -27,7 +27,7 @@ export type AppNotificationInput = {
 };
 
 /** Push icon for alerts the Mate sends (the fox in a circle). */
-export const MATE_PUSH_ICON = "/assets/img/mascot/mate-icon-192.png?v=20261026-m1";
+export const MATE_PUSH_ICON = "/assets/img/mascot/mate-icon-192.png?v=20261027-m2";
 
 export function quoteLabel(quote: {
   quoteNumber?: string | null;

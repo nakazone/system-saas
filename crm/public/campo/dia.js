@@ -149,7 +149,7 @@
   }
 
   // The Mate (fox) greets before the day starts and thanks at the end. Plain <img>: no dependency on the panel.
-  const MATE_V = "20261026-m1";
+  const MATE_V = "20261027-m2";
   function mateLine(pose, title, text) {
     return `<div class="dy-mate"><img class="dy-mate__art" src="/assets/img/mascot/mate-${pose}.webp?v=${MATE_V}" alt="" height="64" decoding="async"><div><b>${esc(title)}</b>${text ? `<span>${esc(text)}</span>` : ""}</div></div>`;
   }

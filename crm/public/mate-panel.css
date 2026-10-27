@@ -2052,14 +2052,15 @@ body.mate-open .mate-fab {
 /* ───────── Mate's face (the fox is the face of the Mate AI; mate-face.css has the avatar itself) ───────── */
 
 .mate-pal__mark.has-face {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  margin-bottom: 4px;
+  border-radius: 0;
   background: none;
 }
 
 .mate-pal__mark.has-face .mate-face {
-  --mate-face: 30px;
+  --mate-face: 36px;
 }
 
 .mate-fab__spark.has-face {
@@ -2070,8 +2071,8 @@ body.mate-open .mate-fab {
 }
 
 .mate-fab__spark.has-face .mate-face {
-  --mate-face: 34px;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+  --mate-face: 38px;
+  margin-top: -6px;
 }
 
 /* holding to talk: the fox listens, the pill stays dark (no red) */
@@ -2115,7 +2116,7 @@ body.mate-open .mate-fab {
 }
 
 .mate-toast__icon.has-face .mate-face {
-  --mate-face: 40px;
+  --mate-face: 44px;
 }
 
 .mate-face-slot {

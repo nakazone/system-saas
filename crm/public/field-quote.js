@@ -367,7 +367,7 @@
     route: () => svg('<path d="M3 11l18-8-8 18-2-8z"/>', 18),
     play: () => '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5l12 7-12 7z"/></svg>',
     // The Mate's face (fox mascot); state: neutral | thinking | happy | curious | listening
-    mate: (w, st) => `<span class="fq-mateface" style="width:${(w || 20) + 6}px;height:${(w || 20) + 6}px" data-state="${st || 'neutral'}" aria-hidden="true"><img src="/assets/img/mascot/mate-head-${st || 'neutral'}.webp?v=20261026-m1" alt="" width="${(w || 20) + 6}" height="${(w || 20) + 6}" decoding="async"></span>`,
+    mate: (w, st) => `<span class="fq-mateface" style="width:${(w || 20) + 6}px;height:${(w || 20) + 6}px" data-state="${st || 'neutral'}" aria-hidden="true"><img src="/assets/img/mascot/mate-head-${st || 'neutral'}.webp?v=20261027-m2" alt="" width="${(w || 20) + 6}" height="${(w || 20) + 6}" decoding="async"></span>`,
   };
 
   // ------------------------------------------------------------------ Mate tips (local checks, nothing changes without a tap)

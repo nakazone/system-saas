@@ -9,32 +9,30 @@
   place-items: center;
   width: var(--mate-face);
   height: var(--mate-face);
-  overflow: hidden;
-  border-radius: 50%;
-  background: var(--om-surface, #f1f3f5);
   vertical-align: middle;
   isolation: isolate;
 }
 
+/* The whole head, ears included, on a transparent background (no circle crop). */
 .mate-face img {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   -webkit-user-select: none;
   user-select: none;
   pointer-events: none;
 }
 
-.mate-face--xs { --mate-face: 20px; }
-.mate-face--sm { --mate-face: 24px; }
-.mate-face--md { --mate-face: 28px; }
-.mate-face--lg { --mate-face: 40px; }
-.mate-face--xl { --mate-face: 52px; }
-.mate-face--hero { --mate-face: 64px; }
+.mate-face--xs { --mate-face: 22px; }
+.mate-face--sm { --mate-face: 28px; }
+.mate-face--md { --mate-face: 32px; }
+.mate-face--lg { --mate-face: 44px; }
+.mate-face--xl { --mate-face: 56px; }
+.mate-face--hero { --mate-face: 72px; }
 
-.mate-face--ring {
-  box-shadow: 0 0 0 2px var(--om-card, #fff), 0 0 0 3px var(--om-line, #e5e7eb);
+.mate-face--ring img {
+  filter: drop-shadow(0 1px 1.5px rgba(16, 24, 40, 0.18));
 }
 
 /* expression changes: a small lift, never a loop (talking swaps frames in JS) */
@@ -42,12 +40,7 @@
   animation: mate-face-pop 0.36s cubic-bezier(0.2, 0.9, 0.3, 1.2);
 }
 
-.mate-face[data-state='listening']::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 2px var(--om-accent, #e7792c);
+.mate-face[data-state='listening'] img {
   animation: mate-face-listen 1.4s ease-in-out infinite;
 }
 
@@ -61,8 +54,8 @@
 }
 
 @keyframes mate-face-listen {
-  0%, 100% { opacity: 0.35; }
-  50% { opacity: 1; }
+  0%, 100% { filter: drop-shadow(0 0 0 rgba(231, 121, 44, 0)); }
+  50% { filter: drop-shadow(0 0 3px rgba(231, 121, 44, 0.85)); }
 }
 
 @keyframes mate-face-think {

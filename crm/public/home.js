@@ -13,6 +13,21 @@
   let loadedAt = 0;
   let expanded = false;
 
+  /** The Mate (fox mascot) next to the greeting: waves in the morning, tablet in the afternoon, laptop at night. */
+  function renderMate() {
+    const img = $("homeMateImg");
+    if (!img || img.dataset.done) return;
+    const h = new Date().getHours();
+    const pose = h >= 18 || h < 4 ? "laptop" : h >= 12 ? "tablet" : "wave";
+    img.src = `/assets/img/mascot/mate-${pose}.webp?v=20261027-m2`;
+    img.dataset.done = "1";
+    const btn = $("homeMate");
+    btn.classList.add("home-mate--" + pose);
+    btn.addEventListener("click", () => {
+      if (window.MateAI && typeof window.MateAI.open === "function") window.MateAI.open();
+    });
+  }
+
   function can(perm) {
     return D.can(session, perm);
   }
@@ -46,6 +61,7 @@
   function renderHeader() {
     const name = (session.user && (session.user.name || session.user.email)) || "";
     $("homeGreeting").textContent = D.greeting(overview, name);
+    renderMate();
     $("homeDate").textContent = D.dateLabel(overview) || " ";
     const av = $("homeAvatar");
     if (av) {

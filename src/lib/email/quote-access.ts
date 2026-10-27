@@ -13,7 +13,7 @@ const DEFAULT_PAL = {
 const DEFAULT_TAGLINE = "Hardwood · LVP · Refinishing";
 
 /** The Mate (fox) beside "Sent via ObraMate" in customer e-mails. Absolute URL; PNG works in every mail client. */
-const MATE_EMAIL_ICON = `${(process.env.APP_BASE_URL || "https://obramate.com").replace(/\/+$/, "")}/assets/img/mascot/mate-icon-96.png?v=20261026-m1`;
+const MATE_EMAIL_ICON = `${(process.env.APP_BASE_URL || "https://obramate.com").replace(/\/+$/, "")}/assets/img/mascot/mate-icon-96.png?v=20261027-m2`;
 
 export type QuoteAccessEmailInput = {
   companyName: string;
@@ -145,7 +145,7 @@ ${cta}
 ${expLine}
 <p style="margin:28px 0 0;font-size:12px;color:${muted};line-height:1.5;">${copy.questions}</p>
 <p style="margin:8px 0 0;font-size:12px;color:${muted};">${copy.signOff}</p>
-<p style="margin:16px 0 0;font-size:11px;color:#a89f94;"><img src="${MATE_EMAIL_ICON}" width="20" height="20" alt="" style="width:20px;height:20px;border:0;border-radius:10px;vertical-align:-6px;margin-right:6px;">${copy.powered}</p>
+<p style="margin:16px 0 0;font-size:11px;color:#a89f94;"><img src="${MATE_EMAIL_ICON}" width="20" height="20" alt="" style="width:22px;height:22px;border:0;vertical-align:-6px;margin-right:6px;">${copy.powered}</p>
 </td></tr>
 </table>
 </td></tr></table></body></html>`;

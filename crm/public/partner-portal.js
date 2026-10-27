@@ -935,7 +935,7 @@
 
     if (s.phase === 'reading') {
       box.innerHTML = `<div class="pp-card pp-reading pp-reading--mate" role="status">
-        <img class="pp-mate-art" src="/assets/img/mascot/mate-reading.webp?v=20261026-m1" alt="" height="96" decoding="async">
+        <img class="pp-mate-art" src="/assets/img/mascot/mate-reading.webp?v=20261027-m2" alt="" height="96" decoding="async">
         <div style="display:flex;gap:12px;align-items:center"><span class="pp-doc-ico" style="width:44px;height:44px">${s.files[0] && s.files[0].type === 'application/pdf' ? 'PDF' : s.files.length ? 'IMG' : 'TXT'}</span><div><strong>${esc(s.files.length ? s.files.map((f) => f.name).join(', ') : 'Texto colado')}</strong><div class="pp-muted" style="font-size:13px">Lendo endereço, nº do job, data e serviço…</div></div></div>
         <div class="pp-progress"><i></i></div>
         <p class="pp-muted" style="margin:0;font-size:14px">Leva alguns segundos. Nada é enviado antes de você conferir.</p>
@@ -946,7 +946,7 @@
     if (s.phase === 'done') {
       const updated = s.sent && s.sent.update;
       box.innerHTML = `<div class="pp-card pp-reading">
-        <img class="pp-mate-art" src="/assets/img/mascot/mate-thumbs.webp?v=20261026-m1" alt="" height="96" decoding="async">
+        <img class="pp-mate-art" src="/assets/img/mascot/mate-thumbs.webp?v=20261027-m2" alt="" height="96" decoding="async">
         <h2 style="margin:0;font-size:24px">${updated ? 'Atualização enviada' : 'Pedido enviado'}</h2>
         <p class="pp-muted" style="margin:0">A equipe de ${esc(providerName())} confere e responde aqui. ${updated ? 'O job continua o mesmo, com as fotos e invoices juntos.' : 'Quando aceitarem, o job aparece em Jobs.'}</p>
         <div style="display:flex;gap:10px;flex-wrap:wrap"><button type="button" class="pp-btn pp-btn--pri" id="ppSendAnother">Enviar outro</button><a class="pp-btn pp-btn--sec" href="#jobs">Ver jobs</a></div>
@@ -1036,7 +1036,7 @@
       </div>` : '';
     return `
       <div class="pp-card" style="padding:16px 20px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:center">
-        <div style="display:flex;gap:10px;align-items:center">${s.ai ? `<span class="pp-mateface" aria-hidden="true"><img src="/assets/img/mascot/mate-head-neutral.webp?v=20261026-m1" alt="" width="36" height="36"></span>` : ''}<div><strong style="font-size:17px">${s.ai ? 'Confira o que lemos' : 'Dados do pedido'}</strong><div class="pp-muted" style="font-size:14px">${s.ai ? `${plural(filled, 'campo preenchido', 'campos preenchidos')}${checked ? ` · <span class="pp-late">${plural(checked, 'para conferir', 'para conferir')}</span>` : ''} · nada é enviado antes de você confirmar` : 'Preencha o que souber. Endereço e título são obrigatórios.'}</div></div></div>
+        <div style="display:flex;gap:10px;align-items:center">${s.ai ? `<span class="pp-mateface" aria-hidden="true"><img src="/assets/img/mascot/mate-head-neutral.webp?v=20261027-m2" alt="" width="36" height="36"></span>` : ''}<div><strong style="font-size:17px">${s.ai ? 'Confira o que lemos' : 'Dados do pedido'}</strong><div class="pp-muted" style="font-size:14px">${s.ai ? `${plural(filled, 'campo preenchido', 'campos preenchidos')}${checked ? ` · <span class="pp-late">${plural(checked, 'para conferir', 'para conferir')}</span>` : ''} · nada é enviado antes de você confirmar` : 'Preencha o que souber. Endereço e título são obrigatórios.'}</div></div></div>
         <button type="button" class="pp-link" id="ppRestart">${s.files.length || s.ai ? 'Trocar arquivo' : 'Começar de novo'}</button>
       </div>
       <div class="pp-cols">

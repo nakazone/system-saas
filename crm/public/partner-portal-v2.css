@@ -545,8 +545,8 @@ body.pp {
 
 /* The Mate (fox) reads the work order and confirms */
 .pp-mate-art { display: block; width: auto; height: 96px; margin: -8px 0 -4px; }
-.pp-mateface { flex: none; width: 36px; height: 36px; overflow: hidden; border-radius: 50%; background: #F1F3F5; }
-.pp-mateface img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.pp-mateface { flex: none; width: 40px; height: 40px; }
+.pp-mateface img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .pp-reading--mate .pp-mate-art { animation: pp-mate-read 1.8s ease-in-out infinite; }
 @keyframes pp-mate-read { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
 @media (prefers-reduced-motion: reduce) { .pp-reading--mate .pp-mate-art { animation: none; } }

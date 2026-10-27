@@ -92,6 +92,6 @@ export async function maintenanceGuard(req: Request, res: Response, next: NextFu
 <style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f7f4ee;font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#211d1a;padding:16px}
 .c{max-width:460px;background:#fff;border-radius:20px;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.08)}.mate{display:block;height:96px;width:auto;margin:-6px 0 10px}
 h1{font-size:24px;margin:0 0 8px}p{margin:0 0 10px;color:#6e655c;line-height:1.5}.en{border-top:1px solid #eee5d8;margin-top:16px;padding-top:14px;font-size:14px}</style></head>
-<body><main class="c"><img class="mate" src="/assets/img/mascot/mate-laptop.webp?v=20261026-m1" alt="" height="96" onerror="this.remove()"><h1>Voltamos já</h1><p>${esc(m.message || "O ObraMate está em manutenção para melhorias. Seus dados estão seguros.")}</p>${back ? `<p><b>Previsão: ${esc(back)}</b></p>` : ""}
+<body><main class="c"><img class="mate" src="/assets/img/mascot/mate-laptop.webp?v=20261027-m2" alt="" height="96" onerror="this.remove()"><h1>Voltamos já</h1><p>${esc(m.message || "O ObraMate está em manutenção para melhorias. Seus dados estão seguros.")}</p>${back ? `<p><b>Previsão: ${esc(back)}</b></p>` : ""}
 <p class="en">We'll be right back — ObraMate is down for scheduled maintenance.${backEn ? ` Expected back ${esc(backEn)}.` : ""}</p></main></body></html>`);
 }

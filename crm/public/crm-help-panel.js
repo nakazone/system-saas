@@ -57,7 +57,7 @@
       "</p>" +
       // The Mate (fox) answers help too: one tap opens him with the question
       ('<button type="button" class="crm-help-panel__mate" data-crm-help-mate>' +
-          '<span class="crm-help-panel__mateface" aria-hidden="true"><img src="/assets/img/mascot/mate-head-neutral.webp?v=20261026-m1" alt="" width="28" height="28"></span>' +
+          '<span class="crm-help-panel__mateface" aria-hidden="true"><img src="/assets/img/mascot/mate-head-neutral.webp?v=20261027-m2" alt="" width="28" height="28"></span>' +
           '<span>' + esc({ en: "Ask Mate", es: "Pregúntale a Mate" }[loc()] || "Pergunte ao Mate") + '</span></button>') +
       "</div>" +
       '<button type="button" class="crm-help-panel__close" data-crm-help-close aria-label="' +
