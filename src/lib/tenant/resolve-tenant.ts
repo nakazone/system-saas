@@ -159,6 +159,18 @@ export async function resolveTenant(
       return;
     }
 
+    // Builder account call that names its company (set by the builder router after checking the link).
+    const builderTenantId = (req as TenantRequest & { builderTenantId?: string }).builderTenantId;
+    if (builderTenantId) {
+      const organization = await loadOrganizationById(builderTenantId);
+      if (organization && attachOrganization(req, organization)) {
+        next();
+        return;
+      }
+      res.status(404).json({ success: false, error: "Empresa indisponível." });
+      return;
+    }
+
     if (subdomain === "admin") {
       req.isPlatformAdminHost = true;
       next();

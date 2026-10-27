@@ -258,6 +258,39 @@ builderAccountRouter.get("/partner-portal.html", async (req, res, next) => {
 
 /* ───────────────────────── account API ───────────────────────── */
 
+/**
+ * Builders see every connected company at once, so each portal call names its company
+ * (header X-Builder-Company, or ?bc= on file links) instead of relying on one session company.
+ */
+builderAccountRouter.use("/api/partner-portal", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!req.session?.builderMemberId) {
+      next();
+      return;
+    }
+    const linkId = String(req.get("x-builder-company") || (typeof req.query.bc === "string" ? req.query.bc : "") || "").trim();
+    if (!linkId) {
+      next();
+      return;
+    }
+    const member = await loadActiveMember(req.session.builderMemberId);
+    if (!member) {
+      res.status(401).json({ success: false, error: "Entre na sua conta de builder." });
+      return;
+    }
+    const link = (await linksFor(member.builderAccountId)).find((l) => l.id === linkId && l.status === "active");
+    if (!link || !link.organization_id) {
+      res.status(404).json({ success: false, error: "Empresa não conectada." });
+      return;
+    }
+    (req as Request & { builderTenantId?: string; builderLinkId?: string }).builderTenantId = link.organization_id;
+    (req as Request & { builderTenantId?: string; builderLinkId?: string }).builderLinkId = link.id;
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
 builderAccountRouter.get("/api/builder/me", requireBuilder, async (req: BuilderReq, res, next) => {
   try {
     const m = req.builderMember!;

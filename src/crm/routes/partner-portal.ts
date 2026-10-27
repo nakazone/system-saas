@@ -124,6 +124,12 @@ async function saveSession(req: TenantRequest): Promise<void> {
   });
 }
 
+/** File and invoice links carry the builder's company so they open outside the session company. */
+function bcUrl(req: PartnerRequest, url: string): string {
+  const linkId = (req as PartnerRequest & { builderLinkId?: string }).builderLinkId;
+  return linkId ? `${url}${url.includes("?") ? "&" : "?"}bc=${encodeURIComponent(linkId)}` : url;
+}
+
 async function requirePartnerAuth(
   req: PartnerRequest,
   res: Response,
@@ -633,7 +639,7 @@ partnerPortalRouter.get("/api/partner-portal/invoices", requirePartnerAuth, requ
           paid_at: invoice.paidAt,
           job: invoice.workOrder,
           quote: invoice.quote,
-          invoice_url: `/api/partner-portal/invoices/${encodeURIComponent(invoice.id)}/open`,
+          invoice_url: bcUrl(req, `/api/partner-portal/invoices/${encodeURIComponent(invoice.id)}/open`),
         };
       });
     });
@@ -727,7 +733,7 @@ partnerPortalRouter.get("/api/partner-portal/requests", requirePartnerAuth, asyn
           name: file.name,
           size: file.size,
           content_type: file.contentType,
-          file_url: `/api/partner-portal/requests/${encodeURIComponent(row.id)}/files/${index}`,
+          file_url: bcUrl(req, `/api/partner-portal/requests/${encodeURIComponent(row.id)}/files/${index}`),
         })),
       })),
     });
@@ -1072,7 +1078,7 @@ partnerPortalRouter.get("/api/partner-portal/jobs/:id", requirePartnerAuth, asyn
           stage: item.stage || null,
           caption: item.caption || "",
           created_at: item.createdAt,
-          file_url: `/api/partner-portal/documents/media/${encodeURIComponent(item.id)}/file`,
+          file_url: bcUrl(req, `/api/partner-portal/documents/media/${encodeURIComponent(item.id)}/file`),
         })),
         documents: [
           ...reports.map((item) => ({
@@ -1080,17 +1086,17 @@ partnerPortalRouter.get("/api/partner-portal/jobs/:id", requirePartnerAuth, asyn
             type: "report",
             title: item.title || "Relatório da obra",
             created_at: item.publishedAt || item.createdAt,
-            file_url: `/api/partner-portal/documents/report/${encodeURIComponent(item.id)}/file`,
+            file_url: bcUrl(req, `/api/partner-portal/documents/report/${encodeURIComponent(item.id)}/file`),
           })),
           ...(job.deliveryAttachmentSharedWithPartners && job.deliveryAttachmentKey
-            ? [{ id: job.id, type: "file", title: job.deliveryAttachmentName || "Arquivo da obra", created_at: null, file_url: `/api/partner-portal/documents/attachment/${encodeURIComponent(job.id)}/file` }]
+            ? [{ id: job.id, type: "file", title: job.deliveryAttachmentName || "Arquivo da obra", created_at: null, file_url: bcUrl(req, `/api/partner-portal/documents/attachment/${encodeURIComponent(job.id)}/file`) }]
             : []),
           ...requests.flatMap((row) => requestFiles(row.files).map((file, index) => ({
             id: `${row.id}-${index}`,
             type: "sent",
             title: file.name,
             created_at: row.createdAt,
-            file_url: `/api/partner-portal/requests/${encodeURIComponent(row.id)}/files/${index}`,
+            file_url: bcUrl(req, `/api/partner-portal/requests/${encodeURIComponent(row.id)}/files/${index}`),
           }))),
         ],
         invoices: invoices.map((invoice) => {
@@ -1104,7 +1110,7 @@ partnerPortalRouter.get("/api/partner-portal/jobs/:id", requirePartnerAuth, asyn
             balance: Math.max(0, amount - paid),
             due_date: invoice.dueDate,
             issued_at: invoice.issuedAt,
-            invoice_url: `/api/partner-portal/invoices/${encodeURIComponent(invoice.id)}/open`,
+            invoice_url: bcUrl(req, `/api/partner-portal/invoices/${encodeURIComponent(invoice.id)}/open`),
           };
         }),
         requests: requests.map((row) => ({
@@ -1440,7 +1446,7 @@ partnerPortalRouter.get(
           title: item.caption || (item.stage ? `Foto · ${item.stage}` : "Foto da obra"),
           created_at: item.createdAt.toISOString(),
           job: jobRef(item.workOrderId),
-          file_url: `/api/partner-portal/documents/media/${encodeURIComponent(item.id)}/file`,
+          file_url: bcUrl(req, `/api/partner-portal/documents/media/${encodeURIComponent(item.id)}/file`),
         }));
         const reports = reportRows.map((item) => ({
           id: item.id,
@@ -1449,7 +1455,7 @@ partnerPortalRouter.get(
           summary: item.summary || "",
           created_at: (item.publishedAt || item.createdAt).toISOString(),
           job: jobRef(item.workOrderId),
-          file_url: `/api/partner-portal/documents/report/${encodeURIComponent(item.id)}/file`,
+          file_url: bcUrl(req, `/api/partner-portal/documents/report/${encodeURIComponent(item.id)}/file`),
         }));
         const attachments = jobs
           .filter((job) => job.deliveryAttachmentSharedWithPartners && job.deliveryAttachmentKey)
@@ -1459,7 +1465,7 @@ partnerPortalRouter.get(
             title: job.deliveryAttachmentName || "Arquivo da obra",
             created_at: "",
             job: jobRef(job.id),
-            file_url: `/api/partner-portal/documents/attachment/${encodeURIComponent(job.id)}/file`,
+            file_url: bcUrl(req, `/api/partner-portal/documents/attachment/${encodeURIComponent(job.id)}/file`),
           }));
         const documents = [...media, ...reports, ...attachments];
         documents.sort((a, b) => b.created_at.localeCompare(a.created_at));

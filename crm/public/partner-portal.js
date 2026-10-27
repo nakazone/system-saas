@@ -30,6 +30,13 @@
     company: null,
     perms: null,
     priceList: null,
+    /** Builder accounts: everything from every connected company, before the company filter. */
+    all: { jobs: [], projects: [], invoices: [], requests: [], documents: [] },
+    /** Company filter on the list pages ('' = all companies). */
+    coFilter: '',
+    /** Company of the job being shown or of the send form (texts like "a equipe de X"). */
+    ctx: null,
+    priceLists: {},
   };
 
   /* ─────────────────────────── helpers ─────────────────────────── */
@@ -109,7 +116,10 @@
   }
 
   async function api(url, options) {
-    const response = await fetch(url, { credentials: 'include', ...options });
+    const opts = { ...(options || {}) };
+    if (opts.co) opts.headers = { ...(opts.headers || {}), 'X-Builder-Company': opts.co };
+    delete opts.co;
+    const response = await fetch(url, { credentials: 'include', ...opts });
     const body = await response.json().catch(() => ({}));
     if (response.status === 401) {
       location.replace('partner-login.html');
@@ -123,8 +133,8 @@
     }
     return body;
   }
-  function postJson(url, payload) {
-    return api(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  function postJson(url, payload, co) {
+    return api(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), co });
   }
 
   /* ─────────────────────────── domain ─────────────────────────── */
@@ -220,7 +230,13 @@
   }
 
   function providerName() {
-    if (state.builder) return state.company ? state.company.company_name : 'Escolha uma empresa';
+    if (state.builder) {
+      if (state.ctx) return state.ctx.company_name;
+      const filtered = state.coFilter && coById(state.coFilter);
+      if (filtered) return filtered.company_name;
+      const act = activeCompanies();
+      return act.length === 1 ? act[0].company_name : 'Todas as empresas';
+    }
     const user = state.user || {};
     const p = state.providers.find((x) => x.slug === user.workspace);
     return (p && p.name) || 'Seu fornecedor';
@@ -229,11 +245,52 @@
   function canDo(permission) {
     return !state.perms || state.perms.includes(permission);
   }
+  /** Builders: at least one connected company to show data from. */
   function companyActive() {
-    return !state.builder || Boolean(state.company && state.company.status === 'active');
+    return !state.builder || activeCompanies().length > 0;
+  }
+  function activeCompanies() {
+    return state.builder ? (state.builder.companies || []).filter((c) => c.status === 'active') : [];
+  }
+  function coById(id) {
+    return (state.builder && (state.builder.companies || []).find((c) => c.id === id)) || null;
+  }
+  function multiCo() {
+    return activeCompanies().length > 1;
+  }
+  /** Same portal call on every connected company; failures of one company don't hide the others. */
+  async function fetchEach(url) {
+    const parts = await Promise.all(activeCompanies().map((c) => api(url, { co: c.id }).then((r) => ({ c, data: r.data })).catch(() => null)));
+    return parts.filter(Boolean);
+  }
+  function tagCo(rows, c) {
+    return (Array.isArray(rows) ? rows : []).map((x) => ({ ...x, _co: c.id, _coName: c.company_name }));
+  }
+  function applyCoFilter() {
+    if (!state.builder) return;
+    if (state.coFilter && !activeCompanies().some((c) => c.id === state.coFilter)) state.coFilter = '';
+    const f = state.coFilter;
+    ['jobs', 'projects', 'invoices', 'requests', 'documents'].forEach((k) => {
+      state[k] = f ? state.all[k].filter((x) => x._co === f) : state.all[k].slice();
+    });
+  }
+  /** Small company line on rows when the builder works with more than one company. */
+  function coLine(item) {
+    return state.builder && multiCo() && item && item._coName ? `<span class="pp-row-co">${esc(item._coName)}</span>` : '';
+  }
+  function coBarHtml() {
+    if (!state.builder || !multiCo()) return '';
+    const btn = (id, label) => `<button type="button" data-cofilter="${esc(id)}" aria-pressed="${state.coFilter === id}">${esc(label)}</button>`;
+    return `<div class="pp-cobar pp-filter" role="group" aria-label="Filtrar por empresa">${btn('', 'Todas as empresas')}${activeCompanies().map((c) => btn(c.id, c.company_name)).join('')}</div>`;
   }
   function companyInvited() {
-    return Boolean(state.builder && state.company && state.company.status === 'invited');
+    const c = sendCo();
+    return Boolean(state.builder && c && c.status === 'invited');
+  }
+  /** Company the job being sent goes to: the one picked in the send form, else the last one used. */
+  function sendCo() {
+    if (!state.builder) return null;
+    return (state.send && state.send.co && coById(state.send.co)) || state.company || activeCompanies()[0] || (state.builder.companies || [])[0] || null;
   }
 
   /* ─────────────────────────── loading ─────────────────────────── */
@@ -241,6 +298,12 @@
   async function loadInvoices(force) {
     if (state.loaded.invoices && !force) return;
     if (!canDo('money.view') || !companyActive()) { state.invoices = []; state.loaded.invoices = true; return; }
+    if (state.builder) {
+      state.all.invoices = (await fetchEach('/api/partner-portal/invoices')).flatMap((p) => tagCo(p.data, p.c));
+      applyCoFilter();
+      state.loaded.invoices = true;
+      return;
+    }
     const r = await api('/api/partner-portal/invoices');
     state.invoices = r.data || [];
     state.loaded.invoices = true;
@@ -248,6 +311,12 @@
   async function loadRequests(force) {
     if (state.loaded.requests && !force) return;
     if (!companyActive()) { state.requests = []; state.loaded.requests = true; return; }
+    if (state.builder) {
+      state.all.requests = (await fetchEach('/api/partner-portal/requests')).flatMap((p) => tagCo(p.data, p.c));
+      applyCoFilter();
+      state.loaded.requests = true;
+      return;
+    }
     const r = await api('/api/partner-portal/requests');
     state.requests = r.data || [];
     state.loaded.requests = true;
@@ -255,13 +324,35 @@
   async function loadDocuments(force) {
     if (state.loaded.documents && !force) return;
     if (!companyActive()) { state.documents = []; state.loaded.documents = true; return; }
+    if (state.builder) {
+      state.all.documents = (await fetchEach('/api/partner-portal/documents')).flatMap((p) => tagCo(p.data, p.c));
+      applyCoFilter();
+      state.loaded.documents = true;
+      return;
+    }
     const r = await api('/api/partner-portal/documents');
     state.documents = r.data || [];
     state.loaded.documents = true;
   }
   async function loadJob(id, force) {
     if (state.jobDetail.has(id) && !force) return state.jobDetail.get(id);
-    const r = await api(`/api/partner-portal/jobs/${encodeURIComponent(id)}`);
+    const url = `/api/partner-portal/jobs/${encodeURIComponent(id)}`;
+    if (state.builder) {
+      const known = state.all.jobs.find((j) => j.id === id);
+      const tries = known ? [coById(known._co)].filter(Boolean) : activeCompanies();
+      for (const c of tries) {
+        try {
+          const r = await api(url, { co: c.id });
+          r.data._co = c.id;
+          state.jobDetail.set(id, r.data);
+          return r.data;
+        } catch (err) {
+          if (known) throw err;
+        }
+      }
+      throw new Error('Job não encontrado.');
+    }
+    const r = await api(url);
     state.jobDetail.set(id, r.data);
     return r.data;
   }
@@ -291,12 +382,28 @@
     });
   }
   let renderToken = 0;
+  /** Company filter under the page title on list pages (builders with 2+ companies). */
+  function paintCoBar(r) {
+    if (!['inicio', 'jobs', 'invoices', 'calendario', 'documentos'].includes(r.name)) return;
+    if (r.id && window.matchMedia('(max-width: 1023px)').matches) return;
+    const html = coBarHtml();
+    if (!html) return;
+    const head = view.querySelector('.pp-head');
+    if (head) head.insertAdjacentHTML('afterend', html);
+    else view.insertAdjacentHTML('afterbegin', html);
+    view.querySelectorAll('[data-cofilter]').forEach((b) => b.addEventListener('click', () => {
+      state.coFilter = b.getAttribute('data-cofilter');
+      applyCoFilter();
+      render();
+    }));
+  }
   async function render() {
     if (!state.user || state.user.must_change_password) return;
     const token = ++renderToken;
     const r = route();
     setNav(r.name);
     document.body.classList.remove('pp-focus');
+    state.ctx = null;
     try {
       if (state.builder && r.name === 'empresas') { await renderCompanies(token); updateCounts(); return; }
       if (state.builder && r.name === 'equipe') { await renderTeam(token); updateCounts(); return; }
@@ -308,6 +415,7 @@
       else if (r.name === 'documentos') await renderDocuments(token);
       else if (r.name === 'mais') renderMore();
       else await renderHome(token);
+      if (token === renderToken) paintCoBar(r);
     } catch (err) {
       if (token !== renderToken) return;
       view.innerHTML = `<p class="pp-error" role="alert">${esc(err.message || 'Não foi possível carregar.')}</p>`;
@@ -369,7 +477,7 @@
         <section class="pp-tile pp-tile--orange" style="grid-column: span 4; grid-row: span 3" aria-label="Jobs ativos">
           <div style="font-size:14px;font-weight:500">Jobs ativos</div>
           <div class="pp-big" style="font-size:52px">${active.length}</div>
-          <div style="font-size:14px">com ${esc(providerName())}</div>
+          <div style="font-size:14px">${state.builder && multiCo() && !state.coFilter ? `em ${activeCompanies().length} empresas` : `com ${esc(providerName())}`}</div>
           <div class="pp-inbox-grid">
             <div class="pp-inbox"><span style="font-size:12px">Aguardando agenda</span><b>${waiting}</b></div>
             <div class="pp-inbox"><span style="font-size:12px">Agendados</span><b>${scheduled}</b></div>
@@ -454,6 +562,7 @@
     const stage = (key, label) => `<button type="button" data-stage="${key}" aria-pressed="${state.jobStage === key}">${esc(label)} · ${counts[key]}</button>`;
     const row = (j) => `<button type="button" class="pp-row" data-job="${esc(j.id)}" aria-current="${j.id === selectedId}">
         <span class="pp-row-main">
+          ${coLine(j)}
           <span class="pp-row-top"><strong>${esc(j.title || 'Job')}</strong><span>${j.number ? `#${esc(j.number)}` : ''}</span></span>
           <span class="pp-row-sub">${esc(j.address || 'Sem endereço')}</span>
           <span class="pp-row-next pp-row-split"><span>${jobWhen(j)}</span>${j.total ? `<b>${moneyShort(j.total)}</b>` : ''}</span>
@@ -493,6 +602,7 @@
       document.body.classList.add('pp-focus');
       const data = await loadJob(selectedId).catch((err) => ({ error: err.message }));
       if (token !== renderToken) return;
+      state.ctx = (data && data._co && coById(data._co)) || null;
       $('ppJobPane').innerHTML = data.error ? `<p class="pp-error">${esc(data.error)}</p>` : jobDetailHtml(data);
       bindJobDetail(data);
     }
@@ -555,6 +665,7 @@
         <div class="tk-hero-top">
           <button type="button" class="pp-back" data-back="#jobs">${icon('back')}Jobs</button>
           <div class="tk-meta">
+            ${state.builder && state.ctx ? `<span class="tk-num">${esc(state.ctx.company_name)} ·</span>` : ''}
             ${job.number ? `<span class="tk-num">JOB #${esc(job.number)}</span>` : ''}
             <span class="tk-pill tk-pill--${pillTone}">${esc(t.status || 'Agendado')}</span>
             ${job.external_ref ? `<span class="tk-num">· SEU Nº ${esc(job.external_ref)}</span>` : ''}
@@ -640,6 +751,7 @@
     view.querySelectorAll('[data-update-job]').forEach((b) => b.addEventListener('click', () => {
       state.send = newSend();
       state.send.presetJob = { id: data.job.id, number: data.job.number, title: data.job.title, address: data.job.address };
+      if (data._co) state.send.co = data._co;
       location.hash = '#enviar';
     }));
   }
@@ -694,7 +806,7 @@
       <div class="pp-split pp-split--list ${id ? 'is-open' : ''}">
         <aside class="pp-card pp-side" aria-label="Lista de invoices">
           <div class="pp-side-search"><label>${icon('search')}<span class="pp-sr">Buscar invoices</span><input id="ppInvSearch" type="search" placeholder="Nº, endereço ou job" value="${esc(state.q)}" /></label></div>
-          ${groups.length ? groups.map(([label, rows]) => `<div class="pp-group">${esc(label)} · ${rows.length}</div>${rows.map((x) => `<button type="button" class="pp-row" data-inv="${esc(x.inv.id)}" aria-current="${x.inv.id === selectedId}"><span class="pp-row-main"><span class="pp-row-top"><strong>${esc(invoiceRef(x.inv))}</strong><span style="color:var(--pp-ink);font-weight:600">${money(x.st.key === 'paid' ? x.inv.amount : x.inv.balance)}</span></span><span class="pp-row-sub">${esc(x.inv.number || 'Invoice')}${x.inv.job && x.inv.job.number ? ` · Job #${esc(x.inv.job.number)}` : ''}</span><span class="pp-row-next ${['overdue', 'soon'].includes(x.st.key) ? 'pp-late' : ''}">${esc(x.st.label)}</span></span></button>`).join('')}`).join('') : `<div class="pp-empty"><strong>${all.length ? 'Nada nesta lista' : 'Nenhuma invoice ainda'}</strong>${all.length ? 'Troque o filtro ou a busca.' : 'As invoices emitidas pelo fornecedor aparecem aqui.'}</div>`}
+          ${groups.length ? groups.map(([label, rows]) => `<div class="pp-group">${esc(label)} · ${rows.length}</div>${rows.map((x) => `<button type="button" class="pp-row" data-inv="${esc(x.inv.id)}" aria-current="${x.inv.id === selectedId}"><span class="pp-row-main">${coLine(x.inv)}<span class="pp-row-top"><strong>${esc(invoiceRef(x.inv))}</strong><span style="color:var(--pp-ink);font-weight:600">${money(x.st.key === 'paid' ? x.inv.amount : x.inv.balance)}</span></span><span class="pp-row-sub">${esc(x.inv.number || 'Invoice')}${x.inv.job && x.inv.job.number ? ` · Job #${esc(x.inv.job.number)}` : ''}</span><span class="pp-row-next ${['overdue', 'soon'].includes(x.st.key) ? 'pp-late' : ''}">${esc(x.st.label)}</span></span></button>`).join('')}`).join('') : `<div class="pp-empty"><strong>${all.length ? 'Nada nesta lista' : 'Nenhuma invoice ainda'}</strong>${all.length ? 'Troque o filtro ou a busca.' : 'As invoices emitidas pelo fornecedor aparecem aqui.'}</div>`}
         </aside>
         <section class="pp-main" aria-label="Invoice">${selected ? invoiceDetailHtml(selected.inv, selected.st) : '<div class="pp-card pp-empty"><strong>Escolha uma invoice</strong>Os detalhes aparecem aqui.</div>'}</section>
       </div>`;
@@ -780,7 +892,7 @@
         </section>
         <aside class="pp-card pp-side" aria-label="Dia escolhido" style="max-width:420px">
           <div style="padding:16px 16px 4px"><p class="pp-eyebrow" style="text-transform:capitalize">${esc(fmtDay(selDate, { weekday: 'long' }))}</p><h2 style="margin:0;font-size:22px">${esc(fmtDay(selDate, { day: 'numeric', month: 'long' }))}</h2><p class="pp-muted" style="margin:4px 0 0;font-size:14px">${sel.length ? plural(sel.length, 'job', 'jobs') : 'Nenhum job neste dia'}</p></div>
-          ${sel.map((j) => `<button type="button" class="pp-row" data-job="${esc(j.id)}"><span class="pp-row-main"><span class="pp-row-top"><strong>${esc(j.title || 'Job')}</strong><span>${j.allDay ? 'Dia todo' : esc(fmtTime(j.scheduledStart))}</span></span><span class="pp-row-sub">${esc(j.address || '')}</span><span class="pp-row-next">${jobChip(j)}</span></span></button>`).join('')}
+          ${sel.map((j) => `<button type="button" class="pp-row" data-job="${esc(j.id)}"><span class="pp-row-main">${coLine(j)}<span class="pp-row-top"><strong>${esc(j.title || 'Job')}</strong><span>${j.allDay ? 'Dia todo' : esc(fmtTime(j.scheduledStart))}</span></span><span class="pp-row-sub">${esc(j.address || '')}</span><span class="pp-row-next">${jobChip(j)}</span></span></button>`).join('')}
           <div style="padding:12px 16px 16px"><a class="pp-btn pp-btn--sec pp-btn--sm" href="#enviar">Enviar trabalho</a></div>
         </aside>
       </div>`;
@@ -874,7 +986,7 @@
     s.error = '';
     renderSendBody();
     try {
-      const r = await postJson(companyInvited() ? '/api/builder/read' : '/api/partner-portal/requests/read', { text: s.text, files: s.files.map((f) => ({ name: f.name, data_url: f.dataUrl })) });
+      const r = await postJson(companyInvited() ? '/api/builder/read' : '/api/partner-portal/requests/read', { text: s.text, files: s.files.map((f) => ({ name: f.name, data_url: f.dataUrl })) }, state.builder && !companyInvited() ? sendCo().id : undefined);
       const data = r.data || {};
       if (!data.ai_available) {
         s.fields = emptyFields();
@@ -923,15 +1035,27 @@
     if (!state.send) state.send = newSend();
     await loadRequests().catch(() => {});
     if (token !== renderToken) return;
+    const target = sendCo();
+    state.ctx = target;
+    const allCos = (state.builder && state.builder.companies) || [];
+    const picker = state.builder && allCos.length > 1 && !state.send.presetJob
+      ? `<label class="pp-sendto"><span>Enviar para</span><select id="ppSendCo">${allCos.map((c) => `<option value="${esc(c.id)}" ${target && target.id === c.id ? 'selected' : ''}>${esc(c.company_name)}${c.status === 'invited' ? ' (convidada)' : ''}</option>`).join('')}</select></label>`
+      : `<p class="pp-eyebrow">${state.builder ? 'Para ' : ''}${esc(providerName())}</p>`;
     view.innerHTML = `
       <div class="pp-head">
-        <div><p class="pp-eyebrow">${esc(providerName())}</p><h1>Enviar trabalho</h1></div>
+        <div>${picker}<h1>Enviar trabalho</h1></div>
         <ol class="pp-steps" id="ppSteps" aria-label="Etapas"></ol>
       </div>
       <div class="pp-split pp-split--stack">
         <section class="pp-main" id="ppSendBody"></section>
         <aside class="pp-card pp-side" aria-labelledby="ppReqTitle" id="ppReqs"></aside>
       </div>`;
+    const pick = $('ppSendCo');
+    if (pick) pick.addEventListener('change', () => {
+      state.send.co = pick.value;
+      postJson('/api/builder/select', { company_id: pick.value }).catch(() => {});
+      renderSend(renderToken);
+    });
     renderSendBody();
     renderRequestsList();
   }
@@ -940,7 +1064,7 @@
     const box = $('ppReqs');
     if (!box) return;
     if (companyInvited()) {
-      api(`/api/builder/companies/${encodeURIComponent(state.company.id)}/jobs`).then((r) => {
+      api(`/api/builder/companies/${encodeURIComponent(sendCo().id)}/jobs`).then((r) => {
         const rows = r.data || [];
         box.innerHTML = `<div style="padding:16px 16px 8px"><h2 id="ppReqTitle" style="margin:0;font-size:17px">Guardados para ${esc(providerName())}</h2><p class="pp-muted" style="margin:2px 0 0;font-size:13px">Entram no sistema dela quando ela criar a conta.</p></div>
           ${rows.length ? rows.map((j) => `<div class="pp-req"><div class="pp-req-top"><strong>${esc(j.title)}</strong>${j.delivered_at ? '<span class="pp-chip pp-chip--ok">Entregue</span>' : '<span class="pp-chip">Guardado</span>'}</div><p>${esc(j.address)}</p><p>Guardado ${esc(fmtDay(j.created_at))}${j.files ? ` · ${plural(j.files, 'arquivo', 'arquivos')}` : ''}</p></div>`).join('') : '<div class="pp-empty" style="padding:20px 16px">Nenhum job guardado ainda.</div>'}`;
@@ -1007,7 +1131,7 @@
     }
 
     const files = s.files.map((f, i) => `<span class="pp-file">${esc(f.name)} · ${fileSize(f.size)}<button type="button" data-remove="${i}" aria-label="Tirar ${esc(f.name)}">×</button></span>`).join('');
-    if (state.builder && !state.company) {
+    if (state.builder && !sendCo()) {
       box.innerHTML = '<div class="pp-card pp-empty"><strong>Escolha uma empresa</strong>Conecte ou convide a empresa de piso para enviar jobs.<div style="margin-top:12px"><a class="pp-btn pp-btn--pri" href="#empresas">Empresas</a></div></div>';
       return;
     }
@@ -1156,7 +1280,7 @@
       renderSendBody();
     }));
     view.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => { s.mode = b.getAttribute('data-mode'); renderSendBody(); }));
-    $('ppRestart').addEventListener('click', () => { const preset = s.presetJob; state.send = newSend(); state.send.presetJob = preset; renderSendBody(); });
+    $('ppRestart').addEventListener('click', () => { const preset = s.presetJob; const co = s.co; state.send = newSend(); state.send.presetJob = preset; state.send.co = co; renderSendBody(); });
     const discard = () => { state.send = newSend(); renderSendBody(); };
     $('ppDiscard').addEventListener('click', discard);
     view.querySelectorAll('[data-discard]').forEach((b) => b.addEventListener('click', discard));
@@ -1186,7 +1310,7 @@
     buttons.forEach((b) => { b.disabled = true; b.textContent = 'Enviando…'; });
     try {
       if (companyInvited()) {
-        await postJson(`/api/builder/companies/${encodeURIComponent(state.company.id)}/jobs`, {
+        await postJson(`/api/builder/companies/${encodeURIComponent(sendCo().id)}/jobs`, {
           title: f.title.trim().slice(0, 160),
           address: f.address.trim().slice(0, 300),
           contact_name: f.contact_name.trim(),
@@ -1218,7 +1342,7 @@
         target_job_id: update ? s.match.id : '',
         files: s.files.map((x) => ({ name: x.name, data_url: x.dataUrl })),
         intake: { source: s.ai ? 'ai' : 'manual', fields_checked: s.check, ...(s.model ? { model: s.model.slice(0, 80) } : {}) },
-      });
+      }, state.builder ? sendCo().id : undefined);
       s.files.forEach((x) => x.url && URL.revokeObjectURL(x.url));
       s.sent = { update: Boolean(update), jobId: sent.data && sent.data.job_id, direct: Boolean(sent.data && sent.data.status === 'accepted') };
       if (s.sent.direct) { state.jobDetail.clear(); refreshOverview().catch(() => {}); }
@@ -1258,7 +1382,7 @@
     });
     const btn = (key, label) => `<button type="button" data-doc-filter="${key}" aria-pressed="${state.docFilter === key}">${label}</button>`;
     view.innerHTML = `
-      <div class="pp-head"><div><p class="pp-eyebrow">Liberados pela equipe de ${esc(providerName())}</p><h1>Fotos e docs</h1></div><span class="pp-muted">${plural(list.length, 'item', 'itens')}</span></div>
+      <div class="pp-head"><div><p class="pp-eyebrow">${state.builder && multiCo() && !state.coFilter ? 'Liberados pelas equipes das suas empresas' : `Liberados pela equipe de ${esc(providerName())}`}</p><h1>Fotos e docs</h1></div><span class="pp-muted">${plural(list.length, 'item', 'itens')}</span></div>
       <div class="pp-tools">
         <div class="pp-side-search"><label>${icon('search')}<span class="pp-sr">Buscar documentos</span><input id="ppDocSearch" type="search" placeholder="Obra ou documento" value="${esc(state.docQuery)}" /></label></div>
         <div class="pp-filter" role="group" aria-label="Tipo">${btn('all', 'Tudo')}${btn('photo', 'Fotos e vídeos')}${btn('report', 'Relatórios')}${btn('file', 'Arquivos')}</div>
@@ -1280,16 +1404,23 @@
   const ROLE_PT = { admin: 'Admin', manager: 'Gerente', office: 'Escritório', field: 'Campo' };
 
   async function refreshOverview() {
-    if (!companyActive() || (state.builder && !state.company)) {
+    if (!companyActive()) {
       state.jobs = [];
       state.projects = [];
+      return;
+    }
+    if (state.builder) {
+      const parts = await fetchEach('/api/partner-portal/overview');
+      state.all.jobs = parts.flatMap((p) => tagCo((p.data || {}).jobs, p.c)).filter((j) => j.status !== 'canceled');
+      state.all.projects = parts.flatMap((p) => tagCo((p.data || {}).projects, p.c));
+      applyCoFilter();
       return;
     }
     const overview = await api('/api/partner-portal/overview');
     const data = overview.data || {};
     state.jobs = (data.jobs || []).filter((j) => j.status !== 'canceled');
     state.projects = data.projects || [];
-    if (!state.builder && Array.isArray(data.permissions)) state.perms = data.permissions;
+    if (Array.isArray(data.permissions)) state.perms = data.permissions;
   }
 
   async function loadMe() {
@@ -1299,12 +1430,17 @@
     state.company = (r.data.companies || []).find((c) => c.id === r.data.current_company_id) || null;
   }
 
+  /** Company the next job goes to (the portal shows every company at once). */
   async function selectCompany(id) {
     await postJson('/api/builder/select', { company_id: id });
+    state.send = null;
+    await loadMe();
+    paintShell();
+  }
+  /** After connecting or removing a company: reload everything. */
+  async function reloadAllCompanies() {
     state.loaded = { invoices: false, requests: false, documents: false };
     state.jobDetail.clear();
-    state.send = null;
-    state.priceList = null;
     await loadMe();
     paintShell();
     await refreshOverview();
@@ -1349,7 +1485,8 @@
         <p>${esc([c.contact_name, c.contact_email, c.contact_phone].filter(Boolean).join(' · '))}</p>
         <p>${c.status === 'active' ? `Conectada ${esc(fmtDay(c.activated_at))}` : `Convite enviado ${esc(fmtDay(c.invited_at))}`}${c.pending_jobs ? ` · ${plural(c.pending_jobs, 'job guardado', 'jobs guardados')}` : ''}</p>
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
-          ${state.company && state.company.id === c.id ? '<span class="pp-chip pp-chip--dark">Empresa atual</span>' : `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-pick="${esc(c.id)}">Usar esta empresa</button>`}
+          ${canDo('jobs.send') && c.status !== 'unavailable' ? `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-send-to="${esc(c.id)}">Enviar job</button>` : ''}
+          ${c.status === 'active' ? `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-see-jobs="${esc(c.id)}">Ver jobs</button>` : ''}
           ${manage && c.status === 'invited' ? `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-resend="${esc(c.id)}">Reenviar convite</button>` : ''}
           ${manage ? `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-remove-co="${esc(c.id)}">Remover</button>` : ''}
         </div>
@@ -1377,10 +1514,16 @@
           </form>
         </aside>` : ''}
       </div>`;
-    view.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', async () => {
-      b.disabled = true;
-      await selectCompany(b.getAttribute('data-pick'));
-      location.hash = state.company && state.company.status === 'active' ? '#jobs' : '#enviar';
+    view.querySelectorAll('[data-send-to]').forEach((b) => b.addEventListener('click', () => {
+      state.send = newSend();
+      state.send.co = b.getAttribute('data-send-to');
+      postJson('/api/builder/select', { company_id: state.send.co }).catch(() => {});
+      location.hash = '#enviar';
+    }));
+    view.querySelectorAll('[data-see-jobs]').forEach((b) => b.addEventListener('click', () => {
+      state.coFilter = b.getAttribute('data-see-jobs');
+      applyCoFilter();
+      location.hash = '#jobs';
     }));
     const inviteActions = (out, data, phone) => {
       if (!out) return;
@@ -1413,8 +1556,7 @@
       b.disabled = true;
       try {
         await api(`/api/builder/companies/${encodeURIComponent(b.getAttribute('data-remove-co'))}`, { method: 'DELETE' });
-        await loadMe();
-        paintShell();
+        await reloadAllCompanies();
         render();
       } catch (e) {
         b.disabled = false;
@@ -1439,14 +1581,11 @@
           phone,
         });
         const data = r.data;
-        await loadMe();
-        paintShell();
+        await reloadAllCompanies();
         if (data.kind === 'linked') {
-          await selectCompany(data.link_id);
           $('ppCoResult').innerHTML = `<div class="pp-success">${esc(data.company_name)} já usa ObraMate e está conectada. Os jobs que você enviar entram direto no sistema dela.</div><div style="margin-top:8px"><a class="pp-btn pp-btn--pri pp-btn--sm" href="#enviar">Enviar um job</a></div>`;
         } else {
           inviteActions($('ppCoResult'), data, phone);
-          if (!state.company) await selectCompany(data.link_id);
         }
         form.reset();
         const list = view.querySelector('.pp-main .pp-card');
@@ -1555,9 +1694,13 @@
     const end = zonedParts(job.scheduled_end, job.timezone);
     const services = (t.services || []).map((sv) => ({ id: sv.id, name: sv.name, quantity: sv.quantity, unit: sv.unit, notes: sv.notes || '', remove: false, unit_price: sv.unit_price }));
     const added = [];
-    if (!state.priceList) {
-      try { state.priceList = (await api('/api/partner-portal/price-list')).data || []; } catch (_) { state.priceList = []; }
+    const co = data._co || undefined;
+    if (state.builder) state.ctx = coById(co) || state.ctx;
+    const plKey = co || '_';
+    if (!state.priceLists[plKey]) {
+      try { state.priceLists[plKey] = (await api('/api/partner-portal/price-list', { co })).data || []; } catch (_) { state.priceLists[plKey] = []; }
     }
+    state.priceList = state.priceLists[plKey];
     const lockbox = t.lockbox || '';
     const instructions = t.notes || '';
     const draw = () => {
@@ -1654,7 +1797,7 @@
       const btns = pane.querySelectorAll('#ppEdSave, [data-ed-save]');
       btns.forEach((b) => { b.disabled = true; b.textContent = 'Salvando…'; });
       try {
-        await api(`/api/partner-portal/jobs/${encodeURIComponent(job.id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        await api(`/api/partner-portal/jobs/${encodeURIComponent(job.id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), co });
         state.jobDetail.delete(job.id);
         await refreshOverview();
         await render();
@@ -1672,18 +1815,14 @@
     if (!state.builder) return;
     // The brand is the builder's own account; the selected flooring company is the subtitle.
     $('ppProvider').textContent = state.builder.account.name;
-    $('ppBrandSub').textContent = state.company ? `Empresa: ${state.company.company_name}` : 'Portal do builder';
+    const nAct = activeCompanies().length;
+    $('ppBrandSub').textContent = nAct ? `${nAct} ${nAct === 1 ? 'empresa conectada' : 'empresas conectadas'}` : 'Portal do builder';
     $('ppMark').textContent = initials(state.builder.account.name);
     document.title = `${state.builder.account.name} · Portal do builder`;
     const tools = $('ppProviderTools');
     const companies = state.builder.companies || [];
     tools.hidden = false;
-    tools.innerHTML = `<label>Empresa</label>${companies.map((c) => `<button type="button" class="pp-menu-item" data-menu-co="${esc(c.id)}" ${state.company && state.company.id === c.id ? 'aria-current="true" style="font-weight:700"' : ''}>${esc(c.company_name)}${c.status === 'invited' ? ' · convidada' : ''}</button>`).join('')}<a class="pp-menu-item" href="#empresas" style="text-decoration:none">${canDo('companies.manage') ? '+ Adicionar empresa' : 'Ver empresas'}</a><a class="pp-menu-item" href="#equipe" style="text-decoration:none">Equipe</a>`;
-    tools.querySelectorAll('[data-menu-co]').forEach((b) => b.addEventListener('click', async () => {
-      openMenu(false);
-      await selectCompany(b.getAttribute('data-menu-co'));
-      render();
-    }));
+    tools.innerHTML = `<label>${companies.length ? `Empresas · ${companies.length}` : 'Empresas'}</label><a class="pp-menu-item" href="#empresas" style="text-decoration:none">${canDo('companies.manage') ? 'Conectar ou convidar empresa' : 'Ver empresas'}</a><a class="pp-menu-item" href="#equipe" style="text-decoration:none">Equipe</a>`;
     document.querySelectorAll('[data-builder-only]').forEach((el) => { el.hidden = false; });
     document.querySelectorAll('[data-nav="invoices"]').forEach((el) => { el.hidden = !canDo('money.view'); });
   }
@@ -1701,7 +1840,7 @@
         ${item('#documentos', 'Fotos e docs', 'Liberados pela equipe')}
       </div>
       ${state.builder ? `<div class="pp-card" style="overflow:hidden">
-        ${item('#empresas', 'Empresas', state.company ? `Agora: ${state.company.company_name}` : 'Conecte ou convide empresas de piso')}
+        ${item('#empresas', 'Empresas', activeCompanies().length ? `${activeCompanies().length} conectadas` : 'Conecte ou convide empresas de piso')}
         ${item('#equipe', 'Equipe', `${state.builder.account.name} · ${state.builder.member.role_label}`)}
       </div>` : ''}
       <div class="pp-card" style="overflow:hidden">
@@ -1839,7 +1978,7 @@
       $('ppDock').hidden = false;
       $('ppTabs').hidden = false;
       $('ppSearchFab').hidden = false;
-      if (!location.hash && !state.company) location.hash = '#empresas';
+      if (!location.hash && !activeCompanies().length) location.hash = '#empresas';
       await refreshOverview().catch(() => {});
       loadInvoices().then(updateCounts).catch(() => {});
       loadRequests().then(updateCounts).catch(() => {});

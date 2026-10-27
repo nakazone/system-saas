@@ -572,3 +572,14 @@ body.pp {
 .pp-split--stack { align-items: flex-start; }
 .pp-split--stack > .pp-side { max-width: 420px; }
 @media (max-width: 860px) { .pp-split--stack > .pp-main, .pp-split--stack > .pp-side { flex: 1 1 100%; width: 100%; max-width: none; } }
+
+/* builder accounts: every company at once */
+.pp-cobar { grid-column: 1 / -1; margin: -4px 0 16px; }
+.pp-cobar button { background: #FFFFFF; border: 1px solid var(--pp-border); }
+.pp-cobar button[aria-pressed="true"] { border-color: var(--pp-ink); }
+.pp-row-co { display: block; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--pp-muted); margin-bottom: 2px; }
+.pp-sendto { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--pp-muted); }
+.pp-sendto select { min-height: 36px; border: 1px solid var(--pp-border); border-radius: 999px; padding: 0 12px; font: 600 14px Geist, system-ui, sans-serif; color: var(--pp-ink); background: #FFFFFF; }
+@media (max-width: 640px) { .pp-cobar { flex-wrap: nowrap; overflow-x: auto; margin: -4px -16px 14px; padding: 0 16px; scrollbar-width: none; } .pp-cobar button { flex: none; } }
+.pp-bento > .pp-cobar { align-self: start; margin: 0; }
+.pp-cobar button { align-self: center; }
