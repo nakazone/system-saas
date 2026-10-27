@@ -58,6 +58,7 @@ import { clientErrorsRouter } from "./lib/ops/errors.js";
 import { prisma } from "./lib/prisma.js";
 import type { TenantRequest } from "./lib/tenant/resolve-tenant.js";
 import { createCrmRouter } from "./crm/mount.js";
+import { builderAccountRouter } from "./modules/builders/routes.js";
 import { CRM_ASSETS_DIR, CRM_PUBLIC_DIR } from "./crm/mount.js";
 import { getLocalFileStorage } from "./lib/storage/index.js";
 import { i18nPublicRouter } from "./lib/i18n/routes.js";
@@ -257,6 +258,8 @@ export function createApp() {
   app.use("/master", masterRouter);
   // "Entrar como suporte": single-use link from the Master, on the company's host.
   app.use(supportEntryRouter);
+  // Builder accounts (free, not inside any company): landing, sign-up, account API.
+  app.use(builderAccountRouter);
 
   app.use(resolveTenant);
 

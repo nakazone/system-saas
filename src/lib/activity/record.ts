@@ -13,7 +13,7 @@ export type ActivityEntityType =
   | "work_order"
   | "organization";
 
-export type ActivityActorType = "user" | "customer" | "system";
+export type ActivityActorType = "user" | "customer" | "system" | "partner";
 
 export type ActivityChanges = Record<string, { from: unknown; to: unknown }>;
 

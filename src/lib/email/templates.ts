@@ -29,7 +29,7 @@ export type TemplateDef = {
   key: string;
   name: string;
   when: string;
-  group: "Conta" | "Cobrança" | "Suporte";
+  group: "Conta" | "Cobrança" | "Suporte" | "Builders";
   vars: { key: string; label: string; sample: VarValue }[];
   /** Must stay in the text (or the button) — e.g. the confirmation link. */
   required: string[];
@@ -336,6 +336,111 @@ TEMPLATES.push(
         subject: "Sua assinatura do ObraMate foi cancelada",
         body: "Olá, {{name}},\n\nCancelamos a assinatura do ObraMate da {{company}}. Você continua com acesso completo até {{date}} e não será cobrado de novo.\n\nMudou de ideia? Dá para manter a assinatura a qualquer momento antes dessa data.\n\n{{button}}\n\n~ Depois dessa data seus dados ficam guardados por 90 dias, caso você volte.",
         button: "Manter minha assinatura",
+      },
+    },
+  },
+);
+
+const BUILDER = { key: "builder", label: "Builder", sample: "Summit Ridge Homes" };
+
+TEMPLATES.push(
+  {
+    key: "builder_verify",
+    name: "Builder: confirmar e-mail do cadastro",
+    when: "Logo depois que um builder cria a conta grátis. Sem confirmar, ele não entra.",
+    group: "Builders",
+    vars: [NAME, BUILDER, PRODUCT, LINK("Link de confirmação")],
+    required: ["link"],
+    defaults: {
+      en: {
+        subject: "Confirm your e-mail to open {{builder}} on {{product}}",
+        body: "Hi {{name}},\n\nConfirm your e-mail to finish creating the {{builder}} builder account on {{product}}. It is free.\n\n{{button}}\n\n~ The link works for 48 hours. If you did not sign up, ignore this e-mail.",
+        button: "Confirm e-mail",
+      },
+      pt: {
+        subject: "Confirme seu e-mail para abrir {{builder}} no {{product}}",
+        body: "Olá, {{name}},\n\nConfirme seu e-mail para terminar de criar a conta de builder {{builder}} no {{product}}. É grátis.\n\n{{button}}\n\n~ O link vale por 48 horas. Se você não se cadastrou, ignore este e-mail.",
+        button: "Confirmar e-mail",
+      },
+    },
+  },
+  {
+    key: "builder_member_invite",
+    name: "Builder: convite para a equipe",
+    when: "Quando um admin do builder convida alguém da equipe dele.",
+    group: "Builders",
+    vars: [NAME, BUILDER, PRODUCT, { key: "inviter", label: "Quem convidou", sample: "Mark Reyes" }, { key: "role", label: "Papel", sample: { en: "Office", pt: "Escritório" } }, LINK("Link do convite")],
+    required: ["link"],
+    defaults: {
+      en: {
+        subject: "{{inviter}} invited you to {{builder}} on {{product}}",
+        body: "Hi {{name}},\n\n{{inviter}} added you to the {{builder}} team on {{product}} as {{role}}. Create your password to see the jobs you send to your flooring companies.\n\n{{button}}\n\n~ The link works for 7 days.",
+        button: "Accept invitation",
+      },
+      pt: {
+        subject: "{{inviter}} convidou você para {{builder}} no {{product}}",
+        body: "Olá, {{name}},\n\n{{inviter}} adicionou você à equipe de {{builder}} no {{product}} como {{role}}. Crie sua senha para ver os jobs que vocês mandam para as empresas de piso.\n\n{{button}}\n\n~ O link vale por 7 dias.",
+        button: "Aceitar convite",
+      },
+    },
+  },
+  {
+    key: "builder_company_invite",
+    name: "Builder: convite para uma empresa de piso",
+    when: "Quando um builder convida uma empresa que ainda não usa o ObraMate.",
+    group: "Builders",
+    vars: [NAME, COMPANY, BUILDER, PRODUCT, { key: "offer", label: "Oferta da indicação", sample: { en: "30% off for 3 months", pt: "30% de desconto por 3 meses" } }, LINK("Link de cadastro")],
+    required: ["link"],
+    defaults: {
+      en: {
+        subject: "{{builder}} wants to send you jobs on {{product}}",
+        body: "Hi {{name}},\n\n{{builder}} uses {{product}} to send work orders, schedules and job updates to its flooring companies, and invited {{company}}.\n\nCreate your workspace to receive their jobs in one place, with photos, crews, invoices and payroll. Jobs they already sent you will be waiting.\n\n~ Referral offer: {{offer}}.\n\n{{button}}",
+        button: "Create my workspace",
+      },
+      pt: {
+        subject: "{{builder}} quer enviar jobs para você pelo {{product}}",
+        body: "Olá, {{name}},\n\n{{builder}} usa o {{product}} para enviar ordens de serviço, agenda e atualizações para as empresas de piso, e convidou a {{company}}.\n\nCrie seu espaço para receber os jobs dele num lugar só, com fotos, equipes, invoices e folha. Os jobs que ele já mandou vão estar lá esperando.\n\n~ Oferta da indicação: {{offer}}.\n\n{{button}}",
+        button: "Criar meu espaço",
+      },
+    },
+  },
+  {
+    key: "builder_company_linked",
+    name: "Builder: empresa conectada a um builder",
+    when: "Avisa o admin da empresa quando um builder se conecta a ela pelo e-mail.",
+    group: "Builders",
+    vars: [NAME, COMPANY, BUILDER, PRODUCT, LINK("Link para os jobs")],
+    required: [],
+    defaults: {
+      en: {
+        subject: "{{builder}} connected to {{company}} on {{product}}",
+        body: "Hi {{name}},\n\n{{builder}} connected to {{company}} on {{product}}. From now on, jobs and changes they send land straight in your Jobs, marked as coming from {{builder}}.\n\n{{button}}\n\n~ Not expected? Open Builders in your workspace and remove the connection.",
+        button: "Open Jobs",
+      },
+      pt: {
+        subject: "{{builder}} se conectou à {{company}} no {{product}}",
+        body: "Olá, {{name}},\n\n{{builder}} se conectou à {{company}} no {{product}}. A partir de agora, os jobs e alterações que ele enviar entram direto em Jobs, marcados como vindos de {{builder}}.\n\n{{button}}\n\n~ Não esperava? Abra Builders no seu espaço e remova a conexão.",
+        button: "Abrir Jobs",
+      },
+    },
+  },
+  {
+    key: "builder_password_reset",
+    name: "Builder: redefinir senha",
+    when: "Quando alguém do builder clica em “Esqueci a senha” no portal.",
+    group: "Builders",
+    vars: [NAME, BUILDER, PRODUCT, LINK("Link para nova senha")],
+    required: ["link"],
+    defaults: {
+      en: {
+        subject: "Reset your {{product}} password",
+        body: "Hi {{name}},\n\nWe received a request to reset your password for {{builder}} on {{product}}.\n\n{{button}}\n\n~ The link works for 1 hour and only once. If you did not ask for this, ignore this e-mail.",
+        button: "Choose a new password",
+      },
+      pt: {
+        subject: "Redefina sua senha do {{product}}",
+        body: "Olá, {{name}},\n\nRecebemos um pedido para redefinir sua senha de {{builder}} no {{product}}.\n\n{{button}}\n\n~ O link vale por 1 hora e uma única vez. Se não foi você, ignore este e-mail.",
+        button: "Escolher nova senha",
       },
     },
   },

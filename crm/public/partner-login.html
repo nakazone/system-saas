@@ -22,14 +22,15 @@
       <label for="partnerPassword">Senha</label>
       <input id="partnerPassword" name="password" type="password" autocomplete="current-password" required />
       <div id="workspaceGroup" class="partner-workspace-field">
-        <label for="workspace">Código da empresa <span>(se solicitado)</span></label>
+        <label for="workspace">Código da empresa <span>(só para acessos antigos, se pedido)</span></label>
         <input id="workspace" name="workspace" autocomplete="organization" placeholder="Ex.: minha-empresa" />
         <small>Use o código que aparece no endereço do seu espaço ObraMate.</small>
       </div>
       <p id="partnerLoginError" class="partner-error" role="alert" hidden></p>
       <button class="partner-button" id="partnerLoginButton" type="submit">Entrar no portal</button>
     </form>
-    <p class="partner-footnote">Se você ainda não tem acesso, peça um convite ao contato da sua empresa.</p>
+    <p class="partner-footnote"><a href="/builders/forgot">Esqueci a senha</a></p>
+    <p class="partner-footnote">É builder e ainda não tem conta? <a href="/builders">Crie grátis</a>. Funcionário de um builder? Peça o convite ao admin da sua equipe.</p>
   </main>
   <script src="partner-login.js?v=20261023-1" defer></script>
 </body>

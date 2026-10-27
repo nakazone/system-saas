@@ -8,6 +8,7 @@ import { currentLegalVersions, type LegalKey } from "../../lib/legal/documents.j
 import { recordLegalAcceptance } from "../../lib/legal/acceptance.js";
 import { createOrganizationWithAdmin, validateSlug } from "./service.js";
 import { trialDaysFor } from "../../master/plans.js";
+import { onCompanySignup } from "../../lib/builders/accounts.js";
 
 /* ───────────────────────── settings ───────────────────────── */
 
@@ -245,6 +246,8 @@ export async function confirmSignup(token: string, ctx: { ip: string; userAgent?
   );
   if (inviteUsable) {
     await prisma.signupInvite.update({ where: { id: invite!.id }, data: { usedAt: new Date(), organizationId: organization.id } });
+    // Invited by a builder: connect them, apply the referral coupon and deliver the jobs kept for this company.
+    await onCompanySignup(invite!.id, organization.id).catch((error) => console.error("[signup] builder link failed", error));
   }
   void ctx;
   return { ok: true, organization: { id: organization.id, name: organization.name, slug: organization.slug }, admin: { id: admin.id } };

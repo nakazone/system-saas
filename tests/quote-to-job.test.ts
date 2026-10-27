@@ -87,7 +87,7 @@ describe("quote approve → job", () => {
         where: { id: first!.id },
         include: { lineItems: true },
       });
-      expect(wo.title).toBe("Hardwood install");
+      expect(wo.title).toBe("Job Customer");
       expect(wo.address).toContain("Oak St");
       expect(wo.status).toBe("draft");
       expect(wo.lineItems.length).toBe(1);

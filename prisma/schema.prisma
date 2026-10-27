@@ -1097,11 +1097,14 @@ model PartnerUser {
   status         String   @default("active")
   mustChangePassword Boolean @default(true)
   lastLoginAt    DateTime?
+  /// Set when this row stands for a member of a builder account (the builder signs in with the account).
+  builderMemberId String? @db.Uuid
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   jobRequests    PartnerJobRequest[]
 
   @@unique([organizationId, email])
+  @@index([builderMemberId])
   @@index([organizationId])
   @@index([organizationId, builderId])
   @@index([organizationId, customerId])
@@ -3549,4 +3552,93 @@ model MateAiConversation {
   updatedAt      DateTime     @updatedAt
 
   @@index([organizationId, userId, updatedAt])
+}
+
+
+/// ───────────── Builder accounts (platform level, free) ─────────────
+/// A builder signs up on its own, invites its team and links the flooring companies it sends work to.
+/// Inside each linked company it is a normal Builder row (BuilderLink.tenantBuilderId).
+model BuilderAccount {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  phone       String?
+  website     String?
+  /// active | suspended
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members     BuilderMember[]
+  links       BuilderLink[]
+}
+
+model BuilderMember {
+  id               String    @id @default(uuid()) @db.Uuid
+  builderAccountId String    @db.Uuid
+  account          BuilderAccount @relation(fields: [builderAccountId], references: [id], onDelete: Cascade)
+  email            String    @unique
+  name             String
+  phone            String?
+  passwordHash     String?
+  /// admin | manager | office | field
+  role             String    @default("office")
+  /// pending_email (sign-up not confirmed) | invited | active | disabled
+  status           String    @default("pending_email")
+  /// Hash of the one-time link (confirm e-mail / accept invite / reset password).
+  tokenHash        String?   @unique
+  tokenPurpose     String?
+  tokenExpiresAt   DateTime?
+  invitedById      String?   @db.Uuid
+  lastLoginAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([builderAccountId])
+}
+
+model BuilderLink {
+  id               String    @id @default(uuid()) @db.Uuid
+  builderAccountId String    @db.Uuid
+  account          BuilderAccount @relation(fields: [builderAccountId], references: [id], onDelete: Cascade)
+  /// Set when the company is on ObraMate (linked or after it signs up from the invite).
+  organizationId   String?   @db.Uuid
+  /// invited | active | removed
+  status           String    @default("invited")
+  /// The Builder row inside the company that represents this account.
+  tenantBuilderId  String?   @db.Uuid
+  companyName      String
+  contactName      String?
+  contactEmail     String?
+  contactPhone     String?
+  /// Company sign-up invite created for a company that is not on ObraMate yet.
+  signupInviteId   String?   @db.Uuid
+  invitedById      String?   @db.Uuid
+  invitedAt        DateTime  @default(now())
+  activatedAt      DateTime?
+  removedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  pendingJobs      BuilderPendingJob[]
+
+  @@index([builderAccountId, status])
+  @@index([organizationId])
+  @@index([signupInviteId])
+}
+
+/// Jobs a builder sent to a company that has not joined yet; delivered when it signs up.
+model BuilderPendingJob {
+  id            String    @id @default(uuid()) @db.Uuid
+  builderLinkId String    @db.Uuid
+  link          BuilderLink @relation(fields: [builderLinkId], references: [id], onDelete: Cascade)
+  memberId      String    @db.Uuid
+  /// Same fields as a portal request (title, address, service_type, preferred_date, notes, external_ref, contact…).
+  payload       Json
+  /// [{ key, name, contentType, size }] stored under builders/<accountId>/pending/
+  files         Json      @default("[]")
+  deliveredAt   DateTime?
+  workOrderId   String?   @db.Uuid
+  createdAt     DateTime  @default(now())
+
+  @@index([builderLinkId, deliveredAt])
 }
