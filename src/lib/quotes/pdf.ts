@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import PDFDocument from "pdfkit";
-import { getLocalFileStorage } from "../storage/index.js";
+import { getLocalFileStorage, storage } from "../storage/index.js";
 import {
   DEFAULT_QUOTE_INCLUSIONS,
   resolveQuoteTermsItems,
@@ -110,12 +110,71 @@ async function fetchLogoUrl(url: string): Promise<Buffer | null> {
   }
 }
 
+/** Pull `orgs/…` or `users/…` out of a stored file URL so private buckets still load. */
+function storageKeyFromUrl(src: string): string | null {
+  let pathname = src;
+  if (src.startsWith("http://") || src.startsWith("https://")) {
+    try {
+      pathname = new URL(src).pathname;
+    } catch {
+      return null;
+    }
+  }
+  const decoded = pathname
+    .split("/")
+    .map((part) => {
+      try {
+        return decodeURIComponent(part);
+      } catch {
+        return part;
+      }
+    })
+    .join("/");
+  const orgs = decoded.indexOf("orgs/");
+  const users = decoded.indexOf("users/");
+  const at = [orgs, users].filter((i) => i >= 0).sort((a, b) => a - b)[0];
+  if (at == null || at < 0) return null;
+  const key = decoded.slice(at);
+  if (!key || key.includes("..")) return null;
+  return key;
+}
+
+async function readStorageObject(src: string): Promise<Buffer | null> {
+  const key = storageKeyFromUrl(src);
+  if (!key) return null;
+  try {
+    const stream = await storage.getStream(key);
+    if (!stream) return null;
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    const buf = Buffer.concat(chunks);
+    return buf.length ? buf : null;
+  } catch {
+    return null;
+  }
+}
+
+export function imageContentType(buf: Buffer): string {
+  if (buf.length >= 8 && buf[0] === 0x89 && buf[1] === 0x50) return "image/png";
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8) return "image/jpeg";
+  if (buf.length >= 4 && buf[0] === 0x47 && buf[1] === 0x49) return "image/gif";
+  if (buf.length >= 12 && buf.slice(0, 4).toString() === "RIFF" && buf.slice(8, 12).toString() === "WEBP") {
+    return "image/webp";
+  }
+  return "image/png";
+}
+
 export async function loadLogoBuffer(url: string | null | undefined): Promise<Buffer | null> {
   if (!url || !String(url).trim()) return null;
   const src = String(url).trim();
 
   const fromData = dataUrlToBuffer(src);
   if (fromData) return fromData;
+
+  const fromStorage = await readStorageObject(src);
+  if (fromStorage) return fromStorage;
 
   if (src.startsWith("/api/local-files/")) {
     const key = src
@@ -1190,6 +1249,12 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
       } catch {
         /* ignore */
       }
+    } else if (input.signedByName) {
+      doc.fillColor(PAL.primaryMuted).font("Helvetica-Oblique").fontSize(16);
+      doc.text(String(input.signedByName), totalsX, y + 10, {
+        width: sigColW - 20,
+        lineBreak: false,
+      });
     }
     rule(totalsX, totalsX + sigColW - 10, y + sigBoxH + 4, PAL.rule, 0.7);
 

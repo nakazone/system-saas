@@ -21,7 +21,7 @@ import {
   resolveOwnerSignatureForQuote,
 } from "../../lib/settings/quotes.js";
 import { documentAddressLine, documentLicenseLine } from "../../lib/settings/organization.js";
-import { buildQuotePdf, pdfLinesFromDbItems, pdfPaymentItemsFromSchedule } from "../../lib/quotes/pdf.js";
+import { buildQuotePdf, imageContentType, loadLogoBuffer, pdfLinesFromDbItems, pdfPaymentItemsFromSchedule } from "../../lib/quotes/pdf.js";
 import { storage } from "../../lib/storage/index.js";
 import { issuePublicAccessToken } from "../../lib/quotes/public-token.js";
 import { createDiscountedQuoteCopy } from "../../lib/quotes/discounted-copy.js";
@@ -183,9 +183,43 @@ function serviceTypeFromMetaOrPayload(
   return null;
 }
 
+function clearedClientSignature() {
+  return {
+    signatureUrl: null,
+    signedByName: null,
+    signedAt: null,
+    approvedIp: null,
+    approvedUserAgent: null,
+    signedDocumentSha256: null,
+    approvedLat: null,
+    approvedLng: null,
+    approvedGpsAccuracyM: null,
+  };
+}
+
+function quoteHadClientApproval(quote: { status: string; signatureUrl?: string | null; signedByName?: string | null }) {
+  return normalizeQuoteStatus(quote.status) === "approved" || Boolean(quote.signatureUrl || quote.signedByName);
+}
+
+function lineFingerprint(
+  items: Array<{ name?: string | null; description?: string | null; quantity?: unknown; unitPrice?: unknown; unit_price?: unknown; rate?: unknown; sell_price?: unknown }>,
+  fromDb: boolean,
+) {
+  return items
+    .map((it) => {
+      const name = String(it.name || it.description || "").trim();
+      const qty = Math.round((Number(it.quantity) || 0) * 100);
+      const price = fromDb
+        ? Math.round(dec(it.unitPrice as never) * 100)
+        : Math.round(lineItemUnitPrice(it) * 100);
+      return `${name}|${qty}|${price}`;
+    })
+    .join("\n");
+}
+
 async function quotePdfInputForCrm(organizationId: string, quoteId: string) {
-  const quote = await withTenantTransaction(organizationId, async (tx) =>
-    tx.quote.findFirst({
+  const quote = await withTenantTransaction(organizationId, async (tx) => {
+    const row = await tx.quote.findFirst({
       where: { id: quoteId },
       include: {
         customer: { select: { name: true, email: true, phone: true } },
@@ -207,8 +241,21 @@ async function quotePdfInputForCrm(organizationId: string, quoteId: string) {
         rooms: { orderBy: { sortOrder: "asc" } },
         optionGroups: { orderBy: { sortOrder: "asc" } },
       },
-    }),
-  );
+    });
+    if (!row || row.salesperson) return row;
+    const ev = await tx.activityEvent.findFirst({
+      where: { entityType: "quote", entityId: quoteId, actorType: "user", actorId: { not: null } },
+      orderBy: { createdAt: "desc" },
+      select: { actorId: true },
+    });
+    if (!ev?.actorId) return row;
+    const user = await tx.user.findFirst({
+      where: { id: ev.actorId },
+      select: { name: true, email: true, signatureUrl: true },
+    });
+    if (!user) return row;
+    return { ...row, salesperson: user };
+  });
   if (!quote) return null;
 
   const org = await prisma.organization.findUniqueOrThrow({ where: { id: organizationId } });
@@ -1868,6 +1915,7 @@ customersQuotesRouter.post(
             customerId,
             leadId,
             builderId,
+            salespersonId: req.user?.id || null,
             publicToken: randomBytes(16).toString("hex"),
             payload: body,
             lineItems: {
@@ -2031,7 +2079,10 @@ customersQuotesRouter.put(
       const id = String(req.params.id);
       const body = req.body || {};
       const row = await withTenantTransaction(req.organizationId!, async (tx) => {
-        const existing = await tx.quote.findFirst({ where: { id } });
+        const existing = await tx.quote.findFirst({
+          where: { id },
+          include: { lineItems: { orderBy: { sortOrder: "asc" } } },
+        });
         if (!existing) return null;
         const items = Array.isArray(body.items) ? body.items : Array.isArray(body.line_items) ? body.line_items : null;
         let subtotal = dec(existing.subtotal);
@@ -2063,12 +2114,34 @@ customersQuotesRouter.put(
           });
         }
         const prevStatus = existing.status;
+        const nextTitle = body.title !== undefined ? String(body.title) : existing.title;
+        const nextNotes = body.notes !== undefined ? body.notes || null : existing.notes;
+        const nextTermsRaw = termsFromBody(body);
+        const nextTerms = nextTermsRaw !== undefined ? nextTermsRaw : existing.terms;
+        const nextValid = parseDateInput(body.expiration_date);
+        const validChanged =
+          nextValid !== undefined &&
+          (nextValid ? nextValid.toISOString().slice(0, 10) : "") !==
+            (existing.validUntil ? existing.validUntil.toISOString().slice(0, 10) : "");
+        const linesChanged = items
+          ? lineFingerprint(existing.lineItems, true) !== lineFingerprint(items, false)
+          : false;
+        const contentChanged =
+          nextTitle !== existing.title ||
+          (nextNotes || null) !== (existing.notes || null) ||
+          (nextTerms || null) !== (existing.terms || null) ||
+          validChanged ||
+          Math.round(total * 100) !== Math.round(dec(existing.total) * 100) ||
+          linesChanged;
+        const invalidate = contentChanged && quoteHadClientApproval(existing);
         let updated = await tx.quote.update({
           where: { id },
           data: {
             // Keep title as the party/client label. job_name lives only in payload as a note.
             title: body.title !== undefined ? String(body.title) : undefined,
-            status: body.status !== undefined ? String(body.status) : undefined,
+            status: invalidate ? "sent" : body.status !== undefined ? String(body.status) : undefined,
+            salespersonId: existing.salespersonId || req.user?.id || undefined,
+            ...(invalidate ? clearedClientSignature() : {}),
             flooringType: body.flooring_type !== undefined ? String(body.flooring_type) : undefined,
             notes: body.notes !== undefined ? body.notes : undefined,
             terms: termsFromBody(body),
@@ -2121,7 +2194,7 @@ customersQuotesRouter.put(
           }
         }
 
-        return { updated, createdInvoiceIds, createdJobId };
+        return { updated, createdInvoiceIds, createdJobId, approvalReset: invalidate };
       });
       if (!row) {
         res.status(404).json({ success: false, error: "Quote not found" });
@@ -2132,6 +2205,7 @@ customersQuotesRouter.put(
         data: mapQuoteForUser(row.updated, req.user),
         created_invoice_ids: row.createdInvoiceIds || [],
         created_job_id: row.createdJobId || null,
+        approval_reset: row.approvalReset,
       });
     } catch (error) {
       next(error);
@@ -2530,11 +2604,14 @@ customersQuotesRouter.post(
             quote.payload && typeof quote.payload === "object" && !Array.isArray(quote.payload)
               ? { ...(quote.payload as Record<string, unknown>) }
               : {};
+          const dropApproval = quoteHadClientApproval(quote);
           await tx.quote.update({
             where: { id: quote.id },
             data: {
               status: "sent",
               publicToken: null,
+              salespersonId: quote.salespersonId || req.user?.id || undefined,
+              ...(dropApproval ? clearedClientSignature() : {}),
               ...(leadIdHint && !quote.leadId ? { leadId: leadIdHint } : {}),
               payload: {
                 ...prevPayload,
@@ -2574,7 +2651,7 @@ customersQuotesRouter.post(
           });
         }
 
-        return { issued, leadMoved, leadMoveReason, leadId };
+        return { issued, leadMoved, leadMoveReason, leadId, approvalReset: markSent && quoteHadClientApproval(quote) };
       });
 
       if (!result) {
@@ -2590,6 +2667,7 @@ customersQuotesRouter.post(
         lead_moved: result.leadMoved,
         lead_id: result.leadId,
         lead_move_reason: result.leadMoveReason,
+        approval_reset: result.approvalReset,
       });
     } catch (error) {
       next(error);
@@ -2656,16 +2734,20 @@ customersQuotesRouter.post(
         const emailSentAt = new Date().toISOString();
         const leadIdHint = asOptionalUuid(body.lead_id);
 
+        const dropApproval = quoteHadClientApproval(quote);
         await tx.quote.update({
           where: { id: quote.id },
           data: {
             status: "sent",
             publicToken: null,
+            salespersonId: quote.salespersonId || req.user?.id || undefined,
+            ...(dropApproval ? clearedClientSignature() : {}),
             ...(leadIdHint && !quote.leadId ? { leadId: leadIdHint } : {}),
             payload: {
               ...prevPayload,
               email_sent_at: emailSentAt,
               sent_at: emailSentAt,
+              ...(dropApproval ? { approval_reset_at: emailSentAt } : {}),
             } as Prisma.InputJsonValue,
           },
         });
@@ -2704,6 +2786,7 @@ customersQuotesRouter.post(
           emailSentAt,
           leadMoved,
           leadMoveReason,
+          approvalReset: dropApproval,
         };
       });
 
@@ -2737,6 +2820,7 @@ customersQuotesRouter.post(
         emailSentAt: string;
         leadMoved: boolean;
         leadMoveReason: string | null;
+        approvalReset: boolean;
       };
 
       const publicUrl = `${publicBaseUrl(req)}/public/quotes/${data.issued.rawToken}`;
@@ -2770,7 +2854,44 @@ customersQuotesRouter.post(
         lead_moved: data.leadMoved,
         lead_move_reason: data.leadMoveReason,
         public_url: publicUrl,
+        approval_reset: data.approvalReset,
       });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+customersQuotesRouter.get(
+  "/api/quotes/:id/signature-file",
+  requireCrmAuth,
+  requireCrmPermission("quotes.view"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const id = String(req.params.id);
+      if (!asOptionalUuid(id)) {
+        res.status(400).end();
+        return;
+      }
+      const built = await quotePdfInputForCrm(req.organizationId!, id);
+      if (!built) {
+        res.status(404).end();
+        return;
+      }
+      const role = String(req.query.role || "");
+      const owner = built.input.ownerSignature;
+      const url =
+        role === "client"
+          ? built.input.signatureUrl
+          : owner?.imageUrl || owner?.image_url || null;
+      const buf = await loadLogoBuffer(url);
+      if (!buf) {
+        res.status(404).end();
+        return;
+      }
+      res.setHeader("Cache-Control", "private, max-age=300");
+      res.type(imageContentType(buf));
+      res.send(buf);
     } catch (error) {
       next(error);
     }
@@ -2804,7 +2925,24 @@ customersQuotesRouter.get(
         percent: it.percent == null ? null : Number(it.percent),
         fixedAmount: it.fixedAmount == null ? null : Number(it.fixedAmount),
       }));
-      res.json({ success: true, data: { ...built.input, schedule } });
+      const owner = built.input.ownerSignature;
+      const ownerUrl = owner?.imageUrl || owner?.image_url || null;
+      const clientUrl = built.input.signatureUrl || null;
+      const ownerHref = ownerUrl ? `/api/quotes/${encodeURIComponent(id)}/signature-file?role=owner` : null;
+      const clientHref = clientUrl ? `/api/quotes/${encodeURIComponent(id)}/signature-file?role=client` : null;
+      res.json({
+        success: true,
+        data: {
+          ...built.input,
+          signatureUrl: clientHref,
+          signedByName: built.input.signedByName,
+          signedAt: built.input.signedAt,
+          ownerSignature: owner
+            ? { ...owner, imageUrl: ownerHref, image_url: ownerHref, has_image: Boolean(ownerHref) }
+            : owner,
+          schedule,
+        },
+      });
     } catch (error) {
       next(error);
     }

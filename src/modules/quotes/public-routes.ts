@@ -12,7 +12,7 @@ import {
   lookupPublicAccessToken,
   tokenNeedsLightVerify,
 } from "../../lib/quotes/public-token.js";
-import { buildQuotePdf, pdfLinesFromDbItems, pdfPaymentItemsFromSchedule } from "../../lib/quotes/pdf.js";
+import { buildQuotePdf, imageContentType, loadLogoBuffer, pdfLinesFromDbItems, pdfPaymentItemsFromSchedule } from "../../lib/quotes/pdf.js";
 import {
   DEFAULT_QUOTE_INCLUSIONS,
   resolveQuoteTermsItems,
@@ -68,6 +68,21 @@ async function loadPublicQuote(organizationId: string, quoteId: string, tokenId:
       },
     });
     if (!quote) return null;
+
+    if (!quote.salesperson) {
+      const ev = await tx.activityEvent.findFirst({
+        where: { entityType: "quote", entityId: quote.id, actorType: "user", actorId: { not: null } },
+        orderBy: { createdAt: "desc" },
+        select: { actorId: true },
+      });
+      if (ev?.actorId) {
+        const user = await tx.user.findFirst({
+          where: { id: ev.actorId },
+          select: { id: true, name: true, email: true, signatureUrl: true },
+        });
+        if (user) (quote as unknown as { salesperson: typeof user }).salesperson = user;
+      }
+    }
 
     const now = new Date();
     const firstView = !quote.viewedAt;
@@ -563,6 +578,53 @@ publicQuotesRouter.post("/quotes/:token/request-changes", async (req, res, _next
   } catch (error) {
     const message = error instanceof Error ? error.message : "Request failed";
     res.redirect(`/public/quotes/${param(req, "token")}?error=${encodeURIComponent(message)}`);
+  }
+});
+
+publicQuotesRouter.get("/quotes/:token/signature/:role", async (req, res, next) => {
+  try {
+    const token = String(param(req, "token"));
+    const role = String(param(req, "role"));
+    if (role !== "owner" && role !== "client") {
+      res.status(404).end();
+      return;
+    }
+    const ref = await resolveQuoteFromToken(token);
+    if (!ref) {
+      res.status(404).end();
+      return;
+    }
+    const quote = await withTenantTransaction(ref.organizationId, async (tx) =>
+      tx.quote.findFirst({
+        where: { id: ref.entityId },
+        include: { salesperson: { select: { name: true, signatureUrl: true } } },
+      }),
+    );
+    if (!quote) {
+      res.status(404).end();
+      return;
+    }
+    if (role === "client" && isClientSignableQuoteStatus(quote.status)) {
+      res.status(404).end();
+      return;
+    }
+    const org = await prisma.organization.findUnique({
+      where: { id: ref.organizationId },
+      select: { quoteSettings: true },
+    });
+    const qs = parseQuoteSettings(org?.quoteSettings);
+    const owner = resolveOwnerSignatureForQuote(qs.owner_signature, quote.salesperson);
+    const url = role === "client" ? quote.signatureUrl : owner.imageUrl || owner.image_url || null;
+    const buf = await loadLogoBuffer(url);
+    if (!buf) {
+      res.status(404).end();
+      return;
+    }
+    res.setHeader("Cache-Control", "private, max-age=300");
+    res.type(imageContentType(buf));
+    res.send(buf);
+  } catch (error) {
+    next(error);
   }
 });
 

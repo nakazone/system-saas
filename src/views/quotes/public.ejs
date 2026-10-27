@@ -265,6 +265,10 @@
       display: flex; align-items: center; justify-content: center; padding: 8px; background: #fff;
     }
     .qp-signatures__box img { max-width: 100%; max-height: 64px; object-fit: contain; }
+    .qp-signatures__script {
+      font-family: "Brush Script MT", "Segoe Script", "Apple Chancery", "Snell Roundhand", cursive;
+      font-size: 28px; line-height: 1; color: var(--qp-primary, #211d1a);
+    }
     .qp-signatures__name { margin: 8px 0 0; font-size: 12px; font-weight: 700; }
     .qp-signatures__title, .qp-signatures__date { margin: 2px 0 0; font-size: 11px; color: var(--qp-muted); }
     .qp-alert { max-width: var(--qp-page-w); margin: 0 auto 14px; padding: 10px 14px; border-radius: 8px; font-size: 13px; }
@@ -386,7 +390,7 @@
       const propCity = [prop.city, prop.state, prop.postalCode].filter(Boolean).join(', ');
       const prep = quote.salesperson || {};
       const owner = (typeof ownerSignature !== 'undefined' && ownerSignature) ? ownerSignature : {};
-      const signed = !!(quote.signedByName || quote.signatureUrl);
+      const signed = !!(quote.signedByName || quote.signatureUrl) && readOnly;
       const scheduleRaw = (quote.paymentSchedule && quote.paymentSchedule.items) ? quote.paymentSchedule.items : [];
       const quoteTotalNum = Number(quote.total) || 0;
       const scheduleItems = scheduleRaw.map((it) => {
@@ -729,8 +733,10 @@
                 <div>
                   <h3>Authorized by</h3>
                   <div class="qp-signatures__box">
-                    <% if (owner.image_url) { %>
-                      <img src="<%= owner.image_url %>" alt="Authorized signature" />
+                    <% if (owner.image_url || owner.imageUrl || owner.has_image) { %>
+                      <img src="/public/quotes/<%= token %>/signature/owner" alt="<%= owner.name || 'Authorized signature' %>" data-fallback="<%= owner.name || '' %>" onerror="if(this.dataset.fallback){var s=document.createElement('span');s.className='qp-signatures__script';s.textContent=this.dataset.fallback;this.replaceWith(s)}else{this.remove()}" />
+                    <% } else if (owner.name) { %>
+                      <span class="qp-signatures__script"><%= owner.name %></span>
                     <% } else { %>
                       <span style="color:var(--qp-muted);font-size:12px;"><%= organization.name %></span>
                     <% } %>
@@ -744,7 +750,9 @@
                   <h3>Client approval</h3>
                   <div class="qp-signatures__box">
                     <% if (quote.signatureUrl) { %>
-                      <img src="<%= quote.signatureUrl %>" alt="Client signature" />
+                      <img src="/public/quotes/<%= token %>/signature/client" alt="<%= quote.signedByName || 'Client signature' %>" data-fallback="<%= quote.signedByName || '' %>" onerror="if(this.dataset.fallback){var s=document.createElement('span');s.className='qp-signatures__script';s.textContent=this.dataset.fallback;this.replaceWith(s)}else{this.remove()}" />
+                    <% } else if (quote.signedByName) { %>
+                      <span class="qp-signatures__script"><%= quote.signedByName %></span>
                     <% } else { %>
                       <span style="color:var(--qp-muted);font-size:12px;">Signed</span>
                     <% } %>

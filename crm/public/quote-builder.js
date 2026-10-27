@@ -2788,7 +2788,11 @@
     if (url) applyPublicUrlToDom(url);
     if (opts && opts.markSent) {
       const statusEl = $('status');
-      if (statusEl && statusEl.value === 'draft') statusEl.value = 'sent';
+      if (statusEl && (statusEl.value === 'draft' || pub.approval_reset)) statusEl.value = 'sent';
+      if (pub.approval_reset) {
+        loadedQuoteStatus = 'sent';
+        qbToast('O cliente precisa aprovar e assinar este quote de novo.', 'success');
+      }
     }
     return isLikelyQuotePublicUrl(url) ? url : '';
   }
@@ -3488,7 +3492,8 @@
       }
       if (sendId === quoteId) {
         const statusEl = $('status');
-        if (statusEl && statusEl.value === 'draft') statusEl.value = 'sent';
+        if (statusEl && (statusEl.value === 'draft' || r.approval_reset)) statusEl.value = 'sent';
+        if (r.approval_reset) loadedQuoteStatus = 'sent';
         startQuoteViewPolling();
       }
       const ccNote = extras.length ? ` (CC: ${extras.join(', ')})` : '';
@@ -6205,6 +6210,11 @@
         const q = quoteFromApiResponse(r);
         if (q) {
           loadedQuoteStatus = q.status || body.status || loadedQuoteStatus;
+          const statusEl = $('status');
+          if (statusEl && q.status) statusEl.value = q.status;
+          if (r.approval_reset) {
+            qbToast('O quote mudou. O cliente precisa aprovar e assinar de novo.', 'success');
+          }
           loadedQuoteNumber = q.quote_number != null ? String(q.quote_number).trim() : null;
           $('quoteMeta').textContent = `Orçamento ${q.quote_number || '#' + q.id} · total ${money(q.total_amount)}`;
           updatePreviewHeader();

@@ -143,17 +143,27 @@
 
   function signaturesHtml(model) {
     const s = model.signatures;
-    if (!s || !s.signed) return '';
-    const box = (url, alt, fallback) =>
+    if (!s) return '';
+    const hasOwner = !!(s.ownerImage || s.ownerName);
+    if (!hasOwner && !s.signed) return '';
+    const box = (url, alt, name) =>
       `<div class="qp-sig__box">${
-        url ? `<img src="${esc(url)}" alt="${esc(alt)}" />` : `<span>${esc(fallback)}</span>`
+        url
+          ? `<img src="${esc(url)}" alt="${esc(alt)}" />`
+          : name
+            ? `<span class="qp-sig__script">${esc(name)}</span>`
+            : ''
       }</div>`;
-    const owner = `<div class="qp-sig__col"><b>Authorized by</b>${box(s.ownerImage, 'Assinatura da empresa', s.ownerName || '—')}${
-      s.ownerName ? `<strong>${esc(s.ownerName)}</strong>` : ''
-    }${s.ownerTitle ? `<small>${esc(s.ownerTitle)}</small>` : ''}</div>`;
-    const client = `<div class="qp-sig__col"><b>Client approval</b>${box(s.clientImage, 'Assinatura do cliente', 'Signed')}${
-      s.clientName ? `<strong>${esc(s.clientName)}</strong>` : ''
-    }<small>${esc(fmtDate(s.clientDate))}</small></div>`;
+    const owner = hasOwner
+      ? `<div class="qp-sig__col"><b>Authorized by</b>${box(s.ownerImage, s.ownerName || 'Assinatura da empresa', s.ownerName)}${
+          s.ownerName ? `<strong>${esc(s.ownerName)}</strong>` : ''
+        }${s.ownerTitle ? `<small>${esc(s.ownerTitle)}</small>` : ''}</div>`
+      : '';
+    const client = s.signed
+      ? `<div class="qp-sig__col"><b>Client approval</b>${box(s.clientImage, s.clientName || 'Assinatura do cliente', s.clientName)}${
+          s.clientName ? `<strong>${esc(s.clientName)}</strong>` : ''
+        }<small>${esc(fmtDate(s.clientDate))}</small></div>`
+      : '';
     return `<section class="qp-sig">${owner}${client}</section>`;
   }
 
