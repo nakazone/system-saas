@@ -385,6 +385,41 @@ partnerPortalRouter.post("/api/partner-auth/exchange", async (req: TenantRequest
   }
 });
 
+function googleMapsBrowserKey() {
+  const mapsKey =
+    process.env.GOOGLE_MAPS_JS_KEY ||
+    process.env.GOOGLE_MAPS_API_KEY ||
+    process.env.GOOGLE_PLACES_JS_KEY ||
+    process.env.Google_Maps_JS_Key ||
+    process.env.GOOGLE_MAPS_KEY ||
+    null;
+  const key = mapsKey && String(mapsKey).trim() ? String(mapsKey).trim() : null;
+  return key;
+}
+
+partnerPortalRouter.get("/api/partner-portal/config", requirePartnerAuth, async (req: PartnerRequest, res, next) => {
+  try {
+    const user = req.partnerUser!;
+    const org = await prisma.organization.findUnique({
+      where: { id: user.organizationId },
+      select: { country: true },
+    });
+    const country = String(org?.country || "US").trim().toUpperCase().slice(0, 2);
+    const key = googleMapsBrowserKey();
+    res.json({
+      success: true,
+      data: {
+        country,
+        organizationCountry: country,
+        googleMapsJsKey: key,
+        googleMapsConfigured: Boolean(key),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 partnerPortalRouter.get("/api/partner-auth/session", requirePartnerAuth, async (req: PartnerRequest, res, next) => {
   try {
     const user = req.partnerUser!;

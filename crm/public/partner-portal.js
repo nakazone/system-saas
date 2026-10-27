@@ -976,7 +976,7 @@
       <div class="pp-sources">
         <button type="button" class="pp-source" id="ppCam">${icon('camera')}<span>Tirar foto<small>Papel ou tela do seu sistema</small></span></button>
         <button type="button" class="pp-source" id="ppPasteBtn">${icon('text')}<span>Colar texto<small>E-mail ou aviso do sistema</small></span></button>
-        <button type="button" class="pp-source" id="ppManual">${icon('pen')}<span>Preencher à mão<small>Sem arquivo</small></span></button>
+        <button type="button" class="pp-source" id="ppManual">${icon('pen')}<span>Preencher à mão<small>Com ou sem arquivo</small></span></button>
       </div>`;
     const drop = $('ppBigDrop');
     drop.addEventListener('click', () => $('ppFileInput').click());
@@ -1037,13 +1037,14 @@
     return `
       <div class="pp-card" style="padding:16px 20px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:center">
         <div style="display:flex;gap:10px;align-items:center">${s.ai ? `<span class="pp-mateface" aria-hidden="true"><img src="/assets/img/mascot/mate-head-neutral.webp?v=20261026-m1" alt="" width="36" height="36"></span>` : ''}<div><strong style="font-size:17px">${s.ai ? 'Confira o que lemos' : 'Dados do pedido'}</strong><div class="pp-muted" style="font-size:14px">${s.ai ? `${plural(filled, 'campo preenchido', 'campos preenchidos')}${checked ? ` · <span class="pp-late">${plural(checked, 'para conferir', 'para conferir')}</span>` : ''} · nada é enviado antes de você confirmar` : 'Preencha o que souber. Endereço e título são obrigatórios.'}</div></div></div>
-        <button type="button" class="pp-link" id="ppRestart">Trocar arquivo</button>
+        <button type="button" class="pp-link" id="ppRestart">${s.files.length || s.ai ? 'Trocar arquivo' : 'Começar de novo'}</button>
       </div>
       <div class="pp-cols">
         ${originalHtml(s)}
         <form class="pp-card pp-form" id="ppReqForm" novalidate>
           ${matchHtml}
           ${s.warnings.map((w) => `<p class="pp-warn">${esc(w)}</p>`).join('')}
+          ${filesEditor(s)}
           <div class="pp-fields">
             ${field('address', { required: true, wide: true, max: 300, auto: 'street-address' })}
             ${field('title', { required: true, wide: true, max: 160 })}
@@ -1070,11 +1071,35 @@
       <div class="pp-fixbar"><button type="button" class="pp-btn pp-btn--sec" data-discard>Descartar</button><button type="button" class="pp-btn pp-btn--pri" data-submit>${s.mode === 'update' && match ? 'Enviar atualização' : 'Enviar pedido'}</button></div>`;
   }
 
+  function filesEditor(s) {
+    const chips = s.files.length
+      ? `<div class="pp-files">${s.files.map((f, i) => `<span class="pp-file">${esc(f.name)} · ${fileSize(f.size)}<button type="button" data-remove="${i}" aria-label="Tirar ${esc(f.name)}">×</button></span>`).join('')}</div>`
+      : '<span class="pp-muted" style="font-size:14px">Nenhum arquivo ainda. PDF, JPG, PNG ou WebP.</span>';
+    return `<div class="pp-field pp-field--wide" id="ppFileBox">
+      <span style="font-size:13px;color:var(--pp-muted);font-weight:500">Arquivos</span>
+      ${chips}
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
+        <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" id="ppAddFiles">Adicionar arquivos</button>
+        <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" id="ppAddCamera">Tirar foto</button>
+      </div>
+    </div>`;
+  }
+
   function bindReview() {
     const s = state.send;
     view.querySelectorAll('[data-field]').forEach((el) => el.addEventListener('input', () => {
       s.fields[el.getAttribute('data-field')] = el.value;
       el.closest('.pp-field').classList.remove('is-check');
+    }));
+    const addFilesBtn = $('ppAddFiles');
+    if (addFilesBtn) addFilesBtn.addEventListener('click', () => $('ppFileInput').click());
+    const addCam = $('ppAddCamera');
+    if (addCam) addCam.addEventListener('click', () => $('ppCameraInput').click());
+    bindDrop($('ppFileBox'), async (fl) => { await addFiles(fl); renderSendBody(); });
+    view.querySelectorAll('#ppFileBox [data-remove]').forEach((b) => b.addEventListener('click', () => {
+      const f = s.files.splice(Number(b.getAttribute('data-remove')), 1)[0];
+      if (f && f.url) URL.revokeObjectURL(f.url);
+      renderSendBody();
     }));
     view.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => { s.mode = b.getAttribute('data-mode'); renderSendBody(); }));
     $('ppRestart').addEventListener('click', () => { const preset = s.presetJob; state.send = newSend(); state.send.presetJob = preset; renderSendBody(); });
@@ -1326,6 +1351,7 @@
     }
     document.title = `${prov} · Portal do builder`;
     if (state.user.must_change_password) { renderPassword(); return; }
+    if (typeof window.sfBootCrmAddressAutocomplete === 'function') window.sfBootCrmAddressAutocomplete();
     $('ppDock').hidden = false;
     $('ppTabs').hidden = false;
     $('ppSearchFab').hidden = false;

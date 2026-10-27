@@ -66,6 +66,20 @@
           }
         }
       } catch (_) {}
+      try {
+        var r3 = await fetch('/api/partner-portal/config', { credentials: 'include', cache: 'no-store' });
+        if (r3.ok) {
+          var j3 = await r3.json().catch(function () {
+            return {};
+          });
+          var d3 = (j3 && j3.data) || {};
+          var code3 = normalizeCountryCode(d3.organizationCountry || d3.country);
+          if (code3) {
+            orgCountryCode = code3;
+            return code3;
+          }
+        }
+      } catch (_) {}
       orgCountryCode = 'us';
       return orgCountryCode;
     })();
@@ -327,6 +341,9 @@
           headers: { Authorization: 'Bearer ' + builderToken },
           cache: 'no-store',
         });
+      }
+      if (!r.ok) {
+        r = await fetch('/api/partner-portal/config', { credentials: 'include', cache: 'no-store' });
       }
       if (!r.ok) {
         throw new Error('UI config HTTP ' + r.status);
