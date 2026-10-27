@@ -101,7 +101,8 @@
     if (!m || m.role !== 'mate') return;
     if (m.kind === 'thinking') mood('thinking');
     else if (m.kind === 'done') mood('happy', 2600);
-    else if (m.kind === 'error' || m.kind === 'clarify') mood('curious', 4000);
+    else if (m.kind === 'error') mood('sorry', 4000);
+    else if (m.kind === 'clarify') mood('curious', 4000);
     else mood('neutral');
   }
 
@@ -1321,7 +1322,7 @@
     };
     if (m.kind === 'thinking') inner = '<div class="mate-line">' + who('thinking') + '<div class="mate-thinking" aria-label="Pensando"><i></i><i></i><i></i></div></div>';
     else if (m.kind === 'reply') inner = '<div class="mate-line">' + who('neutral') + '<div class="mate-say">' + esc(m.message) + '</div></div>';
-    else if (m.kind === 'error') inner = '<div class="mate-line">' + who('curious') + '<div class="mate-say mate-say--error">' + esc(m.message) + '</div></div>';
+    else if (m.kind === 'error') inner = '<div class="mate-line">' + who('sorry') + '<div class="mate-say mate-say--error">' + esc(m.message) + '</div></div>';
     else if (m.kind === 'clarify') inner = renderClarify(m);
     else if (m.kind === 'card' || m.kind === 'answer') inner = renderCard(m);
     else if (m.kind === 'done') inner = renderDone(m);

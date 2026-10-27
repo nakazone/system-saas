@@ -13,7 +13,7 @@
  *   MateFace.empty({ title, text, ask, askLabel, pose })  → HTML for an empty state where Mate offers help
  *   MateFace.footer({ href })                     → "Made with ObraMate" footer HTML (customer pages)
  *
- * States: neutral, listening, thinking, talking, happy, curious.
+ * States: neutral, listening, thinking, talking, happy, curious, sorry (an action failed).
  * Poses: wave, point, tablet, celebrate, reading, sleeping, thumbs, laptop, run, hero.
  * Assets live in /assets/img/mascot (served on every host).
  */
@@ -22,7 +22,7 @@
 
   var VER = '20261026-m1';
   var BASE = '/assets/img/mascot/';
-  var STATES = ['neutral', 'listening', 'thinking', 'talking', 'happy', 'curious'];
+  var STATES = ['neutral', 'listening', 'thinking', 'talking', 'happy', 'curious', 'sorry'];
   var POSES = ['wave', 'point', 'tablet', 'celebrate', 'reading', 'sleeping', 'thumbs', 'laptop', 'run', 'hero'];
   var REDUCED = false;
   try {
