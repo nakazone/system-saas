@@ -56,7 +56,7 @@ import {
   endOtherMasterSessions,
   LOGIN_HISTORY_DAYS,
 } from "../lib/security/login-events.js";
-import { applyCoupon, archiveCoupon, couponState, couponText, createCoupon, getRetentionCode, removeCoupon, setRetentionCode, type CouponState } from "../lib/billing/coupons.js";
+import { applyCoupon, archiveCoupon, couponState, couponText, createCoupon, getRetentionCode, getBuilderReferralCode, removeCoupon, setBuilderReferralCode, setRetentionCode, type CouponState } from "../lib/billing/coupons.js";
 import { cardExpiresAt, cardText, expiringCards, forecast, forecastBuckets, syncCard } from "../lib/billing/cards.js";
 import { CANCEL_REASONS, REASON_LABEL, recordMasterCancel } from "../lib/billing/cancel.js";
 import { EXPORT_DAYS, createDownloadLink, exportFileName, isDownloadable, requestExport, revokeDownloadLink } from "../lib/data/export.js";
@@ -2506,6 +2506,7 @@ const AUDIT_TEXT: Record<string, string> = {
   "coupon.apply": "Aplicou cupom na empresa",
   "coupon.remove": "Tirou cupom da empresa",
   "coupon.retention": "Mudou a oferta para quem vai cancelar",
+  "coupon.builder_referral": "Mudou o cupom de indicação de builder",
   "tenant.cancel_requested": "Empresa pediu cancelamento",
   "tenant.cancel_undone": "Empresa desistiu de cancelar",
   "tenant.retention_accepted": "Empresa aceitou oferta para ficar",
@@ -3618,7 +3619,7 @@ masterRouter.get(
 
     if (tab === "modelos") {
       const ov = await overrides();
-      const groups = ["Conta", "Cobrança", "Suporte"].map((g) => ({
+      const groups = ["Conta", "Cobrança", "Suporte", "Builders"].map((g) => ({
         name: g,
         items: TEMPLATES.filter((t) => t.group === g).map((t) => ({
           key: t.key,
@@ -4502,6 +4503,7 @@ masterRouter.get(
     const using = await prisma.organization.groupBy({ by: ["couponCode"], where: { couponCode: { not: null }, status: { not: "canceled" } }, _count: { _all: true } });
     const usingMap = new Map(using.map((u) => [u.couponCode, u._count._all]));
     const retention = await getRetentionCode();
+    const builderReferral = await getBuilderReferralCode();
     const events = await prisma.cancellationEvent.findMany({ where: { offerShown: true, requestedAt: { gte: new Date(Date.now() - 90 * 86400e3) } }, select: { offerAccepted: true } });
     page(res, "cupons", await shell(req, "cupons"), {
       canEdit: can(req.master!.role, "plans_manage"),
@@ -4525,6 +4527,7 @@ masterRouter.get(
         };
       }),
       retention,
+      builderReferral,
       retentionStats: { shown: events.length, accepted: events.filter((e) => e.offerAccepted).length },
       planOpts: planOptions(),
     });
@@ -4608,6 +4611,21 @@ masterRouter.post(
     await setRetentionCode(code || null);
     await audit(req, actor(req), "coupon.retention", { type: "setting", label: "Oferta para quem vai cancelar", meta: { code: code || null } });
     ok(res, code ? `Quem for cancelar vê a oferta ${code} antes de confirmar.` : "Oferta desligada: o cancelamento vai direto para a confirmação.");
+  }),
+);
+
+masterRouter.post(
+  "/cupons/indicacao-builder",
+  requireCap("plans_manage"),
+  h(async (req, res) => {
+    const code = String(req.body?.code || "").trim();
+    if (code) {
+      const c = await prisma.coupon.findUnique({ where: { code } });
+      if (!c || couponState(c) !== "active") return fail(res, 400, "Escolha um cupom ativo.");
+    }
+    await setBuilderReferralCode(code || null);
+    await audit(req, actor(req), "coupon.builder_referral", { type: "setting", label: "Cupom de indicação de builder", meta: { code: code || null } });
+    ok(res, code ? `Empresas que entrarem por convite de builder ganham o cupom ${code}.` : "Sem cupom de indicação: empresas convidadas por builders pagam o preço normal.");
   }),
 );
 

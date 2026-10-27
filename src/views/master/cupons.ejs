@@ -19,6 +19,20 @@
   </form>
 </section>
 
+<section class="card card-pad cp-retention">
+  <div>
+    <h3 class="op-h3">Indicação de builder</h3>
+    <p class="muted op-p">Empresa de piso que cria a conta pelo convite de um builder ganha este cupom sozinha (entra no pagamento online). O texto da oferta vai no convite.</p>
+  </div>
+  <form data-action action="/master/cupons/indicacao-builder" class="cp-retention-form">
+    <select class="input" name="code" aria-label="Cupom da indicação de builder" <%= canEdit ? '' : 'disabled' %>>
+      <option value="">Sem cupom</option>
+      <% coupons.filter(function (c) { return c.state === 'active'; }).forEach(function (c) { %><option value="<%= c.code %>" <%= c.code === builderReferral ? 'selected' : '' %>><%= c.code %> · <%= c.text %><%= c.stripe ? '' : ' (fora do Stripe)' %></option><% }) %>
+    </select>
+    <% if (canEdit) { %><button class="btn btn-soft" type="submit">Salvar</button><% } %>
+  </form>
+</section>
+
 <section class="table">
   <div class="tr head cols-cupons"><span>CUPOM</span><span>DESCONTO</span><span>USOS</span><span>VALE ATÉ</span><span>SITUAÇÃO</span><span></span></div>
   <% coupons.forEach(function (c) { %>
@@ -27,7 +41,7 @@
       <span class="strong"><%= c.text %></span>
       <span class="num"><%= c.uses %><small class="muted" style="display:block"><%= c.inUse %> empresa(s) com ele</small></span>
       <span class="hide-m"><%= c.expires %></span>
-      <span><span class="pill pill-sm tone-<%= c.pill.tone %>"><%= c.pill.label %></span><% if (c.retention) { %> <span class="pill pill-sm tone-warn">oferta</span><% } %></span>
+      <span><span class="pill pill-sm tone-<%= c.pill.tone %>"><%= c.pill.label %></span><% if (c.retention) { %> <span class="pill pill-sm tone-warn">oferta</span><% } %><% if (c.code === builderReferral) { %> <span class="pill pill-sm tone-warn">indicação de builder</span><% } %></span>
       <span class="right"><% if (canEdit && c.state !== 'archived') { %><form data-action action="/master/cupons/<%= c.code %>/arquivar" data-confirm="Arquivar <%= c.code %>? Ninguém mais consegue usar; quem já tem continua com o desconto."><button class="btn btn-soft btn-sm" type="submit">Arquivar</button></form><% } %></span>
     </div>
   <% }) %>

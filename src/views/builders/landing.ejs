@@ -1,0 +1,109 @@
+<%- include('_head', { title: 'Free for builders' }) %>
+<% const v = values || {}; const bad = error && error.field ? error.field : ''; %>
+<style>
+  .hero { padding: 56px 0 40px; }
+  .hero .wrap { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(340px, 440px); gap: 48px; align-items: start; }
+  .hero h1 { margin: 0 0 16px; font-size: 52px; line-height: 1.05; letter-spacing: -.03em; font-weight: 700; }
+  .hero h1 em { font-style: normal; color: var(--orange); }
+  .lead { font-size: 19px; color: #3B3631; margin: 0 0 24px; max-width: 560px; }
+  .free { display: inline-flex; align-items: center; gap: 8px; background: #FFFFFF; border: 1px solid var(--border); border-radius: 999px; padding: 6px 14px 6px 6px; font-size: 14px; font-weight: 600; margin-bottom: 20px; }
+  .free b { background: var(--ink); color: #FFFFFF; border-radius: 999px; padding: 3px 10px; font-size: 12px; letter-spacing: .04em; }
+  .points { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; max-width: 560px; }
+  .points li { display: flex; gap: 12px; align-items: flex-start; font-size: 16px; }
+  .points li span { width: 26px; height: 26px; border-radius: 8px; background: var(--ink); color: #FFFFFF; display: grid; place-items: center; font-size: 13px; font-weight: 700; flex: none; margin-top: 1px; }
+  .form-card { padding: 28px; box-shadow: 0 16px 40px rgba(34, 30, 26, .08); }
+  .form-card h2 { margin: 0 0 4px; font-size: 22px; }
+  .form-card .btn { width: 100%; margin-top: 20px; }
+  .steps { background: #FFFFFF; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 48px 0; }
+  .steps h2, .who h2 { margin: 0 0 24px; font-size: 30px; letter-spacing: -.02em; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .step { padding: 22px; background: var(--bg); border-radius: 18px; }
+  .step b { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; letter-spacing: .04em; text-transform: uppercase; }
+  .step h3 { margin: 0 0 6px; font-size: 18px; }
+  .step p { margin: 0; color: #3B3631; font-size: 15px; }
+  .who { padding: 48px 0; }
+  .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .who .card { padding: 24px; }
+  .who h3 { margin: 0 0 8px; font-size: 18px; }
+  .who p { margin: 0; color: #3B3631; }
+  .offer { margin-top: 12px; font-size: 14px; background: var(--orange-soft); color: #7A3A12; padding: 8px 12px; border-radius: 10px; display: inline-block; font-weight: 600; }
+  @media (max-width: 900px) { .hero .wrap { grid-template-columns: 1fr; gap: 28px; } .hero h1 { font-size: 38px; } .grid3, .grid2 { grid-template-columns: 1fr; } .hero { padding-top: 28px; } }
+</style>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <div class="free"><b>FREE</b> No cost for builders, no card, ever</div>
+        <h1>Every flooring job, <em>one place</em>.</h1>
+        <p class="lead">Send work orders to your flooring installers in seconds — drop the PDF or a screenshot from your system and we fill in the job. Follow dates, photos and invoices for every lot, from your office or the truck.</p>
+        <ul class="points">
+          <li><span>1</span><div><strong>Send jobs your way.</strong> PDF, screenshot, photo of paper or the e-mail from your scheduling system. AI reads it; you confirm.</div></li>
+          <li><span>2</span><div><strong>Lands straight in their system.</strong> Jobs and changes go right into your installer's ObraMate — no calls, no re-typing.</div></li>
+          <li><span>3</span><div><strong>See the whole job.</strong> Date and time, lockbox, services and value, checklist, before/during/after photos, invoices.</div></li>
+          <li><span>4</span><div><strong>Your whole team.</strong> Admins, managers, office and field, each with the right access.</div></li>
+        </ul>
+      </div>
+
+      <div class="card form-card" id="signup">
+        <h2>Create your builder account</h2>
+        <p class="muted" style="margin:0 0 6px">Free. Takes a minute.</p>
+        <% if (error) { %><div class="alert" role="alert" style="margin-top:12px"><%= error.message %></div><% } %>
+        <form method="post" action="/builders/signup" novalidate>
+          <div class="hp" aria-hidden="true"><label for="website">Website</label><input id="website" name="website" tabindex="-1" autocomplete="off" /></div>
+          <label for="company">Company</label>
+          <input id="company" type="text" name="company" required maxlength="120" autocomplete="organization" value="<%= v.company || '' %>" <%= bad === 'company' ? 'aria-invalid=true' : '' %> />
+          <label for="name">Your name</label>
+          <input id="name" type="text" name="name" required maxlength="120" autocomplete="name" value="<%= v.name || '' %>" <%= bad === 'name' ? 'aria-invalid=true' : '' %> />
+          <div class="row2">
+            <div>
+              <label for="email">Work e-mail</label>
+              <input id="email" type="email" name="email" required maxlength="200" autocomplete="email" value="<%= v.email || '' %>" <%= bad === 'email' ? 'aria-invalid=true' : '' %> />
+            </div>
+            <div>
+              <label for="phone">Mobile <span class="muted" style="font-weight:400">(optional)</span></label>
+              <input id="phone" type="tel" name="phone" maxlength="40" autocomplete="tel" value="<%= v.phone || '' %>" />
+            </div>
+          </div>
+          <label for="password">Password <span class="muted" style="font-weight:400">(8+ characters)</span></label>
+          <input id="password" type="password" name="password" required minlength="8" maxlength="128" autocomplete="new-password" <%= bad === 'password' ? 'aria-invalid=true' : '' %> />
+          <label class="check"><input type="checkbox" name="acceptLegal" value="on" <%= v.acceptLegal ? 'checked' : '' %> /><span>I agree to the <a href="/terms" target="_blank" rel="noopener">Terms of Service</a> and the <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span></label>
+          <button class="btn btn--pri" type="submit">Create free account</button>
+        </form>
+        <p class="muted" style="margin:14px 0 0;font-size:14px;text-align:center">Already have an account? <a href="/partner-login.html">Sign in</a></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="steps">
+    <div class="wrap">
+      <h2>How it works</h2>
+      <div class="grid3">
+        <div class="step"><b>Step 1</b><h3>Create your free account</h3><p>Add your office, managers and field supers with the access each one needs.</p></div>
+        <div class="step"><b>Step 2</b><h3>Connect your flooring companies</h3><p>Already on ObraMate? Connect with their admin's e-mail. Not yet? Invite them by e-mail or text.</p></div>
+        <div class="step"><b>Step 3</b><h3>Send and follow jobs</h3><p>Pick the company, send the job, and follow it to the final walk — every change lands in their system right away.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="who">
+    <div class="wrap">
+      <h2>Your installers aren't on ObraMate yet?</h2>
+      <div class="grid2">
+        <div class="card"><h3>Invite them in one tap</h3><p>Send the invitation by e-mail or straight from your phone's messages. Jobs you send meanwhile wait for them and show up the moment they join.</p></div>
+        <div class="card"><h3>They get a referral price</h3><p>Flooring companies that join from your invitation get a special price on ObraMate — the system that runs their leads, quotes, jobs, crews, invoices and payroll.</p><% if (offer) { %><span class="offer">Current referral offer: <%= offer %></span><% } %></div>
+      </div>
+      <p style="margin-top:28px"><a class="btn btn--pri" href="#signup">Create free account</a></p>
+    </div>
+  </section>
+</main>
+<footer class="foot">© <%= new Date().getFullYear() %> <%= productName %> · <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a></footer>
+<script>
+  (function () {
+    var f = document.querySelector('form[action="/builders/signup"]');
+    var bad = f && f.querySelector('[aria-invalid=true]');
+    if (bad) bad.focus();
+  })();
+</script>
+</body>
+</html>

@@ -24,6 +24,12 @@
     calMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
     calDay: dateKey(new Date()),
     send: null,
+    /** Builder account session (GET /api/builder/me); null for older company-created portal users. */
+    builder: null,
+    /** Company picked in the builder portal ({ id, status: active|invited, company_name, … }). */
+    company: null,
+    perms: null,
+    priceList: null,
   };
 
   /* ─────────────────────────── helpers ─────────────────────────── */
@@ -214,27 +220,41 @@
   }
 
   function providerName() {
+    if (state.builder) return state.company ? state.company.company_name : 'Escolha uma empresa';
     const user = state.user || {};
     const p = state.providers.find((x) => x.slug === user.workspace);
     return (p && p.name) || 'Seu fornecedor';
+  }
+  /** Builder team permissions (jobs.view, jobs.send, jobs.edit, money.view, companies.manage, team.manage). */
+  function canDo(permission) {
+    return !state.perms || state.perms.includes(permission);
+  }
+  function companyActive() {
+    return !state.builder || Boolean(state.company && state.company.status === 'active');
+  }
+  function companyInvited() {
+    return Boolean(state.builder && state.company && state.company.status === 'invited');
   }
 
   /* ─────────────────────────── loading ─────────────────────────── */
 
   async function loadInvoices(force) {
     if (state.loaded.invoices && !force) return;
+    if (!canDo('money.view') || !companyActive()) { state.invoices = []; state.loaded.invoices = true; return; }
     const r = await api('/api/partner-portal/invoices');
     state.invoices = r.data || [];
     state.loaded.invoices = true;
   }
   async function loadRequests(force) {
     if (state.loaded.requests && !force) return;
+    if (!companyActive()) { state.requests = []; state.loaded.requests = true; return; }
     const r = await api('/api/partner-portal/requests');
     state.requests = r.data || [];
     state.loaded.requests = true;
   }
   async function loadDocuments(force) {
     if (state.loaded.documents && !force) return;
+    if (!companyActive()) { state.documents = []; state.loaded.documents = true; return; }
     const r = await api('/api/partner-portal/documents');
     state.documents = r.data || [];
     state.loaded.documents = true;
@@ -265,7 +285,7 @@
     const key = map[name] || name;
     document.querySelectorAll('[data-nav]').forEach((el) => {
       const nav = el.getAttribute('data-nav');
-      const on = nav === key || (nav === 'mais' && ['documentos', 'enviar', 'mais'].includes(key) && el.classList.contains('pp-tab'));
+      const on = nav === key || (nav === 'mais' && ['documentos', 'enviar', 'mais', 'empresas', 'equipe'].includes(key) && el.classList.contains('pp-tab'));
       if (on) el.setAttribute('aria-current', 'page');
       else el.removeAttribute('aria-current');
     });
@@ -278,6 +298,9 @@
     setNav(r.name);
     document.body.classList.remove('pp-focus');
     try {
+      if (state.builder && r.name === 'empresas') { await renderCompanies(token); updateCounts(); return; }
+      if (state.builder && r.name === 'equipe') { await renderTeam(token); updateCounts(); return; }
+      if (state.builder && !companyActive() && !['enviar', 'mais'].includes(r.name)) { await renderNoCompany(token); updateCounts(); return; }
       if (r.name === 'jobs') await renderJobs(r.id, token);
       else if (r.name === 'invoices') await renderInvoices(r.id, token);
       else if (r.name === 'calendario') renderCalendar();
@@ -355,13 +378,18 @@
           <a class="pp-tile-link" href="#jobs">Ver jobs →</a>
         </section>
 
-        <section class="pp-tile pp-tile--dark" style="grid-column: span 4; grid-row: span 2" aria-label="Invoices em aberto">
+        ${canDo('money.view') ? `<section class="pp-tile pp-tile--dark" style="grid-column: span 4; grid-row: span 2" aria-label="Invoices em aberto">
           <div class="pp-lbl">Invoices em aberto</div>
           <div class="pp-big">${money(openSum)}</div>
           <div class="pp-meter" aria-hidden="true"><i style="width:${openSum ? Math.round((overdueSum / openSum) * 100) : 0}%"></i></div>
           <div style="display:flex;justify-content:space-between;gap:8px;font-size:13px" class="pp-sub"><span>${money(overdueSum)} vencido</span><span>${money(soonSum)} vence em 7 dias</span></div>
           <a class="pp-tile-link" href="#invoices">Ver invoices →</a>
-        </section>
+        </section>` : `<section class="pp-tile pp-tile--dark" style="grid-column: span 4; grid-row: span 2" aria-label="Fotos e docs">
+          <div class="pp-lbl">Fotos e documentos</div>
+          <div class="pp-big">${esc(providerName())}</div>
+          <div style="font-size:13px" class="pp-sub">Fotos de antes, durante e depois, relatórios e arquivos que a equipe libera.</div>
+          <a class="pp-tile-link" href="#documentos">Ver fotos e docs →</a>
+        </section>`}
 
         <section class="pp-tile" style="grid-column: span 4; grid-row: span 3" aria-labelledby="ppNext">
           <div class="pp-tile-head"><h2 id="ppNext">Próximos na obra</h2><a class="pp-link" href="#calendario" style="font-size:13px">Calendário</a></div>
@@ -440,7 +468,7 @@
         <div class="pp-card pp-num"><span class="pp-lbl">Na obra</span><b>${counts.obra}</b></div>
         <div class="pp-card pp-num"><span class="pp-lbl">Data passou</span><b class="${late ? 'pp-late' : ''}">${late}</b></div>
         <div class="pp-card pp-num pp-hide-phone"><span class="pp-lbl">Concluídos · 30 dias</span><b>${done30}</b></div>
-        <div class="pp-card pp-num pp-hide-phone"><span class="pp-lbl">Invoices em aberto</span><b>${moneyShort(openSum)}</b></div>
+        ${canDo('money.view') ? `<div class="pp-card pp-num pp-hide-phone"><span class="pp-lbl">Invoices em aberto</span><b>${moneyShort(openSum)}</b></div>` : ''}
       </div>
       <div class="pp-split pp-split--list ${id ? 'is-open' : ''}">
         <aside class="pp-card pp-side" aria-label="Lista de jobs">
@@ -531,6 +559,7 @@
             <span class="tk-pill tk-pill--${pillTone}">${esc(t.status || 'Agendado')}</span>
             ${job.external_ref ? `<span class="tk-num">· SEU Nº ${esc(job.external_ref)}</span>` : ''}
           </div>
+          ${job.can_edit ? '<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-edit-job>Editar</button>' : ''}
           <button type="button" class="tk-iconbtn" data-print-ticket aria-label="Imprimir ticket">${ICON.print}</button>
         </div>
         <h2 id="tkTitle">${esc(job.title || 'Job')}</h2>
@@ -571,7 +600,7 @@
         <small>Próximo passo</small>
         <strong>${esc(next.title)}</strong>
         <p>${esc(next.text)}</p>
-        <button type="button" class="tk-btn tk-btn--light" data-update-job>Enviar atualização</button>
+        ${job.can_edit ? '<button type="button" class="tk-btn tk-btn--light" data-edit-job>Editar job</button>' : canDo('jobs.send') ? '<button type="button" class="tk-btn tk-btn--light" data-update-job>Enviar atualização</button>' : ''}
       </section>
 
       <section class="tk-sec" id="ppPhotos">
@@ -580,10 +609,10 @@
         ${photos.length > 9 ? '<a class="pp-link" href="#documentos" style="font-size:14px">Ver todas</a>' : ''}
       </section>
 
-      <section class="tk-sec">
+      ${canDo('money.view') ? `<section class="tk-sec">
         <h3>Invoices</h3>
         ${invoices.length ? `<ul class="tk-list">${invoices.map((inv) => { const st = invoiceState(inv); return `<li><a href="#invoices/${encodeURIComponent(inv.id)}" class="tk-row"><span>${esc(inv.number || 'Invoice')}<small class="${['overdue', 'soon'].includes(st.key) ? 'pp-late' : ''}">${esc(st.label)}</small></span><b>${money(st.key === 'paid' ? inv.amount : inv.balance)}</b></a></li>`; }).join('')}</ul>` : '<p class="tk-empty">Nenhuma invoice deste job ainda.</p>'}
-      </section>
+      </section>` : ''}
 
       ${docs.length ? `<section class="tk-sec"><h3>Documentos</h3><ul class="tk-list">${docs.map((d) => `<li><a href="${esc(d.file_url)}" target="_blank" rel="noopener" class="tk-row"><span>${esc(d.title)}<small>${d.type === 'report' ? 'Relatório' : d.type === 'sent' ? 'Você enviou' : 'Arquivo'}</small></span><b>Abrir</b></a></li>`).join('')}</ul></section>` : ''}
 
@@ -596,7 +625,7 @@
         <div class="tk-col">${work}</div>
         <div class="tk-col tk-col--side">${side}</div>
       </div>
-      <div class="pp-fixbar"><a class="pp-btn pp-btn--sec" href="#ppPhotos">Fotos</a><button type="button" class="pp-btn pp-btn--pri" data-update-job>Enviar atualização</button></div>`;
+      <div class="pp-fixbar">${job.can_edit ? '<button type="button" class="pp-btn pp-btn--sec" data-edit-job>Editar job</button>' : '<a class="pp-btn pp-btn--sec" href="#ppPhotos">Fotos</a>'}${canDo('jobs.send') ? '<button type="button" class="pp-btn pp-btn--pri" data-update-job>Enviar atualização</button>' : '<a class="pp-btn pp-btn--sec" href="#documentos">Fotos e docs</a>'}</div>`;
   }
 
   function bindJobDetail(data) {
@@ -607,6 +636,7 @@
       window.print();
       setTimeout(() => document.body.classList.remove('pp-printing'), 500);
     }));
+    view.querySelectorAll('[data-edit-job]').forEach((b) => b.addEventListener('click', () => openJobEditor(data)));
     view.querySelectorAll('[data-update-job]').forEach((b) => b.addEventListener('click', () => {
       state.send = newSend();
       state.send.presetJob = { id: data.job.id, number: data.job.number, title: data.job.title, address: data.job.address };
@@ -844,7 +874,7 @@
     s.error = '';
     renderSendBody();
     try {
-      const r = await postJson('/api/partner-portal/requests/read', { text: s.text, files: s.files.map((f) => ({ name: f.name, data_url: f.dataUrl })) });
+      const r = await postJson(companyInvited() ? '/api/builder/read' : '/api/partner-portal/requests/read', { text: s.text, files: s.files.map((f) => ({ name: f.name, data_url: f.dataUrl })) });
       const data = r.data || {};
       if (!data.ai_available) {
         s.fields = emptyFields();
@@ -898,7 +928,7 @@
         <div><p class="pp-eyebrow">${esc(providerName())}</p><h1>Enviar trabalho</h1></div>
         <ol class="pp-steps" id="ppSteps" aria-label="Etapas"></ol>
       </div>
-      <div class="pp-split" style="align-items:flex-start">
+      <div class="pp-split pp-split--stack">
         <section class="pp-main" id="ppSendBody"></section>
         <aside class="pp-card pp-side" aria-labelledby="ppReqTitle" id="ppReqs"></aside>
       </div>`;
@@ -909,6 +939,14 @@
   function renderRequestsList() {
     const box = $('ppReqs');
     if (!box) return;
+    if (companyInvited()) {
+      api(`/api/builder/companies/${encodeURIComponent(state.company.id)}/jobs`).then((r) => {
+        const rows = r.data || [];
+        box.innerHTML = `<div style="padding:16px 16px 8px"><h2 id="ppReqTitle" style="margin:0;font-size:17px">Guardados para ${esc(providerName())}</h2><p class="pp-muted" style="margin:2px 0 0;font-size:13px">Entram no sistema dela quando ela criar a conta.</p></div>
+          ${rows.length ? rows.map((j) => `<div class="pp-req"><div class="pp-req-top"><strong>${esc(j.title)}</strong>${j.delivered_at ? '<span class="pp-chip pp-chip--ok">Entregue</span>' : '<span class="pp-chip">Guardado</span>'}</div><p>${esc(j.address)}</p><p>Guardado ${esc(fmtDay(j.created_at))}${j.files ? ` · ${plural(j.files, 'arquivo', 'arquivos')}` : ''}</p></div>`).join('') : '<div class="pp-empty" style="padding:20px 16px">Nenhum job guardado ainda.</div>'}`;
+      }).catch(() => { box.innerHTML = ''; });
+      return;
+    }
     const rows = state.requests;
     box.innerHTML = `<div style="padding:16px 16px 8px"><h2 id="ppReqTitle" style="margin:0;font-size:17px">Seus pedidos</h2><p class="pp-muted" style="margin:2px 0 0;font-size:13px">${rows.filter((r) => r.status === 'pending').length} aguardando a equipe</p></div>
       ${rows.length ? rows.slice(0, 30).map((r) => `<div class="pp-req">
@@ -944,12 +982,19 @@
     }
 
     if (s.phase === 'done') {
-      const updated = s.sent && s.sent.update;
+      const sent = s.sent || {};
+      const updated = sent.update;
+      const title = sent.kept ? 'Job guardado' : sent.direct ? (updated ? 'Job atualizado' : 'Job criado') : (updated ? 'Atualização enviada' : 'Pedido enviado');
+      const text = sent.kept
+        ? `${esc(providerName())} ainda não entrou no ObraMate. O job fica guardado e entra no sistema dela assim que ela criar a conta pelo seu convite.`
+        : sent.direct
+          ? `${updated ? 'A alteração já está' : 'O job já está'} no sistema de ${esc(providerName())}, e o escritório foi avisado.`
+          : `A equipe de ${esc(providerName())} confere e responde aqui. ${updated ? 'O job continua o mesmo, com as fotos e invoices juntos.' : 'Quando aceitarem, o job aparece em Jobs.'}`;
       box.innerHTML = `<div class="pp-card pp-reading">
         <img class="pp-mate-art" src="/assets/img/mascot/mate-thumbs.webp?v=20261026-m1" alt="" height="96" decoding="async">
-        <h2 style="margin:0;font-size:24px">${updated ? 'Atualização enviada' : 'Pedido enviado'}</h2>
-        <p class="pp-muted" style="margin:0">A equipe de ${esc(providerName())} confere e responde aqui. ${updated ? 'O job continua o mesmo, com as fotos e invoices juntos.' : 'Quando aceitarem, o job aparece em Jobs.'}</p>
-        <div style="display:flex;gap:10px;flex-wrap:wrap"><button type="button" class="pp-btn pp-btn--pri" id="ppSendAnother">Enviar outro</button><a class="pp-btn pp-btn--sec" href="#jobs">Ver jobs</a></div>
+        <h2 style="margin:0;font-size:24px">${title}</h2>
+        <p class="pp-muted" style="margin:0">${text}</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap"><button type="button" class="pp-btn pp-btn--pri" id="ppSendAnother">Enviar outro</button>${sent.jobId ? `<a class="pp-btn pp-btn--sec" href="#jobs/${encodeURIComponent(sent.jobId)}">Abrir job</a>` : sent.kept ? '<a class="pp-btn pp-btn--sec" href="#empresas">Ver empresas</a>' : '<a class="pp-btn pp-btn--sec" href="#jobs">Ver jobs</a>'}</div>
       </div>`;
       $('ppSendAnother').addEventListener('click', () => { state.send = newSend(); renderSendBody(); });
       return;
@@ -962,7 +1007,16 @@
     }
 
     const files = s.files.map((f, i) => `<span class="pp-file">${esc(f.name)} · ${fileSize(f.size)}<button type="button" data-remove="${i}" aria-label="Tirar ${esc(f.name)}">×</button></span>`).join('');
+    if (state.builder && !state.company) {
+      box.innerHTML = '<div class="pp-card pp-empty"><strong>Escolha uma empresa</strong>Conecte ou convide a empresa de piso para enviar jobs.<div style="margin-top:12px"><a class="pp-btn pp-btn--pri" href="#empresas">Empresas</a></div></div>';
+      return;
+    }
+    if (!canDo('jobs.send')) {
+      box.innerHTML = '<div class="pp-card pp-empty"><strong>Seu papel não envia jobs</strong>Peça a alguém do escritório ou ao admin da sua equipe.</div>';
+      return;
+    }
     box.innerHTML = `
+      ${companyInvited() ? `<div class="pp-match"><strong>${esc(providerName())} ainda não está no ObraMate</strong><span class="pp-muted" style="font-size:14px">O job fica guardado e entra no sistema dela assim que ela criar a conta pelo seu convite.</span></div>` : ''}
       ${s.presetJob ? `<div class="pp-match"><strong>Atualização de ${esc(s.presetJob.title || 'job')}</strong><span class="pp-muted" style="font-size:14px">${esc(s.presetJob.address || '')} · envie a nova ordem, foto ou texto. Ela vai junto desse job.</span></div>` : ''}
       <button type="button" class="pp-bigdrop" id="ppBigDrop">
         ${icon('upload')}
@@ -1131,7 +1185,27 @@
     const buttons = view.querySelectorAll('#ppSubmit, [data-submit]');
     buttons.forEach((b) => { b.disabled = true; b.textContent = 'Enviando…'; });
     try {
-      await postJson('/api/partner-portal/requests', {
+      if (companyInvited()) {
+        await postJson(`/api/builder/companies/${encodeURIComponent(state.company.id)}/jobs`, {
+          title: f.title.trim().slice(0, 160),
+          address: f.address.trim().slice(0, 300),
+          contact_name: f.contact_name.trim(),
+          contact_email: f.contact_email.trim(),
+          contact_phone: f.contact_phone.trim(),
+          service_type: f.service_type.trim().slice(0, 100),
+          preferred_date: /^\d{4}-\d{2}-\d{2}$/.test(f.preferred_date) ? f.preferred_date : '',
+          notes: notes.slice(0, 5000),
+          external_ref: f.external_ref.trim().slice(0, 60),
+          files: s.files.map((x) => ({ name: x.name, data_url: x.dataUrl })),
+        });
+        s.files.forEach((x) => x.url && URL.revokeObjectURL(x.url));
+        s.sent = { kept: true };
+        s.phase = 'done';
+        renderSendBody();
+        renderRequestsList();
+        return;
+      }
+      const sent = await postJson('/api/partner-portal/requests', {
         title: f.title.trim().slice(0, 160),
         address: f.address.trim().slice(0, 300),
         contact_name: f.contact_name.trim(),
@@ -1146,7 +1220,8 @@
         intake: { source: s.ai ? 'ai' : 'manual', fields_checked: s.check, ...(s.model ? { model: s.model.slice(0, 80) } : {}) },
       });
       s.files.forEach((x) => x.url && URL.revokeObjectURL(x.url));
-      s.sent = { update: Boolean(update) };
+      s.sent = { update: Boolean(update), jobId: sent.data && sent.data.job_id, direct: Boolean(sent.data && sent.data.status === 'accepted') };
+      if (s.sent.direct) { state.jobDetail.clear(); refreshOverview().catch(() => {}); }
       s.phase = 'done';
       await loadRequests(true).catch(() => {});
       renderSendBody();
@@ -1200,6 +1275,418 @@
     s.addEventListener('input', () => { state.docQuery = s.value; const pos = s.selectionStart; render().then(() => { const x = $('ppDocSearch'); if (x) { x.focus(); x.setSelectionRange(pos, pos); } }); });
   }
 
+  /* ─────────────────────────── builder account: companies, team, job edits ─────────────────────────── */
+
+  const ROLE_PT = { admin: 'Admin', manager: 'Gerente', office: 'Escritório', field: 'Campo' };
+
+  async function refreshOverview() {
+    if (!companyActive() || (state.builder && !state.company)) {
+      state.jobs = [];
+      state.projects = [];
+      return;
+    }
+    const overview = await api('/api/partner-portal/overview');
+    const data = overview.data || {};
+    state.jobs = (data.jobs || []).filter((j) => j.status !== 'canceled');
+    state.projects = data.projects || [];
+    if (!state.builder && Array.isArray(data.permissions)) state.perms = data.permissions;
+  }
+
+  async function loadMe() {
+    const r = await api('/api/builder/me');
+    state.builder = r.data;
+    state.perms = r.data.permissions || [];
+    state.company = (r.data.companies || []).find((c) => c.id === r.data.current_company_id) || null;
+  }
+
+  async function selectCompany(id) {
+    await postJson('/api/builder/select', { company_id: id });
+    state.loaded = { invoices: false, requests: false, documents: false };
+    state.jobDetail.clear();
+    state.send = null;
+    state.priceList = null;
+    await loadMe();
+    paintShell();
+    await refreshOverview();
+    loadInvoices().then(updateCounts).catch(() => {});
+    loadRequests().then(updateCounts).catch(() => {});
+  }
+
+  function companyStatusChip(c) {
+    if (c.status === 'active') return '<span class="pp-chip pp-chip--ok">Conectada</span>';
+    if (c.status === 'invited') return '<span class="pp-chip pp-chip--late">Convite enviado</span>';
+    return '<span class="pp-chip">Indisponível</span>';
+  }
+
+  function smsHref(phone, text) {
+    const digits = String(phone || '').replace(/[^\d+]/g, '');
+    const sep = /iPhone|iPad|Mac/i.test(navigator.userAgent) ? '&' : '?';
+    return `sms:${digits}${sep}body=${encodeURIComponent(text)}`;
+  }
+
+  async function renderNoCompany(token) {
+    const companies = (state.builder && state.builder.companies) || [];
+    if (token !== renderToken) return;
+    const invited = companies.filter((c) => c.status === 'invited');
+    view.innerHTML = `
+      <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder.account.name)}</p><h1>${companies.length ? 'Escolha uma empresa' : 'Bem-vindo ao ObraMate'}</h1></div></div>
+      <div class="pp-card pp-block" style="max-width:720px">
+        <h3 style="font-size:18px">${companies.length ? 'Nenhuma empresa conectada ainda' : 'Conecte sua primeira empresa de piso'}</h3>
+        <p class="pp-muted" style="margin:0">Já usa ObraMate? Conecte pelo e-mail do admin dela e os jobs que você enviar entram direto no sistema dela. Ainda não usa? Convide por e-mail ou mensagem — os jobs que você mandar ficam guardados até ela entrar.</p>
+        ${canDo('companies.manage') ? '<div><a class="pp-btn pp-btn--pri" href="#empresas">Adicionar empresa</a></div>' : '<p class="pp-muted" style="margin:0">Peça ao admin ou gerente da sua equipe para conectar uma empresa.</p>'}
+      </div>
+      ${invited.length ? `<div class="pp-card" style="overflow:hidden;max-width:720px"><div class="pp-group">Convidadas · ${invited.length}</div>${invited.map((c) => `<button type="button" class="pp-row" data-pick="${esc(c.id)}"><span class="pp-row-main"><span class="pp-row-top"><strong>${esc(c.company_name)}</strong>${companyStatusChip(c)}</span><span class="pp-row-sub">${esc(c.contact_email || '')}${c.pending_jobs ? ` · ${plural(c.pending_jobs, 'job guardado', 'jobs guardados')}` : ''}</span></span></button>`).join('')}</div>` : ''}`;
+    view.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', async () => { await selectCompany(b.getAttribute('data-pick')); location.hash = '#enviar'; render(); }));
+  }
+
+  async function renderCompanies(token) {
+    await loadMe();
+    if (token !== renderToken) return;
+    const companies = state.builder.companies || [];
+    const manage = canDo('companies.manage');
+    const row = (c) => `<div class="pp-req" style="padding:14px 18px">
+        <div class="pp-req-top"><strong style="font-size:16px">${esc(c.company_name)}</strong>${companyStatusChip(c)}</div>
+        <p>${esc([c.contact_name, c.contact_email, c.contact_phone].filter(Boolean).join(' · '))}</p>
+        <p>${c.status === 'active' ? `Conectada ${esc(fmtDay(c.activated_at))}` : `Convite enviado ${esc(fmtDay(c.invited_at))}`}${c.pending_jobs ? ` · ${plural(c.pending_jobs, 'job guardado', 'jobs guardados')}` : ''}</p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
+          ${state.company && state.company.id === c.id ? '<span class="pp-chip pp-chip--dark">Empresa atual</span>' : `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-pick="${esc(c.id)}">Usar esta empresa</button>`}
+          ${manage && c.status === 'invited' ? `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-resend="${esc(c.id)}">Reenviar convite</button>` : ''}
+          ${manage ? `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-remove-co="${esc(c.id)}">Remover</button>` : ''}
+        </div>
+        <div data-invite-out="${esc(c.id)}"></div>
+      </div>`;
+    view.innerHTML = `
+      <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder.account.name)}</p><h1>Empresas</h1></div></div>
+      <div class="pp-split pp-split--stack">
+        <section class="pp-main">
+          <div class="pp-card" style="overflow:hidden">
+            ${companies.length ? companies.map(row).join('') : '<div class="pp-empty"><strong>Nenhuma empresa ainda</strong>Adicione a empresa de piso que faz seus jobs.</div>'}
+          </div>
+        </section>
+        ${manage ? `<aside class="pp-card pp-side pp-block" aria-labelledby="ppAddCo">
+          <h3 id="ppAddCo" style="font-size:17px">Adicionar empresa</h3>
+          <p class="pp-muted" style="margin:0;font-size:14px">Informe o e-mail do admin da empresa de piso. Se ela já usa ObraMate, conecta na hora. Se não, mandamos o convite com o preço de indicação.</p>
+          <form id="ppCoForm" class="pp-fields" style="grid-template-columns:1fr" novalidate>
+            <div class="pp-field"><label for="ppCoEmail">E-mail do admin *</label><input id="ppCoEmail" type="email" maxlength="200" autocomplete="off" required /></div>
+            <div class="pp-field"><label for="ppCoName">Nome da empresa</label><input id="ppCoName" maxlength="120" placeholder="Só se ela ainda não usa ObraMate" /></div>
+            <div class="pp-field"><label for="ppCoContact">Contato</label><input id="ppCoContact" maxlength="120" /></div>
+            <div class="pp-field"><label for="ppCoPhone">Celular (para o convite por mensagem)</label><input id="ppCoPhone" type="tel" maxlength="40" /></div>
+            <p class="pp-error" id="ppCoError" role="alert" hidden></p>
+            <div id="ppCoResult"></div>
+            <div><button type="submit" class="pp-btn pp-btn--pri" id="ppCoSave">Conectar ou convidar</button></div>
+          </form>
+        </aside>` : ''}
+      </div>`;
+    view.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', async () => {
+      b.disabled = true;
+      await selectCompany(b.getAttribute('data-pick'));
+      location.hash = state.company && state.company.status === 'active' ? '#jobs' : '#enviar';
+    }));
+    const inviteActions = (out, data, phone) => {
+      if (!out) return;
+      out.innerHTML = `<div class="pp-success" style="margin-top:10px">Convite enviado por e-mail${data.offer ? ` · oferta: ${esc(data.offer)}` : ''}.</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
+          <a class="pp-btn pp-btn--pri pp-btn--sm" href="${esc(smsHref(phone, data.sms_text))}">Enviar por mensagem</a>
+          <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-copy="${esc(data.invite_url)}">Copiar link</button>
+        </div>`;
+      out.querySelectorAll('[data-copy]').forEach((c) => c.addEventListener('click', async () => {
+        try { await navigator.clipboard.writeText(c.getAttribute('data-copy')); c.textContent = 'Copiado'; } catch (_) { window.prompt('Copie o link', c.getAttribute('data-copy')); }
+      }));
+    };
+    view.querySelectorAll('[data-resend]').forEach((b) => b.addEventListener('click', async () => {
+      const id = b.getAttribute('data-resend');
+      b.disabled = true;
+      b.textContent = 'Enviando…';
+      try {
+        const r = await postJson(`/api/builder/companies/${encodeURIComponent(id)}/resend`, {});
+        const c = companies.find((x) => x.id === id) || {};
+        inviteActions(view.querySelector(`[data-invite-out="${CSS.escape(id)}"]`), r.data, c.contact_phone);
+        b.textContent = 'Reenviado';
+      } catch (e) {
+        b.disabled = false;
+        b.textContent = 'Reenviar convite';
+        window.alert(e.message);
+      }
+    }));
+    view.querySelectorAll('[data-remove-co]').forEach((b) => b.addEventListener('click', async () => {
+      if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Confirmar remoção'; return; }
+      b.disabled = true;
+      try {
+        await api(`/api/builder/companies/${encodeURIComponent(b.getAttribute('data-remove-co'))}`, { method: 'DELETE' });
+        await loadMe();
+        paintShell();
+        render();
+      } catch (e) {
+        b.disabled = false;
+        window.alert(e.message);
+      }
+    }));
+    const form = $('ppCoForm');
+    if (form) form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const err = $('ppCoError');
+      const btn = $('ppCoSave');
+      err.hidden = true;
+      $('ppCoResult').innerHTML = '';
+      btn.disabled = true;
+      btn.textContent = 'Procurando…';
+      const phone = $('ppCoPhone').value.trim();
+      try {
+        const r = await postJson('/api/builder/companies', {
+          email: $('ppCoEmail').value.trim(),
+          company_name: $('ppCoName').value.trim(),
+          contact_name: $('ppCoContact').value.trim(),
+          phone,
+        });
+        const data = r.data;
+        await loadMe();
+        paintShell();
+        if (data.kind === 'linked') {
+          await selectCompany(data.link_id);
+          $('ppCoResult').innerHTML = `<div class="pp-success">${esc(data.company_name)} já usa ObraMate e está conectada. Os jobs que você enviar entram direto no sistema dela.</div><div style="margin-top:8px"><a class="pp-btn pp-btn--pri pp-btn--sm" href="#enviar">Enviar um job</a></div>`;
+        } else {
+          inviteActions($('ppCoResult'), data, phone);
+          if (!state.company) await selectCompany(data.link_id);
+        }
+        form.reset();
+        const list = view.querySelector('.pp-main .pp-card');
+        if (list) list.innerHTML = (state.builder.companies || []).map(row).join('');
+      } catch (ex) {
+        err.textContent = ex.message || 'Não foi possível adicionar.';
+        err.hidden = false;
+        if (/nome/i.test(ex.message || '')) $('ppCoName').focus();
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Conectar ou convidar';
+      }
+    });
+  }
+
+  async function renderTeam(token) {
+    const r = await api('/api/builder/team');
+    if (token !== renderToken) return;
+    const rows = r.data || [];
+    const manage = canDo('team.manage');
+    const roles = state.builder.roles || [];
+    const me = state.builder.member.id;
+    view.innerHTML = `
+      <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder.account.name)}</p><h1>Equipe</h1></div></div>
+      <div class="pp-split pp-split--stack">
+        <section class="pp-main">
+          <div class="pp-card" style="overflow:hidden">
+            ${rows.map((m) => `<div class="pp-req" style="padding:14px 18px">
+              <div class="pp-req-top"><strong style="font-size:16px">${esc(m.name)}${m.id === me ? ' <span class="pp-muted" style="font-weight:500">(você)</span>' : ''}</strong>${m.status === 'invited' ? '<span class="pp-chip pp-chip--late">Convite enviado</span>' : `<span class="pp-chip">${esc(ROLE_PT[m.role] || m.role)}</span>`}</div>
+              <p>${esc(m.email)}${m.phone ? ` · ${esc(m.phone)}` : ''}${m.last_login_at ? ` · entrou ${esc(fmtDay(m.last_login_at))}` : ''}</p>
+              ${manage && m.id !== me ? `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:center">
+                <label class="pp-sr" for="ppRole-${esc(m.id)}">Papel de ${esc(m.name)}</label>
+                <select id="ppRole-${esc(m.id)}" data-role="${esc(m.id)}" style="min-height:38px;border:1px solid var(--pp-border);border-radius:10px;padding:0 10px;background:#fff">${roles.map((ro) => `<option value="${ro.key}" ${ro.key === m.role ? 'selected' : ''}>${esc(ro.label)}</option>`).join('')}</select>
+                <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-disable="${esc(m.id)}">Remover acesso</button>
+              </div>` : ''}
+            </div>`).join('')}
+          </div>
+          <div class="pp-card pp-block">
+            <h3>O que cada papel faz</h3>
+            <ul class="tk-list">${roles.map((ro) => `<li><span><b>${esc(ro.label)}</b><small>${esc(ro.hint)}</small></span></li>`).join('')}</ul>
+          </div>
+        </section>
+        ${manage ? `<aside class="pp-card pp-side pp-block">
+          <h3 style="font-size:17px">Convidar pessoa</h3>
+          <form id="ppTeamForm" class="pp-fields" style="grid-template-columns:1fr" novalidate>
+            <div class="pp-field"><label for="ppTmName">Nome *</label><input id="ppTmName" maxlength="120" required /></div>
+            <div class="pp-field"><label for="ppTmEmail">E-mail *</label><input id="ppTmEmail" type="email" maxlength="200" required /></div>
+            <div class="pp-field"><label for="ppTmPhone">Celular</label><input id="ppTmPhone" type="tel" maxlength="40" /></div>
+            <div class="pp-field"><label for="ppTmRole">Papel</label><select id="ppTmRole">${roles.map((ro) => `<option value="${ro.key}" ${ro.key === 'office' ? 'selected' : ''}>${esc(ro.label)} — ${esc(ro.hint)}</option>`).join('')}</select></div>
+            <p class="pp-error" id="ppTmError" role="alert" hidden></p>
+            <div id="ppTmResult"></div>
+            <div><button type="submit" class="pp-btn pp-btn--pri" id="ppTmSave">Enviar convite</button></div>
+          </form>
+        </aside>` : ''}
+      </div>`;
+    view.querySelectorAll('[data-role]').forEach((sel) => sel.addEventListener('change', async () => {
+      try { await api(`/api/builder/team/${encodeURIComponent(sel.getAttribute('data-role'))}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: sel.value }) }); render(); } catch (e) { window.alert(e.message); render(); }
+    }));
+    view.querySelectorAll('[data-disable]').forEach((b) => b.addEventListener('click', async () => {
+      if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Confirmar'; return; }
+      try { await api(`/api/builder/team/${encodeURIComponent(b.getAttribute('data-disable'))}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ disabled: true }) }); render(); } catch (e) { window.alert(e.message); }
+    }));
+    const form = $('ppTeamForm');
+    if (form) form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const err = $('ppTmError');
+      const btn = $('ppTmSave');
+      err.hidden = true;
+      btn.disabled = true;
+      btn.textContent = 'Enviando…';
+      try {
+        const res = await postJson('/api/builder/team', { name: $('ppTmName').value.trim(), email: $('ppTmEmail').value.trim(), phone: $('ppTmPhone').value.trim(), role: $('ppTmRole').value });
+        await render();
+        const out = $('ppTmResult');
+        if (out) out.innerHTML = `<div class="pp-success">Convite enviado por e-mail.${res.data && res.data.devLink ? ` <a href="${esc(res.data.devLink)}">Link (teste)</a>` : ''}</div>`;
+      } catch (ex) {
+        err.textContent = ex.message || 'Não foi possível convidar.';
+        err.hidden = false;
+        btn.disabled = false;
+        btn.textContent = 'Enviar convite';
+      }
+    });
+  }
+
+  function unitLabel(unit) {
+    return ({ sq_ft: 'sq ft', linear_ft: 'linear ft', step: 'degrau', unit: 'unidade', hour: 'hora', each: 'unidade' })[unit] || String(unit || '').replace(/_/g, ' ');
+  }
+
+  /** Date and time of a job in the company's time zone (what the edit form sends back). */
+  function zonedParts(iso, tz) {
+    const d = toDate(iso);
+    if (!d) return { date: '', time: '' };
+    try {
+      const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: tz || undefined, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(d).map((x) => [x.type, x.value]));
+      return { date: `${p.year}-${p.month}-${p.day}`, time: `${p.hour}:${p.minute}` };
+    } catch (_) {
+      return { date: dateKey(d), time: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` };
+    }
+  }
+
+  async function openJobEditor(data) {
+    const job = data.job;
+    const t = data.ticket || {};
+    const pane = $('ppJobPane') || view;
+    const start = zonedParts(job.scheduled_start, job.timezone);
+    const end = zonedParts(job.scheduled_end, job.timezone);
+    const services = (t.services || []).map((sv) => ({ id: sv.id, name: sv.name, quantity: sv.quantity, unit: sv.unit, notes: sv.notes || '', remove: false, unit_price: sv.unit_price }));
+    const added = [];
+    if (!state.priceList) {
+      try { state.priceList = (await api('/api/partner-portal/price-list')).data || []; } catch (_) { state.priceList = []; }
+    }
+    const lockbox = t.lockbox || '';
+    const instructions = t.notes || '';
+    const draw = () => {
+      const svcRow = (sv, i, kind) => `<li class="${sv.remove ? 'pp-ed-off' : ''}">
+          <div class="pp-ed-svc">
+            <span><b>${esc(sv.name)}</b>${sv.unit_price != null ? `<small>${money(sv.unit_price)} / ${esc(unitLabel(sv.unit))}</small>` : ''}</span>
+            <label class="pp-sr" for="ppEdQ-${kind}-${i}">Quantidade de ${esc(sv.name)}</label>
+            <input id="ppEdQ-${kind}-${i}" type="number" min="0" step="0.01" value="${esc(sv.quantity)}" data-q="${kind}:${i}" ${sv.remove ? 'disabled' : ''} />
+            <span class="pp-muted">${esc(unitLabel(sv.unit))}</span>
+            <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-rm="${kind}:${i}">${sv.remove ? 'Desfazer' : 'Remover'}</button>
+          </div>
+          <input type="text" placeholder="Nota do serviço (opcional)" maxlength="500" value="${esc(sv.notes)}" data-n="${kind}:${i}" ${sv.remove ? 'disabled' : ''} />
+        </li>`;
+      pane.innerHTML = `
+        <div class="tk tk--edit">
+          <section class="tk-hero">
+            <div class="tk-hero-top"><button type="button" class="pp-back" data-ed-cancel style="display:inline-flex">${icon('back')}Voltar</button><div class="tk-meta"><span class="tk-num">EDITAR JOB${job.number ? ` #${esc(job.number)}` : ''}</span></div></div>
+            <p class="pp-muted" style="margin:0 0 4px">As mudanças valem na hora no sistema de ${esc(providerName())} e o escritório é avisado.</p>
+          </section>
+          <section class="tk-sec pp-fields" style="grid-template-columns:1fr 1fr">
+            <div class="pp-field pp-field--wide"><label for="ppEdTitle">Título</label><input id="ppEdTitle" maxlength="160" value="${esc(job.title || '')}" /></div>
+            <div class="pp-field pp-field--wide"><label for="ppEdAddr">Endereço</label><input id="ppEdAddr" maxlength="300" value="${esc(job.address || '')}" data-om-address-autocomplete /></div>
+            <div class="pp-field"><label for="ppEdDate">Data</label><input id="ppEdDate" type="date" value="${esc(start.date)}" /></div>
+            <div class="pp-field"><label for="ppEdTime">Horário <span>(vazio = dia todo)</span></label><input id="ppEdTime" type="time" value="${job.all_day ? '' : esc(start.time)}" /></div>
+            <div class="pp-field"><label for="ppEdEnd">Termina em</label><input id="ppEdEnd" type="date" value="${esc(end.date)}" /></div>
+            <div class="pp-field"><label for="ppEdLock">Código da lockbox</label><input id="ppEdLock" maxlength="40" value="${esc(lockbox)}" /></div>
+            <div class="pp-field pp-field--wide"><label for="ppEdAttn">Atenção (aparece em destaque para a equipe)</label><input id="ppEdAttn" maxlength="2000" value="${esc(t.attention || '')}" /></div>
+            <div class="pp-field pp-field--wide"><label for="ppEdNotes">Instruções</label><textarea id="ppEdNotes" maxlength="5000">${esc(instructions)}</textarea></div>
+          </section>
+          <section class="tk-sec">
+            <h3>Serviços</h3>
+            <ul class="tk-list pp-ed-list">${services.map((sv, i) => svcRow(sv, i, 'e')).join('')}${added.map((sv, i) => svcRow(sv, i, 'a')).join('')}</ul>
+            ${state.priceList.length ? `<div class="pp-field" style="margin-top:12px"><label for="ppEdAdd">Adicionar serviço da tabela de ${esc(providerName())}</label><select id="ppEdAdd"><option value="">Escolher serviço…</option>${state.priceList.map((it) => `<option value="${esc(it.id)}">${esc(it.name)}${it.price != null ? ` · ${money(it.price)} / ${esc(unitLabel(it.unit))}` : ''}</option>`).join('')}</select></div>` : '<p class="tk-empty" style="margin-top:10px">A empresa não liberou a tabela de serviços no portal. Descreva novos serviços nas instruções.</p>'}
+          </section>
+          <p class="pp-error" id="ppEdError" role="alert" hidden></p>
+          <div class="pp-form-actions" style="border:0"><button type="button" class="pp-btn pp-btn--sec" data-ed-cancel>Cancelar</button><button type="button" class="pp-btn pp-btn--pri" id="ppEdSave">Salvar alterações</button></div>
+        </div>
+        <div class="pp-fixbar"><button type="button" class="pp-btn pp-btn--sec" data-ed-cancel>Cancelar</button><button type="button" class="pp-btn pp-btn--pri" data-ed-save>Salvar</button></div>`;
+      document.body.classList.add('pp-focus');
+      if (typeof window.sfBootCrmAddressAutocomplete === 'function') window.sfBootCrmAddressAutocomplete();
+      pane.querySelectorAll('[data-ed-cancel]').forEach((b) => b.addEventListener('click', () => render()));
+      pane.querySelectorAll('[data-q]').forEach((el) => el.addEventListener('input', () => { const [k, i] = el.getAttribute('data-q').split(':'); (k === 'e' ? services : added)[Number(i)].quantity = Number(el.value) || 0; }));
+      pane.querySelectorAll('[data-n]').forEach((el) => el.addEventListener('input', () => { const [k, i] = el.getAttribute('data-n').split(':'); (k === 'e' ? services : added)[Number(i)].notes = el.value; }));
+      pane.querySelectorAll('[data-rm]').forEach((b) => b.addEventListener('click', () => {
+        const [k, i] = b.getAttribute('data-rm').split(':');
+        if (k === 'a') added.splice(Number(i), 1); else services[Number(i)].remove = !services[Number(i)].remove;
+        keep();
+        draw();
+      }));
+      const add = $('ppEdAdd');
+      if (add) add.addEventListener('change', () => {
+        const it = state.priceList.find((x) => x.id === add.value);
+        if (!it) return;
+        keep();
+        added.push({ pricing_item_id: it.id, name: it.name, unit: it.unit, quantity: 0, notes: '', unit_price: it.price });
+        draw();
+        const q = pane.querySelector(`[data-q="a:${added.length - 1}"]`);
+        if (q) q.focus();
+      });
+      pane.querySelectorAll('#ppEdSave, [data-ed-save]').forEach((b) => b.addEventListener('click', save));
+      restore();
+    };
+    // Keep what was typed in the plain fields across redraws.
+    const fields = {};
+    const keep = () => {
+      ['ppEdTitle', 'ppEdAddr', 'ppEdDate', 'ppEdTime', 'ppEdEnd', 'ppEdLock', 'ppEdAttn', 'ppEdNotes'].forEach((id) => { const el = $(id); if (el) fields[id] = el.value; });
+    };
+    const restore = () => {
+      Object.entries(fields).forEach(([id, v]) => { const el = $(id); if (el) el.value = v; });
+    };
+    async function save() {
+      const err = $('ppEdError');
+      err.hidden = true;
+      const val = (id) => ($(id) ? $(id).value : '');
+      const payload = {};
+      if (val('ppEdTitle').trim() !== (job.title || '')) payload.title = val('ppEdTitle').trim();
+      if (val('ppEdAddr').trim() !== (job.address || '')) payload.address = val('ppEdAddr').trim();
+      const timeOrig = job.all_day ? '' : start.time;
+      if (val('ppEdDate') !== start.date || val('ppEdTime') !== timeOrig || val('ppEdEnd') !== end.date) {
+        payload.start_date = val('ppEdDate');
+        payload.start_time = val('ppEdTime');
+        payload.end_date = val('ppEdEnd');
+      }
+      if (val('ppEdLock').trim() !== lockbox) payload.lockbox = val('ppEdLock').trim();
+      if (val('ppEdNotes') !== instructions) payload.instructions = val('ppEdNotes');
+      if (val('ppEdAttn').trim() !== (t.attention || '').trim()) payload.attention = val('ppEdAttn');
+      const svc = [
+        ...services.filter((sv, i) => sv.remove || sv.quantity !== (t.services[i] || {}).quantity || (sv.notes || '') !== ((t.services[i] || {}).notes || '')).map((sv) => ({ id: sv.id, quantity: sv.quantity, notes: sv.notes, remove: sv.remove })),
+        ...added.filter((sv) => sv.quantity > 0).map((sv) => ({ pricing_item_id: sv.pricing_item_id, quantity: sv.quantity, notes: sv.notes })),
+      ];
+      if (added.some((sv) => !(sv.quantity > 0))) { err.textContent = 'Informe a quantidade dos serviços adicionados.'; err.hidden = false; return; }
+      if (svc.length) payload.services = svc;
+      if (!Object.keys(payload).length) { render(); return; }
+      const btns = pane.querySelectorAll('#ppEdSave, [data-ed-save]');
+      btns.forEach((b) => { b.disabled = true; b.textContent = 'Salvando…'; });
+      try {
+        await api(`/api/partner-portal/jobs/${encodeURIComponent(job.id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        state.jobDetail.delete(job.id);
+        await refreshOverview();
+        await render();
+      } catch (e) {
+        err.textContent = e.message || 'Não foi possível salvar.';
+        err.hidden = false;
+        btns.forEach((b) => { b.disabled = false; b.textContent = 'Salvar alterações'; });
+      }
+    }
+    draw();
+  }
+
+  /** Company switcher and builder-only navigation. */
+  function paintShell() {
+    if (!state.builder) return;
+    const prov = providerName();
+    $('ppProvider').textContent = prov;
+    $('ppMark').textContent = initials(state.builder.account.name);
+    document.title = `${state.builder.account.name} · Portal do builder`;
+    const tools = $('ppProviderTools');
+    const companies = state.builder.companies || [];
+    tools.hidden = false;
+    tools.innerHTML = `<label>Empresa</label>${companies.map((c) => `<button type="button" class="pp-menu-item" data-menu-co="${esc(c.id)}" ${state.company && state.company.id === c.id ? 'aria-current="true" style="font-weight:700"' : ''}>${esc(c.company_name)}${c.status === 'invited' ? ' · convidada' : ''}</button>`).join('')}<a class="pp-menu-item" href="#empresas" style="text-decoration:none">${canDo('companies.manage') ? '+ Adicionar empresa' : 'Ver empresas'}</a><a class="pp-menu-item" href="#equipe" style="text-decoration:none">Equipe</a>`;
+    tools.querySelectorAll('[data-menu-co]').forEach((b) => b.addEventListener('click', async () => {
+      openMenu(false);
+      await selectCompany(b.getAttribute('data-menu-co'));
+      render();
+    }));
+    document.querySelectorAll('[data-builder-only]').forEach((el) => { el.hidden = false; });
+    document.querySelectorAll('[data-nav="invoices"]').forEach((el) => { el.hidden = !canDo('money.view'); });
+  }
+
   /* ─────────────────────────── more (phone) ─────────────────────────── */
 
   function renderMore() {
@@ -1212,9 +1699,13 @@
         ${item('#enviar', 'Seus pedidos', `${state.requests.filter((r) => r.status === 'pending').length} aguardando a equipe`, declined ? `<span class="pp-badge">${declined}</span>` : '')}
         ${item('#documentos', 'Fotos e docs', 'Liberados pela equipe')}
       </div>
+      ${state.builder ? `<div class="pp-card" style="overflow:hidden">
+        ${item('#empresas', 'Empresas', state.company ? `Agora: ${state.company.company_name}` : 'Conecte ou convide empresas de piso')}
+        ${item('#equipe', 'Equipe', `${state.builder.account.name} · ${state.builder.member.role_label}`)}
+      </div>` : ''}
       <div class="pp-card" style="overflow:hidden">
         <div style="padding:14px 16px"><strong>${esc(state.user.name || '')}</strong><div class="pp-muted" style="font-size:13px">${esc(state.user.email || '')}${state.user.company_name ? ` · ${esc(state.user.company_name)}` : ''}</div></div>
-        ${state.providers.length > 1 ? `<button type="button" class="pp-row" id="ppMoreSwitch"><span class="pp-row-main"><strong style="font-size:15px">Trocar de fornecedor</strong><span class="pp-row-sub">Agora: ${esc(providerName())}</span></span></button>` : ''}
+        ${!state.builder && state.providers.length > 1 ? `<button type="button" class="pp-row" id="ppMoreSwitch"><span class="pp-row-main"><strong style="font-size:15px">Trocar de fornecedor</strong><span class="pp-row-sub">Agora: ${esc(providerName())}</span></span></button>` : ''}
         <button type="button" class="pp-row" id="ppMoreLogout"><span class="pp-row-main"><strong style="font-size:15px" class="pp-late">Sair</strong></span></button>
       </div>`;
     const sw = $('ppMoreSwitch');
@@ -1231,7 +1722,7 @@
     if (open) window.scrollTo({ top: 0 });
   }
   async function logout() {
-    try { await api('/api/partner-auth/logout', { method: 'POST' }); } catch (_) { /* sign out locally anyway */ }
+    try { await api(state.builder ? '/api/builder/logout' : '/api/partner-auth/logout', { method: 'POST' }); } catch (_) { /* sign out locally anyway */ }
     location.replace('partner-login.html');
   }
 
@@ -1336,6 +1827,24 @@
     const session = await api('/api/partner-auth/session');
     if (!session.authenticated) { location.replace('partner-login.html'); return; }
     state.user = session.data || {};
+    if (state.user.builder_account) {
+      await loadMe();
+      $('ppAvatar').textContent = initials(state.user.name || state.user.email);
+      $('ppAvatar').setAttribute('aria-label', `Conta: ${state.user.name || state.user.email || ''}`);
+      $('ppUserName').textContent = state.user.name || '';
+      $('ppUserEmail').textContent = [state.user.email, `${state.builder.account.name} · ${state.builder.member.role_label}`].join(' · ');
+      paintShell();
+      if (typeof window.sfBootCrmAddressAutocomplete === 'function') window.sfBootCrmAddressAutocomplete();
+      $('ppDock').hidden = false;
+      $('ppTabs').hidden = false;
+      $('ppSearchFab').hidden = false;
+      if (!location.hash && !state.company) location.hash = '#empresas';
+      await refreshOverview().catch(() => {});
+      loadInvoices().then(updateCounts).catch(() => {});
+      loadRequests().then(updateCounts).catch(() => {});
+      await render();
+      return;
+    }
     state.providers = state.user.providers || [];
     const prov = providerName();
     $('ppProvider').textContent = prov;

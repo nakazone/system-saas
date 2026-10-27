@@ -1,0 +1,18 @@
+<%- include('_head', { title: 'Forgot password' }) %>
+<main class="card center">
+  <h1>Forgot your password?</h1>
+  <% if (sent) { %>
+    <div class="ok" role="status">If this e-mail has a builder account, a link to choose a new password is on its way. It works for 1 hour.</div>
+    <a class="btn btn--sec" href="/partner-login.html">Back to sign in</a>
+    <% if (devLink) { %><p class="dev muted">Test mode — reset link: <a href="<%= devLink %>"><%= devLink %></a></p><% } %>
+  <% } else { %>
+    <p class="muted">Enter the e-mail you use to sign in. We'll send a link to choose a new password.</p>
+    <form method="post" action="/builders/forgot">
+      <label for="email">E-mail</label>
+      <input id="email" type="email" name="email" required maxlength="200" autocomplete="email" />
+      <button class="btn btn--pri" type="submit" style="width:100%;margin-top:20px">Send link</button>
+    </form>
+  <% } %>
+</main>
+</body>
+</html>

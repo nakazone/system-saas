@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title><%= typeof title !== 'undefined' ? title + ' · ' : '' %><%= productName %> for Builders</title>
+  <meta name="description" content="Send every flooring job, schedule change and update to your installers from one place. Free for builders." />
+  <link rel="icon" type="image/png" href="/assets/obramateLogoSmallTransp.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root { --bg:#F7F8FA; --card:#FFFFFF; --surface:#F1F3F5; --border:#E5E7EB; --ink:#221E1A; --muted:#667085; --orange:#E7792C; --orange-soft:#FBEADF; --late:#B4561A; --olive:#536249; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 400 16px/1.5 Geist, system-ui, -apple-system, "Segoe UI", sans-serif; }
+    a { color: var(--ink); }
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+    .top { background: #FFFFFF; border-bottom: 1px solid var(--border); }
+    .top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 64px; }
+    .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 600; }
+    .brand img { height: 30px; width: auto; }
+    .brand span { font-size: 13px; color: var(--muted); font-weight: 500; border-left: 1px solid var(--border); padding-left: 10px; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 22px; border-radius: 999px; border: 1px solid transparent; font: 600 15px Geist, system-ui, sans-serif; text-decoration: none; cursor: pointer; }
+    .btn--pri { background: var(--orange); color: #FFFFFF; }
+    .btn--pri:hover { background: #D96A1E; }
+    .btn--sec { background: #FFFFFF; color: var(--ink); border-color: var(--border); }
+    .btn--sm { min-height: 40px; padding: 0 16px; font-size: 14px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; }
+    .muted { color: var(--muted); }
+    .eyebrow { margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .alert { padding: 12px 14px; border-radius: 12px; background: var(--orange-soft); color: #7A3A12; font-weight: 500; margin: 0 0 14px; }
+    .ok { padding: 12px 14px; border-radius: 12px; background: #E8EDE4; color: #3F4B37; font-weight: 500; margin: 0 0 14px; }
+    form label { display: block; font-size: 14px; font-weight: 600; margin: 14px 0 6px; }
+    form input[type=text], form input[type=email], form input[type=tel], form input[type=password] { width: 100%; min-height: 48px; border: 1px solid var(--border); border-radius: 12px; padding: 0 14px; font: 400 16px Geist, system-ui, sans-serif; background: #FFFFFF; color: var(--ink); }
+    form input:focus { outline: 2px solid var(--orange); outline-offset: 1px; border-color: transparent; }
+    form input[aria-invalid=true] { border-color: var(--orange); background: #FFF8F3; }
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .check { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; font-weight: 400 !important; margin-top: 16px !important; }
+    .check input { width: 20px; height: 20px; margin-top: 1px; accent-color: var(--ink); flex: none; }
+    .hp { position: absolute; left: -9999px; }
+    .center { max-width: 520px; margin: 56px auto; padding: 32px; }
+    .center h1 { margin: 0 0 8px; font-size: 28px; letter-spacing: -.02em; }
+    .foot { text-align: center; color: var(--muted); font-size: 13px; padding: 32px 16px 48px; }
+    .dev { margin-top: 16px; font-size: 13px; word-break: break-all; }
+    @media (max-width: 640px) { .row2 { grid-template-columns: 1fr; } .center { margin: 24px 16px; padding: 22px; } .wrap { padding: 0 16px; } .brand span { display: none; } }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="wrap">
+      <a class="brand" href="/builders"><img src="/assets/obramate-logo.png" alt="<%= productName %>" /><span>for Builders</span></a>
+      <a class="btn btn--sec btn--sm" href="/partner-login.html">Sign in</a>
+    </div>
+  </header>

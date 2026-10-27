@@ -19,9 +19,18 @@ import { ensureInvoicePublicToken, publicInvoiceUrl } from "../../lib/invoices/s
 import { parseChecklist } from "../lib/campo-shared.js";
 import { isJobChecklistEnabled } from "../../lib/settings/jobs.js";
 import { formatQuantity, formatTicketWhen, mapsChoiceUrls, parseLockbox, phoneDigits, stripLockbox, ticketStatus } from "../../modules/work-orders/public-ticket.js";
+import { applyPartnerRequest } from "../../lib/builders/jobs.js";
+import { activeLinkFor, ensureShadowPartnerUser, loadActiveMember, type ActiveMember } from "../../lib/builders/accounts.js";
+import { can, permissionsFor, type BuilderPermission, type PortalRole } from "../../lib/builders/roles.js";
+import { publishAppNotification } from "../../lib/notifications/publish.js";
+import { applyBuilderJobEdit, jobEditSchema, JobEditError } from "../../lib/builders/job-edit.js";
 import { findJobMatch, isIntakeReaderConfigured, readWorkOrder, type IntakeFile } from "../../lib/partner-intake/extract.js";
 
 type PartnerRequest = TenantRequest & {
+  /** Role used for the builder permissions ("legacy" for company-created portal users). */
+  portalRole?: PortalRole;
+  /** Set when the session belongs to a builder account member. */
+  builderMember?: ActiveMember;
   partnerUser?: {
     id: string;
     organizationId: string;
@@ -121,6 +130,26 @@ async function requirePartnerAuth(
   next: NextFunction,
 ): Promise<void> {
   try {
+    // Member of a builder account: the company is the one picked in the portal (session workspace).
+    if (req.session.builderMemberId) {
+      const member = await loadActiveMember(req.session.builderMemberId);
+      const organizationId = req.organizationId;
+      if (!member) {
+        res.status(401).json({ success: false, error: "Entre na sua conta de builder." });
+        return;
+      }
+      const link = organizationId ? await activeLinkFor(member, organizationId) : null;
+      if (!link) {
+        res.status(409).json({ success: false, error: "Escolha uma empresa conectada para continuar.", code: "no_company" });
+        return;
+      }
+      const shadow = await ensureShadowPartnerUser(member, link);
+      req.partnerUser = shadow;
+      req.portalRole = member.role as PortalRole;
+      req.builderMember = member;
+      next();
+      return;
+    }
     const organizationId = req.organizationId;
     const partnerUserId = req.session.partnerUserId;
     if (
@@ -161,10 +190,25 @@ async function requirePartnerAuth(
     }
 
     req.partnerUser = user;
+    req.portalRole = "legacy";
     next();
   } catch (error) {
     next(error);
   }
+}
+
+function partnerCan(req: PartnerRequest, permission: BuilderPermission): boolean {
+  return can(req.portalRole || "legacy", permission);
+}
+
+function requirePortal(permission: BuilderPermission) {
+  return (req: PartnerRequest, res: Response, next: NextFunction): void => {
+    if (!partnerCan(req, permission)) {
+      res.status(403).json({ success: false, error: "Seu papel na equipe não permite isso.", code: "forbidden" });
+      return;
+    }
+    next();
+  };
 }
 
 partnerPortalRouter.post("/api/partner-auth/login", async (req: TenantRequest, res, next) => {
@@ -515,7 +559,12 @@ partnerPortalRouter.get("/api/partner-portal/overview", requirePartnerAuth, asyn
         })
         : [];
       const totalByJob = new Map(totals.map((row) => [row.workOrderId, Number(row._sum.lineTotal) || 0]));
-      return { projects, jobs: jobs.map((job) => ({ ...job, total: totalByJob.get(job.id) || 0 })) };
+      const money = partnerCan(req, "money.view");
+      return {
+        projects,
+        jobs: jobs.map((job) => ({ ...job, total: money ? totalByJob.get(job.id) || 0 : null })),
+        permissions: permissionsFor(req.portalRole || "legacy"),
+      };
     });
 
     res.json({ success: true, data });
@@ -539,7 +588,7 @@ async function partnerInvoiceScopes(tx: TenantPrisma, user: NonNullable<PartnerR
   return scopes;
 }
 
-partnerPortalRouter.get("/api/partner-portal/invoices", requirePartnerAuth, async (req: PartnerRequest, res, next) => {
+partnerPortalRouter.get("/api/partner-portal/invoices", requirePartnerAuth, requirePortal("money.view"), async (req: PartnerRequest, res, next) => {
   try {
     const user = req.partnerUser!;
     if (!partnerDocsReady(user, res)) return;
@@ -594,7 +643,7 @@ partnerPortalRouter.get("/api/partner-portal/invoices", requirePartnerAuth, asyn
   }
 });
 
-partnerPortalRouter.get("/api/partner-portal/invoices/:id/open", requirePartnerAuth, async (req: PartnerRequest, res, next) => {
+partnerPortalRouter.get("/api/partner-portal/invoices/:id/open", requirePartnerAuth, requirePortal("money.view"), async (req: PartnerRequest, res, next) => {
   try {
     const user = req.partnerUser!;
     if (!partnerDocsReady(user, res)) return;
@@ -687,7 +736,7 @@ partnerPortalRouter.get("/api/partner-portal/requests", requirePartnerAuth, asyn
   }
 });
 
-partnerPortalRouter.post("/api/partner-portal/requests", requirePartnerAuth, async (req: PartnerRequest, res, next) => {
+partnerPortalRouter.post("/api/partner-portal/requests", requirePartnerAuth, requirePortal("jobs.send"), async (req: PartnerRequest, res, next) => {
   try {
     const user = req.partnerUser!;
     if (!partnerDocsReady(user, res)) return;
@@ -786,6 +835,25 @@ partnerPortalRouter.post("/api/partner-portal/requests", requirePartnerAuth, asy
       await withTenantTransaction(user.organizationId, (tx) => tx.partnerJobRequest.delete({ where: { id: row.id } }).catch(() => undefined));
       throw error;
     }
+    // Builder accounts: the job (or the update) goes straight into the company's Jobs.
+    if (req.builderMember) {
+      const applied = await withTenantTransaction(user.organizationId, (tx) => applyPartnerRequest(tx, user.organizationId, row.id, null));
+      if (applied.kind === "accepted") {
+        const job = await withTenantTransaction(user.organizationId, (tx) => tx.workOrder.findFirst({ where: { id: applied.job_id }, select: { number: true, title: true } }));
+        await publishAppNotification({
+          organizationId: user.organizationId,
+          type: applied.updated ? "builder_job_updated" : "builder_job_new",
+          title: applied.updated
+            ? `${req.builderMember.account.name} atualizou o Job #${job?.number ?? ""}`
+            : `Novo job de ${req.builderMember.account.name}: #${job?.number ?? ""}`,
+          body: `${job?.title || row.title} · enviado por ${req.builderMember.name}`,
+          url: `job-detail.html?id=${applied.job_id}`,
+          dedupeKey: `builder-request:${row.id}`,
+        }).catch(() => undefined);
+        res.status(201).json({ success: true, data: { id: row.id, status: "accepted", job_id: applied.job_id, updated: Boolean(applied.updated) } });
+        return;
+      }
+    }
     res.status(201).json({ success: true, data: { id: row.id, status: "pending" } });
   } catch (error) {
     next(error);
@@ -793,7 +861,7 @@ partnerPortalRouter.post("/api/partner-portal/requests", requirePartnerAuth, asy
 });
 
 /** Reads a work order / PO / schedule export with AI and suggests the request fields. Nothing is saved. */
-partnerPortalRouter.post("/api/partner-portal/requests/read", requirePartnerAuth, async (req: PartnerRequest, res, next) => {
+partnerPortalRouter.post("/api/partner-portal/requests/read", requirePartnerAuth, requirePortal("jobs.send"), async (req: PartnerRequest, res, next) => {
   try {
     const user = req.partnerUser!;
     if (!partnerDocsReady(user, res)) return;
@@ -881,6 +949,7 @@ partnerPortalRouter.get("/api/partner-portal/jobs/:id", requirePartnerAuth, asyn
   try {
     const user = req.partnerUser!;
     if (!partnerDocsReady(user, res)) return;
+    const money = partnerCan(req, "money.view");
     const data = await withTenantTransaction(user.organizationId, async (tx) => {
       const job = await tx.workOrder.findFirst({
         where: { id: String(req.params.id), organizationId: user.organizationId, ...partnerJobScope(user), status: { not: "canceled" } },
@@ -905,7 +974,7 @@ partnerPortalRouter.get("/api/partner-portal/jobs/:id", requirePartnerAuth, asyn
           sector: true,
           lineItems: {
             orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-            select: { serviceName: true, quantitySqft: true, unitPrice: true, lineTotal: true, notes: true, pricingItem: { select: { unit: true } } },
+            select: { id: true, pricingItemId: true, serviceName: true, quantitySqft: true, unitPrice: true, lineTotal: true, notes: true, pricingItem: { select: { unit: true } } },
           },
         },
       });
@@ -928,7 +997,7 @@ partnerPortalRouter.get("/api/partner-portal/jobs/:id", requirePartnerAuth, asyn
           take: 20,
           select: { id: true, title: true, summary: true, publishedAt: true, createdAt: true },
         }),
-        invoiceScopes.length
+        invoiceScopes.length && money
           ? tx.quoteInvoice.findMany({
             where: { organizationId: user.organizationId, workOrderId: job.id, status: { notIn: ["draft", "void"] }, OR: invoiceScopes },
             select: { id: true, invoiceNumber: true, status: true, amount: true, dueDate: true, issuedAt: true, receipts: { select: { amount: true } } },
@@ -954,10 +1023,15 @@ partnerPortalRouter.get("/api/partner-portal/jobs/:id", requirePartnerAuth, asyn
           scheduled_start: job.scheduledStart,
           scheduled_end: job.scheduledEnd,
           all_day: job.allDay,
+          timezone: organization?.timezone || null,
           created_at: job.createdAt,
           updated_at: job.updatedAt,
           external_ref: requests.find((r) => r.externalRef)?.externalRef || null,
+          notes_raw: job.notes || "",
+          attention_raw: job.campoAttention || "",
+          can_edit: partnerCan(req, "jobs.edit") && !["completed", "needs_invoicing", "canceled"].includes(job.status),
         },
+        permissions: permissionsFor(req.portalRole || "legacy"),
         // Work information from the job ticket, with the job value (no costs or crew names).
         ticket: (() => {
           const notes = stripLockbox(job.notes);
@@ -975,13 +1049,16 @@ partnerPortalRouter.get("/api/partner-portal/jobs/:id", requirePartnerAuth, asyn
             attention: (job.campoAttention || "").trim() || null,
             notes: notes || null,
             services: job.lineItems.map((li) => ({
+              id: li.id,
               name: li.serviceName,
               qty: Number(li.quantitySqft) > 0 ? formatQuantity(Number(li.quantitySqft), li.pricingItem?.unit) : null,
+              quantity: Number(li.quantitySqft) || 0,
+              unit: li.pricingItem?.unit || "sq_ft",
               notes: li.notes || null,
-              unit_price: Number(li.unitPrice) || 0,
-              total: Number(li.lineTotal) || 0,
+              unit_price: money ? Number(li.unitPrice) || 0 : null,
+              total: money ? Number(li.lineTotal) || 0 : null,
             })),
-            total: Math.round(job.lineItems.reduce((sum, li) => sum + (Number(li.lineTotal) || 0), 0) * 100) / 100,
+            total: money ? Math.round(job.lineItems.reduce((sum, li) => sum + (Number(li.lineTotal) || 0), 0) * 100) / 100 : null,
             checklist,
             checklist_done: checklist.filter((c) => c.done).length,
             office: organization?.contactPhone
@@ -1046,6 +1123,72 @@ partnerPortalRouter.get("/api/partner-portal/jobs/:id", requirePartnerAuth, asyn
       return;
     }
     res.json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/** Builder changes a job: applies right away, logs who changed what and tells the office. */
+partnerPortalRouter.patch("/api/partner-portal/jobs/:id", requirePartnerAuth, requirePortal("jobs.edit"), async (req: PartnerRequest, res, next) => {
+  try {
+    const user = req.partnerUser!;
+    if (!partnerDocsReady(user, res)) return;
+    const parsed = jobEditSchema.safeParse(req.body || {});
+    if (!parsed.success) {
+      res.status(400).json({ success: false, error: "Confira os campos alterados." });
+      return;
+    }
+    const org = await prisma.organization.findUnique({ where: { id: user.organizationId }, select: { timezone: true } });
+    const builderName = req.builderMember?.account.name || user.companyName || user.builder?.company || "Builder";
+    const result = await withTenantTransaction(user.organizationId, (tx) => applyBuilderJobEdit(tx, {
+      organizationId: user.organizationId,
+      jobId: String(req.params.id),
+      scope: partnerJobScope(user),
+      input: parsed.data,
+      timezone: org?.timezone,
+      actor: { partnerUserId: user.id, name: user.name, builder: builderName },
+    }));
+    if (result.changes.length) {
+      await publishAppNotification({
+        organizationId: user.organizationId,
+        type: "builder_job_edit",
+        title: `${builderName} alterou o Job #${result.job.number ?? ""}`,
+        body: `${user.name}: ${result.changes.join(" · ")}`.slice(0, 1800),
+        url: `job-detail.html?id=${result.job.id}`,
+        dedupeKey: `builder-edit:${result.job.id}:${Date.now()}`,
+      }).catch(() => undefined);
+    }
+    res.json({ success: true, data: { changes: result.changes } });
+  } catch (error) {
+    if (error instanceof JobEditError) {
+      res.status(error.status).json({ success: false, error: error.message });
+      return;
+    }
+    next(error);
+  }
+});
+
+/** Services the company shows on the builder portal (to add to a job). */
+partnerPortalRouter.get("/api/partner-portal/price-list", requirePartnerAuth, requirePortal("jobs.edit"), async (req: PartnerRequest, res, next) => {
+  try {
+    const user = req.partnerUser!;
+    const money = partnerCan(req, "money.view");
+    const items = await withTenantTransaction(user.organizationId, (tx) => tx.pricingItem.findMany({
+      where: { organizationId: user.organizationId, active: true, isVisible: true },
+      orderBy: [{ category: "asc" }, { sortOrder: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, unit: true, category: true, priceBuilder: true, partnerPrice: true, price: true },
+      take: 300,
+    }));
+    res.json({
+      success: true,
+      data: items.map((i) => ({
+        id: i.id,
+        name: i.name,
+        unit: i.unit,
+        category: i.category,
+        price: money ? Number(i.priceBuilder) || Number(i.partnerPrice ?? 0) || Number(i.price) || 0 : null,
+      })),
+    });
   } catch (error) {
     next(error);
   }
@@ -1182,90 +1325,9 @@ partnerPortalRouter.post("/api/partner-requests/:id/accept", requireCrmAuth, req
       res.status(400).json({ success: false, error: "Observação inválida." });
       return;
     }
-    const result = await withTenantTransaction(req.organizationId!, async (tx) => {
-      const request = await tx.partnerJobRequest.findFirst({
-        where: { id: String(req.params.id), organizationId: req.organizationId! },
-        include: { partnerUser: { select: { companyName: true, builder: { select: { company: true, type: true } }, customer: { select: { company: true, name: true, customerType: true } } } } },
-      });
-      if (!request) return { kind: "missing" as const };
-      if (request.status === "accepted" && request.workOrderId) {
-        return { kind: "accepted" as const, job_id: request.workOrderId };
-      }
-      if (request.status !== "pending") return { kind: "closed" as const };
-      if (request.targetWorkOrderId) {
-        const target = await tx.workOrder.findFirst({
-          where: { id: request.targetWorkOrderId, organizationId: req.organizationId!, status: { not: "canceled" } },
-          select: { id: true, notes: true },
-        });
-        if (target) {
-          const stamp = new Date().toISOString().slice(0, 10);
-          const update = [
-            `Atualização do builder pelo portal (${stamp}): ${request.title}`,
-            request.externalRef ? `Nº do builder: ${request.externalRef}` : "",
-            request.serviceType ? `Serviço: ${request.serviceType}` : "",
-            request.preferredDate ? `Data solicitada: ${request.preferredDate.toISOString().slice(0, 10)}` : "",
-            request.notes ? `Detalhes: ${request.notes}` : "",
-          ].filter(Boolean).join("\n");
-          await tx.workOrder.update({
-            where: { id: target.id },
-            data: { notes: [target.notes, update].filter(Boolean).join("\n\n") },
-          });
-          await tx.partnerJobRequest.update({
-            where: { id: request.id },
-            data: { status: "accepted", workOrderId: target.id, reviewedAt: new Date(), reviewNote: parsed.data.review_note || null },
-          });
-          return { kind: "accepted" as const, job_id: target.id, updated: true };
-        }
-      }
-      const partnerType = (request.partnerUser.builder?.type || request.partnerUser.customer?.customerType || "builder").toLowerCase();
-      const sourceType = partnerType === "contractor" ? "contractor" : "builder";
-      const sourceName = request.partnerUser.companyName || request.partnerUser.builder?.company || request.partnerUser.customer?.company || request.partnerUser.customer?.name || "Builder";
-      const notes = [
-        `Pedido enviado pelo portal do parceiro (${request.contactName || sourceName}).`,
-        request.contactEmail ? `E-mail: ${request.contactEmail}` : "",
-        request.contactPhone ? `Telefone: ${request.contactPhone}` : "",
-        request.serviceType ? `Serviço: ${request.serviceType}` : "",
-        request.preferredDate ? `Data solicitada: ${request.preferredDate.toISOString().slice(0, 10)}` : "",
-        request.externalRef ? `Nº do builder: ${request.externalRef}` : "",
-        request.notes ? `Detalhes: ${request.notes}` : "",
-      ].filter(Boolean).join("\n");
-      await tx.$executeRaw`
-        INSERT INTO "DocumentSequence" ("id", "organizationId", "kind", "nextValue")
-        VALUES (gen_random_uuid(), ${req.organizationId!}::uuid, 'work_order', 1)
-        ON CONFLICT ("organizationId", "kind") DO NOTHING
-      `;
-      const sequence = await tx.$queryRaw<{ nextValue: number }[]>`
-        SELECT "nextValue" FROM "DocumentSequence"
-        WHERE "organizationId" = ${req.organizationId!}::uuid AND "kind" = 'work_order'
-        FOR UPDATE
-      `;
-      const number = sequence[0]?.nextValue ?? 1;
-      await tx.$executeRaw`
-        UPDATE "DocumentSequence"
-        SET "nextValue" = ${number + 1}
-        WHERE "organizationId" = ${req.organizationId!}::uuid AND "kind" = 'work_order'
-      `;
-      const workOrder = await tx.workOrder.create({
-        data: {
-          organizationId: req.organizationId!,
-          number,
-          title: request.title,
-          status: "draft",
-          sourceType,
-          sourceName,
-          customerId: request.customerId,
-          builderId: request.builderId,
-          address: request.address,
-          notes,
-        },
-        select: { id: true },
-      });
-      await tx.partnerJobRequest.update({
-        where: { id: request.id },
-        data: { status: "accepted", workOrderId: workOrder.id, reviewedAt: new Date(), reviewNote: parsed.data.review_note || null },
-      });
-      return { kind: "accepted" as const, job_id: workOrder.id };
-    });
+    const result = await withTenantTransaction(req.organizationId!, (tx) =>
+      applyPartnerRequest(tx, req.organizationId!, String(req.params.id), parsed.data.review_note),
+    );
     if (result.kind === "missing") {
       res.status(404).json({ success: false, error: "Pedido não encontrado." });
       return;

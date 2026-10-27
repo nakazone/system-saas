@@ -184,3 +184,29 @@ export async function retentionOfferFor(organizationId: string) {
   if (c.plans.length && !c.plans.includes(org.plan)) return null;
   return c;
 }
+
+/* ───────────────────────── builder referral ───────────────────────── */
+
+const BUILDER_REFERRAL_KEY = "platform.builder_referral_coupon";
+
+/** Coupon a company gets when it signs up from a builder's invitation (Master › Cupons). */
+export async function getBuilderReferralCode(): Promise<string | null> {
+  const row = await prisma.systemSetting.findUnique({ where: { key: BUILDER_REFERRAL_KEY } }).catch(() => null);
+  return row?.value || null;
+}
+
+export async function setBuilderReferralCode(code: string | null): Promise<void> {
+  if (!code) {
+    await prisma.systemSetting.deleteMany({ where: { key: BUILDER_REFERRAL_KEY } });
+    return;
+  }
+  await prisma.systemSetting.upsert({ where: { key: BUILDER_REFERRAL_KEY }, create: { key: BUILDER_REFERRAL_KEY, value: code }, update: { value: code } });
+}
+
+/** The referral coupon if it can still be used, for the invite text and the sign-up. */
+export async function builderReferralCoupon() {
+  const code = await getBuilderReferralCode();
+  if (!code) return null;
+  const c = await prisma.coupon.findUnique({ where: { code } });
+  return c && couponState(c) === "active" ? c : null;
+}

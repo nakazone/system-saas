@@ -148,6 +148,9 @@ export async function createCheckoutUrl(
       ? Math.floor(org.trialEndsAt.getTime() / 1000)
       : undefined;
   const meta = { organizationId: org.id, plan, cycle };
+  // A coupon already on the company (e.g. builder referral) goes in by itself; otherwise the company can type a code.
+  const own = org.couponCode ? await prisma.coupon.findUnique({ where: { code: org.couponCode } }) : null;
+  const ownUsable = own && own.active && own.stripeCouponId && (!own.expiresAt || own.expiresAt > new Date()) && (!own.plans.length || own.plans.includes(plan));
   const session = await getStripe().checkout.sessions.create({
     mode: "subscription",
     customer,
@@ -155,7 +158,7 @@ export async function createCheckoutUrl(
     line_items: [await lineItemFor(target)],
     subscription_data: { metadata: meta, ...(trialEnd ? { trial_end: trialEnd } : {}) },
     metadata: { ...meta, createdBy: opts.createdBy || "company" },
-    allow_promotion_codes: true,
+    ...(ownUsable ? { discounts: [{ coupon: own!.stripeCouponId! }] } : { allow_promotion_codes: true }),
     billing_address_collection: "auto",
     success_url: back.replace("#", "?assinatura=ok#"),
     cancel_url: back,

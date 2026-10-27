@@ -1,0 +1,14 @@
+<%- include('_head', { title: 'Check your e-mail' }) %>
+<main class="card center">
+  <p class="eyebrow">Almost there</p>
+  <h1>Check your e-mail</h1>
+  <p class="muted">We sent a link to <strong style="color:var(--ink)"><%= email %></strong>. Open it to confirm your e-mail and open your builder account.</p>
+  <ul class="muted" style="padding-left:18px">
+    <li>The link works for 48 hours.</li>
+    <li>Didn't get it? Check spam or promotions, or sign up again with the same e-mail to get a new link.</li>
+  </ul>
+  <a class="btn btn--sec" href="/builders">Back</a>
+  <% if (devLink) { %><p class="dev muted">Test mode — confirmation link: <a href="<%= devLink %>"><%= devLink %></a></p><% } %>
+</main>
+</body>
+</html>

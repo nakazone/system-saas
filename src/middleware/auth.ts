@@ -35,6 +35,10 @@ declare module "express-session" {
     /** Separate identity for a Builder / contractor partner portal session. */
     partnerUserId?: string;
     partnerOrganizationId?: string;
+    /** Member of a builder account (platform-level; the company is the session workspace). */
+    builderMemberId?: string;
+    /** Company picked in the builder portal (also set for companies that have not joined yet). */
+    builderLinkId?: string;
     /** Staged CSV import (Settings → Import). */
     importDraft?: {
       entity: "customers" | "leads";

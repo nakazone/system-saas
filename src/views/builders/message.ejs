@@ -1,0 +1,8 @@
+<%- include('_head', { title: title }) %>
+<main class="card center">
+  <h1><%= heading %></h1>
+  <p class="muted"><%= text %></p>
+  <% if (action) { %><a class="btn btn--pri" href="<%= action.href %>"><%= action.label %></a><% } %>
+</main>
+</body>
+</html>
