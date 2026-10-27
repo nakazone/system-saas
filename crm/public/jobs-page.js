@@ -14,6 +14,8 @@
   let sortDir = "newest";
   let q = "";
   let selId = null;
+  /** Job opened from a quote link. Stays at the top of the list after Back. */
+  let focusId = null;
   let firstLoad = true;
   let detailTab = "geral";
   let detailWo = null;
@@ -190,6 +192,8 @@
     const lt = J.late(wo);
     const undated = !wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start);
     const when = undated ? "Sem data" : wo.status === "completed" ? `concluído ${J.dayShort(wo.scheduled_end || wo.scheduled_start)}` : J.dateRange(wo);
+    const who = J.client(wo);
+    const head = who && who !== "Sem cliente" ? who : wo.title || "Job";
     const sub = lt ? `<em class="is-hot">${J.esc(lt.label)}</em>` : `<em class="${undated ? "is-hot" : ""}">${J.esc(when)}</em>`;
     const href = `job-detail.html?id=${encodeURIComponent(wo.id)}`;
     const startBtn = undated && canManage ? `<button type="button" class="jx-start" data-jx-start="${J.esc(wo.id)}">Schedule Job</button>` : "";
@@ -198,7 +202,7 @@
     const body = `<div class="jx-rowwrap${undated ? " is-nodate" : ""}">
     <a class="jx-row${String(wo.id) === String(selId) ? " is-on" : ""}${undated ? " is-nodate" : ""}" href="${href}" data-jx-id="${J.esc(wo.id)}">
       <span class="jx-row__b">
-        <span class="jx-row__l1"><b>${J.esc(wo.title || `Job para ${J.client(wo)}`)}</b><em>${canBill || canManage ? J.money0(wo.services_total) : ""}</em></span>
+        <span class="jx-row__l1"><b>${J.esc(head)}</b><em>${canBill || canManage ? J.money0(wo.services_total) : ""}</em></span>
         <span class="jx-row__l2"><span>${J.esc(J.findLine(wo))}</span>${sub}</span>
         ${undated ? `<span class="jx-nodate">Sem data${wo.quote_number ? ` · veio do quote ${J.esc(wo.quote_number)}` : ""}</span>` : ""}
         <span class="jx-row__l3">${J.progHtml(wo)}<small>${J.esc(J.stageLabel(wo))}</small></span>
@@ -245,9 +249,10 @@
     const rows = serverSearch
       ? all.filter((w) => w.status !== "canceled")
       : all.filter((w) => matchesFilter(w, filter) && searchHit(w));
-    if (selId && !rows.some((w) => String(w.id) === String(selId))) {
-      const pinned = all.find((w) => String(w.id) === String(selId));
-      if (pinned) return [pinned, ...rows];
+    const pin = q ? selId : selId || focusId;
+    if (pin && !rows.some((w) => String(w.id) === String(pin))) {
+      const pinned = all.find((w) => String(w.id) === String(pin));
+      if (pinned && (String(pin) === String(selId) || pinned.status !== "canceled")) return [pinned, ...rows];
     }
     return rows;
   }
@@ -318,8 +323,10 @@
   function renderList() {
     renderWeekCal();
     let rows = visibleRows();
+    const pin = !q ? selId || focusId : selId;
     if (weekFilter) {
       rows = rows.filter((wo) => {
+        if (pin && String(wo.id) === String(pin)) return true;
         const d = jobAnchor(wo);
         if (!d) return true;
         return sameWeek(d, weekFilter);
@@ -338,8 +345,10 @@
           : `<p class="jx-empty">${empty}</p>`;
       return rows;
     }
-    const undated = rows.filter((w) => !jobAnchor(w));
-    const dated = rows.filter((w) => jobAnchor(w));
+    const opened = pin ? rows.find((w) => String(w.id) === String(pin)) : null;
+    const rest = opened ? rows.filter((w) => String(w.id) !== String(opened.id)) : rows;
+    const undated = rest.filter((w) => !jobAnchor(w));
+    const dated = rest.filter((w) => jobAnchor(w));
     const weeks = new Map();
     dated.forEach((wo) => {
       const key = ymd(weekSunday(jobAnchor(wo)));
@@ -348,6 +357,9 @@
     });
     const keys = [...weeks.keys()].sort((a, b) => (sortDir === "oldest" ? a.localeCompare(b) : b.localeCompare(a)));
     let html = "";
+    if (opened) {
+      html += `<section class="jx-week jx-week--pin"><p class="jx-grp"><span>Aberto agora</span><em>1</em></p>${rowHtml(opened)}</section>`;
+    }
     if (undated.length) {
       html += `<section class="jx-week jx-week--nodate"><p class="jx-grp"><span>Sem data</span><em>${undated.length}</em></p>${undated.map(rowHtml).join("")}</section>`;
     }
@@ -916,6 +928,8 @@
 
     const tab = DETAIL_TABS.some(([k]) => k === detailTab) ? detailTab : "geral";
     detailTab = tab;
+    const who = J.client(wo);
+    const head = who && who !== "Sem cliente" ? who : wo.title || "Job";
     const body =
       tab === "servicos"
         ? panelServicos(wo)
@@ -933,8 +947,8 @@
         <div class="jx-ch__r">
           <div class="jx-ch__t">
             <div class="jx-chips">${statusPill(wo)}${lt ? `<span class="jx-pill jx-pill--late">${J.esc(lt.short)}</span>` : ""}${bl && canBill && wo.status === "completed" ? `<span class="jx-pill${bl.cls === "ok" ? " jx-pill--ol" : ""}">${J.esc(bl.text)}</span>` : ""}${wo.number != null ? `<span class="jx-num">Job #${J.esc(wo.number)}</span>` : ""}</div>
-            <h2>${J.esc(wo.title || `Job para ${J.client(wo)}`)}</h2>
-            <p class="jx-meta">${[`<b>${J.esc(J.client(wo))}</b>${SOURCE[wo.source_type] ? ` · ${SOURCE[wo.source_type]}` : ""}`, wo.address ? `${SVG.pin}${J.esc(wo.address)}` : "", `${SVG.cal}${J.esc(J.dateRange(wo))}`].filter(Boolean).map((x, i) => `<span class="jx-mp">${i ? '<i class="jx-dot">·</i>' : ""}${x}</span>`).join("")}</p>
+            <h2>${J.esc(head)}</h2>
+            <p class="jx-meta">${[`<b>${J.esc(who)}</b>${SOURCE[wo.source_type] ? ` · ${SOURCE[wo.source_type]}` : ""}`, wo.title && wo.title !== head ? J.esc(wo.title) : "", wo.address ? `${SVG.pin}${J.esc(wo.address)}` : "", `${SVG.cal}${J.esc(J.dateRange(wo))}`].filter(Boolean).map((x, i) => `<span class="jx-mp">${i ? '<i class="jx-dot">·</i>' : ""}${x}</span>`).join("")}</p>
           </div>
           <div class="jx-ch__acts">
             ${phone ? `<a class="jx-btn jx-btn--sq" href="tel:${J.esc(phone)}" title="Ligar para o cliente" aria-label="Ligar">${SVG.phone}</a>` : ""}
@@ -1043,6 +1057,7 @@
   function select(id, push) {
     const changed = String(selId || "") !== String(id || "");
     selId = id;
+    if (id) focusId = id;
     if (changed) {
       detailTab = "geral";
       detailWo = null;
@@ -1085,6 +1100,7 @@
       if (qs.get("sort") === "oldest") sortDir = "oldest";
       if (qs.get("id")) {
         selId = qs.get("id");
+        focusId = selId;
         filter = "all";
         q = "";
         scrollSel = true;
@@ -1095,6 +1111,8 @@
     const query = q;
     const params = new URLSearchParams();
     if (query.length >= 2) params.set("q", query);
+    const pin = query.length >= 2 ? selId : selId || focusId;
+    if (pin) params.set("id", pin);
     const j = await api(`/api/work-orders${params.toString() ? `?${params}` : ""}`);
     if (seq !== loadSeq) return;
     fetchedQuery = query.length >= 2 ? query : "";

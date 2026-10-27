@@ -14,6 +14,8 @@
   let isField = false;
   let mobQ = "";
   let fetchedMobQuery = "";
+  /** Job opened from a quote. Stays at the top even when the default tab is today. */
+  let focusId = null;
   let loadSeq = 0;
 
   const $ = (id) => document.getElementById(id);
@@ -47,7 +49,16 @@
   }
 
   function clientLabel(wo) {
-    return wo.customer?.name || wo.builder?.company || wo.builder?.name || wo.source_name || "—";
+    if (window.JobsInfo?.client) {
+      const name = window.JobsInfo.client(wo);
+      if (name && name !== "Sem cliente") return name;
+    }
+    return wo.customer?.name || wo.builder?.company || wo.builder?.name || wo.lead_name || wo.source_name || "—";
+  }
+
+  function cardTitle(wo) {
+    const who = clientLabel(wo);
+    return who && who !== "—" ? who : wo.title || "Job";
   }
 
   function statusPt(status) {
@@ -148,7 +159,12 @@
     else if (tab === "bill") out = matched.filter(toBill);
     else if (tab === "done") out = matched.filter((wo) => wo.status === "completed");
     else out = matched.slice();
-    return out.sort(byCreatedDesc);
+    out.sort(byCreatedDesc);
+    if (focusId) {
+      const pinned = rows.find((wo) => String(wo.id) === String(focusId) && wo.status !== "canceled");
+      if (pinned) out = [pinned, ...out.filter((wo) => String(wo.id) !== String(pinned.id))];
+    }
+    return out;
   }
 
   function toBill(wo) {
@@ -206,7 +222,7 @@
       <div class="om-swipe__body jmx-card">
         <a class="jmx-card__a" href="${detailHref}">
           <span class="jmx-card__r1"><span>${wo.number != null ? `Job #${escapeHtml(wo.number)} · ` : ""}${escapeHtml(stage)}</span>${lt ? `<em class="is-hot">${escapeHtml(lt.label)}</em>` : bl && wo.status === "completed" ? `<em class="${bl.cls === "ok" ? "is-ok" : ""}">${escapeHtml(bl.text)}</em>` : ""}</span>
-          <b class="jmx-card__t">${escapeHtml(wo.title || `Job para ${clientLabel(wo)}`)}</b>
+          <b class="jmx-card__t">${escapeHtml(cardTitle(wo))}</b>
           <span class="jmx-card__s">${escapeHtml(window.JobsInfo?.findLine ? window.JobsInfo.findLine(wo) : clientLabel(wo))} · ${escapeHtml(when)}</span>
           ${undated ? `<span class="jx-nodate">Sem data${wo.quote_number ? ` · quote ${escapeHtml(wo.quote_number)}` : ""}</span>` : ""}
           ${J ? J.progHtml(wo) : ""}
@@ -250,7 +266,7 @@
             </div>
             <span class="jcm-badge ${statusCls(wo.status)}">${escapeHtml(statusPt(wo.status))}</span>
           </div>
-          <p class="jcm-job__title">${escapeHtml(wo.title || "Job")}</p>
+          <p class="jcm-job__title">${escapeHtml(cardTitle(wo))}</p>
           <p class="jcm-job__client">${escapeHtml(window.JobsInfo?.findLine ? window.JobsInfo.findLine(wo) : clientLabel(wo))}</p>
           ${
             wo.address
@@ -431,11 +447,19 @@
     const query = mobQ.trim();
     const params = new URLSearchParams();
     if (query.length >= 2) params.set("q", query);
+    if (focusId && query.length < 2) params.set("id", focusId);
     const j = await fetch(`/api/work-orders${params.toString() ? `?${params}` : ""}`, { credentials: "include" }).then((r) => r.json());
     if (seq !== loadSeq) return;
     if (!j.success && j.success !== undefined) throw new Error(j.error || "Erro");
     fetchedMobQuery = query.length >= 2 ? query.toLowerCase() : "";
     allJobs = j.data || [];
+    if (focusId && !allJobs.some((wo) => String(wo.id) === String(focusId))) {
+      try {
+        const one = await fetch(`/api/work-orders/${encodeURIComponent(focusId)}`, { credentials: "include" }).then((r) => r.json());
+        if (seq !== loadSeq) return;
+        if (one?.data) allJobs = [one.data, ...allJobs];
+      } catch (_) {}
+    }
     render();
   }
 
@@ -473,6 +497,12 @@
   async function boot() {
     if (!isMobile()) return;
     if (!$("jobsMobile")) return;
+    const opened = new URLSearchParams(location.search).get("id");
+    if (opened) {
+      focusId = opened;
+      tab = "active";
+      tabChosen = true;
+    }
     try {
       role = localStorage.getItem(ROLE_KEY) === "installer" ? "installer" : "office";
     } catch (_) {}

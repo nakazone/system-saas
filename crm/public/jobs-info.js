@@ -30,17 +30,19 @@
   }
 
   function client(wo) {
+    const lead = String(wo.lead_name || "").trim();
     if (wo.customer) {
       return (
         wo.customer.display_name ||
         displayName(wo.customer.name, wo.customer.client_code) ||
         wo.builder?.company ||
         wo.builder?.name ||
+        lead ||
         wo.source_name ||
         "Sem cliente"
       );
     }
-    return wo.builder?.company || wo.builder?.name || wo.source_name || "Sem cliente";
+    return wo.builder?.company || wo.builder?.name || lead || wo.source_name || "Sem cliente";
   }
 
   function builderName(wo) {
@@ -67,6 +69,7 @@
       wo.number != null ? `#${wo.number}` : "",
       wo.quote_number,
       wo.quote_title,
+      wo.lead_name,
       wo.address,
       wo.source_name,
       wo.notes,

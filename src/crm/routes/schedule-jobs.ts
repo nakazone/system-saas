@@ -200,7 +200,7 @@ function mapWorkOrder(wo: {
     notes: string | null;
     createdAt: Date;
   }[];
-  quotes?: { quoteNumber: string | null; title: string }[];
+  quotes?: { quoteNumber: string | null; title: string; leadId?: string | null }[];
   lineItems?: {
     id: string;
     pricingItemId: string | null;
@@ -233,6 +233,7 @@ function mapWorkOrder(wo: {
     number: wo.number,
     quote_number: linkedQuote?.quoteNumber || null,
     quote_title: linkedQuote?.title || null,
+    lead_name: null as string | null,
     title: wo.title,
     status: wo.status,
     field_status: wo.fieldStatus ?? null,
@@ -421,7 +422,7 @@ const woInclude = {
   },
   tempWorkers: { orderBy: { createdAt: "asc" as const } },
   quotes: {
-    select: { quoteNumber: true, title: true },
+    select: { quoteNumber: true, title: true, leadId: true },
     orderBy: { createdAt: "desc" as const },
     take: 1,
   },
@@ -447,6 +448,38 @@ const woBillingInclude = {
 
 function woIncludeFor(user: AuthedRequest["user"]) {
   return canSeeBilling(user) ? { ...woInclude, ...woBillingInclude } : woInclude;
+}
+
+async function leadNamesById(
+  organizationId: string,
+  rows: { quotes?: { leadId?: string | null }[] }[],
+): Promise<Map<string, string>> {
+  const ids = [
+    ...new Set(
+      rows.flatMap((row) => (row.quotes || []).map((quote) => quote.leadId).filter((id): id is string => Boolean(id))),
+    ),
+  ];
+  if (!ids.length) return new Map();
+  const leads = await prisma.lead.findMany({
+    where: { organizationId, id: { in: ids } },
+    select: { id: true, name: true },
+  });
+  return new Map(leads.filter((lead) => lead.name.trim()).map((lead) => [lead.id, lead.name.trim()]));
+}
+
+function applyQuoteLead<T extends ReturnType<typeof mapWorkOrder>>(
+  mapped: T,
+  leadName: string | null,
+): T {
+  if (!leadName) return mapped;
+  const source = String(mapped.source_name || "").trim();
+  const placeholder = !source || /^orçamento\b/i.test(source) || /^quote\b/i.test(source);
+  return {
+    ...mapped,
+    lead_name: leadName,
+    source_name:
+      !mapped.customer_id && !mapped.builder_id && placeholder ? leadName.slice(0, 200) : mapped.source_name,
+  };
 }
 
 const BILLING_FILTERS = ["to_invoice", "awaiting_payment", "paid"] as const;
@@ -665,7 +698,20 @@ scheduleJobsRouter.get(
       const to = typeof req.query.to === "string" ? new Date(req.query.to) : null;
 
       const fieldScope = fieldWorkOrderScope(req.user);
+      const pinId =
+        typeof req.query.id === "string" &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(req.query.id.trim())
+          ? req.query.id.trim()
+          : "";
       const jobNumber = /^#?\d{1,9}$/.test(q) ? Number(q.replace("#", "")) : null;
+      const leadHits = q
+        ? await prisma.lead.findMany({
+            where: { organizationId: req.organizationId!, name: { contains: q, mode: "insensitive" } },
+            select: { id: true },
+            take: 40,
+          })
+        : [];
+      const leadIds = leadHits.map((lead) => lead.id);
       // Drop the first letter so a one-letter miss ("Invision") still matches "Envision".
       const stem = q.length >= 5 ? q.slice(1) : "";
       const searchOr = q
@@ -700,6 +746,7 @@ scheduleJobsRouter.get(
               : []),
             { quotes: { some: { quoteNumber: { contains: q, mode: "insensitive" } } } },
             { quotes: { some: { title: { contains: q, mode: "insensitive" } } } },
+            ...(leadIds.length ? [{ quotes: { some: { leadId: { in: leadIds } } } }] : []),
             ...(stem ? [{ quotes: { some: { title: { contains: stem, mode: "insensitive" } } } }] : []),
             ...(jobNumber != null ? [{ number: jobNumber }] : []),
           ]
@@ -737,6 +784,13 @@ scheduleJobsRouter.get(
         orderBy: [{ createdAt: "desc" }],
         take: billingFilter ? 500 : 200,
       });
+      if (pinId && !rows.some((row) => row.id === pinId)) {
+        const extra = await prisma.workOrder.findFirst({
+          where: { id: pinId, organizationId: req.organizationId!, ...fieldScope },
+          include: woIncludeFor(req.user),
+        });
+        if (extra) rows.unshift(extra);
+      }
       const changedIds = await withTenantTransaction(req.organizationId!, (tx) =>
         ensureQuoteDiscountsOnJobs(
           tx,
@@ -761,7 +815,10 @@ scheduleJobsRouter.get(
           if (next) row.lineItems = next;
         }
       }
-      let data = rows.map(mapWorkOrder);
+      const leadNames = await leadNamesById(req.organizationId!, rows);
+      let data = rows.map((row) =>
+        applyQuoteLead(mapWorkOrder(row), row.quotes?.[0]?.leadId ? leadNames.get(row.quotes[0].leadId) || null : null),
+      );
       if (billingFilter) {
         data = data.filter((wo) => {
           const b = wo.billing;
@@ -834,21 +891,28 @@ scheduleJobsRouter.get(
   async (req: AuthedRequest, res, next) => {
     try {
       const jobId = String(req.params.id);
-      await withTenantTransaction(req.organizationId!, async (tx) => {
-        const quote = await tx.quote.findFirst({
-          where: { workOrderId: jobId },
-          select: { id: true },
-          orderBy: { updatedAt: "desc" },
-        });
-        if (quote) {
-          await syncLinkedJobFromQuote(tx, {
-            organizationId: req.organizationId!,
-            quoteId: quote.id,
+      try {
+        await withTenantTransaction(req.organizationId!, async (tx) => {
+          const quote = await tx.quote.findFirst({
+            where: { workOrderId: jobId },
+            select: { id: true },
+            orderBy: { updatedAt: "desc" },
           });
-          return;
-        }
-        await ensureQuoteDiscountOnJob(tx, req.organizationId!, jobId);
-      });
+          if (quote) {
+            await syncLinkedJobFromQuote(tx, {
+              organizationId: req.organizationId!,
+              quoteId: quote.id,
+            });
+            return;
+          }
+          await ensureQuoteDiscountOnJob(tx, req.organizationId!, jobId);
+        });
+      } catch (err) {
+        console.error("[jobs] sync quote onto job failed", {
+          jobId,
+          err: err instanceof Error ? err.message : err,
+        });
+      }
       const row = await prisma.workOrder.findFirst({
         where: {
           id: jobId,
@@ -861,7 +925,9 @@ scheduleJobsRouter.get(
         res.status(404).json({ success: false, error: "Work order not found" });
         return;
       }
-      res.json({ success: true, data: mapWorkOrder(row) });
+      const leadNames = await leadNamesById(req.organizationId!, [row]);
+      const leadName = row.quotes?.[0]?.leadId ? leadNames.get(row.quotes[0].leadId) || null : null;
+      res.json({ success: true, data: applyQuoteLead(mapWorkOrder(row), leadName) });
     } catch (error) {
       next(error);
     }
@@ -1226,20 +1292,29 @@ scheduleJobsRouter.put(
         if (d.line_items !== undefined) {
           await ensureQuoteDiscountOnJob(tx, req.organizationId!, row.id);
         }
-        if (existing.status === "canceled" && d.status && d.status !== "canceled") {
-          const quote = await tx.quote.findFirst({
-            where: { workOrderId: row.id },
-            select: { id: true },
-            orderBy: { updatedAt: "desc" },
-          });
-          if (quote) {
-            await syncLinkedJobFromQuote(tx, {
-              organizationId: req.organizationId!,
-              quoteId: quote.id,
-            });
-          }
-        }
       });
+      if (existing.status === "canceled" && d.status && d.status !== "canceled") {
+        try {
+          await withTenantTransaction(req.organizationId!, async (tx) => {
+            const quote = await tx.quote.findFirst({
+              where: { workOrderId: row.id },
+              select: { id: true },
+              orderBy: { updatedAt: "desc" },
+            });
+            if (quote) {
+              await syncLinkedJobFromQuote(tx, {
+                organizationId: req.organizationId!,
+                quoteId: quote.id,
+              });
+            }
+          });
+        } catch (err) {
+          console.error("[jobs] reopen sync failed", {
+            jobId: row.id,
+            err: err instanceof Error ? err.message : err,
+          });
+        }
+      }
       const full = await prisma.workOrder.findFirst({
         where: { id: row.id },
         include: woIncludeFor(req.user),
@@ -1276,7 +1351,9 @@ scheduleJobsRouter.put(
         }
       }
 
-      res.json({ success: true, data: mapWorkOrder(full!), conflicts });
+      const leadNames = await leadNamesById(req.organizationId!, [full!]);
+      const leadName = full!.quotes?.[0]?.leadId ? leadNames.get(full!.quotes[0].leadId) || null : null;
+      res.json({ success: true, data: applyQuoteLead(mapWorkOrder(full!), leadName), conflicts });
     } catch (error) {
       next(error);
     }

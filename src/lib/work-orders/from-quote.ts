@@ -162,11 +162,27 @@ async function loadQuoteForJob(tx: TenantPrisma, quoteId: string) {
   });
 }
 
-function jobIdentityFromQuote(quote: QuoteForJob) {
+async function quotePersonName(tx: TenantPrisma, quote: QuoteForJob): Promise<string> {
+  const builder =
+    quote.builder?.company ||
+    [quote.builder?.firstName, quote.builder?.lastName].filter(Boolean).join(" ");
+  if (quote.customer?.name?.trim()) return quote.customer.name.trim();
+  if (builder.trim()) return builder.trim();
+  if (quote.leadId) {
+    const lead = await tx.lead.findFirst({
+      where: { id: quote.leadId },
+      select: { name: true },
+    });
+    if (lead?.name?.trim()) return lead.name.trim();
+  }
+  return (quote.title || `Orçamento ${quote.quoteNumber || quote.number}`).trim();
+}
+
+function jobIdentityFromQuote(quote: QuoteForJob, personName: string) {
   const payload = payloadOf(quote.payload);
   const jobName = String(payload.job_name || "").trim();
   const jobAddress = String(payload.job_address || "").trim();
-  const title = (jobName || quote.title || `Quote ${quote.quoteNumber || quote.number}`).trim().slice(0, 200);
+  const title = (jobName || personName || quote.title || `Quote ${quote.quoteNumber || quote.number}`).trim().slice(0, 200);
   const address = formatPropertyAddress(quote.property) || jobAddress || null;
   let sourceType = resolveSourceType(quote);
   if (quote.builderId && sourceType === "particular") {
@@ -178,12 +194,7 @@ function jobIdentityFromQuote(quote: QuoteForJob) {
       sourceType = ct;
     }
   }
-  const sourceName =
-    quote.builder?.company ||
-    [quote.builder?.firstName, quote.builder?.lastName].filter(Boolean).join(" ") ||
-    quote.customer?.name ||
-    `Orçamento ${quote.quoteNumber || quote.number}`;
-  return { title: title || "Job", address, sourceType, sourceName: sourceName || null };
+  return { title: title || "Job", address, sourceType, sourceName: personName.slice(0, 200) || null };
 }
 
 function quoteJobLineData(organizationId: string, quote: QuoteForJob) {
@@ -261,7 +272,7 @@ export async function syncLinkedJobFromQuote(
     await tx.quote.update({ where: { id: quote.id }, data: { workOrderId: null } });
     return null;
   }
-  const ident = jobIdentityFromQuote(quote);
+  const ident = jobIdentityFromQuote(quote, await quotePersonName(tx, quote));
   const sameIdentity =
     job.title === ident.title &&
     (job.address || null) === ident.address &&
@@ -291,6 +302,17 @@ export async function syncLinkedJobFromQuote(
   if (canReplaceLines) {
     const next = quoteJobLineData(params.organizationId, quote);
     if (jobLineFingerprint(job.lineItems) !== jobLineFingerprint(next)) {
+      const pricingIds = [...new Set(next.map((row) => row.pricingItemId).filter((id): id is string => Boolean(id)))];
+      if (pricingIds.length) {
+        const live = await tx.pricingItem.findMany({
+          where: { id: { in: pricingIds } },
+          select: { id: true },
+        });
+        const ok = new Set(live.map((row) => row.id));
+        for (const row of next) {
+          if (row.pricingItemId && !ok.has(row.pricingItemId)) row.pricingItemId = null;
+        }
+      }
       await tx.workOrderLineItem.deleteMany({ where: { workOrderId: job.id } });
       if (next.length) {
         await tx.workOrderLineItem.createMany({
@@ -330,7 +352,7 @@ export async function ensureWorkOrderOnApprove(
     }
   }
 
-  const ident = jobIdentityFromQuote(quote);
+  const ident = jobIdentityFromQuote(quote, await quotePersonName(tx, quote));
   const number = await nextWorkOrderNumber(tx, params.organizationId);
   const lines = quoteJobLineData(params.organizationId, quote);
 
