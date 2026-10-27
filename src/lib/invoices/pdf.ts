@@ -261,7 +261,7 @@ function footer(
   if (systemLogo?.length) {
     try {
       // Prefer wordmark width; PDFKit scales by height.
-      logoDrawW = Math.min(78, logoH * 4.2);
+      logoDrawW = logoH;
       drewLogo = true;
     } catch {
       drewLogo = false;
@@ -285,7 +285,7 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Buffer> {
   const PAL = palette(input.org.brandPrimary, input.org.brandAccent);
   const logo = await loadLogoBuffer(input.org.logoUrl);
   const systemLogo =
-    (await loadLogoBuffer("/assets/obramate-logo.png")) ||
+    (await loadLogoBuffer("/assets/img/mascot/mate-head-happy.png")) ||
     (await loadLogoBuffer("/assets/favicon-192.png"));
   const { doc, done } = newDoc(`Invoice ${input.invoiceNumber}`, input.org.name);
   const pageW = doc.page.width;
@@ -437,7 +437,7 @@ export async function buildReceiptPdf(input: ReceiptPdfInput): Promise<Buffer> {
   const PAL = palette(input.org.brandPrimary, input.org.brandAccent);
   const logo = await loadLogoBuffer(input.org.logoUrl);
   const systemLogo =
-    (await loadLogoBuffer("/assets/obramate-logo.png")) ||
+    (await loadLogoBuffer("/assets/img/mascot/mate-head-happy.png")) ||
     (await loadLogoBuffer("/assets/favicon-192.png"));
   const { doc, done } = newDoc(`Receipt ${input.receiptNumber}`, input.org.name);
   const pageW = doc.page.width;

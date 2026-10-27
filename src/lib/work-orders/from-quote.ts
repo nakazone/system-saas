@@ -148,6 +148,162 @@ export async function ensureQuoteDiscountsOnJobs(
   return changed;
 }
 
+type QuoteForJob = NonNullable<Awaited<ReturnType<typeof loadQuoteForJob>>>;
+
+async function loadQuoteForJob(tx: TenantPrisma, quoteId: string) {
+  return tx.quote.findFirst({
+    where: { id: quoteId },
+    include: {
+      property: true,
+      customer: { select: { id: true, name: true, customerType: true } },
+      builder: { select: { id: true, company: true, firstName: true, lastName: true, type: true } },
+      lineItems: { orderBy: { sortOrder: "asc" } },
+    },
+  });
+}
+
+function jobIdentityFromQuote(quote: QuoteForJob) {
+  const payload = payloadOf(quote.payload);
+  const jobName = String(payload.job_name || "").trim();
+  const jobAddress = String(payload.job_address || "").trim();
+  const title = (jobName || quote.title || `Quote ${quote.quoteNumber || quote.number}`).trim().slice(0, 200);
+  const address = formatPropertyAddress(quote.property) || jobAddress || null;
+  let sourceType = resolveSourceType(quote);
+  if (quote.builderId && sourceType === "particular") {
+    const bt = String(quote.builder?.type || "builder").toLowerCase();
+    sourceType = ["builder", "contractor", "loja"].includes(bt) ? bt : "builder";
+  } else if (quote.customer?.customerType) {
+    const ct = String(quote.customer.customerType).toLowerCase();
+    if (["particular", "builder", "contractor", "loja"].includes(ct) && !quote.builderId) {
+      sourceType = ct;
+    }
+  }
+  const sourceName =
+    quote.builder?.company ||
+    [quote.builder?.firstName, quote.builder?.lastName].filter(Boolean).join(" ") ||
+    quote.customer?.name ||
+    `Orçamento ${quote.quoteNumber || quote.number}`;
+  return { title: title || "Job", address, sourceType, sourceName: sourceName || null };
+}
+
+function quoteJobLineData(organizationId: string, quote: QuoteForJob) {
+  const selectedLines = quote.lineItems.filter((li) => !li.isOptional || li.isSelected);
+  const discount = readQuoteDiscount(quote);
+  const rows = selectedLines.map((li, idx) => {
+    const qty = Number(li.quantity) || 0;
+    const unitPrice = Number(li.unitPrice) || 0;
+    const amount = Number(li.amount) || qty * unitPrice;
+    const meta =
+      li.meta && typeof li.meta === "object" && !Array.isArray(li.meta)
+        ? (li.meta as Record<string, unknown>)
+        : {};
+    const pricingRaw = meta.pricing_item_id ?? meta.pricingItemId ?? null;
+    const pricingItemId =
+      pricingRaw &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(pricingRaw))
+        ? String(pricingRaw)
+        : null;
+    return {
+      organizationId,
+      pricingItemId,
+      serviceName: String(li.name || li.description || "Serviço").slice(0, 200),
+      notes: null as string | null,
+      quantitySqft: new Prisma.Decimal(qty),
+      unitPrice: new Prisma.Decimal(unitPrice),
+      lineTotal: new Prisma.Decimal(amount),
+      sortOrder: li.sortOrder ?? idx,
+    };
+  });
+  if (discount.amount > 0 && discount.type) {
+    rows.push({
+      organizationId,
+      pricingItemId: null,
+      serviceName: discountLineLabel(discount.type, discount.value).slice(0, 200),
+      notes: QUOTE_DISCOUNT_NOTE,
+      quantitySqft: new Prisma.Decimal(1),
+      unitPrice: new Prisma.Decimal(-discount.amount),
+      lineTotal: new Prisma.Decimal(-discount.amount),
+      sortOrder: selectedLines.length + 1,
+    });
+  }
+  return rows;
+}
+
+function jobLineFingerprint(
+  rows: { serviceName: string; quantitySqft: { toString(): string }; unitPrice: { toString(): string } }[],
+) {
+  return rows
+    .map(
+      (li) =>
+        `${li.serviceName}|${Math.round(Number(li.quantitySqft) * 1000)}|${Math.round(Number(li.unitPrice) * 100)}`,
+    )
+    .join("\n");
+}
+
+/**
+ * Keep the linked job findable and aligned with the current quote.
+ * A later edit must not leave the job under the first client or the first total,
+ * and must not cancel it. Lines are refreshed only while the job has not started
+ * and nothing has been invoiced — including a canceled job, so reopening it
+ * comes back with the quote as it is now.
+ */
+export async function syncLinkedJobFromQuote(
+  tx: TenantPrisma,
+  params: { organizationId: string; quoteId: string },
+): Promise<{ id: string; status: string } | null> {
+  const quote = await loadQuoteForJob(tx, params.quoteId);
+  if (!quote?.workOrderId) return null;
+  const job = await tx.workOrder.findFirst({
+    where: { id: quote.workOrderId },
+    include: { lineItems: { orderBy: { sortOrder: "asc" } } },
+  });
+  if (!job) {
+    await tx.quote.update({ where: { id: quote.id }, data: { workOrderId: null } });
+    return null;
+  }
+  const ident = jobIdentityFromQuote(quote);
+  const sameIdentity =
+    job.title === ident.title &&
+    (job.address || null) === ident.address &&
+    (job.customerId || null) === (quote.customerId || null) &&
+    (job.builderId || null) === (quote.builderId || null) &&
+    job.sourceType === ident.sourceType &&
+    (job.sourceName || null) === ident.sourceName;
+  if (!sameIdentity) {
+    await tx.workOrder.update({
+      where: { id: job.id },
+      data: {
+        title: ident.title,
+        address: ident.address,
+        customerId: quote.customerId,
+        builderId: quote.builderId,
+        sourceType: ident.sourceType,
+        sourceName: ident.sourceName,
+      },
+    });
+  }
+  const invoiced = await tx.quoteInvoice.count({
+    where: { workOrderId: job.id, status: { not: "void" } },
+  });
+  const canReplaceLines =
+    invoiced === 0 &&
+    (job.status === "draft" || job.status === "scheduled" || job.status === "canceled");
+  if (canReplaceLines) {
+    const next = quoteJobLineData(params.organizationId, quote);
+    if (jobLineFingerprint(job.lineItems) !== jobLineFingerprint(next)) {
+      await tx.workOrderLineItem.deleteMany({ where: { workOrderId: job.id } });
+      if (next.length) {
+        await tx.workOrderLineItem.createMany({
+          data: next.map((row) => ({ ...row, workOrderId: job.id })),
+        });
+      }
+    }
+  } else {
+    await syncQuoteDiscountOntoJob(tx, params.organizationId, job.id, quote);
+  }
+  return { id: job.id, status: job.status };
+}
+
 /**
  * Create (or return) the WorkOrder for an approved quote. Links Quote.workOrderId.
  */
@@ -159,109 +315,39 @@ export async function ensureWorkOrderOnApprove(
     actorId?: string | null;
   },
 ): Promise<{ id: string; number: number | null; created: boolean } | null> {
-  const quote = await tx.quote.findFirst({
-    where: { id: params.quoteId },
-    include: {
-      property: true,
-      customer: { select: { id: true, name: true, customerType: true } },
-      builder: { select: { id: true, company: true, firstName: true, lastName: true, type: true } },
-      lineItems: { orderBy: { sortOrder: "asc" } },
-    },
-  });
+  const quote = await loadQuoteForJob(tx, params.quoteId);
   if (!quote) return null;
 
   if (quote.workOrderId) {
     const existing = await tx.workOrder.findFirst({ where: { id: quote.workOrderId } });
     if (existing) {
-      await syncQuoteDiscountOntoJob(tx, params.organizationId, existing.id, quote);
-      return { id: existing.id, number: existing.number, created: false };
+      await syncLinkedJobFromQuote(tx, params);
+      const fresh = await tx.workOrder.findFirst({
+        where: { id: existing.id },
+        select: { id: true, number: true },
+      });
+      return { id: existing.id, number: fresh?.number ?? existing.number, created: false };
     }
   }
 
-  const payload = payloadOf(quote.payload);
-  const jobName = String(payload.job_name || "").trim();
-  const jobAddress = String(payload.job_address || "").trim();
-  const title = (jobName || quote.title || `Quote ${quote.quoteNumber || quote.number}`).trim();
-  const address =
-    formatPropertyAddress(quote.property) ||
-    jobAddress ||
-    null;
-
-  let sourceType = resolveSourceType(quote);
-  if (quote.builderId && sourceType === "particular") {
-    const bt = String(quote.builder?.type || "builder").toLowerCase();
-    sourceType = ["builder", "contractor", "loja"].includes(bt) ? bt : "builder";
-  } else if (quote.customer?.customerType) {
-    const ct = String(quote.customer.customerType).toLowerCase();
-    if (["particular", "builder", "contractor", "loja"].includes(ct) && !quote.builderId) {
-      sourceType = ct;
-    }
-  }
-
-  const sourceName =
-    quote.builder?.company ||
-    [quote.builder?.firstName, quote.builder?.lastName].filter(Boolean).join(" ") ||
-    quote.customer?.name ||
-    `Orçamento ${quote.quoteNumber || quote.number}`;
-
+  const ident = jobIdentityFromQuote(quote);
   const number = await nextWorkOrderNumber(tx, params.organizationId);
-
-  const selectedLines = quote.lineItems.filter((li) => !li.isOptional || li.isSelected);
-  const discount = readQuoteDiscount(quote);
+  const lines = quoteJobLineData(params.organizationId, quote);
 
   const wo = await tx.workOrder.create({
     data: {
       organizationId: params.organizationId,
       number,
-      title: title.slice(0, 200) || `Job #${number}`,
+      title: ident.title || `Job #${number}`,
       status: "draft",
-      sourceType,
-      sourceName: sourceName || null,
+      sourceType: ident.sourceType,
+      sourceName: ident.sourceName,
       customerId: quote.customerId,
       builderId: quote.builderId,
-      address,
+      address: ident.address,
       // Notas internas and scheduling/team/campo are filled in the Job modal after conversion.
       notes: null,
-      lineItems: {
-        create: selectedLines.map((li, idx) => {
-          const qty = Number(li.quantity) || 0;
-          const unitPrice = Number(li.unitPrice) || 0;
-          const amount = Number(li.amount) || qty * unitPrice;
-          const meta =
-            li.meta && typeof li.meta === "object" && !Array.isArray(li.meta)
-              ? (li.meta as Record<string, unknown>)
-              : {};
-          const pricingRaw = meta.pricing_item_id ?? meta.pricingItemId ?? null;
-          const pricingItemId =
-            pricingRaw &&
-            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(pricingRaw))
-              ? String(pricingRaw)
-              : null;
-          return {
-            organizationId: params.organizationId,
-            pricingItemId,
-            serviceName: String(li.name || li.description || "Serviço").slice(0, 200),
-            notes: null as string | null,
-            quantitySqft: new Prisma.Decimal(qty),
-            unitPrice: new Prisma.Decimal(unitPrice),
-            lineTotal: new Prisma.Decimal(amount),
-            sortOrder: li.sortOrder ?? idx,
-          };
-        }).concat(
-          discount.amount > 0 && discount.type
-            ? [{
-                organizationId: params.organizationId,
-                pricingItemId: null,
-                serviceName: discountLineLabel(discount.type, discount.value).slice(0, 200),
-                notes: "quote-discount",
-                quantitySqft: new Prisma.Decimal(1),
-                unitPrice: new Prisma.Decimal(-discount.amount),
-                lineTotal: new Prisma.Decimal(-discount.amount),
-                sortOrder: selectedLines.length + 1,
-              }]
-            : [],
-        ),
-      },
+      lineItems: { create: lines },
     },
   });
 

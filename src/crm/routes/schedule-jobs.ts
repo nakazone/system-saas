@@ -8,7 +8,7 @@ import { findScheduleConflicts } from "../../lib/schedule/conflicts.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { publicBaseUrl } from "../../lib/http/public-url.js";
 import { ensureTempShareToken } from "../../lib/work-orders/temp-share.js";
-import { ensureQuoteDiscountOnJob, ensureQuoteDiscountsOnJobs } from "../../lib/work-orders/from-quote.js";
+import { ensureQuoteDiscountOnJob, ensureQuoteDiscountsOnJobs, syncLinkedJobFromQuote } from "../../lib/work-orders/from-quote.js";
 import { notifyJobTeamPush } from "../../lib/push/notify.js";
 import { param } from "../../lib/http/params.js";
 import { myJobAccessWhere, parseChecklist } from "../lib/campo-shared.js";
@@ -834,9 +834,21 @@ scheduleJobsRouter.get(
   async (req: AuthedRequest, res, next) => {
     try {
       const jobId = String(req.params.id);
-      await withTenantTransaction(req.organizationId!, (tx) =>
-        ensureQuoteDiscountOnJob(tx, req.organizationId!, jobId),
-      );
+      await withTenantTransaction(req.organizationId!, async (tx) => {
+        const quote = await tx.quote.findFirst({
+          where: { workOrderId: jobId },
+          select: { id: true },
+          orderBy: { updatedAt: "desc" },
+        });
+        if (quote) {
+          await syncLinkedJobFromQuote(tx, {
+            organizationId: req.organizationId!,
+            quoteId: quote.id,
+          });
+          return;
+        }
+        await ensureQuoteDiscountOnJob(tx, req.organizationId!, jobId);
+      });
       const row = await prisma.workOrder.findFirst({
         where: {
           id: jobId,
@@ -1213,6 +1225,19 @@ scheduleJobsRouter.put(
         await ensureJobChatChannel(tx, req.organizationId!, row.id);
         if (d.line_items !== undefined) {
           await ensureQuoteDiscountOnJob(tx, req.organizationId!, row.id);
+        }
+        if (existing.status === "canceled" && d.status && d.status !== "canceled") {
+          const quote = await tx.quote.findFirst({
+            where: { workOrderId: row.id },
+            select: { id: true },
+            orderBy: { updatedAt: "desc" },
+          });
+          if (quote) {
+            await syncLinkedJobFromQuote(tx, {
+              organizationId: req.organizationId!,
+              quoteId: quote.id,
+            });
+          }
         }
       });
       const full = await prisma.workOrder.findFirst({

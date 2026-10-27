@@ -264,7 +264,7 @@ ${waitingBlock}
 ${contact ? `<p style="margin:8px 0 0;font-size:12px;color:${PAL.ink2};font-weight:600;">${contact}</p>` : ""}
 <p style="margin:8px 0 0;font-size:12.5px;color:${PAL.muted};">— <b style="color:${PAL.ink2};">${org}</b></p>
 <p style="margin:14px 0 0;font-size:11px;color:#a89f94;font-weight:600;">
-  <img src="/assets/favicon-192.png" alt="" width="14" height="14" style="vertical-align:middle;margin-right:5px;border-radius:3px;" />
+  <img src="/assets/img/mascot/mate-head-happy.png" alt="" width="16" height="16" style="vertical-align:middle;margin-right:5px;" />
   Made with <b style="color:${PAL.ink2};">ObraMate</b>
 </p>
 </td></tr>
@@ -353,8 +353,8 @@ export async function buildConferencePdf(input: ConferenceReportInput): Promise<
   const PAL = palette(input.org.primaryColor, input.org.accentColor);
   const logo = await loadLogoBuffer(input.org.logoUrl);
   const systemLogo =
-    (await loadLogoBuffer("/assets/favicon-192.png")) ||
-    (await loadLogoBuffer("/assets/obramate-logo.png"));
+    (await loadLogoBuffer("/assets/img/mascot/mate-head-happy.png")) ||
+    (await loadLogoBuffer("/assets/favicon-192.png"));
   const orgName = input.org.name || "ObraMate";
 
   // Mede altura com um doc temporário (mesma fonte/métricas).

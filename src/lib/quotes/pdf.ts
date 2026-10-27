@@ -30,6 +30,8 @@ const DEFAULT_PAL = {
 const DEFAULT_TAGLINE = "Hardwood · LVP · Refinishing";
 
 const SYSTEM_LOGO_CANDIDATES = [
+  "src/public/img/mascot/mate-head-happy.png",
+  "dist/src/public/img/mascot/mate-head-happy.png",
   "src/public/favicon-192.png",
   "crm/public/assets/favicon-192.png",
   "public/favicon-192.png",

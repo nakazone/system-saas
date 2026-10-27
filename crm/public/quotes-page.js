@@ -297,9 +297,10 @@
     return `<ol class="qs-steps">${steps
       .map(([l, at], i) => {
         const cls = i <= last ? 'is-done' : i === last + 1 && g !== 'expired' && g !== 'archived' ? 'is-next' : '';
-        const when = i <= last && at && at !== 1 ? dm(at) : i === 4 && q.work_order_id ? 'criado' : '';
+        const jobCanceled = q.work_order_status === 'canceled';
+        const when = i <= last && at && at !== 1 ? dm(at) : i === 4 && q.work_order_id ? (jobCanceled ? 'cancelado' : 'criado') : '';
         const name = i === 4 && q.work_order_id
-          ? `<a href="jobs.html?id=${encodeURIComponent(q.work_order_id)}">Abrir job</a>`
+          ? `<a href="jobs.html?id=${encodeURIComponent(q.work_order_id)}">${jobCanceled ? 'Job cancelado' : 'Abrir job'}</a>`
           : esc(l);
         return `<li class="${cls}"><i></i><b>${name}</b><small>${esc(when)}</small></li>`;
       })
@@ -348,10 +349,14 @@
       t = 'Venceu';
       p = 'Atualize a validade e reenvie se o cliente ainda tiver interesse.';
       cta = `<a class="qs-btn qs-btn--pri qs-btn--full" href="${b}">Abrir e renovar</a>`;
+    } else if (g === 'approved' && q.work_order_id && q.work_order_status === 'canceled') {
+      t = 'Job cancelado';
+      p = 'O job existe, mas está cancelado e a busca não mostra. Reabra para ele voltar com o cliente e o valor deste quote.';
+      cta = `<button type="button" class="qs-btn qs-btn--pri qs-btn--full" data-qs-reopen="${esc(q.id)}">Reabrir job</button><a class="qs-btn qs-btn--full" href="jobs.html?id=${encodeURIComponent(q.work_order_id)}">Abrir job</a>`;
     } else if (g === 'approved') {
       t = q.work_order_id ? 'Job criado' : 'Aprovado — virar job';
       p = q.work_order_id
-        ? 'O job já existe. Abra-o na lista mesmo que a busca não encontre o nome.'
+        ? 'O job acompanha este quote. Abra-o direto, mesmo que a busca não ache o nome antigo.'
         : 'Transforme em job: cliente, endereço e serviços já vão preenchidos.';
       cta = q.work_order_id
         ? `<a class="qs-btn qs-btn--pri qs-btn--full" href="jobs.html?id=${encodeURIComponent(q.work_order_id)}">Abrir job</a>`
@@ -383,6 +388,66 @@
       .map(([k, v, t]) => `<div${t ? ' class="is-t"' : ''}><dt>${esc(k)}</dt><dd>${v}</dd></div>`)
       .join('')}</dl></div>`;
   }
+  const STATUS_OPTS = [
+    ['draft', 'Rascunho'],
+    ['sent', 'Enviado'],
+    ['viewed', 'Visto'],
+    ['approved', 'Aprovado'],
+    ['changes_requested', 'Pediu alterações'],
+    ['rejected', 'Recusado'],
+    ['archived', 'Arquivado'],
+  ];
+  function statusSelect(q) {
+    if (!st.canEdit) return '';
+    const cur = rawStatus(q);
+    const opts = STATUS_OPTS.slice();
+    if (!opts.some(([v]) => v === cur)) opts.unshift([cur, cur]);
+    return `<label class="qs-status">Status<select data-qs-status="${esc(q.id)}" aria-label="Status do quote">${opts
+      .map(([v, l]) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(l)}</option>`)
+      .join('')}</select></label>`;
+  }
+  async function setQuoteStatus(id, status, selectEl) {
+    const q = st.rows.find((r) => String(r.id) === String(id));
+    const prev = q ? rawStatus(q) : '';
+    try {
+      const j = await api(`/api/quotes/${encodeURIComponent(id)}/status`, {
+        method: 'POST',
+        body: JSON.stringify({ status }),
+      });
+      if (j.data) {
+        const ix = st.rows.findIndex((r) => String(r.id) === String(id));
+        if (ix >= 0) st.rows[ix] = { ...st.rows[ix], ...j.data };
+      }
+      notify(status === 'approved' ? 'Quote aprovado.' : 'Status atualizado.', 'success');
+      renderList();
+      renderPane();
+      void loadSummary();
+    } catch (err) {
+      if (selectEl) selectEl.value = prev;
+      notify(err.message || 'Não foi possível mudar o status.', 'error');
+    }
+  }
+  async function reopenJob(id) {
+    const q = st.rows.find((r) => String(r.id) === String(id));
+    if (!q || !q.work_order_id) return;
+    await api(`/api/work-orders/${encodeURIComponent(q.work_order_id)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: 'draft' }),
+    });
+    q.work_order_status = 'draft';
+    notify('Job reaberto com o valor deste quote.', 'success');
+    renderList();
+    renderPane();
+  }
+  function openQuotePdf(id, name) {
+    const url = `/api/quotes/${encodeURIComponent(id)}/invoice-pdf`;
+    const title = name ? `Quote ${name}` : 'Quote';
+    if (window.crmPdfViewer && window.crmPdfViewer.openFromUrl) {
+      window.crmPdfViewer.openFromUrl(url, { title, filename: `${name || 'quote'}.pdf` });
+      return;
+    }
+    window.open(url, '_blank', 'noopener');
+  }
   function areaFromLines(pd) {
     if (!pd || !pd.lines) return 0;
     let a = 0;
@@ -396,7 +461,6 @@
     const pd = st.paper[q.id];
     const name = clientOf(q);
     const sub = [q.job_name && q.job_name !== name ? q.job_name : '', pd && pd.customerEmail].filter(Boolean).join(' · ');
-    const pdfHref = `/api/quotes/${encodeURIComponent(q.id)}/invoice-pdf`;
     const link = q.public_token ? `${location.origin}/quote-public.html?t=${encodeURIComponent(q.public_token)}` : '';
     const paper = pd
       ? `<div class="qp">${P.render(P.fromApi(pd), { mode: 'view' })}</div>`
@@ -412,13 +476,13 @@
       <header class="qs-head">
         <div class="qs-head__top">
           <div class="qs-head__t">
-            <div class="qs-chips"><span class="qs-pill qs-pill--${tone}">${esc(label)}</span><span class="qs-chip">${esc(partyLabel(q))}</span><span class="qs-val">${esc(validityText(q))}</span></div>
+            <div class="qs-chips"><span class="qs-pill qs-pill--${tone}">${esc(label)}</span><span class="qs-chip">${esc(partyLabel(q))}</span><span class="qs-val">${esc(validityText(q))}</span>${statusSelect(q)}</div>
             <h2>${esc(q.quote_number || 'Quote')} · ${esc(name)}</h2>
             ${sub ? `<p>${esc(sub)}</p>` : ''}
           </div>
           <div class="qs-acts">
             ${del}
-            <a class="qs-btn" href="${pdfHref}" target="_blank" rel="noopener">${ico('pdf')}PDF</a>
+            <button type="button" class="qs-btn" data-qs-pdf="${esc(q.id)}" data-qs-pdf-name="${esc(q.quote_number || 'quote')}">${ico('pdf')}PDF</button>
             ${link ? `<button type="button" class="qs-btn" data-copy="${esc(link)}">${ico('link')}Link</button>` : ''}
             ${showFat ? `<a class="qs-btn" href="invoices.html?new=1&quote=${encodeURIComponent(q.id)}">${ico('doc')}Faturar</a>` : ''}
             <a class="qs-btn qs-btn--pri" href="quote-builder.html?id=${encodeURIComponent(q.id)}" data-crm-permission="quotes.edit">Editar orçamento</a>
@@ -461,7 +525,7 @@
         st.canInvoice && groupOf(q) !== 'archived' && groupOf(q) !== 'expired' && (Number(q.total_amount ?? q.total) || 0) > 0
           ? `<a class="qs-btn" href="invoices.html?new=1&quote=${encodeURIComponent(q.id)}">Faturar</a>`
           : '';
-      bar.innerHTML = `<a class="qs-btn qs-btn--sq" href="/api/quotes/${encodeURIComponent(q.id)}/invoice-pdf" target="_blank" rel="noopener" aria-label="PDF">${ico('pdf')}</a>
+      bar.innerHTML = `<button type="button" class="qs-btn qs-btn--sq" data-qs-pdf="${esc(q.id)}" data-qs-pdf-name="${esc(q.quote_number || 'quote')}" aria-label="PDF">${ico('pdf')}</button>
         <a class="qs-btn" href="quote-builder.html?id=${encodeURIComponent(q.id)}&services=1">Serviços</a>
         ${fat}
         <a class="qs-btn qs-btn--pri" href="quote-builder.html?id=${encodeURIComponent(q.id)}">Editar orçamento</a>`;
@@ -628,7 +692,23 @@
         /* ignore */
       }
     });
+    function onQuoteAction(e) {
+      const pdf = e.target.closest('[data-qs-pdf]');
+      if (pdf) {
+        e.preventDefault();
+        openQuotePdf(pdf.getAttribute('data-qs-pdf'), pdf.getAttribute('data-qs-pdf-name'));
+        return true;
+      }
+      const reopen = e.target.closest('[data-qs-reopen]');
+      if (reopen) {
+        e.preventDefault();
+        reopenJob(reopen.getAttribute('data-qs-reopen')).catch((err) => notify(err.message || 'Não foi possível reabrir o job.', 'error'));
+        return true;
+      }
+      return false;
+    }
     $('qsPane').addEventListener('click', (e) => {
+      if (onQuoteAction(e)) return;
       const c = e.target.closest('[data-copy]');
       if (c) {
         const url = c.getAttribute('data-copy');
@@ -638,6 +718,12 @@
       const d = e.target.closest('[data-del]');
       if (d) void deleteQuote(d.getAttribute('data-del'));
     });
+    $('qsPane').addEventListener('change', (e) => {
+      const sel = e.target.closest('[data-qs-status]');
+      if (!sel) return;
+      void setQuoteStatus(sel.getAttribute('data-qs-status'), sel.value, sel);
+    });
+    $('qsMbar').addEventListener('click', onQuoteAction);
     let t = null;
     $('filterQ').addEventListener('input', () => {
       clearTimeout(t);

@@ -881,7 +881,10 @@
     const listWo = all.find((w) => String(w.id) === String(selId));
     const wo = detailWo && String(detailWo.id) === String(selId) ? detailWo : listWo;
     if (!wo) {
-      host.innerHTML = `<div class="jx-blank">Escolha um job na lista.</div>`;
+      host.innerHTML =
+        missingSel && String(missingSel) === String(selId)
+          ? `<div class="jx-blank"><b>Não encontrei esse job.</b><br />O quote aponta para um job que não está mais na lista.</div>`
+          : `<div class="jx-blank">Escolha um job na lista.</div>`;
       return;
     }
     const lt = J.late(wo);
@@ -939,6 +942,13 @@
             ${p ? (p.href ? `<a class="jx-btn jx-btn--pri" href="${p.href}">${J.esc(p.label)}</a>` : `<button type="button" class="jx-btn jx-btn--pri" data-jx-act="${p.act}">${J.esc(p.label)}</button>`) : ""}
           </div>
         </div>
+        ${
+          wo.status === "canceled"
+            ? `<p class="jx-late-line" role="status"><span>Este job está cancelado e não aparece na busca.</span>${
+                canManage ? `<button type="button" class="jx-late-line__act" data-jx-act="reopen">Reabrir job</button>` : ""
+              }</p>`
+            : ""
+        }
         ${s >= 0 ? `<ol class="jx-steps">${steps}</ol>` : ""}
         <div class="jx-kpis">${kpis.map(([k, v, sm]) => `<div><span>${k}</span><b>${J.esc(v)}</b>${sm ? `<small>${J.esc(sm)}</small>` : ""}</div>`).join("")}</div>
         ${
@@ -1015,7 +1025,8 @@
     const rows = renderList();
     const wide = window.matchMedia("(min-width: 1025px)").matches;
     const pinned = selId && all.some((w) => String(w.id) === String(selId));
-    if (wide && !pinned && !rows.some((w) => String(w.id) === String(selId))) {
+    const asked = new URLSearchParams(location.search).get("id");
+    if (wide && !pinned && !rows.some((w) => String(w.id) === String(selId)) && String(selId || "") !== String(asked || "")) {
       const first = $("jxRows").querySelector("[data-jx-id]");
       selId = first ? first.getAttribute("data-jx-id") : null;
       $("jxRows").querySelectorAll("[data-jx-id]").forEach((a) => a.classList.toggle("is-on", a.getAttribute("data-jx-id") === String(selId)));
@@ -1063,6 +1074,7 @@
   /** Query the server already applied. Those rows are shown even if a tile or origin filter would hide them. */
   let fetchedQuery = "";
   let scrollSel = false;
+  let missingSel = null;
   async function load() {
     const seq = ++loadSeq;
     if (firstLoad) {
@@ -1091,10 +1103,15 @@
       try {
         const one = await api(`/api/work-orders/${encodeURIComponent(selId)}`);
         if (seq !== loadSeq) return;
-        if (one.data) all = [one.data, ...all];
+        if (one.data) {
+          all = [one.data, ...all];
+          missingSel = null;
+        } else missingSel = selId;
       } catch (_) {
-        /* the list still renders; the detail fetch reports a missing job */
+        missingSel = selId;
       }
+    } else if (selId) {
+      missingSel = null;
     }
     // Keep detail cache aligned with the list so stage bars follow status changes.
     if (detailWo && selId) {
@@ -1245,7 +1262,8 @@
         if (act === "start-date") {
           const wo = all.find((w) => String(w.id) === String(id)) || detailWo;
           if (wo) await window.__crmJobModal.openStartDate(wo);
-        } else if (act === "edit") await window.__crmJobModal.openEdit(id);
+        } else if (act === "reopen") await setStatus(id, "draft", "Job reaberto com o valor atual do quote.");
+        else if (act === "edit") await window.__crmJobModal.openEdit(id);
         else if (act === "services") await window.__crmJobModal.openEdit(id, { section: "services" });
         else if (act === "schedule") await window.__crmJobModal.openEdit(id, { section: "schedule" });
         else if (act === "team") await window.__crmJobModal.openEdit(id, { section: "team" });

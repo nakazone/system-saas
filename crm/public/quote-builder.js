@@ -4928,6 +4928,7 @@
       const q = j && j.data && (j.data.quote || j.data);
       if (q && q.created_at && !qbMeta.created_at) qbMeta.created_at = q.created_at;
       if (q && q.work_order_id) qbMeta.work_order_id = q.work_order_id;
+      if (q && q.work_order_status) qbMeta.work_order_status = q.work_order_status;
       if (j.created_job_id) qbMeta.work_order_id = j.created_job_id;
       setTimeout(() => {
         qbSetDirty(false);
@@ -6087,6 +6088,7 @@
       pdf_viewed_at: q.pdf_viewed_at || null,
       signed_at: q.signed_at || null,
       work_order_id: q.work_order_id || null,
+      work_order_status: q.work_order_status || null,
       change_request_note: q.change_request_note || null,
     };
     startQuoteViewPolling();
@@ -6744,6 +6746,7 @@
     pdf_viewed_at: null,
     signed_at: null,
     work_order_id: null,
+    work_order_status: null,
     change_request_note: null,
   };
   let qbDirtyFlag = false;
@@ -7039,6 +7042,10 @@
         ? `<span class="qb-change-note">${escapeHtmlText(req)}</span>`
         : 'O cliente pediu mudanças — ajuste os serviços e reenvie.';
       btn = `<button type="button" class="btn btn-primary" data-qb-proxy-now="btnSend">Ajustar e reenviar</button>${invoiceAlt}`;
+    } else if (qbMeta.work_order_id && qbMeta.work_order_status === 'canceled') {
+      title = 'Job cancelado';
+      text = 'O job existe, mas está cancelado e a busca não mostra. Reabra para ele voltar com o cliente e o valor deste quote.';
+      btn = '<button type="button" class="btn btn-primary" data-qb-reopen-job="1">Reabrir job</button>';
     } else if (qbMeta.work_order_id) {
       title = 'Job criado';
       text = canInvoice
@@ -7158,6 +7165,26 @@
       if (createJobBtn) {
         e.preventDefault();
         void transformQuoteToJob();
+        return;
+      }
+      const reopenJobBtn = e.target.closest('[data-qb-reopen-job]');
+      if (reopenJobBtn) {
+        e.preventDefault();
+        if (!qbMeta.work_order_id) return;
+        reopenJobBtn.disabled = true;
+        api(`/api/work-orders/${encodeURIComponent(qbMeta.work_order_id)}`, {
+          method: 'PUT',
+          body: JSON.stringify({ status: 'draft' }),
+        })
+          .then(() => {
+            qbMeta.work_order_status = 'draft';
+            qbToast('Job reaberto com o valor deste quote.', 'success');
+            qbRenderProgress();
+          })
+          .catch((err) => {
+            reopenJobBtn.disabled = false;
+            qbToast(err.message || 'Não foi possível reabrir o job.', 'error');
+          });
         return;
       }
       const now = e.target.closest('[data-qb-proxy-now]');

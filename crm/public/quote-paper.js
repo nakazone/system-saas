@@ -302,7 +302,7 @@
         <div class="qp-org">${mark}<div><b>${esc(org.name)}</b><span>${esc(org.tagline || DEFAULT_TAGLINE)}</span>${
           org.contact ? `<small>${esc(org.contact)}</small>` : ''
         }</div></div>
-        <div class="qp-no"><span class="qp-om">ObraMate <i></i></span><span>QUOTE</span><b>${esc(numLabel)}</b><small>Issued ${esc(fmtDate(model.issued))}</small><small>Valid until ${esc(fmtDate(model.valid))}</small></div>
+        <div class="qp-no"><span class="qp-om"><img class="qp-om-mark" src="/assets/img/mascot/mate-head-happy.webp?v=20261027-om1" alt="" width="18" height="18" />ObraMate</span><span>QUOTE</span><b>${esc(numLabel)}</b><small>Issued ${esc(fmtDate(model.issued))}</small><small>Valid until ${esc(fmtDate(model.valid))}</small></div>
       </header>
       <div class="qp-infos">
         ${info('BILL TO', [{ t: (model.bill || {}).name || 'Client', b: 1 }, { t: (model.bill || {}).email }, { t: (model.bill || {}).phone }])}
@@ -322,7 +322,7 @@
         </div>
       </div>
       ${signaturesHtml(model)}
-      <footer class="qp-ft"><span>${esc(numLabel)} · ${esc((model.bill || {}).name || '')}</span><span><i class="qp-om-i"></i>Made with ObraMate</span><span>Page 1 of 2</span></footer>
+      <footer class="qp-ft"><span>${esc(numLabel)} · ${esc((model.bill || {}).name || '')}</span><span><img class="qp-om-mark" src="/assets/img/mascot/mate-head-happy.webp?v=20261027-om1" alt="" width="16" height="16" />Made with ObraMate</span><span>Page 1 of 2</span></footer>
     </div>`;
   }
 

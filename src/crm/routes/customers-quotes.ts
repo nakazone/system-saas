@@ -606,7 +606,7 @@ function mapQuote(q: {
   createdAt: Date;
   updatedAt: Date;
   customer?: { name: string; company?: string | null; clientCode?: string | null } | null;
-  workOrder?: { number: number | null } | null;
+  workOrder?: { number: number | null; status?: string | null } | null;
   builder?: {
     company?: string | null;
     firstName?: string | null;
@@ -687,6 +687,7 @@ function mapQuote(q: {
     customer_name: customerDisplayName(q.customer?.name, q.customer?.clientCode) || q.customer?.name || null,
     client_code: q.customer?.clientCode != null ? String(q.customer.clientCode).trim() || null : null,
     job_number: q.workOrder?.number ?? null,
+    work_order_status: q.workOrder?.status ?? null,
     customer_company: q.customer?.company ?? null,
     lead_id: q.leadId,
     builder_id: q.builderId,
@@ -1563,7 +1564,7 @@ customersQuotesRouter.delete(
 function quoteListInclude() {
   return {
     customer: { select: { name: true, company: true, clientCode: true } },
-    workOrder: { select: { number: true } },
+    workOrder: { select: { number: true, status: true } },
     builder: { select: { company: true, firstName: true, lastName: true } },
     property: { select: { line1: true, city: true, state: true, label: true } },
     lineItems: { orderBy: { sortOrder: "asc" as const } },
@@ -1793,20 +1794,38 @@ customersQuotesRouter.get("/api/quotes/:id", requireCrmAuth, async (req: AuthedR
       return;
     }
     // Heal outside the read txn: approved quotes missing a job get one on open.
-    if (normalizeQuoteStatus(row.status) === "approved" && !row.workOrderId) {
+    // A quote that already has a job is aligned with the current client and total,
+    // so a later edit does not leave the first version behind.
+    const approved = normalizeQuoteStatus(row.status) === "approved";
+    const quoteId = row.id;
+    const linkedJobId = row.workOrderId;
+    if (linkedJobId || (approved && !linkedJobId)) {
       try {
-        const job = await withTenantTransaction(req.organizationId!, async (tx) => {
+        await withTenantTransaction(req.organizationId!, async (tx) => {
+          if (linkedJobId) {
+            const { syncLinkedJobFromQuote } = await import("../../lib/work-orders/from-quote.js");
+            return syncLinkedJobFromQuote(tx, {
+              organizationId: req.organizationId!,
+              quoteId,
+            });
+          }
           const { ensureWorkOrderOnApprove } = await import("../../lib/work-orders/from-quote.js");
           return ensureWorkOrderOnApprove(tx, {
             organizationId: req.organizationId!,
-            quoteId: row!.id,
+            quoteId,
             actorId: req.user?.id ?? null,
           });
         });
-        if (job?.id) row = { ...row, workOrderId: job.id };
+        const fresh = await withTenantTransaction(req.organizationId!, async (tx) =>
+          tx.quote.findFirst({
+            where: { id: quoteId },
+            include: quoteListInclude(),
+          }),
+        );
+        if (fresh) row = fresh;
       } catch (err) {
-        console.error("[quotes] ensureWorkOrderOnApprove heal failed", {
-          quoteId: row.id,
+        console.error("[quotes] job heal failed", {
+          quoteId,
           err: err instanceof Error ? err.message : err,
         });
       }
@@ -2192,9 +2211,27 @@ customersQuotesRouter.put(
           if (job?.id && !updated.workOrderId) {
             updated = { ...updated, workOrderId: job.id };
           }
+        } else if (updated.workOrderId) {
+          const { syncLinkedJobFromQuote } = await import("../../lib/work-orders/from-quote.js");
+          await syncLinkedJobFromQuote(tx, {
+            organizationId: req.organizationId!,
+            quoteId: id,
+          });
         }
 
-        return { updated, createdInvoiceIds, createdJobId, approvalReset: invalidate };
+        const linked = updated.workOrderId
+          ? await tx.workOrder.findFirst({
+              where: { id: updated.workOrderId },
+              select: { number: true, status: true },
+            })
+          : null;
+
+        return {
+          updated: { ...updated, workOrder: linked },
+          createdInvoiceIds,
+          createdJobId,
+          approvalReset: invalidate,
+        };
       });
       if (!row) {
         res.status(404).json({ success: false, error: "Quote not found" });
@@ -2969,6 +3006,83 @@ customersQuotesRouter.get(
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `inline; filename="orcamento-${safeName}.pdf"`);
       res.send(built.buffer);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+const QUOTE_STATUS_SET = new Set([
+  "draft",
+  "sent",
+  "viewed",
+  "approved",
+  "accepted",
+  "rejected",
+  "archived",
+  "changes_requested",
+]);
+
+/** Change only the status, from the quote list. Does not cancel a linked job. */
+customersQuotesRouter.post(
+  "/api/quotes/:id/status",
+  requireCrmAuth,
+  requireCrmPermission("quotes.edit"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const id = String(req.params.id);
+      const status = String(req.body?.status || "")
+        .trim()
+        .toLowerCase();
+      if (!QUOTE_STATUS_SET.has(status)) {
+        res.status(400).json({ success: false, error: "Status inválido" });
+        return;
+      }
+      const row = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const existing = await tx.quote.findFirst({ where: { id } });
+        if (!existing) return null;
+        const updated = await tx.quote.update({
+          where: { id },
+          data: { status },
+        });
+        await syncLeadForQuoteStatus(tx, {
+          organizationId: req.organizationId!,
+          quoteId: id,
+          previousStatus: existing.status,
+          nextStatus: updated.status,
+          actorId: req.user?.id,
+        });
+        let createdJobId: string | null = null;
+        if (normalizeQuoteStatus(updated.status) === "approved") {
+          const { ensureWorkOrderOnApprove } = await import("../../lib/work-orders/from-quote.js");
+          const job = await ensureWorkOrderOnApprove(tx, {
+            organizationId: req.organizationId!,
+            quoteId: id,
+            actorId: req.user?.id ?? null,
+          });
+          if (job?.created) createdJobId = job.id;
+        } else if (updated.workOrderId) {
+          const { syncLinkedJobFromQuote } = await import("../../lib/work-orders/from-quote.js");
+          await syncLinkedJobFromQuote(tx, {
+            organizationId: req.organizationId!,
+            quoteId: id,
+          });
+        }
+        const fresh = await tx.quote.findFirst({
+          where: { id },
+          include: quoteListInclude(),
+        });
+        return fresh ? { quote: fresh, createdJobId } : null;
+      });
+      if (!row) {
+        res.status(404).json({ success: false, error: "Quote not found" });
+        return;
+      }
+      res.json({
+        success: true,
+        data: mapQuoteForUser(row.quote, req.user),
+        created_job_id: row.createdJobId,
+      });
     } catch (error) {
       next(error);
     }

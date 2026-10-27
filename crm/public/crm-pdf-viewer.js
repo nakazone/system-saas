@@ -17,9 +17,9 @@
     root.setAttribute('aria-hidden', 'true');
     root.innerHTML = `
       <header class="crm-pdf-viewer__bar">
-        <button type="button" class="crm-pdf-viewer__close" id="crmPdfViewerClose" aria-label="Fechar PDF">
+        <button type="button" class="crm-pdf-viewer__close" id="crmPdfViewerClose" aria-label="Voltar">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
-          Fechar
+          Voltar
         </button>
         <div class="crm-pdf-viewer__brand" aria-hidden="true">
           <img class="crm-pdf-viewer__brand-mark" src="/assets/favicon-192.png" alt="" width="28" height="28" onerror="this.src='/assets/favicon.png'" />
@@ -69,23 +69,70 @@
     bodyLocked = false;
   }
 
-  function showFrame(src) {
+  let pdfJsPromise = null;
+  function loadPdfJs() {
+    if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+    if (pdfJsPromise) return pdfJsPromise;
+    pdfJsPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      s.crossOrigin = 'anonymous';
+      s.onload = () => {
+        const lib = window.pdfjsLib;
+        if (!lib) {
+          reject(new Error('PDF indisponível.'));
+          return;
+        }
+        lib.GlobalWorkerOptions.workerSrc =
+          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        resolve(lib);
+      };
+      s.onerror = () => reject(new Error('Não foi possível carregar o visualizador de PDF.'));
+      document.head.appendChild(s);
+    });
+    return pdfJsPromise;
+  }
+
+  /** Draw pages ourselves so the Voltar bar stays above the PDF on tablet. */
+  async function renderBlob(blob) {
     const body = root.querySelector('#crmPdfViewerBody');
-    const loading = root.querySelector('#crmPdfViewerLoading');
-    if (loading) loading.remove();
-    body.querySelector('.crm-pdf-viewer__frame')?.remove();
-    body.querySelector('.crm-pdf-viewer__error')?.remove();
-    const embed = document.createElement('embed');
-    embed.className = 'crm-pdf-viewer__frame';
-    embed.type = 'application/pdf';
-    embed.src = src;
-    embed.setAttribute('title', root.querySelector('#crmPdfViewerTitle')?.textContent || 'PDF');
-    body.appendChild(embed);
+    body.innerHTML = '<div class="crm-pdf-viewer__pages" id="crmPdfPages"><p class="crm-pdf-viewer__loading">A carregar PDF…</p></div>';
+    const host = body.querySelector('#crmPdfPages');
+    try {
+      const lib = await loadPdfJs();
+      const data = new Uint8Array(await blob.arrayBuffer());
+      if (!root.classList.contains('is-open')) return;
+      const pdf = await lib.getDocument({ data }).promise;
+      if (!root.classList.contains('is-open') || !host || !host.isConnected) return;
+      host.innerHTML = '';
+      const width = Math.max(280, host.clientWidth - 24);
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      for (let i = 1; i <= pdf.numPages; i++) {
+        if (!root.classList.contains('is-open')) return;
+        const page = await pdf.getPage(i);
+        const base = page.getViewport({ scale: 1 });
+        const viewport = page.getViewport({ scale: width / base.width });
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.floor(viewport.width * dpr);
+        canvas.height = Math.floor(viewport.height * dpr);
+        canvas.style.width = `${viewport.width}px`;
+        canvas.style.height = `${viewport.height}px`;
+        host.appendChild(canvas);
+        const ctx = canvas.getContext('2d');
+        const renderOpts = { canvasContext: ctx, viewport };
+        if (dpr !== 1) renderOpts.transform = [dpr, 0, 0, dpr, 0, 0];
+        await page.render(renderOpts).promise;
+      }
+    } catch (e) {
+      if (!root?.classList.contains('is-open')) return;
+      showError(e.message || 'Não foi possível mostrar o PDF.');
+    }
   }
 
   function showError(msg) {
     const body = root.querySelector('#crmPdfViewerBody');
     root.querySelector('#crmPdfViewerLoading')?.remove();
+    body.querySelector('.crm-pdf-viewer__pages')?.remove();
     body.querySelector('.crm-pdf-viewer__frame')?.remove();
     let err = body.querySelector('.crm-pdf-viewer__error');
     if (!err) {
@@ -127,8 +174,10 @@
     root.setAttribute('aria-hidden', 'false');
     setBodyLock(true);
 
-    if (src) {
-      showFrame(src);
+    if (blob instanceof Blob) {
+      void renderBlob(blob);
+    } else if (!src) {
+      /* openFromUrl shows the bar first, then paints pages when the file arrives */
     } else {
       showError('PDF indisponível.');
     }

@@ -35,8 +35,8 @@
 .qp-no { display: flex; flex-direction: column; align-items: flex-end; text-align: right; flex: none; }
 .qp-no > span { font-size: .667em; color: var(--qp-ml); }
 .qp-no .qp-om { font-size: .583em; display: inline-flex; align-items: center; gap: .6em; margin-bottom: .5em; }
-.qp-om i, .qp-om-i { display: inline-block; width: 1.6em; height: 1.6em; border: .2em solid var(--qp-acc); border-radius: .2em; }
-.qp-om-i { width: 1em; height: 1em; vertical-align: -.15em; margin-right: .5em; border-width: .15em; }
+.qp-om-mark { display: block; width: 1.45em; height: 1.45em; object-fit: contain; }
+.qp-ft .qp-om-mark { display: inline-block; width: 1.15em; height: 1.15em; margin-right: .35em; vertical-align: -.22em; }
 .qp-no b { font-size: 1.333em; font-weight: 700; margin: .1em 0 .35em; }
 .qp-no small { font-size: .667em; color: var(--qp-mu); line-height: 1.5; }
 
