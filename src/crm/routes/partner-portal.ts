@@ -24,7 +24,7 @@ import { activeLinkFor, ensureShadowPartnerUser, loadActiveMember, type ActiveMe
 import { can, permissionsFor, type BuilderPermission, type PortalRole } from "../../lib/builders/roles.js";
 import { publishAppNotification } from "../../lib/notifications/publish.js";
 import { applyBuilderJobEdit, jobEditSchema, JobEditError } from "../../lib/builders/job-edit.js";
-import { findJobMatch, isIntakeReaderConfigured, readWorkOrder, type IntakeFile } from "../../lib/partner-intake/extract.js";
+import { findJobMatch, intakeItemsSchema, isIntakeReaderConfigured, readWorkOrder, type IntakeFile } from "../../lib/partner-intake/extract.js";
 
 type PartnerRequest = TenantRequest & {
   /** Role used for the builder permissions ("legacy" for company-created portal users). */
@@ -762,6 +762,8 @@ partnerPortalRouter.post("/api/partner-portal/requests", requirePartnerAuth, req
         source: z.enum(["ai", "manual"]),
         fields_checked: z.array(z.string().max(40)).max(20).optional().default([]),
         model: z.string().max(80).optional(),
+        items: intakeItemsSchema.optional(),
+        labor_total: z.number().min(0).max(100_000_000).nullable().optional(),
       }).optional(),
     }).safeParse(req.body || {});
     if (!parsed.success) {
@@ -940,6 +942,8 @@ partnerPortalRouter.post("/api/partner-portal/requests/read", requirePartnerAuth
         ai_available: true,
         model: read.model,
         fields: read.result.fields,
+        items: read.result.items,
+        labor_total: read.result.labor_total,
         check: read.result.check,
         warnings: read.result.warnings,
         match,

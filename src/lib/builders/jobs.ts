@@ -1,4 +1,94 @@
 import type { TenantPrisma } from "../tenant/prisma-tenant.js";
+import { intakeItemsSchema } from "../partner-intake/extract.js";
+
+type IntakeLine = {
+  area: string;
+  description: string;
+  detail: string;
+  quantity: number;
+  uom: string;
+  rate: number | null;
+  total: number | null;
+};
+
+/** Lines the builder confirmed in the portal (stored on the request's intake). */
+export function intakeLines(intake: unknown): IntakeLine[] {
+  if (!intake || typeof intake !== "object") return [];
+  const parsed = intakeItemsSchema.safeParse((intake as { items?: unknown }).items);
+  return parsed.success ? parsed.data.filter((l) => l.description || l.detail) : [];
+}
+
+const UOM_UNITS: Record<string, string[]> = {
+  SF: ["sq_ft", "sqft", "sf"],
+  LF: ["linear_ft", "lf", "lin_ft"],
+  EA: ["each", "unit", "ea", "piece"],
+  STEP: ["step", "stair", "tread"],
+  SY: ["sq_yd", "sy"],
+  HR: ["hour", "hr"],
+};
+
+function words(text: string): string[] {
+  return String(text || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" ").filter((w) => w.length > 1);
+}
+
+/** A price-list item whose name is fully inside the line text and whose unit matches. */
+export function matchPricingItem(line: { description: string; detail: string; uom: string }, items: Array<{ id: string; name: string; unit: string }>) {
+  const hay = new Set(words(`${line.description} ${line.detail}`));
+  const units = UOM_UNITS[line.uom.toUpperCase()] || [line.uom.toLowerCase()];
+  let best: { id: string; name: string; unit: string } | null = null;
+  let bestLen = 0;
+  for (const it of items) {
+    const w = words(it.name);
+    if (w.length < 2 || !w.every((x) => hay.has(x))) continue;
+    if (!units.includes(String(it.unit || "sq_ft").toLowerCase())) continue;
+    if (w.length > bestLen) { best = it; bestLen = w.length; }
+  }
+  return best;
+}
+
+function lineName(l: IntakeLine): string {
+  const desc = l.description.replace(/\s+/g, " ").trim();
+  const detail = l.detail.replace(/\s+/g, " ").trim();
+  return [desc, detail && detail.toLowerCase() !== desc.toLowerCase() ? detail : ""].filter(Boolean).join(" · ").slice(0, 160) || "Serviço";
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/** Creates the job's service lines from the work order lines (rates are the ones on the order). */
+async function createJobLines(tx: TenantPrisma, organizationId: string, workOrderId: string, lines: IntakeLine[]): Promise<void> {
+  if (!lines.length) return;
+  const priceList = await tx.pricingItem.findMany({ where: { organizationId, active: true }, select: { id: true, name: true, unit: true } });
+  let order = 0;
+  for (const l of lines) {
+    const item = matchPricingItem(l, priceList);
+    const isSf = l.uom.toUpperCase() === "SF";
+    // Without a matching price-list item the line has no unit of its own (it would read "sq ft"),
+    // so non-SF lines keep their count in the note and carry the total as a fixed amount.
+    const keepQty = Boolean(item) || isSf;
+    const total = l.total ?? (l.rate != null ? round2(l.rate * l.quantity) : 0);
+    const notes = [l.area, keepQty ? "" : `${l.quantity} ${l.uom}`].filter(Boolean).join(" · ").slice(0, 500) || null;
+    order += 1;
+    await tx.workOrderLineItem.create({
+      data: {
+        organizationId,
+        workOrderId,
+        pricingItemId: item?.id ?? null,
+        serviceName: lineName(l),
+        notes,
+        quantitySqft: keepQty ? l.quantity : 0,
+        unitPrice: keepQty ? (l.rate ?? (l.quantity ? round2(total / l.quantity) : 0)) : total,
+        lineTotal: round2(total),
+        sortOrder: order,
+      },
+    });
+  }
+}
+
+function linesText(lines: IntakeLine[]): string {
+  return lines.map((l) => `- ${lineName(l)}: ${l.quantity} ${l.uom}${l.rate != null ? ` × $${l.rate}` : ""}${l.total != null ? ` = $${l.total.toFixed(2)}` : ""}${l.area ? ` (${l.area})` : ""}`).join("\n");
+}
 
 export type ApplyResult =
   | { kind: "missing" }
@@ -38,6 +128,7 @@ export async function applyPartnerRequest(
         request.serviceType ? `Serviço: ${request.serviceType}` : "",
         request.preferredDate ? `Data solicitada: ${request.preferredDate.toISOString().slice(0, 10)}` : "",
         request.notes ? `Detalhes: ${request.notes}` : "",
+        intakeLines(request.intake).length ? `Serviços na ordem:\n${linesText(intakeLines(request.intake))}` : "",
       ].filter(Boolean).join("\n");
       await tx.workOrder.update({
         where: { id: target.id },
@@ -93,6 +184,7 @@ export async function applyPartnerRequest(
     },
     select: { id: true },
   });
+  await createJobLines(tx, organizationId, workOrder.id, intakeLines(request.intake));
   await tx.partnerJobRequest.update({
     where: { id: request.id },
     data: { status: "accepted", workOrderId: workOrder.id, reviewedAt: new Date(), reviewNote: reviewNote || null },

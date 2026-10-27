@@ -917,7 +917,7 @@
   const FIELD_ORDER = ['address', 'title', 'community', 'lot', 'plan', 'external_ref', 'service_type', 'preferred_date', 'square_feet', 'material', 'contact_name', 'contact_phone', 'contact_email', 'notes'];
 
   function newSend() {
-    return { phase: 'pick', files: [], text: '', showPaste: false, fields: null, check: [], warnings: [], match: null, mode: 'new', ai: false, model: '', error: '', presetJob: null, sent: null };
+    return { phase: 'pick', files: [], text: '', showPaste: false, fields: null, items: [], laborTotal: null, check: [], warnings: [], match: null, mode: 'new', ai: false, model: '', error: '', presetJob: null, sent: null };
   }
 
   function readAsDataUrl(file) {
@@ -994,6 +994,8 @@
         s.warnings = ['A leitura automática não está ligada nesta empresa. Preencha os campos abaixo.'];
       } else {
         s.fields = Object.assign(emptyFields(), data.fields || {});
+        s.items = (data.items || []).map((it) => ({ ...it, remove: false }));
+        s.laborTotal = data.labor_total == null ? null : Number(data.labor_total);
         s.check = data.check || [];
         s.warnings = data.warnings || [];
         s.ai = true;
@@ -1098,7 +1100,7 @@
     if (s.phase === 'reading') {
       box.innerHTML = `<div class="pp-card pp-reading pp-reading--mate" role="status">
         <img class="pp-mate-art" src="/assets/img/mascot/mate-reading.webp?v=20261027-m2" alt="" height="96" decoding="async">
-        <div style="display:flex;gap:12px;align-items:center"><span class="pp-doc-ico" style="width:44px;height:44px">${s.files[0] && s.files[0].type === 'application/pdf' ? 'PDF' : s.files.length ? 'IMG' : 'TXT'}</span><div><strong>${esc(s.files.length ? s.files.map((f) => f.name).join(', ') : 'Texto colado')}</strong><div class="pp-muted" style="font-size:13px">Lendo endereço, nº do job, data e serviço…</div></div></div>
+        <div style="display:flex;gap:12px;align-items:center"><span class="pp-doc-ico" style="width:44px;height:44px">${s.files[0] && s.files[0].type === 'application/pdf' ? 'PDF' : s.files.length ? 'IMG' : 'TXT'}</span><div><strong>${esc(s.files.length ? s.files.map((f) => f.name).join(', ') : 'Texto colado')}</strong><div class="pp-muted" style="font-size:13px">Lendo endereço, nº do job, data e as linhas de serviço…</div></div></div>
         <div class="pp-progress"><i></i></div>
         <p class="pp-muted" style="margin:0;font-size:14px">Leva alguns segundos. Nada é enviado antes de você conferir.</p>
       </div>`;
@@ -1239,6 +1241,7 @@
             ${field('contact_email', { type: 'email', max: 254, auto: 'email' })}
             ${field('notes', { wide: true, area: true, max: 4000 })}
           </div>
+          ${itemsEditor(s)}
           <p class="pp-error" id="ppReqError" role="alert" hidden></p>
           <div class="pp-form-actions">
             <button type="button" class="pp-btn pp-btn--sec" id="ppDiscard">Descartar</button>
@@ -1247,6 +1250,97 @@
         </form>
       </div>
       <div class="pp-fixbar"><button type="button" class="pp-btn pp-btn--sec" data-discard>Descartar</button><button type="button" class="pp-btn pp-btn--pri" data-submit>${s.mode === 'update' && match ? 'Enviar atualização' : 'Enviar pedido'}</button></div>`;
+  }
+
+  const UOMS = ['SF', 'LF', 'EA', 'STEP', 'SY', 'HR'];
+  function itemTotal(it) {
+    if (it.rate != null && it.rate !== '' && !Number.isNaN(Number(it.rate))) return Math.round(Number(it.rate) * Number(it.quantity || 0) * 100) / 100;
+    return it.total == null ? null : Number(it.total);
+  }
+  /** Service lines read from the order — they become the job's services, with the order's rates. */
+  function itemsEditor(s) {
+    const items = s.items || [];
+    const live = items.filter((it) => !it.remove);
+    const sum = Math.round(live.reduce((acc, it) => acc + (itemTotal(it) || 0), 0) * 100) / 100;
+    const off = s.laborTotal != null && Math.abs(sum - s.laborTotal) > 0.5;
+    const row = (it, i) => `<li class="pp-it ${it.remove ? 'pp-it--off' : ''}">
+        <div class="pp-it-main">
+          <input class="pp-it-name" data-it="${i}" data-k="description" value="${esc(it.description)}" maxlength="200" aria-label="Serviço ${i + 1}" ${it.remove ? 'disabled' : ''} />
+          <input class="pp-it-sub" data-it="${i}" data-k="detail" value="${esc(it.detail)}" maxlength="200" placeholder="Detalhe da instalação" aria-label="Detalhe do serviço ${i + 1}" ${it.remove ? 'disabled' : ''} />
+          ${it.area ? `<small>${esc(it.area)}</small>` : ''}
+        </div>
+        <div class="pp-it-nums">
+          <label><span>Qtd</span><input type="number" min="0" step="0.01" data-it="${i}" data-k="quantity" value="${esc(it.quantity)}" ${it.remove ? 'disabled' : ''} /></label>
+          <label><span>Un.</span><select data-it="${i}" data-k="uom" ${it.remove ? 'disabled' : ''}>${UOMS.concat(UOMS.includes(it.uom) ? [] : [it.uom]).map((u) => `<option ${u === it.uom ? 'selected' : ''}>${esc(u)}</option>`).join('')}</select></label>
+          <label><span>Valor/un.</span><input type="number" min="0" step="0.01" data-it="${i}" data-k="rate" value="${it.rate == null ? '' : esc(it.rate)}" placeholder="—" ${it.remove ? 'disabled' : ''} /></label>
+          <b data-it-total="${i}">${itemTotal(it) == null ? '—' : money(itemTotal(it))}</b>
+          <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-it-rm="${i}">${it.remove ? 'Desfazer' : 'Tirar'}</button>
+        </div>
+      </li>`;
+    return `<section class="pp-items pp-field--wide" aria-labelledby="ppItemsTitle">
+      <div class="pp-items-head"><strong id="ppItemsTitle">Serviços da ordem</strong><span class="pp-muted">${items.length ? 'Viram os serviços do job, com estes valores.' : 'Nenhuma linha lida. Adicione se quiser os serviços no job.'}</span></div>
+      ${items.length ? `<ul class="pp-it-list">${items.map(row).join('')}</ul>` : ''}
+      <div class="pp-items-foot">
+        <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" id="ppItemAdd">Adicionar linha</button>
+        ${live.length ? `<span>Total <b id="ppItemsSum">${money(sum)}</b>${s.laborTotal != null ? ` <span class="${off ? 'pp-late' : 'pp-muted'}" id="ppItemsCheck">· na ordem ${money(s.laborTotal)}${off ? ' — confira' : ' ✓'}</span>` : ''}</span>` : ''}
+      </div>
+    </section>`;
+  }
+  function bindItems() {
+    const s = state.send;
+    const refreshSum = () => {
+      const live = s.items.filter((it) => !it.remove);
+      const sum = Math.round(live.reduce((acc, it) => acc + (itemTotal(it) || 0), 0) * 100) / 100;
+      const el = $('ppItemsSum');
+      if (el) el.textContent = money(sum);
+      const chk = $('ppItemsCheck');
+      if (chk && s.laborTotal != null) {
+        const off = Math.abs(sum - s.laborTotal) > 0.5;
+        chk.className = off ? 'pp-late' : 'pp-muted';
+        chk.textContent = `· na ordem ${money(s.laborTotal)}${off ? ' — confira' : ' ✓'}`;
+      }
+    };
+    view.querySelectorAll('[data-it]').forEach((el) => el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => {
+      const it = s.items[Number(el.getAttribute('data-it'))];
+      const k = el.getAttribute('data-k');
+      if (k === 'quantity') it.quantity = Number(el.value) || 0;
+      else if (k === 'rate') it.rate = el.value === '' ? null : Number(el.value);
+      else it[k] = el.value;
+      if (k === 'quantity' || k === 'rate') {
+        if (it.rate == null && k === 'quantity') it.total = null;
+        const t = view.querySelector(`[data-it-total="${el.getAttribute('data-it')}"]`);
+        if (t) t.textContent = itemTotal(it) == null ? '—' : money(itemTotal(it));
+        refreshSum();
+      }
+    }));
+    view.querySelectorAll('[data-it-rm]').forEach((b) => b.addEventListener('click', () => {
+      const it = s.items[Number(b.getAttribute('data-it-rm'))];
+      if (!it.description && !it.detail && !it.quantity) s.items.splice(Number(b.getAttribute('data-it-rm')), 1);
+      else it.remove = !it.remove;
+      renderSendBody();
+    }));
+    const add = $('ppItemAdd');
+    if (add) add.addEventListener('click', () => {
+      s.items.push({ area: '', description: '', detail: '', quantity: 0, uom: 'SF', rate: null, total: null, remove: false });
+      renderSendBody();
+      const inputs = view.querySelectorAll('.pp-it-name');
+      if (inputs.length) inputs[inputs.length - 1].focus();
+    });
+  }
+  /** Lines as sent to the server (removed and empty ones left out). */
+  function itemsPayload(s) {
+    return (s.items || [])
+      .filter((it) => !it.remove && (String(it.description || '').trim() || String(it.detail || '').trim()))
+      .map((it) => ({
+        area: String(it.area || '').slice(0, 200),
+        description: String(it.description || '').trim().slice(0, 200),
+        detail: String(it.detail || '').trim().slice(0, 200),
+        quantity: Math.max(0, Number(it.quantity) || 0),
+        uom: String(it.uom || 'SF').slice(0, 12),
+        rate: it.rate == null || it.rate === '' ? null : Math.max(0, Number(it.rate) || 0),
+        total: itemTotal(it),
+      }))
+      .slice(0, 40);
   }
 
   function filesEditor(s) {
@@ -1284,6 +1378,7 @@
     const discard = () => { state.send = newSend(); renderSendBody(); };
     $('ppDiscard').addEventListener('click', discard);
     view.querySelectorAll('[data-discard]').forEach((b) => b.addEventListener('click', discard));
+    bindItems();
     $('ppReqForm').addEventListener('submit', (e) => { e.preventDefault(); submitRequest(); });
     view.querySelectorAll('[data-submit]').forEach((b) => b.addEventListener('click', submitRequest));
   }
@@ -1321,6 +1416,7 @@
           notes: notes.slice(0, 5000),
           external_ref: f.external_ref.trim().slice(0, 60),
           files: s.files.map((x) => ({ name: x.name, data_url: x.dataUrl })),
+          items: itemsPayload(s),
         });
         s.files.forEach((x) => x.url && URL.revokeObjectURL(x.url));
         s.sent = { kept: true };
@@ -1341,7 +1437,7 @@
         external_ref: f.external_ref.trim().slice(0, 60),
         target_job_id: update ? s.match.id : '',
         files: s.files.map((x) => ({ name: x.name, data_url: x.dataUrl })),
-        intake: { source: s.ai ? 'ai' : 'manual', fields_checked: s.check, ...(s.model ? { model: s.model.slice(0, 80) } : {}) },
+        intake: { source: s.ai ? 'ai' : 'manual', fields_checked: s.check, ...(s.model ? { model: s.model.slice(0, 80) } : {}), items: itemsPayload(s), labor_total: s.laborTotal },
       }, state.builder ? sendCo().id : undefined);
       s.files.forEach((x) => x.url && URL.revokeObjectURL(x.url));
       s.sent = { update: Boolean(update), jobId: sent.data && sent.data.job_id, direct: Boolean(sent.data && sent.data.status === 'accepted') };

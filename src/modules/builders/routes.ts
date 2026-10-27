@@ -33,7 +33,7 @@ import {
 } from "../../lib/builders/accounts.js";
 import { can, permissionsFor, ROLE_LABELS, BUILDER_ROLES, type BuilderPermission } from "../../lib/builders/roles.js";
 import { builderReferralCoupon, couponTextEn } from "../../lib/billing/coupons.js";
-import { isIntakeReaderConfigured, readWorkOrder, type IntakeFile } from "../../lib/partner-intake/extract.js";
+import { intakeItemsSchema, isIntakeReaderConfigured, readWorkOrder, type IntakeFile } from "../../lib/partner-intake/extract.js";
 
 export const builderAccountRouter = Router();
 
@@ -398,6 +398,7 @@ const pendingSchema = z.object({
   notes: z.string().trim().max(5000).optional().default(""),
   external_ref: z.string().trim().max(60).optional().default(""),
   files: z.array(z.object({ name: z.string().trim().min(1).max(180), data_url: z.string().min(1).max(14_000_000) })).max(5).optional().default([]),
+  items: intakeItemsSchema.optional().default([]),
 });
 
 function decodeUploads(files: Array<{ name: string; data_url: string }>): Array<{ name: string; contentType: string; body: Buffer }> {
@@ -460,7 +461,7 @@ builderAccountRouter.post("/api/builder/read", requireBuilder, needs("jobs.send"
     const files: IntakeFile[] = uploads.map((u, i) => ({ name: u.name, contentType: u.contentType, dataUrl: parsed.data.files[i]!.data_url }));
     const read = await readWorkOrder({ files, text: parsed.data.text });
     if (!read.ok) throw new BuilderError(422, read.error);
-    res.json({ success: true, data: { ai_available: true, model: read.model, fields: read.result.fields, check: read.result.check, warnings: read.result.warnings, match: null } });
+    res.json({ success: true, data: { ai_available: true, model: read.model, fields: read.result.fields, items: read.result.items, labor_total: read.result.labor_total, check: read.result.check, warnings: read.result.warnings, match: null } });
   } catch (error) {
     sendError(res, error, next);
   }

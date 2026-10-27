@@ -87,3 +87,47 @@ describe("findJobMatch", () => {
     expect(findJobMatch(jobs, { address: "Evergreen" })).toBeNull();
   });
 });
+
+import { normalizeItems, normalizeUom, toNumber } from "../src/lib/partner-intake/extract.js";
+import { matchPricingItem } from "../src/lib/builders/jobs.js";
+
+describe("work order lines", () => {
+  it("parses money as printed on orders", () => {
+    expect(toNumber("$ 3,612.00")).toBe(3612);
+    expect(toNumber("$ -")).toBeNull();
+    expect(toNumber(0.6)).toBe(0.6);
+  });
+  it("unifies units", () => {
+    expect(normalizeUom("sq ft")).toBe("SF");
+    expect(normalizeUom("Each")).toBe("EA");
+    expect(normalizeUom("LF")).toBe("LF");
+  });
+  it("keeps labor lines, fills totals and drops a repeated PO line", () => {
+    const items = normalizeItems([
+      { description: "Paradigm Performer 20ml Cashew", detail: "Attached pad", quantity: "2,150", uom: "SF", rate: "$ 1.68", total: "$ 3,612.00" },
+      { description: "End cap", detail: "Install at transitions", quantity: 8, uom: "EA", rate: null, total: "$ -" },
+      { description: "6 mil poly", detail: "Moisture barrier over concrete", quantity: 2150, uom: "SF", rate: 0.1, total: null },
+      { description: "Paradigm Performer 20ml Cashew", detail: "Attached pad", quantity: 2150, uom: "SF", rate: null, total: null },
+      { description: "", detail: "", quantity: 4, uom: "EA" },
+    ]);
+    expect(items).toHaveLength(3);
+    expect(items[0]).toMatchObject({ quantity: 2150, rate: 1.68, total: 3612 });
+    expect(items[1]).toMatchObject({ quantity: 8, uom: "EA", rate: null, total: null });
+    expect(items[2]).toMatchObject({ total: 215 });
+  });
+  it("warns when the lines don't add up to the printed labor total", () => {
+    const r = normalizeIntake({ address: "1083 Golf Estates Pt", items: [{ description: "Install", quantity: 100, uom: "SF", rate: 1, total: 100 }], labor_total: "$ 150.00" });
+    expect(r.labor_total).toBe(150);
+    expect(r.warnings.join(" ")).toMatch(/não bate/);
+  });
+  it("matches a price-list item only when the whole name and the unit fit", () => {
+    const list = [
+      { id: "a", name: "Moisture barrier", unit: "sq_ft" },
+      { id: "b", name: "End cap", unit: "each" },
+      { id: "c", name: "Stair tread", unit: "step" },
+    ];
+    expect(matchPricingItem({ description: "6 mil poly", detail: "Install moisture barrier over concrete", uom: "SF" }, list)?.id).toBe("a");
+    expect(matchPricingItem({ description: "End cap - Paradigm", detail: "transitions", uom: "EA" }, list)?.id).toBe("b");
+    expect(matchPricingItem({ description: "End cap - Paradigm", detail: "transitions", uom: "SF" }, list)).toBeNull();
+  });
+});
