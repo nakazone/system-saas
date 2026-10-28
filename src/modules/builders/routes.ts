@@ -32,6 +32,18 @@ import {
   type ActiveMember,
 } from "../../lib/builders/accounts.js";
 import { can, permissionsFor, ROLE_LABELS, BUILDER_ROLES, type BuilderPermission } from "../../lib/builders/roles.js";
+import {
+  addPhoto,
+  completeMeasurement,
+  createMeasurement,
+  deleteMeasurement,
+  getMeasurement,
+  listMeasurements,
+  findMeasurementForAddress,
+  measurementPack,
+  photoStream,
+  saveMeasurement,
+} from "../../lib/builders/measurements.js";
 import { builderReferralCoupon, couponTextEn } from "../../lib/billing/coupons.js";
 import { intakeItemsSchema, isIntakeReaderConfigured, readWorkOrder, type IntakeFile } from "../../lib/partner-intake/extract.js";
 
@@ -291,6 +303,99 @@ builderAccountRouter.use("/api/partner-portal", async (req: Request, res: Respon
   }
 });
 
+/* ───────────────────────── measurements (stairs & vents) ───────────────────────── */
+
+builderAccountRouter.get("/api/builder/measurements", requireBuilder, needs("measure"), async (req: BuilderReq, res, next) => {
+  try {
+    res.json({ success: true, data: await listMeasurements(req.builderMember!) });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
+builderAccountRouter.get("/api/builder/measurements/match", requireBuilder, async (req: BuilderReq, res, next) => {
+  try {
+    res.json({ success: true, data: await findMeasurementForAddress(req.builderMember!.builderAccountId, String(req.query.address || "")) });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
+builderAccountRouter.post("/api/builder/measurements", requireBuilder, needs("measure"), async (req: BuilderReq, res, next) => {
+  try {
+    res.status(201).json({ success: true, data: await createMeasurement(req.builderMember!, req.body || {}) });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
+builderAccountRouter.get("/api/builder/measurements/:id", requireBuilder, needs("measure"), async (req: BuilderReq, res, next) => {
+  try {
+    res.json({ success: true, data: await getMeasurement(req.builderMember!, String(req.params.id)) });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
+builderAccountRouter.put("/api/builder/measurements/:id", requireBuilder, needs("measure"), async (req: BuilderReq, res, next) => {
+  try {
+    res.json({ success: true, data: await saveMeasurement(req.builderMember!, String(req.params.id), req.body || {}) });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
+builderAccountRouter.post("/api/builder/measurements/:id/complete", requireBuilder, needs("measure"), async (req: BuilderReq, res, next) => {
+  try {
+    res.json({ success: true, data: await completeMeasurement(req.builderMember!, String(req.params.id), req.body?.done !== false) });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
+builderAccountRouter.delete("/api/builder/measurements/:id", requireBuilder, needs("measure"), async (req: BuilderReq, res, next) => {
+  try {
+    await deleteMeasurement(req.builderMember!, String(req.params.id));
+    res.json({ success: true });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
+builderAccountRouter.post("/api/builder/measurements/:id/photos", requireBuilder, needs("measure"), async (req: BuilderReq, res, next) => {
+  try {
+    res.status(201).json({ success: true, data: await addPhoto(req.builderMember!, String(req.params.id), String(req.body?.data_url || "")) });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
+builderAccountRouter.get("/api/builder/measurements/:id/photo", requireBuilder, async (req: BuilderReq, res, next) => {
+  try {
+    const { stream, contentType } = await photoStream(req.builderMember!, String(req.params.id), String(req.query.key || ""));
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Cache-Control", "private, max-age=3600");
+    stream.pipe(res);
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
+builderAccountRouter.get("/api/builder/measurements/:id/pdf", requireBuilder, async (req: BuilderReq, res, next) => {
+  try {
+    const m = req.builderMember!;
+    await getMeasurement(m, String(req.params.id));
+    const pack = await measurementPack(m.builderAccountId, String(req.params.id));
+    if (!pack) throw new BuilderError(404, "Medição não encontrada.");
+    const pdf = pack.files[0]!;
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(pdf.name)}"`);
+    res.send(pdf.body);
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
 builderAccountRouter.get("/api/builder/me", requireBuilder, async (req: BuilderReq, res, next) => {
   try {
     const m = req.builderMember!;
@@ -400,6 +505,7 @@ const pendingSchema = z.object({
   files: z.array(z.object({ name: z.string().trim().min(1).max(180), data_url: z.string().min(1).max(14_000_000) })).max(5).optional().default([]),
   items: intakeItemsSchema.optional().default([]),
   pickup: z.string().trim().max(200).optional().default(""),
+  measurement_id: z.union([z.string().uuid(), z.literal("")]).optional().default(""),
 });
 
 function decodeUploads(files: Array<{ name: string; data_url: string }>): Array<{ name: string; contentType: string; body: Buffer }> {
@@ -462,7 +568,7 @@ builderAccountRouter.post("/api/builder/read", requireBuilder, needs("jobs.send"
     const files: IntakeFile[] = uploads.map((u, i) => ({ name: u.name, contentType: u.contentType, dataUrl: parsed.data.files[i]!.data_url }));
     const read = await readWorkOrder({ files, text: parsed.data.text });
     if (!read.ok) throw new BuilderError(422, read.error);
-    res.json({ success: true, data: { ai_available: true, model: read.model, fields: read.result.fields, items: read.result.items, labor_total: read.result.labor_total, check: read.result.check, warnings: read.result.warnings, match: null } });
+    res.json({ success: true, data: { ai_available: true, model: read.model, fields: read.result.fields, measurement: await findMeasurementForAddress(req.builderMember!.builderAccountId, read.result.fields.address).catch(() => null), items: read.result.items, labor_total: read.result.labor_total, check: read.result.check, warnings: read.result.warnings, match: null } });
   } catch (error) {
     sendError(res, error, next);
   }

@@ -24,6 +24,7 @@ import { activeLinkFor, ensureShadowPartnerUser, loadActiveMember, type ActiveMe
 import { can, permissionsFor, type BuilderPermission, type PortalRole } from "../../lib/builders/roles.js";
 import { publishAppNotification } from "../../lib/notifications/publish.js";
 import { applyBuilderJobEdit, jobEditSchema, JobEditError } from "../../lib/builders/job-edit.js";
+import { findMeasurementForAddress, markMeasurementUsed, measurementPack } from "../../lib/builders/measurements.js";
 import { findJobMatch, intakeItemsSchema, isIntakeReaderConfigured, readWorkOrder, type IntakeFile } from "../../lib/partner-intake/extract.js";
 
 type PartnerRequest = TenantRequest & {
@@ -765,6 +766,7 @@ partnerPortalRouter.post("/api/partner-portal/requests", requirePartnerAuth, req
         items: intakeItemsSchema.optional(),
         labor_total: z.number().min(0).max(100_000_000).nullable().optional(),
         pickup: z.string().trim().max(200).optional(),
+        measurement_id: z.string().uuid().optional(),
       }).optional(),
     }).safeParse(req.body || {});
     if (!parsed.success) {
@@ -801,6 +803,13 @@ partnerPortalRouter.post("/api/partner-portal/requests", requirePartnerAuth, req
       res.status(400).json({ success: false, error: "O total dos arquivos deve ser menor que 10 MB." });
       return;
     }
+    // Builder measurement for this address: its PDF and photos go with the request, sizes go to the job.
+    const measurementId = req.builderMember ? parsed.data.intake?.measurement_id : undefined;
+    const pack = measurementId ? await measurementPack(req.builderMember!.builderAccountId, measurementId) : null;
+    if (parsed.data.intake) {
+      delete (parsed.data.intake as { measurement_id?: string }).measurement_id;
+      if (pack) Object.assign(parsed.data.intake, { measurement_id: measurementId, measurement_text: pack.text, measurement_lines: pack.summary });
+    }
 
     const row = await withTenantTransaction(user.organizationId, (tx) =>
       tx.partnerJobRequest.create({
@@ -835,6 +844,11 @@ partnerPortalRouter.post("/api/partner-portal/requests", requirePartnerAuth, req
         const stored = await storage.upload({ key, body, contentType });
         savedFiles.push({ key: stored.key, name: safeName, contentType, size: stored.size });
       }
+      for (const file of pack?.files || []) {
+        const key = `orgs/${user.organizationId}/partner-requests/${row.id}/${randomUUID()}`;
+        const stored = await storage.upload({ key, body: file.body, contentType: file.contentType });
+        savedFiles.push({ key: stored.key, name: safeFileName(file.name, `medicao-${savedFiles.length + 1}`), contentType: file.contentType, size: stored.size });
+      }
       await withTenantTransaction(user.organizationId, (tx) => tx.partnerJobRequest.update({
         where: { id: row.id },
         data: { files: savedFiles as unknown as Prisma.InputJsonValue },
@@ -848,6 +862,7 @@ partnerPortalRouter.post("/api/partner-portal/requests", requirePartnerAuth, req
     if (req.builderMember) {
       const applied = await withTenantTransaction(user.organizationId, (tx) => applyPartnerRequest(tx, user.organizationId, row.id, null));
       if (applied.kind === "accepted") {
+        if (pack && measurementId) await markMeasurementUsed(req.builderMember.builderAccountId, measurementId, user.organizationId, applied.job_id, req.builderMember.name).catch(() => undefined);
         const job = await withTenantTransaction(user.organizationId, (tx) => tx.workOrder.findFirst({ where: { id: applied.job_id }, select: { number: true, title: true } }));
         await publishAppNotification({
           organizationId: user.organizationId,
@@ -952,6 +967,7 @@ partnerPortalRouter.post("/api/partner-portal/requests/read", requirePartnerAuth
         fields: read.result.fields,
         items: read.result.items,
         labor_total: read.result.labor_total,
+        measurement: req.builderMember ? await findMeasurementForAddress(req.builderMember.builderAccountId, read.result.fields.address).catch(() => null) : null,
         catalog: catalog.map((c) => ({ id: c.id, name: c.name, unit: c.unit, category: c.category })),
         check: read.result.check,
         warnings: read.result.warnings,

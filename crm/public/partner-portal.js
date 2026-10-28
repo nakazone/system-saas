@@ -376,7 +376,7 @@
     const key = map[name] || name;
     document.querySelectorAll('[data-nav]').forEach((el) => {
       const nav = el.getAttribute('data-nav');
-      const on = nav === key || (nav === 'mais' && ['documentos', 'enviar', 'mais', 'empresas', 'equipe'].includes(key) && el.classList.contains('pp-tab'));
+      const on = nav === key || (nav === 'mais' && ['documentos', 'enviar', 'mais', 'empresas', 'equipe', 'medicoes'].includes(key) && el.classList.contains('pp-tab'));
       if (on) el.setAttribute('aria-current', 'page');
       else el.removeAttribute('aria-current');
     });
@@ -407,6 +407,11 @@
     try {
       if (state.builder && r.name === 'empresas') { await renderCompanies(token); updateCounts(); return; }
       if (state.builder && r.name === 'equipe') { await renderTeam(token); updateCounts(); return; }
+      if (state.builder && r.name === 'medicoes') {
+        if (!canDo('measure')) { view.innerHTML = '<div class="pp-card pp-empty"><strong>Seu papel não faz medições</strong>Peça ao admin da equipe.</div>'; return; }
+        await renderMeasurements(r.id, token); updateCounts(); return;
+      }
+      if (state.meas && state.meas.dirty) measSaveNow();
       if (state.builder && !companyActive() && !['enviar', 'mais'].includes(r.name)) { await renderNoCompany(token); updateCounts(); return; }
       if (r.name === 'jobs') await renderJobs(r.id, token);
       else if (r.name === 'invoices') await renderInvoices(r.id, token);
@@ -1951,6 +1956,501 @@
     tools.innerHTML = `<label>${companies.length ? `Empresas · ${companies.length}` : 'Empresas'}</label><a class="pp-menu-item" href="#empresas" style="text-decoration:none">${canDo('companies.manage') ? 'Conectar ou convidar empresa' : 'Ver empresas'}</a><a class="pp-menu-item" href="#equipe" style="text-decoration:none">Equipe</a>`;
     document.querySelectorAll('[data-builder-only]').forEach((el) => { el.hidden = false; });
     document.querySelectorAll('[data-nav="invoices"]').forEach((el) => { el.hidden = !canDo('money.view'); });
+    document.querySelectorAll('[data-nav="medicoes"]').forEach((el) => { el.hidden = !canDo('measure'); });
+  }
+
+  /* ─────────────────────────── measurements (stairs & vents) ─────────────────────────── */
+
+  const SPECIES = ['White Oak', 'Red Oak', 'Hickory', 'Maple', 'Walnut', 'Ash', 'Brazilian Cherry'];
+  const FINISHES = ['Unfinished (acabamento no local)', 'Prefinished', 'Primed'];
+  const VENT_SIZES = ['2x10', '2x12', '3x10', '3x12', '4x10', '4x12', '4x14', '6x10', '6x12'];
+  const OPEN_OPTS = [['none', 'Fechado'], ['left', 'Esquerdo aberto'], ['right', 'Direito aberto'], ['both', 'Os dois abertos']];
+  const RET_OPTS = [['45', 'Retorno 45°'], ['flat', 'Retorno reto (flat)'], ['bullnose', 'Bullnose']];
+  const VENT_TYPES = [['flush', 'Flush mount'], ['self_rimming', 'Self-rimming (drop-in)'], ['return_air', 'Return air']];
+  const RISER_OPTS = [['same', 'Mesma madeira'], ['primed', 'Primed'], ['paint_grade', 'Paint grade'], ['none', 'Sem riser']];
+  const FRAC = { '¼': 0.25, '½': 0.5, '¾': 0.75, '⅛': 0.125, '⅜': 0.375, '⅝': 0.625, '⅞': 0.875 };
+
+  function uid() {
+    return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+  }
+  /** "11 1/4", "11¼", "11-1/4", "11.25" → 11.25 (same rules as the server). */
+  function parseIn(raw) {
+    let s = String(raw || '').trim().replace(/["”″]|in\b|pol\b/gi, '').replace(/,/g, '.').trim();
+    if (!s) return null;
+    let extra = 0;
+    Object.entries(FRAC).forEach(([ch, v]) => { if (s.includes(ch)) { extra += v; s = s.replace(ch, ' '); } });
+    const m = /^(\d+(?:\.\d+)?)?(?:[\s-]+)?(?:(\d+)\/(\d+))?\s*$/.exec(s.trim());
+    if (!m || (!m[1] && !m[2] && !extra)) return null;
+    const n = (m[1] ? Number(m[1]) : 0) + (m[2] && m[3] && Number(m[3]) ? Number(m[2]) / Number(m[3]) : 0) + extra;
+    return Number.isFinite(n) ? Math.round(n * 1000) / 1000 : null;
+  }
+  function fmtIn(n) {
+    if (n == null || !Number.isFinite(Number(n))) return '';
+    const v = Number(n);
+    const whole = Math.floor(v + 1e-9);
+    const rest = Math.round((v - whole) * 1000) / 1000;
+    if (!rest) return String(whole);
+    const g = Object.entries(FRAC).find(([, f]) => Math.abs(f - rest) < 0.002);
+    return g ? `${whole || ''}${g[0]}` : String(Math.round(v * 100) / 100);
+  }
+  function openText(open, ret) {
+    if (open === 'none') return 'fechado';
+    const side = { left: 'esq. aberto', right: 'dir. aberto', both: 'dois lados abertos' }[open] || open;
+    return `${side} · ${{ '45': '45°', flat: 'flat', bullnose: 'bullnose' }[ret] || ret}`;
+  }
+  /** Same grouping the PDF uses: equal pieces counted together. */
+  function measSummary(data) {
+    const out = [];
+    (data.stairs || []).forEach((s) => {
+      const wood = [s.species, s.finish, s.color].filter(Boolean).join(' · ');
+      const label = s.name || 'Escada';
+      const tr = new Map();
+      const ri = new Map();
+      (s.steps || []).forEach((st) => {
+        if (st.tread_w || st.tread_d) { const k = `${fmtIn(st.tread_w) || '?'}" × ${fmtIn(st.tread_d) || '?'}" · ${openText(st.open, st.ret)}`; tr.set(k, (tr.get(k) || 0) + 1); }
+        if (!st.no_riser && s.riser_material !== 'none' && (st.riser_w || st.riser_h)) { const k = `${fmtIn(st.riser_w) || '?'}" × ${fmtIn(st.riser_h) || '?'}"`; ri.set(k, (ri.get(k) || 0) + 1); }
+      });
+      tr.forEach((n, k) => out.push({ kind: 'Tread', group: label, text: `${wood ? `${wood} · ` : ''}${k}`, qty: n }));
+      const rw = s.riser_material === 'primed' ? 'Primed' : s.riser_material === 'paint_grade' ? 'Paint grade' : wood;
+      ri.forEach((n, k) => out.push({ kind: 'Riser', group: label, text: `${rw ? `${rw} · ` : ''}${k}`, qty: n }));
+      (s.nosings || []).forEach((ns) => { if (ns.length) out.push({ kind: 'Nosing', group: label, text: `${fmtIn(ns.length)}" · ${{ flush: 'flush', overlap: 'overlap', stair_nose: 'stair nose' }[ns.type] || ns.type}`, qty: ns.qty || 1 }); });
+    });
+    const vm = new Map();
+    (data.vents || []).forEach((v) => {
+      const k = `${v.size || '?'} · ${(VENT_TYPES.find((t) => t[0] === v.type) || [0, v.type])[1]}${[v.species, v.finish, v.color].filter(Boolean).length ? ` · ${[v.species, v.finish, v.color].filter(Boolean).join(' · ')}` : ''}`;
+      vm.set(k, (vm.get(k) || 0) + (v.qty || 1));
+    });
+    vm.forEach((n, k) => out.push({ kind: 'Vent', group: 'Vents', text: k, qty: n }));
+    return out;
+  }
+  function measCounts(data) {
+    let treads = 0; let risers = 0; let nosings = 0;
+    (data.stairs || []).forEach((s) => {
+      (s.steps || []).forEach((st) => { if (st.tread_w || st.tread_d) treads += 1; if (!st.no_riser && s.riser_material !== 'none' && (st.riser_w || st.riser_h)) risers += 1; });
+      (s.nosings || []).forEach((n) => { if (n.length) nosings += n.qty || 1; });
+    });
+    const vents = (data.vents || []).reduce((a, v) => a + (v.qty || 1), 0);
+    return { stairs: (data.stairs || []).length, treads, risers, nosings, vents };
+  }
+  function countsText(c) {
+    return [c.stairs ? plural(c.stairs, 'escada', 'escadas') : '', c.treads ? `${c.treads} treads` : '', c.risers ? `${c.risers} risers` : '', c.nosings ? `${c.nosings} nosings` : '', c.vents ? plural(c.vents, 'vent', 'vents') : ''].filter(Boolean).join(' · ') || 'Nada medido ainda';
+  }
+  function measStatusChip(m) {
+    if (m.status === 'used') return '<span class="pp-chip pp-chip--dark">Enviada no job</span>';
+    if (m.status === 'done') return '<span class="pp-chip pp-chip--ok">Concluída</span>';
+    return '<span class="pp-chip pp-chip--late">Em andamento</span>';
+  }
+  function newStair(n) {
+    return { id: uid(), name: n ? `Escada ${n}` : 'Escada principal', species: 'White Oak', finish: FINISHES[0], color: '', riser_material: 'same', steps: [], nosings: [], photos: [], note: '' };
+  }
+  function newStep(prev) {
+    return prev
+      ? { ...prev, id: uid(), note: '' }
+      : { id: uid(), tread_w: null, tread_d: null, riser_w: null, riser_h: null, open: 'none', ret: '45', no_riser: false, note: '' };
+  }
+  function newVent(prev) {
+    return prev ? { ...prev, id: uid(), room: '', photos: [], note: '' } : { id: uid(), room: '', size: '4x10', type: 'flush', species: 'White Oak', finish: FINISHES[0], color: '', qty: 1, photos: [], note: '' };
+  }
+
+  async function renderMeasurements(id, token) {
+    if (id) return renderMeasurement(id, token);
+    const r = await api('/api/builder/measurements');
+    if (token !== renderToken) return;
+    const rows = r.data || [];
+    view.innerHTML = `
+      <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder.account.name)}</p><h1>Medições</h1></div><div class="pp-head-actions"><button type="button" class="pp-btn pp-btn--pri" id="ppMeasNewBtn">Nova medição</button></div></div>
+      <p class="pp-muted pp-meas-intro">Meça escadas (treads, risers e nosings) e vents na obra. A medição fica salva pelo endereço e vai junto quando você enviar a Work Order dessa casa.</p>
+      <form class="pp-card pp-block pp-meas-new" id="ppMeasNew" ${rows.length ? 'hidden' : ''} novalidate>
+        <h3>Nova medição</h3>
+        <div class="pp-fields">
+          <div class="pp-field pp-field--wide"><label for="ppMnAddr">Endereço da obra *</label><input id="ppMnAddr" maxlength="300" autocomplete="street-address" data-om-address-autocomplete required placeholder="Ex.: 322 Lower Ranch View Rd, Granby, CO" /></div>
+          <div class="pp-field"><label for="ppMnCom">Comunidade</label><input id="ppMnCom" maxlength="120" /></div>
+          <div class="pp-field"><label for="ppMnLot">Lote</label><input id="ppMnLot" maxlength="20" /></div>
+        </div>
+        <p class="pp-error" id="ppMnErr" role="alert" hidden></p>
+        <div><button type="submit" class="pp-btn pp-btn--pri" id="ppMnSave">Começar a medir</button></div>
+      </form>
+      <div class="pp-card" style="overflow:hidden">
+        ${rows.length ? rows.map((m) => `<a class="pp-row pp-meas-row" href="#medicoes/${esc(m.id)}" style="text-decoration:none">
+            <span class="pp-row-main">
+              <span class="pp-row-top"><strong>${esc(m.address)}</strong>${measStatusChip(m)}</span>
+              <span class="pp-row-sub">${esc([m.community, m.lot ? `Lote ${m.lot}` : ''].filter(Boolean).join(' · '))}${m.community || m.lot ? ' · ' : ''}${esc(countsText(m.counts))}</span>
+              <span class="pp-row-next">${esc(m.completed_by || m.updated_by || m.created_by || '')} · ${esc(fmtDay(m.completed_at || m.updated_at))}</span>
+            </span>
+          </a>`).join('') : '<div class="pp-empty"><strong>Nenhuma medição ainda</strong>Comece pelo endereço da casa.</div>'}
+      </div>`;
+    if (typeof window.sfBootCrmAddressAutocomplete === 'function') window.sfBootCrmAddressAutocomplete();
+    $('ppMeasNewBtn').addEventListener('click', () => { const f = $('ppMeasNew'); f.hidden = false; $('ppMnAddr').focus(); });
+    $('ppMeasNew').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const err = $('ppMnErr');
+      err.hidden = true;
+      const btn = $('ppMnSave');
+      btn.disabled = true;
+      try {
+        const res = await postJson('/api/builder/measurements', { address: $('ppMnAddr').value.trim(), community: $('ppMnCom').value.trim(), lot: $('ppMnLot').value.trim() });
+        location.hash = `#medicoes/${res.data.id}`;
+      } catch (ex) {
+        err.textContent = ex.message || 'Não foi possível criar.';
+        err.hidden = false;
+        btn.disabled = false;
+      }
+    });
+  }
+
+  let measSaveTimer = null;
+  function measSaveSoon() {
+    const m = state.meas;
+    if (!m) return;
+    m.dirty = true;
+    paintMeasSaved();
+    clearTimeout(measSaveTimer);
+    measSaveTimer = setTimeout(measSaveNow, 700);
+  }
+  async function measSaveNow() {
+    const m = state.meas;
+    if (!m || !m.dirty || m.status === 'used') return;
+    clearTimeout(measSaveTimer);
+    m.dirty = false;
+    m.saving = true;
+    paintMeasSaved();
+    try {
+      const r = await api(`/api/builder/measurements/${encodeURIComponent(m.id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: m.data, notes: m.notes || '', community: m.community || '', lot: m.lot || '' }) });
+      m.updated_at = r.data.updated_at;
+      m.log = r.data.log;
+      m.saveError = '';
+    } catch (e) {
+      m.dirty = true;
+      m.saveError = e.message || 'Não salvou.';
+    }
+    m.saving = false;
+    paintMeasSaved();
+  }
+  function paintMeasSaved() {
+    const el = $('ppMeasSaved');
+    const m = state.meas;
+    if (!el || !m) return;
+    el.textContent = m.saveError ? `Não salvou · ${m.saveError}` : m.saving ? 'Salvando…' : m.dirty ? 'Alterações…' : 'Salvo';
+    el.classList.toggle('pp-late', Boolean(m.saveError));
+  }
+  window.addEventListener('beforeunload', () => { if (state.meas && state.meas.dirty) measSaveNow(); });
+
+  async function renderMeasurement(id, token) {
+    if (!state.meas || state.meas.id !== id) {
+      if (state.meas && state.meas.dirty) await measSaveNow();
+      const r = await api(`/api/builder/measurements/${encodeURIComponent(id)}`);
+      if (token !== renderToken) return;
+      state.meas = { ...r.data, tab: 'stairs', dirty: false };
+    }
+    paintMeasurement();
+  }
+
+  function sel(opts, value, attrs) {
+    return `<select ${attrs}>${opts.map(([v, l]) => `<option value="${esc(v)}" ${String(v) === String(value) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+  }
+  function selFree(list, value, attrs, otherLabel) {
+    const has = !value || list.includes(value);
+    return `<select ${attrs}>${list.map((v) => `<option ${v === value ? 'selected' : ''}>${esc(v)}</option>`).join('')}<option value="__other" ${has ? '' : 'selected'}>${esc(otherLabel || 'Outro…')}</option></select>${has ? '' : ''}`;
+  }
+  function photoStrip(m, list, path) {
+    const locked = m.status === 'used';
+    return `<div class="pp-meas-photos">${(list || []).map((k, i) => `<span class="pp-meas-ph"><img src="/api/builder/measurements/${encodeURIComponent(m.id)}/photo?key=${encodeURIComponent(k)}" alt="Foto ${i + 1}" loading="lazy" />${locked ? '' : `<button type="button" data-ph-rm="${esc(path)}" data-ph-i="${i}" aria-label="Tirar foto ${i + 1}">×</button>`}</span>`).join('')}${locked ? '' : `<label class="pp-meas-addph"><input type="file" accept="image/*" capture="environment" data-ph-add="${esc(path)}" hidden />${icon('camera')}<span>Foto</span></label>`}</div>`;
+  }
+  function inch(path, value, label, locked) {
+    return `<input class="pp-in" inputmode="decimal" data-in="${esc(path)}" value="${esc(fmtIn(value))}" placeholder="—" aria-label="${esc(label)}" ${locked ? 'disabled' : ''} />`;
+  }
+
+  function stairHtml(m, s, si) {
+    const locked = m.status === 'used';
+    const p = `stairs.${si}`;
+    const steps = (s.steps || []).map((st, i) => `<div class="pp-step ${st.open !== 'none' ? 'is-open' : ''}" role="listitem">
+        <span class="pp-step-n">${i + 1}</span>
+        <div class="pp-step-dim"><span class="pp-step-lbl">Tread</span>${inch(`${p}.steps.${i}.tread_w`, st.tread_w, `Tread ${i + 1} largura`, locked)}<em>×</em>${inch(`${p}.steps.${i}.tread_d`, st.tread_d, `Tread ${i + 1} profundidade`, locked)}</div>
+        <div class="pp-step-dim ${s.riser_material === 'none' || st.no_riser ? 'is-off' : ''}"><span class="pp-step-lbl">Riser</span>${inch(`${p}.steps.${i}.riser_w`, st.riser_w, `Riser ${i + 1} largura`, locked || s.riser_material === 'none' || st.no_riser)}<em>×</em>${inch(`${p}.steps.${i}.riser_h`, st.riser_h, `Riser ${i + 1} altura`, locked || s.riser_material === 'none' || st.no_riser)}</div>
+        <div class="pp-step-side"><span class="pp-step-lbl">Lado</span>${sel(OPEN_OPTS, st.open, `data-set="${p}.steps.${i}.open" aria-label="Lado aberto do degrau ${i + 1}" ${locked ? 'disabled' : ''}`)}</div>
+        <div class="pp-step-ret"><span class="pp-step-lbl">Retorno</span>${sel(RET_OPTS, st.ret, `data-set="${p}.steps.${i}.ret" aria-label="Retorno do degrau ${i + 1}" ${locked || st.open === 'none' ? 'disabled' : ''}`)}</div>
+        ${locked ? '' : `<div class="pp-step-act"><button type="button" class="pp-q-ic" data-step-down="${si}:${i}" title="Copiar para os degraus de baixo" aria-label="Copiar o degrau ${i + 1} para os de baixo">⇣</button><button type="button" class="pp-q-ic pp-q-ic--del" data-step-rm="${si}:${i}" aria-label="Tirar degrau ${i + 1}">×</button></div>`}
+      </div>`).join('');
+    const nos = (s.nosings || []).map((n, i) => `<div class="pp-nos">
+        <label><span class="pp-step-lbl">Comprimento</span>${inch(`${p}.nosings.${i}.length`, n.length, `Nosing ${i + 1} comprimento`, locked)}</label>
+        <label><span class="pp-step-lbl">Qtd</span><input type="number" min="1" max="500" data-num="${p}.nosings.${i}.qty" value="${esc(n.qty || 1)}" ${locked ? 'disabled' : ''} /></label>
+        <label><span class="pp-step-lbl">Tipo</span>${sel([['flush', 'Flush'], ['overlap', 'Overlap'], ['stair_nose', 'Stair nose']], n.type, `data-set="${p}.nosings.${i}.type" ${locked ? 'disabled' : ''}`)}</label>
+        <label class="pp-nos-note"><span class="pp-step-lbl">Onde</span><input data-txt="${p}.nosings.${i}.note" value="${esc(n.note)}" maxlength="200" placeholder="Ex.: topo da escada, landing" ${locked ? 'disabled' : ''} /></label>
+        ${locked ? '' : `<button type="button" class="pp-q-ic pp-q-ic--del" data-nos-rm="${si}:${i}" aria-label="Tirar nosing ${i + 1}">×</button>`}
+      </div>`).join('');
+    return `<section class="pp-card pp-stair" aria-label="${esc(s.name || 'Escada')}">
+      <div class="pp-stair-head">
+        <input class="pp-stair-name" data-txt="${p}.name" value="${esc(s.name)}" maxlength="80" aria-label="Nome da escada" ${locked ? 'disabled' : ''} />
+        <span class="pp-muted">${(s.steps || []).length} degraus</span>
+        ${locked ? '' : `<button type="button" class="pp-q-ic pp-q-ic--del" data-stair-rm="${si}" aria-label="Tirar ${esc(s.name || 'escada')}">×</button>`}
+      </div>
+      <div class="pp-stair-spec">
+        <label><span>Madeira</span>${selFree(SPECIES, s.species, `data-free="${p}.species" ${locked ? 'disabled' : ''}`)}${SPECIES.includes(s.species) || !s.species ? '' : `<input data-txt="${p}.species" value="${esc(s.species)}" maxlength="60" ${locked ? 'disabled' : ''} />`}</label>
+        <label><span>Acabamento</span>${selFree(FINISHES, s.finish, `data-free="${p}.finish" ${locked ? 'disabled' : ''}`)}${FINISHES.includes(s.finish) || !s.finish ? '' : `<input data-txt="${p}.finish" value="${esc(s.finish)}" maxlength="60" ${locked ? 'disabled' : ''} />`}</label>
+        <label><span>Cor / stain</span><input data-txt="${p}.color" value="${esc(s.color)}" maxlength="80" placeholder="Ex.: Natural, Jacobean" ${locked ? 'disabled' : ''} /></label>
+        <label><span>Risers</span>${sel(RISER_OPTS, s.riser_material, `data-set="${p}.riser_material" ${locked ? 'disabled' : ''}`)}</label>
+      </div>
+      <div class="pp-steps-head" aria-hidden="true"><span>#</span><span>Tread (larg. × prof.)</span><span>Riser (larg. × alt.)</span><span>Lado aberto</span><span>Retorno</span><span></span></div>
+      <div class="pp-steps" role="list">${steps || '<p class="pp-q-empty">Adicione o primeiro degrau. Medidas em polegadas: 48, 11 1/4, 11¼ ou 11.25.</p>'}</div>
+      ${locked ? '' : `<div class="pp-stair-add">
+        <button type="button" class="pp-q-add" data-step-add="${si}">+ Degrau${(s.steps || []).length ? ' (igual ao último)' : ''}</button>
+        ${(s.steps || []).length ? `<span class="pp-stair-many"><label for="ppMany-${si}">Mais</label><input id="ppMany-${si}" type="number" min="1" max="40" value="5" /><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-step-many="${si}">degraus iguais</button></span>` : ''}
+      </div>`}
+      <div class="pp-stair-sub"><h4>Nosings</h4>${nos || '<p class="pp-muted" style="margin:0;font-size:13px">Nenhum nosing (landing / topo).</p>'}${locked ? '' : `<button type="button" class="pp-link" data-nos-add="${si}">+ Nosing</button>`}</div>
+      <div class="pp-stair-sub"><h4>Fotos</h4>${photoStrip(m, s.photos, `${p}.photos`)}</div>
+      <div class="pp-stair-sub"><h4>Observações</h4><textarea data-txt="${p}.note" maxlength="500" placeholder="Ex.: parede torta no lado direito, skirt board existente" ${locked ? 'disabled' : ''}>${esc(s.note)}</textarea></div>
+    </section>`;
+  }
+
+  function ventsHtml(m) {
+    const locked = m.status === 'used';
+    const rows = (m.data.vents || []).map((v, i) => {
+      const p = `vents.${i}`;
+      const knownSize = VENT_SIZES.includes(v.size);
+      return `<section class="pp-card pp-vent" aria-label="Vent ${i + 1}">
+        <div class="pp-vent-grid">
+          <label><span>Ambiente</span><input data-txt="${p}.room" value="${esc(v.room)}" maxlength="80" placeholder="Ex.: Master bedroom" ${locked ? 'disabled' : ''} /></label>
+          <label><span>Tamanho</span><select data-vsize="${p}" ${locked ? 'disabled' : ''}>${VENT_SIZES.map((sz) => `<option ${sz === v.size ? 'selected' : ''}>${sz}</option>`).join('')}<option value="__other" ${knownSize ? '' : 'selected'}>Outro…</option></select>${knownSize ? '' : `<input data-txt="${p}.size" value="${esc(v.size)}" maxlength="20" placeholder="Ex.: 4x16" ${locked ? 'disabled' : ''} />`}</label>
+          <label><span>Tipo</span>${sel(VENT_TYPES, v.type, `data-set="${p}.type" ${locked ? 'disabled' : ''}`)}</label>
+          <label><span>Qtd</span><input type="number" min="1" max="500" data-num="${p}.qty" value="${esc(v.qty || 1)}" ${locked ? 'disabled' : ''} /></label>
+          <label><span>Madeira</span>${selFree(SPECIES, v.species, `data-free="${p}.species" ${locked ? 'disabled' : ''}`)}${SPECIES.includes(v.species) || !v.species ? '' : `<input data-txt="${p}.species" value="${esc(v.species)}" maxlength="60" ${locked ? 'disabled' : ''} />`}</label>
+          <label><span>Acabamento</span>${selFree(FINISHES, v.finish, `data-free="${p}.finish" ${locked ? 'disabled' : ''}`)}${FINISHES.includes(v.finish) || !v.finish ? '' : `<input data-txt="${p}.finish" value="${esc(v.finish)}" maxlength="60" ${locked ? 'disabled' : ''} />`}</label>
+          <label><span>Cor / stain</span><input data-txt="${p}.color" value="${esc(v.color)}" maxlength="80" ${locked ? 'disabled' : ''} /></label>
+          <label class="pp-vent-note"><span>Observação</span><input data-txt="${p}.note" value="${esc(v.note)}" maxlength="300" ${locked ? 'disabled' : ''} /></label>
+        </div>
+        <div class="pp-vent-foot">${photoStrip(m, v.photos, `${p}.photos`)}${locked ? '' : `<button type="button" class="pp-q-ic pp-q-ic--del" data-vent-rm="${i}" aria-label="Tirar vent ${i + 1}">×</button>`}</div>
+      </section>`;
+    }).join('');
+    return `${rows || '<div class="pp-card pp-empty"><strong>Nenhum vent medido</strong>Adicione cada vent com tamanho, tipo e acabamento.</div>'}${locked ? '' : '<button type="button" class="pp-q-add pp-q-add--block" id="ppVentAdd">+ Vent (igual ao último)</button>'}`;
+  }
+
+  function measSummaryHtml(m) {
+    const lines = measSummary(m.data);
+    return `<h3>Resumo</h3>${lines.length ? `<ul class="pp-meas-sum">${lines.map((l) => `<li><span><b>${esc(l.kind)}</b> ${esc(l.text)}<small>${esc(l.group)}</small></span><em>${l.qty} EA</em></li>`).join('')}</ul>` : '<p class="pp-muted" style="margin:0">As peças aparecem aqui agrupadas por medida, como na Work Order.</p>'}`;
+  }
+
+  function paintMeasurement() {
+    const m = state.meas;
+    const locked = m.status === 'used';
+    const c = measCounts(m.data);
+    const log = (m.log || []).slice(-6).reverse();
+    view.innerHTML = `
+      <div class="pp-head">
+        <div><a class="pp-back" href="#medicoes" style="display:inline-flex">${icon('back')}Medições</a><h1 class="pp-meas-title">${esc(m.address)}</h1>
+          <p class="pp-muted" style="margin:4px 0 0">${measStatusChip(m)} <span id="ppMeasSaved" class="pp-meas-saved">Salvo</span></p></div>
+        <div class="pp-head-actions">
+          <a class="pp-btn pp-btn--sec" href="/api/builder/measurements/${encodeURIComponent(m.id)}/pdf" target="_blank" rel="noopener">PDF</a>
+          ${locked ? '' : m.status === 'done' ? '<button type="button" class="pp-btn pp-btn--sec" id="ppMeasReopen">Reabrir</button>' : '<button type="button" class="pp-btn pp-btn--pri" id="ppMeasDone">Concluir medição</button>'}
+        </div>
+      </div>
+      ${locked ? `<div class="pp-match"><strong>Esta medição já foi enviada com a Work Order</strong><span class="pp-muted" style="font-size:14px">${m.work_order_id ? `<a class="pp-link" href="#jobs/${encodeURIComponent(m.work_order_id)}">Abrir o job</a> · ` : ''}Para medir de novo, crie uma nova medição para este endereço.</span></div>` : ''}
+      <div class="pp-meas-layout">
+        <div class="pp-meas-main">
+          <div class="pp-card pp-meas-info">
+            <label><span>Comunidade</span><input data-head="community" value="${esc(m.community || '')}" maxlength="120" ${locked ? 'disabled' : ''} /></label>
+            <label><span>Lote</span><input data-head="lot" value="${esc(m.lot || '')}" maxlength="20" ${locked ? 'disabled' : ''} /></label>
+            <label class="pp-meas-info-wide"><span>Observações gerais</span><input data-head="notes" value="${esc(m.notes || '')}" maxlength="2000" placeholder="Ex.: acesso pela garagem, piso de concreto" ${locked ? 'disabled' : ''} /></label>
+          </div>
+          <div class="pp-seg pp-meas-tabs" role="tablist">
+            <button type="button" role="tab" data-mtab="stairs" aria-selected="${m.tab === 'stairs'}" aria-pressed="${m.tab === 'stairs'}">Escadas · ${c.treads} treads</button>
+            <button type="button" role="tab" data-mtab="vents" aria-selected="${m.tab === 'vents'}" aria-pressed="${m.tab === 'vents'}">Vents · ${c.vents}</button>
+          </div>
+          ${m.tab === 'stairs'
+            ? `${(m.data.stairs || []).map((s, i) => stairHtml(m, s, i)).join('') || '<div class="pp-card pp-empty"><strong>Nenhuma escada ainda</strong>Adicione a escada e meça degrau por degrau.</div>'}${locked ? '' : '<button type="button" class="pp-q-add pp-q-add--block" id="ppStairAdd">+ Escada</button>'}`
+            : ventsHtml(m)}
+        </div>
+        <aside class="pp-meas-side">
+          <div class="pp-card pp-block" id="ppMeasSum">${measSummaryHtml(m)}</div>
+          <div class="pp-card pp-block">
+            <h3>Quem mediu</h3>
+            <ul class="pp-meas-log">${log.map((l) => `<li><b>${esc(l.name || '')}</b> ${esc(l.action || '')}<small>${esc(fmtDay(l.at, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}</small></li>`).join('') || '<li class="pp-muted">—</li>'}</ul>
+          </div>
+          ${locked ? '' : '<button type="button" class="pp-link pp-late" id="ppMeasDel" style="justify-self:start">Apagar medição</button>'}
+        </aside>
+      </div>`;
+    paintMeasSaved();
+    bindMeasurement();
+  }
+
+  function measAt(path) {
+    const parts = path.split('.');
+    let obj = state.meas.data;
+    for (let i = 0; i < parts.length - 1; i += 1) obj = obj[parts[i]];
+    return { obj, key: parts[parts.length - 1] };
+  }
+  function measRefreshSide() {
+    const box = $('ppMeasSum');
+    if (box) box.innerHTML = measSummaryHtml(state.meas);
+  }
+
+  function bindMeasurement() {
+    const m = state.meas;
+    const redraw = () => { const y = window.scrollY; paintMeasurement(); window.scrollTo(0, y); };
+    view.querySelectorAll('[data-mtab]').forEach((b) => b.addEventListener('click', () => { m.tab = b.getAttribute('data-mtab'); redraw(); }));
+    view.querySelectorAll('[data-head]').forEach((el) => el.addEventListener('input', () => { m[el.getAttribute('data-head')] = el.value; measSaveSoon(); }));
+    view.querySelectorAll('[data-in]').forEach((el) => {
+      el.addEventListener('input', () => { const { obj, key } = measAt(el.getAttribute('data-in')); obj[key] = parseIn(el.value); measSaveSoon(); });
+      el.addEventListener('blur', () => {
+        const { obj, key } = measAt(el.getAttribute('data-in'));
+        const bad = el.value.trim() && obj[key] == null;
+        el.classList.toggle('is-bad', Boolean(bad));
+        if (!bad) el.value = fmtIn(obj[key]);
+        measRefreshSide();
+      });
+      el.addEventListener('focus', () => el.select());
+      // Enter jumps to the next measure, like a spreadsheet.
+      el.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const all = [...view.querySelectorAll('[data-in]:not([disabled])')];
+        const next = all[all.indexOf(el) + 1];
+        if (next) next.focus();
+      });
+    });
+    view.querySelectorAll('[data-txt]').forEach((el) => el.addEventListener('input', () => { const { obj, key } = measAt(el.getAttribute('data-txt')); obj[key] = el.value; measSaveSoon(); }));
+    view.querySelectorAll('[data-txt]').forEach((el) => el.addEventListener('blur', measRefreshSide));
+    view.querySelectorAll('[data-num]').forEach((el) => el.addEventListener('input', () => { const { obj, key } = measAt(el.getAttribute('data-num')); obj[key] = Math.max(1, Math.round(Number(el.value) || 1)); measSaveSoon(); measRefreshSide(); }));
+    view.querySelectorAll('[data-set]').forEach((el) => el.addEventListener('change', () => { const { obj, key } = measAt(el.getAttribute('data-set')); obj[key] = el.value; measSaveSoon(); redraw(); }));
+    view.querySelectorAll('[data-free]').forEach((el) => el.addEventListener('change', () => {
+      const { obj, key } = measAt(el.getAttribute('data-free'));
+      obj[key] = el.value === '__other' ? ' ' : el.value;
+      measSaveSoon();
+      redraw();
+      if (el.value === '__other') { const inp = view.querySelector(`[data-txt="${el.getAttribute('data-free')}"]`); if (inp) { inp.value = ''; inp.focus(); } }
+    }));
+    view.querySelectorAll('[data-vsize]').forEach((el) => el.addEventListener('change', () => {
+      const p = el.getAttribute('data-vsize');
+      const { obj } = measAt(`${p}.size`);
+      obj.size = el.value === '__other' ? ' ' : el.value;
+      measSaveSoon();
+      redraw();
+      if (el.value === '__other') { const inp = view.querySelector(`[data-txt="${p}.size"]`); if (inp) { inp.value = ''; inp.focus(); } }
+    }));
+    const stairAdd = $('ppStairAdd');
+    if (stairAdd) stairAdd.addEventListener('click', () => {
+      const prev = m.data.stairs[m.data.stairs.length - 1];
+      const s = newStair(m.data.stairs.length ? m.data.stairs.length + 1 : 0);
+      if (prev) Object.assign(s, { species: prev.species, finish: prev.finish, color: prev.color, riser_material: prev.riser_material });
+      s.steps.push(newStep());
+      m.data.stairs.push(s);
+      measSaveSoon();
+      redraw();
+      const ins = view.querySelectorAll(`[data-in^="stairs.${m.data.stairs.length - 1}.steps.0"]`);
+      if (ins[0]) ins[0].focus();
+    });
+    view.querySelectorAll('[data-stair-rm]').forEach((b) => b.addEventListener('click', () => {
+      if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Tirar?'; b.classList.add('is-armed'); return; }
+      m.data.stairs.splice(Number(b.getAttribute('data-stair-rm')), 1);
+      measSaveSoon();
+      redraw();
+    }));
+    view.querySelectorAll('[data-step-add]').forEach((b) => b.addEventListener('click', () => {
+      const s = m.data.stairs[Number(b.getAttribute('data-step-add'))];
+      s.steps.push(newStep(s.steps[s.steps.length - 1]));
+      measSaveSoon();
+      redraw();
+      const si = Number(b.getAttribute('data-step-add'));
+      const el = view.querySelector(`[data-in="stairs.${si}.steps.${s.steps.length - 1}.tread_w"]`);
+      if (el) el.focus();
+    }));
+    view.querySelectorAll('[data-step-many]').forEach((b) => b.addEventListener('click', () => {
+      const si = Number(b.getAttribute('data-step-many'));
+      const s = m.data.stairs[si];
+      const n = Math.min(40, Math.max(1, Number(($(`ppMany-${si}`) || {}).value) || 1));
+      for (let i = 0; i < n && s.steps.length < 60; i += 1) s.steps.push(newStep(s.steps[s.steps.length - 1]));
+      measSaveSoon();
+      redraw();
+    }));
+    view.querySelectorAll('[data-step-down]').forEach((b) => b.addEventListener('click', () => {
+      const [si, i] = b.getAttribute('data-step-down').split(':').map(Number);
+      const s = m.data.stairs[si];
+      const src = s.steps[i];
+      for (let j = i + 1; j < s.steps.length; j += 1) s.steps[j] = { ...src, id: s.steps[j].id, note: s.steps[j].note };
+      measSaveSoon();
+      redraw();
+    }));
+    view.querySelectorAll('[data-step-rm]').forEach((b) => b.addEventListener('click', () => {
+      const [si, i] = b.getAttribute('data-step-rm').split(':').map(Number);
+      m.data.stairs[si].steps.splice(i, 1);
+      measSaveSoon();
+      redraw();
+    }));
+    view.querySelectorAll('[data-nos-add]').forEach((b) => b.addEventListener('click', () => {
+      const s = m.data.stairs[Number(b.getAttribute('data-nos-add'))];
+      const last = s.steps[s.steps.length - 1];
+      s.nosings.push({ id: uid(), length: last ? last.tread_w : null, qty: 1, type: 'flush', note: '' });
+      measSaveSoon();
+      redraw();
+    }));
+    view.querySelectorAll('[data-nos-rm]').forEach((b) => b.addEventListener('click', () => {
+      const [si, i] = b.getAttribute('data-nos-rm').split(':').map(Number);
+      m.data.stairs[si].nosings.splice(i, 1);
+      measSaveSoon();
+      redraw();
+    }));
+    const ventAdd = $('ppVentAdd');
+    if (ventAdd) ventAdd.addEventListener('click', () => {
+      m.data.vents.push(newVent(m.data.vents[m.data.vents.length - 1]));
+      measSaveSoon();
+      redraw();
+      const inp = view.querySelector(`[data-txt="vents.${m.data.vents.length - 1}.room"]`);
+      if (inp) inp.focus();
+    });
+    view.querySelectorAll('[data-vent-rm]').forEach((b) => b.addEventListener('click', () => {
+      m.data.vents.splice(Number(b.getAttribute('data-vent-rm')), 1);
+      measSaveSoon();
+      redraw();
+    }));
+    view.querySelectorAll('[data-ph-add]').forEach((inp) => inp.addEventListener('change', async () => {
+      const file = inp.files && inp.files[0];
+      if (!file) return;
+      const label = inp.closest('.pp-meas-addph');
+      if (label) label.classList.add('is-busy');
+      try {
+        const dataUrl = (await compressImage(file)) || (await readAsDataUrl(file));
+        const r = await postJson(`/api/builder/measurements/${encodeURIComponent(m.id)}/photos`, { data_url: dataUrl });
+        const { obj, key } = measAt(inp.getAttribute('data-ph-add'));
+        obj[key] = (obj[key] || []).concat(r.data.key);
+        measSaveSoon();
+        await measSaveNow();
+        redraw();
+      } catch (e) {
+        window.alert(e.message || 'Não foi possível enviar a foto.');
+        if (label) label.classList.remove('is-busy');
+      }
+    }));
+    view.querySelectorAll('[data-ph-rm]').forEach((b) => b.addEventListener('click', () => {
+      const { obj, key } = measAt(b.getAttribute('data-ph-rm'));
+      obj[key].splice(Number(b.getAttribute('data-ph-i')), 1);
+      measSaveSoon();
+      redraw();
+    }));
+    const done = $('ppMeasDone');
+    if (done) done.addEventListener('click', async () => {
+      done.disabled = true;
+      try {
+        await measSaveNow();
+        const r = await postJson(`/api/builder/measurements/${encodeURIComponent(m.id)}/complete`, { done: true });
+        state.meas = { ...r.data, tab: m.tab, dirty: false };
+        paintMeasurement();
+      } catch (e) {
+        done.disabled = false;
+        window.alert(e.message);
+      }
+    });
+    const reopen = $('ppMeasReopen');
+    if (reopen) reopen.addEventListener('click', async () => {
+      const r = await postJson(`/api/builder/measurements/${encodeURIComponent(m.id)}/complete`, { done: false });
+      state.meas = { ...r.data, tab: m.tab, dirty: false };
+      paintMeasurement();
+    });
+    const del = $('ppMeasDel');
+    if (del) del.addEventListener('click', async () => {
+      if (del.dataset.armed !== '1') { del.dataset.armed = '1'; del.textContent = 'Confirmar: apagar medição'; return; }
+      await api(`/api/builder/measurements/${encodeURIComponent(m.id)}`, { method: 'DELETE' });
+      state.meas = null;
+      location.hash = '#medicoes';
+    });
   }
 
   /* ─────────────────────────── more (phone) ─────────────────────────── */
@@ -1967,6 +2467,7 @@
       </div>
       ${state.builder ? `<div class="pp-card" style="overflow:hidden">
         ${item('#empresas', 'Empresas', activeCompanies().length ? `${activeCompanies().length} conectadas` : 'Conecte ou convide empresas de piso')}
+        ${canDo('measure') ? item('#medicoes', 'Medições', 'Escadas e vents medidos na obra') : ''}
         ${item('#equipe', 'Equipe', `${state.builder.account.name} · ${state.builder.member.role_label}`)}
       </div>` : ''}
       <div class="pp-card" style="overflow:hidden">

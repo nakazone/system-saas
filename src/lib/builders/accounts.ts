@@ -9,6 +9,7 @@
  * Inside each linked company the builder is a normal Builder row, and each member gets a
  * PartnerUser row there (builderMemberId) so every company-scoped portal route keeps working.
  */
+import { markMeasurementUsed, measurementPack } from "./measurements.js";
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
@@ -621,12 +622,20 @@ export async function deliverPendingJobs(linkId: string): Promise<number> {
       const stored = await storage.upload({ key, body, contentType: f.contentType });
       files.push({ key: stored.key, name: f.name, contentType: f.contentType, size: stored.size });
     }
+    // Measurement saved with the kept job: PDF and photos go along, sizes go to the job.
+    const pack = p.measurement_id ? await measurementPack(link.builderAccountId, String(p.measurement_id)).catch(() => null) : null;
+    for (const f of pack?.files || []) {
+      const key = `orgs/${link.organizationId}/partner-requests/${row.id}/${randomBytes(8).toString("hex")}`;
+      const stored = await storage.upload({ key, body: f.body, contentType: f.contentType });
+      files.push({ key: stored.key, name: f.name, contentType: f.contentType, size: stored.size });
+    }
     const jobId = await withTenantTransaction(link.organizationId, async (tx) => {
-      const req = await createRequestRow(tx, link.organizationId!, shadow, p, files, { source: "builder_pending", kept_at: row.createdAt.toISOString(), ...(Array.isArray(p.items) && p.items.length ? { items: p.items } : {}), ...(p.pickup ? { pickup: p.pickup } : {}) });
+      const req = await createRequestRow(tx, link.organizationId!, shadow, p, files, { source: "builder_pending", kept_at: row.createdAt.toISOString(), ...(Array.isArray(p.items) && p.items.length ? { items: p.items } : {}), ...(p.pickup ? { pickup: p.pickup } : {}), ...(pack ? { measurement_id: p.measurement_id, measurement_text: pack.text, measurement_lines: pack.summary } : {}) });
       const r = await applyPartnerRequest(tx, link.organizationId!, req.id, null);
       return r.kind === "accepted" ? r.job_id : null;
     });
     await prisma.builderPendingJob.update({ where: { id: row.id }, data: { deliveredAt: new Date(), workOrderId: jobId } });
+    if (pack && p.measurement_id) await markMeasurementUsed(link.builderAccountId, String(p.measurement_id), link.organizationId, jobId, fallback.name).catch(() => undefined);
     for (const f of (row.files as unknown as PendingFile[]) || []) await storage.delete(f.key).catch(() => undefined);
     delivered += 1;
   }

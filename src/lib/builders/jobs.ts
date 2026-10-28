@@ -28,6 +28,30 @@ export function intakePickup(intake: unknown): string {
   return String((intake as { pickup?: unknown }).pickup ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
 }
 
+type MeasuredLine = { kind: string; text: string; qty: number; uom: string };
+
+/** The builder's measurement that came with the request (text for notes + grouped pieces). */
+export function intakeMeasurement(intake: unknown): { text: string; lines: MeasuredLine[] } | null {
+  if (!intake || typeof intake !== "object") return null;
+  const i = intake as { measurement_text?: unknown; measurement_lines?: unknown };
+  const text = String(i.measurement_text ?? "").trim();
+  if (!text) return null;
+  const lines = Array.isArray(i.measurement_lines)
+    ? (i.measurement_lines as MeasuredLine[]).filter((l) => l && typeof l.text === "string").slice(0, 80)
+    : [];
+  return { text: text.slice(0, 4000), lines };
+}
+
+/** Measured sizes that belong to an order line (treads to the tread line, vents to the vent line…). */
+export function measuredFor(line: { description: string; detail: string; service_name?: string }, lines: MeasuredLine[]): string {
+  const t = `${line.description} ${line.detail} ${line.service_name || ""}`.toLowerCase();
+  const kind = /\briser/.test(t) ? "riser" : /\btread|\bstair/.test(t) ? "tread" : /nos(e|ing)/.test(t) ? "nosing" : /\bvent/.test(t) ? "vent" : "";
+  if (!kind) return "";
+  const pick = lines.filter((l) => l.kind === kind);
+  if (!pick.length) return "";
+  return `Medido: ${pick.map((l) => `${l.text.replace(/^.*? · (Tread|Riser|Nosing) /, "")} (${l.qty})`).join("; ")}`;
+}
+
 /** Lines the builder confirmed in the portal (stored on the request's intake). */
 export function intakeLines(intake: unknown): IntakeLine[] {
   if (!intake || typeof intake !== "object") return [];
@@ -74,7 +98,7 @@ function round2(n: number): number {
 }
 
 /** Creates the job's service lines from the work order lines (rates are the ones on the order). */
-async function createJobLines(tx: TenantPrisma, organizationId: string, workOrderId: string, lines: IntakeLine[], source: string): Promise<void> {
+async function createJobLines(tx: TenantPrisma, organizationId: string, workOrderId: string, lines: IntakeLine[], source: string, measured: MeasuredLine[] = []): Promise<void> {
   if (!lines.length) return;
   const priceList = await tx.pricingItem.findMany({ where: { organizationId, active: true }, select: { id: true, name: true, unit: true } });
   let order = 0;
@@ -118,7 +142,7 @@ async function createJobLines(tx: TenantPrisma, organizationId: string, workOrde
           pricingItemId: linked.id,
           serviceName: linked.name,
           // The order's own wording stays with the line so the crew sees the product.
-          notes: [lineName(l), l.area].filter(Boolean).join(" · ").slice(0, 500) || null,
+          notes: [lineName(l), l.area, measuredFor(l, measured)].filter(Boolean).join(" · ").slice(0, 500) || null,
           quantitySqft: l.quantity,
           unitPrice: l.rate ?? (l.quantity ? round2(total / l.quantity) : 0),
           lineTotal: round2(total),
@@ -133,7 +157,7 @@ async function createJobLines(tx: TenantPrisma, organizationId: string, workOrde
     // so non-SF lines keep their count in the note and carry the total as a fixed amount.
     const keepQty = Boolean(item) || isSf;
     const total = l.total ?? (l.rate != null ? round2(l.rate * l.quantity) : 0);
-    const notes = [l.area, keepQty ? "" : `${l.quantity} ${l.uom}`].filter(Boolean).join(" · ").slice(0, 500) || null;
+    const notes = [l.area, keepQty ? "" : `${l.quantity} ${l.uom}`, measuredFor(l, measured)].filter(Boolean).join(" · ").slice(0, 500) || null;
     order += 1;
     await tx.workOrderLineItem.create({
       data: {
@@ -194,6 +218,7 @@ export async function applyPartnerRequest(
         request.preferredDate ? `Data solicitada: ${request.preferredDate.toISOString().slice(0, 10)}` : "",
         request.notes ? `Detalhes: ${request.notes}` : "",
         intakePickup(request.intake) ? `Pickup do material: ${intakePickup(request.intake)}` : "",
+        intakeMeasurement(request.intake) ? intakeMeasurement(request.intake)!.text : "",
         intakeLines(request.intake).length ? `Serviços na ordem:\n${linesText(intakeLines(request.intake))}` : "",
       ].filter(Boolean).join("\n");
       await tx.workOrder.update({
@@ -219,6 +244,7 @@ export async function applyPartnerRequest(
     request.externalRef ? `Nº do builder: ${request.externalRef}` : "",
     request.notes ? `Detalhes: ${request.notes}` : "",
     intakePickup(request.intake) ? `Pickup do material: ${intakePickup(request.intake)}` : "",
+    intakeMeasurement(request.intake) ? `\n${intakeMeasurement(request.intake)!.text}\n(PDF da medição e fotos nos documentos do job.)` : "",
   ].filter(Boolean).join("\n");
   await tx.$executeRaw`
     INSERT INTO "DocumentSequence" ("id", "organizationId", "kind", "nextValue")
@@ -268,7 +294,7 @@ export async function applyPartnerRequest(
     },
     select: { id: true },
   });
-  await createJobLines(tx, organizationId, workOrder.id, intakeLines(request.intake), sourceName);
+  await createJobLines(tx, organizationId, workOrder.id, intakeLines(request.intake), sourceName, intakeMeasurement(request.intake)?.lines || []);
   await tx.partnerJobRequest.update({
     where: { id: request.id },
     data: { status: "accepted", workOrderId: workOrder.id, reviewedAt: new Date(), reviewNote: reviewNote || null },

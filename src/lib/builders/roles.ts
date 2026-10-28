@@ -19,14 +19,16 @@ export const BUILDER_PERMISSIONS = [
   "companies.manage",
   /** Invite people, change roles, remove access. */
   "team.manage",
+  /** Measure stairs and vents on site (saved until the work order arrives). */
+  "measure",
 ] as const;
 export type BuilderPermission = (typeof BUILDER_PERMISSIONS)[number];
 
 const MATRIX: Record<PortalRole, BuilderPermission[]> = {
-  admin: ["jobs.view", "jobs.send", "jobs.edit", "money.view", "companies.manage", "team.manage"],
-  manager: ["jobs.view", "jobs.send", "jobs.edit", "money.view", "companies.manage"],
-  office: ["jobs.view", "jobs.send", "jobs.edit", "money.view"],
-  field: ["jobs.view"],
+  admin: ["jobs.view", "jobs.send", "jobs.edit", "money.view", "companies.manage", "team.manage", "measure"],
+  manager: ["jobs.view", "jobs.send", "jobs.edit", "money.view", "companies.manage", "measure"],
+  office: ["jobs.view", "jobs.send", "jobs.edit", "money.view", "measure"],
+  field: ["jobs.view", "measure"],
   legacy: ["jobs.view", "jobs.send", "money.view"],
 };
 
@@ -34,7 +36,7 @@ export const ROLE_LABELS: Record<BuilderRole, { pt: string; en: string; hint: st
   admin: { pt: "Admin", en: "Admin", hint: "Tudo, inclusive equipe e empresas." },
   manager: { pt: "Gerente", en: "Manager", hint: "Envia e altera jobs, vê valores, conecta empresas." },
   office: { pt: "Escritório", en: "Office", hint: "Envia e altera jobs, vê valores e invoices." },
-  field: { pt: "Campo", en: "Field", hint: "Só vê os jobs e o ticket, sem valores." },
+  field: { pt: "Campo", en: "Field", hint: "Vê os jobs e o ticket, sem valores, e faz medições." },
 };
 
 export function isBuilderRole(value: unknown): value is BuilderRole {

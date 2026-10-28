@@ -3574,6 +3574,7 @@ model BuilderAccount {
 
   members     BuilderMember[]
   links       BuilderLink[]
+  measurements BuilderMeasurement[]
 }
 
 model BuilderMember {
@@ -3645,4 +3646,35 @@ model BuilderPendingJob {
   createdAt     DateTime  @default(now())
 
   @@index([builderLinkId, deliveredAt])
+}
+
+/// Stairs and vents measured by the builder on site, kept until the work order for that address arrives.
+model BuilderMeasurement {
+  id                  String    @id @default(uuid()) @db.Uuid
+  builderAccountId    String    @db.Uuid
+  account             BuilderAccount @relation(fields: [builderAccountId], references: [id], onDelete: Cascade)
+  address             String
+  /// "322 lower ranch view rd" (number + street) — how a work order finds it.
+  addressKey          String
+  community           String?
+  lot                 String?
+  notes               String?
+  /// { stairs: [...], vents: [...] } — see src/lib/builders/measurements.ts
+  data                Json      @default("{}")
+  /// draft | done | used
+  status              String    @default("draft")
+  createdByMemberId   String    @db.Uuid
+  updatedByMemberId   String?   @db.Uuid
+  completedByMemberId String?   @db.Uuid
+  completedAt         DateTime?
+  /// [{ at, member_id, name, action }]
+  log                 Json      @default("[]")
+  usedAt              DateTime?
+  organizationId      String?   @db.Uuid
+  workOrderId         String?   @db.Uuid
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([builderAccountId, addressKey])
+  @@index([builderAccountId, status])
 }
