@@ -9,6 +9,7 @@ import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { publicBaseUrl } from "../../lib/http/public-url.js";
 import { ensureTempShareToken } from "../../lib/work-orders/temp-share.js";
 import { ensureQuoteDiscountOnJob, ensureQuoteDiscountsOnJobs, syncLinkedJobFromQuote, syncLinkedQuoteFromJob } from "../../lib/work-orders/from-quote.js";
+import { sectorFinishPatch } from "../../lib/work-orders/sector-finish.js";
 import { notifyJobTeamPush } from "../../lib/push/notify.js";
 import { param } from "../../lib/http/params.js";
 import { myJobAccessWhere, parseChecklist } from "../lib/campo-shared.js";
@@ -193,6 +194,8 @@ function mapWorkOrder(wo: {
   scheduledStart: Date | null;
   scheduledEnd: Date | null;
   sandScheduledStart?: Date | null;
+  installationDoneAt?: Date | null;
+  sandDoneAt?: Date | null;
   allDay?: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -223,7 +226,7 @@ function mapWorkOrder(wo: {
     sortOrder: number;
     pricingItem?: { unit: string } | null;
   }[];
-  invoices?: { amount: unknown; status: string; receipts?: { amount: unknown }[] }[];
+  invoices?: { id?: string; invoiceNumber?: string | null; amount: unknown; status: string; receipts?: { amount: unknown }[] }[];
 }) {
   const linkedQuote = (wo.quotes || []).find((q) => q.quoteNumber) || wo.quotes?.[0] || null;
   const quoteNote = quoteNoteOf(linkedQuote?.payload);
@@ -304,6 +307,8 @@ function mapWorkOrder(wo: {
     scheduled_start: wo.scheduledStart?.toISOString() ?? null,
     scheduled_end: wo.scheduledEnd?.toISOString() ?? null,
     sand_scheduled_start: wo.sandScheduledStart?.toISOString() ?? null,
+    installation_done_at: wo.installationDoneAt?.toISOString() ?? null,
+    sand_done_at: wo.sandDoneAt?.toISOString() ?? null,
     all_day: Boolean(wo.scheduledStart || wo.sandScheduledStart),
     created_at: wo.createdAt.toISOString(),
     updated_at: wo.updatedAt.toISOString(),
@@ -352,6 +357,15 @@ function mapWorkOrder(wo: {
     services_total,
     /** Present only for users who can see invoices. */
     billing: billing ? { ...billing, billing_status_label: jobBillingLabel(billing.billing_status) } : null,
+    invoices: wo.invoices
+      ? wo.invoices
+          .filter((inv) => inv.id && inv.status !== "void")
+          .map((inv) => ({
+            id: inv.id as string,
+            invoice_number: inv.invoiceNumber || null,
+            status: inv.status,
+          }))
+      : [],
   };
 }
 
@@ -455,7 +469,8 @@ function canSeeBilling(user: AuthedRequest["user"]): boolean {
 const woBillingInclude = {
   invoices: {
     where: { status: { not: "void" } },
-    select: { amount: true, status: true, receipts: { select: { amount: true } } },
+    orderBy: { createdAt: "asc" as const },
+    select: { id: true, invoiceNumber: true, amount: true, status: true, receipts: { select: { amount: true } } },
   },
 };
 
@@ -1229,12 +1244,19 @@ scheduleJobsRouter.put(
         d.scheduled_start !== undefined &&
         (existing.scheduledStart?.getTime() ?? null) !== (start?.getTime() ?? null);
 
+      const finish = d.status !== undefined ? sectorFinishPatch(existing, d.status) : null;
       const row = await withTenantTransaction(req.organizationId!, async (tx) => {
         const updated = await tx.workOrder.update({
           where: { id: existing.id },
           data: {
           ...(d.title !== undefined ? { title: d.title.trim() } : {}),
-          ...(d.status !== undefined ? { status: d.status } : {}),
+          ...(finish
+            ? {
+                status: finish.status,
+                ...("installationDoneAt" in finish ? { installationDoneAt: finish.installationDoneAt } : {}),
+                ...("sandDoneAt" in finish ? { sandDoneAt: finish.sandDoneAt } : {}),
+              }
+            : {}),
           ...(d.source_type !== undefined ? { sourceType: d.source_type } : {}),
           ...(d.source_name !== undefined ? { sourceName: d.source_name?.trim() || null } : {}),
           ...(d.customer_id !== undefined ? { customerId: d.customer_id || null } : {}),

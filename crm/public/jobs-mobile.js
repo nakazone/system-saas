@@ -194,9 +194,10 @@
     const J = window.JobsInfo;
     const maps = wo.address ? `https://maps.google.com/?q=${encodeURIComponent(wo.address)}` : "";
     const detailHref = `job-detail.html?id=${encodeURIComponent(wo.id)}`;
+    const nxt = J && J.nextFinish ? J.nextFinish(wo) : null;
     const cta =
       wo.status === "in_progress"
-        ? `<button type="button" class="jmx-b jmx-b--or" data-job-action="complete" data-id="${escapeHtml(wo.id)}">Concluir</button>`
+        ? `<button type="button" class="jmx-b jmx-b--or" data-job-action="complete" data-id="${escapeHtml(wo.id)}">${escapeHtml(nxt ? nxt.label : "Concluir")}</button>`
         : wo.status === "scheduled" || wo.status === "draft"
           ? canManage
             ? !wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start)
@@ -206,10 +207,11 @@
               ? `<a class="jmx-b jmx-b--or" href="campo/ticket.html?id=${encodeURIComponent(wo.id)}">Campo</a>`
               : `<a class="jmx-b" href="${detailHref}">Ver job</a>`
           : `<a class="jmx-b" href="${detailHref}">Ver job</a>`;
-    const when = !wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start)
-      ? "Sem data"
-      : J
-        ? J.dateRange(wo)
+    const listed = J && J.listWhen ? J.listWhen(wo) : null;
+    const when = listed
+      ? [listed.date, listed.status].filter(Boolean).join(" · ")
+      : !wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start)
+        ? "Sem data"
         : fmtDay(wo.scheduled_start);
     return `<article class="om-swipe jcm-job-swipe" data-job-id="${escapeHtml(wo.id)}">
       <div class="om-swipe__actions" aria-hidden="true">
@@ -410,12 +412,15 @@
       location.href = `job-detail.html?id=${encodeURIComponent(id)}`;
       return;
     }
+    let doneToast = status === "completed" ? "Job concluído" : "Job iniciado";
     if (status === "completed") {
       const wo = allJobs.find((w) => String(w.id) === String(id));
+      const nxt = wo && window.JobsInfo?.nextFinish ? window.JobsInfo.nextFinish(wo) : null;
+      if (nxt?.toast) doneToast = nxt.toast;
       const label = wo?.title || (wo ? clientLabel(wo) : "");
       const ok = window.crmConfirm?.completeJob
-        ? await window.crmConfirm.completeJob(label)
-        : confirm("Marcar o job como concluído?");
+        ? await window.crmConfirm.completeJob(label, nxt)
+        : confirm(nxt?.confirm || "Marcar o job como concluído?");
       if (!ok) return;
     }
     try {
@@ -429,7 +434,7 @@
         if (!r.ok || j.success === false) throw new Error(j.error || "Erro");
         return j;
       });
-      window.crmToast?.success?.(status === "completed" ? "Job concluído" : "Job iniciado");
+      window.crmToast?.success?.(doneToast);
       await load();
     } catch (e) {
       window.crmToast?.error?.(e.message || "Erro");

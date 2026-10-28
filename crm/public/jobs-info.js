@@ -148,13 +148,60 @@
     return wo.status === status;
   }
 
+  /** Installation + Lixa on the same job. A completed job counts both sectors as done. */
+  function sectorProgress(wo) {
+    const both = Boolean(wo && wo.sector === "both");
+    const closed = Boolean(wo && (wo.status === "completed" || wo.status === "canceled"));
+    return {
+      both,
+      installation: !both || closed || Boolean(wo.installation_done_at),
+      sand: !both || closed || Boolean(wo.sand_done_at),
+    };
+  }
+
+  /** Next sector to close, or null when the job is not waiting on a second finish. */
+  function nextFinish(wo) {
+    const p = sectorProgress(wo);
+    if (!p.both || !wo || wo.status === "completed" || wo.status === "canceled") return null;
+    if (!p.installation) {
+      return {
+        sector: "installation",
+        label: "Concluir instalação",
+        confirm: "Concluir a instalação? A lixa continua em aberto.",
+        toast: "Instalação concluída. Falta a lixa.",
+      };
+    }
+    if (!p.sand) {
+      return {
+        sector: "sand",
+        label: "Concluir lixa",
+        confirm: "Concluir a lixa e fechar o job?",
+        toast: "Lixa concluída.",
+      };
+    }
+    return null;
+  }
+
+  function fieldHalves(wo) {
+    const p = sectorProgress(wo);
+    if (!p.both) return null;
+    const active = wo.status === "in_progress";
+    const inst = p.installation ? "d" : active ? "n" : "";
+    const sand = p.sand ? "d" : p.installation && active ? "n" : "";
+    return { inst, sand };
+  }
+
   function stageLabel(wo) {
     if (wo.status === "canceled") return "Cancelado";
     if (wo.status === "draft" && !wo.scheduled_start) return "Rascunho";
     if (!wo.scheduled_start && wo.status !== "completed") return "Sem data";
     const s = step(wo);
     if (s === 0) return "Agendado";
-    if (s === 1) return "Em campo";
+    if (s === 1) {
+      const nxt = nextFinish(wo);
+      if (nxt && nxt.sector === "sand") return "Lixa";
+      return "Em campo";
+    }
     if (s === 3) return "Concluído";
     if (s === 4) return "Faturado";
     return wo.billing && wo.billing.billing_status === "paid" ? "Pago" : "Concluído";
@@ -163,10 +210,17 @@
   function progHtml(wo) {
     const s = step(wo);
     if (s < 0) return `<span class="jx-prog jx-prog--x"></span>`;
+    const halves = fieldHalves(wo);
     let h = "";
     for (let i = 0; i < 5; i += 1) {
-      const c = i < s ? "d" : i === s ? "n" : "";
-      h += `<i class="${c}"></i>`;
+      if (i === 1 && halves) {
+        const inst = s > 1 ? "d" : halves.inst;
+        const sand = s > 1 ? "d" : halves.sand;
+        h += `<i class="jx-prog__split"><b class="${inst}"></b><b class="${sand}"></b></i>`;
+      } else {
+        const c = i < s ? "d" : i === s ? "n" : "";
+        h += `<i class="${c}"></i>`;
+      }
     }
     return `<span class="jx-prog" aria-label="Etapa: ${esc(stageLabel(wo))}">${h}</span>`;
   }
@@ -198,6 +252,23 @@
     }
     if (!wo.scheduled_start) return "Sem data";
     return main;
+  }
+
+  /**
+   * List row: one date, no sector labels. A finished job never reads as "sem data"
+   * just because installation or sand was left blank.
+   */
+  function listWhen(wo) {
+    const start = dayLabel(wo.scheduled_start);
+    const sand = wo.sector === "both" ? dayLabel(wo.sand_scheduled_start) : "";
+    let date = start || sand || "";
+    const finished = wo.status === "completed" || wo.status === "canceled";
+    if (!date && wo.status === "completed") date = dayShort(wo.updated_at || wo.scheduled_end) || "";
+    if (!date && !finished) date = "Sem data";
+    const stage = stageLabel(wo);
+    const fallback = { draft: "Rascunho", scheduled: "Agendado", in_progress: "Em campo", completed: "Concluído", canceled: "Cancelado" };
+    const status = stage && stage !== "Sem data" ? stage : fallback[wo.status] || "";
+    return { date, status };
   }
 
   function startMs(wo) {
@@ -261,6 +332,6 @@
 
   window.JobsInfo = {
     esc, money, money0, client, builderName, findLine, searchText, displayName, isActive, late, step, STEP_NAMES, STATUS_BY_STEP, STATUS_STEP_MSG,
-    statusForStep, atStatus, stageLabel, progHtml, bill, dateRange, dayShort, completeLabel, compareNearest, startMs, isToday, initials, team,
+    statusForStep, atStatus, stageLabel, progHtml, sectorProgress, nextFinish, fieldHalves, bill, dateRange, listWhen, dayShort, completeLabel, compareNearest, startMs, isToday, initials, team,
   };
 })();

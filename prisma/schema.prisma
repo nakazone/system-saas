@@ -2608,6 +2608,10 @@ model WorkOrder {
   scheduledEnd   DateTime?
   /// Second start when the job is Installation and Sand & Finish.
   sandScheduledStart DateTime?
+  /// Installation finished on a job that also has Sand & Finish. The job stays open until sand is done too.
+  installationDoneAt DateTime?
+  /// Sand & Finish finished. With installationDoneAt, the job can move to completed.
+  sandDoneAt DateTime?
   /// All-day start (no specific clock time). Agenda renders in the all-day lane.
   allDay         Boolean   @default(false)
   /// Set when the pre-start push reminder was sent (dedupe).

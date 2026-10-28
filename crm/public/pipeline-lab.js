@@ -365,7 +365,7 @@
             : "este dia";
       list.innerHTML = `<li class="omd-empty">
         <span class="omd-empty__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
-        <div><strong>Sem jobs ${esc(label)}</strong><p>Nenhuma instalação agendada. <a class="omd-link" href="schedule.html">Abrir agenda</a></p></div>
+        <div><strong>Sem jobs ${esc(label)}</strong><p>Nenhum job agendado. <a class="omd-link" href="schedule.html">Abrir agenda</a></p></div>
       </li>`;
       return;
     }

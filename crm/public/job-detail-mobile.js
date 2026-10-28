@@ -439,12 +439,23 @@
       const st = J.step(wo);
       const names = ["Agendado", "Campo", "Concluído", "Faturado", "Pago"];
       stepsEl.hidden = st < 0;
+      const halves = J.fieldHalves(wo);
+      const nxt = J.nextFinish(wo);
       stepsEl.innerHTML = names
         .map((n, i) => {
           const cls = i < st ? "is-ok" : i === st ? "is-cur" : "";
           const status = J.statusForStep(i);
           const clickable = canManage && st >= 0 && (status || (i === 3 && canBill));
-          const tip = status ? `Mover para ${n}` : i === 3 ? "Faturar" : i === 4 ? "Pagamento nas faturas" : n;
+          const tip = status ? (i === 1 && nxt ? nxt.label : `Mover para ${n}`) : i === 3 ? "Faturar" : i === 4 ? "Pagamento nas faturas" : n;
+          if (i === 1 && halves) {
+            const inst = st > 1 ? "d" : halves.inst;
+            const sand = st > 1 ? "d" : halves.sand;
+            return `<li class="${cls} is-split${clickable ? " is-btn" : ""}"${
+              clickable
+                ? ` role="button" tabindex="0" data-mob-step="${i}" title="${escapeHtml(tip)}" aria-label="${escapeHtml(tip)}"`
+                : ""
+            }><span class="jmx-step-split"><i class="${inst}"></i><i class="${sand}"></i></span>${n}</li>`;
+          }
           return `<li class="${cls}${clickable ? " is-btn" : ""}"${
             clickable
               ? ` role="button" tabindex="0" data-mob-step="${i}" title="${escapeHtml(tip)}" aria-label="${escapeHtml(tip)}"`
@@ -473,11 +484,18 @@
         if (b.remaining_to_invoice > 0.004) rows.push(["A faturar", moneyFmt(b.remaining_to_invoice)]);
         if (b.open_balance > 0.004) rows.push(["A receber", moneyFmt(b.open_balance)]);
         rows.push(["Recebido", moneyFmt(b.paid_total)]);
+        const views = (Array.isArray(wo.invoices) ? wo.invoices : [])
+          .filter((inv) => inv && inv.id && inv.status !== "void")
+          .map(
+            (inv) =>
+              `<a class="jmx-li jmx-li--btn" href="invoices.html?id=${encodeURIComponent(inv.id)}"><span>Ver invoice${inv.invoice_number ? ` ${escapeHtml(inv.invoice_number)}` : ""}</span></a>`,
+          )
+          .join("");
         const emit =
           canInvoice && wo.status !== "canceled" && b.remaining_to_invoice > 0.004 && b.billing_status !== "no_value"
             ? `<button type="button" class="jmx-li jmx-li--btn jmx-li--invoice" data-mob-invoice><span>Emitir Invoice</span></button>`
             : "";
-        $("jobMobMoney").innerHTML = rows.map(([k, v]) => `<div class="jmx-li"><span>${k}</span><b>${v}</b></div>`).join("") + emit;
+        $("jobMobMoney").innerHTML = rows.map(([k, v]) => `<div class="jmx-li"><span>${k}</span><b>${v}</b></div>`).join("") + views + emit;
       }
     }
     const billQ = $("jobMobBillQuick");
@@ -713,7 +731,8 @@
         sec.dataset.action = "complete";
       }
     } else if (canManage && wo.status === "in_progress") {
-      cta.textContent = "Concluir job";
+      const nxt = window.JobsInfo?.nextFinish?.(wo);
+      cta.textContent = nxt ? nxt.label : "Concluir job";
       cta.className = "jcm-foot__btn jcm-foot__btn--primary";
       cta.dataset.action = "complete";
     } else if (canManage && wo.status === "completed") {
@@ -749,19 +768,28 @@
     render();
   }
 
+  async function finishMobJob() {
+    const J = window.JobsInfo;
+    const nxt = J?.nextFinish?.(job);
+    const label = job?.title || (J && job ? J.client(job) : "");
+    const ok = window.crmConfirm?.completeJob
+      ? await window.crmConfirm.completeJob(label, nxt)
+      : confirm(nxt?.confirm || "Marcar o job como concluído?");
+    if (!ok) return;
+    await setStatus("completed");
+    window.crmToast?.success?.(nxt?.toast || "Job concluído");
+  }
+
   async function applyMobStep(idx) {
     if (!canManage || !job || job.status === "canceled" || Number.isNaN(idx)) return;
     const J = window.JobsInfo;
     const status = J?.statusForStep?.(idx);
     if (status) {
-      if (J.atStatus(job, status)) return;
-      if (status === "completed") {
-        const label = job.title || (J ? J.client(job) : "");
-        const ok = window.crmConfirm?.completeJob
-          ? await window.crmConfirm.completeJob(label)
-          : confirm("Marcar o job como concluído?");
-        if (!ok) return;
+      if (status === "completed" || (status === "in_progress" && job.status === "in_progress" && J?.nextFinish?.(job))) {
+        await finishMobJob();
+        return;
       }
+      if (J.atStatus(job, status)) return;
       await setStatus(status);
       window.crmToast?.success?.(J.STATUS_STEP_MSG?.[status] || "Status atualizado.");
       return;
@@ -857,13 +885,7 @@
           await setStatus("in_progress");
           window.crmToast?.success?.("Job iniciado");
         } else if (action === "complete") {
-          const label = job?.title || (window.JobsInfo && job ? window.JobsInfo.client(job) : "");
-          const ok = window.crmConfirm?.completeJob
-            ? await window.crmConfirm.completeJob(label)
-            : confirm("Marcar o job como concluído?");
-          if (!ok) return;
-          await setStatus("completed");
-          window.crmToast?.success?.("Job concluído");
+          await finishMobJob();
         } else if (action === "schedule") {
           location.href = "schedule.html";
         }

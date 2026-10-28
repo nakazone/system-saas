@@ -73,6 +73,10 @@ body.om-device-mobile .jcm-seg.jmx-pills { background: none; padding: 0 16px; ma
 .jx-prog i { flex: 1; height: 5px; border-radius: 3px; background: #E5E7EB; }
 .jx-prog i.d { background: #E7792C; }
 .jx-prog i.n { background: #221E1A; }
+.jx-prog i.jx-prog__split { display: flex; gap: 2px; background: transparent; }
+.jx-prog i.jx-prog__split b { flex: 1; height: 5px; border-radius: 3px; background: #E5E7EB; }
+.jx-prog i.jx-prog__split b.d { background: #E7792C; }
+.jx-prog i.jx-prog__split b.n { background: #221E1A; }
 .jmx-card__r3 { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
 .jmx-card__when { font-size: 12px; font-weight: 650; color: #667085; text-align: right; line-height: 1.3; }
 .jmx-card__v { margin-right: auto; font-size: 15px; font-weight: 700; letter-spacing: -.02em; color: #221E1A; }
@@ -124,8 +128,21 @@ body.om-device-mobile.job-detail-app .jcm-jd__type { margin-top: 4px; font-size:
 .jmx-steps li.is-ok, .jmx-steps li.is-cur { color: #221E1A; }
 .jmx-steps li.is-ok i { background: #E7792C; }
 .jmx-steps li.is-cur i { background: #221E1A; }
+.jmx-step-split { display: flex; gap: 2px; margin-bottom: 5px; }
+.jmx-step-split i { flex: 1; display: block; height: 5px; border-radius: 999px; background: #EEF0F3; margin: 0; }
+.jmx-step-split i.d { background: #E7792C; }
+.jmx-step-split i.n { background: #221E1A; }
+.jmx-steps li.is-ok .jmx-step-split i.d,
+.jmx-steps li.is-cur .jmx-step-split i.d { background: #E7792C; }
+.jmx-steps li.is-ok .jmx-step-split i.n,
+.jmx-steps li.is-cur .jmx-step-split i.n { background: #221E1A; }
+.jmx-steps li.is-ok .jmx-step-split i:not(.d):not(.n),
+.jmx-steps li.is-cur .jmx-step-split i:not(.d):not(.n) { background: #EEF0F3; }
 .jmx-steps li.is-btn { cursor: pointer; border-radius: 6px; outline: none; -webkit-tap-highlight-color: transparent; }
 .jmx-steps li.is-btn:active i { background: #E7792C; opacity: .9; }
+.jmx-steps li.is-btn:active .jmx-step-split i.d { background: #E7792C; opacity: 1; }
+.jmx-steps li.is-btn:active .jmx-step-split i.n { background: #221E1A; opacity: 1; }
+.jmx-steps li.is-btn:active .jmx-step-split i:not(.d):not(.n) { background: #EEF0F3; opacity: 1; }
 .jmx-steps li.is-btn:focus-visible { box-shadow: 0 0 0 2px rgba(231,121,44,.35); }
 .jmx-circ { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
 .jmx-circ a { display: flex; flex-direction: column; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: #221E1A !important; text-decoration: none !important; }

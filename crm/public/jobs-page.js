@@ -195,8 +195,9 @@
   }
   function rowHtml(wo) {
     const J = I();
-    const undated = !wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start);
-    const when = undated ? "Sem data" : J.dateRange(wo);
+    const finished = wo.status === "completed" || wo.status === "canceled";
+    const undated = !finished && !wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start);
+    const when = J.listWhen ? J.listWhen(wo) : { date: undated ? "Sem data" : J.dateRange(wo), status: "" };
     const who = J.client(wo);
     const head = who && who !== "Sem cliente" ? who : wo.title || "Job";
     const href = `job-detail.html?id=${encodeURIComponent(wo.id)}`;
@@ -211,7 +212,8 @@
         <span class="jx-row__l3">${J.progHtml(wo)}</span>
       </span>
       <span class="jx-row__side">
-        <span class="jx-row__when">${J.esc(when)}</span>
+        ${when.date ? `<span class="jx-row__when">${J.esc(when.date)}</span>` : ""}
+        ${when.status ? `<span class="jx-row__st">${J.esc(when.status)}</span>` : ""}
         ${startBtn}
       </span>
     </a></div>`;
@@ -278,7 +280,10 @@
     return ymd(weekSunday(a)) === ymd(weekSunday(b));
   }
   function jobAnchor(wo) {
-    const iso = wo.scheduled_start || (wo.sector === "both" ? wo.sand_scheduled_start : null);
+    const iso =
+      wo.scheduled_start ||
+      (wo.sector === "both" ? wo.sand_scheduled_start : null) ||
+      (wo.status === "completed" ? wo.updated_at || wo.scheduled_end : null);
     if (!iso) return null;
     const d = new Date(iso);
     return Number.isNaN(d.getTime()) ? null : d;
@@ -405,7 +410,10 @@
       if (!wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start)) return { label: "Schedule Job", act: "edit" };
       if (!(wo.line_items || []).length) return { label: "Adicionar serviços", act: "services" };
       if (wo.status === "draft" || wo.status === "scheduled") return { label: "Iniciar job", act: "start" };
-      if (wo.status === "in_progress") return { label: "Concluir job", act: "complete" };
+      if (wo.status === "in_progress") {
+        const nxt = I().nextFinish(wo);
+        return { label: nxt ? nxt.label : "Concluir job", act: "complete" };
+      }
       if (!wo.scheduled_start && wo.status !== "completed") return { label: "Agendar", act: "schedule" };
     }
     return null;
@@ -419,7 +427,8 @@
       acts.push({ label: "Iniciar", act: "start", primary: true });
       acts.push({ label: "Já concluído", act: "complete" });
     } else if (wo.status === "in_progress") {
-      acts.push({ label: "Concluir", act: "complete", primary: true });
+      const nxt = I().nextFinish(wo);
+      acts.push({ label: nxt ? nxt.label : "Concluir", act: "complete", primary: true });
     }
     acts.push({ label: "Remarcar", act: "schedule" });
     return acts;
@@ -586,9 +595,12 @@
         `<div><b>Delivery</b><p>${J.esc(wo.delivery_pickup_address || "Retirar material da obra")}${wo.delivery_notes ? `<br>${J.esc(wo.delivery_notes)}` : ""}</p></div>`,
       );
     }
-    const invoiceBtn = canFaturar(wo)
-      ? `<div class="jx-money-act"><button type="button" class="jx-btn jx-btn--pri" data-jx-act="invoice">Emitir Invoice</button></div>`
-      : "";
+    const issued = (Array.isArray(wo.invoices) ? wo.invoices : []).filter((inv) => inv && inv.id && inv.status !== "void");
+    const viewBtns = issued
+      .map((inv) => `<a class="jx-btn" href="invoices.html?id=${encodeURIComponent(inv.id)}">Ver invoice${inv.invoice_number ? ` ${J.esc(inv.invoice_number)}` : ""}</a>`)
+      .join("");
+    const emitBtn = canFaturar(wo) ? `<button type="button" class="jx-btn jx-btn--pri" data-jx-act="invoice">Emitir Invoice</button>` : "";
+    const invoiceBtn = viewBtns || emitBtn ? `<div class="jx-money-act">${viewBtns}${emitBtn}</div>` : "";
     const money = canBill && wo.billing
       ? `<div class="jx-box"><h3>Dinheiro</h3><dl class="jx-kv">
           <dt>Total</dt><dd>${J.money(wo.billing.services_total)}</dd>
@@ -907,17 +919,28 @@
     const p = primary(wo);
     const phone = wo.customer?.phone ? String(wo.customer.phone).replace(/[^\d+]/g, "") : "";
     const s = J.step(wo);
+    const halves = J.fieldHalves(wo);
+    const nxt = J.nextFinish(wo);
     const steps = J.STEP_NAMES.map((n, i) => {
       const cls = s < 0 ? "" : i < s ? "is-ok" : i === s ? "is-cur" : "";
       const st = J.statusForStep(i);
       const clickable = canManage && s >= 0 && (st || (i === 3 && canBill));
       const tip = st
-        ? `Mover para ${n}`
+        ? i === 1 && nxt
+          ? nxt.label
+          : `Mover para ${n}`
         : i === 3
           ? "Faturar"
           : i === 4
             ? "Pagamento nas faturas"
             : n;
+      if (i === 1 && halves) {
+        const inst = s > 1 ? "d" : halves.inst;
+        const sand = s > 1 ? "d" : halves.sand;
+        const instBtn = canManage && nxt && nxt.sector === "installation";
+        const sandBtn = canManage && nxt && nxt.sector === "sand";
+        return `<li class="${cls} is-split${clickable ? " is-btn" : ""}"${clickable ? ` role="button" tabindex="0" data-jx-step="${i}" title="${J.esc(tip)}" aria-label="${J.esc(tip)}"` : ""}><span class="jx-step-split"><i class="${inst}${instBtn ? " is-btn" : ""}" ${instBtn ? `data-jx-sector="installation" title="Concluir instalação"` : ""}></i><i class="${sand}${sandBtn ? " is-btn" : ""}" ${sandBtn ? `data-jx-sector="sand" title="Concluir lixa"` : ""}></i></span>${n}</li>`;
+      }
       return `<li class="${cls}${clickable ? " is-btn" : ""}"${clickable ? ` role="button" tabindex="0" data-jx-step="${i}" title="${J.esc(tip)}" aria-label="${J.esc(tip)}"` : ""}><i></i>${n}</li>`;
     }).join("");
     const team = J.team(wo);
@@ -1167,6 +1190,17 @@
     await load();
   }
 
+  async function finishCurrent(wo) {
+    const J = I();
+    const nxt = J.nextFinish(wo);
+    const label = wo?.title || (wo ? J.client(wo) : "");
+    const ok = window.crmConfirm?.completeJob
+      ? await window.crmConfirm.completeJob(label, nxt)
+      : confirm(nxt?.confirm || "Marcar o job como concluído?");
+    if (!ok) return;
+    await setStatus(selId, "completed", nxt?.toast || "Job concluído.");
+  }
+
   async function applyStep(idx) {
     if (!canManage || !selId || Number.isNaN(idx)) return;
     const J = I();
@@ -1174,14 +1208,11 @@
     if (!wo || wo.status === "canceled") return;
     const status = J.statusForStep(idx);
     if (status) {
-      if (J.atStatus(wo, status)) return;
-      if (status === "completed") {
-        const label = wo.title || J.client(wo);
-        const ok = window.crmConfirm?.completeJob
-          ? await window.crmConfirm.completeJob(label)
-          : confirm("Marcar o job como concluído?");
-        if (!ok) return;
+      if (status === "completed" || (status === "in_progress" && wo.status === "in_progress" && J.nextFinish(wo))) {
+        await finishCurrent(wo);
+        return;
       }
+      if (J.atStatus(wo, status)) return;
       await setStatus(selId, status, J.STATUS_STEP_MSG[status] || "Status atualizado.");
       return;
     }
@@ -1255,6 +1286,18 @@
         renderDetail();
         return;
       }
+      const sectorEl = e.target.closest("[data-jx-sector]");
+      if (sectorEl) {
+        e.preventDefault();
+        const wo = detailWo && String(detailWo.id) === String(selId) ? detailWo : all.find((w) => String(w.id) === String(selId));
+        if (!wo) return;
+        try {
+          await finishCurrent(wo);
+        } catch (err) {
+          notify(err.message || "Erro", "error");
+        }
+        return;
+      }
       const stepEl = e.target.closest("[data-jx-step]");
       if (stepEl) {
         e.preventDefault();
@@ -1307,12 +1350,7 @@
         } else if (act === "start") await setStatus(id, "in_progress", "Job iniciado.");
         else if (act === "complete") {
           const wo = all.find((w) => String(w.id) === String(id)) || detailWo;
-          const label = wo?.title || (wo ? I().client(wo) : "");
-          const ok = window.crmConfirm?.completeJob
-            ? await window.crmConfirm.completeJob(label)
-            : confirm("Marcar o job como concluído?");
-          if (!ok) return;
-          await setStatus(id, "completed", "Job concluído.");
+          await finishCurrent(wo);
         }
       } catch (err) {
         notify(err.message || "Erro", "error");
