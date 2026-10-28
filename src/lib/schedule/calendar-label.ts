@@ -75,11 +75,77 @@ export function streetChip(address: string | null | undefined): string {
   return chip || tokens.slice(0, 2).join(" ");
 }
 
-export function isBuilderParty(sourceType?: string | null, builderId?: string | null): boolean {
+export function isBuilderParty(
+  sourceType?: string | null,
+  builderId?: string | null,
+  customerType?: string | null,
+): boolean {
   const t = String(sourceType || "").toLowerCase();
-  if (t === "particular" || t === "internal" || t === "other") return false;
+  const c = String(customerType || "").toLowerCase();
+  if (t === "particular" || t === "internal") return false;
   if (t === "builder" || t === "contractor" || t === "loja") return true;
+  if (c === "builder" || c === "contractor" || c === "loja") return true;
   return Boolean(builderId);
+}
+
+function normName(value?: string | null): string {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function samePartyName(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const [short, long] = a.length <= b.length ? [a, b] : [b, a];
+  return short.length >= 4 && (long === short || long.startsWith(`${short} `));
+}
+
+export type BuilderNickRow = {
+  nickname?: string | null;
+  company?: string | null;
+  email?: string | null;
+  name?: string | null;
+};
+
+/** Nickname saved on the builder cadastro, even when the job only has the matching customer. */
+export function calendarNickFromBuilders(
+  direct: { nickname?: string | null; company?: string | null },
+  hints: Array<string | null | undefined>,
+  emails: Array<string | null | undefined>,
+  builders: BuilderNickRow[],
+): { nickname: string | null; company: string | null } {
+  const nick = String(direct.nickname || "").trim();
+  const company = String(direct.company || "").trim();
+  if (nick) return { nickname: nick, company: company || null };
+  const names = hints.map(normName).filter(Boolean);
+  const mails = emails.map((v) => String(v || "").toLowerCase().trim()).filter(Boolean);
+  let best: { nickname: string; company: string | null; score: number } | null = null;
+  for (const row of builders) {
+    const rowNick = String(row.nickname || "").trim();
+    if (!rowNick) continue;
+    const rowCompany = String(row.company || "").trim() || null;
+    const rowMail = String(row.email || "").toLowerCase().trim();
+    let score = 0;
+    if (rowMail && mails.includes(rowMail)) score = 100;
+    else {
+      const rowNames = [row.company, row.name].map(normName).filter(Boolean);
+      for (const rowName of rowNames) {
+        for (const hint of names) {
+          if (rowName === hint) score = Math.max(score, 80);
+          else if (samePartyName(rowName, hint)) score = Math.max(score, 40);
+        }
+      }
+    }
+    if (score > 0 && (!best || score > best.score)) {
+      best = { nickname: rowNick, company: company || rowCompany, score };
+    }
+  }
+  if (best) return { nickname: best.nickname, company: best.company };
+  return { nickname: null, company: company || null };
 }
 
 export function builderCalendarTitle(opts: {
@@ -107,9 +173,10 @@ export function jobCalendarTitle(input: {
   nickname?: string | null;
   company?: string | null;
   builderName?: string | null;
+  customerType?: string | null;
   origin?: string | null;
 }): string {
-  if (isBuilderParty(input.sourceType, input.builderId)) {
+  if (isBuilderParty(input.sourceType, input.builderId, input.customerType)) {
     return builderCalendarTitle({
       nickname: input.nickname,
       company: input.company || input.builderName,

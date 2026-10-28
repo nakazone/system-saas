@@ -12,7 +12,7 @@ import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { publicBaseUrl } from "../../lib/http/public-url.js";
 import { issuePublicAccessToken, lookupPublicAccessToken } from "../../lib/quotes/public-token.js";
 import { buildScheduleIcsCalendar, type ScheduleIcsEvent } from "../../lib/schedule/ics.js";
-import { jobCalendarTitle } from "../../lib/schedule/calendar-label.js";
+import { calendarNickFromBuilders, jobCalendarTitle } from "../../lib/schedule/calendar-label.js";
 import {
   clientIdFromLeadRecord,
   originFromLeadRecord,
@@ -255,7 +255,7 @@ async function loadFeedEvents(
   const from = new Date(now - FEED_PAST_DAYS * 24 * 60 * 60 * 1000);
   const to = new Date(now + FEED_FUTURE_DAYS * 24 * 60 * 60 * 1000);
 
-  const [org, workOrders, meetings] = await Promise.all([
+  const [org, workOrders, meetings, nickBuilders] = await Promise.all([
     prisma.organization.findUnique({
       where: { id: organizationId },
       select: { name: true, scheduleSettings: true },
@@ -276,8 +276,8 @@ async function loadFeedEvents(
         sourceName: true,
         clientRef: true,
         builderId: true,
-        builder: { select: { company: true, nickname: true, firstName: true, lastName: true } },
-        customer: { select: { name: true } },
+        builder: { select: { company: true, email: true, nickname: true, firstName: true, lastName: true } },
+        customer: { select: { name: true, company: true, email: true, customerType: true } },
         quotes: {
           select: { leadId: true, payload: true },
           orderBy: { createdAt: "desc" },
@@ -313,6 +313,10 @@ async function loadFeedEvents(
       },
       orderBy: { scheduledStart: "asc" },
       take: 2000,
+    }),
+    prisma.builder.findMany({
+      where: { organizationId, nickname: { not: null } },
+      select: { nickname: true, company: true, email: true, firstName: true, lastName: true },
     }),
   ]);
 
@@ -353,6 +357,20 @@ async function loadFeedEvents(
       const lead = quote?.leadId ? originByLead.get(quote.leadId) : undefined;
       const clientRef =
         (wo.clientRef && String(wo.clientRef).trim()) || quoteClientRef(quote?.payload) || clientIdFromLeadRecord(lead) || null;
+      const builderName = wo.builder
+        ? [wo.builder.firstName, wo.builder.lastName].filter(Boolean).join(" ").trim()
+        : null;
+      const who = calendarNickFromBuilders(
+        { nickname: wo.builder?.nickname, company: wo.builder?.company },
+        [wo.builder?.company, builderName, wo.customer?.company, wo.customer?.name, wo.sourceName],
+        [wo.builder?.email, wo.customer?.email],
+        nickBuilders.map((b) => ({
+          nickname: b.nickname,
+          company: b.company,
+          email: b.email,
+          name: [b.firstName, b.lastName].filter(Boolean).join(" ").trim(),
+        })),
+      );
       const summary = jobCalendarTitle({
         sourceType: wo.sourceType,
         builderId: wo.builderId,
@@ -361,11 +379,10 @@ async function loadFeedEvents(
         clientRef,
         sourceName: wo.sourceName,
         customerName: wo.customer?.name,
-        nickname: wo.builder?.nickname,
-        company: wo.builder?.company,
-        builderName: wo.builder
-          ? [wo.builder.firstName, wo.builder.lastName].filter(Boolean).join(" ").trim()
-          : null,
+        customerType: wo.customer?.customerType,
+        nickname: who.nickname,
+        company: who.company,
+        builderName,
         origin: originFromLeadRecord(lead),
       });
       const descParts = [

@@ -3682,22 +3682,19 @@
       const ce = String(c.email || '').trim().toLowerCase();
       return (name && cn === name) || (email && ce === email);
     });
-    const b = match
-      ? { ...match, customer_id: c.id }
-      : {
-          id: c.id,
-          customer_id: c.id,
-          label: c.company || c.name,
-          company: c.company || c.name,
-          name: c.responsible_name || c.name,
-          email: c.email,
-          phone: c.phone,
-          address: customerAddress(c),
-        };
-    applySelectedBuilder(b, { applyPrices: true });
-    $('customerId').value = String(c.id);
+    if (match) {
+      applySelectedBuilder({ ...match, customer_id: c.id }, { applyPrices: true });
+    } else {
+      selectedQuoteBuilder = null;
+      const sel = $('quoteBuilderSelect');
+      if (sel) sel.value = '';
+      $('customerId').value = String(c.id);
+      applyPricingFromCustomer(c);
+      refreshRatesForCatalogLines();
+      renderItems();
+    }
     const searchEl = $('customerSearch');
-    if (searchEl) searchEl.value = formatCustomerLabel(c) || b.label || '';
+    if (searchEl) searchEl.value = formatCustomerLabel(c) || (match && (match.label || match.company)) || '';
     hideClientSearchResults();
     syncPartyTabsVisibility();
   }
@@ -6121,6 +6118,18 @@
     return '';
   }
 
+  function linkedBuilderId() {
+    const candidates = [
+      selectedQuoteBuilder && selectedQuoteBuilder.id != null ? String(selectedQuoteBuilder.id) : '',
+      $('quoteBuilderSelect') ? String($('quoteBuilderSelect').value || '') : '',
+    ];
+    for (const raw of candidates) {
+      const id = String(raw || '').trim();
+      if (id && quoteBuilders.some((b) => sameId(b.id, id))) return id;
+    }
+    return '';
+  }
+
   function payload() {
     const { sub, tax, total } = recalc();
     const dt = $('discountType').value;
@@ -6130,7 +6139,7 @@
     if (selectedQuoteLead && selectedQuoteLead.id != null) lead_id = String(selectedQuoteLead.id);
     else if (loadedQuoteLeadId != null && loadedQuoteLeadId !== '') lead_id = String(loadedQuoteLeadId);
     else if (pendingLeadId != null && pendingLeadId !== '') lead_id = String(pendingLeadId);
-    const builderRaw = party === 'builder' ? String($('quoteBuilderSelect')?.value || '').trim() : '';
+    const builderRaw = party === 'builder' || party === 'contractor' ? linkedBuilderId() : '';
     const jobName = String($('quoteJobName')?.value || '').trim().slice(0, 120);
     const displayTitle = resolveQuoteDisplayTitle();
     const jobAddr =

@@ -36,7 +36,7 @@ import {
   originFromLeadRecord,
   personCalendarTitle,
 } from "../../lib/schedule/lead-visit-ics.js";
-import { jobCalendarTitle, visitBlockEnd } from "../../lib/schedule/calendar-label.js";
+import { calendarNickFromBuilders, jobCalendarTitle, visitBlockEnd } from "../../lib/schedule/calendar-label.js";
 
 const WO_SECTORS = ["installation", "sand_finish", "both"] as const;
 
@@ -419,8 +419,8 @@ const relatedWoSelect = {
 } as const;
 
 const woInclude = {
-  customer: { select: { id: true, name: true, clientCode: true, customerType: true, email: true, phone: true } },
-  builder: { select: { id: true, firstName: true, lastName: true, company: true, nickname: true } },
+  customer: { select: { id: true, name: true, company: true, clientCode: true, customerType: true, email: true, phone: true } },
+  builder: { select: { id: true, firstName: true, lastName: true, company: true, email: true, nickname: true } },
   assignedUser: { select: { id: true, name: true } },
   crew: { select: { id: true, name: true, color: true } },
   relatedWorkOrder: { select: relatedWoSelect },
@@ -2030,7 +2030,7 @@ scheduleJobsRouter.get(
         return;
       }
 
-      const [workOrders, meetings, org] = await Promise.all([
+      const [workOrders, meetings, org, nickBuilders] = await Promise.all([
         prisma.workOrder.findMany({
           where: {
             organizationId: req.organizationId!,
@@ -2066,6 +2066,10 @@ scheduleJobsRouter.get(
           where: { id: req.organizationId! },
           select: { scheduleSettings: true },
         }),
+        prisma.builder.findMany({
+          where: { organizationId: req.organizationId!, nickname: { not: null } },
+          select: { nickname: true, company: true, email: true, firstName: true, lastName: true },
+        }),
       ]);
 
       const sched = parseScheduleSettings(org?.scheduleSettings);
@@ -2100,6 +2104,20 @@ scheduleJobsRouter.get(
             quoteNoteOf(quote?.payload) ||
             clientIdFromLeadRecord(lead) ||
             null;
+          const builderName = wo.builder
+            ? [wo.builder.firstName, wo.builder.lastName].filter(Boolean).join(" ").trim()
+            : null;
+          const who = calendarNickFromBuilders(
+            { nickname: wo.builder?.nickname, company: wo.builder?.company },
+            [wo.builder?.company, builderName, wo.customer?.company, wo.customer?.name, wo.sourceName],
+            [wo.builder?.email, wo.customer?.email],
+            nickBuilders.map((b) => ({
+              nickname: b.nickname,
+              company: b.company,
+              email: b.email,
+              name: [b.firstName, b.lastName].filter(Boolean).join(" ").trim(),
+            })),
+          );
           const base = jobCalendarTitle({
             sourceType: wo.sourceType,
             builderId: wo.builderId,
@@ -2108,11 +2126,10 @@ scheduleJobsRouter.get(
             clientRef,
             sourceName: wo.sourceName,
             customerName: wo.customer?.name,
-            nickname: wo.builder?.nickname,
-            company: wo.builder?.company,
-            builderName: wo.builder
-              ? [wo.builder.firstName, wo.builder.lastName].filter(Boolean).join(" ").trim()
-              : null,
+            customerType: wo.customer?.customerType,
+            nickname: who.nickname,
+            company: who.company,
+            builderName,
             origin: originFromLeadRecord(lead),
           });
           const calendarName = sectorLabel ? `${base} · ${sectorLabel}` : base;
