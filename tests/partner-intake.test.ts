@@ -131,3 +131,39 @@ describe("work order lines", () => {
     expect(matchPricingItem({ description: "End cap - Paradigm", detail: "transitions", uom: "SF" }, list)).toBeNull();
   });
 });
+
+import { linkCatalog, textLayerHints } from "../src/lib/partner-intake/extract.js";
+
+describe("work order hints and catalog", () => {
+  const layer = `--- page 2 ---
+THE COLORADO FLOOR COMPANY EVP
+BUILDER: WAREHOUSE: HEN DATE BUILT:
+JOB #: INSTALL DATE:
+$ 5,117.00
+SIGNATURE BUILDERS 7/6/2026
+--- page 3 ---
+ADDRESS: 1083 GOLF ESTATES PT TRIWEST 9176215
+JOB #: 172060`;
+  it("finds the pickup next to the address and the only date on the labor page", () => {
+    expect(textLayerHints(layer)).toEqual({ pickup: "Triwest · 9176215", date: "7/6/2026" });
+  });
+  it("prefers a filled install date", () => {
+    expect(textLayerHints("INSTALL DATE: 11/3/2026\nDATE BUILT: 7/6/2026").date).toBe("11/3/2026");
+  });
+  it("keeps the model's catalog choice only when the id exists, else matches by name", () => {
+    const catalog = [{ id: "11111111-1111-4111-8111-111111111111", name: "LVP install", unit: "sq_ft" }, { id: "22222222-2222-4222-8222-222222222222", name: "Moisture barrier", unit: "sq_ft" }];
+    const base = { area: "", uom: "SF", rate: 1, total: 1, quantity: 1, pricing_item_id: null };
+    const items = [
+      { ...base, description: "Paradigm SPC", detail: "Attached pad" },
+      { ...base, description: "6 mil poly", detail: "Install moisture barrier over concrete" },
+      { ...base, description: "Vapor white", detail: "Cover floor" },
+    ];
+    const raw = [
+      { description: "Paradigm SPC", detail: "Attached pad", catalog_id: "11111111-1111-4111-8111-111111111111" },
+      { description: "6 mil poly", detail: "Install moisture barrier over concrete", catalog_id: "not-an-id" },
+      { description: "Vapor white", detail: "Cover floor", catalog_id: null },
+    ];
+    const out = linkCatalog(items, raw, catalog);
+    expect(out.map((i) => i.pricing_item_id)).toEqual(["11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222", null]);
+  });
+});

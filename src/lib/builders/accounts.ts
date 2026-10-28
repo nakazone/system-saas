@@ -622,7 +622,7 @@ export async function deliverPendingJobs(linkId: string): Promise<number> {
       files.push({ key: stored.key, name: f.name, contentType: f.contentType, size: stored.size });
     }
     const jobId = await withTenantTransaction(link.organizationId, async (tx) => {
-      const req = await createRequestRow(tx, link.organizationId!, shadow, p, files, { source: "builder_pending", kept_at: row.createdAt.toISOString(), ...(Array.isArray(p.items) && p.items.length ? { items: p.items } : {}) });
+      const req = await createRequestRow(tx, link.organizationId!, shadow, p, files, { source: "builder_pending", kept_at: row.createdAt.toISOString(), ...(Array.isArray(p.items) && p.items.length ? { items: p.items } : {}), ...(p.pickup ? { pickup: p.pickup } : {}) });
       const r = await applyPartnerRequest(tx, link.organizationId!, req.id, null);
       return r.kind === "accepted" ? r.job_id : null;
     });

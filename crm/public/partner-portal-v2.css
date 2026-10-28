@@ -606,3 +606,7 @@ body.pp {
   .pp-it-nums { grid-template-columns: 1fr 1fr 1fr; }
   .pp-it-nums b { grid-column: 1 / 3; text-align: left; }
 }
+.pp-it-cat { display: grid; gap: 4px; margin-top: 4px; font-size: 12px; font-weight: 600; }
+.pp-it-cat.is-linked span { color: var(--pp-olive, #536249); }
+.pp-it-cat.is-open span { color: var(--pp-late, #B4561A); }
+.pp-it-cat.is-open select { border-color: #F2C9A8; background: #FFF8F3; }

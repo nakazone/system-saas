@@ -911,10 +911,11 @@
 
   const FIELD_LABELS = {
     address: 'Endereço da obra', title: 'Título do job', community: 'Comunidade', lot: 'Lote', plan: 'Plano',
-    external_ref: 'Seu nº do job / PO', service_type: 'Serviço', preferred_date: 'Data desejada', square_feet: 'Área (sq ft)',
+    external_ref: 'Seu nº do job / PO', service_type: 'Serviço', preferred_date: 'Data do job', square_feet: 'Área (sq ft)',
     material: 'Material', contact_name: 'Contato no local', contact_phone: 'Telefone', contact_email: 'E-mail', notes: 'Observações para a equipe',
   };
-  const FIELD_ORDER = ['address', 'title', 'community', 'lot', 'plan', 'external_ref', 'service_type', 'preferred_date', 'square_feet', 'material', 'contact_name', 'contact_phone', 'contact_email', 'notes'];
+  const FIELD_ORDER = ['address', 'title', 'community', 'lot', 'plan', 'external_ref', 'service_type', 'preferred_date', 'pickup', 'square_feet', 'material', 'contact_name', 'contact_phone', 'contact_email', 'notes'];
+  FIELD_LABELS.pickup = 'Pickup do material (onde retirar)';
 
   function newSend() {
     return { phase: 'pick', files: [], text: '', showPaste: false, fields: null, items: [], laborTotal: null, check: [], warnings: [], match: null, mode: 'new', ai: false, model: '', error: '', presetJob: null, sent: null };
@@ -995,6 +996,7 @@
       } else {
         s.fields = Object.assign(emptyFields(), data.fields || {});
         s.items = (data.items || []).map((it) => ({ ...it, remove: false }));
+        s.catalog = data.catalog || [];
         s.laborTotal = data.labor_total == null ? null : Number(data.labor_total);
         s.check = data.check || [];
         s.warnings = data.warnings || [];
@@ -1230,6 +1232,7 @@
             ${field('title', { required: true, wide: true, max: 160 })}
             ${field('service_type', { max: 100 })}
             ${field('preferred_date', { type: 'date' })}
+            ${field('pickup', { wide: true, max: 200 })}
             ${field('external_ref', { max: 60 })}
             ${field('community', { max: 120 })}
             ${field('lot', { max: 20 })}
@@ -1268,6 +1271,7 @@
           <input class="pp-it-name" data-it="${i}" data-k="description" value="${esc(it.description)}" maxlength="200" aria-label="Serviço ${i + 1}" ${it.remove ? 'disabled' : ''} />
           <input class="pp-it-sub" data-it="${i}" data-k="detail" value="${esc(it.detail)}" maxlength="200" placeholder="Detalhe da instalação" aria-label="Detalhe do serviço ${i + 1}" ${it.remove ? 'disabled' : ''} />
           ${it.area ? `<small>${esc(it.area)}</small>` : ''}
+          ${(s.catalog || []).length ? `<label class="pp-it-cat ${it.pricing_item_id ? 'is-linked' : 'is-open'}"><span>${it.pricing_item_id ? 'Serviço do cadastro' : 'Ligar a um serviço do cadastro'}</span><select data-it="${i}" data-k="pricing_item_id" ${it.remove ? 'disabled' : ''}><option value="">— Sem ligação (usa o texto da ordem)</option>${s.catalog.map((c) => `<option value="${esc(c.id)}" ${c.id === it.pricing_item_id ? 'selected' : ''}>${esc(c.name)} · ${esc(unitLabel(c.unit))}</option>`).join('')}</select></label>` : ''}
         </div>
         <div class="pp-it-nums">
           <label><span>Qtd</span><input type="number" min="0" step="0.01" data-it="${i}" data-k="quantity" value="${esc(it.quantity)}" ${it.remove ? 'disabled' : ''} /></label>
@@ -1305,6 +1309,11 @@
       const k = el.getAttribute('data-k');
       if (k === 'quantity') it.quantity = Number(el.value) || 0;
       else if (k === 'rate') it.rate = el.value === '' ? null : Number(el.value);
+      else if (k === 'pricing_item_id') {
+        it.pricing_item_id = el.value || null;
+        const box = el.closest('.pp-it-cat');
+        if (box) { box.classList.toggle('is-linked', Boolean(it.pricing_item_id)); box.classList.toggle('is-open', !it.pricing_item_id); box.querySelector('span').textContent = it.pricing_item_id ? 'Serviço do cadastro' : 'Ligar a um serviço do cadastro'; }
+      }
       else it[k] = el.value;
       if (k === 'quantity' || k === 'rate') {
         if (it.rate == null && k === 'quantity') it.total = null;
@@ -1321,7 +1330,7 @@
     }));
     const add = $('ppItemAdd');
     if (add) add.addEventListener('click', () => {
-      s.items.push({ area: '', description: '', detail: '', quantity: 0, uom: 'SF', rate: null, total: null, remove: false });
+      s.items.push({ area: '', description: '', detail: '', quantity: 0, uom: 'SF', rate: null, total: null, pricing_item_id: null, remove: false });
       renderSendBody();
       const inputs = view.querySelectorAll('.pp-it-name');
       if (inputs.length) inputs[inputs.length - 1].focus();
@@ -1339,6 +1348,7 @@
         uom: String(it.uom || 'SF').slice(0, 12),
         rate: it.rate == null || it.rate === '' ? null : Math.max(0, Number(it.rate) || 0),
         total: itemTotal(it),
+        pricing_item_id: it.pricing_item_id || null,
       }))
       .slice(0, 40);
   }
@@ -1417,6 +1427,7 @@
           external_ref: f.external_ref.trim().slice(0, 60),
           files: s.files.map((x) => ({ name: x.name, data_url: x.dataUrl })),
           items: itemsPayload(s),
+          pickup: (f.pickup || '').trim().slice(0, 200),
         });
         s.files.forEach((x) => x.url && URL.revokeObjectURL(x.url));
         s.sent = { kept: true };
@@ -1437,7 +1448,7 @@
         external_ref: f.external_ref.trim().slice(0, 60),
         target_job_id: update ? s.match.id : '',
         files: s.files.map((x) => ({ name: x.name, data_url: x.dataUrl })),
-        intake: { source: s.ai ? 'ai' : 'manual', fields_checked: s.check, ...(s.model ? { model: s.model.slice(0, 80) } : {}), items: itemsPayload(s), labor_total: s.laborTotal },
+        intake: { source: s.ai ? 'ai' : 'manual', fields_checked: s.check, ...(s.model ? { model: s.model.slice(0, 80) } : {}), items: itemsPayload(s), labor_total: s.laborTotal, pickup: (f.pickup || '').trim().slice(0, 200) },
       }, state.builder ? sendCo().id : undefined);
       s.files.forEach((x) => x.url && URL.revokeObjectURL(x.url));
       s.sent = { update: Boolean(update), jobId: sent.data && sent.data.job_id, direct: Boolean(sent.data && sent.data.status === 'accepted') };

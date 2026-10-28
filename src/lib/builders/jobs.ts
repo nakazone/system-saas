@@ -1,5 +1,6 @@
 import type { TenantPrisma } from "../tenant/prisma-tenant.js";
 import { intakeItemsSchema } from "../partner-intake/extract.js";
+import { safeTimeZone, zonedWallTimeToUtc } from "../time/zoned.js";
 
 type IntakeLine = {
   area: string;
@@ -9,7 +10,14 @@ type IntakeLine = {
   uom: string;
   rate: number | null;
   total: number | null;
+  pricing_item_id: string | null;
 };
+
+/** Where the crew picks up the material (from the order), if the builder kept it. */
+export function intakePickup(intake: unknown): string {
+  if (!intake || typeof intake !== "object") return "";
+  return String((intake as { pickup?: unknown }).pickup ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
+}
 
 /** Lines the builder confirmed in the portal (stored on the request's intake). */
 export function intakeLines(intake: unknown): IntakeLine[] {
@@ -62,6 +70,27 @@ async function createJobLines(tx: TenantPrisma, organizationId: string, workOrde
   const priceList = await tx.pricingItem.findMany({ where: { organizationId, active: true }, select: { id: true, name: true, unit: true } });
   let order = 0;
   for (const l of lines) {
+    // The service the builder linked in the portal wins; otherwise a name + unit match.
+    const linked = l.pricing_item_id ? priceList.find((p) => p.id === l.pricing_item_id) || null : null;
+    if (linked) {
+      const total = l.total ?? (l.rate != null ? round2(l.rate * l.quantity) : 0);
+      order += 1;
+      await tx.workOrderLineItem.create({
+        data: {
+          organizationId,
+          workOrderId,
+          pricingItemId: linked.id,
+          serviceName: linked.name,
+          // The order's own wording stays with the line so the crew sees the product.
+          notes: [lineName(l), l.area].filter(Boolean).join(" · ").slice(0, 500) || null,
+          quantitySqft: l.quantity,
+          unitPrice: l.rate ?? (l.quantity ? round2(total / l.quantity) : 0),
+          lineTotal: round2(total),
+          sortOrder: order,
+        },
+      });
+      continue;
+    }
     const item = matchPricingItem(l, priceList);
     const isSf = l.uom.toUpperCase() === "SF";
     // Without a matching price-list item the line has no unit of its own (it would read "sq ft"),
@@ -128,6 +157,7 @@ export async function applyPartnerRequest(
         request.serviceType ? `Serviço: ${request.serviceType}` : "",
         request.preferredDate ? `Data solicitada: ${request.preferredDate.toISOString().slice(0, 10)}` : "",
         request.notes ? `Detalhes: ${request.notes}` : "",
+        intakePickup(request.intake) ? `Pickup do material: ${intakePickup(request.intake)}` : "",
         intakeLines(request.intake).length ? `Serviços na ordem:\n${linesText(intakeLines(request.intake))}` : "",
       ].filter(Boolean).join("\n");
       await tx.workOrder.update({
@@ -152,6 +182,7 @@ export async function applyPartnerRequest(
     request.preferredDate ? `Data solicitada: ${request.preferredDate.toISOString().slice(0, 10)}` : "",
     request.externalRef ? `Nº do builder: ${request.externalRef}` : "",
     request.notes ? `Detalhes: ${request.notes}` : "",
+    intakePickup(request.intake) ? `Pickup do material: ${intakePickup(request.intake)}` : "",
   ].filter(Boolean).join("\n");
   await tx.$executeRaw`
     INSERT INTO "DocumentSequence" ("id", "organizationId", "kind", "nextValue")
@@ -169,12 +200,29 @@ export async function applyPartnerRequest(
     SET "nextValue" = ${number + 1}
     WHERE "organizationId" = ${organizationId}::uuid AND "kind" = 'work_order'
   `;
+  const pickup = intakePickup(request.intake);
+  // The order's date becomes the job date (all day, in the company's time zone).
+  let schedule: { scheduledStart: Date; scheduledEnd: Date; allDay: boolean; status: string } | null = null;
+  if (request.preferredDate) {
+    const org = await tx.organization.findUnique({ where: { id: organizationId }, select: { timezone: true } });
+    const tz = safeTimeZone(org?.timezone);
+    const d = request.preferredDate;
+    const [y, m, day] = [d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()];
+    schedule = {
+      scheduledStart: zonedWallTimeToUtc(tz, y, m, day, 8, 0),
+      scheduledEnd: zonedWallTimeToUtc(tz, y, m, day, 16, 0),
+      allDay: true,
+      status: "scheduled",
+    };
+  }
   const workOrder = await tx.workOrder.create({
     data: {
       organizationId: organizationId,
       number,
       title: request.title,
-      status: "draft",
+      status: schedule ? schedule.status : "draft",
+      ...(schedule ? { scheduledStart: schedule.scheduledStart, scheduledEnd: schedule.scheduledEnd, allDay: true } : {}),
+      ...(pickup ? { campoAttention: `Pickup do material: ${pickup}` } : {}),
       sourceType,
       sourceName,
       customerId: request.customerId,

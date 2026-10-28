@@ -399,6 +399,7 @@ const pendingSchema = z.object({
   external_ref: z.string().trim().max(60).optional().default(""),
   files: z.array(z.object({ name: z.string().trim().min(1).max(180), data_url: z.string().min(1).max(14_000_000) })).max(5).optional().default([]),
   items: intakeItemsSchema.optional().default([]),
+  pickup: z.string().trim().max(200).optional().default(""),
 });
 
 function decodeUploads(files: Array<{ name: string; data_url: string }>): Array<{ name: string; contentType: string; body: Buffer }> {

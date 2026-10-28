@@ -15,6 +15,8 @@ export const intakeItemSchema = z.object({
   uom: z.string().trim().max(12).optional().default("SF"),
   rate: z.number().min(0).max(1_000_000).nullable().optional().default(null),
   total: z.number().min(0).max(100_000_000).nullable().optional().default(null),
+  /** Service of the company's price list this line was linked to. */
+  pricing_item_id: z.string().uuid().nullable().optional().default(null),
 });
 export const intakeItemsSchema = z.array(intakeItemSchema).max(40);
 
@@ -33,6 +35,7 @@ export const INTAKE_FIELDS = [
   "contact_phone",
   "contact_email",
   "notes",
+  "pickup",
 ] as const;
 
 export type IntakeField = (typeof INTAKE_FIELDS)[number];
@@ -54,7 +57,12 @@ export type IntakeItem = {
   rate: number | null;
   /** Line labor total, when shown. */
   total: number | null;
+  /** Service of the company's price list it matches (id), or null. */
+  pricing_item_id: string | null;
 };
+
+/** The company's services the lines are matched against. */
+export type CatalogItem = { id: string; name: string; unit: string; category?: string | null };
 
 export type IntakeResult = {
   fields: IntakeFields;
@@ -77,19 +85,21 @@ Return ONLY a JSON object with these keys (strings; use "" when absent):
 - plan: house plan / model name
 - external_ref: the builder's own job #, PO # or work order # (the main one, digits/letters only)
 - service_type: the trade / work requested, short (e.g. "Hardwood install", "Carpet", "Tile backsplash", "Stair nosing")
-- preferred_date: requested / scheduled date as written (keep the text, e.g. "Monday, October 12th" or "10/12/2026")
+- preferred_date: the job date as written (keep the text, e.g. "Monday, October 12th" or "10/12/2026"): the INSTALL DATE / start / scheduled date; when the install date is blank, use the order's "DATE BUILT" date (and add "preferred_date" to unsure)
+- pickup: where the crew picks up the material, as written next to the job address or in the delivery box, usually a supplier and its order / delivery number (e.g. "TRIWEST 9176215" printed in red beside ADDRESS → "TriWest · 9176215"); add a street address only if one is printed
 - square_feet: total square feet as a plain number, if shown
 - material: material / wood type / product (e.g. "Engineered white oak")
 - contact_name: superintendent / project manager name
 - contact_phone: their phone
 - contact_email: their e-mail
-- notes: everything else that matters to the crew (shortages, add-ons, access, warehouse/pick-up, who buys which material, supplier order numbers), short sentences
+- notes: everything else that matters to the crew (shortages, add-ons, access, warehouse, who buys which material), short sentences
 - title: a short job title: "<service_type> · <address>"
 - items: array of the service / labor lines of the order, one object per line of the labor table:
-  {"area": rooms covered (short, e.g. "LL Rec Room, Hearth Room, LL Bed 2 & 3, Baths, Laundry"), "description": product or service, "detail": install detail column, "quantity": number, "uom": unit as written (SF, LF, EA, SY, STEP…), "rate": labor rate per unit as a number or null, "total": line labor total as a number or null}
+  {"area": rooms covered (short, e.g. "LL Rec Room, Hearth Room, LL Bed 2 & 3, Baths, Laundry"), "description": product or service, "detail": install detail column, "quantity": number, "uom": unit as written (SF, LF, EA, SY, STEP…), "rate": labor rate per unit as a number or null, "total": line labor total as a number or null, "catalog_id": id of the matching service from the installer's catalog (given below) or null}
   Take lines from the labor / work order table. Material-only pages (purchase order, sales order, pick ticket) repeat the same products without labor: do not add those again. A line with "$ -" or no price still counts, with total null.
 - labor_total: the printed labor total (e.g. "TOTAL WOOD LABOR $ 5,117.00" → 5117) as a number, or null
-Documents often come from a flooring dealer / distributor (e.g. "The Colorado Floor Company") sending labor to an installer. In that case the "BUILDER:" on the page is the home builder / end client: put it in notes ("Home builder: …"), not in contact_name. "AREA #" or "Area 9" is a sales area, not a lot. "DATE BUILT" / "Date" of the document is not the install date: preferred_date is only the install / start / scheduled date; leave it "" when the install date is blank.
+Documents often come from a flooring dealer / distributor (e.g. "The Colorado Floor Company") sending labor to an installer. In that case the "BUILDER:" on the page is the home builder / end client: put it in notes ("Home builder: …"), not in contact_name. "AREA #" or "Area 9" is a sales area, not a lot. The INSTALL DATE wins over "DATE BUILT"; DATE BUILT is used only when INSTALL DATE is blank.
+Matching to the catalog: pick the catalog service that is the same kind of work (e.g. a waterproof / LVP / SPC floor with attached pad → the LVP or vinyl plank install service; "6 mil poly" moisture barrier → moisture barrier / vapor barrier / underlayment service; end caps or transitions → transition / end cap / T-molding service; floor protection cover → floor protection service). Prefer a service whose unit fits the line's unit. Use null when nothing in the catalog is that work; never force a match.
 square_feet: the main flooring square feet (the largest SF install line), not the sum of underlayment lines.
 service_type: the main install, e.g. "LVP / waterproof flooring install", "Hardwood install", "Carpet install".
 - unsure: array of keys you are not confident about
@@ -254,7 +264,7 @@ export function normalizeItems(raw: unknown): IntakeItem[] {
     if (total === 0 && !rate) total = null;
     if (rate == null && total != null && quantity > 0) rate = Math.round((total / quantity) * 10000) / 10000;
     if (total == null && rate != null) total = Math.round(rate * quantity * 100) / 100;
-    const item: IntakeItem = { area: clean(r.area, 200), description, detail, quantity: Math.round(quantity * 100) / 100, uom: normalizeUom(clean(r.uom, 20)) || "SF", rate, total };
+    const item: IntakeItem = { area: clean(r.area, 200), description, detail, quantity: Math.round(quantity * 100) / 100, uom: normalizeUom(clean(r.uom, 20)) || "SF", rate, total, pricing_item_id: null };
     const same = out.find((x) => x.description.toLowerCase() === item.description.toLowerCase() && x.detail.toLowerCase() === item.detail.toLowerCase() && x.quantity === item.quantity && x.uom === item.uom);
     if (same) {
       if (same.rate == null && item.rate != null) Object.assign(same, { rate: item.rate, total: item.total });
@@ -349,13 +359,51 @@ export async function pdfTextLayer(dataUrl: string, maxChars = 14_000): Promise<
   }
 }
 
-export async function readWorkOrder(input: { files: IntakeFile[]; text?: string; today?: Date }):
+/** Fallbacks from the PDF text when the model leaves a field empty. */
+export function textLayerHints(layer: string): { pickup: string; date: string } {
+  const t = String(layer || "");
+  const pick = /ADDRESS:[^\n]*?\b([A-Z][A-Z-]{2,})\s+(\d{6,10})\b/.exec(t);
+  const pickup = pick ? `${pick[1]!.charAt(0)}${pick[1]!.slice(1).toLowerCase()} · ${pick[2]}` : "";
+  const install = /INSTALL DATE:\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i.exec(t);
+  const built = /DATE BUILT:\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i.exec(t);
+  let date = install?.[1] || built?.[1] || "";
+  if (!date && /DATE BUILT:/i.test(t)) {
+    // Labels and values come apart in table PDFs: take the only m/d/yyyy date on that page.
+    const page = t.split(/--- page \d+ ---/).find((pg) => /DATE BUILT:/i.test(pg)) || "";
+    const dates = [...new Set(page.match(/\b\d{1,2}\/\d{1,2}\/\d{4}\b/g) || [])];
+    if (dates.length === 1) date = dates[0]!;
+  }
+  return { pickup, date };
+}
+
+/** Links each line to a catalog service: the model's choice when valid, else a name+unit match. */
+export function linkCatalog(items: IntakeItem[], rawItems: unknown, catalog: CatalogItem[]): IntakeItem[] {
+  if (!catalog.length) return items;
+  const ids = new Set(catalog.map((c) => c.id));
+  const raw = Array.isArray(rawItems) ? rawItems as Array<Record<string, unknown>> : [];
+  return items.map((it) => {
+    const src = raw.find((r) => clean(r?.description, 200) === it.description && clean(r?.detail, 200) === it.detail);
+    const chosen = src ? String(src.catalog_id ?? "") : "";
+    if (chosen && ids.has(chosen)) return { ...it, pricing_item_id: chosen };
+    const hay = new Set(`${it.description} ${it.detail}`.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" ").filter((w) => w.length > 1));
+    let best: CatalogItem | null = null;
+    let bestLen = 0;
+    for (const c of catalog) {
+      const w = c.name.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" ").filter((x) => x.length > 1);
+      if (w.length >= 2 && w.every((x) => hay.has(x)) && w.length > bestLen) { best = c; bestLen = w.length; }
+    }
+    return { ...it, pricing_item_id: best ? best.id : null };
+  });
+}
+
+export async function readWorkOrder(input: { files: IntakeFile[]; text?: string; today?: Date; catalog?: CatalogItem[] }):
   Promise<{ ok: true; result: IntakeResult; model: string } | { ok: false; error: string }> {
   const images = input.files.filter((f) => f.contentType.startsWith("image/")).map((f) => f.dataUrl);
   const pdfs = input.files.filter((f) => f.contentType === "application/pdf").map((f) => ({ filename: f.name, dataUrl: f.dataUrl }));
   const text = clean(input.text, 12_000);
   if (!images.length && !pdfs.length && !text) return { ok: false, error: "Envie um arquivo ou cole o texto do pedido." };
   const today = input.today || new Date();
+  const catalog = (input.catalog || []).slice(0, 200);
   const layers = (await Promise.all(pdfs.map((f) => pdfTextLayer(f.dataUrl)))).filter(Boolean);
   const user = [
     `Today is ${today.toISOString().slice(0, 10)}.`,
@@ -363,12 +411,25 @@ export async function readWorkOrder(input: { files: IntakeFile[]; text?: string;
     layers.length
       ? `Text layer extracted from the PDF (columns may be out of order; labels and values can be far apart — use the page images to pair them):\n"""\n${layers.join("\n").slice(0, 16_000)}\n"""`
       : "",
+    catalog.length
+      ? `Installer's service catalog (match each line's catalog_id to one of these ids, or null):\n${catalog.map((c) => `${c.id} | ${c.name} | unit: ${c.unit}${c.category ? ` | ${c.category}` : ""}`).join("\n")}`
+      : "",
   ].filter(Boolean).join("\n\n");
   const response = await aiChatJson({ system: SYSTEM_PROMPT, user, imageUrls: images, files: pdfs, timeoutMs: 75_000 });
   if (!response.ok) return { ok: false, error: response.error };
   const raw = extractJson(response.text);
   if (!raw) return { ok: false, error: "Não consegui ler o arquivo. Confira se ele está legível." };
   const result = normalizeIntake(raw, today);
+  result.items = linkCatalog(result.items, raw.items, catalog);
+  const hints = textLayerHints(layers.join("\n"));
+  if (!result.fields.pickup && hints.pickup) result.fields.pickup = hints.pickup;
+  if (!result.fields.preferred_date && hints.date) {
+    const parsed = parseWorkOrderDate(hints.date, today);
+    if (parsed) {
+      result.fields.preferred_date = parsed;
+      if (!result.check.includes("preferred_date")) result.check.push("preferred_date");
+    }
+  }
   const filled = INTAKE_FIELDS.filter((k) => result.fields[k]).length + (result.items.length ? 1 : 0);
   if (filled < 2) return { ok: false, error: "Não encontrei os dados de um job neste arquivo. Preencha à mão ou envie outro arquivo." };
   return { ok: true, result, model: response.model };

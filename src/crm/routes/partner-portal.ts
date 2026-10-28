@@ -764,6 +764,7 @@ partnerPortalRouter.post("/api/partner-portal/requests", requirePartnerAuth, req
         model: z.string().max(80).optional(),
         items: intakeItemsSchema.optional(),
         labor_total: z.number().min(0).max(100_000_000).nullable().optional(),
+        pickup: z.string().trim().max(200).optional(),
       }).optional(),
     }).safeParse(req.body || {});
     if (!parsed.success) {
@@ -906,7 +907,14 @@ partnerPortalRouter.post("/api/partner-portal/requests/read", requirePartnerAuth
       res.json({ success: true, data: { ai_available: false, fields: null, check: [], warnings: [], match: null } });
       return;
     }
-    const read = await readWorkOrder({ files, text: parsed.data.text });
+    // The company's services, so each line of the order can be linked to one of them.
+    const catalog = await withTenantTransaction(user.organizationId, (tx) => tx.pricingItem.findMany({
+      where: { organizationId: user.organizationId, active: true },
+      orderBy: [{ category: "asc" }, { sortOrder: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, unit: true, category: true },
+      take: 200,
+    }));
+    const read = await readWorkOrder({ files, text: parsed.data.text, catalog });
     if (!read.ok) {
       res.status(422).json({ success: false, error: read.error, code: "read_failed" });
       return;
@@ -944,6 +952,7 @@ partnerPortalRouter.post("/api/partner-portal/requests/read", requirePartnerAuth
         fields: read.result.fields,
         items: read.result.items,
         labor_total: read.result.labor_total,
+        catalog: catalog.map((c) => ({ id: c.id, name: c.name, unit: c.unit, category: c.category })),
         check: read.result.check,
         warnings: read.result.warnings,
         match,
