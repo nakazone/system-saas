@@ -995,7 +995,7 @@
         s.warnings = ['A leitura automática não está ligada nesta empresa. Preencha os campos abaixo.'];
       } else {
         s.fields = Object.assign(emptyFields(), data.fields || {});
-        s.items = (data.items || []).map((it) => ({ ...it, remove: false }));
+        s.items = (data.items || []).map((it) => ({ ...it, create_service: true, remove: false }));
         s.catalog = data.catalog || [];
         s.laborTotal = data.labor_total == null ? null : Number(data.labor_total);
         s.check = data.check || [];
@@ -1256,6 +1256,22 @@
   }
 
   const UOMS = ['SF', 'LF', 'EA', 'STEP', 'SY', 'HR'];
+  /** Which service of the company each line becomes: a listed one, a new one (default), or none. */
+  function catalogPicker(s, it, i) {
+    if (!s.ai && !(s.catalog || []).length) return '';
+    const mode = it.pricing_item_id ? 'linked' : it.create_service === false ? 'none' : 'new';
+    const value = it.pricing_item_id || (mode === 'none' ? '__none' : '__new');
+    const label = mode === 'linked' ? 'Serviço do cadastro' : mode === 'new' ? 'Serviço novo — entra no cadastro da empresa' : 'Fica só neste job';
+    return `<div class="pp-it-cat is-${mode}">
+      <label for="ppItCat-${i}"><span>${label}</span></label>
+      <select id="ppItCat-${i}" data-it="${i}" data-k="catalog" ${it.remove ? 'disabled' : ''}>
+        <option value="__new" ${value === '__new' ? 'selected' : ''}>+ Criar serviço no cadastro</option>
+        ${(s.catalog || []).map((c) => `<option value="${esc(c.id)}" ${c.id === value ? 'selected' : ''}>${esc(c.name)} · ${esc(unitLabel(c.unit))}</option>`).join('')}
+        <option value="__none" ${value === '__none' ? 'selected' : ''}>Não cadastrar (só neste job)</option>
+      </select>
+      ${mode === 'new' ? `<input data-it="${i}" data-k="service_name" value="${esc(it.service_name || it.description || '')}" maxlength="120" aria-label="Nome do serviço novo" placeholder="Nome do serviço no cadastro" ${it.remove ? 'disabled' : ''} />` : ''}
+    </div>`;
+  }
   function itemTotal(it) {
     if (it.rate != null && it.rate !== '' && !Number.isNaN(Number(it.rate))) return Math.round(Number(it.rate) * Number(it.quantity || 0) * 100) / 100;
     return it.total == null ? null : Number(it.total);
@@ -1271,7 +1287,7 @@
           <input class="pp-it-name" data-it="${i}" data-k="description" value="${esc(it.description)}" maxlength="200" aria-label="Serviço ${i + 1}" ${it.remove ? 'disabled' : ''} />
           <input class="pp-it-sub" data-it="${i}" data-k="detail" value="${esc(it.detail)}" maxlength="200" placeholder="Detalhe da instalação" aria-label="Detalhe do serviço ${i + 1}" ${it.remove ? 'disabled' : ''} />
           ${it.area ? `<small>${esc(it.area)}</small>` : ''}
-          ${(s.catalog || []).length ? `<label class="pp-it-cat ${it.pricing_item_id ? 'is-linked' : 'is-open'}"><span>${it.pricing_item_id ? 'Serviço do cadastro' : 'Ligar a um serviço do cadastro'}</span><select data-it="${i}" data-k="pricing_item_id" ${it.remove ? 'disabled' : ''}><option value="">— Sem ligação (usa o texto da ordem)</option>${s.catalog.map((c) => `<option value="${esc(c.id)}" ${c.id === it.pricing_item_id ? 'selected' : ''}>${esc(c.name)} · ${esc(unitLabel(c.unit))}</option>`).join('')}</select></label>` : ''}
+          ${catalogPicker(s, it, i)}
         </div>
         <div class="pp-it-nums">
           <label><span>Qtd</span><input type="number" min="0" step="0.01" data-it="${i}" data-k="quantity" value="${esc(it.quantity)}" ${it.remove ? 'disabled' : ''} /></label>
@@ -1309,10 +1325,11 @@
       const k = el.getAttribute('data-k');
       if (k === 'quantity') it.quantity = Number(el.value) || 0;
       else if (k === 'rate') it.rate = el.value === '' ? null : Number(el.value);
-      else if (k === 'pricing_item_id') {
-        it.pricing_item_id = el.value || null;
-        const box = el.closest('.pp-it-cat');
-        if (box) { box.classList.toggle('is-linked', Boolean(it.pricing_item_id)); box.classList.toggle('is-open', !it.pricing_item_id); box.querySelector('span').textContent = it.pricing_item_id ? 'Serviço do cadastro' : 'Ligar a um serviço do cadastro'; }
+      else if (k === 'catalog') {
+        it.pricing_item_id = el.value.startsWith('__') ? null : el.value;
+        it.create_service = el.value !== '__none';
+        renderSendBody();
+        return;
       }
       else it[k] = el.value;
       if (k === 'quantity' || k === 'rate') {
@@ -1330,7 +1347,7 @@
     }));
     const add = $('ppItemAdd');
     if (add) add.addEventListener('click', () => {
-      s.items.push({ area: '', description: '', detail: '', quantity: 0, uom: 'SF', rate: null, total: null, pricing_item_id: null, remove: false });
+      s.items.push({ area: '', description: '', detail: '', quantity: 0, uom: 'SF', rate: null, total: null, pricing_item_id: null, service_name: '', create_service: true, remove: false });
       renderSendBody();
       const inputs = view.querySelectorAll('.pp-it-name');
       if (inputs.length) inputs[inputs.length - 1].focus();
@@ -1349,6 +1366,8 @@
         rate: it.rate == null || it.rate === '' ? null : Math.max(0, Number(it.rate) || 0),
         total: itemTotal(it),
         pricing_item_id: it.pricing_item_id || null,
+        service_name: String(it.service_name || '').trim().slice(0, 120),
+        create_service: it.create_service !== false,
       }))
       .slice(0, 40);
   }

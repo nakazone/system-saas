@@ -610,3 +610,7 @@ body.pp {
 .pp-it-cat.is-linked span { color: var(--pp-olive, #536249); }
 .pp-it-cat.is-open span { color: var(--pp-late, #B4561A); }
 .pp-it-cat.is-open select { border-color: #F2C9A8; background: #FFF8F3; }
+.pp-it-cat.is-new span { color: #1F5FBF; }
+.pp-it-cat.is-new select { border-color: #BFD3F2; background: #F5F9FF; }
+.pp-it-cat.is-none span { color: var(--pp-muted); }
+.pp-it-cat input { margin-top: 4px; font-weight: 500; }
