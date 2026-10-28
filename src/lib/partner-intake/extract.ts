@@ -100,14 +100,18 @@ Return ONLY a JSON object with these keys (strings; use "" when absent):
 - contact_email: their e-mail
 - notes: everything else that matters to the crew (shortages, add-ons, access, warehouse, who buys which material), short sentences
 - title: a short job title: "<service_type> · <address>"
-- items: array of the service / labor lines of the order, one object per line of the labor table:
+- items: array of distinct services the installer must perform (not one object per product/material row):
   {"area": rooms covered (short, e.g. "LL Rec Room, Hearth Room, LL Bed 2 & 3, Baths, Laundry"), "description": product or service, "detail": install detail column, "quantity": number, "uom": unit as written (SF, LF, EA, SY, STEP…), "rate": labor rate per unit as a number or null, "total": line labor total as a number or null, "catalog_id": id of the matching service from the installer's catalog (given below) or null, "service_name": short generic name of the work as an installer would list it in a price list, in English, without brand / color / SKU (e.g. "LVP install with attached pad", "Moisture barrier – 6 mil poly", "End cap / transition install", "Floor protection cover")}
-  Take lines from the labor / work order table. Material-only pages (purchase order, sales order, pick ticket) repeat the same products without labor: do not add those again. A line with "$ -" or no price still counts, with total null.
+  A builder's remarks / scope section can describe the actual work better than the item table. Use those instructions together with the table; the table may list materials or components, not separate labor services. Do not turn every material row into an installation service or count a material quantity as the step count.
+  For stair work, consolidate each requested tread type into one service using the quantity in the "STAIR TREADS" instructions. Example: "STAIR TREADS: SOLID WHITE OAK - 48\" - DOUBLE RETURNS - 8 EA" means one "Stair tread installation — 48\" double returns" service, quantity 8, uom STEP. "42\" - LEFT RETURNS - 8 EA" is a separate service, quantity 8, uom STEP. Keep the dimension and return type together. A separate "STAIR RISERS" section is usually material/component counts; do not create riser-install services from it unless the order explicitly lists riser installation as labor.
+  For a vent installation instruction, use the vent size from the table (for example 4x10) and the quantity from the install instruction/table to create one service such as "Wood vent installation — 4x10", uom EA. Do not mistake the vent product description for a second service.
+  A line such as "SITE FINISHED SAND/2 COAT TREADS" with quantity 16 means "Sand & finish stair treads", quantity 16, uom STEP. Do not merge it into tread installation.
+  Take service lines from the labor / work order table and scope notes. Material-only pages (purchase order, sales order, pick ticket) repeat products without labor: do not add those again. A line with "$ -" or no price still counts, with total null.
 - labor_total: the printed labor total (e.g. "TOTAL WOOD LABOR $ 5,117.00" → 5117) as a number, or null
 Documents often come from a flooring dealer / distributor (e.g. "The Colorado Floor Company") sending labor to an installer. In that case the "BUILDER:" on the page is the home builder / end client: put it in notes ("Home builder: …"), not in contact_name. "AREA #" or "Area 9" is a sales area, not a lot. The INSTALL DATE wins over "DATE BUILT"; DATE BUILT is used only when INSTALL DATE is blank.
 "INSTALL DATE: TBD" (or "to be determined") means there is no date yet: leave preferred_date "" and do not use the order date.
 On a "WORK ORDER" with "Sold To" and "Install At" boxes, the job address is the street line of "Install At" (with its city/state/zip); the first line there is usually "<community> #<lot>, <plan>" (e.g. "GRANBY RANCH #50, PEACH" → community "Granby Ranch", lot "50", plan "Peach"); short words like "NAIL WOOD" under it are install notes. "Sold To" is the dealer's customer, not the job. "BLDR:" in the remarks is the builder's superintendent → contact_name. "PO Number: NEED PO" means no PO yet → keep the order number (e.g. "HN001195") as external_ref.
-Stair parts and vents (treads, risers, nosings, vents) are separate lines: keep their size ("48\"", "42\"", "4x10"), species and return type (e.g. "double returns", "left returns") in description/detail, with quantity and EA.
+Keep separately requested work separate: stair tread installation, sanding / finishing, and vent installation are different services. For stair treads, use STEP as the service unit even if the order says EA. Preserve dimensions (48\", 42\", 4x10), species and return type (double returns, left returns) in the service name or detail. Do not create a service for risers merely because the material table lists riser pieces.
 Matching to the catalog: pick the catalog service that is the same kind of work (e.g. a waterproof / LVP / SPC floor with attached pad → the LVP or vinyl plank install service; "6 mil poly" moisture barrier → moisture barrier / vapor barrier / underlayment service; end caps or transitions → transition / end cap / T-molding service; floor protection cover → floor protection service). Prefer a service whose unit fits the line's unit. Use null when nothing in the catalog is that work; never force a match.
 square_feet: the main flooring square feet (the largest SF install line), not the sum of underlayment lines.
 service_type: the main install, e.g. "LVP / waterproof flooring install", "Hardwood install", "Carpet install".
@@ -220,7 +224,7 @@ export function normalizeIntake(raw: Record<string, unknown>, today = new Date()
     .map((w) => clean(w, 240))
     .filter(Boolean)
     .slice(0, 4);
-  const items = normalizeItems(raw.items);
+  const items = normalizeInstallationItems(raw.items, raw);
   const laborTotal = toNumber(raw.labor_total);
   if (items.length && laborTotal != null) {
     const sum = Math.round(items.reduce((acc, it) => acc + (it.total ?? 0), 0) * 100) / 100;
@@ -282,6 +286,115 @@ export function normalizeItems(raw: unknown): IntakeItem[] {
     out.push(item);
   }
   return out.slice(0, 40);
+}
+
+type StairTreadInstruction = { size: string; returns: string; quantity: number };
+
+/**
+ * These work orders often put the requested work in remarks and the component counts in
+ * the product table. Build a compact text view of both so those remarks can override
+ * material-only tread/riser rows when creating the service lines.
+ */
+function intakeSourceText(raw: Record<string, unknown>): string {
+  const values = [raw.notes, raw.comments, raw.additional_notes, raw.work_description, raw.description]
+    .filter((value): value is string => typeof value === "string");
+  if (Array.isArray(raw.items)) {
+    for (const item of raw.items) {
+      if (!item || typeof item !== "object") continue;
+      const row = item as Record<string, unknown>;
+      values.push(...[row.description, row.detail, row.service_name].filter((value): value is string => typeof value === "string"));
+    }
+  }
+  return values.join("\n");
+}
+
+/** Reads lines like `48\" - DOUBLE RETURNS - 8 EA` from a STAIR TREADS scope block. */
+function stairTreadInstructions(source: string): StairTreadInstruction[] {
+  const start = /\bSTAIR\s+TREADS?\b\s*:?/i.exec(source);
+  if (!start) return [];
+  const rest = source.slice(start.index + start[0].length);
+  const stop = /\b(?:STAIR\s+RISERS?|INSTALL(?:ATION)?\s+(?:WOOD\s+)?VENTS?|SITE\s+FINISHED|SAND\s*(?:&|AND|\/))\b/i.exec(rest);
+  const section = stop ? rest.slice(0, stop.index) : rest.slice(0, 1800);
+  const re = /\b(48|42)\s*(?:"|”|“|′|INCH(?:ES)?\b)?\s*[-–—:]?\s*(DOUBLE|LEFT|RIGHT|SINGLE)\s+RETURNS?\s*[-–—:]*(\d+(?:\.\d+)?)\s*(?:EA|EACH)\b/gi;
+  const found: StairTreadInstruction[] = [];
+  for (const match of section.matchAll(re)) {
+    const quantity = Number(match[3]);
+    if (!Number.isFinite(quantity) || quantity < 1 || quantity > 10_000) continue;
+    const item = { size: match[1]!, returns: `${match[2]![0]!.toUpperCase()}${match[2]!.slice(1).toLowerCase()} Returns`, quantity };
+    if (!found.some((x) => x.size === item.size && x.returns === item.returns)) found.push(item);
+  }
+  return found;
+}
+
+/** Converts work-order components into the installer's service-level lines. */
+function normalizeInstallationItems(rawItems: unknown, raw: Record<string, unknown>): IntakeItem[] {
+  let items = normalizeItems(rawItems);
+  const source = intakeSourceText(raw);
+  const treadSpecs = stairTreadInstructions(source);
+
+  if (treadSpecs.length) {
+    const treadRows = items.filter((item) => /\btreads?\b/i.test(`${item.description} ${item.detail}`) && !/\b(?:sand|finish)\b/i.test(`${item.description} ${item.detail}`));
+    const instructionRows = treadSpecs.map((spec): IntakeItem => {
+      const matching = treadRows.find((item) => new RegExp(`\\b${spec.size}\\s*(?:[\"”]|inch)?`, "i").test(`${item.description} ${item.detail}`));
+      return {
+        area: matching?.area || "",
+        description: matching?.description || "Stair tread installation",
+        detail: [matching?.detail, `${spec.size}\" · ${spec.returns}`].filter(Boolean).join(" · ").slice(0, 200),
+        quantity: spec.quantity,
+        uom: "STEP",
+        rate: matching?.rate ?? null,
+        total: matching?.total ?? null,
+        pricing_item_id: null,
+        service_name: `Stair tread installation — ${spec.size}\" ${spec.returns}`,
+      };
+    });
+    const isStairComponent = (item: IntakeItem) => /\b(?:treads?|risers?)\b/i.test(`${item.description} ${item.detail}`)
+      && !/\b(?:sand|finish)\b/i.test(`${item.description} ${item.detail}`);
+    items = [
+      ...items.filter((item) => {
+        if (!isStairComponent(item)) return true;
+        if (/\brisers?\b/i.test(`${item.description} ${item.detail}`)) {
+          // Keep risers only when the order explicitly describes a separate riser labor line.
+          const explicitRiserLabor = /\briser\s+(?:install(?:ation)?|labor|labour)\b/i.test(`${item.description} ${item.detail}`)
+            || (item.total != null && item.total > 0);
+          return explicitRiserLabor;
+        }
+        return false;
+      }),
+      ...instructionRows,
+    ].slice(0, 40);
+  } else if (items.some((item) => /\btreads?\b/i.test(`${item.description} ${item.detail}`))) {
+    items = items.filter((item) => {
+      if (!/\brisers?\b/i.test(`${item.description} ${item.detail}`)) return true;
+      const explicitRiserLabor = /\briser\s+(?:install(?:ation)?|labor|labour)\b/i.test(`${item.description} ${item.detail}`)
+        || (item.total != null && item.total > 0);
+      return explicitRiserLabor;
+    });
+  }
+
+  return items.map((item) => {
+    const text = `${item.description} ${item.detail} ${item.service_name}`;
+    const size = /\b(\d{1,2})\s*[x×]\s*(\d{1,2})\b/i.exec(text);
+    if (/\bvents?\b/i.test(text)) {
+      const dimensions = size ? `${size[1]}x${size[2]}` : "";
+      return {
+        ...item,
+        uom: "EA",
+        service_name: `Wood vent installation${dimensions ? ` — ${dimensions}` : ""}`,
+      };
+    }
+    if (/\b(?:sand\s*(?:&|and|\/\s*2\s*coat)\s*(?:finish|coat)?|sand\s+finish(?:ing)?)\b/i.test(text)
+      && /\b(?:stair|steps?|treads?)\b/i.test(text)) {
+      return { ...item, uom: "STEP", service_name: "Sand & finish stair treads" };
+    }
+    if (/\b(?:treads?|steps?)\b/i.test(text) && !/\b(?:sand|finish)\b/i.test(text)) {
+      const dimension = /\b(48|42)\s*(?:"|”|“|inch(?:es)?\b)?/i.exec(text)?.[1];
+      const returnType = /\b(double|left|right|single)\s+returns?\b/i.exec(text)?.[1];
+      const label = [dimension ? `${dimension}\"` : "", returnType ? `${returnType[0]!.toUpperCase()}${returnType.slice(1).toLowerCase()} Returns` : ""].filter(Boolean).join(" ");
+      return { ...item, uom: "STEP", service_name: `Stair tread installation${label ? ` — ${label}` : ""}` };
+    }
+    return item;
+  });
 }
 
 const STREET_WORDS: Record<string, string> = {
