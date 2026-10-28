@@ -217,7 +217,14 @@ export async function linksFor(accountId: string) {
   });
   const orgIds = links.map((l) => l.organizationId).filter((id): id is string => Boolean(id));
   const orgs = orgIds.length
-    ? await prisma.organization.findMany({ where: { id: { in: orgIds } }, select: { id: true, name: true, slug: true, status: true } })
+    ? await prisma.organization.findMany({
+      where: { id: { in: orgIds } },
+      select: {
+        id: true, name: true, slug: true, status: true, logoUrl: true, primaryColor: true, contactEmail: true, contactPhone: true, website: true,
+        addressLine1: true, addressLine2: true, city: true, state: true, postalCode: true, addressPrivate: true,
+        licenseNumber: true, licenseState: true, insuranceCarrier: true, insuranceExpiresOn: true, timezone: true,
+      },
+    })
     : [];
   const byId = new Map(orgs.map((o) => [o.id, o]));
   return links
@@ -236,8 +243,44 @@ export async function linksFor(accountId: string) {
         invited_at: l.invitedAt,
         activated_at: l.activatedAt,
         pending_jobs: l._count.pendingJobs,
+        profile: companyProfile(org, l.contactEmail),
       };
     });
+}
+
+const FREE_MAIL = /^(gmail|googlemail|yahoo|hotmail|outlook|live|icloud|me|aol|msn|proton|protonmail|comcast|att|verizon)\./i;
+
+/** Public company card: what the company shows on its quotes (logo, contacts, license, insurance). */
+export function companyProfile(
+  org: {
+    logoUrl?: string | null; primaryColor?: string | null; contactEmail?: string | null; contactPhone?: string | null; website?: string | null;
+    addressLine1?: string | null; addressLine2?: string | null; city?: string | null; state?: string | null; postalCode?: string | null; addressPrivate?: boolean | null;
+    licenseNumber?: string | null; licenseState?: string | null; insuranceCarrier?: string | null; insuranceExpiresOn?: Date | null;
+  } | undefined,
+  inviteEmail?: string | null,
+) {
+  const domainOf = (v?: string | null) => {
+    const m = /@([a-z0-9.-]+\.[a-z]{2,})$/i.exec(String(v || "").trim());
+    return m && !FREE_MAIL.test(m[1]!) ? m[1]!.toLowerCase() : null;
+  };
+  const site = String(org?.website || "").trim();
+  const siteDomain = /^(?:https?:\/\/)?(?:www\.)?([a-z0-9.-]+\.[a-z]{2,})/i.exec(site)?.[1]?.toLowerCase() || null;
+  const domain = siteDomain || domainOf(org?.contactEmail) || domainOf(inviteEmail);
+  const addr = org && !org.addressPrivate
+    ? [org.addressLine1, org.addressLine2, [org.city, [org.state, org.postalCode].filter(Boolean).join(" ")].filter(Boolean).join(", ")].filter(Boolean).join(", ")
+    : "";
+  return {
+    logo_url: org?.logoUrl || null,
+    /** Fallback icon from the company's web domain when it has no logo on ObraMate. */
+    icon_url: domain ? `https://icons.duckduckgo.com/ip3/${domain}.ico` : null,
+    color: org?.primaryColor || null,
+    email: org?.contactEmail || null,
+    phone: org?.contactPhone || null,
+    website: site ? (/^https?:\/\//i.test(site) ? site : `https://${site}`) : domain ? `https://${domain}` : null,
+    address: addr || null,
+    license: org?.licenseNumber ? [org.licenseNumber, org.licenseState].filter(Boolean).join(" · ") : null,
+    insurance: org?.insuranceCarrier ? { carrier: org.insuranceCarrier, expires_on: org.insuranceExpiresOn ? org.insuranceExpiresOn.toISOString().slice(0, 10) : null } : null,
+  };
 }
 
 /** The active link between this member's account and a company, if any. */
@@ -302,9 +345,67 @@ export async function ensureShadowPartnerUser(member: ActiveMember, link: { orga
 
 /* ───────────────────────── team ───────────────────────── */
 
-export async function listMembers(accountId: string) {
-  const rows = await prisma.builderMember.findMany({ where: { builderAccountId: accountId, status: { not: "disabled" } }, orderBy: [{ createdAt: "asc" }] });
-  return rows.map((m) => ({ id: m.id, name: m.name, email: m.email, phone: m.phone, role: m.role, status: m.status, last_login_at: m.lastLoginAt }));
+export async function listMembers(accountId: string, withDisabled = false) {
+  const rows = await prisma.builderMember.findMany({
+    where: { builderAccountId: accountId, status: withDisabled ? { not: "pending_email" } : { notIn: ["disabled", "pending_email"] } },
+    orderBy: [{ createdAt: "asc" }],
+  });
+  const names = new Map(rows.map((m) => [m.id, m.name]));
+  return rows.map((m) => ({
+    id: m.id,
+    name: m.name,
+    email: m.email,
+    phone: m.phone,
+    title: m.title,
+    role: m.role,
+    status: m.status,
+    last_login_at: m.lastLoginAt,
+    created_at: m.createdAt,
+    invited_by: m.invitedById ? names.get(m.invitedById) || null : null,
+  }));
+}
+
+/** Sends a fresh invite link to someone who has not joined yet. */
+export async function resendMemberInvite(actor: ActiveMember, memberId: string): Promise<{ devLink?: string }> {
+  const m = await prisma.builderMember.findFirst({ where: { id: memberId, builderAccountId: actor.builderAccountId } });
+  if (!m) throw new BuilderError(404, "Person not found.");
+  if (m.status !== "invited") throw new BuilderError(409, "This person already joined.");
+  if (!(await takeRate([{ key: `builder-member-invite:${actor.builderAccountId}`, max: 40, windowMs: DAY }]))) {
+    throw new BuilderError(429, "Too many invites today. Try again tomorrow.");
+  }
+  const token = await setMemberToken(m.id, "invite", INVITE_TTL);
+  const link = `${baseUrl()}/builders/password?token=${encodeURIComponent(token)}`;
+  const role = ROLE_LABELS[(isBuilderRole(m.role) ? m.role : "office") as BuilderRole];
+  await sendPlatformEmail("builder_member_invite", {
+    to: m.email,
+    locale: "en",
+    vars: { name: firstName(m.name), builder: actor.account.name, inviter: actor.name, role: { en: role.en, pt: role.pt }, link },
+  });
+  return { devLink: showDevLink() ? link : undefined };
+}
+
+/** Cancels an invite (removes the person) or turns off the access of someone who joined. */
+export async function removeMember(actor: ActiveMember, memberId: string): Promise<"deleted" | "disabled"> {
+  const m = await prisma.builderMember.findFirst({ where: { id: memberId, builderAccountId: actor.builderAccountId } });
+  if (!m) throw new BuilderError(404, "Person not found.");
+  if (m.id === actor.id) throw new BuilderError(409, "You can't remove yourself. Ask another admin.");
+  if (m.status === "invited" && !m.lastLoginAt) {
+    await prisma.builderMember.delete({ where: { id: m.id } });
+    return "deleted";
+  }
+  await updateMember(actor, m.id, { disabled: true });
+  return "disabled";
+}
+
+/** A member's own profile (name, phone, title). */
+export async function updateOwnProfile(actor: ActiveMember, raw: unknown) {
+  const parsed = z.object({
+    name: z.string().trim().min(2).max(120),
+    phone: z.string().trim().max(40).optional().or(z.literal("")),
+    title: z.string().trim().max(80).optional().or(z.literal("")),
+  }).safeParse(raw);
+  if (!parsed.success) throw new BuilderError(400, "Enter your name.");
+  await prisma.builderMember.update({ where: { id: actor.id }, data: { name: parsed.data.name, phone: parsed.data.phone || null, title: parsed.data.title || null } });
 }
 
 export async function inviteMember(actor: ActiveMember, raw: unknown): Promise<{ id: string; devLink?: string }> {
@@ -339,8 +440,15 @@ export async function inviteMember(actor: ActiveMember, raw: unknown): Promise<{
 }
 
 export async function updateMember(actor: ActiveMember, memberId: string, raw: unknown) {
-  const parsed = z.object({ role: z.string().optional(), disabled: z.boolean().optional() }).safeParse(raw);
-  if (!parsed.success) throw new BuilderError(400, "Invalid data.");
+  const parsed = z.object({
+    role: z.string().optional(),
+    disabled: z.boolean().optional(),
+    name: z.string().trim().min(2).max(120).optional(),
+    phone: z.string().trim().max(40).optional().or(z.literal("")),
+    title: z.string().trim().max(80).optional().or(z.literal("")),
+    email: z.string().trim().toLowerCase().email().max(200).optional(),
+  }).safeParse(raw);
+  if (!parsed.success) throw new BuilderError(400, "Check the name, email and phone.");
   const m = await prisma.builderMember.findFirst({ where: { id: memberId, builderAccountId: actor.builderAccountId } });
   if (!m) throw new BuilderError(404, "Person not found.");
   const nextRole = parsed.data.role;
@@ -350,11 +458,24 @@ export async function updateMember(actor: ActiveMember, memberId: string, raw: u
     const admins = await prisma.builderMember.count({ where: { builderAccountId: actor.builderAccountId, role: "admin", status: "active", id: { not: m.id } } });
     if (!admins) throw new BuilderError(409, "The account needs at least one active admin.");
   }
+  const d = parsed.data;
+  if (d.email && d.email !== m.email) {
+    // Only before the person joins: the e-mail is how they sign in.
+    if (m.status !== "invited") throw new BuilderError(409, "The email can only change before the person joins.");
+    const taken = await prisma.builderMember.findUnique({ where: { email: d.email } });
+    if (taken) throw new BuilderError(409, "This email is already in use.", "email");
+  }
+  const reactivate = d.disabled === false && m.status === "disabled";
   return prisma.builderMember.update({
     where: { id: m.id },
     data: {
       ...(nextRole ? { role: nextRole } : {}),
-      ...(parsed.data.disabled ? { status: "disabled", tokenHash: null, tokenPurpose: null, tokenExpiresAt: null } : {}),
+      ...(d.name ? { name: d.name } : {}),
+      ...(d.phone !== undefined ? { phone: d.phone || null } : {}),
+      ...(d.title !== undefined ? { title: d.title || null } : {}),
+      ...(d.email && d.email !== m.email ? { email: d.email } : {}),
+      ...(d.disabled ? { status: "disabled", tokenHash: null, tokenPurpose: null, tokenExpiresAt: null } : {}),
+      ...(reactivate ? { status: m.passwordHash ? "active" : "invited" } : {}),
     },
   });
 }
