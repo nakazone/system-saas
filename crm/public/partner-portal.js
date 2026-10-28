@@ -2297,10 +2297,255 @@
     return `<input class="pp-in" inputmode="decimal" data-in="${esc(path)}" value="${esc(fmtIn(value))}" placeholder="—" aria-label="${esc(label)}" ${locked ? 'disabled' : ''} />`;
   }
 
+  /* ─────────────────────────── measurement visuals (SVG drawn from the numbers) ─────────────────────────── */
+
+  const WOOD = {
+    'white oak': '#D6B488', 'red oak': '#C8936E', hickory: '#CDA06C', maple: '#E9D3AA', walnut: '#6E4B34',
+    ash: '#DEC79F', 'brazilian cherry': '#8E3B22',
+  };
+  const STAINS = {
+    natural: null, jacobean: '#43301F', 'special walnut': '#5C3D27', provincial: '#6B4B32', ebony: '#2B1E17',
+    'golden oak': '#B47E40', 'early american': '#6F4B2F', 'classic gray': '#8D867B', 'weathered oak': '#AA9C86',
+    driftwood: '#9E907B', 'red mahogany': '#5C2B1F', 'dark walnut': '#402B1E', coffee: '#3C2B21', 'english chestnut': '#6A3C25',
+    'fisherman': '#8F8577', 'pier': '#8F8577', gray: '#8D867B', white: '#EDE8E0',
+  };
+  let vizSeq = 0;
+
+  function hexMix(a, b, t) {
+    const pa = [1, 3, 5].map((i) => parseInt(a.slice(i, i + 2), 16));
+    const pb = [1, 3, 5].map((i) => parseInt(b.slice(i, i + 2), 16));
+    return `#${pa.map((v, i) => Math.round(v + (pb[i] - v) * t).toString(16).padStart(2, '0')).join('')}`;
+  }
+  /** Colour of the piece: species, then the stain name if it is one we know. */
+  function woodTone(species, color, paint) {
+    if (paint) return { base: '#F3F1EC', paint: true };
+    let base = WOOD[String(species || '').trim().toLowerCase()] || '#D6B488';
+    const c = String(color || '').toLowerCase();
+    const stain = Object.keys(STAINS).find((k) => k && c.includes(k));
+    if (stain && STAINS[stain]) base = hexMix(base, STAINS[stain], 0.78);
+    return { base, paint: false };
+  }
+  /** Grain pattern + light sheen (prefinished looks a bit glossier). */
+  function woodDefs(id, tone, glossy, vertical) {
+    if (tone.paint) return `<pattern id="${id}" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="${tone.base}"/></pattern>`;
+    const dark = hexMix(tone.base, '#2A1C12', 0.22);
+    const light = hexMix(tone.base, '#FFFFFF', 0.18);
+    const rot = vertical ? ' patternTransform="rotate(90)"' : '';
+    return `<pattern id="${id}" width="24" height="3.2" patternUnits="userSpaceOnUse"${rot}>
+        <rect width="24" height="3.2" fill="${tone.base}"/>
+        <path d="M0 .7 C6 .2 10 1.3 16 .8 S22 .4 24 .9" stroke="${dark}" stroke-width=".16" fill="none" opacity=".55"/>
+        <path d="M0 2.2 C5 2.7 9 1.8 15 2.4 S21 2.9 24 2.3" stroke="${light}" stroke-width=".22" fill="none" opacity=".7"/>
+        <path d="M3 1.5 C8 1.3 12 1.9 20 1.5" stroke="${dark}" stroke-width=".08" fill="none" opacity=".4"/>
+      </pattern>${glossy ? `<linearGradient id="${id}g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".28"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff" stop-opacity=".12"/></linearGradient>` : ''}`;
+  }
+  function isGlossy(finish) {
+    return /prefinish/i.test(String(finish || ''));
+  }
+  /** Dimension line with ticks and a label in the middle. */
+  function dimLine(x1, y1, x2, y2, label, side) {
+    const horizontal = Math.abs(y2 - y1) < Math.abs(x2 - x1);
+    const tk = 0.9;
+    const ticks = horizontal
+      ? `<path d="M${x1} ${y1 - tk}V${y1 + tk}M${x2} ${y2 - tk}V${y2 + tk}"/>`
+      : `<path d="M${x1 - tk} ${y1}H${x1 + tk}M${x2 - tk} ${y2}H${x2 + tk}"/>`;
+    const mx = (x1 + x2) / 2;
+    const my = (y1 + y2) / 2;
+    const text = horizontal
+      ? `<text x="${mx}" y="${my - 1.1}" text-anchor="middle">${esc(label)}</text>`
+      : `<text x="${mx + (side === 'left' ? -1.2 : 1.2)}" y="${my}" text-anchor="${side === 'left' ? 'end' : 'start'}" dominant-baseline="middle">${esc(label)}</text>`;
+    return `<g class="pp-viz-dim"><path d="M${x1} ${y1}L${x2} ${y2}"/>${ticks}${text}</g>`;
+  }
+
+  /** Top view of one tread: nose at the front, open ends with their return, walls hatched. */
+  function treadSvg(stair, st, idx, interactive) {
+    const W = Number(st.tread_w) || 36;
+    const D = Number(st.tread_d) || 11.25;
+    const id = `pv${(vizSeq += 1)}`;
+    const tone = woodTone(stair.species, stair.color, false);
+    const leftOpen = st.open === 'left' || st.open === 'both';
+    const rightOpen = st.open === 'right' || st.open === 'both';
+    const nose = Math.min(1.25, D / 6);
+    const R = 1.7;
+    const capFill = hexMix(tone.base, '#2A1C12', 0.3);
+    const end = (x, dir, open) => {
+      if (!open) return `<rect x="${dir < 0 ? x - 2.2 : x}" y="-1" width="2.2" height="${D + 1}" fill="url(#${id}h)" stroke="#98A2B3" stroke-width=".12"/>`;
+      const x2 = x + dir * R;
+      const xa = Math.min(x, x2);
+      if (st.ret === 'bullnose') return `<path d="M${x} 0 H${x2} Q${x2 + dir * 1.1} ${D / 2} ${x2} ${D} H${x} Z" fill="${capFill}" stroke="#3E2C1E" stroke-width=".14"/>`;
+      const strip = `<rect x="${xa}" y="0" width="${R}" height="${D}" fill="${capFill}" stroke="#3E2C1E" stroke-width=".14"/>`;
+      const joint = st.ret === 'flat'
+        ? `<path d="M${xa} ${D - nose}H${xa + R}" stroke="#3E2C1E" stroke-width=".14"/>`
+        : `<path d="M${x} ${D - nose}L${x2} ${D}" stroke="#3E2C1E" stroke-width=".14"/>`;
+      return strip + joint;
+    };
+    const click = (side, x) => (interactive ? `<rect class="pp-viz-hit" data-viz-side="${side}" x="${x}" y="-2" width="7" height="${D + 4}" rx="1"><title>Tocar para abrir/fechar o lado ${side === 'left' ? 'esquerdo' : 'direito'}</title></rect>` : '');
+    const pad = 9;
+    return `<svg class="pp-viz-svg" viewBox="${-pad} -9 ${W + pad * 2} ${D + 17}" role="img" aria-label="Tread ${idx + 1}: ${fmtIn(W)} por ${fmtIn(D)} polegadas, ${openText(st.open, st.ret)}">
+      <defs>${woodDefs(`${id}w`, tone, isGlossy(stair.finish))}
+        <pattern id="${id}h" width="1.2" height="1.2" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="1.2" height="1.2" fill="#F2F4F7"/><path d="M0 0V1.2" stroke="#C0C6CF" stroke-width=".3"/></pattern></defs>
+      ${end(0, -1, leftOpen)}${end(W, 1, rightOpen)}
+      <rect x="0" y="0" width="${W}" height="${D}" fill="url(#${id}w)" stroke="#5B4632" stroke-width=".14"/>
+      ${isGlossy(stair.finish) ? `<rect x="0" y="0" width="${W}" height="${D}" fill="url(#${id}wg)"/>` : ''}
+      <rect x="0" y="${D - nose}" width="${W}" height="${nose}" fill="#000" opacity=".07"/>
+      <path d="M0 ${D}H${W}" stroke="#3E2C1E" stroke-width=".22"/>
+      ${dimLine(0, -4.2, W, -4.2, `${fmtIn(W)}"`)}
+      ${dimLine(W + (rightOpen ? 3.2 : 4.4), 0, W + (rightOpen ? 3.2 : 4.4), D, `${fmtIn(D)}"`)}
+      <text class="pp-viz-note" x="${W / 2}" y="${D + 3.6}" text-anchor="middle">frente · nose</text>
+      <text class="pp-viz-note ${leftOpen ? 'is-open' : ''}" x="-1" y="${D + 3.6}" text-anchor="middle">${leftOpen ? `aberto · ${{ '45': '45°', flat: 'flat', bullnose: 'bullnose' }[st.ret] || ''}` : 'parede'}</text>
+      <text class="pp-viz-note ${rightOpen ? 'is-open' : ''}" x="${W + 1}" y="${D + 3.6}" text-anchor="middle">${rightOpen ? `aberto · ${{ '45': '45°', flat: 'flat', bullnose: 'bullnose' }[st.ret] || ''}` : 'parede'}</text>
+      ${click('left', -6)}${click('right', W - 1)}
+    </svg>`;
+  }
+
+  /** Front view of the riser under that tread. */
+  function riserSvg(stair, st, idx) {
+    if (stair.riser_material === 'none' || st.no_riser) return '<p class="pp-muted pp-viz-empty">Sem riser neste degrau.</p>';
+    const W = Number(st.riser_w) || Number(st.tread_w) || 36;
+    const H = Number(st.riser_h) || 7.5;
+    const id = `pv${(vizSeq += 1)}`;
+    const paint = stair.riser_material === 'primed' || stair.riser_material === 'paint_grade';
+    const tone = woodTone(stair.species, stair.color, paint);
+    const pad = 9;
+    return `<svg class="pp-viz-svg" viewBox="${-pad} -7 ${W + pad * 2} ${H + 12}" role="img" aria-label="Riser ${idx + 1}: ${fmtIn(W)} por ${fmtIn(H)} polegadas">
+      <defs>${woodDefs(id, tone, !paint && isGlossy(stair.finish))}</defs>
+      <rect x="-1.2" y="-1.6" width="${W + 2.4}" height="1.6" rx=".6" fill="#000" opacity=".12"/>
+      <rect x="0" y="0" width="${W}" height="${H}" fill="url(#${id})" stroke="#5B4632" stroke-width=".14"/>
+      ${!paint && isGlossy(stair.finish) ? `<rect x="0" y="0" width="${W}" height="${H}" fill="url(#${id}g)"/>` : ''}
+      ${dimLine(0, -3.6, W, -3.6, `${fmtIn(W)}"`)}
+      ${dimLine(W + 3.4, 0, W + 3.4, H, `${fmtIn(H)}"`)}
+      <text class="pp-viz-note" x="${W / 2}" y="${H + 3}" text-anchor="middle">${paint ? (stair.riser_material === 'primed' ? 'primed' : 'paint grade') : 'riser'}</text>
+    </svg>`;
+  }
+
+  /** The whole stair in 3D (isometric), built from each step's own numbers. */
+  function stairSvg(stair, sel, mirror) {
+    const steps = (stair.steps || []).filter((st) => st.tread_w || st.tread_d || st.riser_h);
+    if (!steps.length) return '<p class="pp-muted pp-viz-empty">A escada aparece aqui conforme você mede os degraus.</p>';
+    const id = `pv${(vizSeq += 1)}`;
+    const tone = woodTone(stair.species, stair.color, false);
+    const paint = stair.riser_material === 'primed' || stair.riser_material === 'paint_grade';
+    const rTone = woodTone(stair.species, stair.color, paint);
+    const cos = Math.cos(Math.PI / 6);
+    const sin = Math.sin(Math.PI / 6);
+    const P = (x, y, z) => { const xx = mirror ? -x : x; return [(xx + y) * cos, (xx - y) * sin - z]; };
+    const pts = (arr) => arr.map((p) => P(...p).map((v) => v.toFixed(2)).join(',')).join(' ');
+    const shapes = [];
+    const all = [];
+    let z = 0;
+    let y = 0;
+    const geo = steps.map((st) => {
+      const W = Number(st.tread_w) || 36;
+      const D = Number(st.tread_d) || 11.25;
+      const H = Number(st.riser_h) || 7.5;
+      const g = { st, W, D, H, y0: y, z0: z };
+      y += D - 1.25;
+      z += H;
+      return g;
+    });
+    const nose = 1.25;
+    const T = 1;
+    // Back to front so nearer steps cover farther ones.
+    for (let k = geo.length - 1; k >= 0; k -= 1) {
+      const g = geo[k];
+      const { st, W, D, H, y0, z0 } = g;
+      const top = z0 + H;
+      const yf = y0 - nose;
+      const isSel = stair.steps.indexOf(st) === sel;
+      const leftOpen = st.open === 'left' || st.open === 'both';
+      const rightOpen = st.open === 'right' || st.open === 'both';
+      const sideOpen = mirror ? leftOpen : rightOpen;
+      const sideX = mirror ? 0 : W;
+      // riser (front face)
+      const riser = [[0, y0, z0], [W, y0, z0], [W, y0, top - T], [0, y0, top - T]];
+      if (!(stair.riser_material === 'none' || st.no_riser)) shapes.push(`<polygon points="${pts(riser)}" fill="url(#${id}r)" stroke="#5B4632" stroke-width=".25"/>`);
+      // visible end: open = return caps in wood, closed = skirt/wall
+      const side = [[sideX, y0, z0], [sideX, y0 + D, z0], [sideX, y0 + D, top], [sideX, yf, top], [sideX, yf, top - T], [sideX, y0, top - T]];
+      shapes.push(sideOpen
+        ? `<polygon points="${pts(side)}" fill="${hexMix(tone.base, '#2A1C12', 0.28)}" stroke="#4A3726" stroke-width=".25"/>`
+        : `<polygon points="${pts(side)}" fill="#E4E7EC" stroke="#C0C6CF" stroke-width=".25"/>`);
+      // tread nose front edge
+      const front = [[0, yf, top - T], [W, yf, top - T], [W, yf, top], [0, yf, top]];
+      shapes.push(`<polygon points="${pts(front)}" fill="${hexMix(tone.base, '#2A1C12', 0.18)}" stroke="#4A3726" stroke-width=".25"/>`);
+      // tread top
+      const tread = [[0, yf, top], [W, yf, top], [W, y0 + D, top], [0, y0 + D, top]];
+      shapes.push(`<polygon points="${pts(tread)}" fill="url(#${id}t)" stroke="${isSel ? '#E7792C' : '#4A3726'}" stroke-width="${isSel ? '.9' : '.25'}" data-viz-step="${stair.steps.indexOf(st)}" class="pp-viz-tread"><title>Degrau ${stair.steps.indexOf(st) + 1}: ${fmtIn(W)}" × ${fmtIn(D)}" · ${openText(st.open, st.ret)}</title></polygon>`);
+      if (isGlossy(stair.finish)) shapes.push(`<polygon points="${pts(tread)}" fill="url(#${id}tg)" pointer-events="none"/>`);
+      if (sideOpen && st.ret !== 'bullnose') {
+        const a = P(sideX, yf, top);
+        const b = P(sideX, yf + (st.ret === 'flat' ? 0 : nose), top - (st.ret === 'flat' ? T : 0));
+        shapes.push(`<path d="M${a[0].toFixed(2)} ${a[1].toFixed(2)}L${b[0].toFixed(2)} ${b[1].toFixed(2)}" stroke="#2A1C12" stroke-width=".35"/>`);
+      }
+      [riser, side, front, tread].forEach((poly) => poly.forEach((p) => all.push(P(...p))));
+      if (isSel) {
+        const c = P(W / 2, y0 + D / 2, top);
+        shapes.push(`<g class="pp-viz-pin"><circle cx="${c[0].toFixed(2)}" cy="${c[1].toFixed(2)}" r="3.4"/><text x="${c[0].toFixed(2)}" y="${c[1].toFixed(2)}" text-anchor="middle" dominant-baseline="central">${stair.steps.indexOf(st) + 1}</text></g>`);
+      }
+    }
+    const xs = all.map((p) => p[0]);
+    const ys = all.map((p) => p[1]);
+    const pad = 6;
+    const minX = Math.min(...xs) - pad;
+    const minY = Math.min(...ys) - pad;
+    const w = Math.max(...xs) - minX + pad;
+    const h = Math.max(...ys) - minY + pad;
+    return `<svg class="pp-viz-svg pp-viz-stair" viewBox="${minX.toFixed(1)} ${minY.toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}" role="img" aria-label="Escada montada com ${steps.length} degraus">
+      <defs>${woodDefs(`${id}t`, tone, isGlossy(stair.finish))}${woodDefs(`${id}r`, rTone, !paint && isGlossy(stair.finish), true)}</defs>
+      ${shapes.join('')}
+    </svg>`;
+  }
+
+  /** Front view of a floor vent: frame (flush or self-rimming lip) and louvers. */
+  function ventSvg(v) {
+    const m = /^(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)$/i.exec(String(v.size || '').trim());
+    const A = m ? Number(m[1]) : 4;
+    const B = m ? Number(m[2]) : 10;
+    const w = Math.max(A, B);
+    const h = Math.min(A, B);
+    const id = `pv${(vizSeq += 1)}`;
+    const tone = woodTone(v.species, v.color, false);
+    const lip = v.type === 'self_rimming' ? 0.9 : 0.55;
+    const slots = Math.max(3, Math.round(w / 1.1));
+    const louvers = Array.from({ length: slots }, (_, i) => {
+      const x = lip + 0.35 + (i * (w - 2 * lip - 0.7)) / slots;
+      return `<rect x="${x.toFixed(2)}" y="${lip + 0.35}" width="${((w - 2 * lip - 0.7) / slots - 0.25).toFixed(2)}" height="${(h - 2 * lip - 0.7).toFixed(2)}" rx=".12" fill="#2A1C12" opacity=".78"/>`;
+    }).join('');
+    const pad = 4.5;
+    return `<svg class="pp-viz-svg" viewBox="${-pad} -4.5 ${w + pad * 2} ${h + 8}" role="img" aria-label="Vent ${esc(v.size || '')}">
+      <defs>${woodDefs(id, tone, isGlossy(v.finish))}</defs>
+      ${v.type === 'self_rimming' ? `<rect x="-.35" y="-.2" width="${w + 0.7}" height="${h + 0.7}" rx=".5" fill="#000" opacity=".16"/>` : ''}
+      <rect x="0" y="0" width="${w}" height="${h}" rx="${v.type === 'self_rimming' ? 0.45 : 0.12}" fill="url(#${id})" stroke="#4A3726" stroke-width=".1"/>
+      ${louvers}
+      ${dimLine(0, -2.2, w, -2.2, `${fmtIn(w)}"`)}
+      ${dimLine(w + 1.8, 0, w + 1.8, h, `${fmtIn(h)}"`)}
+      <text class="pp-viz-note" x="${w / 2}" y="${h + 2.6}" text-anchor="middle">${v.type === 'self_rimming' ? 'self-rimming (com aba)' : v.type === 'return_air' ? 'return air' : 'flush mount'}</text>
+    </svg>`;
+  }
+
+  function stairVizHtml(m, s, si) {
+    const sel = Math.min(Math.max(0, (m.vizSel && m.vizSel[si]) || 0), Math.max(0, (s.steps || []).length - 1));
+    const st = (s.steps || [])[sel];
+    const mirror = Boolean(m.vizMirror && m.vizMirror[si]);
+    const locked = m.status === 'used';
+    return `<div class="pp-viz" data-viz-stair="${si}">
+      <div class="pp-viz-3d">
+        <div class="pp-viz-bar"><span class="pp-step-lbl pp-viz-lbl">Escada montada</span><button type="button" class="pp-link" data-viz-mirror="${si}">${mirror ? 'Ver do lado direito' : 'Ver do lado esquerdo'}</button></div>
+        <div class="pp-viz-box" data-viz-box="3d">${stairSvg(s, sel, mirror)}</div>
+        <p class="pp-viz-hint">Toque num degrau para ver e mudar a medida dele.</p>
+      </div>
+      <div class="pp-viz-step">
+        ${st ? `<div class="pp-viz-bar"><span class="pp-step-lbl pp-viz-lbl">Degrau ${sel + 1} de ${s.steps.length}</span><span class="pp-viz-nav"><button type="button" class="pp-q-ic" data-viz-prev="${si}" aria-label="Degrau anterior" ${sel === 0 ? 'disabled' : ''}>‹</button><button type="button" class="pp-q-ic" data-viz-next="${si}" aria-label="Próximo degrau" ${sel >= s.steps.length - 1 ? 'disabled' : ''}>›</button></span></div>
+        <div class="pp-viz-box" data-viz-box="tread"><span class="pp-viz-cap">Tread · vista de cima</span>${treadSvg(s, st, sel, !locked)}</div>
+        ${locked ? '' : `<div class="pp-viz-chips" role="group" aria-label="Retorno">${RET_OPTS.map(([v, l]) => `<button type="button" data-viz-ret="${v}" aria-pressed="${st.ret === v}" ${st.open === 'none' ? 'disabled' : ''}>${esc(l)}</button>`).join('')}</div>`}
+        <div class="pp-viz-box" data-viz-box="riser"><span class="pp-viz-cap">Riser · vista de frente</span>${riserSvg(s, st, sel)}</div>` : '<p class="pp-muted pp-viz-empty">Adicione um degrau.</p>'}
+      </div>
+    </div>`;
+  }
+
   function stairHtml(m, s, si) {
     const locked = m.status === 'used';
     const p = `stairs.${si}`;
-    const steps = (s.steps || []).map((st, i) => `<div class="pp-step ${st.open !== 'none' ? 'is-open' : ''}" role="listitem">
+    const selStep = (m.vizSel && m.vizSel[si]) || 0;
+    const steps = (s.steps || []).map((st, i) => `<div class="pp-step ${st.open !== 'none' ? 'is-open' : ''} ${i === selStep ? 'is-sel' : ''}" role="listitem" data-step-row="${si}:${i}">
         <span class="pp-step-n">${i + 1}</span>
         <div class="pp-step-dim"><span class="pp-step-lbl">Tread</span>${inch(`${p}.steps.${i}.tread_w`, st.tread_w, `Tread ${i + 1} largura`, locked)}<em>×</em>${inch(`${p}.steps.${i}.tread_d`, st.tread_d, `Tread ${i + 1} profundidade`, locked)}</div>
         <div class="pp-step-dim ${s.riser_material === 'none' || st.no_riser ? 'is-off' : ''}"><span class="pp-step-lbl">Riser</span>${inch(`${p}.steps.${i}.riser_w`, st.riser_w, `Riser ${i + 1} largura`, locked || s.riser_material === 'none' || st.no_riser)}<em>×</em>${inch(`${p}.steps.${i}.riser_h`, st.riser_h, `Riser ${i + 1} altura`, locked || s.riser_material === 'none' || st.no_riser)}</div>
@@ -2327,6 +2572,7 @@
         <label><span>Cor / stain</span><input data-txt="${p}.color" value="${esc(s.color)}" maxlength="80" placeholder="Ex.: Natural, Jacobean" ${locked ? 'disabled' : ''} /></label>
         <label><span>Risers</span>${sel(RISER_OPTS, s.riser_material, `data-set="${p}.riser_material" ${locked ? 'disabled' : ''}`)}</label>
       </div>
+      ${stairVizHtml(m, s, si)}
       <div class="pp-stair-cols" aria-hidden="true"><span>#</span><span>Tread (larg. × prof.)</span><span>Riser (larg. × alt.)</span><span>Lado aberto</span><span>Retorno</span><span></span></div>
       <div class="pp-stair-steps" role="list">${steps || '<p class="pp-q-empty">Adicione o primeiro degrau. Medidas em polegadas: 48, 11 1/4, 11¼ ou 11.25.</p>'}</div>
       ${locked ? '' : `<div class="pp-stair-add">
@@ -2345,6 +2591,7 @@
       const p = `vents.${i}`;
       const knownSize = VENT_SIZES.includes(v.size);
       return `<section class="pp-card pp-vent" aria-label="Vent ${i + 1}">
+        <div class="pp-vent-viz">${ventSvg(v)}</div>
         <div class="pp-vent-grid">
           <label><span>Ambiente</span><input data-txt="${p}.room" value="${esc(v.room)}" maxlength="80" placeholder="Ex.: Master bedroom" ${locked ? 'disabled' : ''} /></label>
           <label><span>Tamanho</span><select data-vsize="${p}" ${locked ? 'disabled' : ''}>${VENT_SIZES.map((sz) => `<option ${sz === v.size ? 'selected' : ''}>${sz}</option>`).join('')}<option value="__other" ${knownSize ? '' : 'selected'}>Outro…</option></select>${knownSize ? '' : `<input data-txt="${p}.size" value="${esc(v.size)}" maxlength="20" placeholder="Ex.: 4x16" ${locked ? 'disabled' : ''} />`}</label>
@@ -2420,13 +2667,72 @@
     if (box) box.innerHTML = measSummaryHtml(state.meas);
   }
 
+  /** Redraws only the drawings of one stair (keeps focus in the inputs). */
+  function repaintViz(si) {
+    const m = state.meas;
+    const box = view.querySelector(`[data-viz-stair="${si}"]`);
+    const s = m && m.data.stairs[si];
+    if (!box || !s) return;
+    const tmp = document.createElement('div');
+    tmp.innerHTML = stairVizHtml(m, s, si);
+    box.innerHTML = tmp.firstElementChild.innerHTML;
+    const sel = (m.vizSel && m.vizSel[si]) || 0;
+    view.querySelectorAll(`[data-step-row^="${si}:"]`).forEach((row) => row.classList.toggle('is-sel', row.getAttribute('data-step-row') === `${si}:${sel}`));
+  }
+  function repaintVent(i) {
+    const m = state.meas;
+    const card = view.querySelectorAll('.pp-vent')[i];
+    const box = card && card.querySelector('.pp-vent-viz');
+    if (box && m.data.vents[i]) box.innerHTML = ventSvg(m.data.vents[i]);
+  }
+
   function bindMeasurement() {
     const m = state.meas;
     const redraw = () => { const y = window.scrollY; paintMeasurement(); window.scrollTo(0, y); };
+    m.vizSel = m.vizSel || {};
+    m.vizMirror = m.vizMirror || {};
+    view.querySelectorAll('[data-step-row]').forEach((row) => row.addEventListener('focusin', () => {
+      const [si, i] = row.getAttribute('data-step-row').split(':').map(Number);
+      if (m.vizSel[si] === i) return;
+      m.vizSel[si] = i;
+      repaintViz(si);
+    }));
+    view.querySelectorAll('[data-viz-stair]').forEach((box) => box.addEventListener('click', (e) => {
+      const si = Number(box.getAttribute('data-viz-stair'));
+      const s = m.data.stairs[si];
+      const sel = m.vizSel[si] || 0;
+      const st = s.steps[sel];
+      const t = e.target.closest('[data-viz-step],[data-viz-side],[data-viz-ret],[data-viz-prev],[data-viz-next],[data-viz-mirror]');
+      if (!t) return;
+      if (t.hasAttribute('data-viz-step')) { m.vizSel[si] = Number(t.getAttribute('data-viz-step')); repaintViz(si); return; }
+      if (t.hasAttribute('data-viz-prev')) { m.vizSel[si] = Math.max(0, sel - 1); repaintViz(si); return; }
+      if (t.hasAttribute('data-viz-next')) { m.vizSel[si] = Math.min(s.steps.length - 1, sel + 1); repaintViz(si); return; }
+      if (t.hasAttribute('data-viz-mirror')) { m.vizMirror[si] = !m.vizMirror[si]; repaintViz(si); return; }
+      if (!st || m.status === 'used') return;
+      if (t.hasAttribute('data-viz-side')) {
+        const side = t.getAttribute('data-viz-side');
+        const L = st.open === 'left' || st.open === 'both';
+        const Rr = st.open === 'right' || st.open === 'both';
+        const nl = side === 'left' ? !L : L;
+        const nr = side === 'right' ? !Rr : Rr;
+        st.open = nl && nr ? 'both' : nl ? 'left' : nr ? 'right' : 'none';
+      } else if (t.hasAttribute('data-viz-ret')) {
+        st.ret = t.getAttribute('data-viz-ret');
+      }
+      measSaveSoon();
+      redraw();
+    }));
     view.querySelectorAll('[data-mtab]').forEach((b) => b.addEventListener('click', () => { m.tab = b.getAttribute('data-mtab'); redraw(); }));
     view.querySelectorAll('[data-head]').forEach((el) => el.addEventListener('input', () => { m[el.getAttribute('data-head')] = el.value; measSaveSoon(); }));
     view.querySelectorAll('[data-in]').forEach((el) => {
-      el.addEventListener('input', () => { const { obj, key } = measAt(el.getAttribute('data-in')); obj[key] = parseIn(el.value); measSaveSoon(); });
+      el.addEventListener('input', () => {
+        const path = el.getAttribute('data-in');
+        const { obj, key } = measAt(path);
+        obj[key] = parseIn(el.value);
+        measSaveSoon();
+        const mm = /^stairs\.(\d+)\./.exec(path);
+        if (mm) repaintViz(Number(mm[1]));
+      });
       el.addEventListener('blur', () => {
         const { obj, key } = measAt(el.getAttribute('data-in'));
         const bad = el.value.trim() && obj[key] == null;
@@ -2444,7 +2750,16 @@
         if (next) next.focus();
       });
     });
-    view.querySelectorAll('[data-txt]').forEach((el) => el.addEventListener('input', () => { const { obj, key } = measAt(el.getAttribute('data-txt')); obj[key] = el.value; measSaveSoon(); }));
+    view.querySelectorAll('[data-txt]').forEach((el) => el.addEventListener('input', () => {
+      const path = el.getAttribute('data-txt');
+      const { obj, key } = measAt(path);
+      obj[key] = el.value;
+      measSaveSoon();
+      const ms = /^stairs\.(\d+)\.color$/.exec(path);
+      if (ms) repaintViz(Number(ms[1]));
+      const mv = /^vents\.(\d+)\.(size|color)$/.exec(path);
+      if (mv) repaintVent(Number(mv[1]));
+    }));
     view.querySelectorAll('[data-txt]').forEach((el) => el.addEventListener('blur', measRefreshSide));
     view.querySelectorAll('[data-num]').forEach((el) => el.addEventListener('input', () => { const { obj, key } = measAt(el.getAttribute('data-num')); obj[key] = Math.max(1, Math.round(Number(el.value) || 1)); measSaveSoon(); measRefreshSide(); }));
     view.querySelectorAll('[data-set]').forEach((el) => el.addEventListener('change', () => { const { obj, key } = measAt(el.getAttribute('data-set')); obj[key] = el.value; measSaveSoon(); redraw(); }));
