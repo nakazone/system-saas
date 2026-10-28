@@ -376,7 +376,7 @@
     const key = map[name] || name;
     document.querySelectorAll('[data-nav]').forEach((el) => {
       const nav = el.getAttribute('data-nav');
-      const on = nav === key || (nav === 'mais' && ['documentos', 'enviar', 'mais', 'empresas', 'equipe', 'medicoes'].includes(key) && el.classList.contains('pp-tab'));
+      const on = nav === key || (nav === 'mais' && ['documentos', 'enviar', 'mais', 'empresas', 'equipe', 'measurements'].includes(key) && el.classList.contains('pp-tab'));
       if (on) el.setAttribute('aria-current', 'page');
       else el.removeAttribute('aria-current');
     });
@@ -407,8 +407,8 @@
     try {
       if (state.builder && r.name === 'empresas') { await renderCompanies(token); updateCounts(); return; }
       if (state.builder && r.name === 'equipe') { await renderTeam(token); updateCounts(); return; }
-      if (state.builder && r.name === 'medicoes') {
-        if (!canDo('measure')) { view.innerHTML = '<div class="pp-card pp-empty"><strong>Seu papel não faz medições</strong>Peça ao admin da equipe.</div>'; return; }
+      if (state.builder && r.name === 'measurements') {
+        if (!canDo('measure')) { view.innerHTML = '<div class="pp-card pp-empty"><strong>Your role can’t take measurements</strong>Ask your team admin.</div>'; return; }
         await renderMeasurements(r.id, token); updateCounts(); return;
       }
       if (state.meas && state.meas.dirty) measSaveNow();
@@ -1303,12 +1303,12 @@
     const lines = (m.summary || []).slice(0, 8);
     return `<section class="pp-card pp-meas-hit ${s.useMeasurement ? 'is-on' : ''}" aria-labelledby="ppMeasHitT">
       <div class="pp-meas-hit-head">
-        <div><span class="pp-lbl">Medição encontrada para este endereço</span><h3 id="ppMeasHitT">${esc(m.address)}</h3>
-          <p class="pp-muted">${esc(countsText(m.counts || {}))} · medido por ${esc(m.measured_by || '—')} em ${esc(fmtDay(m.measured_at))}${m.status === 'used' ? ' · <span class="pp-late">já enviada em outro job</span>' : m.status === 'draft' ? ' · ainda em andamento' : ''}</p></div>
-        <a class="pp-btn pp-btn--sec pp-btn--sm" href="#medicoes/${esc(m.id)}" target="_blank" rel="noopener">Ver medição</a>
+        <div><span class="pp-lbl">Measurement found for this address</span><h3 id="ppMeasHitT">${esc(m.address)}</h3>
+          <p class="pp-muted">${esc(countsText(m.counts || {}))} · measured by ${esc(m.measured_by || '—')} on ${esc(fmtDayEn(m.measured_at))}${m.status === 'used' ? ' · <span class="pp-late">already sent with another job</span>' : m.status === 'draft' ? ' · still in progress' : ''}</p></div>
+        <a class="pp-btn pp-btn--sec pp-btn--sm" href="#measurements/${esc(m.id)}" target="_blank" rel="noopener">View measurement</a>
       </div>
-      ${lines.length ? `<ul class="pp-meas-sum pp-meas-sum--compact">${lines.map((l) => `<li><span>${esc(l.text)}</span><em>${esc(l.qty)} ${esc(l.uom)}</em></li>`).join('')}${(m.summary || []).length > lines.length ? `<li class="pp-muted">+ ${(m.summary || []).length - lines.length} itens</li>` : ''}</ul>` : ''}
-      <label class="pp-meas-use"><input type="checkbox" id="ppUseMeas" ${s.useMeasurement ? 'checked' : ''} /> <span>Enviar a medição com este job — PDF, fotos e as medidas nas linhas de treads, risers, nosings e vents</span></label>
+      ${lines.length ? `<ul class="pp-meas-sum pp-meas-sum--compact">${lines.map((l) => `<li><span>${esc(l.text)}</span><em>${esc(l.qty)} ${esc(l.uom)}</em></li>`).join('')}${(m.summary || []).length > lines.length ? `<li class="pp-muted">+ ${(m.summary || []).length - lines.length} more</li>` : ''}</ul>` : ''}
+      <label class="pp-meas-use"><input type="checkbox" id="ppUseMeas" ${s.useMeasurement ? 'checked' : ''} /> <span>Send this measurement with the job — PDF, photos and the sizes on the tread, riser, nosing and vent lines</span></label>
     </section>`;
   }
 
@@ -2093,18 +2093,24 @@
     tools.innerHTML = `<label>${companies.length ? `Empresas · ${companies.length}` : 'Empresas'}</label><a class="pp-menu-item" href="#empresas" style="text-decoration:none">${canDo('companies.manage') ? 'Conectar ou convidar empresa' : 'Ver empresas'}</a><a class="pp-menu-item" href="#equipe" style="text-decoration:none">Equipe</a>`;
     document.querySelectorAll('[data-builder-only]').forEach((el) => { el.hidden = false; });
     document.querySelectorAll('[data-nav="invoices"]').forEach((el) => { el.hidden = !canDo('money.view'); });
-    document.querySelectorAll('[data-nav="medicoes"]').forEach((el) => { el.hidden = !canDo('measure'); });
+    document.querySelectorAll('[data-nav="measurements"]').forEach((el) => { el.hidden = !canDo('measure'); });
   }
 
   /* ─────────────────────────── measurements (stairs & vents) ─────────────────────────── */
 
+  const LOG_EN = { criou: 'created it', editou: 'edited', concluiu: 'completed it', reabriu: 'reopened it', 'enviou com a work order': 'sent it with the Work Order' };
+  function fmtDayEn(value, opts) {
+    const d = value instanceof Date ? value : toDate(value);
+    if (!d) return '';
+    return new Intl.DateTimeFormat('en-US', opts || { month: 'short', day: 'numeric', year: 'numeric' }).format(d);
+  }
   const SPECIES = ['White Oak', 'Red Oak', 'Hickory', 'Maple', 'Walnut', 'Ash', 'Brazilian Cherry'];
-  const FINISHES = ['Unfinished (acabamento no local)', 'Prefinished', 'Primed'];
+  const FINISHES = ['Unfinished (site finished)', 'Prefinished', 'Primed'];
   const VENT_SIZES = ['2x10', '2x12', '3x10', '3x12', '4x10', '4x12', '4x14', '6x10', '6x12'];
-  const OPEN_OPTS = [['none', 'Fechado'], ['left', 'Esq. aberto'], ['right', 'Dir. aberto'], ['both', 'Ambos abertos']];
+  const OPEN_OPTS = [['none', 'Closed'], ['left', 'Left open'], ['right', 'Right open'], ['both', 'Both open']];
   const RET_OPTS = [['45', '45° (mitered)'], ['flat', 'Flat'], ['bullnose', 'Bullnose']];
   const VENT_TYPES = [['flush', 'Flush mount'], ['self_rimming', 'Self-rimming (drop-in)'], ['return_air', 'Return air']];
-  const RISER_OPTS = [['same', 'Mesma madeira'], ['primed', 'Primed'], ['paint_grade', 'Paint grade'], ['none', 'Sem riser']];
+  const RISER_OPTS = [['same', 'Same wood'], ['primed', 'Primed'], ['paint_grade', 'Paint grade'], ['none', 'No riser']];
   const FRAC = { '¼': 0.25, '½': 0.5, '¾': 0.75, '⅛': 0.125, '⅜': 0.375, '⅝': 0.625, '⅞': 0.875 };
 
   function uid() {
@@ -2131,8 +2137,8 @@
     return g ? `${whole || ''}${g[0]}` : String(Math.round(v * 100) / 100);
   }
   function openText(open, ret) {
-    if (open === 'none') return 'fechado';
-    const side = { left: 'esq. aberto', right: 'dir. aberto', both: 'dois lados abertos' }[open] || open;
+    if (open === 'none') return 'closed';
+    const side = { left: 'left open', right: 'right open', both: 'both sides open' }[open] || open;
     return `${side} · ${{ '45': '45°', flat: 'flat', bullnose: 'bullnose' }[ret] || ret}`;
   }
   /** Same grouping the PDF uses: equal pieces counted together. */
@@ -2140,7 +2146,7 @@
     const out = [];
     (data.stairs || []).forEach((s) => {
       const wood = [s.species, s.finish, s.color].filter(Boolean).join(' · ');
-      const label = s.name || 'Escada';
+      const label = s.name || 'Stair';
       const tr = new Map();
       const ri = new Map();
       (s.steps || []).forEach((st) => {
@@ -2170,15 +2176,15 @@
     return { stairs: (data.stairs || []).length, treads, risers, nosings, vents };
   }
   function countsText(c) {
-    return [c.stairs ? plural(c.stairs, 'escada', 'escadas') : '', c.treads ? `${c.treads} treads` : '', c.risers ? `${c.risers} risers` : '', c.nosings ? plural(c.nosings, 'nosing', 'nosings') : '', c.vents ? plural(c.vents, 'vent', 'vents') : ''].filter(Boolean).join(' · ') || 'Nada medido ainda';
+    return [c.stairs ? `${c.stairs} ${c.stairs === 1 ? 'stair' : 'stairs'}` : '', c.treads ? `${c.treads} treads` : '', c.risers ? `${c.risers} risers` : '', c.nosings ? `${c.nosings} ${c.nosings === 1 ? 'nosing' : 'nosings'}` : '', c.vents ? `${c.vents} ${c.vents === 1 ? 'vent' : 'vents'}` : ''].filter(Boolean).join(' · ') || 'Nothing measured yet';
   }
   function measStatusChip(m) {
-    if (m.status === 'used') return '<span class="pp-chip pp-chip--dark">Enviada no job</span>';
-    if (m.status === 'done') return '<span class="pp-chip pp-chip--ok">Concluída</span>';
-    return '<span class="pp-chip pp-chip--late">Em andamento</span>';
+    if (m.status === 'used') return '<span class="pp-chip pp-chip--dark">Sent with job</span>';
+    if (m.status === 'done') return '<span class="pp-chip pp-chip--ok">Complete</span>';
+    return '<span class="pp-chip pp-chip--late">In progress</span>';
   }
   function newStair(n) {
-    return { id: uid(), name: n ? `Escada ${n}` : 'Escada principal', species: 'White Oak', finish: FINISHES[0], color: '', riser_material: 'same', steps: [], nosings: [], photos: [], note: '' };
+    return { id: uid(), name: n ? `Stair ${n}` : 'Main stair', species: 'White Oak', finish: FINISHES[0], color: '', riser_material: 'same', steps: [], nosings: [], photos: [], note: '' };
   }
   function newStep(prev) {
     return prev
@@ -2195,26 +2201,26 @@
     if (token !== renderToken) return;
     const rows = r.data || [];
     view.innerHTML = `
-      <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder.account.name)}</p><h1>Medições</h1></div><div class="pp-head-actions"><button type="button" class="pp-btn pp-btn--pri" id="ppMeasNewBtn">Nova medição</button></div></div>
-      <p class="pp-muted pp-meas-intro">Meça escadas (treads, risers e nosings) e vents na obra. A medição fica salva pelo endereço e vai junto quando você enviar a Work Order dessa casa.</p>
+      <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder.account.name)}</p><h1>Measurements</h1></div><div class="pp-head-actions"><button type="button" class="pp-btn pp-btn--pri" id="ppMeasNewBtn">New measurement</button></div></div>
+      <p class="pp-muted pp-meas-intro">Measure stairs (treads, risers and nosings) and vents on site. Each measurement is saved by address and goes with the Work Order when you send it for that house.</p>
       <form class="pp-card pp-block pp-meas-new" id="ppMeasNew" ${rows.length ? 'hidden' : ''} novalidate>
-        <h3>Nova medição</h3>
+        <h3>New measurement</h3>
         <div class="pp-fields">
-          <div class="pp-field pp-field--wide"><label for="ppMnAddr">Endereço da obra *</label><input id="ppMnAddr" maxlength="300" autocomplete="street-address" data-om-address-autocomplete required placeholder="Ex.: 322 Lower Ranch View Rd, Granby, CO" /></div>
-          <div class="pp-field"><label for="ppMnCom">Comunidade</label><input id="ppMnCom" maxlength="120" /></div>
-          <div class="pp-field"><label for="ppMnLot">Lote</label><input id="ppMnLot" maxlength="20" /></div>
+          <div class="pp-field pp-field--wide"><label for="ppMnAddr">Job address *</label><input id="ppMnAddr" maxlength="300" autocomplete="street-address" data-om-address-autocomplete required placeholder="e.g. 322 Lower Ranch View Rd, Granby, CO" /></div>
+          <div class="pp-field"><label for="ppMnCom">Community</label><input id="ppMnCom" maxlength="120" /></div>
+          <div class="pp-field"><label for="ppMnLot">Lot</label><input id="ppMnLot" maxlength="20" /></div>
         </div>
         <p class="pp-error" id="ppMnErr" role="alert" hidden></p>
-        <div><button type="submit" class="pp-btn pp-btn--pri" id="ppMnSave">Começar a medir</button></div>
+        <div><button type="submit" class="pp-btn pp-btn--pri" id="ppMnSave">Start measuring</button></div>
       </form>
       <div class="pp-card" style="overflow:hidden">
-        ${rows.length ? rows.map((m) => `<a class="pp-row pp-meas-row" href="#medicoes/${esc(m.id)}" style="text-decoration:none">
+        ${rows.length ? rows.map((m) => `<a class="pp-row pp-meas-row" href="#measurements/${esc(m.id)}" style="text-decoration:none">
             <span class="pp-row-main">
               <span class="pp-row-top"><strong>${esc(m.address)}</strong>${measStatusChip(m)}</span>
-              <span class="pp-row-sub">${esc([m.community, m.lot ? `Lote ${m.lot}` : ''].filter(Boolean).join(' · '))}${m.community || m.lot ? ' · ' : ''}${esc(countsText(m.counts))}</span>
-              <span class="pp-row-next">${esc(m.completed_by || m.updated_by || m.created_by || '')} · ${esc(fmtDay(m.completed_at || m.updated_at))}</span>
+              <span class="pp-row-sub">${esc([m.community, m.lot ? `Lot ${m.lot}` : ''].filter(Boolean).join(' · '))}${m.community || m.lot ? ' · ' : ''}${esc(countsText(m.counts))}</span>
+              <span class="pp-row-next">${esc(m.completed_by || m.updated_by || m.created_by || '')} · ${esc(fmtDayEn(m.completed_at || m.updated_at))}</span>
             </span>
-          </a>`).join('') : '<div class="pp-empty"><strong>Nenhuma medição ainda</strong>Comece pelo endereço da casa.</div>'}
+          </a>`).join('') : '<div class="pp-empty"><strong>No measurements yet</strong>Start with the house address.</div>'}
       </div>`;
     if (typeof window.sfBootCrmAddressAutocomplete === 'function') window.sfBootCrmAddressAutocomplete();
     $('ppMeasNewBtn').addEventListener('click', () => { const f = $('ppMeasNew'); f.hidden = false; $('ppMnAddr').focus(); });
@@ -2226,9 +2232,9 @@
       btn.disabled = true;
       try {
         const res = await postJson('/api/builder/measurements', { address: $('ppMnAddr').value.trim(), community: $('ppMnCom').value.trim(), lot: $('ppMnLot').value.trim() });
-        location.hash = `#medicoes/${res.data.id}`;
+        location.hash = `#measurements/${res.data.id}`;
       } catch (ex) {
-        err.textContent = ex.message || 'Não foi possível criar.';
+        err.textContent = ex.message || 'Could not create it.';
         err.hidden = false;
         btn.disabled = false;
       }
@@ -2258,7 +2264,7 @@
       m.saveError = '';
     } catch (e) {
       m.dirty = true;
-      m.saveError = e.message || 'Não salvou.';
+      m.saveError = e.message || 'Not saved.';
     }
     m.saving = false;
     paintMeasSaved();
@@ -2267,7 +2273,7 @@
     const el = $('ppMeasSaved');
     const m = state.meas;
     if (!el || !m) return;
-    el.textContent = m.saveError ? `Não salvou · ${m.saveError}` : m.saving ? 'Salvando…' : m.dirty ? 'Alterações…' : 'Salvo';
+    el.textContent = m.saveError ? `Not saved · ${m.saveError}` : m.saving ? 'Saving…' : m.dirty ? 'Editing…' : 'Saved';
     el.classList.toggle('pp-late', Boolean(m.saveError));
   }
   window.addEventListener('beforeunload', () => { if (state.meas && state.meas.dirty) measSaveNow(); });
@@ -2287,11 +2293,11 @@
   }
   function selFree(list, value, attrs, otherLabel) {
     const has = !value || list.includes(value);
-    return `<select ${attrs}>${list.map((v) => `<option ${v === value ? 'selected' : ''}>${esc(v)}</option>`).join('')}<option value="__other" ${has ? '' : 'selected'}>${esc(otherLabel || 'Outro…')}</option></select>${has ? '' : ''}`;
+    return `<select ${attrs}>${list.map((v) => `<option ${v === value ? 'selected' : ''}>${esc(v)}</option>`).join('')}<option value="__other" ${has ? '' : 'selected'}>${esc(otherLabel || 'Other…')}</option></select>${has ? '' : ''}`;
   }
   function photoStrip(m, list, path) {
     const locked = m.status === 'used';
-    return `<div class="pp-meas-photos">${(list || []).map((k, i) => `<span class="pp-meas-ph"><img src="/api/builder/measurements/${encodeURIComponent(m.id)}/photo?key=${encodeURIComponent(k)}" alt="Foto ${i + 1}" loading="lazy" />${locked ? '' : `<button type="button" data-ph-rm="${esc(path)}" data-ph-i="${i}" aria-label="Tirar foto ${i + 1}">×</button>`}</span>`).join('')}${locked ? '' : `<label class="pp-meas-addph"><input type="file" accept="image/*" capture="environment" data-ph-add="${esc(path)}" hidden />${icon('camera')}<span>Foto</span></label>`}</div>`;
+    return `<div class="pp-meas-photos">${(list || []).map((k, i) => `<span class="pp-meas-ph"><img src="/api/builder/measurements/${encodeURIComponent(m.id)}/photo?key=${encodeURIComponent(k)}" alt="Photo ${i + 1}" loading="lazy" />${locked ? '' : `<button type="button" data-ph-rm="${esc(path)}" data-ph-i="${i}" aria-label="Remove photo ${i + 1}">×</button>`}</span>`).join('')}${locked ? '' : `<label class="pp-meas-addph"><input type="file" accept="image/*" capture="environment" data-ph-add="${esc(path)}" hidden />${icon('camera')}<span>Photo</span></label>`}</div>`;
   }
   function inch(path, value, label, locked) {
     return `<input class="pp-in" inputmode="decimal" data-in="${esc(path)}" value="${esc(fmtIn(value))}" placeholder="—" aria-label="${esc(label)}" ${locked ? 'disabled' : ''} />`;
@@ -2378,9 +2384,9 @@
         : `<path d="M${x} ${D - nose}L${x2} ${D}" stroke="#3E2C1E" stroke-width=".14"/>`;
       return strip + joint;
     };
-    const click = (side, x) => (interactive ? `<rect class="pp-viz-hit" data-viz-side="${side}" x="${x}" y="-2" width="7" height="${D + 4}" rx="1"><title>Tocar para abrir/fechar o lado ${side === 'left' ? 'esquerdo' : 'direito'}</title></rect>` : '');
+    const click = (side, x) => (interactive ? `<rect class="pp-viz-hit" data-viz-side="${side}" x="${x}" y="-2" width="7" height="${D + 4}" rx="1"><title>Tap to open/close the ${side} side</title></rect>` : '');
     const pad = 9;
-    return `<svg class="pp-viz-svg" viewBox="${-pad} -9 ${W + pad * 2} ${D + 17}" role="img" aria-label="Tread ${idx + 1}: ${fmtIn(W)} por ${fmtIn(D)} polegadas, ${openText(st.open, st.ret)}">
+    return `<svg class="pp-viz-svg" viewBox="${-pad} -9 ${W + pad * 2} ${D + 17}" role="img" aria-label="Tread ${idx + 1}: ${fmtIn(W)} by ${fmtIn(D)} inches, ${openText(st.open, st.ret)}">
       <defs>${woodDefs(`${id}w`, tone, isGlossy(stair.finish))}
         <pattern id="${id}h" width="1.2" height="1.2" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="1.2" height="1.2" fill="#F2F4F7"/><path d="M0 0V1.2" stroke="#C0C6CF" stroke-width=".3"/></pattern></defs>
       ${end(0, -1, leftOpen)}${end(W, 1, rightOpen)}
@@ -2390,23 +2396,23 @@
       <path d="M0 ${D}H${W}" stroke="#3E2C1E" stroke-width=".22"/>
       ${dimLine(0, -4.2, W, -4.2, `${fmtIn(W)}"`)}
       ${dimLine(W + (rightOpen ? 3.2 : 4.4), 0, W + (rightOpen ? 3.2 : 4.4), D, `${fmtIn(D)}"`)}
-      <text class="pp-viz-note" x="${W / 2}" y="${D + 3.6}" text-anchor="middle">frente · nose</text>
-      <text class="pp-viz-note ${leftOpen ? 'is-open' : ''}" x="-1" y="${D + 3.6}" text-anchor="middle">${leftOpen ? `aberto · ${{ '45': '45°', flat: 'flat', bullnose: 'bullnose' }[st.ret] || ''}` : 'parede'}</text>
-      <text class="pp-viz-note ${rightOpen ? 'is-open' : ''}" x="${W + 1}" y="${D + 3.6}" text-anchor="middle">${rightOpen ? `aberto · ${{ '45': '45°', flat: 'flat', bullnose: 'bullnose' }[st.ret] || ''}` : 'parede'}</text>
+      <text class="pp-viz-note" x="${W / 2}" y="${D + 3.6}" text-anchor="middle">front · nose</text>
+      <text class="pp-viz-note ${leftOpen ? 'is-open' : ''}" x="-1" y="${D + 3.6}" text-anchor="middle">${leftOpen ? `open · ${{ '45': '45°', flat: 'flat', bullnose: 'bullnose' }[st.ret] || ''}` : 'wall'}</text>
+      <text class="pp-viz-note ${rightOpen ? 'is-open' : ''}" x="${W + 1}" y="${D + 3.6}" text-anchor="middle">${rightOpen ? `open · ${{ '45': '45°', flat: 'flat', bullnose: 'bullnose' }[st.ret] || ''}` : 'wall'}</text>
       ${click('left', -6)}${click('right', W - 1)}
     </svg>`;
   }
 
   /** Front view of the riser under that tread. */
   function riserSvg(stair, st, idx) {
-    if (stair.riser_material === 'none' || st.no_riser) return '<p class="pp-muted pp-viz-empty">Sem riser neste degrau.</p>';
+    if (stair.riser_material === 'none' || st.no_riser) return '<p class="pp-muted pp-viz-empty">No riser on this step.</p>';
     const W = Number(st.riser_w) || Number(st.tread_w) || 36;
     const H = Number(st.riser_h) || 7.5;
     const id = `pv${(vizSeq += 1)}`;
     const paint = stair.riser_material === 'primed' || stair.riser_material === 'paint_grade';
     const tone = woodTone(stair.species, stair.color, paint);
     const pad = 9;
-    return `<svg class="pp-viz-svg" viewBox="${-pad} -7 ${W + pad * 2} ${H + 12}" role="img" aria-label="Riser ${idx + 1}: ${fmtIn(W)} por ${fmtIn(H)} polegadas">
+    return `<svg class="pp-viz-svg" viewBox="${-pad} -7 ${W + pad * 2} ${H + 12}" role="img" aria-label="Riser ${idx + 1}: ${fmtIn(W)} by ${fmtIn(H)} inches">
       <defs>${woodDefs(id, tone, !paint && isGlossy(stair.finish))}</defs>
       <rect x="-1.2" y="-1.6" width="${W + 2.4}" height="1.6" rx=".6" fill="#000" opacity=".12"/>
       <rect x="0" y="0" width="${W}" height="${H}" fill="url(#${id})" stroke="#5B4632" stroke-width=".14"/>
@@ -2420,7 +2426,7 @@
   /** The whole stair in 3D (isometric), built from each step's own numbers. */
   function stairSvg(stair, sel, mirror) {
     const steps = (stair.steps || []).filter((st) => st.tread_w || st.tread_d || st.riser_h);
-    if (!steps.length) return '<p class="pp-muted pp-viz-empty">A escada aparece aqui conforme você mede os degraus.</p>';
+    if (!steps.length) return '<p class="pp-muted pp-viz-empty">The stair builds itself here as you measure the steps.</p>';
     const id = `pv${(vizSeq += 1)}`;
     const tone = woodTone(stair.species, stair.color, false);
     const paint = stair.riser_material === 'primed' || stair.riser_material === 'paint_grade';
@@ -2468,7 +2474,7 @@
       shapes.push(`<polygon points="${pts(front)}" fill="${hexMix(tone.base, '#2A1C12', 0.18)}" stroke="#4A3726" stroke-width=".25"/>`);
       // tread top
       const tread = [[0, yf, top], [W, yf, top], [W, y0 + D, top], [0, y0 + D, top]];
-      shapes.push(`<polygon points="${pts(tread)}" fill="url(#${id}t)" stroke="${isSel ? '#E7792C' : '#4A3726'}" stroke-width="${isSel ? '.9' : '.25'}" data-viz-step="${stair.steps.indexOf(st)}" class="pp-viz-tread"><title>Degrau ${stair.steps.indexOf(st) + 1}: ${fmtIn(W)}" × ${fmtIn(D)}" · ${openText(st.open, st.ret)}</title></polygon>`);
+      shapes.push(`<polygon points="${pts(tread)}" fill="url(#${id}t)" stroke="${isSel ? '#E7792C' : '#4A3726'}" stroke-width="${isSel ? '.9' : '.25'}" data-viz-step="${stair.steps.indexOf(st)}" class="pp-viz-tread"><title>Step ${stair.steps.indexOf(st) + 1}: ${fmtIn(W)}" × ${fmtIn(D)}" · ${openText(st.open, st.ret)}</title></polygon>`);
       if (isGlossy(stair.finish)) shapes.push(`<polygon points="${pts(tread)}" fill="url(#${id}tg)" pointer-events="none"/>`);
       if (sideOpen && st.ret !== 'bullnose') {
         const a = P(sideX, yf, top);
@@ -2488,7 +2494,7 @@
     const minY = Math.min(...ys) - pad;
     const w = Math.max(...xs) - minX + pad;
     const h = Math.max(...ys) - minY + pad;
-    return `<svg class="pp-viz-svg pp-viz-stair" viewBox="${minX.toFixed(1)} ${minY.toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}" role="img" aria-label="Escada montada com ${steps.length} degraus">
+    return `<svg class="pp-viz-svg pp-viz-stair" viewBox="${minX.toFixed(1)} ${minY.toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}" role="img" aria-label="Assembled stair with ${steps.length} steps">
       <defs>${woodDefs(`${id}t`, tone, isGlossy(stair.finish))}${woodDefs(`${id}r`, rTone, !paint && isGlossy(stair.finish), true)}</defs>
       ${shapes.join('')}
     </svg>`;
@@ -2517,7 +2523,7 @@
       ${louvers}
       ${dimLine(0, -2.2, w, -2.2, `${fmtIn(w)}"`)}
       ${dimLine(w + 1.8, 0, w + 1.8, h, `${fmtIn(h)}"`)}
-      <text class="pp-viz-note" x="${w / 2}" y="${h + 2.6}" text-anchor="middle">${v.type === 'self_rimming' ? 'self-rimming (com aba)' : v.type === 'return_air' ? 'return air' : 'flush mount'}</text>
+      <text class="pp-viz-note" x="${w / 2}" y="${h + 2.6}" text-anchor="middle">${v.type === 'self_rimming' ? 'self-rimming (with lip)' : v.type === 'return_air' ? 'return air' : 'flush mount'}</text>
     </svg>`;
   }
 
@@ -2528,15 +2534,15 @@
     const locked = m.status === 'used';
     return `<div class="pp-viz" data-viz-stair="${si}">
       <div class="pp-viz-3d">
-        <div class="pp-viz-bar"><span class="pp-step-lbl pp-viz-lbl">Escada montada</span><button type="button" class="pp-link" data-viz-mirror="${si}">${mirror ? 'Ver do lado direito' : 'Ver do lado esquerdo'}</button></div>
+        <div class="pp-viz-bar"><span class="pp-step-lbl pp-viz-lbl">Assembled stair</span><button type="button" class="pp-link" data-viz-mirror="${si}">${mirror ? 'View from the right' : 'View from the left'}</button></div>
         <div class="pp-viz-box" data-viz-box="3d">${stairSvg(s, sel, mirror)}</div>
-        <p class="pp-viz-hint">Toque num degrau para ver e mudar a medida dele.</p>
+        <p class="pp-viz-hint">Tap a step to see and change its measurements.</p>
       </div>
       <div class="pp-viz-step">
-        ${st ? `<div class="pp-viz-bar"><span class="pp-step-lbl pp-viz-lbl">Degrau ${sel + 1} de ${s.steps.length}</span><span class="pp-viz-nav"><button type="button" class="pp-q-ic" data-viz-prev="${si}" aria-label="Degrau anterior" ${sel === 0 ? 'disabled' : ''}>‹</button><button type="button" class="pp-q-ic" data-viz-next="${si}" aria-label="Próximo degrau" ${sel >= s.steps.length - 1 ? 'disabled' : ''}>›</button></span></div>
-        <div class="pp-viz-box" data-viz-box="tread"><span class="pp-viz-cap">Tread · vista de cima</span>${treadSvg(s, st, sel, !locked)}</div>
-        ${locked ? '' : `<div class="pp-viz-chips" role="group" aria-label="Retorno">${RET_OPTS.map(([v, l]) => `<button type="button" data-viz-ret="${v}" aria-pressed="${st.ret === v}" ${st.open === 'none' ? 'disabled' : ''}>${esc(l)}</button>`).join('')}</div>`}
-        <div class="pp-viz-box" data-viz-box="riser"><span class="pp-viz-cap">Riser · vista de frente</span>${riserSvg(s, st, sel)}</div>` : '<p class="pp-muted pp-viz-empty">Adicione um degrau.</p>'}
+        ${st ? `<div class="pp-viz-bar"><span class="pp-step-lbl pp-viz-lbl">Step ${sel + 1} of ${s.steps.length}</span><span class="pp-viz-nav"><button type="button" class="pp-q-ic" data-viz-prev="${si}" aria-label="Previous step" ${sel === 0 ? 'disabled' : ''}>‹</button><button type="button" class="pp-q-ic" data-viz-next="${si}" aria-label="Next step" ${sel >= s.steps.length - 1 ? 'disabled' : ''}>›</button></span></div>
+        <div class="pp-viz-box" data-viz-box="tread"><span class="pp-viz-cap">Tread · top view</span>${treadSvg(s, st, sel, !locked)}</div>
+        ${locked ? '' : `<div class="pp-viz-chips" role="group" aria-label="Return">${RET_OPTS.map(([v, l]) => `<button type="button" data-viz-ret="${v}" aria-pressed="${st.ret === v}" ${st.open === 'none' ? 'disabled' : ''}>${esc(l)}</button>`).join('')}</div>`}
+        <div class="pp-viz-box" data-viz-box="riser"><span class="pp-viz-cap">Riser · front view</span>${riserSvg(s, st, sel)}</div>` : '<p class="pp-muted pp-viz-empty">Add a step.</p>'}
       </div>
     </div>`;
   }
@@ -2547,41 +2553,41 @@
     const selStep = (m.vizSel && m.vizSel[si]) || 0;
     const steps = (s.steps || []).map((st, i) => `<div class="pp-step ${st.open !== 'none' ? 'is-open' : ''} ${i === selStep ? 'is-sel' : ''}" role="listitem" data-step-row="${si}:${i}">
         <span class="pp-step-n">${i + 1}</span>
-        <div class="pp-step-dim"><span class="pp-step-lbl">Tread</span>${inch(`${p}.steps.${i}.tread_w`, st.tread_w, `Tread ${i + 1} largura`, locked)}<em>×</em>${inch(`${p}.steps.${i}.tread_d`, st.tread_d, `Tread ${i + 1} profundidade`, locked)}</div>
-        <div class="pp-step-dim ${s.riser_material === 'none' || st.no_riser ? 'is-off' : ''}"><span class="pp-step-lbl">Riser</span>${inch(`${p}.steps.${i}.riser_w`, st.riser_w, `Riser ${i + 1} largura`, locked || s.riser_material === 'none' || st.no_riser)}<em>×</em>${inch(`${p}.steps.${i}.riser_h`, st.riser_h, `Riser ${i + 1} altura`, locked || s.riser_material === 'none' || st.no_riser)}</div>
-        <div class="pp-step-side"><span class="pp-step-lbl">Lado</span>${sel(OPEN_OPTS, st.open, `data-set="${p}.steps.${i}.open" aria-label="Lado aberto do degrau ${i + 1}" ${locked ? 'disabled' : ''}`)}</div>
-        <div class="pp-step-ret"><span class="pp-step-lbl">Retorno</span>${sel(RET_OPTS, st.ret, `data-set="${p}.steps.${i}.ret" aria-label="Retorno do degrau ${i + 1}" ${locked || st.open === 'none' ? 'disabled' : ''}`)}</div>
-        ${locked ? '' : `<div class="pp-step-act"><button type="button" class="pp-q-ic" data-step-down="${si}:${i}" title="Copiar para os degraus de baixo" aria-label="Copiar o degrau ${i + 1} para os de baixo">⇣</button><button type="button" class="pp-q-ic pp-q-ic--del" data-step-rm="${si}:${i}" aria-label="Tirar degrau ${i + 1}">×</button></div>`}
+        <div class="pp-step-dim"><span class="pp-step-lbl">Tread</span>${inch(`${p}.steps.${i}.tread_w`, st.tread_w, `Tread ${i + 1} width`, locked)}<em>×</em>${inch(`${p}.steps.${i}.tread_d`, st.tread_d, `Tread ${i + 1} depth`, locked)}</div>
+        <div class="pp-step-dim ${s.riser_material === 'none' || st.no_riser ? 'is-off' : ''}"><span class="pp-step-lbl">Riser</span>${inch(`${p}.steps.${i}.riser_w`, st.riser_w, `Riser ${i + 1} width`, locked || s.riser_material === 'none' || st.no_riser)}<em>×</em>${inch(`${p}.steps.${i}.riser_h`, st.riser_h, `Riser ${i + 1} height`, locked || s.riser_material === 'none' || st.no_riser)}</div>
+        <div class="pp-step-side"><span class="pp-step-lbl">Side</span>${sel(OPEN_OPTS, st.open, `data-set="${p}.steps.${i}.open" aria-label="Open side of step ${i + 1}" ${locked ? 'disabled' : ''}`)}</div>
+        <div class="pp-step-ret"><span class="pp-step-lbl">Return</span>${sel(RET_OPTS, st.ret, `data-set="${p}.steps.${i}.ret" aria-label="Return of step ${i + 1}" ${locked || st.open === 'none' ? 'disabled' : ''}`)}</div>
+        ${locked ? '' : `<div class="pp-step-act"><button type="button" class="pp-q-ic" data-step-down="${si}:${i}" title="Copy to the steps below" aria-label="Copy step ${i + 1} to the steps below">⇣</button><button type="button" class="pp-q-ic pp-q-ic--del" data-step-rm="${si}:${i}" aria-label="Remove step ${i + 1}">×</button></div>`}
       </div>`).join('');
     const nos = (s.nosings || []).map((n, i) => `<div class="pp-nos">
-        <label><span class="pp-step-lbl">Comprimento</span>${inch(`${p}.nosings.${i}.length`, n.length, `Nosing ${i + 1} comprimento`, locked)}</label>
-        <label><span class="pp-step-lbl">Qtd</span><input type="number" min="1" max="500" data-num="${p}.nosings.${i}.qty" value="${esc(n.qty || 1)}" ${locked ? 'disabled' : ''} /></label>
-        <label><span class="pp-step-lbl">Tipo</span>${sel([['flush', 'Flush'], ['overlap', 'Overlap'], ['stair_nose', 'Stair nose']], n.type, `data-set="${p}.nosings.${i}.type" ${locked ? 'disabled' : ''}`)}</label>
-        <label class="pp-nos-note"><span class="pp-step-lbl">Onde</span><input data-txt="${p}.nosings.${i}.note" value="${esc(n.note)}" maxlength="200" placeholder="Ex.: topo da escada, landing" ${locked ? 'disabled' : ''} /></label>
-        ${locked ? '' : `<button type="button" class="pp-q-ic pp-q-ic--del" data-nos-rm="${si}:${i}" aria-label="Tirar nosing ${i + 1}">×</button>`}
+        <label><span class="pp-step-lbl">Length</span>${inch(`${p}.nosings.${i}.length`, n.length, `Nosing ${i + 1} length`, locked)}</label>
+        <label><span class="pp-step-lbl">Qty</span><input type="number" min="1" max="500" data-num="${p}.nosings.${i}.qty" value="${esc(n.qty || 1)}" ${locked ? 'disabled' : ''} /></label>
+        <label><span class="pp-step-lbl">Type</span>${sel([['flush', 'Flush'], ['overlap', 'Overlap'], ['stair_nose', 'Stair nose']], n.type, `data-set="${p}.nosings.${i}.type" ${locked ? 'disabled' : ''}`)}</label>
+        <label class="pp-nos-note"><span class="pp-step-lbl">Where</span><input data-txt="${p}.nosings.${i}.note" value="${esc(n.note)}" maxlength="200" placeholder="e.g. top of stair, landing" ${locked ? 'disabled' : ''} /></label>
+        ${locked ? '' : `<button type="button" class="pp-q-ic pp-q-ic--del" data-nos-rm="${si}:${i}" aria-label="Remove nosing ${i + 1}">×</button>`}
       </div>`).join('');
-    return `<section class="pp-card pp-stair" aria-label="${esc(s.name || 'Escada')}">
+    return `<section class="pp-card pp-stair" aria-label="${esc(s.name || 'Stair')}">
       <div class="pp-stair-head">
-        <input class="pp-stair-name" data-txt="${p}.name" value="${esc(s.name)}" maxlength="80" aria-label="Nome da escada" ${locked ? 'disabled' : ''} />
-        <span class="pp-muted">${(s.steps || []).length} degraus</span>
-        ${locked ? '' : `<button type="button" class="pp-q-ic pp-q-ic--del" data-stair-rm="${si}" aria-label="Tirar ${esc(s.name || 'escada')}">×</button>`}
+        <input class="pp-stair-name" data-txt="${p}.name" value="${esc(s.name)}" maxlength="80" aria-label="Stair name" ${locked ? 'disabled' : ''} />
+        <span class="pp-muted">${(s.steps || []).length} steps</span>
+        ${locked ? '' : `<button type="button" class="pp-q-ic pp-q-ic--del" data-stair-rm="${si}" aria-label="Remove ${esc(s.name || 'stair')}">×</button>`}
       </div>
       <div class="pp-stair-spec">
-        <label><span>Madeira</span>${selFree(SPECIES, s.species, `data-free="${p}.species" ${locked ? 'disabled' : ''}`)}${SPECIES.includes(s.species) || !s.species ? '' : `<input data-txt="${p}.species" value="${esc(s.species)}" maxlength="60" ${locked ? 'disabled' : ''} />`}</label>
-        <label><span>Acabamento</span>${selFree(FINISHES, s.finish, `data-free="${p}.finish" ${locked ? 'disabled' : ''}`)}${FINISHES.includes(s.finish) || !s.finish ? '' : `<input data-txt="${p}.finish" value="${esc(s.finish)}" maxlength="60" ${locked ? 'disabled' : ''} />`}</label>
-        <label><span>Cor / stain</span><input data-txt="${p}.color" value="${esc(s.color)}" maxlength="80" placeholder="Ex.: Natural, Jacobean" ${locked ? 'disabled' : ''} /></label>
+        <label><span>Wood</span>${selFree(SPECIES, s.species, `data-free="${p}.species" ${locked ? 'disabled' : ''}`)}${SPECIES.includes(s.species) || !s.species ? '' : `<input data-txt="${p}.species" value="${esc(s.species)}" maxlength="60" ${locked ? 'disabled' : ''} />`}</label>
+        <label><span>Finish</span>${selFree(FINISHES, s.finish, `data-free="${p}.finish" ${locked ? 'disabled' : ''}`)}${FINISHES.includes(s.finish) || !s.finish ? '' : `<input data-txt="${p}.finish" value="${esc(s.finish)}" maxlength="60" ${locked ? 'disabled' : ''} />`}</label>
+        <label><span>Color / stain</span><input data-txt="${p}.color" value="${esc(s.color)}" maxlength="80" placeholder="e.g. Natural, Jacobean" ${locked ? 'disabled' : ''} /></label>
         <label><span>Risers</span>${sel(RISER_OPTS, s.riser_material, `data-set="${p}.riser_material" ${locked ? 'disabled' : ''}`)}</label>
       </div>
       ${stairVizHtml(m, s, si)}
-      <div class="pp-stair-cols" aria-hidden="true"><span>#</span><span>Tread (larg. × prof.)</span><span>Riser (larg. × alt.)</span><span>Lado aberto</span><span>Retorno</span><span></span></div>
-      <div class="pp-stair-steps" role="list">${steps || '<p class="pp-q-empty">Adicione o primeiro degrau. Medidas em polegadas: 48, 11 1/4, 11¼ ou 11.25.</p>'}</div>
+      <div class="pp-stair-cols" aria-hidden="true"><span>#</span><span>Tread (width × depth)</span><span>Riser (width × height)</span><span>Open side</span><span>Return</span><span></span></div>
+      <div class="pp-stair-steps" role="list">${steps || '<p class="pp-q-empty">Add the first step. Inches: 48, 11 1/4, 11¼ or 11.25.</p>'}</div>
       ${locked ? '' : `<div class="pp-stair-add">
-        <button type="button" class="pp-q-add" data-step-add="${si}">+ Degrau${(s.steps || []).length ? ' (igual ao último)' : ''}</button>
-        ${(s.steps || []).length ? `<span class="pp-stair-many"><label for="ppMany-${si}">Mais</label><input id="ppMany-${si}" type="number" min="1" max="40" value="5" /><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-step-many="${si}">degraus iguais</button></span>` : ''}
+        <button type="button" class="pp-q-add" data-step-add="${si}">+ Step${(s.steps || []).length ? ' (same as last)' : ''}</button>
+        ${(s.steps || []).length ? `<span class="pp-stair-many"><label for="ppMany-${si}">Add</label><input id="ppMany-${si}" type="number" min="1" max="40" value="5" /><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-step-many="${si}">equal steps</button></span>` : ''}
       </div>`}
-      <div class="pp-stair-sub"><h4>Nosings</h4>${nos || '<p class="pp-muted" style="margin:0;font-size:13px">Nenhum nosing (landing / topo).</p>'}${locked ? '' : `<button type="button" class="pp-link" data-nos-add="${si}">+ Nosing</button>`}</div>
-      <div class="pp-stair-sub"><h4>Fotos</h4>${photoStrip(m, s.photos, `${p}.photos`)}</div>
-      <div class="pp-stair-sub"><h4>Observações</h4><textarea data-txt="${p}.note" maxlength="500" placeholder="Ex.: parede torta no lado direito, skirt board existente" ${locked ? 'disabled' : ''}>${esc(s.note)}</textarea></div>
+      <div class="pp-stair-sub"><h4>Nosings</h4>${nos || '<p class="pp-muted" style="margin:0;font-size:13px">No nosings (landing / top).</p>'}${locked ? '' : `<button type="button" class="pp-link" data-nos-add="${si}">+ Nosing</button>`}</div>
+      <div class="pp-stair-sub"><h4>Photos</h4>${photoStrip(m, s.photos, `${p}.photos`)}</div>
+      <div class="pp-stair-sub"><h4>Notes</h4><textarea data-txt="${p}.note" maxlength="500" placeholder="e.g. right wall out of square, existing skirt board" ${locked ? 'disabled' : ''}>${esc(s.note)}</textarea></div>
     </section>`;
   }
 
@@ -2593,24 +2599,24 @@
       return `<section class="pp-card pp-vent" aria-label="Vent ${i + 1}">
         <div class="pp-vent-viz">${ventSvg(v)}</div>
         <div class="pp-vent-grid">
-          <label><span>Ambiente</span><input data-txt="${p}.room" value="${esc(v.room)}" maxlength="80" placeholder="Ex.: Master bedroom" ${locked ? 'disabled' : ''} /></label>
-          <label><span>Tamanho</span><select data-vsize="${p}" ${locked ? 'disabled' : ''}>${VENT_SIZES.map((sz) => `<option ${sz === v.size ? 'selected' : ''}>${sz}</option>`).join('')}<option value="__other" ${knownSize ? '' : 'selected'}>Outro…</option></select>${knownSize ? '' : `<input data-txt="${p}.size" value="${esc(v.size)}" maxlength="20" placeholder="Ex.: 4x16" ${locked ? 'disabled' : ''} />`}</label>
-          <label><span>Tipo</span>${sel(VENT_TYPES, v.type, `data-set="${p}.type" ${locked ? 'disabled' : ''}`)}</label>
-          <label><span>Qtd</span><input type="number" min="1" max="500" data-num="${p}.qty" value="${esc(v.qty || 1)}" ${locked ? 'disabled' : ''} /></label>
-          <label><span>Madeira</span>${selFree(SPECIES, v.species, `data-free="${p}.species" ${locked ? 'disabled' : ''}`)}${SPECIES.includes(v.species) || !v.species ? '' : `<input data-txt="${p}.species" value="${esc(v.species)}" maxlength="60" ${locked ? 'disabled' : ''} />`}</label>
-          <label><span>Acabamento</span>${selFree(FINISHES, v.finish, `data-free="${p}.finish" ${locked ? 'disabled' : ''}`)}${FINISHES.includes(v.finish) || !v.finish ? '' : `<input data-txt="${p}.finish" value="${esc(v.finish)}" maxlength="60" ${locked ? 'disabled' : ''} />`}</label>
-          <label><span>Cor / stain</span><input data-txt="${p}.color" value="${esc(v.color)}" maxlength="80" ${locked ? 'disabled' : ''} /></label>
-          <label class="pp-vent-note"><span>Observação</span><input data-txt="${p}.note" value="${esc(v.note)}" maxlength="300" ${locked ? 'disabled' : ''} /></label>
+          <label><span>Room</span><input data-txt="${p}.room" value="${esc(v.room)}" maxlength="80" placeholder="e.g. Master bedroom" ${locked ? 'disabled' : ''} /></label>
+          <label><span>Size</span><select data-vsize="${p}" ${locked ? 'disabled' : ''}>${VENT_SIZES.map((sz) => `<option ${sz === v.size ? 'selected' : ''}>${sz}</option>`).join('')}<option value="__other" ${knownSize ? '' : 'selected'}>Other…</option></select>${knownSize ? '' : `<input data-txt="${p}.size" value="${esc(v.size)}" maxlength="20" placeholder="e.g. 4x16" ${locked ? 'disabled' : ''} />`}</label>
+          <label><span>Type</span>${sel(VENT_TYPES, v.type, `data-set="${p}.type" ${locked ? 'disabled' : ''}`)}</label>
+          <label><span>Qty</span><input type="number" min="1" max="500" data-num="${p}.qty" value="${esc(v.qty || 1)}" ${locked ? 'disabled' : ''} /></label>
+          <label><span>Wood</span>${selFree(SPECIES, v.species, `data-free="${p}.species" ${locked ? 'disabled' : ''}`)}${SPECIES.includes(v.species) || !v.species ? '' : `<input data-txt="${p}.species" value="${esc(v.species)}" maxlength="60" ${locked ? 'disabled' : ''} />`}</label>
+          <label><span>Finish</span>${selFree(FINISHES, v.finish, `data-free="${p}.finish" ${locked ? 'disabled' : ''}`)}${FINISHES.includes(v.finish) || !v.finish ? '' : `<input data-txt="${p}.finish" value="${esc(v.finish)}" maxlength="60" ${locked ? 'disabled' : ''} />`}</label>
+          <label><span>Color / stain</span><input data-txt="${p}.color" value="${esc(v.color)}" maxlength="80" ${locked ? 'disabled' : ''} /></label>
+          <label class="pp-vent-note"><span>Note</span><input data-txt="${p}.note" value="${esc(v.note)}" maxlength="300" ${locked ? 'disabled' : ''} /></label>
         </div>
-        <div class="pp-vent-foot">${photoStrip(m, v.photos, `${p}.photos`)}${locked ? '' : `<button type="button" class="pp-q-ic pp-q-ic--del" data-vent-rm="${i}" aria-label="Tirar vent ${i + 1}">×</button>`}</div>
+        <div class="pp-vent-foot">${photoStrip(m, v.photos, `${p}.photos`)}${locked ? '' : `<button type="button" class="pp-q-ic pp-q-ic--del" data-vent-rm="${i}" aria-label="Remove vent ${i + 1}">×</button>`}</div>
       </section>`;
     }).join('');
-    return `${rows || '<div class="pp-card pp-empty"><strong>Nenhum vent medido</strong>Adicione cada vent com tamanho, tipo e acabamento.</div>'}${locked ? '' : '<button type="button" class="pp-q-add pp-q-add--block" id="ppVentAdd">+ Vent (igual ao último)</button>'}`;
+    return `${rows || '<div class="pp-card pp-empty"><strong>No vents measured</strong>Add each vent with its size, type and finish.</div>'}${locked ? '' : '<button type="button" class="pp-q-add pp-q-add--block" id="ppVentAdd">+ Vent (same as last)</button>'}`;
   }
 
   function measSummaryHtml(m) {
     const lines = measSummary(m.data);
-    return `<h3>Resumo</h3>${lines.length ? `<ul class="pp-meas-sum">${lines.map((l) => `<li><span><b>${esc(l.kind)}</b> ${esc(l.text)}<small>${esc(l.group)}</small></span><em>${l.qty} EA</em></li>`).join('')}</ul>` : '<p class="pp-muted" style="margin:0">As peças aparecem aqui agrupadas por medida, como na Work Order.</p>'}`;
+    return `<h3>Summary</h3>${lines.length ? `<ul class="pp-meas-sum">${lines.map((l) => `<li><span><b>${esc(l.kind)}</b> ${esc(l.text)}<small>${esc(l.group)}</small></span><em>${l.qty} EA</em></li>`).join('')}</ul>` : '<p class="pp-muted" style="margin:0">Pieces show up here grouped by size, like on the Work Order.</p>'}`;
   }
 
   function paintMeasurement() {
@@ -2620,36 +2626,36 @@
     const log = (m.log || []).slice(-6).reverse();
     view.innerHTML = `
       <div class="pp-head">
-        <div><a class="pp-back" href="#medicoes" style="display:inline-flex">${icon('back')}Medições</a><h1 class="pp-meas-title">${esc(m.address)}</h1>
-          <p class="pp-muted" style="margin:4px 0 0">${measStatusChip(m)} <span id="ppMeasSaved" class="pp-meas-saved">Salvo</span></p></div>
+        <div><a class="pp-back" href="#measurements" style="display:inline-flex">${icon('back')}Measurements</a><h1 class="pp-meas-title">${esc(m.address)}</h1>
+          <p class="pp-muted" style="margin:4px 0 0">${measStatusChip(m)} <span id="ppMeasSaved" class="pp-meas-saved">Saved</span></p></div>
         <div class="pp-head-actions">
           <a class="pp-btn pp-btn--sec" href="/api/builder/measurements/${encodeURIComponent(m.id)}/pdf" target="_blank" rel="noopener">PDF</a>
-          ${locked ? '' : m.status === 'done' ? '<button type="button" class="pp-btn pp-btn--sec" id="ppMeasReopen">Reabrir</button>' : '<button type="button" class="pp-btn pp-btn--pri" id="ppMeasDone">Concluir medição</button>'}
+          ${locked ? '' : m.status === 'done' ? '<button type="button" class="pp-btn pp-btn--sec" id="ppMeasReopen">Reopen</button>' : '<button type="button" class="pp-btn pp-btn--pri" id="ppMeasDone">Complete measurement</button>'}
         </div>
       </div>
-      ${locked ? `<div class="pp-match"><strong>Esta medição já foi enviada com a Work Order</strong><span class="pp-muted" style="font-size:14px">${m.work_order_id ? `<a class="pp-link" href="#jobs/${encodeURIComponent(m.work_order_id)}">Abrir o job</a> · ` : ''}Para medir de novo, crie uma nova medição para este endereço.</span></div>` : ''}
+      ${locked ? `<div class="pp-match"><strong>This measurement was already sent with the Work Order</strong><span class="pp-muted" style="font-size:14px">${m.work_order_id ? `<a class="pp-link" href="#jobs/${encodeURIComponent(m.work_order_id)}">Open the job</a> · ` : ''}To measure again, start a new measurement for this address.</span></div>` : ''}
       <div class="pp-meas-layout">
         <div class="pp-meas-main">
           <div class="pp-card pp-meas-info">
-            <label><span>Comunidade</span><input data-head="community" value="${esc(m.community || '')}" maxlength="120" ${locked ? 'disabled' : ''} /></label>
-            <label><span>Lote</span><input data-head="lot" value="${esc(m.lot || '')}" maxlength="20" ${locked ? 'disabled' : ''} /></label>
-            <label class="pp-meas-info-wide"><span>Observações gerais</span><input data-head="notes" value="${esc(m.notes || '')}" maxlength="2000" placeholder="Ex.: acesso pela garagem, piso de concreto" ${locked ? 'disabled' : ''} /></label>
+            <label><span>Community</span><input data-head="community" value="${esc(m.community || '')}" maxlength="120" ${locked ? 'disabled' : ''} /></label>
+            <label><span>Lot</span><input data-head="lot" value="${esc(m.lot || '')}" maxlength="20" ${locked ? 'disabled' : ''} /></label>
+            <label class="pp-meas-info-wide"><span>General notes</span><input data-head="notes" value="${esc(m.notes || '')}" maxlength="2000" placeholder="e.g. access through the garage, concrete slab" ${locked ? 'disabled' : ''} /></label>
           </div>
           <div class="pp-seg pp-meas-tabs" role="tablist">
-            <button type="button" role="tab" data-mtab="stairs" aria-selected="${m.tab === 'stairs'}" aria-pressed="${m.tab === 'stairs'}">Escadas · ${c.treads} treads</button>
+            <button type="button" role="tab" data-mtab="stairs" aria-selected="${m.tab === 'stairs'}" aria-pressed="${m.tab === 'stairs'}">Stairs · ${c.treads} treads</button>
             <button type="button" role="tab" data-mtab="vents" aria-selected="${m.tab === 'vents'}" aria-pressed="${m.tab === 'vents'}">Vents · ${c.vents}</button>
           </div>
           ${m.tab === 'stairs'
-            ? `${(m.data.stairs || []).map((s, i) => stairHtml(m, s, i)).join('') || '<div class="pp-card pp-empty"><strong>Nenhuma escada ainda</strong>Adicione a escada e meça degrau por degrau.</div>'}${locked ? '' : '<button type="button" class="pp-q-add pp-q-add--block" id="ppStairAdd">+ Escada</button>'}`
+            ? `${(m.data.stairs || []).map((s, i) => stairHtml(m, s, i)).join('') || '<div class="pp-card pp-empty"><strong>No stairs yet</strong>Add a stair and measure it step by step.</div>'}${locked ? '' : '<button type="button" class="pp-q-add pp-q-add--block" id="ppStairAdd">+ Stair</button>'}`
             : ventsHtml(m)}
         </div>
         <aside class="pp-meas-side">
           <div class="pp-card pp-block" id="ppMeasSum">${measSummaryHtml(m)}</div>
           <div class="pp-card pp-block">
-            <h3>Quem mediu</h3>
-            <ul class="pp-meas-log">${log.map((l) => `<li><b>${esc(l.name || '')}</b> ${esc(l.action || '')}<small>${esc(fmtDay(l.at, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}</small></li>`).join('') || '<li class="pp-muted">—</li>'}</ul>
+            <h3>Measured by</h3>
+            <ul class="pp-meas-log">${log.map((l) => `<li><b>${esc(l.name || '')}</b> ${esc(LOG_EN[l.action] || l.action || '')}<small>${esc(fmtDayEn(l.at, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }))}</small></li>`).join('') || '<li class="pp-muted">—</li>'}</ul>
           </div>
-          ${locked ? '' : '<button type="button" class="pp-link pp-late" id="ppMeasDel" style="justify-self:start">Apagar medição</button>'}
+          ${locked ? '' : '<button type="button" class="pp-link pp-late" id="ppMeasDel" style="justify-self:start">Delete measurement</button>'}
         </aside>
       </div>`;
     paintMeasSaved();
@@ -2791,7 +2797,7 @@
       if (ins[0]) ins[0].focus();
     });
     view.querySelectorAll('[data-stair-rm]').forEach((b) => b.addEventListener('click', () => {
-      if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Tirar?'; b.classList.add('is-armed'); return; }
+      if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Remove?'; b.classList.add('is-armed'); return; }
       m.data.stairs.splice(Number(b.getAttribute('data-stair-rm')), 1);
       measSaveSoon();
       redraw();
@@ -2867,7 +2873,7 @@
         await measSaveNow();
         redraw();
       } catch (e) {
-        window.alert(e.message || 'Não foi possível enviar a foto.');
+        window.alert(e.message || 'Could not upload the photo.');
         if (label) label.classList.remove('is-busy');
       }
     }));
@@ -2898,10 +2904,10 @@
     });
     const del = $('ppMeasDel');
     if (del) del.addEventListener('click', async () => {
-      if (del.dataset.armed !== '1') { del.dataset.armed = '1'; del.textContent = 'Confirmar: apagar medição'; return; }
+      if (del.dataset.armed !== '1') { del.dataset.armed = '1'; del.textContent = 'Confirm: delete measurement'; return; }
       await api(`/api/builder/measurements/${encodeURIComponent(m.id)}`, { method: 'DELETE' });
       state.meas = null;
-      location.hash = '#medicoes';
+      location.hash = '#measurements';
     });
   }
 
@@ -2919,7 +2925,7 @@
       </div>
       ${state.builder ? `<div class="pp-card" style="overflow:hidden">
         ${item('#empresas', 'Empresas', activeCompanies().length ? `${activeCompanies().length} conectadas` : 'Conecte ou convide empresas de piso')}
-        ${canDo('measure') ? item('#medicoes', 'Medições', 'Escadas e vents medidos na obra') : ''}
+        ${canDo('measure') ? item('#measurements', 'Measurements', 'Stairs and vents measured on site') : ''}
         ${item('#equipe', 'Equipe', `${state.builder.account.name} · ${state.builder.member.role_label}`)}
       </div>` : ''}
       <div class="pp-card" style="overflow:hidden">

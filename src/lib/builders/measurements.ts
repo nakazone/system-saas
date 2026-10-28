@@ -116,12 +116,12 @@ export function fmtInches(n: number | null | undefined): string {
 /* ───────────────────────────── summary ───────────────────────────── */
 
 const OPEN_LABEL: Record<string, string> = {
-  none: "fechado dos dois lados",
-  left: "lado esquerdo aberto",
-  right: "lado direito aberto",
-  both: "os dois lados abertos",
+  none: "closed both sides",
+  left: "left side open",
+  right: "right side open",
+  both: "both sides open",
 };
-const RET_LABEL: Record<string, string> = { "45": "retorno 45°", flat: "retorno reto (flat)", bullnose: "bullnose" };
+const RET_LABEL: Record<string, string> = { "45": "45° return", flat: "flat return", bullnose: "bullnose" };
 const OPEN_EN: Record<string, string> = { none: "", left: "left return", right: "right return", both: "double returns" };
 export const VENT_LABEL: Record<string, string> = { flush: "flush mount", self_rimming: "self-rimming (drop-in)", return_air: "return air" };
 
@@ -132,12 +132,12 @@ export function openLabel(open: string, ret: string): string {
 
 export type SummaryLine = { kind: "tread" | "riser" | "nosing" | "vent"; text: string; qty: number; uom: "EA" | "LF" };
 
-/** Groups equal pieces: "Tread White Oak 48 × 11¼ · os dois lados abertos · retorno 45° — 8 EA". */
+/** Groups equal pieces: "Tread White Oak 48 × 11¼ · both sides open · 45° return — 8 EA". */
 export function summarize(data: MeasurementData): SummaryLine[] {
   const out: SummaryLine[] = [];
   for (const stair of data.stairs) {
     const wood = [stair.species, stair.finish, stair.color].filter(Boolean).join(" · ");
-    const label = stair.name || "Escada";
+    const label = stair.name || "Stair";
     const treads = new Map<string, number>();
     const risers = new Map<string, number>();
     for (const st of stair.steps) {
@@ -186,8 +186,8 @@ export function counts(data: MeasurementData) {
 /** Text for the job notes, in the words a work order uses (e.g. "48" – double returns – 8 EA"). */
 export function summaryText(m: { address: string; data: MeasurementData; measuredBy: string; measuredAt: Date | null }): string {
   const lines = summarize(m.data).map((l) => `- ${l.text} — ${l.qty} ${l.uom}`);
-  const who = `${m.measuredBy}${m.measuredAt ? ` em ${m.measuredAt.toISOString().slice(0, 10)}` : ""}`;
-  return [`Medição do builder (${who}):`, ...lines].join("\n");
+  const who = `${m.measuredBy}${m.measuredAt ? ` on ${m.measuredAt.toISOString().slice(0, 10)}` : ""}`;
+  return [`Builder measurement (${who}):`, ...lines].join("\n");
 }
 
 export function openSideEn(open: string): string {
@@ -207,7 +207,7 @@ function appendLog(raw: unknown, entry: ReturnType<typeof logEntry>) {
 
 async function own(member: ActiveMember, measurementId: string) {
   const row = await prisma.builderMeasurement.findFirst({ where: { id: measurementId, builderAccountId: member.builderAccountId } });
-  if (!row) throw new BuilderError(404, "Medição não encontrada.");
+  if (!row) throw new BuilderError(404, "Measurement not found.");
   return row;
 }
 
@@ -267,7 +267,7 @@ const headSchema = z.object({
 
 export async function createMeasurement(member: ActiveMember, raw: unknown) {
   const parsed = headSchema.safeParse(raw);
-  if (!parsed.success) throw new BuilderError(400, "Informe o endereço da obra.", "address");
+  if (!parsed.success) throw new BuilderError(400, "Enter the job address.", "address");
   const d = parsed.data;
   const key = addressKey(d.address);
   const row = await prisma.builderMeasurement.create({
@@ -280,7 +280,7 @@ export async function createMeasurement(member: ActiveMember, raw: unknown) {
       notes: d.notes || null,
       data: { stairs: [], vents: [] },
       createdByMemberId: member.id,
-      log: [logEntry(member, "criou")],
+      log: [logEntry(member, "created it")],
     },
   });
   return getMeasurement(member, row.id);
@@ -288,11 +288,11 @@ export async function createMeasurement(member: ActiveMember, raw: unknown) {
 
 export async function saveMeasurement(member: ActiveMember, measurementId: string, raw: unknown) {
   const row = await own(member, measurementId);
-  if (row.status === "used") throw new BuilderError(409, "Esta medição já foi para um job. Crie uma nova para mudar.");
+  if (row.status === "used") throw new BuilderError(409, "This measurement was already sent with a job. Start a new one to change it.");
   const body = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const head = headSchema.partial().safeParse(body);
   const data = measurementDataSchema.safeParse(body.data ?? row.data);
-  if (!head.success || !data.success) throw new BuilderError(400, "Confira as medidas e tente de novo.");
+  if (!head.success || !data.success) throw new BuilderError(400, "Check the measurements and try again.");
   // Photos can only point at this measurement's own files.
   const prefix = photoPrefix(row.builderAccountId, row.id);
   for (const s of data.data.stairs) s.photos = s.photos.filter((k) => k.startsWith(prefix));
@@ -308,7 +308,7 @@ export async function saveMeasurement(member: ActiveMember, measurementId: strin
       data: data.data,
       updatedByMemberId: member.id,
       // One log line per person per hour is enough for "who measured".
-      log: shouldLogEdit(row.log, member.id) ? appendLog(row.log, logEntry(member, "editou")) : (row.log as never),
+      log: shouldLogEdit(row.log, member.id) ? appendLog(row.log, logEntry(member, "edited")) : (row.log as never),
     },
   });
   return getMeasurement(member, row.id);
@@ -323,21 +323,21 @@ function shouldLogEdit(raw: unknown, memberId: string): boolean {
 
 export async function completeMeasurement(member: ActiveMember, measurementId: string, done: boolean) {
   const row = await own(member, measurementId);
-  if (row.status === "used") throw new BuilderError(409, "Esta medição já foi para um job.");
+  if (row.status === "used") throw new BuilderError(409, "This measurement was already sent with a job.");
   const data = parseData(row.data);
-  if (done && !data.stairs.length && !data.vents.length) throw new BuilderError(400, "Meça pelo menos uma escada ou um vent.");
+  if (done && !data.stairs.length && !data.vents.length) throw new BuilderError(400, "Measure at least one stair or vent.");
   await prisma.builderMeasurement.update({
     where: { id: row.id },
     data: done
-      ? { status: "done", completedAt: new Date(), completedByMemberId: member.id, log: appendLog(row.log, logEntry(member, "concluiu")) }
-      : { status: "draft", completedAt: null, completedByMemberId: null, log: appendLog(row.log, logEntry(member, "reabriu")) },
+      ? { status: "done", completedAt: new Date(), completedByMemberId: member.id, log: appendLog(row.log, logEntry(member, "completed it")) }
+      : { status: "draft", completedAt: null, completedByMemberId: null, log: appendLog(row.log, logEntry(member, "reopened it")) },
   });
   return getMeasurement(member, row.id);
 }
 
 export async function deleteMeasurement(member: ActiveMember, measurementId: string) {
   const row = await own(member, measurementId);
-  if (row.status === "used") throw new BuilderError(409, "Esta medição já está num job e não pode ser apagada.");
+  if (row.status === "used") throw new BuilderError(409, "This measurement is on a job and can’t be deleted.");
   await prisma.builderMeasurement.delete({ where: { id: row.id } });
   const files = await storage.list(photoPrefix(row.builderAccountId, row.id)).catch(() => []);
   await Promise.all(files.map((f) => storage.delete(f.key).catch(() => undefined)));
@@ -351,17 +351,17 @@ const PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 export async function addPhoto(member: ActiveMember, measurementId: string, dataUrl: string) {
   const row = await own(member, measurementId);
-  if (row.status === "used") throw new BuilderError(409, "Esta medição já foi para um job.");
+  if (row.status === "used") throw new BuilderError(409, "This measurement was already sent with a job.");
   const m = /^data:([^;]+);base64,(.+)$/.exec(String(dataUrl || ""));
-  if (!m) throw new BuilderError(400, "Foto inválida.");
+  if (!m) throw new BuilderError(400, "Invalid photo.");
   const contentType = m[1]!.toLowerCase();
-  if (!PHOTO_TYPES.has(contentType)) throw new BuilderError(400, "Use foto JPG, PNG ou WebP.");
+  if (!PHOTO_TYPES.has(contentType)) throw new BuilderError(400, "Use a JPG, PNG or WebP photo.");
   const body = Buffer.from(m[2]!, "base64");
-  if (body.length > 8 * 1024 * 1024) throw new BuilderError(400, "Foto maior que 8 MB.");
+  if (body.length > 8 * 1024 * 1024) throw new BuilderError(400, "Photo is larger than 8 MB.");
   const okSig = contentType === "image/png" ? body.subarray(0, 4).toString("hex") === "89504e47"
     : contentType === "image/jpeg" ? body.subarray(0, 3).toString("hex") === "ffd8ff"
       : body.subarray(0, 4).toString() === "RIFF" && body.subarray(8, 12).toString() === "WEBP";
-  if (!okSig) throw new BuilderError(400, "O arquivo não parece uma foto.");
+  if (!okSig) throw new BuilderError(400, "That file doesn’t look like a photo.");
   const ext = contentType === "image/png" ? "png" : contentType === "image/webp" ? "webp" : "jpg";
   const key = `${photoPrefix(row.builderAccountId, row.id)}${Date.now()}-${randomBytes(5).toString("hex")}.${ext}`;
   await storage.upload({ key, body, contentType });
@@ -370,9 +370,9 @@ export async function addPhoto(member: ActiveMember, measurementId: string, data
 
 export async function photoStream(member: ActiveMember, measurementId: string, key: string) {
   const row = await own(member, measurementId);
-  if (!key.startsWith(photoPrefix(row.builderAccountId, row.id)) || key.includes("..")) throw new BuilderError(404, "Foto não encontrada.");
+  if (!key.startsWith(photoPrefix(row.builderAccountId, row.id)) || key.includes("..")) throw new BuilderError(404, "Photo not found.");
   const stream = await storage.getStream(key);
-  if (!stream) throw new BuilderError(404, "Foto não encontrada.");
+  if (!stream) throw new BuilderError(404, "Photo not found.");
   const ext = key.split(".").pop();
   return { stream, contentType: ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg" };
 }
@@ -418,7 +418,7 @@ export async function measurementPack(accountId: string, measurementId: string):
   const measuredBy = (row.completedByMemberId && names.get(row.completedByMemberId)) || (row.updatedByMemberId && names.get(row.updatedByMemberId)) || names.get(row.createdByMemberId) || "Builder";
   const account = await prisma.builderAccount.findUnique({ where: { id: accountId }, select: { name: true } });
   const pdf = await measurementPdf({ builder: account?.name || "Builder", address: row.address, community: row.community, lot: row.lot, notes: row.notes, data, measuredBy, measuredAt: row.completedAt || row.updatedAt });
-  const files: MeasurementPack["files"] = [{ name: `Medicao - ${row.address}.pdf`.replace(/[\\/:*?"<>|]+/g, " ").slice(0, 150), contentType: "application/pdf", body: pdf }];
+  const files: MeasurementPack["files"] = [{ name: `Measurement - ${row.address}.pdf`.replace(/[\\/:*?"<>|]+/g, " ").slice(0, 150), contentType: "application/pdf", body: pdf }];
   let n = 0;
   const photo = async (key: string, label: string) => {
     if (n >= 20) return;
@@ -428,8 +428,8 @@ export async function measurementPack(accountId: string, measurementId: string):
     const ext = key.split(".").pop() || "jpg";
     files.push({ name: `${label} ${n}.${ext}`.slice(0, 150), contentType: ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg", body });
   };
-  for (const s of data.stairs) for (const k of s.photos) await photo(k, `Foto ${s.name || "escada"}`);
-  for (const v of data.vents) for (const k of v.photos) await photo(k, `Foto vent ${v.room || v.size}`);
+  for (const s of data.stairs) for (const k of s.photos) await photo(k, `Photo ${s.name || "stair"}`);
+  for (const v of data.vents) for (const k of v.photos) await photo(k, `Photo vent ${v.room || v.size}`);
   return { text: summaryText({ address: row.address, data, measuredBy, measuredAt: row.completedAt || row.updatedAt }), summary: summarize(data), files };
 }
 
@@ -443,7 +443,7 @@ export async function markMeasurementUsed(accountId: string, measurementId: stri
       usedAt: new Date(),
       organizationId,
       workOrderId,
-      log: appendLog(row.log, { at: new Date().toISOString(), member_id: "", name: memberName, action: "enviou com a work order" }),
+      log: appendLog(row.log, { at: new Date().toISOString(), member_id: "", name: memberName, action: "sent it with the Work Order" }),
     },
   });
 }
@@ -466,10 +466,10 @@ export async function measurementPdf(m: { builder: string; address: string; comm
   const line = "#E5E7EB";
   const W = doc.page.width - 80;
 
-  doc.fillColor(muted).fontSize(9).text(`MEDIÇÃO DE ESCADAS E VENTS · ${m.builder}`, 40, 40);
+  doc.fillColor(muted).fontSize(9).text(`STAIR & VENT MEASUREMENT · ${m.builder}`, 40, 40);
   doc.fillColor(ink).fontSize(18).font("Helvetica-Bold").text(m.address, 40, 54, { width: W });
   doc.font("Helvetica").fontSize(10).fillColor(muted)
-    .text([m.community, m.lot ? `Lote ${m.lot}` : "", `Medido por ${m.measuredBy}${m.measuredAt ? ` em ${m.measuredAt.toISOString().slice(0, 10)}` : ""}`].filter(Boolean).join(" · "), { width: W });
+    .text([m.community, m.lot ? `Lot ${m.lot}` : "", `Measured by ${m.measuredBy}${m.measuredAt ? ` on ${m.measuredAt.toISOString().slice(0, 10)}` : ""}`].filter(Boolean).join(" · "), { width: W });
   if (m.notes) doc.moveDown(0.3).fillColor(ink).text(m.notes, { width: W });
   doc.moveDown(0.8);
 
@@ -477,7 +477,7 @@ export async function measurementPdf(m: { builder: string; address: string; comm
   const rule = () => { doc.strokeColor(line).lineWidth(0.6).moveTo(40, doc.y).lineTo(40 + W, doc.y).stroke(); };
 
   // Summary first: what the crew must bring.
-  doc.font("Helvetica-Bold").fontSize(11).fillColor(ink).text("Resumo");
+  doc.font("Helvetica-Bold").fontSize(11).fillColor(ink).text("Summary");
   doc.moveDown(0.2);
   for (const l of summarize(m.data)) {
     const t = ascii(l.text);
@@ -495,12 +495,12 @@ export async function measurementPdf(m: { builder: string; address: string; comm
     ensure(60);
     rule();
     doc.moveDown(0.4);
-    doc.font("Helvetica-Bold").fontSize(12).fillColor(ink).text(s.name || "Escada", 40);
-    doc.font("Helvetica").fontSize(9).fillColor(muted).text([s.species, s.finish, s.color, s.riser_material === "primed" ? "risers primed" : s.riser_material === "paint_grade" ? "risers paint grade" : s.riser_material === "none" ? "sem risers" : ""].filter(Boolean).join(" · ") || "—");
+    doc.font("Helvetica-Bold").fontSize(12).fillColor(ink).text(s.name || "Stair", 40);
+    doc.font("Helvetica").fontSize(9).fillColor(muted).text([s.species, s.finish, s.color, s.riser_material === "primed" ? "risers primed" : s.riser_material === "paint_grade" ? "risers paint grade" : s.riser_material === "none" ? "no risers" : ""].filter(Boolean).join(" · ") || "—");
     if (s.note) doc.fillColor(ink).text(s.note, { width: W });
     doc.moveDown(0.3);
     const cols = [40, 66, 170, 274, 470];
-    const head = ["#", "Tread (L × P)", "Riser (L × A)", "Lados", "Obs."];
+    const head = ["#", "Tread (W x D)", "Riser (W x H)", "Sides", "Notes"];
     ensure(14);
     let y = doc.y;
     doc.font("Helvetica-Bold").fontSize(8).fillColor(muted);
@@ -512,7 +512,7 @@ export async function measurementPdf(m: { builder: string; address: string; comm
       const raw = [
         String(i + 1),
         st.tread_w || st.tread_d ? `${fmtInches(st.tread_w)}" × ${fmtInches(st.tread_d)}"` : "—",
-        st.no_riser || s.riser_material === "none" ? "sem riser" : st.riser_w || st.riser_h ? `${fmtInches(st.riser_w)}" × ${fmtInches(st.riser_h)}"` : "—",
+        st.no_riser || s.riser_material === "none" ? "no riser" : st.riser_w || st.riser_h ? `${fmtInches(st.riser_w)}" × ${fmtInches(st.riser_h)}"` : "—",
         openLabel(st.open, st.ret),
         st.note || "",
       ];

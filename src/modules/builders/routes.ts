@@ -386,7 +386,7 @@ builderAccountRouter.get("/api/builder/measurements/:id/pdf", requireBuilder, as
     const m = req.builderMember!;
     await getMeasurement(m, String(req.params.id));
     const pack = await measurementPack(m.builderAccountId, String(req.params.id));
-    if (!pack) throw new BuilderError(404, "Medição não encontrada.");
+    if (!pack) throw new BuilderError(404, "Measurement not found.");
     const pdf = pack.files[0]!;
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(pdf.name)}"`);

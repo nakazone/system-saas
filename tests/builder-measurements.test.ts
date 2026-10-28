@@ -36,13 +36,13 @@ describe("measurement summary", () => {
   it("groups equal pieces like a work order", () => {
     const s = summarize(data);
     expect(s.find((l) => l.kind === "tread" && l.text.includes("48 × 11¼"))?.qty).toBe(2);
-    expect(s.find((l) => l.kind === "tread" && l.text.includes("42 × 11¼"))?.text).toContain("lado esquerdo aberto · retorno reto");
+    expect(s.find((l) => l.kind === "tread" && l.text.includes("42 × 11¼"))?.text).toContain("left side open · flat return");
     expect(s.find((l) => l.kind === "vent")?.qty).toBe(10);
     expect(counts(data)).toEqual({ stairs: 1, treads: 3, risers: 3, nosings: 1, vents: 10 });
   });
   it("puts measured sizes on the matching order line", () => {
     const lines = summarize(data);
-    expect(measuredFor({ description: "UNITY HARDWOODS 48\" WHITE OAK TREAD", detail: "" }, lines)).toMatch(/^Medido: .*48 × 11¼/);
+    expect(measuredFor({ description: "UNITY HARDWOODS 48\" WHITE OAK TREAD", detail: "" }, lines)).toMatch(/^Measured: .*48 × 11¼/);
     expect(measuredFor({ description: "Vent flush mount 4x10", detail: "" }, lines)).toMatch(/4x10/);
     expect(measuredFor({ description: "Sand & finish", detail: "" }, lines)).toBe("");
   });
@@ -52,7 +52,7 @@ describe("width filter", () => {
   it("gives a 42\" tread line only the 42\" treads", () => {
     const lines = [
       { kind: "tread", text: "Escada · Tread White Oak 48 × 11¼ · os dois lados abertos · retorno 45°", qty: 8, uom: "EA" },
-      { kind: "tread", text: "Basement · Tread White Oak 42 × 11¼ · lado esquerdo aberto · retorno reto (flat)", qty: 8, uom: "EA" },
+      { kind: "tread", text: "Basement · Tread White Oak 42 × 11¼ · left side open · flat return", qty: 8, uom: "EA" },
     ];
     const out = measuredFor({ description: "UNITY HARDWOODS 42\" WHITE OAK TREAD", detail: "Left returns" }, lines);
     expect(out).toContain("42 × 11¼");

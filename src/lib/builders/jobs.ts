@@ -55,7 +55,7 @@ export function measuredFor(line: { description: string; detail: string; service
     if (same.length) pick = same;
   }
   if (!pick.length) return "";
-  return `Medido: ${pick.map((l) => `${l.text.replace(/^.*? · (Tread|Riser|Nosing) /, "")} (${l.qty})`).join("; ")}`;
+  return `Measured: ${pick.map((l) => `${l.text.replace(/^.*? · (Tread|Riser|Nosing) /, "")} (${l.qty})`).join("; ")}`;
 }
 
 /** Lines the builder confirmed in the portal (stored on the request's intake). */
@@ -250,7 +250,7 @@ export async function applyPartnerRequest(
     request.externalRef ? `Nº do builder: ${request.externalRef}` : "",
     request.notes ? `Detalhes: ${request.notes}` : "",
     intakePickup(request.intake) ? `Pickup do material: ${intakePickup(request.intake)}` : "",
-    intakeMeasurement(request.intake) ? `\n${intakeMeasurement(request.intake)!.text}\n(PDF da medição e fotos nos documentos do job.)` : "",
+    intakeMeasurement(request.intake) ? `\n${intakeMeasurement(request.intake)!.text}\n(Measurement PDF and photos are in the job documents.)` : "",
   ].filter(Boolean).join("\n");
   await tx.$executeRaw`
     INSERT INTO "DocumentSequence" ("id", "organizationId", "kind", "nextValue")
