@@ -2096,18 +2096,13 @@
                     id="customerSearch"
                     class="qb-client-search__input"
                     autocomplete="off"
-                    placeholder="Buscar cliente — lead, particular, builder ou loja"
-                    aria-label="Buscar cliente em todas as categorias"
+                    placeholder="Buscar cliente por nome, e-mail ou telefone"
+                    aria-label="Buscar cliente"
                     aria-autocomplete="list"
                     aria-controls="customerSearchResults"
                   />
                   <input type="hidden" id="customerId" value="" />
                   <div id="customerSearchResults" class="qb-client-search__results hidden" role="listbox" aria-label="Clientes"></div>
-                </div>
-                <div class="qb-party-tabs" id="qbPartyTabs" role="tablist" aria-label="Tipo de cliente">
-                  <button type="button" class="qb-party-tab is-active" id="qbPartyLead" data-party="lead">Leads / Particular</button>
-                  <button type="button" class="qb-party-tab" id="qbPartyBuilder" data-party="builder">Builder</button>
-                  <button type="button" class="qb-party-tab" id="qbPartyLoja" data-party="loja">Loja</button>
                 </div>
                 <div id="qbLeadPanel">
                 <div class="qb-client-actions">
@@ -2804,7 +2799,7 @@
   <script src="quote-signature-auto.js?v=20260708"></script>
   <script src="quote-paper.js?v=20261027-om1"></script>
   <script src="crm-job-modal.js?v=20261027-jobsui"></script>
-  <script src="quote-builder.js?v=20261027-invui"></script>
+  <script src="quote-builder.js?v=20261028-party"></script>
   <script src="quote-services-popup.js?v=20261023-sig1"></script>
   <script>
     (function () {

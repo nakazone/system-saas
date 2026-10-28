@@ -6314,15 +6314,6 @@
     wireMarginPricingFields();
     bootQuoteAddressAutocomplete();
     await loadQuoteBuilders();
-    $('qbPartyLead')?.addEventListener('click', () => setQuoteParty('lead'));
-    $('qbPartyBuilder')?.addEventListener('click', () => {
-      setQuoteParty('builder');
-      void loadQuoteBuilders();
-    });
-    $('qbPartyLoja')?.addEventListener('click', () => {
-      setQuoteParty('loja');
-      scheduleOrgCustomerSearch();
-    });
     $('quoteBuilderSelect')?.addEventListener('change', onQuoteBuilderChange);
 
     const builderEmailChips = $('qbBuilderEmailChips');
@@ -6921,8 +6912,10 @@
     const el = $('qbMetaLine');
     if (!el) return;
     const parts = [];
-    const tab = document.querySelector('.qb-party-tab.is-active');
-    if (tab) parts.push(String(tab.textContent || '').replace(/^Leads\s*\/\s*/i, '').trim());
+    if (hasSelectedClient()) {
+      const party = getQuoteParty();
+      parts.push(party === 'builder' ? 'Builder' : party === 'loja' ? 'Loja' : 'Particular');
+    }
     const exp = String($('expirationDate')?.value || '').slice(0, 10);
     if (exp) {
       const d = new Date(`${exp}T12:00:00`);
