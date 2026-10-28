@@ -398,7 +398,11 @@
     const key = map[name] || name;
     document.querySelectorAll('[data-nav]').forEach((el) => {
       const nav = el.getAttribute('data-nav');
-      const on = nav === key || (nav === 'mais' && ['documentos', 'enviar', 'mais', 'empresas', 'equipe', 'settings'].includes(key) && el.classList.contains('pp-tab'));
+      const compactPhone = window.matchMedia('(max-width: 767px)').matches;
+      const tuckedInMore = ['documentos', 'enviar', 'mais', 'empresas', 'equipe', 'settings'].includes(key)
+        || (key === 'measurements' && !el.classList.contains('pp-tab'))
+        || (key === 'calendario' && compactPhone && state.builder && canDo('measure'));
+      const on = nav === key || (nav === 'mais' && tuckedInMore);
       if (on) el.setAttribute('aria-current', 'page');
       else el.removeAttribute('aria-current');
     });
@@ -860,7 +864,7 @@
       <div class="pp-split pp-split--list ${id ? 'is-open' : ''}">
         <aside class="pp-card pp-side" aria-label="Invoice list">
           <div class="pp-side-search"><label>${icon('search')}<span class="pp-sr">Search invoices</span><input id="ppInvSearch" type="search" placeholder="#, address or job" value="${esc(state.q)}" /></label></div>
-          ${groups.length ? groups.map(([label, rows]) => `<div class="pp-group">${esc(label)} · ${rows.length}</div>${rows.map((x) => `<button type="button" class="pp-row" data-inv="${esc(x.inv.id)}" aria-current="${x.inv.id === selectedId}"><span class="pp-row-main">${coLine(x.inv)}<span class="pp-row-top"><strong>${esc(invoiceRef(x.inv))}</strong><span style="color:var(--pp-ink);font-weight:600">${money(x.st.key === 'paid' ? x.inv.amount : x.inv.balance)}</span></span><span class="pp-row-sub">${esc(x.inv.number || 'Invoice')}${x.inv.job && x.inv.job.number ? ` · Job #${esc(x.inv.job.number)}` : ''}</span><span class="pp-row-next ${['overdue', 'soon'].includes(x.st.key) ? 'pp-late' : ''}">${esc(x.st.label)}</span></span></button>`).join('')}`).join('') : `<div class="pp-empty"><strong>${all.length ? 'Nothing in this list' : 'No invoices yet'}</strong>${all.length ? 'Change the filter or the search.' : 'Invoices from your installers show up here.'}</div>`}
+          ${groups.length ? groups.map(([label, rows]) => `<div class="pp-group">${esc(label)} · ${rows.length}</div>${rows.map((x) => `<button type="button" class="pp-row" data-inv="${esc(x.inv.id)}" aria-current="${x.inv.id === selectedId}"><span class="pp-row-main">${coLine(x.inv)}<span class="pp-row-top"><strong>${esc(invoiceRef(x.inv))}</strong><span style="color:var(--pp-ink);font-weight:600">${money(x.st.key === 'paid' ? x.inv.amount : x.inv.balance)}</span></span><span class="pp-row-sub">${esc(x.inv.number || 'Invoice')}${x.inv.job && x.inv.job.number ? ` · Job #${esc(x.inv.job.number)}` : ''}</span><span class="pp-row-next ${['overdue', 'soon'].includes(x.st.key) ? 'pp-late' : ''}">${esc(x.st.label)}</span></span></button>`).join('')}`).join('') : `<div class="pp-empty"><strong>${all.length ? 'Nothing in this list' : 'No invoices yet'}</strong>${all.length ? 'Change the filter or the search.' : 'Invoices from your flooring companies show up here.'}</div>`}
         </aside>
         <section class="pp-main" aria-label="Invoice">${selected ? invoiceDetailHtml(selected.inv, selected.st) : '<div class="pp-card pp-empty"><strong>Pick an invoice</strong>Its details show up here.</div>'}</section>
       </div>`;
@@ -1813,7 +1817,7 @@
           ? `<a class="pp-doc-prev" href="${esc(d.file_url)}" target="_blank" rel="noopener"><img src="${esc(d.file_url)}" alt="${esc(d.title)}" loading="lazy" /></a>`
           : `<div class="pp-doc-prev" aria-hidden="true">${d.type === 'report' ? 'PDF' : d.type === 'video' ? 'VIDEO' : 'FILE'}</div>`;
         return `<article class="pp-card pp-doc-card">${prev}<div class="pp-doc-body"><span class="pp-lbl">${d.type === 'photo' ? 'Photo' : d.type === 'video' ? 'Video' : d.type === 'report' ? 'Report' : 'File'}${d.created_at ? ` · ${esc(fmtDay(d.created_at))}` : ''}</span><h3>${esc(d.title || 'Document')}</h3><p>${job.id ? `<a class="pp-link" href="#jobs/${encodeURIComponent(job.id)}">${esc(job.title || 'Job')}${job.number ? ` · #${esc(job.number)}` : ''}</a>` : ''}</p>${job.address ? `<p>${esc(job.address)}</p>` : ''}<div class="pp-doc-actions"><a class="pp-btn pp-btn--sec pp-btn--sm" href="${esc(d.file_url)}" target="_blank" rel="noopener">View</a><a class="pp-btn pp-btn--sec pp-btn--sm" href="${esc(d.file_url)}?download=1">Download</a></div></div></article>`;
-      }).join('')}</div>` : `<div class="pp-card pp-empty">${mate(state.documents.length ? 'head-curious' : 'tablet')}<strong>${state.documents.length ? 'Nothing found' : 'Nothing shared yet'}</strong>${state.documents.length ? 'Change the search or the filter.' : 'When the company shares photos, reports or files of a job, they show up here.'}</div>`}`;
+      }).join('')}</div>` : `<div class="pp-card pp-empty">${mate(state.documents.length ? 'head-curious' : 'tablet')}<strong>${state.documents.length ? 'Nothing found' : 'Nothing shared yet'}</strong>${state.documents.length ? 'Change the search or the filter.' : 'Only photos, reports and files the company has shared with you appear here. If you expected a file, ask the company to share it.'}</div>`}`;
     view.querySelectorAll('[data-doc-filter]').forEach((b) => b.addEventListener('click', () => { state.docFilter = b.getAttribute('data-doc-filter'); render(); }));
     const s = $('ppDocSearch');
     s.addEventListener('input', () => { state.docQuery = s.value; const pos = s.selectionStart; render().then(() => { const x = $('ppDocSearch'); if (x) { x.focus(); x.setSelectionRange(pos, pos); } }); });

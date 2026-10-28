@@ -2,6 +2,11 @@
   const $ = (id) => document.getElementById(id);
   const list = $('requestsList');
   const error = $('requestsError');
+  const modeSave = $('requestModeSave');
+  const modeStatus = $('requestModeStatus');
+  const modeInputs = Array.from(document.querySelectorAll('input[name="requestMode"]'));
+  let savedRequestMode = 'review';
+  let canEditRequestMode = false;
 
   function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
@@ -20,7 +25,9 @@
       location.replace('login.html');
       throw new Error('Faça login novamente para continuar.');
     }
-    if (response.status === 403) throw new Error('Seu usuário precisa da permissão de gerenciamento de jobs para revisar pedidos.');
+    if (response.status === 403) throw new Error(body.error === 'Permission denied'
+      ? 'Seu usuário precisa da permissão de configurações para alterar esta regra.'
+      : body.error || 'Seu usuário precisa da permissão de gerenciamento de jobs para revisar pedidos.');
     if (!response.ok) throw new Error(body.error || 'Não foi possível concluir a operação.');
     return body;
   }
@@ -29,6 +36,74 @@
     if (status === 'accepted') return 'Aceito';
     if (status === 'declined') return 'Não aprovado';
     return 'Pendente';
+  }
+
+  function selectedRequestMode() {
+    return modeInputs.find((input) => input.checked)?.value || 'review';
+  }
+
+  function paintRequestMode() {
+    const mode = selectedRequestMode();
+    document.querySelectorAll('.requests-policy-choice').forEach((label) => {
+      label.classList.toggle('is-selected', label.querySelector('input')?.checked === true);
+      label.classList.toggle('is-disabled', !canEditRequestMode);
+    });
+    modeSave.disabled = !canEditRequestMode || mode === savedRequestMode;
+    modeStatus.textContent = canEditRequestMode
+      ? mode === savedRequestMode ? '' : 'Há uma alteração pendente para salvar.'
+      : 'Somente quem tem permissão de configurações pode alterar esta regra.';
+    $('requestModeHelp').textContent = mode === 'automatic'
+      ? 'Novos pedidos de todos os Builders e Contractors conectados a esta empresa viram Jobs. Atualizações são anexadas ao Job indicado; a data solicitada entra no calendário quando um Job novo é criado. Pedidos que já estão na fila continuam pendentes.'
+      : 'Novos pedidos de todos os Builders e Contractors conectados a esta empresa aguardam aprovação. Ao aceitar, um pedido novo cria um Job e registra a data solicitada no calendário; atualizações são anexadas ao Job indicado. Pedidos já aceitos ou recusados não mudam.';
+    $('requestStatusFilter').value = mode === 'automatic' ? 'all' : 'pending';
+    document.querySelector('.requests-intro').textContent = mode === 'automatic'
+      ? 'Esta tela mantém o histórico dos pedidos enviados pelo portal. A equipe recebe uma notificação quando um pedido novo vira Job.'
+      : 'Esta tela reúne pedidos aguardando revisão. Ao aceitar, um pedido novo cria um Job; a equipe pode completar os detalhes e conferir a data solicitada no calendário.';
+  }
+
+  async function loadRequestMode() {
+    try {
+      const result = await request('/api/settings/partner-portal');
+      const settings = result.data || {};
+      savedRequestMode = settings.request_mode === 'automatic' ? 'automatic' : 'review';
+      canEditRequestMode = Boolean(settings.can_edit);
+      modeInputs.forEach((input) => {
+        input.checked = input.value === savedRequestMode;
+        input.disabled = !canEditRequestMode;
+      });
+      paintRequestMode();
+      await load();
+    } catch (err) {
+      modeStatus.textContent = err.message || 'Não foi possível carregar a regra de entrada.';
+      modeStatus.classList.add('is-error');
+      await load();
+    }
+  }
+
+  async function saveRequestMode() {
+    const mode = selectedRequestMode();
+    if (!canEditRequestMode || mode === savedRequestMode) return;
+    modeSave.disabled = true;
+    modeSave.textContent = 'Salvando…';
+    modeStatus.classList.remove('is-error');
+    modeStatus.textContent = '';
+    try {
+      await request('/api/settings/partner-portal', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ request_mode: mode }),
+      });
+      savedRequestMode = mode;
+      paintRequestMode();
+      modeStatus.textContent = 'Regra salva. Ela vale para os próximos pedidos.';
+      await load();
+    } catch (err) {
+      modeStatus.textContent = err.message || 'Não foi possível salvar a regra.';
+      modeStatus.classList.add('is-error');
+      modeSave.disabled = false;
+    } finally {
+      modeSave.textContent = 'Salvar regra';
+    }
   }
 
   async function load() {
@@ -95,5 +170,10 @@
 
   $('requestStatusFilter').addEventListener('change', load);
   $('requestsRefresh').addEventListener('click', load);
-  void load();
+  modeInputs.forEach((input) => input.addEventListener('change', () => {
+    paintRequestMode();
+    void load();
+  }));
+  modeSave.addEventListener('click', saveRequestMode);
+  void loadRequestMode();
 })();

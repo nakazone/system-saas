@@ -26,6 +26,7 @@ import { workspaceHomeUrl } from "../tenant/workspace-url.js";
 import { applyCoupon, builderReferralCoupon, couponText, couponTextEn } from "../billing/coupons.js";
 import { applyPartnerRequest } from "./jobs.js";
 import { isBuilderRole, ROLE_LABELS, type BuilderRole } from "./roles.js";
+import { parsePartnerPortalSettings } from "../settings/partner-portal.js";
 
 export class BuilderError extends Error {
   constructor(public status: number, message: string, public field?: string) {
@@ -290,6 +291,54 @@ export async function activeLinkFor(member: ActiveMember, organizationId: string
   });
 }
 
+/** Keeps a connected platform Builder visible in the tenant's Customers workspace. */
+async function ensureTenantBuilderCustomer(tx: TenantPrisma, organizationId: string, member: ActiveMember, builderId: string | null): Promise<string> {
+  const builder = builderId
+    ? await tx.builder.findFirst({ where: { id: builderId }, select: { id: true, customerId: true } })
+    : null;
+  let customerId = builder?.customerId || null;
+  if (customerId) {
+    const linked = await tx.customer.findFirst({ where: { id: customerId, customerType: { in: ["builder", "contractor"] } }, select: { id: true } });
+    customerId = linked?.id || null;
+  }
+  if (!customerId) {
+    const existing = await tx.customer.findFirst({
+      where: {
+        customerType: { in: ["builder", "contractor"] },
+        email: { equals: member.email, mode: "insensitive" },
+      },
+      select: { id: true },
+    });
+    customerId = existing?.id || null;
+  }
+  if (!customerId) {
+    const customer = await tx.customer.create({
+      data: {
+        organizationId,
+        name: member.account.name,
+        email: member.email,
+        phone: member.account.phone || member.phone || null,
+        customerType: "builder",
+        company: member.account.name,
+        contactName: member.name,
+      },
+      select: { id: true },
+    });
+    customerId = customer.id;
+  }
+  if (builder && builder.customerId !== customerId) {
+    await tx.builder.update({ where: { id: builder.id }, data: { customerId } });
+  }
+  if (builder) {
+    // Older Builder jobs and quotes only had builderId; make the Customers profile complete too.
+    await Promise.all([
+      tx.workOrder.updateMany({ where: { builderId: builder.id, customerId: null }, data: { customerId } }),
+      tx.quote.updateMany({ where: { builderId: builder.id, customerId: null }, data: { customerId } }),
+    ]);
+  }
+  return customerId;
+}
+
 /**
  * The PartnerUser row that stands for this member inside the company (created on first use).
  * An older portal user with the same e-mail is adopted, so its requests stay together.
@@ -306,17 +355,20 @@ export async function ensureShadowPartnerUser(member: ActiveMember, link: { orga
       email: true,
       name: true,
       companyName: true,
+      lastLoginAt: true,
       mustChangePassword: true,
+      status: true,
       builder: { select: { id: true, status: true, type: true, company: true } },
       customer: { select: { id: true, customerType: true, name: true, company: true } },
     } as const;
     let row = await tx.partnerUser.findFirst({ where: { organizationId, builderMemberId: member.id }, select });
+    const customerId = await ensureTenantBuilderCustomer(tx, organizationId, member, link.tenantBuilderId);
     if (!row) {
-      const legacy = await tx.partnerUser.findFirst({ where: { organizationId, email: { equals: member.email, mode: "insensitive" } }, select: { id: true } });
+      const legacy = await tx.partnerUser.findFirst({ where: { organizationId, email: { equals: member.email, mode: "insensitive" } }, select: { id: true, customerId: true } });
       if (legacy) {
         row = await tx.partnerUser.update({
           where: { id: legacy.id },
-          data: { builderMemberId: member.id, builderId: link.tenantBuilderId, status: "active", mustChangePassword: false },
+          data: { builderMemberId: member.id, builderId: link.tenantBuilderId, customerId, lastLoginAt: member.lastLoginAt, status: "active", mustChangePassword: false },
           select,
         });
       } else {
@@ -325,9 +377,11 @@ export async function ensureShadowPartnerUser(member: ActiveMember, link: { orga
             organizationId,
             builderMemberId: member.id,
             builderId: link.tenantBuilderId,
+            customerId,
             email: member.email,
             name: member.name,
             companyName: member.account.name,
+            lastLoginAt: member.lastLoginAt,
             // Never used to sign in: builder members sign in with their account.
             passwordHash: await hashPassword(randomBytes(24).toString("hex")),
             status: "active",
@@ -336,8 +390,8 @@ export async function ensureShadowPartnerUser(member: ActiveMember, link: { orga
           select,
         });
       }
-    } else if (row.builderId !== link.tenantBuilderId || row.name !== member.name) {
-      row = await tx.partnerUser.update({ where: { id: row.id }, data: { builderId: link.tenantBuilderId, name: member.name, companyName: member.account.name }, select });
+    } else if (row.builderId !== link.tenantBuilderId || row.customerId !== customerId || row.name !== member.name || row.companyName !== member.account.name || row.lastLoginAt?.getTime() !== member.lastLoginAt?.getTime() || row.status !== "active" || row.mustChangePassword) {
+      row = await tx.partnerUser.update({ where: { id: row.id }, data: { builderId: link.tenantBuilderId, customerId, name: member.name, companyName: member.account.name, lastLoginAt: member.lastLoginAt, status: "active", mustChangePassword: false }, select });
     }
     return row;
   });
@@ -613,6 +667,15 @@ export async function removeLink(actor: ActiveMember, linkId: string): Promise<v
   const link = await prisma.builderLink.findFirst({ where: { id: linkId, builderAccountId: actor.builderAccountId, status: { in: ["active", "invited"] } } });
   if (!link) throw new BuilderError(404, "Company not found.");
   await prisma.builderLink.update({ where: { id: link.id }, data: { status: "removed", removedAt: new Date() } });
+  if (link.organizationId) {
+    const memberIds = await prisma.builderMember.findMany({ where: { builderAccountId: actor.builderAccountId }, select: { id: true } });
+    if (memberIds.length) {
+      await withTenantTransaction(link.organizationId, (tx) => tx.partnerUser.updateMany({
+        where: { builderMemberId: { in: memberIds.map((member) => member.id) } },
+        data: { status: "suspended" },
+      }));
+    }
+  }
   if (link.signupInviteId && !link.organizationId) {
     await prisma.signupInvite.updateMany({ where: { id: link.signupInviteId, usedAt: null }, data: { revokedAt: new Date() } });
   }
@@ -635,6 +698,7 @@ export async function activateLink(linkId: string, organizationId: string): Prom
       : null;
     if (found) {
       await tx.builder.update({ where: { id: found.id }, data: { status: "active" } });
+      if (admin) await ensureTenantBuilderCustomer(tx, organizationId, admin as ActiveMember, found.id);
       return found.id;
     }
     const parts = String(admin?.name || name).trim().split(/\s+/);
@@ -652,17 +716,19 @@ export async function activateLink(linkId: string, organizationId: string): Prom
       },
       select: { id: true },
     });
+    if (admin) await ensureTenantBuilderCustomer(tx, organizationId, admin as ActiveMember, created.id);
     return created.id;
   });
   await prisma.builderLink.update({
     where: { id: link.id },
     data: { status: "active", organizationId, tenantBuilderId, activatedAt: new Date() },
   });
+  if (admin) await ensureShadowPartnerUser(admin as ActiveMember, { organizationId, tenantBuilderId });
   await publishAppNotification({
     organizationId,
     type: "builder_linked",
     title: `${link.account.name} se conectou como builder`,
-    body: "Os jobs e alterações que ele enviar pelo portal entram direto em Jobs.",
+    body: "Acesse o cadastro em Clientes. Os pedidos seguem a regra de aprovação do Portal do Parceiro.",
     url: "jobs.html",
     dedupeKey: `builder-linked:${link.id}`,
   }).catch(() => undefined);
@@ -722,10 +788,15 @@ async function streamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
-/** Creates the kept jobs inside the company (as builder requests applied right away). */
+/** Delivers jobs kept during a company invite into that tenant's configured review flow. */
 export async function deliverPendingJobs(linkId: string): Promise<number> {
   const link = await prisma.builderLink.findUnique({ where: { id: linkId } });
   if (!link?.organizationId || link.status !== "active") return 0;
+  const organization = await prisma.organization.findUnique({
+    where: { id: link.organizationId },
+    select: { partnerPortalSettings: true },
+  });
+  const createAutomatically = parsePartnerPortalSettings(organization?.partnerPortalSettings).request_mode === "automatic";
   const rows = await prisma.builderPendingJob.findMany({ where: { builderLinkId: link.id, deliveredAt: null }, orderBy: { createdAt: "asc" } });
   let delivered = 0;
   for (const row of rows) {
@@ -752,11 +823,12 @@ export async function deliverPendingJobs(linkId: string): Promise<number> {
     }
     const jobId = await withTenantTransaction(link.organizationId, async (tx) => {
       const req = await createRequestRow(tx, link.organizationId!, shadow, p, files, { source: "builder_pending", kept_at: row.createdAt.toISOString(), ...(Array.isArray(p.items) && p.items.length ? { items: p.items } : {}), ...(p.pickup ? { pickup: p.pickup } : {}), ...(pack ? { measurement_id: p.measurement_id, measurement_text: pack.text, measurement_lines: pack.summary } : {}) });
+      if (!createAutomatically) return null;
       const r = await applyPartnerRequest(tx, link.organizationId!, req.id, null);
       return r.kind === "accepted" ? r.job_id : null;
     });
     await prisma.builderPendingJob.update({ where: { id: row.id }, data: { deliveredAt: new Date(), workOrderId: jobId } });
-    if (pack && p.measurement_id) await markMeasurementUsed(link.builderAccountId, String(p.measurement_id), link.organizationId, jobId, fallback.name).catch(() => undefined);
+    if (pack && p.measurement_id && jobId) await markMeasurementUsed(link.builderAccountId, String(p.measurement_id), link.organizationId, jobId, fallback.name).catch(() => undefined);
     for (const f of (row.files as unknown as PendingFile[]) || []) await storage.delete(f.key).catch(() => undefined);
     delivered += 1;
   }
@@ -764,9 +836,13 @@ export async function deliverPendingJobs(linkId: string): Promise<number> {
     await publishAppNotification({
       organizationId: link.organizationId,
       type: "builder_jobs_delivered",
-      title: `${delivered === 1 ? "1 job chegou" : `${delivered} jobs chegaram`} do builder`,
-      body: "Jobs enviados enquanto a empresa ainda não estava no ObraMate. Estão em Jobs › Sem data.",
-      url: "jobs.html",
+      title: createAutomatically
+        ? `${delivered === 1 ? "1 job chegou" : `${delivered} jobs chegaram`} do builder`
+        : `${delivered === 1 ? "1 pedido chegou" : `${delivered} pedidos chegaram`} do builder`,
+      body: createAutomatically
+        ? "Jobs enviados durante o convite entraram em Jobs. Confira as datas solicitadas no calendário."
+        : "Pedidos enviados durante o convite estão aguardando revisão em Pedidos de parceiros.",
+      url: createAutomatically ? "jobs.html" : "partner-requests-admin.html",
       dedupeKey: `builder-delivered:${link.id}:${Date.now()}`,
     }).catch(() => undefined);
   }

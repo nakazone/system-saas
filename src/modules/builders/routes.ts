@@ -15,6 +15,7 @@ import {
   BuilderError,
   addCompany,
   confirmBuilderEmail,
+  ensureShadowPartnerUser,
   inviteMember,
   keepPendingJob,
   linksFor,
@@ -103,6 +104,18 @@ async function startBuilderSession(req: Request, member: ActiveMember | { id: st
   if (first) {
     req.session.organizationId = first.organization_id!;
     req.session.workspaceSlug = first.slug!;
+  }
+  // Reconcile older links on the next sign-in so connected Builders also appear in Customers.
+  const activeMember = await loadActiveMember(member.id);
+  const activeLinkIds = links.filter((link) => link.status === "active").map((link) => link.id);
+  if (activeMember && activeLinkIds.length) {
+    const connected = await prisma.builderLink.findMany({
+      where: { id: { in: activeLinkIds }, builderAccountId: member.builderAccountId, status: "active", organizationId: { not: null }, tenantBuilderId: { not: null } },
+      select: { organizationId: true, tenantBuilderId: true },
+    });
+    await Promise.all(connected.map((link) => ensureShadowPartnerUser(activeMember, link).catch((error) => {
+      console.error("[builders] customer sync failed during sign-in", error);
+    })));
   }
   await saveSession(req);
 }

@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f5f7f9" />
   <title>Pedidos de parceiros · ObraMate</title>
   <link rel="icon" href="/favicon.ico" sizes="any" />
-  <link rel="stylesheet" href="partner-requests-admin.css?v=20261023-1" />
+  <link rel="stylesheet" href="partner-requests-admin.css?v=20261028-ux1" />
 </head>
 <body>
   <header class="requests-header">
@@ -15,10 +15,32 @@
     <div class="requests-tools"><label for="requestStatusFilter">Mostrar</label><select id="requestStatusFilter"><option value="pending">Pendentes</option><option value="all">Todos</option></select><button type="button" id="requestsRefresh">Atualizar</button></div>
   </header>
   <main class="requests-main">
-    <p class="requests-intro">Solicitações enviadas pelos Builders atendidos por este tenant. Ao aceitar, o sistema cria um Job em rascunho para a equipe completar e agendar.</p>
+    <section class="requests-policy" aria-labelledby="requestModeTitle">
+      <div class="requests-policy-head">
+        <div>
+          <p class="requests-policy-eyebrow">Fluxo de entrada</p>
+          <h2 id="requestModeTitle">Como os pedidos do portal entram em Jobs</h2>
+          <p id="requestModeHelp" class="requests-policy-help">Esta regra vale para todos os Builders e Contractors conectados a esta empresa. Pedidos existentes mantêm o status atual.</p>
+        </div>
+        <button type="button" id="requestModeSave" disabled>Salvar regra</button>
+      </div>
+      <fieldset id="requestModeChoices" class="requests-policy-choices">
+        <legend class="visually-hidden">Escolha como novos pedidos serão tratados</legend>
+        <label class="requests-policy-choice">
+          <input type="radio" name="requestMode" value="review" checked />
+          <span><strong>Aprovar antes de criar o Job</strong><small>O pedido fica nesta fila. Ao aceitar, um Job novo é criado e a data solicitada aparece no calendário.</small></span>
+        </label>
+        <label class="requests-policy-choice">
+          <input type="radio" name="requestMode" value="automatic" />
+          <span><strong>Criar Job automaticamente</strong><small>Pedidos novos viram Jobs e atualizações seguem para o Job indicado. A data solicitada aparece no calendário quando um Job novo é criado.</small></span>
+        </label>
+      </fieldset>
+      <div id="requestModeStatus" class="requests-policy-status" role="status" aria-live="polite"></div>
+    </section>
+    <p class="requests-intro">Pedidos enviados pelos Builders e Contractors conectados a esta empresa. A regra abaixo define se a equipe revisa cada pedido ou se pedidos novos entram automaticamente em Jobs.</p>
     <p id="requestsError" class="requests-error" role="alert" hidden></p>
     <div id="requestsList" class="requests-list" aria-live="polite"><div class="requests-empty">Carregando pedidos…</div></div>
   </main>
-  <script src="partner-requests-admin.js?v=20261025-pp1" defer></script>
+  <script src="partner-requests-admin.js?v=20261028-ux1" defer></script>
 </body>
 </html>

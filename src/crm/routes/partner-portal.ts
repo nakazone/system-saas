@@ -27,6 +27,7 @@ import { applyBuilderJobEdit, jobEditSchema, JobEditError } from "../../lib/buil
 import { findMeasurementForAddress, markMeasurementUsed, measurementPack } from "../../lib/builders/measurements.js";
 import { pickupForWorkOrder } from "../../lib/builders/pickups.js";
 import { findJobMatch, intakeItemsSchema, isIntakeReaderConfigured, readWorkOrder, type IntakeFile } from "../../lib/partner-intake/extract.js";
+import { parsePartnerPortalSettings } from "../../lib/settings/partner-portal.js";
 
 type PartnerRequest = TenantRequest & {
   /** Role used for the builder permissions ("legacy" for company-created portal users). */
@@ -869,19 +870,27 @@ partnerPortalRouter.post("/api/partner-portal/requests", requirePartnerAuth, req
       await withTenantTransaction(user.organizationId, (tx) => tx.partnerJobRequest.delete({ where: { id: row.id } }).catch(() => undefined));
       throw error;
     }
-    // Builder accounts: the job (or the update) goes straight into the company's Jobs.
-    if (req.builderMember) {
+    const organizationSettings = await prisma.organization.findUnique({
+      where: { id: user.organizationId },
+      select: { partnerPortalSettings: true },
+    });
+    const createAutomatically = parsePartnerPortalSettings(organizationSettings?.partnerPortalSettings).request_mode === "automatic";
+    // One tenant policy controls both old partner logins and new Builder accounts.
+    if (createAutomatically) {
       const applied = await withTenantTransaction(user.organizationId, (tx) => applyPartnerRequest(tx, user.organizationId, row.id, null));
       if (applied.kind === "accepted") {
-        if (pack && measurementId) await markMeasurementUsed(req.builderMember.builderAccountId, measurementId, user.organizationId, applied.job_id, req.builderMember.name).catch(() => undefined);
+        if (req.builderMember && pack && measurementId) {
+          await markMeasurementUsed(req.builderMember.builderAccountId, measurementId, user.organizationId, applied.job_id, req.builderMember.name).catch(() => undefined);
+        }
         const job = await withTenantTransaction(user.organizationId, (tx) => tx.workOrder.findFirst({ where: { id: applied.job_id }, select: { number: true, title: true } }));
+        const partnerName = req.builderMember?.account.name || user.companyName || user.builder?.company || user.customer?.company || user.customer?.name || "Builder";
         await publishAppNotification({
           organizationId: user.organizationId,
           type: applied.updated ? "builder_job_updated" : "builder_job_new",
           title: applied.updated
-            ? `${req.builderMember.account.name} atualizou o Job #${job?.number ?? ""}`
-            : `Novo job de ${req.builderMember.account.name}: #${job?.number ?? ""}`,
-          body: `${job?.title || row.title} · enviado por ${req.builderMember.name}`,
+            ? `${partnerName} atualizou o Job #${job?.number ?? ""}`
+            : `Novo job de ${partnerName}: #${job?.number ?? ""}`,
+          body: `${job?.title || row.title} · enviado por ${user.name}`,
           url: `job-detail.html?id=${applied.job_id}`,
           dedupeKey: `builder-request:${row.id}`,
         }).catch(() => undefined);
