@@ -1249,68 +1249,128 @@
             ${field('contact_email', { type: 'email', max: 254, auto: 'email' })}
             ${field('notes', { wide: true, area: true, max: 4000 })}
           </div>
-          ${itemsEditor(s)}
-          <p class="pp-error" id="ppReqError" role="alert" hidden></p>
-          <div class="pp-form-actions">
-            <button type="button" class="pp-btn pp-btn--sec" id="ppDiscard">Descartar</button>
-            <button type="submit" class="pp-btn pp-btn--pri" id="ppSubmit">${s.mode === 'update' && match ? 'Enviar atualização' : 'Enviar pedido'}</button>
-          </div>
         </form>
+      </div>
+      <div class="pp-card pp-q-card">${itemsEditor(s)}</div>
+      <div class="pp-card pp-q-send">
+        <p class="pp-error" id="ppReqError" role="alert" hidden></p>
+        <div class="pp-q-send-row">
+          <span class="pp-muted">${s.mode === 'update' && match ? 'Os serviços entram nas notas do job atual.' : `Chega em ${esc(providerName())} como job${f.preferred_date ? ' agendado' : ''}, com os serviços acima.`}</span>
+          <div class="pp-form-actions" style="border:0;padding:0;margin:0">
+            <button type="button" class="pp-btn pp-btn--sec" id="ppDiscard">Descartar</button>
+            <button type="button" class="pp-btn pp-btn--pri" id="ppSubmit" data-submit>${s.mode === 'update' && match ? 'Enviar atualização' : 'Enviar pedido'}</button>
+          </div>
+        </div>
       </div>
       <div class="pp-fixbar"><button type="button" class="pp-btn pp-btn--sec" data-discard>Descartar</button><button type="button" class="pp-btn pp-btn--pri" data-submit>${s.mode === 'update' && match ? 'Enviar atualização' : 'Enviar pedido'}</button></div>`;
   }
 
   const UOMS = ['SF', 'LF', 'EA', 'STEP', 'SY', 'HR'];
-  /** Which service of the company each line becomes: a listed one, a new one (default), or none. */
-  function catalogPicker(s, it, i) {
-    if (!s.ai && !(s.catalog || []).length) return '';
-    const mode = it.pricing_item_id ? 'linked' : it.create_service === false ? 'none' : 'new';
-    const value = it.pricing_item_id || (mode === 'none' ? '__none' : '__new');
-    const label = mode === 'linked' ? 'Serviço do cadastro' : mode === 'new' ? 'Serviço novo — entra no cadastro da empresa' : 'Fica só neste job';
-    return `<div class="pp-it-cat is-${mode}">
-      <label for="ppItCat-${i}"><span>${label}</span></label>
-      <select id="ppItCat-${i}" data-it="${i}" data-k="catalog" ${it.remove ? 'disabled' : ''}>
-        <option value="__new" ${value === '__new' ? 'selected' : ''}>+ Criar serviço no cadastro</option>
-        ${(s.catalog || []).map((c) => `<option value="${esc(c.id)}" ${c.id === value ? 'selected' : ''}>${esc(c.name)} · ${esc(unitLabel(c.unit))}</option>`).join('')}
-        <option value="__none" ${value === '__none' ? 'selected' : ''}>Não cadastrar (só neste job)</option>
-      </select>
-      ${mode === 'new' ? `<input data-it="${i}" data-k="service_name" value="${esc(it.service_name || it.description || '')}" maxlength="120" aria-label="Nome do serviço novo" placeholder="Nome do serviço no cadastro" ${it.remove ? 'disabled' : ''} />` : ''}
-    </div>`;
+  const UOM_FROM_UNIT = { sq_ft: 'SF', sqft: 'SF', square_feet: 'SF', linear_ft: 'LF', linear_feet: 'LF', lf: 'LF', unit: 'EA', units: 'EA', each: 'EA', piece: 'EA', fixed: 'EA', step: 'STEP', steps: 'STEP', sq_yd: 'SY', hour: 'HR' };
+  function uomForUnit(unit) {
+    return UOM_FROM_UNIT[String(unit || 'sq_ft').trim().toLowerCase().replace(/\s+/g, '_')] || 'EA';
   }
+  const UOM_LABEL = { SF: 'sq ft', LF: 'lin ft', EA: 'un', STEP: 'degrau', SY: 'sq yd', HR: 'hora' };
   function itemTotal(it) {
     if (it.rate != null && it.rate !== '' && !Number.isNaN(Number(it.rate))) return Math.round(Number(it.rate) * Number(it.quantity || 0) * 100) / 100;
     return it.total == null ? null : Number(it.total);
   }
-  /** Service lines read from the order — they become the job's services, with the order's rates. */
+  function itemMode(it) {
+    return it.pricing_item_id ? 'linked' : it.create_service === false ? 'none' : 'new';
+  }
+  function itemTitle(s, it) {
+    const cat = it.pricing_item_id && (s.catalog || []).find((c) => c.id === it.pricing_item_id);
+    if (cat) return cat.name;
+    return String(it.service_name || it.description || it.detail || 'Serviço').trim();
+  }
+  /** Order wording under the service name (what the builder's paper says). */
+  function itemSub(it) {
+    return [it.description, it.detail].map((x) => String(x || '').trim()).filter(Boolean).join(' · ');
+  }
+  const MODE_BADGE = {
+    linked: '<span class="pp-q-badge pp-q-badge--ok">cadastro</span>',
+    new: '<span class="pp-q-badge pp-q-badge--new">novo no cadastro</span>',
+    none: '<span class="pp-q-badge">só neste job</span>',
+  };
+
+  /** Services of the order, laid out like the quote's items: name, qty, unit, price, total. */
   function itemsEditor(s) {
     const items = s.items || [];
     const live = items.filter((it) => !it.remove);
     const sum = Math.round(live.reduce((acc, it) => acc + (itemTotal(it) || 0), 0) * 100) / 100;
     const off = s.laborTotal != null && Math.abs(sum - s.laborTotal) > 0.5;
-    const row = (it, i) => `<li class="pp-it ${it.remove ? 'pp-it--off' : ''}">
-        <div class="pp-it-main">
-          <input class="pp-it-name" data-it="${i}" data-k="description" value="${esc(it.description)}" maxlength="200" aria-label="Serviço ${i + 1}" ${it.remove ? 'disabled' : ''} />
-          <input class="pp-it-sub" data-it="${i}" data-k="detail" value="${esc(it.detail)}" maxlength="200" placeholder="Detalhe da instalação" aria-label="Detalhe do serviço ${i + 1}" ${it.remove ? 'disabled' : ''} />
-          ${it.area ? `<small>${esc(it.area)}</small>` : ''}
-          ${catalogPicker(s, it, i)}
+    const counts = { linked: 0, new: 0, none: 0 };
+    live.forEach((it) => { counts[itemMode(it)] += 1; });
+    const row = (it, i) => {
+      const t = itemTotal(it);
+      const open = s.editItem === i;
+      return `<article class="pp-q-row ${it.remove ? 'is-off' : ''} ${open ? 'is-editing' : ''}" role="listitem">
+        <div class="pp-q-name" role="button" tabindex="0" data-it-edit="${i}" title="Editar serviço">
+          <b>${esc(itemTitle(s, it))}</b>${it.remove ? '<span class="pp-q-badge">fora do job</span>' : MODE_BADGE[itemMode(it)]}
+          ${itemSub(it) ? `<small>${esc(itemSub(it))}</small>` : ''}
+          ${it.area ? `<small class="pp-q-area">${esc(it.area)}</small>` : ''}
         </div>
-        <div class="pp-it-nums">
-          <label><span>Qtd</span><input type="number" min="0" step="0.01" data-it="${i}" data-k="quantity" value="${esc(it.quantity)}" ${it.remove ? 'disabled' : ''} /></label>
-          <label><span>Un.</span><select data-it="${i}" data-k="uom" ${it.remove ? 'disabled' : ''}>${UOMS.concat(UOMS.includes(it.uom) ? [] : [it.uom]).map((u) => `<option ${u === it.uom ? 'selected' : ''}>${esc(u)}</option>`).join('')}</select></label>
-          <label><span>Valor/un.</span><input type="number" min="0" step="0.01" data-it="${i}" data-k="rate" value="${it.rate == null ? '' : esc(it.rate)}" placeholder="—" ${it.remove ? 'disabled' : ''} /></label>
-          <b data-it-total="${i}">${itemTotal(it) == null ? '—' : money(itemTotal(it))}</b>
-          <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-it-rm="${i}">${it.remove ? 'Desfazer' : 'Tirar'}</button>
+        <label class="pp-q-qty"><span class="pp-q-lbl">Qtd</span><input type="text" inputmode="decimal" data-it="${i}" data-k="quantity" value="${esc(it.quantity)}" aria-label="Quantidade de ${esc(itemTitle(s, it))}" ${it.remove ? 'disabled' : ''} /></label>
+        <label class="pp-q-unit"><span class="pp-q-lbl">Un.</span><select data-it="${i}" data-k="uom" aria-label="Unidade" ${it.remove ? 'disabled' : ''}>${UOMS.concat(UOMS.includes(it.uom) ? [] : [it.uom]).map((u) => `<option value="${esc(u)}" ${u === it.uom ? 'selected' : ''}>${esc(UOM_LABEL[u] || u)}</option>`).join('')}</select></label>
+        <label class="pp-q-rate"><span class="pp-q-lbl">Preço</span><span class="pp-q-cur">$</span><input type="text" inputmode="decimal" data-it="${i}" data-k="rate" value="${it.rate == null ? '' : esc(Number(it.rate).toFixed(2))}" placeholder="—" aria-label="Preço de ${esc(itemTitle(s, it))}" ${it.remove ? 'disabled' : ''} /></label>
+        <span class="pp-q-total" data-it-total="${i}">${t == null ? '—' : money(t)}</span>
+        <div class="pp-q-act">
+          <button type="button" class="pp-q-ic" data-it-edit="${i}" aria-label="Editar ${esc(itemTitle(s, it))}" title="Editar">✎</button>
+          <button type="button" class="pp-q-ic pp-q-ic--del" data-it-rm="${i}" aria-label="${it.remove ? 'Voltar' : 'Tirar'} ${esc(itemTitle(s, it))}" title="${it.remove ? 'Voltar para o job' : 'Tirar do job'}">${it.remove ? '↺' : '×'}</button>
         </div>
-      </li>`;
-    return `<section class="pp-items pp-field--wide" aria-labelledby="ppItemsTitle">
-      <div class="pp-items-head"><strong id="ppItemsTitle">Serviços da ordem</strong><span class="pp-muted">${items.length ? 'Viram os serviços do job, com estes valores.' : 'Nenhuma linha lida. Adicione se quiser os serviços no job.'}</span></div>
-      ${items.length ? `<ul class="pp-it-list">${items.map(row).join('')}</ul>` : ''}
-      <div class="pp-items-foot">
-        <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" id="ppItemAdd">Adicionar linha</button>
-        ${live.length ? `<span>Total <b id="ppItemsSum">${money(sum)}</b>${s.laborTotal != null ? ` <span class="${off ? 'pp-late' : 'pp-muted'}" id="ppItemsCheck">· na ordem ${money(s.laborTotal)}${off ? ' — confira' : ' ✓'}</span>` : ''}</span>` : ''}
+        ${open ? itemPanel(s, it, i) : ''}
+      </article>`;
+    };
+    return `<section class="pp-q pp-field--wide" aria-labelledby="ppItemsTitle">
+      <div class="pp-q-head">
+        <h3 id="ppItemsTitle">Itens · ${live.length}</h3>
+        <span class="pp-muted">${live.length ? [counts.linked ? `${counts.linked} do cadastro` : '', counts.new ? `${counts.new} ${counts.new === 1 ? 'novo' : 'novos'}` : '', counts.none ? `${counts.none} só no job` : ''].filter(Boolean).join(' · ') : 'Os serviços viram as linhas do job.'}</span>
+      </div>
+      ${items.length ? `<div class="pp-q-cols" aria-hidden="true"><span>Serviço</span><span class="r">Qtd</span><span>Un.</span><span class="r">Preço</span><span class="r">Total</span><span></span></div>
+      <div class="pp-q-list" role="list">${items.map(row).join('')}</div>` : '<p class="pp-q-empty">Nenhum serviço lido nesta ordem.</p>'}
+      <button type="button" class="pp-q-add" id="ppItemAdd">+ Adicionar serviço</button>
+      ${s.pickCatalog ? catalogSheet(s) : ''}
+      <div class="pp-q-sum">
+        <div><span>Subtotal</span><b id="ppItemsSum">${money(sum)}</b></div>
+        ${s.laborTotal != null ? `<div class="${off ? 'pp-late' : ''}" id="ppItemsCheckRow"><span>Total na ordem</span><b id="ppItemsCheck">${money(s.laborTotal)} ${off ? '· confira' : '✓'}</b></div>` : ''}
       </div>
     </section>`;
   }
+
+  /** Inline editor under a line (like the quote's item editor): which service, name, wording. */
+  function itemPanel(s, it, i) {
+    const mode = itemMode(it);
+    const value = it.pricing_item_id || (mode === 'none' ? '__none' : '__new');
+    return `<div class="pp-q-panel">
+      <div class="pp-q-field pp-q-field--wide"><label for="ppItCat-${i}">Serviço no cadastro de ${esc(providerName())}</label>
+        <select id="ppItCat-${i}" data-it="${i}" data-k="catalog">
+          <option value="__new" ${value === '__new' ? 'selected' : ''}>+ Criar serviço novo no cadastro</option>
+          ${(s.catalog || []).map((c) => `<option value="${esc(c.id)}" ${c.id === value ? 'selected' : ''}>${esc(c.name)} · ${esc(unitLabel(c.unit))}</option>`).join('')}
+          <option value="__none" ${value === '__none' ? 'selected' : ''}>Não cadastrar (fica só neste job)</option>
+        </select>
+        <span class="pp-q-help">${mode === 'linked' ? 'O job usa este serviço com o preço da ordem.' : mode === 'new' ? 'Entra no cadastro da empresa com a unidade e o preço desta linha.' : 'A linha vai para o job sem virar serviço do cadastro.'}</span>
+      </div>
+      ${mode === 'new' ? `<div class="pp-q-field pp-q-field--wide"><label for="ppItName-${i}">Nome do serviço novo</label><input id="ppItName-${i}" data-it="${i}" data-k="service_name" value="${esc(it.service_name || it.description || '')}" maxlength="120" /></div>` : ''}
+      <div class="pp-q-field"><label for="ppItDesc-${i}">Produto / descrição da ordem</label><input id="ppItDesc-${i}" data-it="${i}" data-k="description" value="${esc(it.description)}" maxlength="200" /></div>
+      <div class="pp-q-field"><label for="ppItDet-${i}">Detalhe da instalação</label><input id="ppItDet-${i}" data-it="${i}" data-k="detail" value="${esc(it.detail)}" maxlength="200" /></div>
+      <div class="pp-q-field pp-q-field--wide"><label for="ppItArea-${i}">Ambientes</label><input id="ppItArea-${i}" data-it="${i}" data-k="area" value="${esc(it.area)}" maxlength="200" /></div>
+      <div class="pp-q-panel-actions"><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-it-done>Pronto</button></div>
+    </div>`;
+  }
+
+  /** Catalog list to add a service (like the quote's "Adicionar serviço"). */
+  function catalogSheet(s) {
+    const q = String(s.catalogQuery || '').trim().toLowerCase();
+    const list = (s.catalog || []).filter((c) => !q || c.name.toLowerCase().includes(q)).slice(0, 60);
+    return `<div class="pp-q-sheet" role="dialog" aria-label="Adicionar serviço">
+      <div class="pp-q-sheet-head"><input id="ppCatSearch" type="search" placeholder="Buscar no cadastro de ${esc(providerName())}" value="${esc(s.catalogQuery || '')}" autocomplete="off" /><button type="button" class="pp-q-ic" id="ppCatClose" aria-label="Fechar">×</button></div>
+      <div class="pp-q-sheet-list">
+        ${list.map((c) => `<button type="button" class="pp-q-opt" data-cat-add="${esc(c.id)}"><span><b>${esc(c.name)}</b><small>${esc(unitLabel(c.unit))}${c.category ? ` · ${esc(({ installation: 'Instalação', sand_finish: 'Lixa e acabamento', supply: 'Material', custom: 'Outros' })[c.category] || c.category.replace(/_/g, ' '))}` : ''}</small></span>${c.price != null ? `<em>${money(c.price)}</em>` : ''}</button>`).join('') || '<p class="pp-q-empty">Nada com esse nome no cadastro.</p>'}
+      </div>
+      <button type="button" class="pp-q-opt pp-q-opt--free" id="ppCatFree"><span><b>+ Linha livre</b><small>Serviço que não está no cadastro</small></span></button>
+    </div>`;
+  }
+
   function bindItems() {
     const s = state.send;
     const refreshSum = () => {
@@ -1321,50 +1381,90 @@
       const chk = $('ppItemsCheck');
       if (chk && s.laborTotal != null) {
         const off = Math.abs(sum - s.laborTotal) > 0.5;
-        chk.className = off ? 'pp-late' : 'pp-muted';
-        chk.textContent = `· na ordem ${money(s.laborTotal)}${off ? ' — confira' : ' ✓'}`;
+        $('ppItemsCheckRow').className = off ? 'pp-late' : '';
+        chk.textContent = `${money(s.laborTotal)} ${off ? '· confira' : '✓'}`;
       }
     };
+    const rerender = (focusSel) => {
+      renderSendBody();
+      if (focusSel) { const el = view.querySelector(focusSel); if (el) el.focus(); }
+    };
     view.querySelectorAll('[data-it]').forEach((el) => el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => {
-      const it = s.items[Number(el.getAttribute('data-it'))];
+      const i = Number(el.getAttribute('data-it'));
+      const it = s.items[i];
       const k = el.getAttribute('data-k');
-      if (k === 'quantity') it.quantity = Number(el.value) || 0;
-      else if (k === 'rate') it.rate = el.value === '' ? null : Number(el.value);
+      if (k === 'quantity') it.quantity = Number(String(el.value).replace(/,/g, '')) || 0;
+      else if (k === 'rate') it.rate = el.value === '' ? null : Number(String(el.value).replace(/[$,]/g, '')) || 0;
       else if (k === 'catalog') {
         it.pricing_item_id = el.value.startsWith('__') ? null : el.value;
         it.create_service = el.value !== '__none';
-        renderSendBody();
-        return;
-      }
-      else it[k] = el.value;
+        if (it.pricing_item_id) {
+          const c = (s.catalog || []).find((x) => x.id === it.pricing_item_id);
+          if (c && it.rate == null && c.price != null) it.rate = c.price;
+        }
+        return rerender(`#ppItCat-${i}`);
+      } else it[k] = el.value;
       if (k === 'quantity' || k === 'rate') {
         if (it.rate == null && k === 'quantity') it.total = null;
-        const t = view.querySelector(`[data-it-total="${el.getAttribute('data-it')}"]`);
+        const t = view.querySelector(`[data-it-total="${i}"]`);
         if (t) t.textContent = itemTotal(it) == null ? '—' : money(itemTotal(it));
         refreshSum();
       }
     }));
+    view.querySelectorAll('.pp-q-row input[data-k="quantity"], .pp-q-row input[data-k="rate"]').forEach((el) => el.addEventListener('focus', () => el.select()));
+    view.querySelectorAll('[data-it-edit]').forEach((el) => {
+      const open = () => { const i = Number(el.getAttribute('data-it-edit')); s.editItem = s.editItem === i ? null : i; rerender(s.editItem != null ? `#ppItCat-${i}` : ''); };
+      el.addEventListener('click', open);
+      el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+    });
+    view.querySelectorAll('[data-it-done]').forEach((b) => b.addEventListener('click', () => { s.editItem = null; rerender(); }));
     view.querySelectorAll('[data-it-rm]').forEach((b) => b.addEventListener('click', () => {
-      const it = s.items[Number(b.getAttribute('data-it-rm'))];
-      if (!it.description && !it.detail && !it.quantity) s.items.splice(Number(b.getAttribute('data-it-rm')), 1);
+      const i = Number(b.getAttribute('data-it-rm'));
+      const it = s.items[i];
+      if (!it.description && !it.detail && !it.service_name && !it.pricing_item_id && !it.quantity) { s.items.splice(i, 1); s.editItem = null; }
       else it.remove = !it.remove;
-      renderSendBody();
+      rerender();
     }));
     const add = $('ppItemAdd');
     if (add) add.addEventListener('click', () => {
-      s.items.push({ area: '', description: '', detail: '', quantity: 0, uom: 'SF', rate: null, total: null, pricing_item_id: null, service_name: '', create_service: true, remove: false });
-      renderSendBody();
-      const inputs = view.querySelectorAll('.pp-it-name');
-      if (inputs.length) inputs[inputs.length - 1].focus();
+      if (!(s.catalog || []).length) return addFree();
+      s.pickCatalog = !s.pickCatalog;
+      rerender(s.pickCatalog ? '#ppCatSearch' : '');
     });
+    function addFree() {
+      s.items.push({ area: '', description: '', detail: '', quantity: 0, uom: 'SF', rate: null, total: null, pricing_item_id: null, service_name: '', create_service: true, remove: false });
+      s.pickCatalog = false;
+      s.editItem = s.items.length - 1;
+      rerender(`#ppItName-${s.editItem}`);
+    }
+    const search = $('ppCatSearch');
+    if (search) search.addEventListener('input', () => {
+      s.catalogQuery = search.value;
+      const pos = search.selectionStart;
+      rerender('#ppCatSearch');
+      const again = $('ppCatSearch');
+      if (again) again.setSelectionRange(pos, pos);
+    });
+    const closeCat = $('ppCatClose');
+    if (closeCat) closeCat.addEventListener('click', () => { s.pickCatalog = false; rerender(); });
+    const free = $('ppCatFree');
+    if (free) free.addEventListener('click', addFree);
+    view.querySelectorAll('[data-cat-add]').forEach((b) => b.addEventListener('click', () => {
+      const c = (s.catalog || []).find((x) => x.id === b.getAttribute('data-cat-add'));
+      if (!c) return;
+      s.items.push({ area: '', description: '', detail: '', quantity: 0, uom: uomForUnit(c.unit), rate: c.price, total: null, pricing_item_id: c.id, service_name: c.name, create_service: true, remove: false });
+      s.pickCatalog = false;
+      s.catalogQuery = '';
+      rerender(`[data-it="${s.items.length - 1}"][data-k="quantity"]`);
+    }));
   }
   /** Lines as sent to the server (removed and empty ones left out). */
   function itemsPayload(s) {
     return (s.items || [])
-      .filter((it) => !it.remove && (String(it.description || '').trim() || String(it.detail || '').trim()))
+      .filter((it) => !it.remove && (String(it.description || '').trim() || String(it.detail || '').trim() || String(it.service_name || '').trim() || it.pricing_item_id))
       .map((it) => ({
         area: String(it.area || '').slice(0, 200),
-        description: String(it.description || '').trim().slice(0, 200),
+        description: String(it.description || it.service_name || '').trim().slice(0, 200),
         detail: String(it.detail || '').trim().slice(0, 200),
         quantity: Math.max(0, Number(it.quantity) || 0),
         uom: String(it.uom || 'SF').slice(0, 12),
