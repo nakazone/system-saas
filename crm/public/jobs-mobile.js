@@ -159,11 +159,15 @@
     }
     let out;
     if (mobStatus) {
-      out = matched.filter((wo) => window.JobsInfo?.stageLabel?.(wo) === mobStatus);
+      out = matched.filter((wo) => {
+        const stage = window.JobsInfo?.stageLabel?.(wo);
+        if (mobStatus === "Em campo") return stage === "Em campo" || stage === "Lixa";
+        return stage === mobStatus;
+      });
     } else if (tab === "today") {
       out = matched.filter(
         (wo) =>
-          isToday(wo.scheduled_start) && wo.status !== "canceled" && wo.status !== "completed" && !isPaidJob(wo),
+          isToday(window.JobsInfo?.listAnchorIso?.(wo) || wo.scheduled_start) && wo.status !== "canceled" && wo.status !== "completed" && !isPaidJob(wo),
       );
     } else if (tab === "active") out = matched.filter((wo) => isActive(wo) && wo.status !== "canceled" && !isPaidJob(wo));
     else if (tab === "bill") out = matched.filter((wo) => toBill(wo) && !isPaidJob(wo));
@@ -172,7 +176,9 @@
     out.sort((a, b) => (window.JobsInfo?.compareNearest ? window.JobsInfo.compareNearest(a, b) : 0));
     if (focusId) {
       const pinned = rows.find((wo) => String(wo.id) === String(focusId) && wo.status !== "canceled");
-      const allowed = pinned && (mobStatus ? window.JobsInfo?.stageLabel?.(pinned) === mobStatus : !isPaidJob(pinned));
+      const pinnedStage = window.JobsInfo?.stageLabel?.(pinned);
+      const statusOk = mobStatus === "Em campo" ? pinnedStage === "Em campo" || pinnedStage === "Lixa" : pinnedStage === mobStatus;
+      const allowed = pinned && (mobStatus ? statusOk : !isPaidJob(pinned));
       if (allowed) out = [pinned, ...out.filter((wo) => String(wo.id) !== String(pinned.id))];
     }
     return out;

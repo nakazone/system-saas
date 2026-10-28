@@ -1188,13 +1188,13 @@
         ensureStylesheet(`om-native-app.css?v=${SHELL_VER}`);
         ensureStylesheet(`om-gestures.css?v=${SHELL_VER}`);
         jobs.push(ensureScript(`om-mobile-nav.js?v=${SHELL_VER}`).catch(() => {}));
-        jobs.push(ensureScript(`om-gestures.js?v=${SHELL_VER}`).catch(() => {}));
+        jobs.push(ensureScript("om-gestures.js?v=20261028-ptrhome").catch(() => {}));
       } else {
         ensureStylesheet(`om-mobile-nav.css?v=${SHELL_VER}`);
         ensureStylesheet(`om-native-app.css?v=${SHELL_VER}`);
         ensureStylesheet(`om-gestures.css?v=${SHELL_VER}`);
         if (!document.querySelector('script[src*="om-gestures.js"]')) {
-          jobs.push(ensureScript(`om-gestures.js?v=${SHELL_VER}`).catch(() => {}));
+          jobs.push(ensureScript("om-gestures.js?v=20261028-ptrhome").catch(() => {}));
         }
       }
       if (!window.__omNovoLeadSheet && !document.querySelector('script[src*="novo-lead-sheet.js"]')) {
@@ -1204,7 +1204,7 @@
       // Tablets: pull-to-refresh / swipe without the phone tab bar.
       ensureStylesheet(`om-gestures.css?v=${SHELL_VER}`);
       if (!document.querySelector('script[src*="om-gestures.js"]')) {
-        jobs.push(ensureScript(`om-gestures.js?v=${SHELL_VER}`).catch(() => {}));
+        jobs.push(ensureScript("om-gestures.js?v=20261028-ptrhome").catch(() => {}));
       }
     }
     if (!window.sfBootCrmAddressAutocomplete && !document.querySelector('script[src*="crm-address-autocomplete.js"]')) {

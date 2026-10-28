@@ -183,7 +183,7 @@
   }
   function hit(i) {
     if (!q) return true;
-    const hay = [i.invoice_number, i.customer_name, i.customer_email, i.source_ref, i.job_title, i.quote_title, i.reference_note, i.invoice_type_label].filter(Boolean).join(' ').toLowerCase();
+    const hay = [i.invoice_number, i.customer_name, i.customer_email, i.address, i.source_ref, i.job_title, i.quote_title, i.reference_note, i.invoice_type_label].filter(Boolean).join(' ').toLowerCase();
     return hay.includes(q);
   }
 
@@ -249,17 +249,49 @@
     renderPeriodBar();
   }
 
+  const PIN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>';
+  function listDate(i) {
+    if (i.display_status === 'paid') return { text: dshort(i.paid_at), hot: false };
+    if (i.display_status === 'void') return { text: '', hot: false };
+    if (!i.due_date) return { text: 'Sem vencimento', hot: false };
+    return { text: dshort(i.due_date), hot: i.display_status === 'overdue' };
+  }
+  /** Four stages, same bar as Jobs: done orange, current black. */
+  function progHtml(i) {
+    const [label] = STATUS[i.display_status] || STATUS.sent;
+    if (i.display_status === 'void') return `<span class="ix-prog ix-prog--x" aria-label="${esc(label)}"></span>`;
+    const sent = Boolean(i.issued_at) || (i.display_status !== 'draft' && i.status !== 'draft');
+    const paid = i.display_status === 'paid';
+    const partial = !paid && Number(i.paid_amount) > 0;
+    let s = 0;
+    if (paid) s = 4;
+    else if (partial) s = 3;
+    else if (i.viewed_at) s = 2;
+    else if (sent) s = 1;
+    let h = '';
+    for (let n = 0; n < 4; n += 1) {
+      const c = n < s ? 'd' : n === s ? 'n' : '';
+      h += `<i class="${c}"></i>`;
+    }
+    return `<span class="ix-prog" aria-label="${esc(label)}">${h}</span>`;
+  }
   function rowHtml(i) {
-    const d = dueInfo(i);
-    const n = nextStep(i);
-    const [label, cls] = STATUS[i.display_status] || STATUS.sent;
+    const [label] = STATUS[i.display_status] || STATUS.sent;
     const open = i.display_status !== 'paid' && i.display_status !== 'void';
-    const pct = Math.max(0, Math.min(100, Number(i.percent_paid) || 0));
+    const when = listDate(i);
+    const addr = String(i.address || '').trim();
+    const hot = i.display_status === 'overdue';
     return `<a class="ix-row${String(i.id) === String(selId) ? ' is-on' : ''}" href="invoices.html?id=${encodeURIComponent(i.id)}" data-inv-id="${esc(i.id)}">
-      <span class="ix-row__l1"><b>${esc(i.customer_name || '—')}</b><em>${money(open ? i.remaining_amount : i.amount)}</em></span>
-      <span class="ix-row__l2"><span>${esc([i.invoice_number || '—', i.client_code ? `ID ${i.client_code}` : '', i.job_number != null && !String(i.source_ref || '').includes('Job #' + i.job_number) ? `Job #${i.job_number}` : '', i.source_ref || i.invoice_type_label || ''].filter(Boolean).join(' · '))}</span><em class="${d.hot ? 'is-hot' : ''}">${esc(d.sub || d.main)}</em></span>
-      <span class="ix-row__l3"><span class="ix-next${n.hot ? ' is-hot' : ''}">${esc(n.t)}</span><span class="inv-chip ${cls}">${esc(label)}</span></span>
-      ${pct > 0 && pct < 100 ? `<span class="ix-prog"><i style="width:${pct}%"></i></span>` : ''}
+      <span class="ix-row__b">
+        <span class="ix-row__l1"><b>${esc(i.customer_name || '—')}</b></span>
+        ${addr ? `<span class="ix-row__addr">${PIN}<span>${esc(addr)}</span></span>` : ''}
+        <span class="ix-row__bar">${progHtml(i)}</span>
+      </span>
+      <span class="ix-row__side">
+        <span class="ix-row__amt">${money(open ? i.remaining_amount : i.amount)}</span>
+        ${when.text ? `<span class="ix-row__when${when.hot ? ' is-hot' : ''}">${esc(when.text)}</span>` : ''}
+        <span class="ix-row__st${hot ? ' is-hot' : ''}">${esc(label)}</span>
+      </span>
     </a>`;
   }
 

@@ -442,6 +442,8 @@
 
   let rateSavePending = null;
   let priceEditCtx = null;
+  /** Ignore the tap that opened the dialog. On a tablet that same touch hits the backdrop and closes it. */
+  let rateBackdropIgnoreUntil = 0;
 
   function closeSaveRateModal() {
     const root = $("jmSaveRateModal");
@@ -487,6 +489,7 @@
           : "Para gravar no cadastro, selecione um cliente ou builder neste job.";
       }
     }
+    rateBackdropIgnoreUntil = Date.now() + 700;
     root.classList.remove("hidden");
   }
 
@@ -779,9 +782,19 @@
     $("jmSaveRateJobOnly")?.addEventListener("click", () => closeSaveRateModal());
     $("jmSaveRateCancel")?.addEventListener("click", () => closeSaveRateModal());
     $("jmSaveRateClose")?.addEventListener("click", () => closeSaveRateModal());
-    root?.addEventListener("click", (e) => {
-      if (e.target === root) closeSaveRateModal();
-    });
+    root?.addEventListener(
+      "click",
+      (e) => {
+        if (e.target !== root) return;
+        if (Date.now() < rateBackdropIgnoreUntil) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        closeSaveRateModal();
+      },
+      true,
+    );
   }
 
   // ---------------------------------------------------------------- render
@@ -2845,7 +2858,8 @@
       const newRate = Number(line.price);
       if (!Number.isFinite(newRate)) return;
       if (ratesNearlyEqual(newRate, ctx.baseline)) return;
-      setTimeout(() => void maybeOfferRatePersist(i), 0);
+      // Wait out the tablet tap that blurred the field, so it does not land on the new backdrop.
+      setTimeout(() => void maybeOfferRatePersist(i), 280);
     });
     modal.addEventListener("keydown", onKey);
     ensureRateModal();

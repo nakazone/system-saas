@@ -97,6 +97,7 @@ const listInclude = {
       id: true,
       number: true,
       title: true,
+      address: true,
       builder: { select: { company: true, firstName: true, lastName: true, email: true } },
     },
   },
@@ -174,6 +175,10 @@ function listItem(inv: ListRow, now: Date) {
     customer_name: customerName,
     client_code: clientCode || null,
     customer_email: inv.customer?.email || inv.quote?.builder?.email || inv.workOrder?.builder?.email || null,
+    address:
+      (inv.workOrder?.address && String(inv.workOrder.address).trim()) ||
+      (payload?.job_address != null && String(payload.job_address).trim()) ||
+      null,
   };
 }
 

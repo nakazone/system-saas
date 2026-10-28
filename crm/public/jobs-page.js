@@ -259,15 +259,21 @@
     }
   }
 
+  function stageMatches(wo, filter) {
+    const stage = I().stageLabel(wo);
+    if (filter === "Em campo") return stage === "Em campo" || stage === "Lixa";
+    return stage === filter;
+  }
+
   function statusMatches(wo) {
     if (!statusFilter) return !isPaidJob(wo);
-    return I().stageLabel(wo) === statusFilter;
+    return stageMatches(wo, statusFilter);
   }
 
   function visibleRows() {
     const serverSearch = q.length >= 2 && q === fetchedQuery;
     const rows = statusFilter
-      ? all.filter((w) => I().stageLabel(w) === statusFilter && searchHit(w))
+      ? all.filter((w) => stageMatches(w, statusFilter) && searchHit(w))
       : serverSearch
         ? all.filter((w) => w.status !== "canceled" && !isPaidJob(w) && searchHit(w))
         : all.filter((w) => matchesFilter(w, filter) && searchHit(w));
@@ -275,7 +281,8 @@
     if (pin && !rows.some((w) => String(w.id) === String(pin))) {
       const pinned = all.find((w) => String(w.id) === String(pin));
       const open = String(pin) === String(selId);
-      if (pinned && open) return [pinned, ...rows];
+      // A chosen status must stay exact. The open job stays on Todos, including when it is paid.
+      if (pinned && open && !statusFilter) return [pinned, ...rows];
       if (pinned && pinned.status !== "canceled" && statusMatches(pinned) && searchHit(pinned)) return [pinned, ...rows];
     }
     return rows;
@@ -297,8 +304,7 @@
   }
   function jobAnchor(wo) {
     const iso =
-      wo.scheduled_start ||
-      (wo.sector === "both" ? wo.sand_scheduled_start : null) ||
+      (I().listAnchorIso ? I().listAnchorIso(wo) : null) ||
       (wo.status === "completed" ? wo.updated_at || wo.scheduled_end : null);
     if (!iso) return null;
     const d = new Date(iso);
@@ -1140,7 +1146,7 @@
       else if (qs.get("billing") && bmap[qs.get("billing")]) filter = bmap[qs.get("billing")];
       if (qs.get("filter")) filter = qs.get("filter");
       if (qs.get("status") && $("jxStatus")) {
-        const wanted = qs.get("status");
+        const wanted = qs.get("status") === "Lixa" ? "Em campo" : qs.get("status");
         const known = [...$("jxStatus").options].some((o) => o.value === wanted);
         if (known) statusFilter = wanted;
       }

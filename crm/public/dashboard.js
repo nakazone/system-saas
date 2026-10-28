@@ -456,6 +456,7 @@ function initSfPullToRefresh() {
     } catch (_) {}
 
     const onTouchStart = (e) => {
+        if (currentPageName !== "dashboard") return;
         if (!isTouchViewport()) return;
         if (!getSfPtrIndicatorForPage(currentPageName)) return;
         if (!e.touches || !e.touches.length) return;
