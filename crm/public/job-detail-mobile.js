@@ -454,10 +454,15 @@
         .join("");
     }
     const when = $("jobMobWhen");
+    const completeRow = $("jobMobCompleteRow");
+    const completeEl = $("jobMobComplete");
     if (when) {
-      const startTxt = wo.scheduled_start ? `${J ? J.dateRange(wo) : fmtDay(wo.scheduled_start)}` : "Sem data";
-      const complete = J?.completeLabel?.(wo);
-      when.textContent = complete ? `${startTxt} · Complete: ${complete}` : startTxt;
+      when.textContent = wo.scheduled_start ? `${J ? J.dateRange(wo) : fmtDay(wo.scheduled_start)}` : "Sem data";
+    }
+    if (completeRow && completeEl) {
+      const done = wo.status === "completed";
+      completeRow.hidden = !done;
+      if (done) completeEl.textContent = J?.completeLabel?.(wo) || "Concluído";
     }
     const b = wo.billing;
     const mw = $("jobMobMoneyWrap");
@@ -468,7 +473,11 @@
         if (b.remaining_to_invoice > 0.004) rows.push(["A faturar", moneyFmt(b.remaining_to_invoice)]);
         if (b.open_balance > 0.004) rows.push(["A receber", moneyFmt(b.open_balance)]);
         rows.push(["Recebido", moneyFmt(b.paid_total)]);
-        $("jobMobMoney").innerHTML = rows.map(([k, v]) => `<div class="jmx-li"><span>${k}</span><b>${v}</b></div>`).join("");
+        const emit =
+          canInvoice && wo.status !== "canceled" && b.remaining_to_invoice > 0.004 && b.billing_status !== "no_value"
+            ? `<button type="button" class="jmx-li jmx-li--btn jmx-li--invoice" data-mob-invoice><span>Emitir Invoice</span></button>`
+            : "";
+        $("jobMobMoney").innerHTML = rows.map(([k, v]) => `<div class="jmx-li"><span>${k}</span><b>${v}</b></div>`).join("") + emit;
       }
     }
     const billQ = $("jobMobBillQuick");
@@ -772,6 +781,10 @@
   }
 
   function bind() {
+    $("jobMobMoney")?.addEventListener("click", (e) => {
+      if (!e.target.closest("[data-mob-invoice]") || !job || !window.JobBilling) return;
+      window.JobBilling.openDialog({ jobId, billing: job.billing, jobStatus: job.status });
+    });
     document.querySelectorAll("[data-jd-tab]").forEach((btn) => {
       btn.addEventListener("click", () => {
         detTab = btn.getAttribute("data-jd-tab") || "visitas";

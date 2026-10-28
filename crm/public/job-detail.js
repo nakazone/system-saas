@@ -358,7 +358,11 @@
     const complete = window.JobsInfo?.completeLabel?.(job) || "";
     $("jdFacts").innerHTML = `
       <div><small>Cliente</small><b>${esc(clientName())}</b><span>${contact || esc(job.builder?.name || "Sem contato")}</span></div>
-      <div><small>Start</small><b>${esc(w.main)}</b><span>${esc([w.sub, complete ? `Complete: ${complete}` : ""].filter(Boolean).join(" · "))}</span></div>
+      ${
+        job.status === "completed"
+          ? `<div class="jd-split"><div><small>Start</small><b>${esc(w.main)}</b><span>${esc(w.sub)}</span></div><div><small>Complete</small><b>${esc(complete || "Concluído")}</b></div></div>`
+          : `<div><small>Start</small><b>${esc(w.main)}</b><span>${esc([w.sub, complete ? `Complete: ${complete}` : ""].filter(Boolean).join(" · "))}</span></div>`
+      }
       <div><small>Equipe</small><b>${esc(job.assigned_user?.name || "Sem responsável")}</b><span>${esc(teamSub || (job.assigned_user ? "Responsável" : ""))}</span></div>
       <div><small>Preços</small><b>Tabela · ${esc(SOURCE[job.source_type] || "—")}</b><span>${n ? `${n} serviço${n > 1 ? "s" : ""} · ${money(job.services_total)}` : "Sem serviços"}</span></div>`;
   }
@@ -499,7 +503,10 @@
           : ""
       }
       ${(() => {
-        const invoiceBtn = "";
+        const canEmit = canInvoice && job.status !== "canceled" && b.remaining_to_invoice > 0.004 && b.billing_status !== "no_value";
+        const invoiceBtn = canEmit
+          ? `<button type="button" class="jd-btn jd-btn--pri jd-btn--block" data-primary="invoice">Emitir Invoice</button>`
+          : "";
         const completeBtn =
           canManage && job.status !== "completed" && job.status !== "canceled"
             ? `<button type="button" class="jd-btn jd-btn--block" data-primary="complete">Marcar como concluído</button>`

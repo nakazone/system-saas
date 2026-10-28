@@ -3,7 +3,8 @@
  * Idempotent: re-approving / re-saving approved quotes returns the existing job.
  */
 import { copyFieldQuoteToJob } from "../field-quote/job.js";
-import { discountLineLabel, readQuoteDiscount } from "../quotes/discount.js";
+import { discountLineLabel, readQuoteDiscount, type DiscountKind } from "../quotes/discount.js";
+import { calculateQuoteTotals } from "../quotes/totals.js";
 import { Prisma } from "@prisma/client";
 import type { TenantPrisma } from "../tenant/prisma-tenant.js";
 import { recordActivity } from "../activity/record.js";
@@ -434,6 +435,152 @@ export async function ensureWorkOrderOnApprove(
 
   await linkQuoteInvoicesToWorkOrder(tx, quote.id, wo.id);
   return { id: wo.id, number: wo.number, created: true };
+}
+
+function isJobDiscountLine(li: { notes: string | null; serviceName: string }): boolean {
+  return li.notes === QUOTE_DISCOUNT_NOTE || /^discount\b/i.test(li.serviceName);
+}
+
+/** Percent stays a percent (the dollar line on the job is stale after a service edit). A plain Discount line is a fixed amount. */
+function discountFromJobLine(li: { serviceName: string; lineTotal: unknown }): { type: DiscountKind; value: number } | null {
+  const pct = li.serviceName.match(/discount\s*\(\s*([\d.]+)\s*%\s*\)/i);
+  if (pct) {
+    const value = Math.min(100, Number(pct[1]) || 0);
+    if (value > 0) return { type: "percent", value };
+  }
+  const amount = Math.round(Math.abs(Number(li.lineTotal) || 0) * 100) / 100;
+  if (amount > 0) return { type: "fixed", value: amount };
+  return null;
+}
+
+function takeMatch<T>(buckets: Map<string, T[]>, serviceName: string): T | undefined {
+  const key = serviceName.trim().toLowerCase();
+  const queue = buckets.get(key);
+  if (!queue?.length) return undefined;
+  return queue.shift();
+}
+
+/**
+ * Job services are the contract. After they change, the linked quote must show the same
+ * lines and total — invoices and the quote screen would otherwise keep the old price.
+ */
+export async function syncLinkedQuoteFromJob(
+  tx: TenantPrisma,
+  params: { organizationId: string; workOrderId: string },
+): Promise<void> {
+  const quote = await tx.quote.findFirst({
+    where: { workOrderId: params.workOrderId },
+    orderBy: { updatedAt: "desc" },
+    include: { lineItems: { orderBy: { sortOrder: "asc" } } },
+  });
+  if (!quote) return;
+
+  const jobLines = await tx.workOrderLineItem.findMany({
+    where: { workOrderId: params.workOrderId },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+  const services = jobLines.filter((li) => !isJobDiscountLine(li));
+  const discountLine = jobLines.find((li) => isJobDiscountLine(li));
+  const discount = discountLine ? discountFromJobLine(discountLine) : null;
+
+  const byName = new Map<string, (typeof quote.lineItems)[number][]>();
+  for (const li of quote.lineItems) {
+    const key = String(li.name || li.description || "").trim().toLowerCase();
+    const queue = byName.get(key) || [];
+    queue.push(li);
+    byName.set(key, queue);
+  }
+  const payload = payloadOf(quote.payload);
+  const prevItems = (Array.isArray(payload.items) ? payload.items : Array.isArray(payload.line_items) ? payload.line_items : [])
+    .filter((x): x is Record<string, unknown> => !!x && typeof x === "object" && !Array.isArray(x));
+  const payloadByName = new Map<string, Record<string, unknown>[]>();
+  for (const item of prevItems) {
+    const key = String(item.name || item.description || "").trim().toLowerCase();
+    const queue = payloadByName.get(key) || [];
+    queue.push(item);
+    payloadByName.set(key, queue);
+  }
+
+  const nextPayloadItems: Record<string, unknown>[] = [];
+  const rows = services.map((li, idx) => {
+    const prev = takeMatch(byName, li.serviceName);
+    const prevItem = takeMatch(payloadByName, li.serviceName) || {};
+    const meta =
+      prev?.meta && typeof prev.meta === "object" && !Array.isArray(prev.meta)
+        ? { ...(prev.meta as Record<string, unknown>) }
+        : {};
+    if (li.pricingItemId) meta.pricing_item_id = li.pricingItemId;
+    const note = li.notes && li.notes !== QUOTE_DISCOUNT_NOTE ? li.notes : "";
+    if (note) meta.notes = note;
+    const qty = Number(li.quantitySqft) || 0;
+    const unitPrice = Number(li.unitPrice) || 0;
+    const amount = Math.round((Number(li.lineTotal) || qty * unitPrice) * 100) / 100;
+    const name = li.serviceName.slice(0, 200);
+    nextPayloadItems.push({
+      ...prevItem,
+      name,
+      description: prev?.description || name,
+      quantity: qty,
+      unit: prev?.unit || prevItem.unit || "sqft",
+      unit_price: unitPrice,
+      rate: unitPrice,
+      sell_price: unitPrice,
+      amount,
+      pricing_item_id: li.pricingItemId,
+      notes: note || null,
+    });
+    return {
+      organizationId: params.organizationId,
+      quoteId: quote.id,
+      name,
+      description: (prev?.description || name).slice(0, 2000),
+      quantity: new Prisma.Decimal(qty),
+      unit: prev?.unit || "sqft",
+      unitCost: prev?.unitCost ?? new Prisma.Decimal(0),
+      unitPrice: new Prisma.Decimal(unitPrice),
+      amount: new Prisma.Decimal(amount),
+      isOptional: false,
+      isSelected: true,
+      itemType: prev?.itemType || "service",
+      sortOrder: idx,
+      ...(Object.keys(meta).length ? { meta: meta as Prisma.InputJsonValue } : {}),
+    };
+  });
+
+  await tx.quoteLineItem.deleteMany({ where: { quoteId: quote.id } });
+  if (rows.length) await tx.quoteLineItem.createMany({ data: rows });
+
+  const totals = calculateQuoteTotals({
+    lines: services.map((li) => ({
+      quantity: Number(li.quantitySqft) || 0,
+      unitPrice: Number(li.unitPrice) || 0,
+      amount: Number(li.lineTotal) || 0,
+    })),
+    discountType: discount?.type ?? null,
+    discountValue: discount?.value ?? 0,
+    taxRate: Number(quote.taxRate) || 0,
+  });
+  const taxTotal =
+    Number(quote.taxRate) > 0 ? totals.taxTotal : Math.round((Number(quote.taxTotal) || 0) * 100) / 100;
+  const total = Math.round(Math.max(0, totals.subtotal - totals.discountAmount + taxTotal) * 100) / 100;
+  payload.items = nextPayloadItems;
+  payload.subtotal = totals.subtotal;
+  payload.tax_total = taxTotal;
+  payload.total = total;
+  payload.discount_type = discount?.type === "fixed" ? "fixed" : discount?.type === "percent" ? "percentage" : null;
+  payload.discount_value = discount?.value ?? 0;
+
+  await tx.quote.update({
+    where: { id: quote.id },
+    data: {
+      subtotal: new Prisma.Decimal(totals.subtotal),
+      taxTotal: new Prisma.Decimal(taxTotal),
+      total: new Prisma.Decimal(total),
+      discountType: discount?.type ?? null,
+      discountValue: new Prisma.Decimal(discount?.value ?? 0),
+      payload: payload as Prisma.InputJsonValue,
+    },
+  });
 }
 
 /** Quote approval invoices the quote before the job exists. Attach those invoices to the job so Faturar does not issue a second one. */

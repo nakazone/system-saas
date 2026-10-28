@@ -73,11 +73,11 @@
 .jd-step small { display: block; font-size: 11.5px; font-weight: 600; color: var(--jd-muted); }
 .jd-step:not(:last-child)::after { content: ""; flex: 1; min-width: 16px; height: 2px; margin: 0 10px; background: var(--jd-line-2); }
 .jd-step.is-ok { color: var(--jd-ink); }
-.jd-step.is-ok i { background: var(--jd-ink); border-color: var(--jd-ink); color: #fff; }
-.jd-step.is-ok:not(:last-child)::after { background: var(--jd-ink); }
-.jd-step.is-cur { color: var(--jd-terra-d); }
-.jd-step.is-cur i { border-color: var(--jd-terra); color: var(--jd-terra-d); }
-.jd-step.is-cur small { color: var(--jd-terra-d); }
+.jd-step.is-ok i { background: var(--jd-terra); border-color: var(--jd-terra); color: #fff; }
+.jd-step.is-ok:not(:last-child)::after { background: var(--jd-terra); }
+.jd-step.is-cur { color: var(--jd-ink); }
+.jd-step.is-cur i { background: var(--jd-ink); border-color: var(--jd-ink); color: #fff; }
+.jd-step.is-cur small { color: var(--jd-ink); }
 .jd-step.is-canceled { color: #B4561A; }
 .jd-step.is-canceled i { border-color: #e7b3aa; }
 .jd-step.is-btn { cursor: pointer; outline: none; }
@@ -122,6 +122,9 @@
 .jd-facts > div:first-child { border-left: 0; padding-left: 0; }
 .jd-facts small { display: block; margin-bottom: 4px; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--jd-muted); }
 .jd-facts b { display: block; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jd-split { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; min-width: 0; }
+.jd-split > div + div { padding-left: 12px; border-left: 1px solid var(--jd-line-2); }
+.jd-split b, .jd-split span { white-space: normal; overflow: visible; text-overflow: unset; }
 .jd-facts span { display: block; margin-top: 2px; font-size: 12.5px; color: var(--jd-ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .jd-facts a { color: inherit; }
 

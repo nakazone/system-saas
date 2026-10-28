@@ -8,7 +8,7 @@ import { findScheduleConflicts } from "../../lib/schedule/conflicts.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { publicBaseUrl } from "../../lib/http/public-url.js";
 import { ensureTempShareToken } from "../../lib/work-orders/temp-share.js";
-import { ensureQuoteDiscountOnJob, ensureQuoteDiscountsOnJobs, syncLinkedJobFromQuote } from "../../lib/work-orders/from-quote.js";
+import { ensureQuoteDiscountOnJob, ensureQuoteDiscountsOnJobs, syncLinkedJobFromQuote, syncLinkedQuoteFromJob } from "../../lib/work-orders/from-quote.js";
 import { notifyJobTeamPush } from "../../lib/push/notify.js";
 import { param } from "../../lib/http/params.js";
 import { myJobAccessWhere, parseChecklist } from "../lib/campo-shared.js";
@@ -1330,6 +1330,7 @@ scheduleJobsRouter.put(
       await withTenantTransaction(req.organizationId!, async (tx) => {
         await ensureJobChatChannel(tx, req.organizationId!, row.id);
         if (d.line_items !== undefined) {
+          await syncLinkedQuoteFromJob(tx, { organizationId: req.organizationId!, workOrderId: row.id });
           await ensureQuoteDiscountOnJob(tx, req.organizationId!, row.id);
         }
       });

@@ -208,9 +208,11 @@
       <span class="jx-row__b">
         <span class="jx-row__l1"><b>${J.esc(head)}</b></span>
         ${addr}
+        <span class="jx-row__l3">${J.progHtml(wo)}</span>
+      </span>
+      <span class="jx-row__side">
         <span class="jx-row__when">${J.esc(when)}</span>
         ${startBtn}
-        <span class="jx-row__l3">${J.progHtml(wo)}</span>
       </span>
     </a></div>`;
     // Swipe-to-delete only on touch / narrow — desktop list stays clean (no inline buttons).
@@ -349,10 +351,8 @@
           : `<p class="jx-empty">${empty}</p>`;
       return rows;
     }
-    const opened = pin ? rows.find((w) => String(w.id) === String(pin)) : null;
-    const rest = opened ? rows.filter((w) => String(w.id) !== String(opened.id)) : rows;
-    const undated = rest.filter((w) => !jobAnchor(w));
-    const dated = rest.filter((w) => jobAnchor(w));
+    const undated = rows.filter((w) => !jobAnchor(w));
+    const dated = rows.filter((w) => jobAnchor(w));
     const weeks = new Map();
     dated.forEach((wo) => {
       const key = ymd(weekSunday(jobAnchor(wo)));
@@ -361,9 +361,6 @@
     });
     const keys = [...weeks.keys()].sort((a, b) => weekRank(a) - weekRank(b));
     let html = "";
-    if (opened) {
-      html += `<section class="jx-week jx-week--pin"><p class="jx-grp"><span>Aberto agora</span><em>1</em></p>${rowHtml(opened)}</section>`;
-    }
     keys.forEach((key, i) => {
       const g = sortRows(weeks.get(key));
       const [yy, mm, dd] = key.split("-").map(Number);
@@ -589,19 +586,26 @@
         `<div><b>Delivery</b><p>${J.esc(wo.delivery_pickup_address || "Retirar material da obra")}${wo.delivery_notes ? `<br>${J.esc(wo.delivery_notes)}` : ""}</p></div>`,
       );
     }
+    const invoiceBtn = canFaturar(wo)
+      ? `<div class="jx-money-act"><button type="button" class="jx-btn jx-btn--pri" data-jx-act="invoice">Emitir Invoice</button></div>`
+      : "";
     const money = canBill && wo.billing
       ? `<div class="jx-box"><h3>Dinheiro</h3><dl class="jx-kv">
           <dt>Total</dt><dd>${J.money(wo.billing.services_total)}</dd>
           <dt>Faturado</dt><dd>${J.money(wo.billing.invoiced_total)}</dd>
           <dt>Recebido</dt><dd>${J.money(wo.billing.paid_total)}</dd>
           <dt>A faturar</dt><dd>${J.money(wo.billing.remaining_to_invoice)}</dd>
-        </dl></div>`
+        </dl>${invoiceBtn}</div>`
       : "";
     return `<div class="jx-cols">
       <div>
         <div class="jx-facts">
           <div><small>Cliente</small><b>${J.esc(J.client(wo))}</b><span>${contact || J.esc(wo.builder?.name || "Sem contato")}</span></div>
-          <div><small>Start</small><b>${J.esc(st.main)}</b><span>Complete: ${J.esc(J.completeLabel(wo))}</span></div>
+          ${
+            wo.status === "completed"
+              ? `<div class="jx-fact--split"><div><small>Start</small><b>${J.esc(st.main)}</b><span>${J.esc(st.sub)}</span></div><div><small>Complete</small><b>${J.esc(J.completeLabel(wo))}</b></div></div>`
+              : `<div><small>Start</small><b>${J.esc(st.main)}</b><span>Complete: ${J.esc(J.completeLabel(wo))}</span></div>`
+          }
           <div><small>Equipe</small><b>${J.esc(wo.assigned_user?.name || "Sem responsável")}</b><span>${team.length > 1 ? `${team.length} na equipe` : team.length ? "Responsável" : ""}</span></div>
           <div><small>Preços</small><b>Tabela · ${J.esc(SOURCE[wo.source_type] || "—")}</b><span>${lines.length ? `${lines.length} serviço${lines.length > 1 ? "s" : ""} · ${J.money(wo.services_total)}` : "Sem serviços"}</span></div>
         </div>
@@ -1225,15 +1229,6 @@
       const params = new URLSearchParams(location.search);
       if (source) params.set("source", source);
       else params.delete("source");
-      const qs = params.toString();
-      history.replaceState(null, "", qs ? `${location.pathname}?${qs}` : location.pathname);
-      render();
-    });
-    $("jxSort")?.addEventListener("change", (e) => {
-      sortDir = e.target.value === "oldest" ? "oldest" : "newest";
-      const params = new URLSearchParams(location.search);
-      if (sortDir === "oldest") params.set("sort", "oldest");
-      else params.delete("sort");
       const qs = params.toString();
       history.replaceState(null, "", qs ? `${location.pathname}?${qs}` : location.pathname);
       render();

@@ -220,10 +220,10 @@
         <a class="jmx-card__a" href="${detailHref}">
           <b class="jmx-card__t">${escapeHtml(cardTitle(wo))}</b>
           ${wo.address ? `<span class="jmx-card__s jmx-card__addr"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><span>${escapeHtml(wo.address)}</span></span>` : ""}
-          <span class="jmx-card__s">${escapeHtml(when)}</span>
           ${J ? J.progHtml(wo) : ""}
         </a>
         <div class="jmx-card__r3">
+          <span class="jmx-card__when">${escapeHtml(when)}</span>
           ${maps ? `<a class="jmx-b jmx-b--sq" href="${maps}" target="_blank" rel="noopener" aria-label="Mapa"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></a>` : ""}
           ${cta}
         </div>
