@@ -167,3 +167,10 @@ JOB #: 172060`;
     expect(out.map((i) => i.pricing_item_id)).toEqual(["11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222", null]);
   });
 });
+
+describe("catalog units", () => {
+  it("matches price lists written with spaces in the unit", () => {
+    expect(matchPricingItem({ description: "6 mil poly", detail: "moisture barrier", uom: "SF" }, [{ id: "x", name: "Moisture barrier", unit: "sq ft" }])?.id).toBe("x");
+    expect(matchPricingItem({ description: "End cap", detail: "", uom: "EA" }, [{ id: "y", name: "End cap", unit: "unit" }])?.id).toBe("y");
+  });
+});

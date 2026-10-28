@@ -11,7 +11,16 @@ type IntakeLine = {
   rate: number | null;
   total: number | null;
   pricing_item_id: string | null;
+  service_name: string;
+  create_service: boolean;
 };
+
+/** Order units → the unit names the company's price list uses. */
+const UOM_TO_CATALOG: Record<string, string> = { SF: "sq ft", LF: "linear ft", EA: "unit", STEP: "step", SY: "sq yd", HR: "hour" };
+
+function unitKey(unit: string | null | undefined): string {
+  return String(unit || "sq_ft").trim().toLowerCase().replace(/\s+/g, "_");
+}
 
 /** Where the crew picks up the material (from the order), if the builder kept it. */
 export function intakePickup(intake: unknown): string {
@@ -27,9 +36,9 @@ export function intakeLines(intake: unknown): IntakeLine[] {
 }
 
 const UOM_UNITS: Record<string, string[]> = {
-  SF: ["sq_ft", "sqft", "sf"],
-  LF: ["linear_ft", "lf", "lin_ft"],
-  EA: ["each", "unit", "ea", "piece"],
+  SF: ["sq_ft", "sqft", "sf", "square_feet"],
+  LF: ["linear_ft", "lf", "lin_ft", "linear_feet"],
+  EA: ["each", "unit", "units", "ea", "piece", "fixed"],
   STEP: ["step", "stair", "tread"],
   SY: ["sq_yd", "sy"],
   HR: ["hour", "hr"],
@@ -48,7 +57,7 @@ export function matchPricingItem(line: { description: string; detail: string; uo
   for (const it of items) {
     const w = words(it.name);
     if (w.length < 2 || !w.every((x) => hay.has(x))) continue;
-    if (!units.includes(String(it.unit || "sq_ft").toLowerCase())) continue;
+    if (!units.includes(unitKey(it.unit))) continue;
     if (w.length > bestLen) { best = it; bestLen = w.length; }
   }
   return best;
@@ -65,13 +74,40 @@ function round2(n: number): number {
 }
 
 /** Creates the job's service lines from the work order lines (rates are the ones on the order). */
-async function createJobLines(tx: TenantPrisma, organizationId: string, workOrderId: string, lines: IntakeLine[]): Promise<void> {
+async function createJobLines(tx: TenantPrisma, organizationId: string, workOrderId: string, lines: IntakeLine[], source: string): Promise<void> {
   if (!lines.length) return;
   const priceList = await tx.pricingItem.findMany({ where: { organizationId, active: true }, select: { id: true, name: true, unit: true } });
   let order = 0;
   for (const l of lines) {
-    // The service the builder linked in the portal wins; otherwise a name + unit match.
-    const linked = l.pricing_item_id ? priceList.find((p) => p.id === l.pricing_item_id) || null : null;
+    // The service the builder linked in the portal wins; then a name + unit match; then the
+    // service is added to the company's price list so the job arrives fully filled in.
+    let linked = l.pricing_item_id ? priceList.find((p) => p.id === l.pricing_item_id) || null : null;
+    if (!linked) linked = matchPricingItem(l, priceList);
+    if (!linked && l.create_service) {
+      const name = (l.service_name || lineName(l)).replace(/\s+/g, " ").trim().slice(0, 120);
+      linked = priceList.find((p) => p.name.trim().toLowerCase() === name.toLowerCase()) || null;
+      if (!linked) {
+        const rate = l.rate ?? (l.total != null && l.quantity ? round2(l.total / l.quantity) : 0);
+        const created = await tx.pricingItem.create({
+          data: {
+            organizationId,
+            name,
+            category: "installation",
+            unit: UOM_TO_CATALOG[l.uom.toUpperCase()] || "unit",
+            price: rate,
+            priceMin: 0,
+            priceMax: 0,
+            partnerPrice: rate,
+            priceBuilder: rate,
+            description: `Criado automaticamente pela ordem de serviço de ${source}.`,
+            isVisible: true,
+          },
+          select: { id: true, name: true, unit: true },
+        });
+        priceList.push(created);
+        linked = created;
+      }
+    }
     if (linked) {
       const total = l.total ?? (l.rate != null ? round2(l.rate * l.quantity) : 0);
       order += 1;
@@ -91,7 +127,7 @@ async function createJobLines(tx: TenantPrisma, organizationId: string, workOrde
       });
       continue;
     }
-    const item = matchPricingItem(l, priceList);
+    const item = null as { id: string } | null;
     const isSf = l.uom.toUpperCase() === "SF";
     // Without a matching price-list item the line has no unit of its own (it would read "sq ft"),
     // so non-SF lines keep their count in the note and carry the total as a fixed amount.
@@ -232,7 +268,7 @@ export async function applyPartnerRequest(
     },
     select: { id: true },
   });
-  await createJobLines(tx, organizationId, workOrder.id, intakeLines(request.intake));
+  await createJobLines(tx, organizationId, workOrder.id, intakeLines(request.intake), sourceName);
   await tx.partnerJobRequest.update({
     where: { id: request.id },
     data: { status: "accepted", workOrderId: workOrder.id, reviewedAt: new Date(), reviewNote: reviewNote || null },

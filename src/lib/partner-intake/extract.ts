@@ -17,6 +17,10 @@ export const intakeItemSchema = z.object({
   total: z.number().min(0).max(100_000_000).nullable().optional().default(null),
   /** Service of the company's price list this line was linked to. */
   pricing_item_id: z.string().uuid().nullable().optional().default(null),
+  /** Short catalog-style name, used when the service has to be created. */
+  service_name: z.string().trim().max(120).optional().default(""),
+  /** Unlinked line: add it to the company's services (default) or keep it on the job only. */
+  create_service: z.boolean().optional().default(true),
 });
 export const intakeItemsSchema = z.array(intakeItemSchema).max(40);
 
@@ -59,6 +63,8 @@ export type IntakeItem = {
   total: number | null;
   /** Service of the company's price list it matches (id), or null. */
   pricing_item_id: string | null;
+  /** Short generic service name ("LVP install with attached pad"), for creating it in the catalog. */
+  service_name: string;
 };
 
 /** The company's services the lines are matched against. */
@@ -95,7 +101,7 @@ Return ONLY a JSON object with these keys (strings; use "" when absent):
 - notes: everything else that matters to the crew (shortages, add-ons, access, warehouse, who buys which material), short sentences
 - title: a short job title: "<service_type> · <address>"
 - items: array of the service / labor lines of the order, one object per line of the labor table:
-  {"area": rooms covered (short, e.g. "LL Rec Room, Hearth Room, LL Bed 2 & 3, Baths, Laundry"), "description": product or service, "detail": install detail column, "quantity": number, "uom": unit as written (SF, LF, EA, SY, STEP…), "rate": labor rate per unit as a number or null, "total": line labor total as a number or null, "catalog_id": id of the matching service from the installer's catalog (given below) or null}
+  {"area": rooms covered (short, e.g. "LL Rec Room, Hearth Room, LL Bed 2 & 3, Baths, Laundry"), "description": product or service, "detail": install detail column, "quantity": number, "uom": unit as written (SF, LF, EA, SY, STEP…), "rate": labor rate per unit as a number or null, "total": line labor total as a number or null, "catalog_id": id of the matching service from the installer's catalog (given below) or null, "service_name": short generic name of the work as an installer would list it in a price list, in English, without brand / color / SKU (e.g. "LVP install with attached pad", "Moisture barrier – 6 mil poly", "End cap / transition install", "Floor protection cover")}
   Take lines from the labor / work order table. Material-only pages (purchase order, sales order, pick ticket) repeat the same products without labor: do not add those again. A line with "$ -" or no price still counts, with total null.
 - labor_total: the printed labor total (e.g. "TOTAL WOOD LABOR $ 5,117.00" → 5117) as a number, or null
 Documents often come from a flooring dealer / distributor (e.g. "The Colorado Floor Company") sending labor to an installer. In that case the "BUILDER:" on the page is the home builder / end client: put it in notes ("Home builder: …"), not in contact_name. "AREA #" or "Area 9" is a sales area, not a lot. The INSTALL DATE wins over "DATE BUILT"; DATE BUILT is used only when INSTALL DATE is blank.
@@ -264,7 +270,7 @@ export function normalizeItems(raw: unknown): IntakeItem[] {
     if (total === 0 && !rate) total = null;
     if (rate == null && total != null && quantity > 0) rate = Math.round((total / quantity) * 10000) / 10000;
     if (total == null && rate != null) total = Math.round(rate * quantity * 100) / 100;
-    const item: IntakeItem = { area: clean(r.area, 200), description, detail, quantity: Math.round(quantity * 100) / 100, uom: normalizeUom(clean(r.uom, 20)) || "SF", rate, total, pricing_item_id: null };
+    const item: IntakeItem = { area: clean(r.area, 200), description, detail, quantity: Math.round(quantity * 100) / 100, uom: normalizeUom(clean(r.uom, 20)) || "SF", rate, total, pricing_item_id: null, service_name: clean(r.service_name, 120) };
     const same = out.find((x) => x.description.toLowerCase() === item.description.toLowerCase() && x.detail.toLowerCase() === item.detail.toLowerCase() && x.quantity === item.quantity && x.uom === item.uom);
     if (same) {
       if (same.rate == null && item.rate != null) Object.assign(same, { rate: item.rate, total: item.total });
@@ -385,6 +391,8 @@ export function linkCatalog(items: IntakeItem[], rawItems: unknown, catalog: Cat
     const src = raw.find((r) => clean(r?.description, 200) === it.description && clean(r?.detail, 200) === it.detail);
     const chosen = src ? String(src.catalog_id ?? "") : "";
     if (chosen && ids.has(chosen)) return { ...it, pricing_item_id: chosen };
+    const sameName = it.service_name && catalog.find((c) => c.name.trim().toLowerCase() === it.service_name.trim().toLowerCase());
+    if (sameName) return { ...it, pricing_item_id: sameName.id };
     const hay = new Set(`${it.description} ${it.detail}`.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" ").filter((w) => w.length > 1));
     let best: CatalogItem | null = null;
     let bestLen = 0;
