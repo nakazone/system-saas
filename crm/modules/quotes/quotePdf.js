@@ -66,26 +66,29 @@ async function tryEmbedLogo(pdf) {
 /** Classify line for PDF sections (matches quote-builder service_type values). */
 function lineSection(it) {
   if (String(it.item_type || '').toLowerCase() === 'product') return 'supply';
-  const st = String(it.service_type || '').trim();
+  const st = String(it.service_type || '').trim().toLowerCase().replace(/[_-]+/g, ' ');
+  const addOnType =
+    st === 'add on' || st === 'add ons' || st === 'addon' || st.startsWith('add on ') || st.includes('adicional');
+  const addOnNamed = /^\s*add[\s-]*ons?\b/i.test(String(it.name || ''));
+  const sand = st.includes('sand') || st.includes('finish') || st.includes('lix') || st.includes('acab');
+  if (addOnType || (addOnNamed && sand)) return 'add_on';
   if (!st) return 'installation';
-  const lower = st.toLowerCase();
-  if (lower.includes('supply') || lower.includes('fornec') || lower.includes('material')) return 'supply';
-  if (lower.includes('sand') || lower.includes('finishing') || lower.includes('finish') || lower.includes('lix')) {
-    return 'sand_finish';
-  }
+  if (st.includes('supply') || st.includes('fornec') || st.includes('material')) return 'supply';
+  if (sand) return 'sand_finish';
   return 'installation';
 }
 
-/** Fixed customer-facing order: Supply → Installation → Sand & Finish. */
+/** Fixed customer-facing order: Supply → Installation → Sand & Finish → Add On. */
 const SECTION_DEFS = [
   { key: 'supply', label: 'SUPPLY' },
   { key: 'installation', label: 'INSTALLATION' },
   { key: 'sand_finish', label: 'SAND & FINISH' },
+  { key: 'add_on', label: 'ADD ON' },
 ];
 
 export function groupItemsForPdf(items) {
   const list = Array.isArray(items) ? items : [];
-  const buckets = { supply: [], installation: [], sand_finish: [] };
+  const buckets = { supply: [], installation: [], sand_finish: [], add_on: [] };
   for (const it of list) {
     const k = lineSection(it);
     if (buckets[k]) buckets[k].push(it);

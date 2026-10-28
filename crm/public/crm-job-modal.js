@@ -12,9 +12,9 @@
 
   const CSS_HREF = "crm-job-modal.css?v=20261027-jobsui";
   const QPE_CSS = "quote-services-popup.css?v=20261012-qp3";
-  const QPE_JS = "quote-services-popup.js?v=20261023-sig1";
+  const QPE_JS = "quote-services-popup.js?v=20261028-addon";
   const PAPER_CSS = "quote-paper.css?v=20261027-om1";
-  const PAPER_JS = "quote-paper.js?v=20261027-om1";
+  const PAPER_JS = "quote-paper.js?v=20261028-addon";
   let prevQBBridge = null;
   let qpeAssetsPromise = null;
   const SECTIONS = ["details", "schedule", "services", "team", "campo", "notes"];

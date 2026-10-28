@@ -79,27 +79,32 @@ function moneyEmail(n) {
   return `$${x.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-/** Mesma lógica de secções do PDF (Installation / Sand & Finishing / Supply / produtos). */
+/** Mesma lógica de secções do PDF (Installation / Sand & Finishing / Add On / Supply / produtos). */
 function lineSectionEmail(it) {
   if (String(it.item_type || '').toLowerCase() === 'product') return 'products';
-  const st = String(it.service_type || '').trim();
+  const st = String(it.service_type || '').trim().toLowerCase().replace(/[_-]+/g, ' ');
+  const addOnType =
+    st === 'add on' || st === 'add ons' || st === 'addon' || st.startsWith('add on ') || st.includes('adicional');
+  const addOnNamed = /^\s*add[\s-]*ons?\b/i.test(String(it.name || ''));
+  const sand = st.includes('sand') || st.includes('finishing') || st.includes('finish');
+  if (addOnType || (addOnNamed && sand)) return 'add_on';
   if (!st) return 'installation';
-  const lower = st.toLowerCase();
-  if (lower === 'supply') return 'supply';
-  if (lower.includes('sand') || lower.includes('finishing')) return 'sand_finish';
+  if (st === 'supply') return 'supply';
+  if (sand) return 'sand_finish';
   return 'installation';
 }
 
 const EMAIL_SECTIONS = [
   { key: 'installation', label: 'Installation' },
   { key: 'sand_finish', label: 'Sand & Finishing' },
+  { key: 'add_on', label: 'Add On' },
   { key: 'supply', label: 'Supply' },
   { key: 'products', label: 'Materials & products' },
 ];
 
 function groupItemsForEmail(items) {
   const list = Array.isArray(items) ? items : [];
-  const buckets = { installation: [], sand_finish: [], supply: [], products: [] };
+  const buckets = { installation: [], sand_finish: [], add_on: [], supply: [], products: [] };
   for (const it of list) {
     const k = lineSectionEmail(it);
     if (buckets[k]) buckets[k].push(it);

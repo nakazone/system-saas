@@ -100,7 +100,7 @@
       quantity: Number(it.quantity) || 0,
       unit: it.unit_type || 'sq_ft',
       rate: Number(it.rate) || 0,
-      section: P.sectionOf(it.item_type, it.service_type),
+      section: P.sectionOf(it.item_type, it.service_type, it.name),
     };
   }
 
@@ -279,7 +279,7 @@
   function refreshDraftRow() {
     const old = E.qpePaper.querySelector('.qp-tr.is-new');
     const m = buildModel(true);
-    const sec = P.sectionOf('service', draftItem().service_type);
+    const sec = P.sectionOf('service', draftItem().service_type, draftItem().name);
     const oldSec = old && old.closest('.qp-block') && old.closest('.qp-block').querySelector('.qp-sec');
     if (!old || !oldSec || oldSec.getAttribute('data-sec') !== sec) {
       renderPaper(true);
