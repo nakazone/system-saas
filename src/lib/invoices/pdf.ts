@@ -406,7 +406,7 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Buffer> {
   } else if (input.displayStatus === "partially_paid" || (input.paid > 0 && input.balance > 0 && input.displayStatus !== "void")) {
     stampH = drawStamp(doc, "PARTIALLY PAID", `${money(input.paid)} RECEIVED`, PAL.stamp, stampX, stampY, 17);
   } else if (input.displayStatus === "void") {
-    stampH = drawStamp(doc, "VOID", null, PAL.voidGray, stampX, stampY, 34);
+    stampH = drawStamp(doc, "CANCEL", null, PAL.voidGray, stampX, stampY, 28);
   }
   if (stampH) y = Math.max(y, stampY + stampH / 2 + 20);
 

@@ -66,7 +66,7 @@
     partially_paid: ['Parcial', 'is-partial'],
     overdue: ['Vencida', 'is-overdue'],
     paid: ['Paga', 'is-paid'],
-    void: ['Anulada', 'is-void'],
+    void: ['Cancelada', 'is-void'],
   };
   const isOpen = (i) => i.display_status !== 'paid' && i.display_status !== 'void' && i.display_status !== 'draft';
   const isReceivable = (i) => ['sent', 'viewed', 'partially_paid', 'draft'].includes(i.display_status);
@@ -132,7 +132,7 @@
   // ---------------------------------------------------------------- derivados
   function dueInfo(i) {
     if (i.display_status === 'paid') return { main: `Paga ${dshort(i.paid_at)}`, sub: '', hot: false };
-    if (i.display_status === 'void') return { main: 'Anulada', sub: '', hot: false };
+    if (i.display_status === 'void') return { main: 'Cancelada', sub: '', hot: false };
     if (i.display_status === 'overdue') return { main: dshort(i.due_date), sub: `vencida há ${plural(i.days_overdue, 'dia', 'dias')}`, hot: true };
     const d = daysUntil(i.due_date);
     return { main: dshort(i.due_date) || 'Sem vencimento', sub: d == null ? '' : d === 0 ? 'vence hoje' : d > 0 ? `em ${plural(d, 'dia', 'dias')}` : '', hot: false };
@@ -156,12 +156,12 @@
           hot: true,
         };
       case 'paid':
-        return { t: `${money(i.amount, 0)} recebido`, hot: false };
+        return { t: `${money(i.amount)} recebido`, hot: false };
       case 'void':
-        return { t: 'Anulada', hot: false };
+        return { t: 'Cancelada', hot: false };
       default:
         if (!emailed) return { t: 'Enviar ao cliente', hot: false };
-        if (i.paid_amount > 0) return { t: `Receber saldo ${money(i.remaining_amount, 0)}`, hot: false };
+        if (i.paid_amount > 0) return { t: `Receber saldo ${money(i.remaining_amount)}`, hot: false };
         if (i.viewed_at) return { t: `Vista ${dshort(i.viewed_at)} · aguardando`, hot: false };
         return { t: `Enviada ${dshort(sent)} · não abriu`, hot: false };
     }
@@ -190,12 +190,12 @@
   function renderSum() {
     const s = summary || {};
     const parts = [
-      ['Em aberto', money(s.outstanding, 0), ''],
-      ['Vencido', money(s.overdue_amount, 0), s.overdue_amount > 0 ? 'is-hot' : ''],
-      ['Recebido · 30 dias', money(s.received_30d, 0), ''],
-      ['Rascunhos', money(s.draft_amount, 0), ''],
+      ['Em aberto', money(s.outstanding), ''],
+      ['Vencido', money(s.overdue_amount), s.overdue_amount > 0 ? 'is-hot' : ''],
+      ['Recebido · 30 dias', money(s.received_30d), ''],
+      ['Rascunhos', money(s.draft_amount), ''],
     ];
-    if (billableTotal != null) parts.push(['Jobs a faturar', money(billableTotal, 0), '']);
+    if (billableTotal != null) parts.push(['Jobs a faturar', money(billableTotal), '']);
     $('ixSum').innerHTML = parts.map(([k, v, c]) => `<div><dt>${k}</dt><dd class="${c}">${v}</dd></div>`).join('');
   }
 
@@ -231,15 +231,15 @@
       let hot = false;
       if (k === 'all') {
         sub = periodAll
-          ? `${money(sum(rows, (i) => i.amount), 0)} faturado`
-          : `${money(sum(rows, (i) => i.amount), 0)} · ${periodLabel()}`;
+          ? `${money(sum(rows, (i) => i.amount))} faturado`
+          : `${money(sum(rows, (i) => i.amount))} · ${periodLabel()}`;
       } else if (k === 'receivable') {
-        sub = rows.length ? `${money(sum(rows, (i) => i.remaining_amount), 0)} a receber` : 'nada pendente';
+        sub = rows.length ? `${money(sum(rows, (i) => i.remaining_amount))} a receber` : 'nada pendente';
       } else if (k === 'overdue') {
-        sub = rows.length ? `${money(sum(rows, (i) => i.remaining_amount), 0)} · ${Math.max(...rows.map((i) => i.days_overdue || 0))} dias` : 'nenhuma';
+        sub = rows.length ? `${money(sum(rows, (i) => i.remaining_amount))} · ${Math.max(...rows.map((i) => i.days_overdue || 0))} dias` : 'nenhuma';
         hot = rows.length > 0;
       } else if (k === 'paid') {
-        sub = rows.length ? `${money(sum(rows, (i) => i.amount), 0)} recebido` : '—';
+        sub = rows.length ? `${money(sum(rows, (i) => i.amount))} recebido` : '—';
       }
       return `<button type="button" class="ix-tile${tab === k ? ' is-on' : ''}" data-tab="${k}" aria-pressed="${tab === k}"><span>${label}</span><b>${rows.length}</b><small class="${hot ? 'is-hot' : ''}">${esc(sub)}</small></button>`;
     }).join('');
@@ -256,7 +256,7 @@
     const open = i.display_status !== 'paid' && i.display_status !== 'void';
     const pct = Math.max(0, Math.min(100, Number(i.percent_paid) || 0));
     return `<a class="ix-row${String(i.id) === String(selId) ? ' is-on' : ''}" href="invoices.html?id=${encodeURIComponent(i.id)}" data-inv-id="${esc(i.id)}">
-      <span class="ix-row__l1"><b>${esc(i.customer_name || '—')}</b><em>${money(open ? i.remaining_amount : i.amount, 0)}</em></span>
+      <span class="ix-row__l1"><b>${esc(i.customer_name || '—')}</b><em>${money(open ? i.remaining_amount : i.amount)}</em></span>
       <span class="ix-row__l2"><span>${esc([i.invoice_number || '—', i.client_code ? `ID ${i.client_code}` : '', i.job_number != null && !String(i.source_ref || '').includes('Job #' + i.job_number) ? `Job #${i.job_number}` : '', i.source_ref || i.invoice_type_label || ''].filter(Boolean).join(' · '))}</span><em class="${d.hot ? 'is-hot' : ''}">${esc(d.sub || d.main)}</em></span>
       <span class="ix-row__l3"><span class="ix-next${n.hot ? ' is-hot' : ''}">${esc(n.t)}</span><span class="inv-chip ${cls}">${esc(label)}</span></span>
       ${pct > 0 && pct < 100 ? `<span class="ix-prog"><i style="width:${pct}%"></i></span>` : ''}
@@ -267,7 +267,7 @@
     ['Vencidos', (i) => i.display_status === 'overdue'],
     ['A receber', (i) => isReceivable(i)],
     ['Pagos', (i) => i.display_status === 'paid'],
-    ['Anuladas', (i) => i.display_status === 'void'],
+    ['Canceladas', (i) => i.display_status === 'void'],
   ];
 
   function visible() {
@@ -291,13 +291,13 @@
     if (tab !== 'all') {
       const sorted = rows.slice().sort(tab === 'overdue' ? (a, b) => (b.days_overdue || 0) - (a.days_overdue || 0) : byDate);
       const tot = sorted.reduce((a, i) => a + Number(tab === 'paid' ? i.amount : i.remaining_amount) || 0, 0);
-      $('invRows').innerHTML = `<p class="ix-grp"><span>${TILES.find((x) => x[0] === tab)?.[1] || ''}</span><em>${sorted.length} · ${money(tot, 0)}</em></p>${sorted.map(rowHtml).join('')}`;
+      $('invRows').innerHTML = `<p class="ix-grp"><span>${TILES.find((x) => x[0] === tab)?.[1] || ''}</span><em>${sorted.length} · ${money(tot)}</em></p>${sorted.map(rowHtml).join('')}`;
     } else {
       $('invRows').innerHTML = GROUPS.map(([label, fn]) => {
         const g = rows.filter(fn).sort(label === 'Vencidos' ? (a, b) => (b.days_overdue || 0) - (a.days_overdue || 0) : byDate);
         if (!g.length) return '';
-        const tot = g.reduce((a, i) => a + Number(label === 'Pagos' || label === 'Anuladas' ? i.amount : i.remaining_amount) || 0, 0);
-        return `<p class="ix-grp"><span>${label}</span><em>${g.length} · ${money(tot, 0)}</em></p>${g.map(rowHtml).join('')}`;
+        const tot = g.reduce((a, i) => a + Number(label === 'Pagos' || label === 'Canceladas' ? i.amount : i.remaining_amount) || 0, 0);
+        return `<p class="ix-grp"><span>${label}</span><em>${g.length} · ${money(tot)}</em></p>${g.map(rowHtml).join('')}`;
       }).join('');
     }
     if (window.OmGestures && !isWide()) window.OmGestures.bindSwipeRow?.($('invRows'));

@@ -246,6 +246,7 @@ export async function createInvoiceFromScheduleItem(
       organizationId: params.organizationId,
       quoteId: params.quoteId,
       customerId: quote.customerId,
+      workOrderId: quote.workOrderId,
       invoiceNumber,
       invoiceType: type,
       status: "draft",
@@ -470,6 +471,7 @@ async function createFullDraftInvoice(
       organizationId: params.organizationId,
       quoteId: params.quoteId,
       customerId: params.customerId,
+      workOrderId: quote?.workOrderId || null,
       invoiceNumber,
       invoiceType: "full",
       status: "draft",
@@ -508,6 +510,9 @@ export async function ensureInvoicesOnApprove(
   if (!quote) return [];
   const quoteTotal = quoteContractTotal(quote);
   if (quoteTotal <= 0) return [];
+
+  // Two saves (approve + emit, or a double click) used to each insert a full invoice.
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${params.quoteId}))`;
 
   const existing = await tx.quoteInvoice.findMany({
     where: { quoteId: params.quoteId, status: { not: "void" } },

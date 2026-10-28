@@ -14,7 +14,7 @@ import { param } from "../../lib/http/params.js";
 import { myJobAccessWhere, parseChecklist } from "../lib/campo-shared.js";
 import { randomUUID } from "node:crypto";
 import { ensureJobChatChannel } from "../../lib/chat/job-channel.js";
-import { jobBilling, jobBillingLabel } from "../../lib/invoices/job.js";
+import { foldUnlinkedQuoteInvoices, jobBilling, jobBillingLabel } from "../../lib/invoices/job.js";
 import { isJobChecklistEnabled } from "../../lib/settings/jobs.js";
 import {
   parseScheduleSettings,
@@ -830,6 +830,9 @@ scheduleJobsRouter.get(
           if (next) row.lineItems = next;
         }
       }
+      if (canSeeBilling(req.user)) {
+        await withTenantTransaction(req.organizationId!, (tx) => foldUnlinkedQuoteInvoices(tx, rows));
+      }
       const leadNames = await leadNamesById(req.organizationId!, rows);
       let data = rows.map((row) =>
         applyQuoteLead(mapWorkOrder(row), row.quotes?.[0]?.leadId ? leadNames.get(row.quotes[0].leadId) || null : null),
@@ -918,6 +921,8 @@ scheduleJobsRouter.get(
               organizationId: req.organizationId!,
               quoteId: quote.id,
             });
+            const { linkQuoteInvoicesToWorkOrder } = await import("../../lib/work-orders/from-quote.js");
+            await linkQuoteInvoicesToWorkOrder(tx, quote.id, jobId);
             return;
           }
           await ensureQuoteDiscountOnJob(tx, req.organizationId!, jobId);

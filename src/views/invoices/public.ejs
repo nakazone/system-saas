@@ -164,7 +164,7 @@
       <% } else if (money.paid > 0 && st !== 'void') { %>
         <div class="stamp partial" aria-label="Partially paid"><b>PARTIALLY PAID</b><small><%= fmt(money.paid) %> RECEIVED</small></div>
       <% } else if (st === 'void') { %>
-        <div class="stamp" aria-label="Void" style="border-color:#8a8074;color:#8a8074;box-shadow:inset 0 0 0 1px #fff, inset 0 0 0 2px #8a8074"><b>VOID</b></div>
+        <div class="stamp" aria-label="Cancel" style="border-color:#8a8074;color:#8a8074;box-shadow:inset 0 0 0 1px #fff, inset 0 0 0 2px #8a8074"><b>CANCEL</b></div>
       <% } else { %><span></span><% } %>
 
       <div class="totals">

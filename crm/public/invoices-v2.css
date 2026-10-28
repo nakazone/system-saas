@@ -32,7 +32,20 @@
 .inv-btn--secondary:hover, .inv-btn--ghost:hover { background: #F7F8FA; border-color: transparent; }
 .inv-btn--ghost { box-shadow: none; }
 .inv-btn--danger { background: #B4561A; color: #fff; box-shadow: none; }
-.inv-btn--icon { width: 38px; }
+.inv-btn--icon { width: 38px; padding: 0; display: inline-grid; place-items: center; }
+.inv-btn--icon svg { width: 16px; height: 16px; }
+.inv-pay-opts { display: grid; gap: 8px; }
+.inv-pay-opt {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center;
+  padding: 10px 12px; border-radius: 14px; box-shadow: 0 0 0 1px var(--inv-line); background: #fff; cursor: pointer;
+}
+.inv-pay-opt:has(input:checked) { box-shadow: 0 0 0 1.5px #221E1A; }
+.inv-pay-opt input[type="radio"] { accent-color: #221E1A; margin: 0; }
+.inv-pay-opt__t { font-weight: 650; font-size: 14px; }
+.inv-pay-opt__d { display: block; font-weight: 400; font-size: 12px; color: #98A2B3; }
+.inv-pay-opt__v { font-weight: 700; font-variant-numeric: tabular-nums; }
+.inv-pay-opt__inp { width: 5.5rem; padding: 6px 8px; border: 1px solid #E5E7EB; border-radius: 8px; font: inherit; text-align: right; }
+.inv-head__actions .inv-btn[hidden] { display: none !important; }
 .inv-link-btn, .inv-head__sub a, .inv-siblings a {
   color: var(--inv-ink); font-weight: 600; font-size: 12.5px; text-decoration: underline; text-decoration-color: #E7792C; text-decoration-thickness: 2px; text-underline-offset: 3px;
 }

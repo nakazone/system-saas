@@ -120,7 +120,7 @@
     partially_paid: { label: 'Parcialmente paga', cls: 'is-partial' },
     overdue: { label: 'Vencida', cls: 'is-overdue' },
     paid: { label: 'Paga', cls: 'is-paid' },
-    void: { label: 'Anulada', cls: 'is-void' },
+    void: { label: 'Cancelada', cls: 'is-void' },
   };
 
   // ---------------------------------------------------------------- render
@@ -150,34 +150,28 @@
     // Receive payment only after the invoice left draft — sending ≠ paid.
     const canPay = inv.can.record_payment && open && !isDraft;
     const canSend = inv.can.manage && inv.status !== 'void';
-    $('btnReceive').hidden = !canPay;
+    if ($('btnReceive')) $('btnReceive').hidden = true;
     $('btnReceiveMobile').hidden = !canPay;
     $('btnAddPayment').hidden = !canPay;
-    $('btnSend').hidden = !canSend;
+    if ($('btnSend')) $('btnSend').hidden = true;
     $('btnSendMobile').hidden = !canSend;
-    $('btnSendLabel').textContent = emailSent ? 'Reenviar' : 'Enviar';
+    if ($('btnSendLabel')) $('btnSendLabel').textContent = emailSent ? 'Reenviar' : 'Enviar';
     $('btnSendMobile').textContent = emailSent ? 'Reenviar' : 'Enviar';
-    // Never e-mailed: Enviar is primary. After a real send: Receber pagamento is primary.
     const sendPrimary = canSend && !emailSent;
-    $('btnSend').className = sendPrimary ? 'inv-btn inv-btn--primary' : 'inv-btn inv-btn--secondary';
-    $('btnReceive').className = !sendPrimary && canPay ? 'inv-btn inv-btn--primary' : 'inv-btn inv-btn--secondary';
     $('btnSendMobile').className = sendPrimary ? 'inv-btn inv-btn--primary' : 'inv-btn inv-btn--secondary';
     $('btnReceiveMobile').className = !sendPrimary && canPay ? 'inv-btn inv-btn--primary' : 'inv-btn inv-btn--secondary';
     $('invMobileBar').hidden = !canPay && !canSend;
-
-    const menu = $('moreMenu');
-    const show = (act, on) => {
-      const el = menu.querySelector(`[data-act="${act}"]`);
-      if (el) el.hidden = !on;
-    };
-    show('edit', inv.can.manage && inv.status !== 'void');
-    show('copy-link', inv.can.manage && inv.status !== 'void');
-    show('mark-sent', inv.can.manage && inv.status === 'draft');
-    show('void', inv.can.manage && inv.status !== 'void' && inv.payments.length === 0 && inv.status !== 'draft');
-    show('delete', inv.can.manage && (inv.status === 'draft' || inv.status === 'void') && inv.payments.length === 0);
-    const ql = $('menuQuoteLink');
-    ql.hidden = !inv.quote;
-    if (inv.quote) ql.href = `quote-builder.html?id=${encodeURIComponent(inv.quote.id)}`;
+    const canEdit = inv.can.manage && inv.status !== 'void';
+    const canDelete = inv.can.manage && (inv.status === 'draft' || inv.status === 'void') && inv.payments.length === 0;
+    const canCancel = inv.can.manage && inv.status !== 'void' && inv.status !== 'draft' && inv.payments.length === 0;
+    if ($('btnEdit')) $('btnEdit').hidden = !canEdit;
+    if ($('btnDeleteInvoice')) {
+      $('btnDeleteInvoice').hidden = !canDelete && !canCancel;
+      $('btnDeleteInvoice').dataset.mode = canDelete ? 'delete' : 'cancel';
+      const delLabel = canDelete ? 'Excluir' : 'Cancel Invoice';
+      $('btnDeleteInvoice').title = delLabel;
+      $('btnDeleteInvoice').setAttribute('aria-label', delLabel);
+    }
 
     renderSteps();
     renderNext();
@@ -280,7 +274,7 @@
       },
     ];
     if (inv.status === 'void') {
-      $('invSteps').innerHTML = `<li class="inv-step is-void"><span class="inv-step__dot"></span><span><b>Anulada</b><small>${esc(fdate(inv.voided_at))}</small></span></li>`;
+      $('invSteps').innerHTML = `<li class="inv-step is-void"><span class="inv-step__dot"></span><span><b>Cancelada</b><small>${esc(fdate(inv.voided_at))}</small></span></li>`;
       return;
     }
     $('invSteps').innerHTML = steps
@@ -296,7 +290,7 @@
   function renderBanner() {
     const b = $('invBanner');
     let html = '';
-    if (inv.status === 'void') html = '<b>Fatura anulada.</b> Não é mais cobrada e o link do cliente foi desativado.';
+    if (inv.status === 'void') html = '<b>Fatura cancelada.</b> Não é mais cobrada e o link do cliente foi desativado.';
     else if (inv.display_status === 'overdue')
       html = `<b>Vencida há ${inv.days_overdue} ${inv.days_overdue === 1 ? 'dia' : 'dias'}.</b> Saldo de ${money(inv.remaining_amount)} em aberto desde ${esc(fdate(inv.due_date))}.`;
     else if (inv.status === 'draft')
@@ -323,7 +317,7 @@
     if (inv.paid_amount > 0.004 && inv.status !== 'void') {
       return `<div class="inv-stamp inv-stamp--partial" id="invStamp" aria-label="Parcialmente pago"><b>PARCIAL</b><small>${esc(money(inv.paid_amount))} RECEBIDO</small></div>`;
     }
-    if (inv.status === 'void') return '<div class="inv-stamp inv-stamp--void" aria-label="Anulada"><b>ANULADA</b></div>';
+    if (inv.status === 'void') return '<div class="inv-stamp inv-stamp--void" aria-label="Cancelada"><b>CANCELADA</b></div>';
     return '';
   }
 
@@ -411,7 +405,7 @@
   function renderSummary() {
     const due = dateObj(inv.due_date);
     let dueTxt = '';
-    if (inv.status === 'void') dueTxt = 'Anulada';
+    if (inv.status === 'void') dueTxt = 'Cancelada';
     else if (inv.display_status === 'paid') dueTxt = `Quitada em ${fdate(inv.paid_at)}`;
     else if (due) {
       const days = Math.round((Date.UTC(due.getUTCFullYear(), due.getUTCMonth(), due.getUTCDate()) - Date.UTC(new Date().getFullYear(), new Date().getMonth(), new Date().getDate())) / 86400000);
@@ -616,31 +610,43 @@
     return r ? r.value : 'full';
   }
   function payAmount() {
-    if (payMode() === 'full') return inv.remaining_amount;
+    const bal = Math.round((Number(inv && inv.remaining_amount) || 0) * 100) / 100;
+    const mode = payMode();
+    if (mode === 'full') return bal;
+    if (mode === 'partial') {
+      const pct = Number($('payPct') && $('payPct').value) || 0;
+      if (!(pct > 0)) return 0;
+      return Math.round(bal * pct) / 100;
+    }
     return Math.round((parseFloat($('payAmount').value) || 0) * 100) / 100;
   }
+  function payApiMode() {
+    const bal = Number(inv && inv.remaining_amount) || 0;
+    const amt = payAmount();
+    return amt > 0 && Math.abs(bal - amt) < 0.005 ? 'full' : 'partial';
+  }
   function syncPay() {
-    const full = payMode() === 'full';
-    $('payFullBox').hidden = !full;
-    $('payPartialBox').hidden = full;
+    const mode = payMode();
     const amt = payAmount();
     const bal = inv.remaining_amount;
     const after = Math.max(0, Math.round((bal - amt) * 100) / 100);
     const settles = amt > 0 && Math.abs(bal - amt) < 0.005;
-    if (!full) {
-      const over = amt > bal + 0.004;
-      $('payAfter').className = 'inv-after' + (over ? ' is-error' : settles ? ' is-settle' : '');
-      $('payAfter').textContent = !amt
-        ? `Saldo atual ${money(bal)}.`
-        : over
-          ? `Valor acima do saldo em aberto (${money(bal)}).`
-          : settles
-            ? 'Este valor quita a fatura — ela será carimbada como PAGA.'
-            : `Saldo após este pagamento: ${money(after)}.`;
-    }
+    const over = amt > bal + 0.004;
+    if ($('payFullAmount')) $('payFullAmount').textContent = money(bal);
+    $('payAfter').className = 'inv-after' + (over ? ' is-error' : settles ? ' is-settle' : '');
+    $('payAfter').textContent =
+      mode === 'full'
+        ? `Recebe ${money(bal)} e quita a fatura.`
+        : !amt
+          ? `Saldo atual ${money(bal)}.`
+          : over
+            ? `Valor acima do saldo em aberto (${money(bal)}).`
+            : settles
+              ? 'Este valor quita a fatura — ela será marcada como paga.'
+              : `Recebe ${money(amt)}. Saldo depois: ${money(after)}.`;
     $('paySubmit').textContent = !amt
       ? 'Registrar pagamento'
-      : settles || full
+      : settles || mode === 'full'
         ? `Receber ${money(amt)} e marcar como paga`
         : `Dar baixa de ${money(amt)}`;
     $('paySubmit').disabled = !amt || amt > bal + 0.004;
@@ -665,7 +671,8 @@
         radio.onchange = () => {
           if (!radio.checked) return;
           const use = Math.min(credit, inv.remaining_amount);
-          document.querySelector('input[name="payMode"][value="partial"]').checked = true;
+          const amountMode = document.querySelector('input[name="payMode"][value="amount"]');
+          if (amountMode) amountMode.checked = true;
           $('payAmount').value = (Math.round(use * 100) / 100).toFixed(2);
           syncPay();
         };
@@ -685,8 +692,11 @@
     showErr('payError', '');
     $('payMeta').textContent = `${inv.invoice_number} · total ${money(inv.amount)} · pago ${money(inv.paid_amount)} · saldo ${money(inv.remaining_amount)}`;
     $('payFullAmount').textContent = money(inv.remaining_amount);
-    document.querySelector(`input[name="payMode"][value="${mode === 'partial' ? 'partial' : 'full'}"]`).checked = true;
+    const picked = mode === 'partial' ? 'amount' : mode === 'amount' ? 'amount' : 'full';
+    const pickedEl = document.querySelector(`input[name="payMode"][value="${picked}"]`);
+    if (pickedEl) pickedEl.checked = true;
     $('payAmount').value = '';
+    if ($('payPct') && !$('payPct').value) $('payPct').value = '50';
     $('payRef').value = '';
     $('payNotes').value = '';
     const email = inv.client && inv.client.email;
@@ -698,21 +708,6 @@
       previewBtn.hidden = !email;
       previewBtn.disabled = !email;
     }
-    const bal = inv.remaining_amount;
-    const quick = [
-      { label: '25%', v: bal * 0.25 },
-      { label: '50%', v: bal * 0.5 },
-      { label: 'Saldo total', v: bal },
-    ];
-    $('payQuick').innerHTML = quick
-      .map((q) => `<button type="button" class="inv-chip-btn" data-v="${(Math.round(q.v * 100) / 100).toFixed(2)}">${q.label} <small>${money(q.v)}</small></button>`)
-      .join('');
-    $('payQuick').querySelectorAll('[data-v]').forEach((b) =>
-      b.addEventListener('click', () => {
-        $('payAmount').value = b.dataset.v;
-        syncPay();
-      }),
-    );
     await ensurePaymentDateSettings();
     const dueDay = dayLocal(inv.due_date);
     const preferDue = paymentDateDefault === 'due_date' && dueDay;
@@ -721,22 +716,33 @@
     await syncCashbackPayMethod();
     syncPay();
     openModal('payModal');
-    if (mode === 'partial') setTimeout(() => $('payAmount').focus(), 80);
+    if (picked === 'amount') setTimeout(() => $('payAmount').focus(), 80);
   }
   document.querySelectorAll('input[name="payMode"]').forEach((r) =>
     r.addEventListener('change', () => {
       syncPay();
-      if (payMode() === 'partial') $('payAmount').focus();
+      if (payMode() === 'amount') $('payAmount').focus();
+      if (payMode() === 'partial') $('payPct').focus();
     }),
   );
-  $('payAmount').addEventListener('input', syncPay);
+  ['payAmount', 'payPct'].forEach((id) => {
+    const el = $(id);
+    if (!el) return;
+    const select = () => {
+      const radio = el.closest('.inv-pay-opt')?.querySelector('input[type="radio"]');
+      if (radio) radio.checked = true;
+      syncPay();
+    };
+    el.addEventListener('focus', select);
+    el.addEventListener('input', select);
+  });
 
   let pendingPayBody = null;
 
   function buildPayBody(emailTo) {
     const method = (document.querySelector('input[name="payMethod"]:checked') || {}).value || 'other';
     const body = {
-      mode: payMode(),
+      mode: payApiMode(),
       amount: payAmount(),
       payment_date: $('payDate').value,
       payment_method: method,
@@ -756,7 +762,7 @@
     return api(`/api/quote-invoices/${invoiceId}/receipt-email-preview`, {
       method: 'POST',
       body: JSON.stringify({
-        mode: payMode(),
+        mode: payApiMode(),
         amount: amt,
         payment_date: $('payDate').value,
         payment_method: method,
@@ -889,7 +895,7 @@
     try {
       const method = (document.querySelector('input[name="payMethod"]:checked') || {}).value || 'other';
       await submitPayment({
-        mode: payMode(),
+        mode: payApiMode(),
         amount: amt,
         payment_date: $('payDate').value,
         payment_method: method,
@@ -984,6 +990,15 @@
     $('sendSubmit').textContent = inv.sent_to || inv.email_sent_at ? 'Reenviar e-mail' : 'Enviar e-mail';
     updateSms();
     openModal('sendModal');
+    if (!$('sendLink').value) {
+      ensureLink()
+        .then((url) => {
+          $('sendLink').value = url;
+          if (inv) inv.public_url = url;
+          updateSms();
+        })
+        .catch((err) => showErr('sendError', err.message || 'Não foi possível gerar o link.'));
+    }
   }
   const INV_SMS_DEFAULT =
     'Hi [name], your invoice [invoice_number] is ready.\n\nBalance due: [balance]\nDue: [due_date]\n\nView & pay here:\n[link]\n\nThank you!';
@@ -1160,9 +1175,9 @@
   // ---- Anular / apagar
   async function voidInvoice() {
     const c = await confirmBox({
-      title: `Anular ${inv.invoice_number}?`,
+      title: `Cancel Invoice ${inv.invoice_number}?`,
       text: 'A fatura deixa de ser cobrada, sai dos totais em aberto e o link do cliente é desativado. O número fica reservado no histórico.',
-      ok: 'Anular fatura',
+      ok: 'Cancel Invoice',
       extraHtml: '<label class="inv-field"><span>Motivo <em>opcional</em></span><input type="text" id="voidReason" maxlength="300" /></label>',
     });
     if (!c) return;
@@ -1171,7 +1186,7 @@
         method: 'POST',
         body: JSON.stringify({ reason: (document.getElementById('voidReason') || {}).value || '' }),
       });
-      toast('Fatura anulada.');
+      toast('Invoice cancelada.');
       await load();
     } catch (err) {
       toast(err.message, 'error');
@@ -1197,38 +1212,11 @@
     }
   }
 
-  // ---- More menu
-  function closeMenu() {
-    $('moreMenu').hidden = true;
-    $('btnMore').setAttribute('aria-expanded', 'false');
-  }
-  $('btnMore').addEventListener('click', (e) => {
-    e.stopPropagation();
-    const m = $('moreMenu');
-    m.hidden = !m.hidden;
-    $('btnMore').setAttribute('aria-expanded', String(!m.hidden));
-  });
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest('.inv-more')) closeMenu();
-  });
-  $('moreMenu').addEventListener('click', async (e) => {
-    const b = e.target.closest('[data-act]');
-    if (!b) return;
-    closeMenu();
-    const act = b.dataset.act;
-    if (act === 'edit') openEdit();
-    else if (act === 'copy-link') {
-      try {
-        const url = await ensureLink();
-        await navigator.clipboard.writeText(url);
-        toast('Link do cliente copiado.');
-        load();
-      } catch (err) {
-        toast(err.message, 'error');
-      }
-    } else if (act === 'mark-sent') markSent();
-    else if (act === 'void') voidInvoice();
-    else if (act === 'delete') deleteInvoice();
+  function closeMenu() {}
+  $('btnEdit')?.addEventListener('click', () => openEdit());
+  $('btnDeleteInvoice')?.addEventListener('click', () => {
+    if ($('btnDeleteInvoice').dataset.mode === 'delete') deleteInvoice();
+    else voidInvoice();
   });
 
   // ---- PDF

@@ -5303,6 +5303,7 @@
     await ensureCustomerForQuote();
     const body = payload();
     body.status = desired;
+    body.skip_auto_invoice = true;
     const r = await api(`/api/quotes/${quoteId}/full`, { method: 'PUT', body: JSON.stringify(body) });
     const q = quoteFromApiResponse(r);
     loadedQuoteStatus = q?.status || desired;

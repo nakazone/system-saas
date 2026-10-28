@@ -44,6 +44,7 @@ import {
 } from "../../lib/invoices/service.js";
 import { buildReceiptPdf } from "../../lib/invoices/pdf.js";
 import {
+  foldUnlinkedQuoteInvoices,
   invoicedTotalForJob,
   jobBilling,
   markWorkOrderCompletedForInvoice,
@@ -572,7 +573,7 @@ invoicesCrmRouter.get(
           req.organizationId!,
           listed.map((row) => row.id),
         );
-        return tx.workOrder.findMany({
+        const listedJobs = await tx.workOrder.findMany({
           where: {
             status: { not: "canceled" },
             lineItems: { some: {} },
@@ -602,6 +603,8 @@ invoicesCrmRouter.get(
           orderBy: [{ updatedAt: "desc" }],
           take: UUID_RE.test(pinId) ? 1 : 200,
         });
+        await foldUnlinkedQuoteInvoices(tx, listedJobs);
+        return listedJobs;
       });
       const data = rows
         .map((r) => {
@@ -758,6 +761,7 @@ invoicesCrmRouter.post(
           data: {
             organizationId: req.organizationId!,
             quoteId: quote.id,
+            workOrderId: quote.workOrderId,
             customerId: quote.customerId,
             invoiceNumber,
             invoiceType: calc.kind,
@@ -1146,7 +1150,7 @@ invoicesCrmRouter.delete(
         if (!inv) return { error: "Fatura não encontrada", status: 404 } as const;
         if (inv.receipts.length) return { error: "Fatura com pagamentos não pode ser apagada.", status: 409 } as const;
         if (inv.status !== "draft" && inv.status !== "void") {
-          return { error: "Fatura já enviada ao cliente — use Anular.", status: 409 } as const;
+          return { error: "Fatura já enviada ao cliente — use Cancel Invoice.", status: 409 } as const;
         }
         await tx.publicAccessToken.updateMany({
           where: { entityType: "invoice", entityId: id, revokedAt: null },

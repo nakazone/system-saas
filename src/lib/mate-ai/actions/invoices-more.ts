@@ -165,14 +165,14 @@ export const voidInvoice: ActionDef = {
     if (r.status === "missing") return { kind: "error", message: r.message, args };
     const inv = r.row;
     const label = inv.invoiceNumber || "Invoice";
-    if (inv.status === "void") return { kind: "error", message: `A ${label} já está anulada.`, args };
-    if (inv.receipts.length) return { kind: "error", message: `A ${label} tem pagamentos. Remova os pagamentos antes de anular.`, args: { ...args, invoice_id: inv.id } };
+    if (inv.status === "void") return { kind: "error", message: `A ${label} já está cancelada.`, args };
+    if (inv.receipts.length) return { kind: "error", message: `A ${label} tem pagamentos. Remova os pagamentos antes de cancelar.`, args: { ...args, invoice_id: inv.id } };
     const reason = str(args.reason, 300);
     return {
       kind: "card",
       args: { ...args, invoice_id: inv.id },
       card: {
-        title: "Anular a " + label,
+        title: "Cancel Invoice " + label,
         subtitle: inv.customer?.name || undefined,
         badge: { text: "Não dá para desfazer", tone: "critical" },
         sections: [
@@ -185,15 +185,15 @@ export const voidInvoice: ActionDef = {
           },
           { type: "note", text: "O link de pagamento para de funcionar e a invoice sai do a receber." },
         ],
-        confirm: { label: "Anular invoice", tone: "money", checkbox: "Anular a " + label, exec: { endpoint: "/api/mate-ai/execute", body: { token: ctx.sign({ invoice_id: inv.id, label, reason }) } } },
+        confirm: { label: "Cancel Invoice", tone: "money", checkbox: "Cancel Invoice " + label, exec: { endpoint: "/api/mate-ai/execute", body: { token: ctx.sign({ invoice_id: inv.id, label, reason }) } } },
         open: invoiceLink(inv.id),
       },
     };
   },
   async execute(ctx, exec) {
     const res = await callInternalApi(ctx.req, "POST", `/api/quote-invoices/${enc(String(exec.invoice_id))}/void`, { reason: exec.reason || null });
-    if (!res.ok) return { ok: false, status: res.status, error: internalError(res, "Não foi possível anular.") };
-    return { ok: true, title: `${exec.label} anulada`, links: [invoiceLink(String(exec.invoice_id))], entity: { type: "invoice", id: String(exec.invoice_id) }, memory: `Voided ${exec.label}` };
+    if (!res.ok) return { ok: false, status: res.status, error: internalError(res, "Não foi possível cancelar.") };
+    return { ok: true, title: `${exec.label} cancelada`, links: [invoiceLink(String(exec.invoice_id))], entity: { type: "invoice", id: String(exec.invoice_id) }, memory: `Canceled ${exec.label}` };
   },
 };
 

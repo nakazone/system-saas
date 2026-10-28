@@ -9,7 +9,7 @@ import { requireCrmAuth, requireCrmPermission, dec } from "../http.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { computeInvoiceMoney, invoiceKindLabel } from "../../lib/invoices/core.js";
 import { createJobInvoice, jobBilling, jobBillingLabel } from "../../lib/invoices/job.js";
-import { ensureQuoteDiscountOnJob } from "../../lib/work-orders/from-quote.js";
+import { ensureQuoteDiscountOnJob, linkQuoteInvoicesToWorkOrder } from "../../lib/work-orders/from-quote.js";
 
 export const jobInvoicesRouter = Router();
 
@@ -36,6 +36,12 @@ jobInvoicesRouter.get(
       const now = new Date();
       const job = await withTenantTransaction(req.organizationId!, async (tx) => {
         await ensureQuoteDiscountOnJob(tx, req.organizationId!, id);
+        const quote = await tx.quote.findFirst({
+          where: { workOrderId: id },
+          select: { id: true },
+          orderBy: { updatedAt: "desc" },
+        });
+        if (quote) await linkQuoteInvoicesToWorkOrder(tx, quote.id, id);
         return tx.workOrder.findFirst({
           where: { id },
           select: {

@@ -2192,13 +2192,17 @@ customersQuotesRouter.put(
         let createdInvoiceIds: string[] = [];
         let createdJobId: string | null = null;
         // Idempotent: create on transition to approved, and backfill if already approved with no invoices/job.
+        // Emitir fatura saves first, then posts the invoice the user chose — don't also insert a full one here.
+        const skipAutoInvoice = body.skip_auto_invoice === true;
         if (normalizeQuoteStatus(updated.status) === "approved") {
-          const { ensureInvoicesOnApprove } = await import("../../lib/payments/engine.js");
-          createdInvoiceIds = await ensureInvoicesOnApprove(tx, {
-            organizationId: req.organizationId!,
-            quoteId: id,
-            actorId: req.user?.id ?? null,
-          });
+          if (!skipAutoInvoice) {
+            const { ensureInvoicesOnApprove } = await import("../../lib/payments/engine.js");
+            createdInvoiceIds = await ensureInvoicesOnApprove(tx, {
+              organizationId: req.organizationId!,
+              quoteId: id,
+              actorId: req.user?.id ?? null,
+            });
+          }
           const { ensureWorkOrderOnApprove } = await import("../../lib/work-orders/from-quote.js");
           const job = await ensureWorkOrderOnApprove(tx, {
             organizationId: req.organizationId!,

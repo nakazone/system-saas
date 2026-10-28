@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="obramate-app.css?v=20261019-logout2" />
   <link rel="stylesheet" href="crm-pdf-viewer.css?v=20261027-pdf1" />
   <link rel="stylesheet" href="invoices-module.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="invoices-v2.css?v=20261012-inv5" />
+  <link rel="stylesheet" href="invoices-v2.css?v=20261027-invui" />
   <link rel="stylesheet" href="om-gestures.css?v=20261013-rl4" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
@@ -116,28 +116,17 @@
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3"/></svg>
               PDF
             </button>
-            <button type="button" class="inv-btn inv-btn--secondary" id="btnSend">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg>
+            <button type="button" class="inv-btn inv-btn--secondary" id="btnEdit">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+              Editar
+            </button>
+            <button type="button" class="inv-btn inv-btn--icon" id="btnDeleteInvoice" aria-label="Excluir" title="Excluir">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>
+            </button>
+            <button type="button" class="inv-btn inv-btn--secondary" id="btnSend" hidden>
               <span id="btnSendLabel">Enviar</span>
             </button>
-            <button type="button" class="inv-btn inv-btn--primary" id="btnReceive">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg>
-              Receber pagamento
-            </button>
-            <div class="inv-more">
-              <button type="button" class="inv-btn inv-btn--icon" id="btnMore" aria-haspopup="menu" aria-expanded="false" aria-label="Mais ações">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
-              </button>
-              <div class="inv-menu" id="moreMenu" role="menu" hidden>
-                <button type="button" role="menuitem" data-act="edit">Editar fatura</button>
-                <button type="button" role="menuitem" data-act="copy-link">Copiar link do cliente</button>
-                <button type="button" role="menuitem" data-act="mark-sent">Marcar como enviada</button>
-                <a role="menuitem" id="menuQuoteLink" href="#">Abrir orçamento</a>
-                <hr />
-                <button type="button" role="menuitem" data-act="void" class="is-danger">Anular fatura</button>
-                <button type="button" role="menuitem" data-act="delete" class="is-danger">Apagar rascunho</button>
-              </div>
-            </div>
+            <button type="button" class="inv-btn inv-btn--primary" id="btnReceive" hidden>Receber pagamento</button>
           </div>
         </header>
 
@@ -240,24 +229,24 @@
         <button type="button" class="inv-x" data-close aria-label="Fechar">×</button>
       </header>
       <div class="inv-modal__body">
-        <div class="inv-seg" role="radiogroup" aria-label="Tipo de pagamento">
-          <label class="inv-seg__opt"><input type="radio" name="payMode" value="full" checked /><span><b>Pagamento integral</b><small>Só quando o valor total já entrou — carimba PAGO</small></span></label>
-          <label class="inv-seg__opt"><input type="radio" name="payMode" value="partial" /><span><b>Pagamento parcial</b><small>Dá baixa só no valor que já recebeu</small></span></label>
-        </div>
-
-        <div class="inv-pay-amount" id="payFullBox">
-          <span>Valor a receber</span>
-          <strong id="payFullAmount">$0.00</strong>
-        </div>
-
-        <div id="payPartialBox" hidden>
-          <label class="inv-field">
-            <span>Valor recebido</span>
-            <div class="inv-money-input"><span>$</span><input type="number" id="payAmount" inputmode="decimal" min="0.01" step="0.01" placeholder="0.00" /></div>
+        <div class="inv-pay-opts" id="payOpts">
+          <label class="inv-pay-opt">
+            <input type="radio" name="payMode" value="partial" />
+            <span class="inv-pay-opt__t">Pagamento parcial<span class="inv-pay-opt__d">Percentual do saldo desta fatura</span></span>
+            <span><input class="inv-pay-opt__inp" type="number" id="payPct" min="1" max="99" step="1" value="50" aria-label="Percentual" /> %</span>
           </label>
-          <div class="inv-quick" id="payQuick"></div>
-          <p class="inv-after" id="payAfter"></p>
+          <label class="inv-pay-opt">
+            <input type="radio" name="payMode" value="amount" />
+            <span class="inv-pay-opt__t">Valor<span class="inv-pay-opt__d">O que já entrou, até o saldo</span></span>
+            <span>$ <input class="inv-pay-opt__inp" type="number" id="payAmount" inputmode="decimal" min="0.01" step="0.01" placeholder="0.00" aria-label="Valor" /></span>
+          </label>
+          <label class="inv-pay-opt">
+            <input type="radio" name="payMode" value="full" checked />
+            <span class="inv-pay-opt__t">Pagamento total<span class="inv-pay-opt__d">Quita o saldo e marca a fatura como paga</span></span>
+            <span class="inv-pay-opt__v" id="payFullAmount">$0.00</span>
+          </label>
         </div>
+        <p class="inv-after" id="payAfter"></p>
 
         <div class="inv-row2">
           <label class="inv-field">
@@ -398,7 +387,7 @@
   <script src="crm-shell.js?v=20261027-m2"></script>
   <script src="om-gestures.js?v=20261013-rl6"></script>
   <script src="crm-pdf-viewer.js?v=20261027-pdf1"></script>
-  <script src="invoice-page.js?v=20261015-jobfix1"></script>
-  <script src="invoices-page.js?v=20261027-m2"></script>
+  <script src="invoice-page.js?v=20261027-invui"></script>
+  <script src="invoices-page.js?v=20261027-invui"></script>
 </body>
 </html>

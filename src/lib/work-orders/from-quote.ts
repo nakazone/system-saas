@@ -355,6 +355,7 @@ export async function ensureWorkOrderOnApprove(
     const existing = await tx.workOrder.findFirst({ where: { id: quote.workOrderId } });
     if (existing) {
       await syncLinkedJobFromQuote(tx, params);
+      await linkQuoteInvoicesToWorkOrder(tx, quote.id, existing.id);
       const fresh = await tx.workOrder.findFirst({
         where: { id: existing.id },
         select: { id: true, number: true },
@@ -431,5 +432,14 @@ export async function ensureWorkOrderOnApprove(
     },
   });
 
+  await linkQuoteInvoicesToWorkOrder(tx, quote.id, wo.id);
   return { id: wo.id, number: wo.number, created: true };
+}
+
+/** Quote approval invoices the quote before the job exists. Attach those invoices to the job so Faturar does not issue a second one. */
+export async function linkQuoteInvoicesToWorkOrder(tx: TenantPrisma, quoteId: string, workOrderId: string) {
+  await tx.quoteInvoice.updateMany({
+    where: { quoteId, workOrderId: null },
+    data: { workOrderId },
+  });
 }

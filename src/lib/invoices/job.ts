@@ -293,20 +293,31 @@ export async function createJobInvoice(tx: TenantPrisma, input: CreateJobInvoice
     },
   });
   if (!job) return { ok: false, status: 404, error: "Job não encontrado" };
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.workOrderId}))`;
   if (job.status === "canceled") return { ok: false, status: 409, error: "Job cancelado não pode ser faturado." };
   if (!job.customerId && !job.builderId) {
     return { ok: false, status: 422, error: "Escolha o cliente ou o builder do job antes de faturar." };
   }
 
-  const { ensureQuoteDiscountOnJob } = await import("../work-orders/from-quote.js");
+  const { ensureQuoteDiscountOnJob, linkQuoteInvoicesToWorkOrder } = await import("../work-orders/from-quote.js");
   await ensureQuoteDiscountOnJob(tx, input.organizationId, job.id);
+  const linkedQuote = await tx.quote.findFirst({
+    where: { workOrderId: job.id },
+    select: { id: true },
+    orderBy: { updatedAt: "desc" },
+  });
+  if (linkedQuote) await linkQuoteInvoicesToWorkOrder(tx, linkedQuote.id, job.id);
   const freshLines = await tx.workOrderLineItem.findMany({
     where: { workOrderId: job.id },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
   });
   job.lineItems = freshLines;
   const servicesTotal = job.lineItems.reduce((s, li) => s + Number(li.lineTotal), 0);
-  const before = jobBilling(servicesTotal, job.invoices);
+  const already = await tx.quoteInvoice.findMany({
+    where: { workOrderId: job.id, status: { not: "void" } },
+    select: { amount: true, status: true, receipts: { select: { amount: true } } },
+  });
+  const before = jobBilling(servicesTotal, already);
   const calc = computeNewInvoiceAmount({
     kind: input.kind,
     quoteTotal: servicesTotal,
@@ -383,7 +394,7 @@ export async function createJobInvoice(tx: TenantPrisma, input: CreateJobInvoice
 
   // Do not auto-complete the job — deposits often precede field start. Use "Marcar concluído".
 
-  const billing = jobBilling(servicesTotal, [...job.invoices, { amount: calc.amount, status: "sent", receipts: [] }]);
+  const billing = jobBilling(servicesTotal, [...already, { amount: calc.amount, status: "sent", receipts: [] }]);
   return {
     ok: true,
     invoice: {
@@ -396,6 +407,41 @@ export async function createJobInvoice(tx: TenantPrisma, input: CreateJobInvoice
     },
     billing,
   };
+}
+
+/** Quote invoices created before the job existed still have workOrderId null. Count them with the job. */
+export async function foldUnlinkedQuoteInvoices<T extends { id: string; invoices?: BillingInvoice[] | null }>(
+  tx: TenantPrisma,
+  rows: T[],
+): Promise<void> {
+  const ids = rows.filter((row) => row.invoices).map((row) => row.id);
+  if (!ids.length) return;
+  const extra = await tx.quoteInvoice.findMany({
+    where: {
+      workOrderId: null,
+      status: { not: "void" },
+      quote: { workOrderId: { in: ids } },
+    },
+    select: {
+      amount: true,
+      status: true,
+      quote: { select: { workOrderId: true } },
+      receipts: { select: { amount: true } },
+    },
+  });
+  const byJob = new Map<string, BillingInvoice[]>();
+  for (const inv of extra) {
+    const jobId = inv.quote?.workOrderId;
+    if (!jobId) continue;
+    const list = byJob.get(jobId) || [];
+    list.push({ amount: inv.amount, status: inv.status, receipts: inv.receipts });
+    byJob.set(jobId, list);
+  }
+  for (const row of rows) {
+    const more = byJob.get(row.id);
+    if (!more?.length || !row.invoices) continue;
+    row.invoices.push(...more);
+  }
 }
 
 /** Sum of non-void invoices for a job. */
