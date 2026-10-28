@@ -11,6 +11,8 @@
   let canInvoice = false;
   let filter = "all";
   let source = "";
+  /** Empty means every status except Pago. */
+  let statusFilter = "";
   let sortDir = "newest";
   let q = "";
   let selId = null;
@@ -79,12 +81,16 @@
     ["canceled", "Cancelados"],
   ];
 
+  function isPaidJob(wo) {
+    return Boolean(wo && wo.billing && wo.billing.billing_status === "paid");
+  }
+
   function matchesFilter(wo, f) {
     const J = I();
     const bk = bucket(wo);
     switch (f) {
       case "all":
-        return wo.status !== "canceled";
+        return wo.status !== "canceled" && !isPaidJob(wo);
       case "nodate":
         return J.isActive(wo) && !wo.scheduled_start;
       case "scheduled":
@@ -98,7 +104,7 @@
       case "receivable":
         return !!(wo.billing && wo.billing.open_balance > 0.004);
       case "done":
-        return wo.status === "completed";
+        return wo.status === "completed" && !isPaidJob(wo);
       default:
         return true;
     }
@@ -168,7 +174,8 @@
       T.push(["receivable", "A receber", re.length, re.length ? J.money0(sum(re, (w) => w.billing.open_balance)) : "nada em aberto", ""]);
     }
     const dn = n("done");
-    T.push(["done", "Concluídos", dn.length, dn.length ? (() => { const k = dn.filter((w) => w.billing?.billing_status === "paid").length; return `${k} pago${k === 1 ? "" : "s"}`; })() : "—", ""]);
+    const paidN = all.filter((w) => isPaidJob(w)).length;
+    T.push(["done", "Concluídos", dn.length, paidN ? `${paidN} pago${paidN === 1 ? "" : "s"} oculto${paidN === 1 ? "" : "s"}` : "—", ""]);
     const host = $("jxTiles");
     host.style.setProperty("--jx-tiles", T.length);
     host.innerHTML = T.map(
@@ -252,15 +259,24 @@
     }
   }
 
+  function statusMatches(wo) {
+    if (!statusFilter) return !isPaidJob(wo);
+    return I().stageLabel(wo) === statusFilter;
+  }
+
   function visibleRows() {
     const serverSearch = q.length >= 2 && q === fetchedQuery;
-    const rows = serverSearch
-      ? all.filter((w) => w.status !== "canceled")
-      : all.filter((w) => matchesFilter(w, filter) && searchHit(w));
+    const rows = statusFilter
+      ? all.filter((w) => I().stageLabel(w) === statusFilter && searchHit(w))
+      : serverSearch
+        ? all.filter((w) => w.status !== "canceled" && !isPaidJob(w) && searchHit(w))
+        : all.filter((w) => matchesFilter(w, filter) && searchHit(w));
     const pin = q ? selId : selId || focusId;
     if (pin && !rows.some((w) => String(w.id) === String(pin))) {
       const pinned = all.find((w) => String(w.id) === String(pin));
-      if (pinned && (String(pin) === String(selId) || pinned.status !== "canceled")) return [pinned, ...rows];
+      const open = String(pin) === String(selId);
+      if (pinned && open) return [pinned, ...rows];
+      if (pinned && pinned.status !== "canceled" && statusMatches(pinned) && searchHit(pinned)) return [pinned, ...rows];
     }
     return rows;
   }
@@ -1119,9 +1135,19 @@
     const seq = ++loadSeq;
     if (firstLoad) {
       const qs = new URLSearchParams(location.search);
-      const bmap = { to_invoice: "toinvoice", awaiting_payment: "receivable", paid: "done" };
-      if (qs.get("billing") && bmap[qs.get("billing")]) filter = bmap[qs.get("billing")];
+      const bmap = { to_invoice: "toinvoice", awaiting_payment: "receivable" };
+      if (qs.get("billing") === "paid") statusFilter = "Pago";
+      else if (qs.get("billing") && bmap[qs.get("billing")]) filter = bmap[qs.get("billing")];
       if (qs.get("filter")) filter = qs.get("filter");
+      if (qs.get("status") && $("jxStatus")) {
+        const wanted = qs.get("status");
+        const known = [...$("jxStatus").options].some((o) => o.value === wanted);
+        if (known) statusFilter = wanted;
+      }
+      if ($("jxStatus") && statusFilter) {
+        $("jxStatus").value = statusFilter;
+        $("jxStatusWrap")?.classList.toggle("is-on", true);
+      }
       if (qs.get("sort") === "oldest") sortDir = "oldest";
       if (qs.get("id")) {
         selId = qs.get("id");
@@ -1252,6 +1278,16 @@
       e.target._t = setTimeout(() => {
         load().catch((err) => notify(err.message, "error"));
       }, 250);
+    });
+    $("jxStatus")?.addEventListener("change", (e) => {
+      statusFilter = e.target.value || "";
+      e.target.closest(".jx-sel")?.classList.toggle("is-on", !!statusFilter);
+      const params = new URLSearchParams(location.search);
+      if (statusFilter) params.set("status", statusFilter);
+      else params.delete("status");
+      const qs = params.toString();
+      history.replaceState(null, "", qs ? `${location.pathname}?${qs}` : location.pathname);
+      render();
     });
     $("jxSource").addEventListener("change", (e) => {
       source = e.target.value === "contractor" ? "builder" : e.target.value;

@@ -14,6 +14,8 @@
   let isField = false;
   let mobQ = "";
   let fetchedMobQuery = "";
+  /** Empty hides paid jobs. */
+  let mobStatus = "";
   /** Job opened from a quote. Stays at the top even when the default tab is today. */
   let focusId = null;
   let loadSeq = 0;
@@ -110,6 +112,10 @@
     return wo.status === "scheduled" || wo.status === "in_progress" || wo.status === "draft";
   }
 
+  function isPaidJob(wo) {
+    return Boolean(wo && wo.billing && wo.billing.billing_status === "paid");
+  }
+
   function teamLabel(wo) {
     const parts = [];
     if (wo.crew?.name) parts.push(wo.crew.name);
@@ -148,21 +154,26 @@
           const text = window.JobsInfo?.searchText?.(wo) || "";
           return text.includes(needle) || (needle.length >= 5 && text.includes(needle.slice(1)));
         });
-    if (needle.length >= 2) return matched.filter((wo) => wo.status !== "canceled").sort(byCreatedDesc);
+    if (needle.length >= 2 && !mobStatus) {
+      return matched.filter((wo) => wo.status !== "canceled" && !isPaidJob(wo)).sort(byCreatedDesc);
+    }
     let out;
-    if (tab === "today") {
+    if (mobStatus) {
+      out = matched.filter((wo) => window.JobsInfo?.stageLabel?.(wo) === mobStatus);
+    } else if (tab === "today") {
       out = matched.filter(
         (wo) =>
-          isToday(wo.scheduled_start) && wo.status !== "canceled" && wo.status !== "completed",
+          isToday(wo.scheduled_start) && wo.status !== "canceled" && wo.status !== "completed" && !isPaidJob(wo),
       );
-    } else if (tab === "active") out = matched.filter((wo) => isActive(wo) && wo.status !== "canceled");
-    else if (tab === "bill") out = matched.filter(toBill);
-    else if (tab === "done") out = matched.filter((wo) => wo.status === "completed");
-    else out = matched.slice();
+    } else if (tab === "active") out = matched.filter((wo) => isActive(wo) && wo.status !== "canceled" && !isPaidJob(wo));
+    else if (tab === "bill") out = matched.filter((wo) => toBill(wo) && !isPaidJob(wo));
+    else if (tab === "done") out = matched.filter((wo) => wo.status === "completed" && !isPaidJob(wo));
+    else out = matched.filter((wo) => !isPaidJob(wo));
     out.sort((a, b) => (window.JobsInfo?.compareNearest ? window.JobsInfo.compareNearest(a, b) : 0));
     if (focusId) {
       const pinned = rows.find((wo) => String(wo.id) === String(focusId) && wo.status !== "canceled");
-      if (pinned) out = [pinned, ...out.filter((wo) => String(wo.id) !== String(pinned.id))];
+      const allowed = pinned && (mobStatus ? window.JobsInfo?.stageLabel?.(pinned) === mobStatus : !isPaidJob(pinned));
+      if (allowed) out = [pinned, ...out.filter((wo) => String(wo.id) !== String(pinned.id))];
     }
     return out;
   }
@@ -294,7 +305,7 @@
       (wo) => isToday(wo.scheduled_start) && wo.status !== "canceled" && wo.status !== "completed",
     ).length;
     const activeN = base.filter((wo) => isActive(wo) && wo.status !== "canceled").length;
-    const doneN = base.filter((wo) => wo.status === "completed").length;
+    const doneN = base.filter((wo) => wo.status === "completed" && !isPaidJob(wo)).length;
     const activeRows = base.filter((wo) => isActive(wo) && wo.status !== "canceled");
     const billN = base.filter(toBill).length;
     if (!tabChosen && tab === "today" && todayN === 0 && activeN > 0) tab = "active";
@@ -463,6 +474,11 @@
   }
 
   function bind() {
+    $("jxStatusMob")?.addEventListener("change", (e) => {
+      mobStatus = e.target.value || "";
+      e.target.closest(".jx-sel")?.classList.toggle("is-on", !!mobStatus);
+      render();
+    });
     document.querySelectorAll("[data-jobs-tab]").forEach((btn) => {
       btn.addEventListener("click", () => {
         tab = btn.getAttribute("data-jobs-tab") || "today";

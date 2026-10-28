@@ -27,7 +27,7 @@
   <link rel="stylesheet" href="om-gestures.css?v=20261027-jobsui" />
   <link rel="stylesheet" href="jobs-board.css?v=20261028-sectors" />
   <link rel="stylesheet" href="partner-requests-shortcut.css?v=20261023-1" />
-  <link rel="stylesheet" href="jobs-mobile-v2.css?v=20261028-sectors" />
+  <link rel="stylesheet" href="jobs-mobile-v2.css?v=20261028-status" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="om-device.js?v=20261013-badge1"></script>
   <script src="crm-field-gate.js?v=20261014-perfil1"></script>
@@ -102,6 +102,22 @@
         <label class="jcm-search"><input type="search" id="jobsMobQ" placeholder="Builder, endereço, quote ou cliente" autocomplete="off" enterkeyhint="search" /></label>
         <a class="jcm-partner-requests" href="partner-requests-admin.html" data-crm-permission="work_orders.manage">Revisar pedidos de parceiros →</a>
         <div class="jmx-sum" id="jobsMobSum"></div>
+        <div class="jmx-filters">
+          <label class="jx-sel" id="jxStatusWrapMob"><span>Status</span>
+            <select id="jxStatusMob" aria-label="Status">
+              <option value="">Todos</option>
+              <option value="Rascunho">Rascunho</option>
+              <option value="Sem data">Sem data</option>
+              <option value="Agendado">Agendado</option>
+              <option value="Em campo">Em campo</option>
+              <option value="Lixa">Lixa</option>
+              <option value="Concluído">Concluído</option>
+              <option value="Faturado">Faturado</option>
+              <option value="Pago">Pago</option>
+              <option value="Cancelado">Cancelado</option>
+            </select>
+          </label>
+        </div>
         <div class="jcm-seg jmx-pills" role="tablist">
           <button type="button" class="jcm-seg__btn is-active" data-jobs-tab="today">Hoje <em>0</em></button>
           <button type="button" class="jcm-seg__btn" data-jobs-tab="active">Ativos <em>0</em></button>
@@ -132,6 +148,20 @@
                 <div class="jx-cal" id="jxCal" hidden aria-label="Semana"></div>
               </div>
               <div class="jx-list__bar">
+                <label class="jx-sel" id="jxStatusWrap"><span>Status</span>
+                  <select id="jxStatus" aria-label="Status">
+                    <option value="">Todos</option>
+                    <option value="Rascunho">Rascunho</option>
+                    <option value="Sem data">Sem data</option>
+                    <option value="Agendado">Agendado</option>
+                    <option value="Em campo">Em campo</option>
+                    <option value="Lixa">Lixa</option>
+                    <option value="Concluído">Concluído</option>
+                    <option value="Faturado">Faturado</option>
+                    <option value="Pago">Pago</option>
+                    <option value="Cancelado">Cancelado</option>
+                  </select>
+                </label>
                 <label class="jx-sel" id="jxSourceWrap"><span>Origem</span>
                   <select id="jxSource" aria-label="Origem">
                     <option value="">Todas</option>
@@ -165,7 +195,7 @@
   <script src="crm-confirm.js?v=20261028-sectors"></script>
   <script src="job-chat-comms.js?v=20260929-obranames1"></script>
   <script src="jobs-info.js?v=20261028-sectors"></script>
-  <script src="jobs-page.js?v=20261028-sectors"></script>
-  <script src="jobs-mobile.js?v=20261028-sectors"></script>
+  <script src="jobs-page.js?v=20261028-status"></script>
+  <script src="jobs-mobile.js?v=20261028-status"></script>
 </body>
 </html>

@@ -371,7 +371,8 @@
     }
     list.innerHTML = show
       .map((j) => {
-        const when = D.timeOf(j.start, overview);
+        const clock = D.timeOf(j.start, overview);
+        const when = clock === "00:00" ? "All Day" : clock;
         const sub = [j.person, j.address].filter(Boolean).join(" · ");
         return `<li class="omd-row omd-ev">
           <span class="omd-ev__time"><strong>${esc(when)}</strong><span>${day.date === todayKey ? "hoje" : esc(String(day.date).slice(5).replace("-", "/"))}</span></span>

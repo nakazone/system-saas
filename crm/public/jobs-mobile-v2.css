@@ -40,7 +40,9 @@ body.om-device-mobile.jobs-app.jcm-field .jcm-sub { display: block; font-size: 1
 .jmx-sum b.is-hot { color: #B4561A; }
 
 /* pílulas de filtro — ritmo Leads */
-body.om-device-mobile .jcm-seg.jmx-pills { background: none; padding: 0 16px; margin: 12px -16px 4px; gap: 6px; scrollbar-width: none; }
+.jmx-filters { padding: 0 16px 4px; }
+.jmx-filters .jx-sel { max-width: 100%; }
+body.om-device-mobile .jcm-seg.jmx-pills { background: none; padding: 0 16px; margin: 8px -16px 4px; gap: 6px; scrollbar-width: none; }
 .jcm-seg.jmx-pills::-webkit-scrollbar { display: none; }
 .jmx-pills .jcm-seg__btn {
   flex: none; height: 32px; padding: 0 12px; border-radius: 999px; background: #fff; box-shadow: 0 0 0 1px #E5E7EB;
