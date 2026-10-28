@@ -91,9 +91,18 @@ export function resolveLeadCalendarOriginLabel(lead) {
   return '';
 }
 
+function readableLeadSource(source) {
+  const src = String(source || '').trim();
+  if (!src || src.length > 40) return '';
+  if (src.includes('_') || /^lp[-_]/i.test(src)) return '';
+  return src;
+}
+
 export function buildLeadVisitSummary(lead) {
   const name = (lead?.name ? String(lead.name) : 'Lead').trim() || 'Lead';
-  const origin = resolveLeadCalendarOriginLabel(lead);
+  const origin = resolveLeadCalendarOriginLabel(lead) || readableLeadSource(lead?.source);
+  const clientId = String(lead?.client_id || lead?.client_ref || '').trim();
+  if (clientId) return `${name} - ${clientId}`;
   return origin ? `${name} - ${origin}` : name;
 }
 

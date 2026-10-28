@@ -10,6 +10,7 @@ import {
   buildLeadVisitIcs,
   buildMeetingCalendarDescription,
   buildMeetingCalendarSummary,
+  clientIdFromLeadRecord,
 } from "../../lib/schedule/lead-visit-ics.js";
 import { buildSingleEventIcs, meetingStatusToIcs } from "../../lib/schedule/ics.js";
 import { verifyIcsAccessToken } from "../../lib/schedule/signed-ics-token.js";
@@ -89,7 +90,7 @@ scheduleIcsPublicRouter.get("/meeting/:token.ics", async (req, res, next) => {
     const row = await prisma.meeting.findFirst({
       where: { id: verified.entityId, organizationId: verified.organizationId },
       include: {
-        lead: { select: { id: true, name: true, phone: true, email: true, notes: true, metadata: true } },
+        lead: { select: { id: true, name: true, phone: true, email: true, notes: true, source: true, metadata: true } },
       },
     });
     if (!row) {
@@ -106,6 +107,7 @@ scheduleIcsPublicRouter.get("/meeting/:token.ics", async (req, res, next) => {
           phone: formatUsPhone(row.lead.phone),
           email: row.lead.email,
           notes: row.lead.notes,
+          source: row.lead.source,
           address: metaStr(leadMeta, "address"),
           address_line1: metaStr(leadMeta, "address_line1") || metaStr(leadMeta, "address"),
           address_line2: metaStr(leadMeta, "address_line2"),
@@ -125,6 +127,8 @@ scheduleIcsPublicRouter.get("/meeting/:token.ics", async (req, res, next) => {
       title: row.title,
       leadName: row.lead?.name,
       isVisit: Boolean(row.leadId),
+      lead: leadForCal,
+      clientId: clientIdFromLeadRecord(row.lead),
     });
     const description = buildMeetingCalendarDescription({
       notes: row.notes,

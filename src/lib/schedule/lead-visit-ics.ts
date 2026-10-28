@@ -27,6 +27,7 @@ export type LeadVisitCalendarLead = {
   landing_page?: string | null;
   gclid?: string | null;
   fbclid?: string | null;
+  client_id?: string | null;
 };
 
 /** Snap using the process clock (prefer snapToNextHalfHourInZone on the server). */
@@ -131,8 +132,8 @@ export function resolveLeadCalendarOriginLabel(lead: LeadVisitCalendarLead | nul
 
 export function buildLeadVisitSummary(lead: LeadVisitCalendarLead | null | undefined): string {
   const name = (lead?.name ? String(lead.name) : "Lead").trim() || "Lead";
-  const origin = resolveLeadCalendarOriginLabel(lead);
-  return origin ? `${name} - ${origin}` : name;
+  const origin = resolveLeadCalendarOriginLabel(lead) || readableLeadSource(lead?.source);
+  return personCalendarTitle(name, { clientId: lead?.client_id, origin });
 }
 
 export function buildLeadVisitLocation(lead: LeadVisitCalendarLead | null | undefined): string {
@@ -196,16 +197,87 @@ export type MeetingCalendarLead = {
   landing_page?: string | null;
   gclid?: string | null;
   fbclid?: string | null;
+  client_id?: string | null;
 };
+
+/** Human origin typed on the lead (Indicação, Website). Skip slugs and landing paths. */
+export function readableLeadSource(source: string | null | undefined): string {
+  const src = String(source || "").trim();
+  if (!src || src.length > 40) return "";
+  if (src.includes("_") || /^lp[-_]/i.test(src)) return "";
+  return src;
+}
+
+/**
+ * Calendar name for a particular client.
+ * Client ID wins over origin. ASCII hyphen so calendar apps don't show "?".
+ */
+export function personCalendarTitle(
+  name: string | null | undefined,
+  opts?: { clientId?: string | null; origin?: string | null },
+): string {
+  const base = String(name || "").trim() || "Cliente";
+  const clientId = String(opts?.clientId || "").trim();
+  if (clientId) return `${base} - ${clientId}`;
+  const origin = String(opts?.origin || "").trim();
+  if (origin && origin.toLowerCase() !== base.toLowerCase()) return `${base} - ${origin}`;
+  return base;
+}
+
+function leadMeta(metadata: unknown): Record<string, unknown> {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return {};
+  return metadata as Record<string, unknown>;
+}
+
+function metaText(meta: Record<string, unknown>, key: string): string | null {
+  const v = meta[key];
+  return v != null && String(v).trim() ? String(v).trim() : null;
+}
+
+/** Google / Meta when we can tell, otherwise the origin typed on the lead. */
+export function originFromLeadRecord(
+  lead: { source?: string | null; metadata?: unknown } | null | undefined,
+): string {
+  if (!lead) return "";
+  const meta = leadMeta(lead.metadata);
+  const origin = resolveLeadCalendarOriginLabel({
+    source: lead.source,
+    form_type: metaText(meta, "form_type"),
+    marketing_platform: metaText(meta, "marketing_platform"),
+    utm_source: metaText(meta, "utm_source"),
+    utm_medium: metaText(meta, "utm_medium"),
+    landing_page: metaText(meta, "landing_page"),
+    gclid: metaText(meta, "gclid"),
+    fbclid: metaText(meta, "fbclid"),
+  });
+  return origin || readableLeadSource(lead.source);
+}
+
+/** Client ID stored on the lead, when someone filled it. The job's own ID is preferred by callers. */
+export function clientIdFromLeadRecord(lead: { metadata?: unknown } | null | undefined): string {
+  const meta = leadMeta(lead?.metadata);
+  for (const key of ["client_ref", "client_id", "job_name"]) {
+    const v = metaText(meta, key);
+    if (v) return v.slice(0, 120);
+  }
+  return "";
+}
 
 /** Title safe for Apple Calendar (ASCII hyphen, not em dash). */
 export function buildMeetingCalendarSummary(opts: {
   title?: string | null;
   leadName?: string | null;
   isVisit?: boolean;
+  lead?: MeetingCalendarLead | null;
+  clientId?: string | null;
 }): string {
-  const leadName = String(opts.leadName || "").trim();
-  if (opts.isVisit && leadName) return `Visita - ${leadName}`;
+  const leadName = String(opts.leadName || opts.lead?.name || "").trim();
+  if (opts.isVisit && leadName) {
+    const origin =
+      resolveLeadCalendarOriginLabel(opts.lead) || readableLeadSource(opts.lead?.source);
+    const clientId = String(opts.clientId || opts.lead?.client_id || "").trim();
+    return personCalendarTitle(leadName, { clientId, origin });
+  }
   const raw = String(opts.title || "").trim() || (opts.isVisit ? "Visita" : "Compromisso");
   return raw
     .replace(/\u2014|\u2013/g, "-")

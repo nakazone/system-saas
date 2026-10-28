@@ -58,9 +58,18 @@
     return '';
   }
 
+  function readableLeadSource(source) {
+    var src = String(source || '').trim();
+    if (!src || src.length > 40) return '';
+    if (src.indexOf('_') !== -1 || /^lp[-_]/i.test(src)) return '';
+    return src;
+  }
+
   function buildLeadVisitSummary(lead) {
     var name = (lead && lead.name ? String(lead.name) : 'Lead').trim() || 'Lead';
-    var origin = resolveLeadCalendarOriginLabel(lead);
+    var origin = resolveLeadCalendarOriginLabel(lead) || readableLeadSource(lead && lead.source);
+    var clientId = String((lead && (lead.client_id || lead.client_ref)) || '').trim();
+    if (clientId) return name + ' - ' + clientId;
     return origin ? name + ' - ' + origin : name;
   }
 

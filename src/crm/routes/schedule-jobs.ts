@@ -32,7 +32,11 @@ import { buildSingleEventIcs, meetingStatusToIcs } from "../../lib/schedule/ics.
 import {
   buildMeetingCalendarDescription,
   buildMeetingCalendarSummary,
+  clientIdFromLeadRecord,
+  originFromLeadRecord,
+  personCalendarTitle,
 } from "../../lib/schedule/lead-visit-ics.js";
+import { jobCalendarTitle, visitBlockEnd } from "../../lib/schedule/calendar-label.js";
 
 const WO_SECTORS = ["installation", "sand_finish", "both"] as const;
 
@@ -581,7 +585,7 @@ function teamUserIdsFromWorkOrder(wo: {
 const mtgInclude = {
   customer: { select: { id: true, name: true, clientCode: true } },
   assignedUser: { select: { id: true, name: true } },
-  lead: { select: { id: true, name: true, phone: true, email: true, notes: true, metadata: true } },
+  lead: { select: { id: true, name: true, phone: true, email: true, notes: true, source: true, metadata: true } },
 } as const;
 
 /** Keep the lead's visit (Lead.metadata.visits) in step when its meeting changes on the agenda. */
@@ -1769,7 +1773,7 @@ scheduleJobsRouter.get(
           ...fieldMeetingScope(req.user),
         },
         include: {
-          lead: { select: { id: true, name: true, phone: true, email: true, notes: true, metadata: true } },
+          lead: { select: { id: true, name: true, phone: true, email: true, notes: true, source: true, metadata: true } },
         },
       });
       if (!row) {
@@ -1797,6 +1801,7 @@ scheduleJobsRouter.get(
             phone: formatUsPhone(row.lead.phone),
             email: row.lead.email,
             notes: row.lead.notes,
+            source: row.lead.source,
             address: metaStr("address"),
             address_line1: metaStr("address_line1") || metaStr("address"),
             address_line2: metaStr("address_line2"),
@@ -1816,6 +1821,8 @@ scheduleJobsRouter.get(
         title: row.title,
         leadName: row.lead?.name,
         isVisit: Boolean(row.leadId),
+        lead: leadForCal,
+        clientId: clientIdFromLeadRecord(row.lead),
       });
       const description = buildMeetingCalendarDescription({
         notes: row.notes,
@@ -1872,7 +1879,8 @@ scheduleJobsRouter.post(
       }
       const d = parsed.data;
       const start = new Date(d.scheduled_start);
-      const end = new Date(d.scheduled_end);
+      let end = new Date(d.scheduled_end);
+      if (d.lead_id) end = visitBlockEnd(start, Boolean(d.all_day));
       if (end.getTime() <= start.getTime()) {
         res.status(400).json({ success: false, error: "O fim precisa ser depois do início" });
         return;
@@ -1929,7 +1937,12 @@ scheduleJobsRouter.put(
       }
       const d = parsed.data;
       const start = d.scheduled_start ? new Date(d.scheduled_start) : existing.scheduledStart;
-      const end = d.scheduled_end ? new Date(d.scheduled_end) : existing.scheduledEnd;
+      let end = d.scheduled_end ? new Date(d.scheduled_end) : existing.scheduledEnd;
+      const isVisit = Boolean(d.lead_id !== undefined ? d.lead_id : existing.leadId);
+      const allDay = d.all_day !== undefined ? Boolean(d.all_day) : Boolean(existing.allDay);
+      const touchesTime =
+        d.scheduled_start !== undefined || d.scheduled_end !== undefined || d.all_day !== undefined;
+      if (isVisit && touchesTime) end = visitBlockEnd(start, allDay);
       if (end.getTime() <= start.getTime()) {
         res.status(400).json({ success: false, error: "O fim precisa ser depois do início" });
         return;
@@ -1939,8 +1952,8 @@ scheduleJobsRouter.put(
         data: {
           ...(d.title !== undefined ? { title: d.title.trim() } : {}),
           ...(d.status !== undefined ? { status: d.status } : {}),
-          ...(d.scheduled_start !== undefined ? { scheduledStart: start } : {}),
-          ...(d.scheduled_end !== undefined ? { scheduledEnd: end } : {}),
+          ...(d.scheduled_start !== undefined || (isVisit && touchesTime) ? { scheduledStart: start } : {}),
+          ...(d.scheduled_end !== undefined || (isVisit && touchesTime) ? { scheduledEnd: end } : {}),
           ...(d.all_day !== undefined ? { allDay: Boolean(d.all_day) } : {}),
           ...(d.location !== undefined ? { location: d.location?.trim() || null } : {}),
           ...(d.notes !== undefined ? { notes: d.notes?.trim() || null } : {}),
@@ -2052,6 +2065,20 @@ scheduleJobsRouter.get(
 
       const sched = parseScheduleSettings(org?.scheduleSettings);
       const visitCalId = resolveVisitCalendarId(sched);
+      const quoteLeadIds = [
+        ...new Set(
+          workOrders.flatMap((wo) =>
+            (wo.quotes || []).map((q) => q.leadId).filter((id): id is string => Boolean(id)),
+          ),
+        ),
+      ];
+      const originLeads = quoteLeadIds.length
+        ? await prisma.lead.findMany({
+            where: { organizationId: req.organizationId!, id: { in: quoteLeadIds } },
+            select: { id: true, source: true, metadata: true },
+          })
+        : [];
+      const originByLead = new Map(originLeads.map((lead) => [lead.id, lead]));
       const jobEvents = workOrders.flatMap((wo) => {
         const slots: Array<{ at: Date; sand: boolean }> = [];
         if (wo.scheduledStart) slots.push({ at: wo.scheduledStart, sand: false });
@@ -2060,11 +2087,35 @@ scheduleJobsRouter.get(
           const sector = sand ? "sand_finish" : wo.sector === "both" ? "installation" : wo.sector;
           const jobCal = resolveJobCalendar(sched, sector);
           const endIso = new Date(at.getTime() + 24 * 60 * 60 * 1000).toISOString();
-          const label = sand ? "Sand & Finish" : wo.sector === "both" ? "Installation" : "";
+          const sectorLabel = sand ? "Sand & Finish" : wo.sector === "both" ? "Installation" : "";
+          const quote = wo.quotes?.[0];
+          const lead = quote?.leadId ? originByLead.get(quote.leadId) : undefined;
+          const clientRef =
+            (wo.clientRef && String(wo.clientRef).trim()) ||
+            quoteNoteOf(quote?.payload) ||
+            clientIdFromLeadRecord(lead) ||
+            null;
+          const base = jobCalendarTitle({
+            sourceType: wo.sourceType,
+            builderId: wo.builderId,
+            title: wo.title,
+            address: wo.address,
+            clientRef,
+            sourceName: wo.sourceName,
+            customerName: wo.customer?.name,
+            nickname: wo.builder?.nickname,
+            company: wo.builder?.company,
+            builderName: wo.builder
+              ? [wo.builder.firstName, wo.builder.lastName].filter(Boolean).join(" ").trim()
+              : null,
+            origin: originFromLeadRecord(lead),
+          });
+          const calendarName = sectorLabel ? `${base} · ${sectorLabel}` : base;
           return {
             id: sand ? `${wo.id}:sand` : wo.id,
             type: "job" as const,
-            title: label ? `${wo.title} · ${label}` : wo.title,
+            title: wo.title,
+            label: calendarName,
             status: wo.status,
             start: at.toISOString(),
             end: endIso,
@@ -2082,6 +2133,13 @@ scheduleJobsRouter.get(
           // A meeting booked from a lead is a site visit.
           type: (m.leadId ? "visit" : "meeting") as "visit" | "meeting",
           title: m.leadId && m.lead ? m.lead.name : m.title,
+          label:
+            m.leadId && m.lead
+              ? personCalendarTitle(m.lead.name, {
+                  origin: originFromLeadRecord(m.lead),
+                  clientId: clientIdFromLeadRecord(m.lead),
+                })
+              : m.title,
           status: m.status,
           start: m.scheduledStart.toISOString(),
           end: m.scheduledEnd.toISOString(),

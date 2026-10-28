@@ -338,6 +338,7 @@
       type,
       calendar,
       title: raw.title || typeInfo(type).one,
+      label: raw.label || '',
       status: raw.status,
       start,
       end,
@@ -468,6 +469,8 @@
   const showClock = (e) => e.type !== 'job' && !e.allDay;
   const clockHtml = (e) => (showClock(e) ? `<time>${esc(fmtTime(e.start))}</time>` : '');
   function ticketTitle(e) {
+    const label = String((e && e.label) || '').trim();
+    if (label) return label;
     const b = (e.meta && e.meta.builder) || {};
     const nick = String(b.nickname || '').trim();
     const company = String(b.company || '').trim();
@@ -1148,7 +1151,7 @@
             .join('')}<div class="ag-blk ag-dtl__slot" style="${evStyle(e)};top:${
             miniPad +
             ((e.start - new Date(e.start.getFullYear(), e.start.getMonth(), e.start.getDate(), startH)) / 3600e3) * miniRow
-          }px;height:${Math.max(18, Math.min(3, (e.end - e.start) / 3600e3) * miniRow - 2)}px"><b>${esc(e.title)}</b>${
+          }px;height:${Math.max(18, Math.min(3, (e.end - e.start) / 3600e3) * miniRow - 2)}px"><b>${esc(ticketTitle(e))}</b>${
             e.address ? `<small>${esc(e.address)}</small>` : ''
           }</div></div>`
         : '';
@@ -1571,12 +1574,15 @@
           if (!date || !st) throw new Error('Informe data e horário.');
           const start = parseLocalDateTime(date, st);
           if (!start) throw new Error('Data inválida.');
-          let end = en
-            ? parseLocalDateTime(date, en)
-            : new Date(start.getTime() + (type === 'visit' ? 3600e3 : Math.max(3600e3, ev.end - ev.start)));
+          let end = type === 'visit'
+            ? new Date(start.getTime() + 3600e3)
+            : en
+              ? parseLocalDateTime(date, en)
+              : new Date(start.getTime() + Math.max(3600e3, ev.end - ev.start));
           if (!end || !(end > start)) end = new Date(start.getTime() + 3600e3);
           body.scheduled_start = start.toISOString();
           body.scheduled_end = end.toISOString();
+          if (type === 'visit') body.all_day = false;
         }
         await api('/api/meetings/' + encodeURIComponent(id), { method: 'PUT', body });
       }
@@ -1610,7 +1616,7 @@
        <div class="ag-sheet__body"><div class="ag-card" style="padding:6px">${list
          .map(
            (e) =>
-             `<button type="button" class="ag-li" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i></i><time>${esc(e.allDay ? 'dia inteiro' : fmtTime(e.start))}</time><div><b>${esc(e.title)}</b><small>${esc(typeInfo(e.type).one)}</small></div></button>`
+             `<button type="button" class="ag-li" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i></i><time>${esc(e.allDay ? 'dia inteiro' : fmtTime(e.start))}</time><div><b>${esc(ticketTitle(e))}</b><small>${esc(typeInfo(e.type).one)}</small></div></button>`
          )
          .join('')}</div></div>`
     );
@@ -1620,7 +1626,7 @@
     if (!e || (e.type !== 'meeting' && e.type !== 'visit')) return null;
     return {
       id: e.id,
-      title: e.title,
+      title: ticketTitle(e),
       scheduled_start: e.start && e.start.toISOString ? e.start.toISOString() : null,
       scheduled_end: e.end && e.end.toISOString ? e.end.toISOString() : null,
       location: e.address || (e.meta && e.meta.location) || '',
@@ -1986,7 +1992,7 @@
           <label class="ag-form__row"><span>Data</span><input type="date" name="date" required value="${ymd(s)}" /></label>
           <label class="ag-form__check"><input type="checkbox" name="all_day" value="1" id="agAllDay" ${isAllDay ? 'checked' : ''}/><span>Dia inteiro</span></label>
           <label class="ag-form__row ag-form__row--col ag-form__time" data-ag-time><span>Início</span>${timeWheelHtml('start', hm(s), { disabled: isAllDay })}</label>
-          ${isVisit && !ev ? '' : `<label class="ag-form__row ag-form__row--col ag-form__time" data-ag-time><span>Fim</span>${timeWheelHtml('end', hm(e), { disabled: isAllDay })}</label>`}
+          ${isVisit ? '' : `<label class="ag-form__row ag-form__row--col ag-form__time" data-ag-time><span>Fim</span>${timeWheelHtml('end', hm(e), { disabled: isAllDay })}</label>`}
         </div>
         <div class="ag-card ag-form__grp">
           <label class="ag-form__row ag-form__row--col"><span>Local</span><input name="location" data-ag-address autocomplete="off" placeholder="Endereço" value="${esc(ev ? ev.address : '')}" /></label>
@@ -2005,7 +2011,7 @@
           ${ev ? `<label class="ag-form__row"><span>Status</span><select name="status">${Object.keys(MTG_STATUS).filter((k) => k !== 'canceled').map((k) => `<option value="${k}" ${k === ev.status ? 'selected' : ''}>${MTG_STATUS[k]}</option>`).join('')}</select></label>` : ''}
         </div>
         <div class="ag-card ag-form__grp"><textarea name="notes" rows="4" placeholder="Notas">${esc(ev ? m.notes || '' : '')}</textarea></div>
-        ${isVisit && !ev ? `<p class="ag-hint">Sem “Dia inteiro”, a visita dura 1 hora. O lead vai para a etapa Visita agendada.</p>` : ''}
+        ${isVisit ? `<p class="ag-hint">Sem “Dia inteiro”, a visita ocupa 1 hora a partir do horário escolhido.${ev ? '' : ' O lead vai para a etapa Visita agendada.'}</p>` : ''}
       </form>`,
       'ag-sheet__card--form'
     );
@@ -2209,9 +2215,9 @@
       if (!st) throw new Error('Informe data e horário.');
       start = parseLocalDateTime(date, st);
       if (!start) throw new Error('Data inválida.');
-      end = fd.get('end') ? parseLocalDateTime(date, fd.get('end')) : new Date(start.getTime() + 3600e3);
+      end = kind === 'visit' ? new Date(start.getTime() + 3600e3) : fd.get('end') ? parseLocalDateTime(date, fd.get('end')) : new Date(start.getTime() + 3600e3);
       if (!end || Number.isNaN(end.getTime())) end = new Date(start.getTime() + 3600e3);
-      if (end <= start) end = new Date(end.getTime() + DAY);
+      if (kind !== 'visit' && end <= start) end = new Date(end.getTime() + DAY);
     }
     const location = String(fd.get('location') || '').trim() || null;
     const notes = String(fd.get('notes') || '').trim() || null;
@@ -2268,9 +2274,7 @@
             title:
               (data && data.title) ||
               (kind === 'visit'
-                ? data && data.lead_name
-                  ? `Visita - ${data.lead_name}`
-                  : 'Visita'
+                ? (data && (data.title || data.lead_name)) || 'Visita'
                 : 'Compromisso'),
             scheduled_start: (data && data.scheduled_start) || start.toISOString(),
             scheduled_end: (data && data.scheduled_end) || end.toISOString(),
@@ -2286,7 +2290,7 @@
   async function cancelEvent(e) {
     const what = e.type === 'job' ? 'o job' : e.type === 'visit' ? 'a visita' : 'o compromisso';
     openSheet(
-      `<div class="ag-confirm"><h2>Cancelar ${what}?</h2><p>${esc(e.title)} · ${esc(whenText(e).date)}</p><p class="ag-hint">${
+      `<div class="ag-confirm"><h2>Cancelar ${what}?</h2><p>${esc(ticketTitle(e))} · ${esc(whenText(e).date)}</p><p class="ag-hint">${
         e.type === 'job' ? 'O job sai da agenda (jobs com fatura não podem ser cancelados).' : 'Sai da agenda.' + (e.type === 'visit' ? ' A visita fica como cancelada no lead.' : '')
       }</p><div class="ag-confirm__acts"><button type="button" class="ag-btn" data-ag-close>Voltar</button><button type="button" class="ag-btn ag-btn--danger" data-ag-del-ok="${esc(e.id)}">Cancelar ${what}</button></div></div>`,
       'ag-sheet__card--confirm'
@@ -2312,7 +2316,7 @@
     const hits = pool
       .filter((e) => {
         const m = e.meta;
-        return [e.title, e.address, m.notes, m.customer && m.customer.name, m.lead && m.lead.name, m.lead && m.lead.phone, m.customer && m.customer.phone, m.source_name, m.number && '#' + m.number]
+        return [e.label, e.title, e.address, m.notes, m.customer && m.customer.name, m.lead && m.lead.name, m.lead && m.lead.phone, m.customer && m.customer.phone, m.source_name, m.client_ref, m.builder && m.builder.nickname, m.number && '#' + m.number]
           .filter(Boolean)
           .join(' ')
           .toLowerCase()
@@ -2363,7 +2367,7 @@
     if (sameDay(e.start, day)) return;
     const what = e.type === 'job' ? 'o job' : e.type === 'visit' ? 'a visita' : 'o compromisso';
     openSheet(
-      `<div class="ag-confirm"><h2>Mover ${what}?</h2><p>${esc(e.title)}</p><p class="ag-hint">De ${esc(whenText(e).date)} para <b>${esc(fmtDateShort(day))}</b>. O horário do evento se mantém.</p><div class="ag-confirm__acts"><button type="button" class="ag-btn" data-ag-close>Cancelar</button><button type="button" class="ag-btn ag-btn--pri" data-ag-move-ok="${esc(e.id)}" data-ag-move-day="${esc(ymd(day))}">Confirmar</button></div></div>`,
+      `<div class="ag-confirm"><h2>Mover ${what}?</h2><p>${esc(ticketTitle(e))}</p><p class="ag-hint">De ${esc(whenText(e).date)} para <b>${esc(fmtDateShort(day))}</b>. ${e.type === 'visit' && !e.allDay ? 'O horário se mantém e a visita fica com 1 hora.' : 'O horário do evento se mantém.'}</p><div class="ag-confirm__acts"><button type="button" class="ag-btn" data-ag-close>Cancelar</button><button type="button" class="ag-btn ag-btn--pri" data-ag-move-ok="${esc(e.id)}" data-ag-move-day="${esc(ymd(day))}">Confirmar</button></div></div>`,
       'ag-sheet__card--confirm',
     );
   }
@@ -2372,7 +2376,7 @@
   async function moveEventToDay(e, day) {
     if (!e || !day || !S.canManage) return;
     if (sameDay(e.start, day)) return;
-    const ms = Math.max(15 * 60e3, (e.end && e.start ? e.end - e.start : 3600e3) || 3600e3);
+    const ms = e.type === 'visit' && !e.allDay ? 3600e3 : Math.max(15 * 60e3, (e.end && e.start ? e.end - e.start : 3600e3) || 3600e3);
     const start = e.type === 'job'
       ? new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, 0, 0, 0)
       : new Date(day.getFullYear(), day.getMonth(), day.getDate(), e.start.getHours(), e.start.getMinutes(), 0, 0);

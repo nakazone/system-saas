@@ -183,6 +183,12 @@
     renderPrimary();
     $("btnOpenSchedule").href = job.scheduled_start ? `schedule.html?focus=${encodeURIComponent(job.scheduled_start)}&event=${encodeURIComponent(job.id)}` : "schedule.html";
     $("jdOpenCampo").href = `/campo/ticket.html?id=${encodeURIComponent(job.id)}`;
+    const call = $("jdCall");
+    const tel = job.customer?.phone ? String(job.customer.phone).replace(/[^\d+]/g, "") : "";
+    if (call) {
+      call.hidden = !tel;
+      if (tel) call.href = `tel:${tel}`;
+    }
     const map = $("jdOpenMap");
     map.hidden = !job.address;
     if (job.address) map.href = mapsUrl();
@@ -193,31 +199,19 @@
   /** One obvious next step, depending on where the job is. */
   function primaryAction() {
     if (job.status === "canceled") return null;
-    const b = billing?.billing;
-    // Ops first so late / off-schedule jobs keep Iniciar & Concluir visible.
+    const undated = !job.scheduled_start && !(job.sector === "both" && job.sand_scheduled_start);
     if (canManage) {
+      if (undated) return { label: "Schedule Job", act: "edit" };
       if (!job.line_items?.length) return { label: "Adicionar serviços", act: "services" };
       if (job.status === "draft" || job.status === "scheduled") return { label: "Iniciar job", act: "start" };
       if (job.status === "in_progress") return { label: "Concluir job", act: "complete" };
     }
-    if (canInvoice && b) {
-      if (b.remaining_to_invoice > 0.004) {
-        return {
-          label: `${b.invoiced_total > 0 ? "Faturar saldo" : "Faturar job"} ${money0(b.remaining_to_invoice)}`,
-          act: "invoice",
-        };
-      }
-      if (b.open_balance > 0.004) {
-        const list = billing.data || [];
-        const open = list.find((i) => i.display_status !== "draft" && i.remaining_amount > 0.004) || list.find((i) => i.remaining_amount > 0.004);
-        if (open) return { label: open.display_status === "draft" ? "Enviar fatura" : "Receber pagamento", href: open.url };
-      }
-    }
-    if (canManage && !job.scheduled_start && job.status !== "completed") return { label: "Agendar", act: "schedule" };
     return null;
   }
   function renderPrimary() {
     const a = primaryAction();
+    const editBtn = $("btnEditJobAll");
+    if (editBtn) editBtn.hidden = a?.act === "edit";
     const box = $("jdPrimary");
     if (!a) {
       box.innerHTML = "";
@@ -237,6 +231,7 @@
       } catch (_) {}
       return window.JobBilling.openDialog({ jobId, billing: billing?.billing, jobStatus: job.status });
     }
+    if (act === "edit") return openSection("all");
     if (act === "services") return openSection("services");
     if (act === "schedule") return openSection("schedule");
     if (act === "start") return setStatus("in_progress", "Job iniciado.");
@@ -360,9 +355,10 @@
       .filter(Boolean)
       .join(" · ");
     const n = (job.line_items || []).length;
+    const complete = window.JobsInfo?.completeLabel?.(job) || "";
     $("jdFacts").innerHTML = `
       <div><small>Cliente</small><b>${esc(clientName())}</b><span>${contact || esc(job.builder?.name || "Sem contato")}</span></div>
-      <div><small>Start</small><b>${esc(w.main)}</b><span>${esc(w.sub)}</span></div>
+      <div><small>Start</small><b>${esc(w.main)}</b><span>${esc([w.sub, complete ? `Complete: ${complete}` : ""].filter(Boolean).join(" · "))}</span></div>
       <div><small>Equipe</small><b>${esc(job.assigned_user?.name || "Sem responsável")}</b><span>${esc(teamSub || (job.assigned_user ? "Responsável" : ""))}</span></div>
       <div><small>Preços</small><b>Tabela · ${esc(SOURCE[job.source_type] || "—")}</b><span>${n ? `${n} serviço${n > 1 ? "s" : ""} · ${money(job.services_total)}` : "Sem serviços"}</span></div>`;
   }
@@ -503,12 +499,7 @@
           : ""
       }
       ${(() => {
-        const invoiceBtn =
-          canInvoice && b.remaining_to_invoice > 0.004 && job.status !== "canceled"
-            ? `<button type="button" class="jd-btn jd-btn--pri jd-btn--block" data-primary="invoice">${
-                b.invoiced_total > 0 ? "Faturar saldo" : "Faturar job"
-              } ${money0(b.remaining_to_invoice)}</button>`
-            : "";
+        const invoiceBtn = "";
         const completeBtn =
           canManage && job.status !== "completed" && job.status !== "canceled"
             ? `<button type="button" class="jd-btn jd-btn--block" data-primary="complete">Marcar como concluído</button>`

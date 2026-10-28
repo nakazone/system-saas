@@ -59,7 +59,10 @@
   align-items: stretch;
   z-index: 0;
   min-width: 148px;
+  visibility: hidden;
 }
+.om-swipe.is-swiping .om-swipe__actions,
+.om-swipe.om-swipe--open .om-swipe__actions { visibility: visible; }
 .om-swipe__actions button,
 .om-swipe__actions a {
   flex: 1 1 74px;

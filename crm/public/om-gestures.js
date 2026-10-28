@@ -311,10 +311,19 @@
         const dy = e.clientY - startY;
         lastX = e.clientX;
         if (!axis) {
-          if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-          axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+          if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+          if (Math.abs(dy) >= Math.abs(dx) || Math.abs(dx) < 18) {
+            if (Math.abs(dy) > Math.abs(dx)) axis = "y";
+            else return;
+          } else axis = "x";
         }
-        if (axis !== "x") return;
+        if (axis !== "x") {
+          const body = bodyOf(active);
+          if (body) body.style.transform = "";
+          active.classList.remove("is-swiping");
+          return;
+        }
+        active.classList.add("is-swiping");
         dragging = true;
         skipClick = true;
         const base = active.classList.contains(openClass) ? OPEN_X : 0;
@@ -333,7 +342,9 @@
       const body = bodyOf(row);
       active = null;
       if (body) body.style.transition = "";
+      row.classList.remove("is-swiping");
       if (!dragging || axis !== "x") {
+        if (body && !row.classList.contains(openClass)) body.style.transform = "";
         dragging = false;
         axis = null;
         return;

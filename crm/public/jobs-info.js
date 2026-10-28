@@ -45,18 +45,7 @@
       if (base.toLowerCase().includes(ref.toLowerCase())) return base;
       return `${base} - ${ref}`;
     }
-    if (wo.customer) {
-      return (
-        wo.customer.display_name ||
-        displayName(wo.customer.name, wo.customer.client_code) ||
-        wo.builder?.company ||
-        wo.builder?.name ||
-        lead ||
-        wo.source_name ||
-        "Sem cliente"
-      );
-    }
-    return wo.builder?.company || wo.builder?.name || lead || wo.source_name || "Sem cliente";
+    return base || "Sem cliente";
   }
 
   function builderName(wo) {
@@ -211,6 +200,36 @@
     return main;
   }
 
+  function startMs(wo) {
+    const iso = wo.scheduled_start || (wo.sector === "both" ? wo.sand_scheduled_start : null);
+    if (!iso) return null;
+    const t = new Date(iso).getTime();
+    return Number.isNaN(t) ? null : t;
+  }
+
+  /** Upcoming dates first (closest first), then past dates, undated last. */
+  function compareNearest(a, b, now) {
+    const t = now || Date.now();
+    const ta = startMs(a);
+    const tb = startMs(b);
+    if (ta == null && tb == null) return 0;
+    if (ta == null) return 1;
+    if (tb == null) return -1;
+    const cut = t - DAY / 2;
+    const aUp = ta >= cut;
+    const bUp = tb >= cut;
+    if (aUp && bUp) return ta - tb;
+    if (aUp) return -1;
+    if (bUp) return 1;
+    return tb - ta;
+  }
+
+  function completeLabel(wo) {
+    if (!wo || wo.status !== "completed") return "Ainda não concluído";
+    const day = dayShort(wo.updated_at || wo.scheduled_end || wo.scheduled_start);
+    return day || "Concluído";
+  }
+
   function dayShort(iso) {
     if (!iso) return "";
     const d = new Date(iso);
@@ -242,6 +261,6 @@
 
   window.JobsInfo = {
     esc, money, money0, client, builderName, findLine, searchText, displayName, isActive, late, step, STEP_NAMES, STATUS_BY_STEP, STATUS_STEP_MSG,
-    statusForStep, atStatus, stageLabel, progHtml, bill, dateRange, dayShort, isToday, initials, team,
+    statusForStep, atStatus, stageLabel, progHtml, bill, dateRange, dayShort, completeLabel, compareNearest, startMs, isToday, initials, team,
   };
 })();

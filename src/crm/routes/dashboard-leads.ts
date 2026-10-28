@@ -13,7 +13,7 @@ import { formatPersonName } from "../../lib/name.js";
 import { safeTimeZone, startOfZonedDay, startOfZonedMonth } from "../../lib/time/zoned.js";
 import { signIcsAccessToken } from "../../lib/schedule/signed-ics-token.js";
 import { publicBaseUrl } from "../../lib/http/public-url.js";
-import { buildLeadVisitIcs } from "../../lib/schedule/lead-visit-ics.js";
+import { buildLeadVisitIcs, originFromLeadRecord, personCalendarTitle, clientIdFromLeadRecord } from "../../lib/schedule/lead-visit-ics.js";
 import {
   isCouponApplyStage,
   parseLeadMessageSettings,
@@ -866,11 +866,15 @@ dashboardLeadsRouter.post("/api/visits", requireCrmPermission("leads.edit"), asy
       }
 
       let meetingId: string | null = null;
+      const visitTitle = personCalendarTitle(existing.name, {
+        origin: originFromLeadRecord(existing),
+        clientId: clientIdFromLeadRecord(existing),
+      });
       if (start && end && !Number.isNaN(start.getTime())) {
         const meeting = await tx.meeting.create({
           data: {
             organizationId: req.organizationId!,
-            title: `Visita - ${existing.name}`,
+            title: visitTitle,
             leadId: existing.id,
             status: "scheduled",
             scheduledStart: start,
@@ -888,6 +892,7 @@ dashboardLeadsRouter.post("/api/visits", requireCrmPermission("leads.edit"), asy
         id: randomUUID(),
         lead_id: leadId,
         lead_name: existing.name,
+        title: visitTitle,
         scheduled_at: start && !Number.isNaN(start.getTime()) ? start.toISOString() : scheduledRaw || null,
         address: addr,
         address_line1: body.address_line1 != null ? String(body.address_line1) : null,
@@ -998,7 +1003,10 @@ dashboardLeadsRouter.put("/api/visits/:id", requireCrmPermission("leads.edit"), 
               await tx.meeting.update({
                 where: { id: meetingId },
                 data: {
-                  title: `Visita - ${lead.name}`,
+                  title: personCalendarTitle(lead.name, {
+                    origin: originFromLeadRecord(lead),
+                    clientId: clientIdFromLeadRecord(lead),
+                  }),
                   leadId: lead.id,
                   scheduledStart: start,
                   scheduledEnd: end,
@@ -1017,7 +1025,10 @@ dashboardLeadsRouter.put("/api/visits/:id", requireCrmPermission("leads.edit"), 
             const meeting = await tx.meeting.create({
               data: {
                 organizationId: req.organizationId!,
-                title: `Visita - ${lead.name}`,
+                title: personCalendarTitle(lead.name, {
+                  origin: originFromLeadRecord(lead),
+                  clientId: clientIdFromLeadRecord(lead),
+                }),
                 leadId: lead.id,
                 status: "scheduled",
                 scheduledStart: start,

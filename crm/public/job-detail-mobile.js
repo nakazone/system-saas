@@ -454,7 +454,11 @@
         .join("");
     }
     const when = $("jobMobWhen");
-    if (when) when.textContent = wo.scheduled_start ? `${J ? J.dateRange(wo) : fmtDay(wo.scheduled_start)} · ${fmtTimeRange(wo.scheduled_start, wo.scheduled_end)}` : "Sem data";
+    if (when) {
+      const startTxt = wo.scheduled_start ? `${J ? J.dateRange(wo) : fmtDay(wo.scheduled_start)}` : "Sem data";
+      const complete = J?.completeLabel?.(wo);
+      when.textContent = complete ? `${startTxt} · Complete: ${complete}` : startTxt;
+    }
     const b = wo.billing;
     const mw = $("jobMobMoneyWrap");
     if (mw) {
@@ -468,7 +472,7 @@
       }
     }
     const billQ = $("jobMobBillQuick");
-    if (billQ) billQ.hidden = !canBill;
+    if (billQ) billQ.hidden = true;
     const svcSum = $("jobMobSvcSum");
     if (svcSum) {
       const n = (wo.line_items || []).length;
@@ -684,7 +688,12 @@
       sec.dataset.action = "";
     }
     // Ops before billing so off-schedule jobs can still be started / marked done.
-    if (canManage && (wo.status === "draft" || wo.status === "scheduled")) {
+    const undated = !wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start);
+    if (canManage && undated) {
+      cta.textContent = "Schedule Job";
+      cta.className = "jcm-foot__btn jcm-foot__btn--primary";
+      cta.dataset.action = "edit";
+    } else if (canManage && (wo.status === "draft" || wo.status === "scheduled")) {
       cta.textContent = "Iniciar job";
       cta.className = "jcm-foot__btn jcm-foot__btn--primary";
       cta.dataset.action = "start";
@@ -698,10 +707,10 @@
       cta.textContent = "Concluir job";
       cta.className = "jcm-foot__btn jcm-foot__btn--primary";
       cta.dataset.action = "complete";
-    } else if (canInvoice && wo.billing && wo.billing.remaining_to_invoice > 0.004 && window.JobBilling) {
-      cta.textContent = `Faturar ${moneyFmt(wo.billing.remaining_to_invoice)}`;
-      cta.className = "jcm-foot__btn jcm-foot__btn--primary";
-      cta.dataset.action = "invoice";
+    } else if (canManage && wo.status === "completed") {
+      cta.textContent = "Editar";
+      cta.className = "jcm-foot__btn jcm-foot__btn--ghost";
+      cta.dataset.action = "edit";
     } else if (wo.status === "completed") {
       cta.textContent = "Ver na agenda";
       cta.className = "jcm-foot__btn jcm-foot__btn--ghost";
@@ -821,6 +830,10 @@
           if (window.JobChatComms) {
             await window.JobChatComms.openJobChannel(jobId);
           }
+          return;
+        }
+        if (action === "edit") {
+          if (window.__crmJobModal?.openEdit) window.__crmJobModal.openEdit(jobId);
           return;
         }
         if (action === "invoice") {

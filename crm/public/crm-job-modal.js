@@ -10,7 +10,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261014-allday";
+  const CSS_HREF = "crm-job-modal.css?v=20261027-jobsui";
   const QPE_CSS = "quote-services-popup.css?v=20261012-qp3";
   const QPE_JS = "quote-services-popup.js?v=20261023-sig1";
   const PAPER_CSS = "quote-paper.css?v=20261027-om1";
@@ -657,10 +657,6 @@
         <section class="jm-sec" data-job-section="schedule">
           <h3 class="jm-sec__t"><span class="jm-n">2</span>Start</h3>
           <div class="jm-when">
-            <label class="jm-field" id="jmDateLabel">Data de início<input type="date" id="jmDate" class="jm-in" /></label>
-            <label class="jm-field" id="jmSandWrap" hidden>Início Sand & Finish<input type="date" id="jmSandDate" class="jm-in" /></label>
-          </div>
-          <div class="jm-when" style="margin-top:10px">
             <label class="jm-field">Setor
               <select id="jmSector" class="jm-in">
                 <option value="">Escolher</option>
@@ -669,11 +665,13 @@
                 <option value="both">Installation + Sand & Finish</option>
               </select>
             </label>
-            <label class="jm-field" id="jmRelatedWrap" hidden>Job de Installation
-              <select id="jmRelated" class="jm-in"><option value="">—</option></select>
-            </label>
           </div>
-          <p class="jm-hint">Jobs são sempre o dia inteiro, sem horário. Installation + Sand & Finish pede duas datas de início.</p>
+          <div class="jm-when" style="margin-top:10px">
+            <label class="jm-field" id="jmDateLabel">Data de início<input type="date" id="jmDate" class="jm-in" /></label>
+            <label class="jm-field" id="jmSandWrap" hidden>Início Sand & Finish<input type="date" id="jmSandDate" class="jm-in" /></label>
+          </div>
+          <p class="jm-hint" id="jmCompleteInfo"></p>
+          <p class="jm-hint">Jobs são sempre o dia inteiro, sem horário. Só Installation + Sand & Finish pede duas datas.</p>
         </section>
 
         <section class="jm-sec" data-job-section="services">
@@ -913,26 +911,17 @@
     st.allDay = true;
     const sec = $("jmSector");
     if (sec) sec.value = st.sector || "";
-    const wrap = $("jmRelatedWrap");
-    const rel = $("jmRelated");
-    if (wrap && rel) {
-      const show = st.sector === "sand_finish";
-      wrap.hidden = !show;
-      if (show) {
-        const opts = st.installOptions || [];
-        const cur = st.relatedWorkOrderId || "";
-        const hasCur = cur && opts.some((o) => String(o.id) === String(cur));
-        const curLabel =
-          st.relatedWorkOrder &&
-          `#${st.relatedWorkOrder.number != null ? st.relatedWorkOrder.number : "—"} · ${st.relatedWorkOrder.title}`;
-        rel.innerHTML =
-          `<option value="">—</option>` +
-          (!hasCur && cur
-            ? `<option value="${esc(cur)}" selected>${esc(curLabel || "Job ligado")}</option>`
-            : "") +
-          opts
-            .map((o) => `<option value="${esc(o.id)}" ${String(o.id) === String(cur) ? "selected" : ""}>${esc(o.label)}</option>`)
-            .join("");
+    const done = $("jmCompleteInfo");
+    if (done) {
+      if (st.status === "completed") {
+        const when = st.updatedAt ? new Date(st.updatedAt) : null;
+        const label =
+          when && !Number.isNaN(when.getTime())
+            ? when.toLocaleDateString("pt-BR", { day: "numeric", month: "short", year: "numeric" })
+            : "concluído";
+        done.textContent = `Complete: ${label}`;
+      } else {
+        done.textContent = "Complete: ainda não concluído";
       }
     }
   }
@@ -1931,6 +1920,7 @@
     st.address = wo.address || "";
     st.addressTouched = true;
     st.clientRef = wo.client_ref || "";
+    st.updatedAt = wo.updated_at || "";
     const s = wo.scheduled_start ? new Date(wo.scheduled_start) : null;
     st.allDay = true;
     if (s) st.date = ymd(s);
@@ -2024,7 +2014,6 @@
       all_day: Boolean(start),
       status: st.id ? st.status : start ? "scheduled" : "draft",
       sector: st.sector || null,
-      related_work_order_id: st.sector === "sand_finish" ? st.relatedWorkOrderId || null : null,
     };
     if (checklistEnabled) {
       body.campo_checklist = st.checklist
@@ -2038,7 +2027,7 @@
     if (st.section === "all") return full;
     const pick = {
       details: ["title", "source_type", "source_name", "customer_id", "builder_id", "address", "status"],
-      schedule: ["scheduled_start", "scheduled_end", "sand_scheduled_start", "all_day", "sector", "related_work_order_id"],
+      schedule: ["scheduled_start", "scheduled_end", "sand_scheduled_start", "all_day", "sector"],
       services: ["line_items"],
       team: ["assigned_user_id", "member_user_ids"],
       campo: checklistEnabled
@@ -2612,13 +2601,10 @@
       }
       case "jmSector":
         st.sector = t.value === "installation" || t.value === "sand_finish" || t.value === "both" ? t.value : null;
-        if (st.sector !== "sand_finish") st.relatedWorkOrderId = null;
         if (st.sector !== "both") st.sandDate = "";
-        ensureInstallOptions().then(() => {
-          renderWhen();
-          renderSide();
-          renderFoot();
-        });
+        renderWhen();
+        renderSide();
+        renderFoot();
         return;
       case "jmRelated":
         st.relatedWorkOrderId = t.value || null;

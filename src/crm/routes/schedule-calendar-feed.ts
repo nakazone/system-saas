@@ -12,6 +12,12 @@ import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { publicBaseUrl } from "../../lib/http/public-url.js";
 import { issuePublicAccessToken, lookupPublicAccessToken } from "../../lib/quotes/public-token.js";
 import { buildScheduleIcsCalendar, type ScheduleIcsEvent } from "../../lib/schedule/ics.js";
+import { jobCalendarTitle } from "../../lib/schedule/calendar-label.js";
+import {
+  clientIdFromLeadRecord,
+  originFromLeadRecord,
+  personCalendarTitle,
+} from "../../lib/schedule/lead-visit-ics.js";
 import {
   parseScheduleSettings,
   resolveJobCalendar,
@@ -30,17 +36,10 @@ const FEED_PAST_DAYS = 30;
 const FEED_FUTURE_DAYS = 180;
 const CAL_ID_RE = /^(jobs|visits|meetings|[0-9a-f-]{36})$/i;
 
-/** Calendar label: "Colorado Floor Company" → "CFC" when the builder has a nickname. */
-function withBuilderNickname(
-  title: string,
-  builder?: { company?: string | null; nickname?: string | null } | null,
-): string {
-  const nick = String(builder?.nickname || "").trim();
-  const company = String(builder?.company || "").trim();
-  const text = String(title || "").trim();
-  if (!nick || !company || !text) return text;
-  const re = new RegExp(company.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
-  return re.test(text) ? text.replace(re, nick) : text;
+function quoteClientRef(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+  const note = String((payload as Record<string, unknown>).job_name || "").trim();
+  return note || null;
 }
 
 function canManageFeed(req: AuthedRequest): boolean {
@@ -273,7 +272,17 @@ async function loadFeedEvents(
         title: true,
         number: true,
         address: true,
-        builder: { select: { company: true, nickname: true } },
+        sourceType: true,
+        sourceName: true,
+        clientRef: true,
+        builderId: true,
+        builder: { select: { company: true, nickname: true, firstName: true, lastName: true } },
+        customer: { select: { name: true } },
+        quotes: {
+          select: { leadId: true, payload: true },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
         notes: true,
         status: true,
         sector: true,
@@ -300,7 +309,7 @@ async function loadFeedEvents(
         scheduledEnd: true,
         leadId: true,
         calendarId: true,
-        lead: { select: { name: true } },
+        lead: { select: { name: true, source: true, metadata: true } },
       },
       orderBy: { scheduledStart: "asc" },
       take: 2000,
@@ -309,6 +318,20 @@ async function loadFeedEvents(
 
   const settings = parseScheduleSettings(org?.scheduleSettings);
   const orgName = org?.name || "ObraMate";
+  const quoteLeadIds = [
+    ...new Set(
+      workOrders.flatMap((wo) =>
+        (wo.quotes || []).map((q) => q.leadId).filter((id): id is string => Boolean(id)),
+      ),
+    ),
+  ];
+  const originLeads = quoteLeadIds.length
+    ? await prisma.lead.findMany({
+        where: { organizationId, id: { in: quoteLeadIds } },
+        select: { id: true, source: true, metadata: true },
+      })
+    : [];
+  const originByLead = new Map(originLeads.map((lead) => [lead.id, lead]));
   const filterCal = calendarId
     ? settings.calendars.find((c) => c.id === calendarId) || null
     : null;
@@ -326,13 +349,32 @@ async function loadFeedEvents(
       if (filterCal && resolveJobCalendar(settings, wo.sector).id !== filterCal.id) continue;
       const start = wo.scheduledStart;
       const end = wo.scheduledEnd || new Date(start.getTime() + 60 * 60 * 1000);
+      const quote = wo.quotes?.[0];
+      const lead = quote?.leadId ? originByLead.get(quote.leadId) : undefined;
+      const clientRef =
+        (wo.clientRef && String(wo.clientRef).trim()) || quoteClientRef(quote?.payload) || clientIdFromLeadRecord(lead) || null;
+      const summary = jobCalendarTitle({
+        sourceType: wo.sourceType,
+        builderId: wo.builderId,
+        title: wo.title,
+        address: wo.address,
+        clientRef,
+        sourceName: wo.sourceName,
+        customerName: wo.customer?.name,
+        nickname: wo.builder?.nickname,
+        company: wo.builder?.company,
+        builderName: wo.builder
+          ? [wo.builder.firstName, wo.builder.lastName].filter(Boolean).join(" ").trim()
+          : null,
+        origin: originFromLeadRecord(lead),
+      });
       const descParts = [
         wo.status ? `Status: ${wo.status}` : "",
         wo.notes ? String(wo.notes).slice(0, 800) : "",
       ].filter(Boolean);
       events.push({
         uid: `job-${wo.id}@obramate.com`,
-        summary: withBuilderNickname(wo.title, wo.builder),
+        summary,
         location: wo.address || null,
         description: descParts.join("\n") || undefined,
         start,
@@ -347,7 +389,13 @@ async function loadFeedEvents(
     for (const m of meetings) {
       if (filterCal && !meetingBelongsToCalendar(settings, filterCal, m)) continue;
       const isVisit = Boolean(m.leadId);
-      const title = isVisit && m.lead?.name ? `Visita: ${m.lead.name}` : m.title;
+      const title =
+        isVisit && m.lead?.name
+          ? personCalendarTitle(m.lead.name, {
+              origin: originFromLeadRecord(m.lead),
+              clientId: clientIdFromLeadRecord(m.lead),
+            })
+          : m.title;
       const descParts = [
         isVisit ? "Tipo: visita" : "Tipo: reunião",
         m.status ? `Status: ${m.status}` : "",

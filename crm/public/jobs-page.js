@@ -119,8 +119,14 @@
   }
 
   function sortRows(rows) {
-    const t = (wo) => new Date(wo.created_at || 0).getTime();
-    return rows.sort((a, b) => (sortDir === "oldest" ? t(a) - t(b) : t(b) - t(a)));
+    return rows.sort((a, b) => I().compareNearest(a, b));
+  }
+  function weekRank(sundayYmd) {
+    const today = weekSunday(new Date()).getTime();
+    const [yy, mm, dd] = sundayYmd.split("-").map(Number);
+    const diff = new Date(yy, mm - 1, dd).getTime() - today;
+    if (diff >= 0) return diff;
+    return 1e15 + Math.abs(diff);
   }
 
   // ---------------------------------------------------------------- top
@@ -189,31 +195,29 @@
   }
   function rowHtml(wo) {
     const J = I();
-    const lt = J.late(wo);
     const undated = !wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start);
-    const when = undated ? "Sem data" : wo.status === "completed" ? `concluído ${J.dayShort(wo.scheduled_end || wo.scheduled_start)}` : J.dateRange(wo);
+    const when = undated ? "Sem data" : J.dateRange(wo);
     const who = J.client(wo);
     const head = who && who !== "Sem cliente" ? who : wo.title || "Job";
-    const sub = lt ? `<em class="is-hot">${J.esc(lt.label)}</em>` : `<em class="${undated ? "is-hot" : ""}">${J.esc(when)}</em>`;
     const href = `job-detail.html?id=${encodeURIComponent(wo.id)}`;
     const startBtn = undated && canManage ? `<button type="button" class="jx-start" data-jx-start="${J.esc(wo.id)}">Schedule Job</button>` : "";
-    const showBill = canFaturar(wo);
     const showDel = canManage && wo.status !== "canceled";
-    const body = `<div class="jx-rowwrap${undated ? " is-nodate" : ""}">
-    <a class="jx-row${String(wo.id) === String(selId) ? " is-on" : ""}${undated ? " is-nodate" : ""}" href="${href}" data-jx-id="${J.esc(wo.id)}">
+    const addr = wo.address ? `<span class="jx-row__addr">${SVG.pin}<span>${J.esc(wo.address)}</span></span>` : "";
+    const body = `<div class="jx-rowwrap">
+    <a class="jx-row${String(wo.id) === String(selId) ? " is-on" : ""}" href="${href}" data-jx-id="${J.esc(wo.id)}">
       <span class="jx-row__b">
-        <span class="jx-row__l1"><b>${J.esc(head)}</b><em>${canBill || canManage ? J.money0(wo.services_total) : ""}</em></span>
-        <span class="jx-row__l2"><span>${J.esc(J.findLine(wo))}</span>${sub}</span>
-        ${undated ? `<span class="jx-nodate">Sem data${wo.quote_number ? ` · veio do quote ${J.esc(wo.quote_number)}` : ""}</span>` : ""}
-        <span class="jx-row__l3">${J.progHtml(wo)}<small>${J.esc(J.stageLabel(wo))}</small></span>
+        <span class="jx-row__l1"><b>${J.esc(head)}</b></span>
+        ${addr}
+        <span class="jx-row__when">${J.esc(when)}</span>
+        ${startBtn}
+        <span class="jx-row__l3">${J.progHtml(wo)}</span>
       </span>
-    </a>${startBtn}</div>`;
+    </a></div>`;
     // Swipe-to-delete only on touch / narrow — desktop list stays clean (no inline buttons).
     if (showDel && useSwipeDelete()) {
       return `<article class="om-swipe jx-swipe" data-jx-swipe="${J.esc(wo.id)}">
       <div class="om-swipe__actions" aria-hidden="true">
         <a class="om-swipe__act--edit" href="${href}">Abrir</a>
-        ${showBill ? `<button type="button" class="om-swipe__act--open" data-jx-faturar="${J.esc(wo.id)}">Faturar</button>` : ""}
         <button type="button" class="om-swipe__act--delete" data-jx-delete="${J.esc(wo.id)}" data-jx-label="${J.esc(wo.title || J.client(wo))}">Excluir</button>
       </div>
       <div class="om-swipe__body">${body}</div>
@@ -355,19 +359,19 @@
       if (!weeks.has(key)) weeks.set(key, []);
       weeks.get(key).push(wo);
     });
-    const keys = [...weeks.keys()].sort((a, b) => (sortDir === "oldest" ? a.localeCompare(b) : b.localeCompare(a)));
+    const keys = [...weeks.keys()].sort((a, b) => weekRank(a) - weekRank(b));
     let html = "";
     if (opened) {
       html += `<section class="jx-week jx-week--pin"><p class="jx-grp"><span>Aberto agora</span><em>1</em></p>${rowHtml(opened)}</section>`;
-    }
-    if (undated.length) {
-      html += `<section class="jx-week jx-week--nodate"><p class="jx-grp"><span>Sem data</span><em>${undated.length}</em></p>${undated.map(rowHtml).join("")}</section>`;
     }
     keys.forEach((key, i) => {
       const g = sortRows(weeks.get(key));
       const [yy, mm, dd] = key.split("-").map(Number);
       html += `<section class="jx-week jx-week--${i % 2 ? "b" : "a"}"><p class="jx-grp"><span>${weekTitle(new Date(yy, mm - 1, dd))}</span><em>${g.length}</em></p>${g.map(rowHtml).join("")}</section>`;
     });
+    if (undated.length) {
+      html += `<section class="jx-week"><p class="jx-grp"><span>Sem data</span><em>${undated.length}</em></p>${undated.map(rowHtml).join("")}</section>`;
+    }
     host.innerHTML = html;
     if (window.OmGestures) window.OmGestures.bindSwipeRow?.(host);
     host.querySelectorAll("[data-jx-start]").forEach((btn) => {
@@ -375,7 +379,7 @@
         e.preventDefault();
         e.stopPropagation();
         const wo = all.find((w) => String(w.id) === String(btn.getAttribute("data-jx-start")));
-        if (wo && window.__crmJobModal?.openStartDate) window.__crmJobModal.openStartDate(wo);
+        if (wo && window.__crmJobModal?.openEdit) window.__crmJobModal.openEdit(wo.id);
       });
     });
     host.querySelectorAll("[data-jx-delete]").forEach((btn) => {
@@ -399,20 +403,13 @@
 
   function primary(wo) {
     if (wo.status === "canceled") return null;
-    const b = wo.billing;
-    // Field/ops status first — Faturar must not hide Iniciar/Concluir (incl. late jobs).
+    // Field/ops status first — the invoice stage keeps only call and edit.
     if (canManage) {
-      if (!wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start)) return { label: "Schedule Job", act: "start-date" };
+      if (!wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start)) return { label: "Schedule Job", act: "edit" };
       if (!(wo.line_items || []).length) return { label: "Adicionar serviços", act: "services" };
       if (wo.status === "draft" || wo.status === "scheduled") return { label: "Iniciar job", act: "start" };
       if (wo.status === "in_progress") return { label: "Concluir job", act: "complete" };
       if (!wo.scheduled_start && wo.status !== "completed") return { label: "Agendar", act: "schedule" };
-    }
-    if (canFaturar(wo)) {
-      return {
-        label: `${b.invoiced_total > 0 ? "Faturar saldo" : "Faturar job"} ${I().money0(b.remaining_to_invoice)}`,
-        act: "invoice",
-      };
     }
     return null;
   }
@@ -598,13 +595,13 @@
           <dt>Faturado</dt><dd>${J.money(wo.billing.invoiced_total)}</dd>
           <dt>Recebido</dt><dd>${J.money(wo.billing.paid_total)}</dd>
           <dt>A faturar</dt><dd>${J.money(wo.billing.remaining_to_invoice)}</dd>
-        </dl>${canFaturar(wo) ? `<button type="button" class="jx-btn jx-btn--pri" style="margin-top:10px" data-jx-act="invoice">${wo.billing.invoiced_total > 0 ? "Faturar saldo" : "Faturar job"} ${J.money0(wo.billing.remaining_to_invoice)}</button>` : ""}</div>`
+        </dl></div>`
       : "";
     return `<div class="jx-cols">
       <div>
         <div class="jx-facts">
           <div><small>Cliente</small><b>${J.esc(J.client(wo))}</b><span>${contact || J.esc(wo.builder?.name || "Sem contato")}</span></div>
-          <div><small>Start</small><b>${J.esc(st.main)}</b><span>${J.esc(st.sub)}</span></div>
+          <div><small>Start</small><b>${J.esc(st.main)}</b><span>Complete: ${J.esc(J.completeLabel(wo))}</span></div>
           <div><small>Equipe</small><b>${J.esc(wo.assigned_user?.name || "Sem responsável")}</b><span>${team.length > 1 ? `${team.length} na equipe` : team.length ? "Responsável" : ""}</span></div>
           <div><small>Preços</small><b>Tabela · ${J.esc(SOURCE[wo.source_type] || "—")}</b><span>${lines.length ? `${lines.length} serviço${lines.length > 1 ? "s" : ""} · ${J.money(wo.services_total)}` : "Sem serviços"}</span></div>
         </div>
@@ -616,6 +613,7 @@
         <div class="jx-box"><h3>Obra${canManage ? `<button type="button" class="jx-lnk" data-jx-act="schedule">Agenda</button>` : ""}</h3>
           <dl class="jx-kv">
             <dt>Start</dt><dd>${J.esc(J.dateRange(wo))}${wo.scheduled_start || wo.sand_scheduled_start ? " · dia inteiro" : ""}</dd>
+            <dt>Complete</dt><dd>${J.esc(J.completeLabel(wo))}</dd>
             <dt>Endereço</dt><dd>${wo.address ? `<a href="${J.esc(maps)}" target="_blank" rel="noopener">${J.esc(wo.address)}</a>` : '<span class="jx-mu">Sem endereço</span>'}</dd>
             ${wo.quote_number ? `<dt>Quote</dt><dd>${J.esc(wo.quote_number)}</dd>` : ""}
             ${J.builderName(wo) ? `<dt>Builder</dt><dd>${J.esc(J.builderName(wo))}</dd>` : ""}
@@ -952,8 +950,8 @@
           </div>
           <div class="jx-ch__acts">
             ${phone ? `<a class="jx-btn jx-btn--sq" href="tel:${J.esc(phone)}" title="Ligar para o cliente" aria-label="Ligar">${SVG.phone}</a>` : ""}
-            ${canManage ? `<button type="button" class="jx-btn" data-jx-act="edit">${SVG.edit}<span>Editar</span></button>` : ""}
-            ${p ? (p.href ? `<a class="jx-btn jx-btn--pri" href="${p.href}">${J.esc(p.label)}</a>` : `<button type="button" class="jx-btn jx-btn--pri" data-jx-act="${p.act}">${J.esc(p.label)}</button>`) : ""}
+            ${canManage && p?.act !== "edit" ? `<button type="button" class="jx-btn" data-jx-act="edit">${SVG.edit}<span>Editar</span></button>` : ""}
+            ${p && p.act !== "invoice" ? (p.href ? `<a class="jx-btn jx-btn--pri" href="${p.href}">${J.esc(p.label)}</a>` : `<button type="button" class="jx-btn jx-btn--pri" data-jx-act="${p.act}">${J.esc(p.label)}</button>`) : ""}
           </div>
         </div>
         ${
@@ -1279,7 +1277,7 @@
       try {
         if (act === "start-date") {
           const wo = all.find((w) => String(w.id) === String(id)) || detailWo;
-          if (wo) await window.__crmJobModal.openStartDate(wo);
+          if (wo) await window.__crmJobModal.openEdit(wo.id);
         } else if (act === "reopen") await setStatus(id, "draft", "Job reaberto com o valor atual do quote.");
         else if (act === "edit") await window.__crmJobModal.openEdit(id);
         else if (act === "services") await window.__crmJobModal.openEdit(id, { section: "services" });

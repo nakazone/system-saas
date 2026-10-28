@@ -52,7 +52,7 @@ body.om-device-mobile .jcm-seg.jmx-pills { background: none; padding: 0 16px; ma
 .jmx-pills .jcm-seg__btn.is-active em { color: #98A2B3; }
 
 /* cartão do job (escritório) */
-.jcm-job-swipe.is-nodate .jmx-card { background: #fff4ec; box-shadow: inset 0 0 0 1.5px #e7792c; }
+.jcm-job-swipe.is-nodate .jmx-card { background: #fff; box-shadow: 0 0 0 1px #E5E7EB; }
 .jmx-card {
   background: #fff; border-radius: 18px; border: 1.5px solid #D0D5DD;
   box-shadow: 0 1px 2px rgba(16, 24, 40, .04); padding: 12px 14px;
@@ -65,12 +65,15 @@ body.om-device-mobile .jcm-seg.jmx-pills { background: none; padding: 0 16px; ma
 .jmx-card__r1 em.is-ok { color: #536249; }
 .jmx-card__t { display: block; margin-top: 4px; font-size: 15px; font-weight: 650; letter-spacing: -.015em; line-height: 1.25; }
 .jmx-card__s { display: block; margin-top: 3px; font-size: 12.5px; color: #667085; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jmx-card__addr { display: flex; align-items: flex-start; gap: 6px; white-space: normal; }
+.jmx-card__addr svg { width: 14px; height: 14px; flex: none; margin-top: 1px; }
+.jmx-card__addr span { min-width: 0; }
 .jmx-card .jx-prog { display: flex; gap: 3px; margin-top: 9px; }
 .jx-prog { display: flex; gap: 3px; }
 .jx-prog i { flex: 1; height: 5px; border-radius: 3px; background: #E5E7EB; }
-.jx-prog i.d { background: #221E1A; }
-.jx-prog i.n { background: #E7792C; }
-.jmx-card__r3 { display: flex; align-items: center; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.jx-prog i.d { background: #E7792C; }
+.jx-prog i.n { background: #221E1A; }
+.jmx-card__r3 { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
 .jmx-card__v { margin-right: auto; font-size: 15px; font-weight: 700; letter-spacing: -.02em; color: #221E1A; }
 .jmx-b {
   height: 34px; padding: 0 12px; border: 0; border-radius: 11px; background: #F1F3F5; color: #221E1A !important; font: inherit; font-size: 13px; font-weight: 650;
@@ -118,8 +121,8 @@ body.om-device-mobile.job-detail-app .jcm-jd__type { margin-top: 4px; font-size:
 .jmx-steps li { font-size: 10px; font-weight: 600; color: #98A2B3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .jmx-steps li i { display: block; height: 5px; border-radius: 999px; background: #EEF0F3; margin-bottom: 5px; }
 .jmx-steps li.is-ok, .jmx-steps li.is-cur { color: #221E1A; }
-.jmx-steps li.is-ok i { background: #221E1A; }
-.jmx-steps li.is-cur i { background: #E7792C; }
+.jmx-steps li.is-ok i { background: #E7792C; }
+.jmx-steps li.is-cur i { background: #221E1A; }
 .jmx-steps li.is-btn { cursor: pointer; border-radius: 6px; outline: none; -webkit-tap-highlight-color: transparent; }
 .jmx-steps li.is-btn:active i { background: #E7792C; opacity: .9; }
 .jmx-steps li.is-btn:focus-visible { box-shadow: 0 0 0 2px rgba(231,121,44,.35); }
