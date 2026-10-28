@@ -12,7 +12,7 @@ import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { publicBaseUrl } from "../../lib/http/public-url.js";
 import { issuePublicAccessToken, lookupPublicAccessToken } from "../../lib/quotes/public-token.js";
 import { buildScheduleIcsCalendar, type ScheduleIcsEvent } from "../../lib/schedule/ics.js";
-import { calendarNickFromBuilders, jobCalendarTitle } from "../../lib/schedule/calendar-label.js";
+import { calendarNickFromBuilders, isBuilderParty, jobCalendarTitle } from "../../lib/schedule/calendar-label.js";
 import {
   clientIdFromLeadRecord,
   originFromLeadRecord,
@@ -277,7 +277,7 @@ async function loadFeedEvents(
         clientRef: true,
         builderId: true,
         builder: { select: { company: true, email: true, nickname: true, firstName: true, lastName: true } },
-        customer: { select: { name: true, company: true, email: true, customerType: true } },
+        customer: { select: { name: true, company: true, nickname: true, email: true, customerType: true } },
         quotes: {
           select: { leadId: true, payload: true },
           orderBy: { createdAt: "desc" },
@@ -360,17 +360,21 @@ async function loadFeedEvents(
       const builderName = wo.builder
         ? [wo.builder.firstName, wo.builder.lastName].filter(Boolean).join(" ").trim()
         : null;
-      const who = calendarNickFromBuilders(
-        { nickname: wo.builder?.nickname, company: wo.builder?.company },
-        [wo.builder?.company, builderName, wo.customer?.company, wo.customer?.name, wo.sourceName],
-        [wo.builder?.email, wo.customer?.email],
-        nickBuilders.map((b) => ({
-          nickname: b.nickname,
-          company: b.company,
-          email: b.email,
-          name: [b.firstName, b.lastName].filter(Boolean).join(" ").trim(),
-        })),
-      );
+      const builderParty = isBuilderParty(wo.sourceType, wo.builderId, wo.customer?.customerType);
+      const directNick = wo.customer?.nickname || (builderParty ? wo.builder?.nickname : null);
+      const who = builderParty
+        ? calendarNickFromBuilders(
+            { nickname: directNick, company: wo.builder?.company || wo.customer?.company },
+            [wo.builder?.company, builderName, wo.customer?.company, wo.customer?.name, wo.sourceName],
+            [wo.builder?.email, wo.customer?.email],
+            nickBuilders.map((b) => ({
+              nickname: b.nickname,
+              company: b.company,
+              email: b.email,
+              name: [b.firstName, b.lastName].filter(Boolean).join(" ").trim(),
+            })),
+          )
+        : { nickname: directNick, company: wo.builder?.company || wo.customer?.company || null };
       const summary = jobCalendarTitle({
         sourceType: wo.sourceType,
         builderId: wo.builderId,

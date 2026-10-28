@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
+import { mirrorNickname } from "../../lib/builders/nickname-sync.js";
 import { requireCrmAuth, requireCrmPermission, dec, asSnakeBuilder } from "../http.js";
 import { hashPassword } from "../../lib/auth/password.js";
 import { formatPersonName } from "../../lib/name.js";
@@ -277,6 +278,19 @@ buildersPricingRouter.post(
             notes: b.notes || null,
           },
         });
+        if (row.nickname) {
+          await mirrorNickname(
+            tx,
+            req.organizationId!,
+            row.nickname,
+            {
+              company: row.company,
+              name: [row.firstName, row.lastName].filter(Boolean).join(" ").trim(),
+              email: row.email,
+            },
+            { builderId: row.id },
+          );
+        }
         if (portalAccess && tempPassword && passwordHash) {
           await tx.partnerUser.create({
             data: {
@@ -436,6 +450,19 @@ buildersPricingRouter.put(
             notes: b.notes !== undefined ? b.notes || null : undefined,
           },
         });
+        if (row.nickname) {
+          await mirrorNickname(
+            tx,
+            req.organizationId!,
+            row.nickname,
+            {
+              company: row.company,
+              name: [row.firstName, row.lastName].filter(Boolean).join(" ").trim(),
+              email: row.email,
+            },
+            { builderId: row.id },
+          );
+        }
         if (linkedUsers.length) {
           const partnerEmail = nextEmail ?? existing.email;
           const partnerName = [row.firstName, row.lastName].filter(Boolean).join(" ").trim() || row.company || partnerEmail || "Parceiro";

@@ -19,7 +19,7 @@
   <link rel="stylesheet" href="crm-module-panel.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="obramate-app.css?v=20261019-logout2" />
   <link rel="stylesheet" href="om-mobile-nav.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="crm-job-modal.css?v=20261027-jobsui" />
+  <link rel="stylesheet" href="crm-job-modal.css?v=20261028-pac" />
   <link rel="stylesheet" href="om-gestures.css?v=20261013-rl4" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
@@ -126,6 +126,7 @@
           <h4>Dados</h4>
           <div class="cx-ff">
             <div class="cx-f" id="cxNameWrap"><label for="cxName" id="cxNameLabel">Nome *</label><input type="text" id="cxName" maxlength="255" autocomplete="off" /></div>
+            <div class="cx-f" id="cxNickWrap" hidden><label for="cxNickname">Nickname</label><input type="text" id="cxNickname" maxlength="40" placeholder="CFC" autocomplete="off" /><small class="cx-hint">No calendário o job aparece como Nickname + número e a primeira palavra da rua. Ex.: CFC 123 Oak.</small></div>
             <div class="cx-f"><label for="cxClientCode">ID do cliente</label><input type="text" id="cxClientCode" maxlength="80" placeholder="Opcional · aparece como Nome - ID" autocomplete="off" /></div>
             <div class="cx-f" id="cxRespWrap" hidden><label for="cxResp">Responsável *</label><input type="text" id="cxResp" maxlength="255" autocomplete="off" /></div>
             <div class="cx-f"><label for="cxPhone">Telefone</label><input type="tel" id="cxPhone" maxlength="14" inputmode="numeric" placeholder="(XXX) XXX-XXXX" autocomplete="off" /></div>
@@ -225,13 +226,13 @@
   <script src="crm-toast.js"></script>
   <script src="crm-i18n.js?v=20261001-refresh1"></script>
   <script src="saas-branding.js"></script>
-  <script src="crm-address-autocomplete.js?v=20261009-cx1"></script>
+  <script src="crm-address-autocomplete.js?v=20261028-pac"></script>
   <script src="crm-shared-nav.js?v=20261015-refnav1"></script>
   <script src="crm-shell.js?v=20261027-m2"></script>
   <script src="om-mobile-nav.js?v=20261014-perfil1"></script>
   <script src="om-gestures.js?v=20261013-rl6"></script>
   <script src="crm-job-modal.js?v=20261027-jobsui"></script>
   <script src="lead-signals.js?v=20261015-leads4"></script>
-  <script src="customers-page.js?v=20261027-m2"></script>
+  <script src="customers-page.js?v=20261028-nick"></script>
 </body>
 </html>

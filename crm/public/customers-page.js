@@ -376,6 +376,7 @@
         : `<span class="cx-btn is-off${extra || ""}" aria-disabled="true">${ic(icon)}<span>${label}</span></span>`;
 
     const meta = [`<span class="cx-tag">${TYPE_PT[c.customer_type] || "Particular"}</span>`];
+    if (org && c.nickname) meta.push(`<span>Nickname: ${esc(c.nickname)}</span>`);
     if (org && c.responsible_name) meta.push(`<span>Contato: ${esc(c.responsible_name)}</span>`);
     if (since) meta.push(`<span>${since}</span>`);
     if (detail.lead) meta.push(`<a class="cx-meta__lead" href="lead-detail.html?id=${encodeURIComponent(detail.lead.id)}">Veio de um lead</a>`);
@@ -627,6 +628,7 @@
     const org = isOrg(form.type);
     $("cxNameLabel").textContent = org ? "Empresa *" : "Nome *";
     $("cxRespWrap").hidden = !org;
+    if ($("cxNickWrap")) $("cxNickWrap").hidden = !org;
     document.querySelectorAll("[data-pricing]").forEach((b) => b.classList.toggle("is-on", b.getAttribute("data-pricing") === form.pricing));
     $("cxPricingTableHint").textContent = `Coluna ${TYPE_PT[form.type]}`;
     const n = Object.values(form.rates || {}).filter((v) => Number(v) > 0).length;
@@ -639,6 +641,7 @@
     $("cxFormId").value = c ? c.id : "";
     $("cxFormLeadId").value = c && c.lead_id ? c.lead_id : "";
     $("cxName").value = c ? c.name || "" : "";
+    if ($("cxNickname")) $("cxNickname").value = c && isOrg(c.customer_type) ? c.nickname || "" : "";
     if ($("cxClientCode")) $("cxClientCode").value = c ? c.client_code || "" : "";
     $("cxResp").value = c ? c.responsible_name || "" : "";
     $("cxPhone").value = c ? maskPhone(c.phone || "") : "";
@@ -720,6 +723,7 @@
     const stor = org ? (($("cxStorage") && $("cxStorage").value) || "unknown") : "unknown";
     const body = {
       name,
+      nickname: org ? ($("cxNickname")?.value.trim() || null) : null,
       client_code: $("cxClientCode")?.value.trim() || null,
       email,
       phone: $("cxPhone").value.trim(),

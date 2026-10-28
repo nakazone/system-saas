@@ -392,7 +392,7 @@ select.jm-in { appearance: none; padding-right: 30px; background: #fff url("data
 
 /* address suggestions must sit above the modal */
 .jm .crm-photon-ac { z-index: 1600; }
-.pac-container { z-index: 1600 !important; }
+.pac-container { z-index: 160000 !important; }
 
 /* —— Tablet & phone: bottom sheet, summary folds into the footer —— */
 @media (max-width: 900px) {

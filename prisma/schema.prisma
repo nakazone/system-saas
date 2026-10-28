@@ -1243,6 +1243,8 @@ model Customer {
   /// Map of pricingItemId -> unit rate when pricingMode is custom.
   customPricingRates Json?
   company        String?
+  /// Short name for builder customers. Calendar jobs show this instead of the company name.
+  nickname       String?
   notes          String?  @db.Text
   /// Pessoa de contato (responsável) em Builder / Loja
   contactName String?

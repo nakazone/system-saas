@@ -176,7 +176,8 @@ export function jobCalendarTitle(input: {
   customerType?: string | null;
   origin?: string | null;
 }): string {
-  if (isBuilderParty(input.sourceType, input.builderId, input.customerType)) {
+  const nick = String(input.nickname || "").trim();
+  if (nick || isBuilderParty(input.sourceType, input.builderId, input.customerType)) {
     return builderCalendarTitle({
       nickname: input.nickname,
       company: input.company || input.builderName,

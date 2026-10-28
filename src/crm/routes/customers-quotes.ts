@@ -6,6 +6,7 @@ import { randomBytes } from "node:crypto";
 import { hashPassword } from "../../lib/auth/password.js";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { withTenantTransaction, type TenantPrisma } from "../../lib/tenant/prisma-tenant.js";
+import { cleanNickname, mirrorNickname } from "../../lib/builders/nickname-sync.js";
 import { requireCrmAuth, requireCrmPermission, dec, asSnakeBuilder } from "../http.js";
 import { canViewPricing, withPricingGate } from "../../lib/pricing/visibility.js";
 import { recordActivity } from "../../lib/activity/record.js";
@@ -465,6 +466,7 @@ function mapCustomer(c: {
   pricingMode?: string;
   customPricingRates?: unknown;
   company: string | null;
+  nickname?: string | null;
   notes: string | null;
   contactName?: string | null;
   dumpsterStatus?: string | null;
@@ -490,6 +492,7 @@ function mapCustomer(c: {
     pricing_mode: c.pricingMode === "custom" ? "custom" : "table",
     custom_pricing_rates: normalizeCustomPricingRates(c.customPricingRates),
     company: c.company,
+    nickname: c.nickname ? String(c.nickname).trim() || null : null,
     notes: c.notes,
     responsible_name: c.contactName ?? null,
     dumpster_status: normalizeYnStatus(c.dumpsterStatus) || "unknown",
@@ -1233,6 +1236,7 @@ customersQuotesRouter.post(
             .optional()
             .nullable(),
           company: z.string().optional().nullable(),
+          nickname: z.string().max(40).optional().nullable(),
           notes: z.string().optional().nullable(),
           client_code: z.string().max(80).optional().nullable(),
           responsible_name: z.string().optional().nullable(),
@@ -1266,6 +1270,7 @@ customersQuotesRouter.post(
       const row = await withTenantTransaction(req.organizationId!, async (tx) => {
         const customerType = normalizeCustomerType(parsed.data.customer_type);
         const isOrgType = customerType === "builder";
+        const nickname = isOrgType ? cleanNickname(parsed.data.nickname) : null;
         const dumpsterStatus = isOrgType ? normalizeYnStatus(parsed.data.dumpster_status) || "unknown" : null;
         const storageStatus = isOrgType ? normalizeYnStatus(parsed.data.storage_status) || "unknown" : null;
         const created = await tx.customer.create({
@@ -1280,6 +1285,7 @@ customersQuotesRouter.post(
             pricingMode,
             customPricingRates: customRates,
             company: parsed.data.company || null,
+            nickname,
             notes: parsed.data.notes || null,
             contactName: String(parsed.data.responsible_name || "").trim() || null,
             dumpsterStatus,
@@ -1291,6 +1297,15 @@ customersQuotesRouter.post(
             referredByCustomerId,
           },
         });
+        if (nickname) {
+          await mirrorNickname(
+            tx,
+            req.organizationId!,
+            nickname,
+            { company: created.company, name: created.name, email: created.email },
+            { customerId: created.id },
+          );
+        }
         if (parsed.data.address) {
           await tx.property.create({
             data: {
@@ -1417,6 +1432,8 @@ customersQuotesRouter.put(
           if (duplicate) return { kind: "partner_email_conflict" as const };
         }
         const isOrgType = nextType === "builder";
+        const nickname =
+          body.nickname !== undefined ? (isOrgType ? cleanNickname(body.nickname) : null) : undefined;
         const dumpsterTouched =
           body.dumpster_status !== undefined || body.dumpster_notes !== undefined || body.customer_type !== undefined;
         const storageTouched =
@@ -1453,6 +1470,7 @@ customersQuotesRouter.put(
                   : {}
                 : undefined,
             company: body.company !== undefined ? String(body.company || "") || null : undefined,
+            nickname,
             notes: body.notes !== undefined ? String(body.notes || "") || null : undefined,
             contactName:
               body.responsible_name !== undefined ? String(body.responsible_name || "").trim() || null : undefined,
@@ -1473,6 +1491,15 @@ customersQuotesRouter.put(
             referredByCustomerId,
           },
         });
+        if (row.nickname) {
+          await mirrorNickname(
+            tx,
+            req.organizationId!,
+            row.nickname,
+            { company: row.company, name: row.name, email: row.email },
+            { customerId: row.id },
+          );
+        }
         if (partnerUsers.length) {
           if (!isOrgType) {
             await tx.partnerUser.updateMany({ where: { customerId: id }, data: { status: "suspended" } });

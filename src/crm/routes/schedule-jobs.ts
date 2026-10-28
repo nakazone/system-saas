@@ -36,7 +36,7 @@ import {
   originFromLeadRecord,
   personCalendarTitle,
 } from "../../lib/schedule/lead-visit-ics.js";
-import { calendarNickFromBuilders, jobCalendarTitle, visitBlockEnd } from "../../lib/schedule/calendar-label.js";
+import { calendarNickFromBuilders, isBuilderParty, jobCalendarTitle, visitBlockEnd } from "../../lib/schedule/calendar-label.js";
 
 const WO_SECTORS = ["installation", "sand_finish", "both"] as const;
 
@@ -419,7 +419,7 @@ const relatedWoSelect = {
 } as const;
 
 const woInclude = {
-  customer: { select: { id: true, name: true, company: true, clientCode: true, customerType: true, email: true, phone: true } },
+  customer: { select: { id: true, name: true, company: true, nickname: true, clientCode: true, customerType: true, email: true, phone: true } },
   builder: { select: { id: true, firstName: true, lastName: true, company: true, email: true, nickname: true } },
   assignedUser: { select: { id: true, name: true } },
   crew: { select: { id: true, name: true, color: true } },
@@ -2107,17 +2107,21 @@ scheduleJobsRouter.get(
           const builderName = wo.builder
             ? [wo.builder.firstName, wo.builder.lastName].filter(Boolean).join(" ").trim()
             : null;
-          const who = calendarNickFromBuilders(
-            { nickname: wo.builder?.nickname, company: wo.builder?.company },
-            [wo.builder?.company, builderName, wo.customer?.company, wo.customer?.name, wo.sourceName],
-            [wo.builder?.email, wo.customer?.email],
-            nickBuilders.map((b) => ({
-              nickname: b.nickname,
-              company: b.company,
-              email: b.email,
-              name: [b.firstName, b.lastName].filter(Boolean).join(" ").trim(),
-            })),
-          );
+          const builderParty = isBuilderParty(wo.sourceType, wo.builderId, wo.customer?.customerType);
+          const directNick = wo.customer?.nickname || (builderParty ? wo.builder?.nickname : null);
+          const who = builderParty
+            ? calendarNickFromBuilders(
+                { nickname: directNick, company: wo.builder?.company || wo.customer?.company },
+                [wo.builder?.company, builderName, wo.customer?.company, wo.customer?.name, wo.sourceName],
+                [wo.builder?.email, wo.customer?.email],
+                nickBuilders.map((b) => ({
+                  nickname: b.nickname,
+                  company: b.company,
+                  email: b.email,
+                  name: [b.firstName, b.lastName].filter(Boolean).join(" ").trim(),
+                })),
+              )
+            : { nickname: directNick, company: wo.builder?.company || wo.customer?.company || null };
           const base = jobCalendarTitle({
             sourceType: wo.sourceType,
             builderId: wo.builderId,

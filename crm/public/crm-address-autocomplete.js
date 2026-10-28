@@ -470,7 +470,7 @@
       list.style.top = r.bottom + 4 + 'px';
       list.style.width = Math.max(220, r.width) + 'px';
       list.style.right = 'auto';
-      list.style.zIndex = '13050';
+      list.style.zIndex = '160000';
     }
 
     var timer = null;
@@ -623,7 +623,7 @@
    */
   async function attachAddressAutocomplete(inputEl, options) {
     options = options || {};
-    if (!inputEl || inputEl.tagName !== 'INPUT') return false;
+    if (!inputEl || (inputEl.tagName !== 'INPUT' && inputEl.tagName !== 'TEXTAREA')) return false;
     if (attached.has(inputEl)) return true;
     // Google's dropdown is positioned against the page, so it misses inputs inside a transformed sheet.
     if (inputEl.closest && inputEl.closest('.ag-sheet, .ag-pop')) {
@@ -848,7 +848,7 @@
 
   function isPrimaryAddressInput(el) {
     if (!el || el.nodeType !== 1) return false;
-    if (el.tagName !== 'INPUT') return false;
+    if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return false;
     var type = (el.getAttribute('type') || 'text').toLowerCase();
     if (type && type !== 'text' && type !== 'search') return false;
     if (type === 'search') return false;
@@ -903,7 +903,7 @@
 
   function scanAndAttachAll() {
     var nodes = document.querySelectorAll(
-      'input[type="text"], input:not([type]), input[autocomplete="street-address"], input[data-crm-address-autocomplete]',
+      'input[type="text"], input:not([type]), textarea, input[autocomplete="street-address"], input[data-crm-address-autocomplete], textarea[data-crm-address-autocomplete]',
     );
     nodes.forEach(function (el) {
       if (!isPrimaryAddressInput(el)) return;
