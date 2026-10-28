@@ -37,6 +37,7 @@ import {
 import { can, permissionsFor, ROLE_LABELS, BUILDER_ROLES, type BuilderPermission } from "../../lib/builders/roles.js";
 import { deletePickup, listPickups, pickupForWorkOrder, savePickup } from "../../lib/builders/pickups.js";
 import { voiceToActions } from "../../lib/builders/voice.js";
+import { askMate } from "../../lib/builders/mate.js";
 import { copyPrices, deletePrice, listPrices, savePrice } from "../../lib/builders/prices.js";
 import { storage } from "../../lib/storage/index.js";
 import { reverseGeocode } from "../../lib/payroll/geocode.js";
@@ -431,6 +432,19 @@ builderAccountRouter.delete("/api/builder/measurements/:id", requireBuilder, nee
 builderAccountRouter.post("/api/builder/measurements/:id/photos", requireBuilder, needs("measure"), async (req: BuilderReq, res, next) => {
   try {
     res.status(201).json({ success: true, data: await addPhoto(req.builderMember!, String(req.params.id), String(req.body?.data_url || "")) });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
+/** Ask Mate: questions about the builder's own jobs, invoices and measurements (text or voice). */
+builderAccountRouter.post("/api/builder/mate", requireBuilder, async (req: BuilderReq, res, next) => {
+  try {
+    if (!(await takeRate([{ key: `builder-mate:${req.builderMember!.id}`, max: 120, windowMs: HOUR }]))) {
+      throw new BuilderError(429, "Mate needs a break. Try again in a bit.");
+    }
+    const snapshot = { ...(req.body?.snapshot || {}), money: can(req.builderMember!.role, "money.view") };
+    res.json({ success: true, data: await askMate({ question: req.body?.question, audio: req.body?.audio, snapshot, history: req.body?.history }) });
   } catch (error) {
     sendError(res, error, next);
   }

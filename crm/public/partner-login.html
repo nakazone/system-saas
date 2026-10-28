@@ -18,6 +18,8 @@
     .ob-brand span { display: block; font-size: 13px; opacity: .7; }
     .ob-mate { display: flex; align-items: center; gap: 10px; margin: 4px 0 0; }
     .ob-mate img { width: 44px; height: 44px; flex: none; }
+    .ob-code summary { cursor: pointer; font-size: 14px; color: #6b5f55; padding: 4px 0; }
+    .ob-code[open] summary { margin-bottom: 8px; }
   </style>
 </head>
 <body class="partner-auth-page">
@@ -33,11 +35,12 @@
       <input id="partnerEmail" name="email" type="email" autocomplete="username" required />
       <label for="partnerPassword">Password</label>
       <input id="partnerPassword" name="password" type="password" autocomplete="current-password" required />
-      <div id="workspaceGroup" class="partner-workspace-field">
+      <details id="workspaceGroup" class="partner-workspace-field ob-code">
+        <summary>Have a company code?</summary>
         <label for="workspace">Company code <span>(only for older accounts, if asked)</span></label>
         <input id="workspace" name="workspace" autocomplete="organization" placeholder="e.g. my-company" />
         <small>Use the code shown in your company's ObraMate address.</small>
-      </div>
+      </details>
       <p id="partnerLoginError" class="partner-error" role="alert" hidden></p>
       <button class="partner-button" id="partnerLoginButton" type="submit">Sign in</button>
     </form>

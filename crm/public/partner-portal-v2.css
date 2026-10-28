@@ -542,6 +542,7 @@ body.pp {
 }
 @media (min-width: 768px) and (max-width: 1100px) {
   .pp-bento > * { grid-column: span 6 !important; }
+  .pp-bento > .pp-head, .pp-bento > .pp-setup, .pp-bento > .pp-qa-grid, .pp-bento > .pp-today, .pp-bento > div:has(> .pp-install-banner) { grid-column: 1 / -1 !important; }
 }
 
 /* The Mate (fox) reads the work order and confirms */
@@ -1107,3 +1108,137 @@ body.pp-sheet-open { overflow: hidden; }
 @media (max-width: 1023px) { .pp-only-phone { display: inline; } .pp-bigdrop .pp-hide-phone { display: none !important; } }
 .pp-mark.has-logo { background: #fff; border: 1px solid var(--pp-border); overflow: hidden; padding: 3px; }
 .pp-mark.has-logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
+
+/* ═══════════ v3 polish: layout fixes, touch targets, motion ═══════════ */
+:root {
+  --pp-ease-out: cubic-bezier(.23, 1, .32, 1);
+  --pp-ease-drawer: cubic-bezier(.32, .72, 0, 1);
+}
+.pp-block.pp-logo-box, .pp-block.pp-app-card { flex-direction: row; }
+.pp-tab, .pp-di, .pp-qa, .pp-set-row, .pp-act, .pp-co-card, .pp-today-item { text-decoration: none !important; }
+.pp-co-card { grid-template-columns: minmax(0, 1fr); }
+.pp-head h1 { overflow-wrap: anywhere; }
+
+/* Press feedback on everything tappable (subtle, fast). */
+.pp-btn, .pp-qa, .pp-act, .pp-row, .pp-set-row, .pp-co-card, .pp-kpi, .pp-tab, .pp-stage, .pp-filter button, .pp-cobar button, .pp-q-ic, .pp-price-row, .pp-geo-btn, .pp-source, .pp-today-item {
+  transition: transform 140ms var(--pp-ease-out), background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+.pp-btn:active, .pp-qa:active, .pp-act:active, .pp-set-row:active, .pp-co-card:active, .pp-kpi:active, .pp-stage:active, .pp-filter button:active, .pp-cobar button:active, .pp-q-ic:active, .pp-geo-btn:active, .pp-source:active { transform: scale(.97); }
+.pp-row:active, .pp-today-item:active, .pp-price-row:active { background-color: var(--pp-surface); }
+.pp-tab:active svg { transform: scale(.9); }
+@media (hover: hover) and (pointer: fine) {
+  .pp-qa:hover, .pp-co-card:hover, .pp-kpi:hover { border-color: var(--pp-orange); box-shadow: 0 6px 18px rgba(34, 30, 26, .06); }
+}
+
+/* Sheets: iOS-like drawer curve, quick exit. */
+.pp-sheet { animation: pp-fade 200ms ease-out; }
+.pp-sheet-card { animation: pp-pop 240ms var(--pp-ease-out); }
+@keyframes pp-pop { from { opacity: 0; transform: scale(.96) translateY(6px); } }
+@media (max-width: 1023px) { .pp-sheet-card { animation: pp-up 320ms var(--pp-ease-drawer); } }
+@keyframes pp-up { from { transform: translateY(100%); } }
+
+/* Page content settles in (once per screen, not per keystroke). */
+#ppView.pp-enter > * { animation: pp-in 260ms var(--pp-ease-out) both; }
+#ppView.pp-enter > *:nth-child(2) { animation-delay: 30ms; }
+#ppView.pp-enter > *:nth-child(3) { animation-delay: 60ms; }
+#ppView.pp-enter > *:nth-child(4) { animation-delay: 90ms; }
+@keyframes pp-in { from { opacity: 0; transform: translateY(6px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; animation-delay: 0ms !important; transition-duration: 1ms !important; }
+}
+
+/* Touch: 40px minimum for small icon buttons and segmented choices. */
+@media (pointer: coarse) {
+  .pp-q-ic { min-width: 40px; min-height: 40px; }
+  .pp-viz-seg button, .pp-seg button, .pp-filter button { min-height: 40px; }
+  .pp-stair-name { min-height: 40px; }
+  .pp-install-x { width: 40px; height: 40px; }
+  .pp-link { padding: 6px 0; display: inline-block; }
+}
+
+@media (max-width: 1023px) {
+  .pp-meas-title { font-size: 26px !important; line-height: 1.15; }
+  .pp-doc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .pp-filter button { flex: none; }
+}
+
+/* Tablet (portrait iPad): two columns where it helps, roomier tiles. */
+@media (min-width: 700px) and (max-width: 1023px) {
+  .pp-co-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pp-qa-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .pp-set-hub, .pp-set-form, .pp-set-list { max-width: none; }
+  .pp-doc-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* ── Mate: header button, chat, toasts, setup, tips ───────── */
+.pp-mate-btn { padding: 0; overflow: hidden; background: var(--pp-orange-soft); border-color: transparent; }
+.pp-mate-btn img { width: 34px; height: 34px; object-fit: contain; margin-top: 4px; transition: transform 160ms var(--pp-ease-out); }
+@media (hover: hover) and (pointer: fine) { .pp-mate-btn:hover img { transform: translateY(-2px) rotate(-4deg); } }
+
+.pp-chat-card { display: flex; flex-direction: column; height: min(720px, calc(100vh - 48px)); padding-bottom: 0 !important; }
+.pp-chat-card .pp-sheet-body { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.pp-chat { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 4px 0 12px; overscroll-behavior: contain; }
+.pp-msg { display: flex; gap: 8px; align-items: flex-end; max-width: 92%; }
+.pp-msg .pp-mate { margin: 0; flex: none; }
+.pp-msg--me { align-self: flex-end; }
+.pp-bubble { padding: 10px 14px; border-radius: 18px; font-size: 15px; line-height: 1.45; background: var(--pp-surface); border-bottom-left-radius: 6px; }
+.pp-bubble strong { display: block; }
+.pp-bubble span { color: var(--pp-muted); }
+.pp-msg--me .pp-bubble { background: var(--pp-ink); color: #fff; border-radius: 18px; border-bottom-right-radius: 6px; }
+.pp-msg-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.pp-chat-sugs { display: flex; flex-wrap: wrap; gap: 8px; padding-left: 48px; }
+.pp-chip-btn { border: 1px solid var(--pp-border); background: #fff; border-radius: 999px; padding: 8px 12px; font-size: 14px; cursor: pointer; min-height: 38px; transition: transform 140ms var(--pp-ease-out), border-color 160ms ease; }
+.pp-chip-btn:active { transform: scale(.97); }
+@media (hover: hover) and (pointer: fine) { .pp-chip-btn:hover { border-color: var(--pp-orange); } }
+.pp-typing { display: flex; gap: 4px; align-items: center; min-height: 40px; }
+.pp-typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--pp-muted); animation: pp-dot 1s ease-in-out infinite; }
+.pp-typing i:nth-child(2) { animation-delay: .15s; }
+.pp-typing i:nth-child(3) { animation-delay: .3s; }
+@keyframes pp-dot { 0%, 100% { opacity: .3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
+.pp-chat-bar { position: sticky; bottom: 0; display: flex; gap: 8px; align-items: center; padding: 10px 0 max(14px, env(safe-area-inset-bottom)); background: var(--pp-card); border-top: 1px solid var(--pp-border); }
+.pp-chat-bar input { flex: 1; min-width: 0; min-height: 46px; border: 1px solid var(--pp-border); border-radius: 999px; padding: 0 16px; font-size: 16px; background: var(--pp-surface); }
+.pp-chat-bar input:focus { outline: none; border-color: var(--pp-orange); background: #fff; }
+.pp-chat-mic, .pp-chat-send { width: 46px; height: 46px; border-radius: 50%; border: 0; display: grid; place-items: center; cursor: pointer; flex: none; transition: transform 140ms var(--pp-ease-out), background-color 160ms ease; }
+.pp-chat-mic { background: var(--pp-orange-soft); color: var(--pp-orange); }
+.pp-chat-mic.is-rec { background: #D92D20; color: #fff; animation: pp-voice-pulse 1.4s ease-in-out infinite; }
+.pp-chat-send { background: var(--pp-orange); color: #fff; }
+.pp-chat-mic:active, .pp-chat-send:active { transform: scale(.94); }
+.pp-chat-mic svg, .pp-chat-send svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.pp-toast { position: fixed; left: 50%; bottom: 28px; z-index: 96; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; max-width: min(440px, calc(100vw - 24px)); padding: 8px 16px 8px 8px; border-radius: 20px; background: var(--pp-ink); color: #fff; box-shadow: 0 14px 34px rgba(0, 0, 0, .25); animation: pp-toast-in 280ms var(--pp-ease-out); transition: opacity 200ms ease, transform 200ms ease; }
+.pp-toast .pp-mate { margin: 0; flex: none; }
+.pp-toast strong { display: block; font-size: 15px; }
+.pp-toast span { display: block; font-size: 13px; opacity: .75; }
+.pp-toast.is-out { opacity: 0; transform: translate(-50%, 8px); }
+@keyframes pp-toast-in { from { opacity: 0; transform: translate(-50%, 16px) scale(.98); } }
+@media (max-width: 1023px) { .pp-toast { bottom: calc(92px + env(safe-area-inset-bottom)); } }
+
+.pp-setup { display: flex; gap: 18px; align-items: center; padding: 18px 20px; background: linear-gradient(135deg, #FFF6EF, #FFFFFF 60%); border: 1px solid #F3D9C6 !important; }
+.pp-setup-art { width: 120px; height: auto; flex: none; align-self: flex-end; margin-bottom: -18px; }
+.pp-setup-main { flex: 1; min-width: 0; display: grid; gap: 10px; }
+.pp-setup-meter { height: 6px; border-radius: 3px; background: #F1E4DA; overflow: hidden; }
+.pp-setup-meter i { display: block; height: 100%; background: var(--pp-orange); border-radius: 3px; transition: width 400ms var(--pp-ease-out); }
+.pp-setup-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px 14px; }
+.pp-setup-list a { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; text-decoration: none; }
+.pp-setup-list strong { display: block; font-size: 14px; font-weight: 600; }
+.pp-setup-list small { display: block; font-size: 12px; color: var(--pp-muted); }
+.pp-setup-dot { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #E2CDBE; flex: none; display: grid; place-items: center; font-size: 12px; font-weight: 700; color: #fff; }
+.pp-setup-list li.is-done strong { color: var(--pp-muted); text-decoration: line-through; text-decoration-color: #C9BFB7; }
+.pp-setup-list li.is-done .pp-setup-dot { background: var(--pp-olive); border-color: var(--pp-olive); }
+.pp-setup-list li.is-next .pp-setup-dot { border-color: var(--pp-orange); box-shadow: 0 0 0 4px var(--pp-orange-soft); }
+@media (max-width: 1023px) {
+  .pp-setup { flex-direction: column; align-items: stretch; padding-top: 14px; }
+  .pp-setup-art { position: absolute; right: 8px; top: 6px; width: 76px; margin: 0; }
+  .pp-setup { position: relative; }
+  .pp-setup-main .pp-tile-head { padding-right: 84px; }
+  .pp-setup-list { grid-template-columns: 1fr; }
+}
+
+.pp-mate-tip { display: flex; gap: 14px; align-items: center; padding: 10px 16px 0 6px; }
+.pp-mate-tip .pp-mate { margin: 0 0 -2px; flex: none; }
+.pp-mate-tip strong { display: block; font-size: 16px; }
+.pp-mate-tip span { display: block; color: var(--pp-muted); font-size: 14px; }
+.pp-toast { width: min(420px, calc(100vw - 24px)); max-width: none; }
+.pp-toast > div { flex: 1; min-width: 0; }
+@media (pointer: coarse) { .pp-viz-chips button { min-height: 40px; } }

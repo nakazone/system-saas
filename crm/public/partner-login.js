@@ -3,7 +3,7 @@
   const button = document.getElementById('partnerLoginButton');
   const error = document.getElementById('partnerLoginError');
   const workspaceFromLink = new URLSearchParams(location.search).get('workspace');
-  if (workspaceFromLink) document.getElementById('workspace').value = workspaceFromLink;
+  if (workspaceFromLink) { document.getElementById('workspace').value = workspaceFromLink; document.getElementById('workspaceGroup').open = true; }
 
   async function request(url, options) {
     const response = await fetch(url, { credentials: 'include', ...options });

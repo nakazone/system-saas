@@ -103,9 +103,13 @@
     return `${Math.max(1, Math.round(size / 1024))} KB`;
   }
   /** Mate, the ObraMate mascot, in empty states and helpers. */
+  const MATE_NEW = { measure: 1, snap: 1, delivery: 1, handshake: 1 };
+  function mateSrc(pose) {
+    return `/assets/img/mascot/mate-${pose}.webp?v=${MATE_NEW[pose] ? '20261028-ob3' : '20261027-m2'}`;
+  }
   function mate(pose, size) {
     const h = size || 72;
-    return `<img class="pp-mate" src="/assets/img/mascot/mate-${pose}.webp?v=20261027-m2" alt="" height="${h}" style="height:${h}px" decoding="async" loading="lazy">`;
+    return `<img class="pp-mate" src="${mateSrc(pose)}" alt="" height="${h}" style="height:${h}px" decoding="async" loading="lazy">`;
   }
 
   function icon(name) {
@@ -122,6 +126,7 @@
       gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',
       download: '<path d="M12 4v12M7 11l5 5 5-5"/><path d="M4 20h16"/>',
       chat: '<path d="M4 5h16v11H9l-5 4z"/>',
+      send: '<path d="M4 12l16-8-6 16-2-6z"/>',
       ruler: '<path d="M3 17 17 3l4 4L7 21H3z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/>',
       cal: '<path d="M4 6h16v14H4z"/><path d="M8 3v5M16 3v5M4 11h16"/>',
       phone: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/>',
@@ -404,6 +409,9 @@
     });
   }
   let renderToken = 0;
+  let lastScreen = '';
+  // The entry animation plays once; later redraws of the same screen stay still.
+  view.addEventListener('animationend', (e) => { if (e.target.parentNode === view && Array.prototype.indexOf.call(view.children, e.target) >= Math.min(3, view.children.length - 1)) view.classList.remove('pp-enter'); });
   /** Company filter under the page title on list pages (builders with 2+ companies). */
   function paintCoBar(r) {
     if (!['jobs', 'invoices', 'documentos'].includes(r.name)) return;
@@ -424,6 +432,14 @@
     const token = ++renderToken;
     const r = route();
     setNav(r.name);
+    // Entering a new screen settles in once; re-renders of the same screen (search, filters) don't animate.
+    const screenKey = `${r.name}/${r.id}`;
+    if (screenKey !== lastScreen) {
+      lastScreen = screenKey;
+      view.classList.remove('pp-enter');
+      void view.offsetWidth;
+      view.classList.add('pp-enter');
+    }
     document.body.classList.remove('pp-focus');
     state.ctx = null;
     if (r.name !== 'settings') state.pickupEdit = null;
@@ -460,6 +476,8 @@
       loadInvoices(),
       loadRequests(),
       state.builder && canDo('measure') ? api('/api/builder/measurements').then((r) => { state.homeMeas = r.data || []; }).catch(() => {}) : null,
+      state.builder ? ensurePickups() : null,
+      state.builder && state.teamCount == null ? api('/api/builder/team').then((r) => { state.teamCount = (r.data || []).length; }).catch(() => {}) : null,
     ]);
     if (token !== renderToken) return;
     const user = state.user;
@@ -505,9 +523,10 @@
       <div class="pp-bento">
         <div class="pp-head" style="grid-column: span 12">
           <div><p class="pp-eyebrow">${esc(fmtDay(now, { weekday: 'long', month: 'long', day: 'numeric' }))}</p><h1>${esc(hello)}${first ? `, ${esc(first)}` : ''}</h1></div>
-          <div class="pp-head-actions"><a class="pp-btn pp-btn--sec" href="#calendar">Calendar</a><a class="pp-btn pp-btn--sec" href="#documents">Photos & docs</a><a class="pp-btn pp-btn--pri" href="#send">Send work</a></div>
+          ${state.builder ? '' : '<div class="pp-head-actions"><a class="pp-btn pp-btn--sec" href="#calendar">Calendar</a><a class="pp-btn pp-btn--sec" href="#documents">Photos & docs</a><a class="pp-btn pp-btn--pri" href="#send">Send work</a></div>'}
         </div>
         ${installBannerHtml() ? `<div style="grid-column: span 12">${installBannerHtml()}</div>` : ''}
+        ${state.builder ? setupCardHtml() : ''}
         ${state.builder ? homeQuickHtml(now) : ''}
 
         <section class="pp-tile pp-tile--orange" style="grid-column: span 4; grid-row: span 3" aria-label="Active jobs">
@@ -561,6 +580,11 @@
       </div>`;
     bindDrop($('ppHomeDrop'), (files) => startSendWithFiles(files));
     view.querySelectorAll('[data-qa-camera]').forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); $('ppCameraInput').click(); }));
+    view.querySelectorAll('[data-setup-hide]').forEach((b) => b.addEventListener('click', () => {
+      try { localStorage.setItem(`ob_setup_hidden_${state.builder.account.id}`, '1'); } catch (_) { /* private mode */ }
+      const card = b.closest('.pp-setup');
+      if (card) card.remove();
+    }));
     $('ppHomeDrop').addEventListener('click', () => { location.hash = '#send'; });
   }
 
@@ -845,12 +869,6 @@
 
     view.innerHTML = `
       <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder ? (state.coFilter && coById(state.coFilter) ? coById(state.coFilter).company_name : state.builder.account.name) : providerName())}</p><h1>Invoices</h1></div></div>
-      <div class="pp-nums">
-        <div class="pp-card pp-num"><span class="pp-lbl">Open</span><b>${money(sum(open))}</b></div>
-        <div class="pp-card pp-num"><span class="pp-lbl">Overdue</span><b class="${overdue.length ? 'pp-late' : ''}">${money(sum(overdue))}</b></div>
-        <div class="pp-card pp-num"><span class="pp-lbl">Due in 7 days</span><b>${money(sum(soon))}</b></div>
-        <div class="pp-card pp-num pp-hide-phone"><span class="pp-lbl">Paid · 30 days</span><b>${money(totalOf(paid30))}</b></div>
-      </div>
       <div class="pp-stages" role="group" aria-label="Status">
         ${filterBtn('open', 'Open', open)}
         ${filterBtn('overdue', 'Overdue', overdue)}
@@ -1233,6 +1251,7 @@
     box.innerHTML = `
       ${companyInvited() ? `<div class="pp-match"><strong>${esc(providerName())} isn’t on ObraMate yet</strong><span class="pp-muted" style="font-size:14px">The job is held and goes into their system as soon as they create their account from your invite.</span></div>` : ''}
       ${s.presetJob ? `<div class="pp-match"><strong>Update to ${esc(s.presetJob.title || 'job')}</strong><span class="pp-muted" style="font-size:14px">${esc(s.presetJob.address || '')} · send the new order, photo or text. It goes with this job.</span></div>` : ''}
+      ${state.builder && state.builder.ai_reader ? `<div class="pp-mate-tip">${mate('snap', 96)}<div><strong>Snap it, Mate reads it</strong><span>Take a photo of the work order or upload the PDF. Mate fills in the address, date, pickup and services — you check before sending.</span></div></div>` : ''}
       <button type="button" class="pp-bigdrop" id="ppBigDrop">
         ${icon('upload')}
         <strong><span class="pp-hide-phone">Drop files here or tap to choose</span><span class="pp-only-phone">Choose a file</span></strong>
@@ -1887,7 +1906,7 @@
     view.innerHTML = `
       <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder.account.name)}</p><h1>${companies.length ? 'Choose a company' : 'Welcome to ObraBuilder'}</h1></div></div>
       <div class="pp-card pp-block pp-mate-card" style="max-width:720px">
-        ${mate('wave', 88)}
+        ${mate('handshake', 110)}
         <h3 style="font-size:18px">${companies.length ? 'No company connected yet' : 'Connect your first flooring company'}</h3>
         <p class="pp-muted" style="margin:0">Already on ObraMate? Connect with their admin's email and the jobs you send go straight into their system. Not yet? Invite them by email or text — the jobs you send are kept until they join.</p>
         ${canDo('companies.manage') ? '<div><a class="pp-btn pp-btn--pri" href="#companies">Add company</a></div>' : '<p class="pp-muted" style="margin:0">Ask your team admin or manager to connect a company.</p>'}
@@ -1979,7 +1998,7 @@
     };
     view.innerHTML = `
       <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder.account.name)}</p><h1>Companies</h1></div>${manage ? '<div class="pp-head-actions"><button type="button" class="pp-btn pp-btn--pri" data-co-add>+ Add company</button></div>' : ''}</div>
-      ${companies.length ? `<div class="pp-co-grid">${companies.map(card).join('')}</div>` : `<div class="pp-card pp-empty">${mate('wave')}<strong>No companies yet</strong>Add the flooring company that does your jobs.${manage ? '<div style="margin-top:12px"><button type="button" class="pp-btn pp-btn--pri" data-co-add>Add company</button></div>' : ''}</div>`}`;
+      ${companies.length ? `<div class="pp-co-grid">${companies.map(card).join('')}</div>` : `<div class="pp-card pp-empty">${mate('handshake', 120)}<strong>No companies yet</strong>Add the flooring company that does your jobs.${manage ? '<div style="margin-top:12px"><button type="button" class="pp-btn pp-btn--pri" data-co-add>Add company</button></div>' : ''}</div>`}`;
     view.querySelectorAll('[data-co-add]').forEach((b) => b.addEventListener('click', openAddCompany));
   }
 
@@ -2010,6 +2029,7 @@
         const data = r.data;
         await reloadAllCompanies();
         if (data.kind === 'linked') {
+          mateToast('handshake', `${data.company_name} connected`, 'Their logo and contacts are on the company page.');
           $('ppCoResult').innerHTML = `<div class="pp-success">${esc(data.company_name)} already uses ObraMate and is now connected.</div><div class="pp-sheet-actions"><a class="pp-btn pp-btn--pri" href="#send">Send a job</a></div>`;
         } else {
           inviteActions($('ppCoResult'), data, phone);
@@ -2176,6 +2196,7 @@
         state.prices = null;
         closeSheet();
         done();
+        mateToast('thumbs', pr ? 'Price updated' : 'Price added', `${payload.name} · ${money(payload.price)}`);
       } catch (ex) { err.textContent = ex.message || 'Could not save.'; err.hidden = false; }
     });
     const del = root.querySelector('[data-pr-del]');
@@ -2255,6 +2276,7 @@
         if (!m) {
           const res = await postJson('/api/builder/team', { ...body, email: $('ppMEmail').value.trim(), role: $('ppMRole').value });
           await render();
+          mateToast('wave', 'Invite sent', `${body.name} gets an email to join.`);
           openSheet('Invite sent', `<div class="pp-success">We emailed ${esc(body.name)} a link to join ${esc(state.builder.account.name)}.${res.data && res.data.devLink ? ` <a href="${esc(res.data.devLink)}">Link (test)</a>` : ''}</div><div class="pp-sheet-actions"><button type="button" class="pp-btn pp-btn--pri" data-sheet-close>Done</button></div>`);
           return;
         }
@@ -2377,7 +2399,7 @@
           ${f('ppAcName', 'Company name *', acc.name, { wide: true, extra: 'maxlength="120" required autocomplete="organization"' })}
           ${f('ppAcPhone', 'Office phone', acc.phone, { extra: 'type="tel" inputmode="tel" maxlength="40"' })}
           ${f('ppAcEmail', 'Office email', acc.email, { extra: 'type="email" inputmode="email" maxlength="200"' })}
-          ${f('ppAcBill', 'Billing email <span>(invoices)</span>', acc.billing_email, { extra: 'type="email" inputmode="email" maxlength="200"' })}
+          ${f('ppAcBill', 'Billing email for invoices', acc.billing_email, { extra: 'type="email" inputmode="email" maxlength="200"' })}
           ${f('ppAcWeb', 'Website', acc.website, { extra: 'type="url" inputmode="url" maxlength="200" placeholder="https://"' })}
           ${f('ppAcLic', 'Builder license #', acc.license_number, { extra: 'maxlength="80"' })}
         </div></section>
@@ -2500,6 +2522,7 @@
           else await postJson('/api/builder/pickups', payload);
           closeSheet();
           render();
+          mateToast('delivery', 'Pickup location saved', 'Work orders that name it get the address automatically.');
         } catch (ex) { formError('ppPkError', ex); }
       });
       const del = root.querySelector('[data-pk-del]');
@@ -2511,7 +2534,7 @@
     view.innerHTML = `${head('Pickup locations', true)}
       <p class="pp-muted pp-meas-intro">Supplier yards where your crews pick up delivered material. When a work order names one (like <code>TRIWEST 9176215</code>), the job gets the full address and the order number automatically.</p>
       <div class="pp-sheet-actions" style="justify-content:flex-start;max-width:880px;margin-bottom:12px"><button type="button" class="pp-btn pp-btn--pri" data-pk-new>+ Add location</button></div>
-      ${list.length ? `<div class="pp-card pp-set-list">${list.map((l) => `<button type="button" class="pp-set-row" data-pk="${esc(l.id)}"><span class="pp-set-ic">${icon('pin')}</span><span><strong>${esc(l.name)}${l.is_default ? ' <span class="pp-chip pp-chip--ok">Default</span>' : ''}</strong><small>${esc(l.address)}</small>${[l.hours, l.phone].filter(Boolean).length ? `<small>${esc([l.hours, l.phone].filter(Boolean).join(' · '))}</small>` : ''}<small class="pp-pick-alias">Matches: ${(l.aliases || []).map((a) => `<code>${esc(a)}</code>`).join(' ')}</small></span>${icon('chev')}</button>`).join('')}</div>` : `<div class="pp-card pp-empty">${mate('point', 64)}<strong>No pickup locations yet</strong>Add the yards and warehouses your suppliers use.</div>`}`;
+      ${list.length ? `<div class="pp-card pp-set-list">${list.map((l) => `<button type="button" class="pp-set-row" data-pk="${esc(l.id)}"><span class="pp-set-ic">${icon('pin')}</span><span><strong>${esc(l.name)}${l.is_default ? ' <span class="pp-chip pp-chip--ok">Default</span>' : ''}</strong><small>${esc(l.address)}</small>${[l.hours, l.phone].filter(Boolean).length ? `<small>${esc([l.hours, l.phone].filter(Boolean).join(' · '))}</small>` : ''}<small class="pp-pick-alias">Matches: ${(l.aliases || []).map((a) => `<code>${esc(a)}</code>`).join(' ')}</small></span>${icon('chev')}</button>`).join('')}</div>` : `<div class="pp-card pp-empty">${mate('delivery', 110)}<strong>No pickup locations yet</strong>Add the yards and warehouses your suppliers use.</div>`}`;
     view.querySelectorAll('[data-pk-new]').forEach((b) => b.addEventListener('click', () => open(null)));
     view.querySelectorAll('[data-pk]').forEach((b) => b.addEventListener('click', () => open(list.find((x) => x.id === b.getAttribute('data-pk')))));
   }
@@ -2740,6 +2763,7 @@
     document.querySelectorAll('[data-nav="invoices"]').forEach((el) => { el.hidden = !canDo('money.view'); });
     document.querySelectorAll('[data-nav="measurements"]').forEach((el) => { el.hidden = !canDo('measure'); });
     document.querySelectorAll('[data-nav="settings"]').forEach((el) => { el.hidden = false; });
+    $('ppMateBtn').hidden = !state.builder.ai_reader;
     // Phone tab bar: Measure replaces Calendar for builders who measure (Calendar moves to More).
     document.querySelectorAll('.pp-tab[data-nav="calendario"]').forEach((el) => { el.hidden = canDo('measure'); });
     paintInstall();
@@ -2869,7 +2893,7 @@
               <span class="pp-row-sub">${esc(countsText(m.counts))}</span>
               <span class="pp-row-next">${esc(m.completed_by || m.updated_by || m.created_by || '')} · ${esc(fmtDayEn(m.completed_at || m.updated_at))}</span>
             </span>
-          </a>`).join('') : '<div class="pp-empty">' + mate('point') + '<strong>No measurements yet</strong>Start with the house address.</div>'}
+          </a>`).join('') : '<div class="pp-empty">' + mate('measure', 120) + '<strong>No measurements yet</strong>Tap <b>New measurement</b> at the house — Mate finds the address for you.</div>'}
       </div>`;
     if (typeof window.sfBootCrmAddressAutocomplete === 'function') window.sfBootCrmAddressAutocomplete();
     $('ppMeasNewBtn').addEventListener('click', () => { const f = $('ppMeasNew'); f.hidden = false; f.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
@@ -3266,7 +3290,7 @@
       </div>`}
       <div class="pp-stair-sub"><h4>Nosings</h4>${nos || '<p class="pp-muted" style="margin:0;font-size:13px">No nosings (landing / top).</p>'}${locked ? '' : `<button type="button" class="pp-link" data-nos-add="${si}">+ Nosing</button>`}</div>
       <div class="pp-stair-sub"><h4>Photos</h4>${photoStrip(m, s.photos, `${p}.photos`)}</div>
-      <div class="pp-stair-sub"><h4>Notes</h4><textarea data-txt="${p}.note" maxlength="500" placeholder="e.g. right wall out of square, existing skirt board" ${locked ? 'disabled' : ''}>${esc(s.note)}</textarea></div>
+      <div class="pp-stair-sub"><h4>Notes</h4><textarea data-txt="${p}.note" aria-label="Notes for this stair" maxlength="500" placeholder="e.g. right wall out of square, existing skirt board" ${locked ? 'disabled' : ''}>${esc(s.note)}</textarea></div>
     </section>`;
   }
 
@@ -3570,6 +3594,7 @@
         const r = await postJson(`/api/builder/measurements/${encodeURIComponent(m.id)}/complete`, { done: true });
         state.meas = { ...r.data, tab: m.tab, dirty: false };
         paintMeasurement();
+        mateToast('celebrate', 'Measurement complete', 'It goes with the Work Order for this address.');
       } catch (e) {
         done.disabled = false;
         window.alert(e.message);
@@ -3821,6 +3846,148 @@
   view.addEventListener('focusin', (e) => { const row = e.target.closest('[data-step-row]'); if (row && state.meas) state.meas.voiceStair = Number(row.getAttribute('data-step-row').split(':')[0]); });
   view.addEventListener('click', (e) => { const viz = e.target.closest('[data-viz-stair]'); if (viz && state.meas) state.meas.voiceStair = Number(viz.getAttribute('data-viz-stair')); }, true);
 
+  /* ─────────────────────────── Mate: ask, toasts, getting started ─────────────────────────── */
+
+  /** Short Mate message that slides up above the tab bar and leaves by itself. */
+  function mateToast(pose, title, text) {
+    const old = $('ppToast');
+    if (old) old.remove();
+    document.body.insertAdjacentHTML('beforeend', `<div class="pp-toast" id="ppToast" role="status">${mate(pose, 44)}<div><strong>${esc(title)}</strong>${text ? `<span>${esc(text)}</span>` : ''}</div></div>`);
+    const el = $('ppToast');
+    setTimeout(() => { if (el.isConnected) { el.classList.add('is-out'); setTimeout(() => el.remove(), 220); } }, 3600);
+  }
+
+  /** What Mate may know: the same jobs, invoices and measurements this person sees in the app. */
+  function mateSnapshot() {
+    const iso = (d) => { const x = toDate(d); return x ? x.toISOString() : null; };
+    const STAGE = ['Awaiting schedule', 'Scheduled', 'On site', 'Completed'];
+    const jobs = (state.all.jobs || state.jobs || []).slice().sort((a, b) => (toDate(a.scheduledStart) || 0) - (toDate(b.scheduledStart) || 0)).slice(0, 110);
+    return {
+      today: new Date().toString().slice(0, 24),
+      builder: state.builder.account.name,
+      me: state.builder.member.name,
+      companies: (state.builder.companies || []).map((c) => ({ id: c.id, name: c.company_name, status: c.status, phone: (c.profile && c.profile.phone) || c.contact_phone || null, email: (c.profile && c.profile.email) || c.contact_email || null, address: (c.profile && c.profile.address) || null, active_jobs: (state.all.jobs || []).filter((j) => j._co === c.id && jobIsActive(j)).length })),
+      jobs: jobs.map((j) => ({ id: j.id, title: j.title || null, address: j.address || null, status: STAGE[jobStepIndex(j)], start: iso(j.scheduledStart), end: iso(j.scheduledEnd), all_day: Boolean(j.allDay), number: j.number || null, company: j._coName || null })),
+      invoices: canDo('money.view') ? (state.all.invoices || state.invoices || []).slice(0, 70).map((i) => ({ id: i.id, number: i.number || null, balance: Number(i.balance || 0), state: invoiceState(i).label, due: i.due_date || null, job: (i.job && (i.job.title || i.job.address)) || null, company: i._coName || null })) : [],
+      measurements: (state.homeMeas || []).slice(0, 35).map((m) => ({ id: m.id, address: m.address, status: m.status, counts: countsText(m.counts), updated: m.updated_at })),
+      pickups: (state.pickups || []).map((p) => ({ name: p.name, address: p.address, hours: p.hours, phone: p.phone })),
+      requests: (state.requests || []).slice(0, 25).map((r) => ({ title: r.title, status: r.status, created: r.created_at, company: r._coName || null })),
+    };
+  }
+
+  const mateChat = { turns: [], busy: false, rec: null, chunks: [], stream: null };
+  const MATE_SUGGEST = ['What’s on site today?', 'Which invoices are overdue?', 'What’s scheduled this week?', 'Which measurements are still open?'];
+
+  async function openMate() {
+    if (!state.homeMeas && canDo('measure')) api('/api/builder/measurements').then((r) => { state.homeMeas = r.data || []; }).catch(() => {});
+    if (!state.pickups) ensurePickups();
+    const root = openSheet('Ask Mate', `
+      <div class="pp-chat" id="ppChat" aria-live="polite"></div>
+      <form class="pp-chat-bar" id="ppChatForm">
+        <label class="pp-sr" for="ppChatIn">Ask Mate</label>
+        <input id="ppChatIn" maxlength="600" autocomplete="off" placeholder="Ask about jobs, invoices, measurements…" enterkeyhint="send" />
+        ${window.MediaRecorder && navigator.mediaDevices ? `<button type="button" class="pp-chat-mic" id="ppChatMic" aria-label="Talk to Mate">${icon('mic')}</button>` : ''}
+        <button type="submit" class="pp-chat-send" aria-label="Send">${icon('send')}</button>
+      </form>`, { noFocus: true });
+    root.querySelector('.pp-sheet-card').classList.add('pp-chat-card');
+    paintChat();
+    const form = $('ppChatForm');
+    form.addEventListener('submit', (e) => { e.preventDefault(); const v = $('ppChatIn').value.trim(); if (v) askMateNow({ question: v }); });
+    const mic = $('ppChatMic');
+    if (mic) mic.addEventListener('click', () => (mateChat.rec ? stopMateRec() : startMateRec()));
+    root.addEventListener('click', (e) => {
+      const sug = e.target.closest('[data-mate-q]');
+      if (sug) askMateNow({ question: sug.getAttribute('data-mate-q') });
+      const go = e.target.closest('[data-mate-go]');
+      if (go) { closeSheet(); location.hash = go.getAttribute('data-mate-go'); }
+    });
+  }
+  function paintChat() {
+    const box = $('ppChat');
+    if (!box) return;
+    const first = state.builder.member.name.split(/\s+/)[0];
+    const hello = `<div class="pp-msg pp-msg--mate">${mate('head-happy', 40)}<div class="pp-bubble"><strong>Hi ${esc(first)}! I’m Mate.</strong><span>Ask me about your jobs, schedule, invoices, pickups or measurements — typing or talking.</span></div></div>
+      ${mateChat.turns.length ? '' : `<div class="pp-chat-sugs">${MATE_SUGGEST.map((q) => `<button type="button" class="pp-chip-btn" data-mate-q="${esc(q)}">${esc(q)}</button>`).join('')}</div>`}`;
+    box.innerHTML = hello + mateChat.turns.map((t) => t.role === 'user'
+      ? `<div class="pp-msg pp-msg--me"><div class="pp-bubble">${esc(t.text)}</div></div>`
+      : `<div class="pp-msg pp-msg--mate">${mate(t.error ? 'head-sorry' : 'head-talking', 40)}<div class="pp-bubble">${esc(t.text).replace(/\n/g, '<br>')}${(t.actions || []).length ? `<div class="pp-msg-acts">${t.actions.map((a) => `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-mate-go="${esc(a.href)}">${esc(a.label)}</button>`).join('')}</div>` : ''}</div></div>`).join('')
+      + (mateChat.busy ? `<div class="pp-msg pp-msg--mate">${mate('head-thinking', 40)}<div class="pp-bubble pp-typing"><i></i><i></i><i></i></div></div>` : '');
+    box.scrollTop = box.scrollHeight;
+  }
+  async function askMateNow(input) {
+    if (mateChat.busy) return;
+    const inEl = $('ppChatIn');
+    if (input.question) { mateChat.turns.push({ role: 'user', text: input.question }); if (inEl) inEl.value = ''; }
+    mateChat.busy = true;
+    paintChat();
+    try {
+      const history = mateChat.turns.slice(-8, input.question ? -1 : undefined).map((t) => ({ role: t.role, text: String(t.text).slice(0, 1200) }));
+      const r = await postJson('/api/builder/mate', { ...input, snapshot: mateSnapshot(), history });
+      if (!input.question && r.data.question) mateChat.turns.push({ role: 'user', text: r.data.question });
+      mateChat.turns.push({ role: 'mate', text: r.data.answer, actions: r.data.actions });
+    } catch (e) {
+      mateChat.turns.push({ role: 'mate', text: e.message || 'I couldn’t answer right now.', error: true });
+    }
+    mateChat.busy = false;
+    paintChat();
+  }
+  async function startMateRec() {
+    try { mateChat.stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch (_) { mateChat.turns.push({ role: 'mate', text: 'I can’t hear you — allow the microphone for this site.', error: true }); paintChat(); return; }
+    const type = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find((t) => window.MediaRecorder.isTypeSupported && window.MediaRecorder.isTypeSupported(t)) || '';
+    mateChat.chunks = [];
+    mateChat.rec = new window.MediaRecorder(mateChat.stream, type ? { mimeType: type } : undefined);
+    mateChat.rec.addEventListener('dataavailable', (e) => { if (e.data && e.data.size) mateChat.chunks.push(e.data); });
+    mateChat.rec.addEventListener('stop', async () => {
+      const blob = new Blob(mateChat.chunks, { type: (mateChat.rec && mateChat.rec.mimeType) || 'audio/webm' });
+      mateChat.rec = null;
+      const mic = $('ppChatMic');
+      if (mic) mic.classList.remove('is-rec');
+      if (blob.size < 800) return;
+      askMateNow({ audio: await readAsDataUrl(blob) });
+    });
+    mateChat.rec.start();
+    const mic = $('ppChatMic');
+    if (mic) mic.classList.add('is-rec');
+    setTimeout(() => { if (mateChat.rec) stopMateRec(); }, 30000);
+  }
+  function stopMateRec() {
+    if (mateChat.rec && mateChat.rec.state !== 'inactive') mateChat.rec.stop();
+    if (mateChat.stream) mateChat.stream.getTracks().forEach((t) => t.stop());
+    mateChat.stream = null;
+  }
+  window.addEventListener('hashchange', () => { if (mateChat.rec) stopMateRec(); });
+
+  /** Home: Mate's getting-started list until the account is set up (or dismissed). */
+  function setupSteps() {
+    const b = state.builder;
+    const steps = [
+      { key: 'company', done: activeCompanies().length > 0, label: 'Connect your flooring company', sub: 'Their logo, contacts and jobs show up here', href: '#companies', pose: 'handshake', perm: 'companies.manage' },
+      { key: 'send', done: (state.requests || []).length > 0 || (state.all.jobs || []).length > 0, label: 'Send your first work order', sub: 'Snap it — Mate reads it for you', href: '#send', pose: 'snap', perm: 'jobs.send' },
+      { key: 'measure', done: (state.homeMeas || []).length > 0, label: 'Measure a stair on site', sub: 'Treads, risers and vents, by voice too', href: '#measurements/new', pose: 'measure', perm: 'measure' },
+      { key: 'pickup', done: (state.pickups || []).length > 0, label: 'Save your pickup locations', sub: 'Jobs get the yard address automatically', href: '#settings/pickups', pose: 'delivery', perm: 'team.manage' },
+      { key: 'team', done: (state.teamCount || 1) > 1, label: 'Invite your team', sub: 'Supers, purchasing and the office', href: '#team', pose: 'wave', perm: 'team.manage' },
+      { key: 'app', done: isStandaloneApp(), label: 'Install the app on your phone', sub: 'One tap from your home screen', href: '#settings/app', pose: 'tablet', perm: null },
+    ].filter((s) => !s.perm || canDo(s.perm));
+    return { steps, left: steps.filter((s) => !s.done), b };
+  }
+  function setupCardHtml() {
+    if (!state.builder) return '';
+    let hidden = false;
+    try { hidden = localStorage.getItem(`ob_setup_hidden_${state.builder.account.id}`) === '1'; } catch (_) { hidden = false; }
+    const { steps, left } = setupSteps();
+    if (hidden || !left.length) return '';
+    const next = left[0];
+    const done = steps.length - left.length;
+    return `<section class="pp-tile pp-setup" style="grid-column: span 12" aria-labelledby="ppSetupT">
+        <img class="pp-setup-art" src="${mateSrc(next.pose)}" alt="" />
+        <div class="pp-setup-main">
+          <div class="pp-tile-head"><h2 id="ppSetupT">Get set up with Mate</h2><button type="button" class="pp-link" data-setup-hide>Hide</button></div>
+          <div class="pp-setup-meter" aria-label="${done} of ${steps.length} done"><i style="width:${Math.round((done / steps.length) * 100)}%"></i></div>
+          <ol class="pp-setup-list">${steps.map((s) => `<li class="${s.done ? 'is-done' : s === next ? 'is-next' : ''}"><a href="${s.href}"><span class="pp-setup-dot">${s.done ? '✓' : ''}</span><span><strong>${esc(s.label)}</strong>${s === next ? `<small>${esc(s.sub)}</small>` : ''}</span></a></li>`).join('')}</ol>
+        </div>
+      </section>`;
+  }
+
   /* ─────────────────────────── more (phone) ─────────────────────────── */
 
   function renderMore() {
@@ -3919,6 +4086,7 @@
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); $('ppSearch').focus(); }
     });
     $('ppLogout').addEventListener('click', logout);
+    $('ppMateBtn').addEventListener('click', () => openMate());
     $('ppProviderSwitch').addEventListener('click', async () => {
       const btn = $('ppProviderSwitch');
       const workspace = $('ppProviderSelect').value;
