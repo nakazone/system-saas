@@ -78,7 +78,7 @@ export type IntakeResult = {
   labor_total: number | null;
   /** Fields the reader was unsure about — shown as "Confira" in the review. */
   check: IntakeField[];
-  /** Short notes for the builder (pt-BR), e.g. how an ambiguous value was read. */
+  /** Short notes for the builder (English), e.g. how an ambiguous value was read. */
   warnings: string[];
 };
 
@@ -112,7 +112,7 @@ Matching to the catalog: pick the catalog service that is the same kind of work 
 square_feet: the main flooring square feet (the largest SF install line), not the sum of underlayment lines.
 service_type: the main install, e.g. "LVP / waterproof flooring install", "Hardwood install", "Carpet install".
 - unsure: array of keys you are not confident about
-- warnings: array of short notes (in Brazilian Portuguese) explaining any ambiguous reading
+- warnings: array of short notes (in English) explaining any ambiguous reading
 Never invent values. Ignore page chrome (buttons, menus, battery, time of day).`;
 
 const MAX = { title: 160, address: 300, notes: 5000, contact_email: 254, contact_phone: 40, contact_name: 120, service_type: 100 } as const;

@@ -32,6 +32,8 @@ import {
   type ActiveMember,
 } from "../../lib/builders/accounts.js";
 import { can, permissionsFor, ROLE_LABELS, BUILDER_ROLES, type BuilderPermission } from "../../lib/builders/roles.js";
+import { deletePickup, listPickups, pickupForWorkOrder, savePickup } from "../../lib/builders/pickups.js";
+import { voiceToActions } from "../../lib/builders/voice.js";
 import {
   addPhoto,
   completeMeasurement,
@@ -88,7 +90,7 @@ async function requireBuilder(req: BuilderReq, res: Response, next: NextFunction
   try {
     const member = await loadActiveMember(req.session?.builderMemberId);
     if (!member) {
-      res.status(401).json({ success: false, error: "Entre na sua conta de builder." });
+      res.status(401).json({ success: false, error: "Sign in to your builder account." });
       return;
     }
     req.builderMember = member;
@@ -101,7 +103,7 @@ async function requireBuilder(req: BuilderReq, res: Response, next: NextFunction
 function needs(permission: BuilderPermission) {
   return (req: BuilderReq, res: Response, next: NextFunction): void => {
     if (!can(req.builderMember?.role, permission)) {
-      res.status(403).json({ success: false, error: "Seu papel na equipe não permite isso.", code: "forbidden" });
+      res.status(403).json({ success: false, error: "Your role on the team does not allow this.", code: "forbidden" });
       return;
     }
     next();
@@ -138,7 +140,7 @@ builderAccountRouter.get("/builders/confirm", async (req, res, next) => {
   try {
     const member = await confirmBuilderEmail(String(req.query.token || ""));
     await startBuilderSession(req, member);
-    res.redirect("/partner-portal.html#empresas");
+    res.redirect("/partner-portal.html#companies");
   } catch (error) {
     if (error instanceof BuilderError) {
       res.status(400).render("builders/message", pageLocals({ title: "Link expired", heading: "This link no longer works", text: error.message, action: { href: "/builders", label: "Sign up again" } }));
@@ -209,7 +211,7 @@ builderAccountRouter.post("/api/partner-auth/login", async (req, res, next) => {
       return;
     }
     if (!(await takeRate([{ key: `builder-login:ip:${clientIp(req)}`, max: 20, windowMs: HOUR }, { key: `builder-login:email:${email}`, max: 10, windowMs: HOUR }]))) {
-      res.status(429).json({ success: false, error: "Muitas tentativas. Espere um pouco e tente de novo." });
+      res.status(429).json({ success: false, error: "Too many attempts. Wait a moment and try again." });
       return;
     }
     const result = await loginBuilderMember(email, String(req.body?.password || ""));
@@ -287,12 +289,12 @@ builderAccountRouter.use("/api/partner-portal", async (req: Request, res: Respon
     }
     const member = await loadActiveMember(req.session.builderMemberId);
     if (!member) {
-      res.status(401).json({ success: false, error: "Entre na sua conta de builder." });
+      res.status(401).json({ success: false, error: "Sign in to your builder account." });
       return;
     }
     const link = (await linksFor(member.builderAccountId)).find((l) => l.id === linkId && l.status === "active");
     if (!link || !link.organization_id) {
-      res.status(404).json({ success: false, error: "Empresa não conectada." });
+      res.status(404).json({ success: false, error: "Company not connected." });
       return;
     }
     (req as Request & { builderTenantId?: string; builderLinkId?: string }).builderTenantId = link.organization_id;
@@ -308,6 +310,41 @@ builderAccountRouter.use("/api/partner-portal", async (req: Request, res: Respon
 builderAccountRouter.get("/api/builder/measurements", requireBuilder, needs("measure"), async (req: BuilderReq, res, next) => {
   try {
     res.json({ success: true, data: await listMeasurements(req.builderMember!) });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
+/* ───────────────────────── pickup locations ───────────────────────── */
+
+builderAccountRouter.get("/api/builder/pickups", requireBuilder, async (req: BuilderReq, res, next) => {
+  try {
+    res.json({ success: true, data: await listPickups(req.builderMember!.builderAccountId) });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
+builderAccountRouter.post("/api/builder/pickups", requireBuilder, needs("team.manage"), async (req: BuilderReq, res, next) => {
+  try {
+    res.status(201).json({ success: true, data: await savePickup(req.builderMember!, null, req.body || {}) });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
+builderAccountRouter.patch("/api/builder/pickups/:id", requireBuilder, needs("team.manage"), async (req: BuilderReq, res, next) => {
+  try {
+    res.json({ success: true, data: await savePickup(req.builderMember!, String(req.params.id), req.body || {}) });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
+builderAccountRouter.delete("/api/builder/pickups/:id", requireBuilder, needs("team.manage"), async (req: BuilderReq, res, next) => {
+  try {
+    await deletePickup(req.builderMember!, String(req.params.id));
+    res.json({ success: true });
   } catch (error) {
     sendError(res, error, next);
   }
@@ -370,6 +407,25 @@ builderAccountRouter.post("/api/builder/measurements/:id/photos", requireBuilder
   }
 });
 
+builderAccountRouter.post("/api/builder/measurements/:id/voice", requireBuilder, needs("measure"), async (req: BuilderReq, res, next) => {
+  try {
+    const m = await getMeasurement(req.builderMember!, String(req.params.id));
+    if (m.status === "used") throw new BuilderError(409, "This measurement was already sent with a job.");
+    if (!(await takeRate([{ key: `builder-voice:${req.builderMember!.builderAccountId}`, max: 200, windowMs: HOUR }]))) {
+      throw new BuilderError(429, "Too many voice notes this hour. Type the sizes or try again later.");
+    }
+    const out = await voiceToActions({
+      dataUrl: String(req.body?.audio || ""),
+      data: req.body?.data ?? m.data,
+      stair: Math.max(0, Number(req.body?.stair) || 0),
+      step: Math.max(0, Number(req.body?.step) || 0),
+    });
+    res.json({ success: true, data: out });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
 builderAccountRouter.get("/api/builder/measurements/:id/photo", requireBuilder, async (req: BuilderReq, res, next) => {
   try {
     const { stream, contentType } = await photoStream(req.builderMember!, String(req.params.id), String(req.query.key || ""));
@@ -407,12 +463,12 @@ builderAccountRouter.get("/api/builder/me", requireBuilder, async (req: BuilderR
     res.json({
       success: true,
       data: {
-        member: { id: m.id, name: m.name, email: m.email, role: m.role, role_label: ROLE_LABELS[m.role as keyof typeof ROLE_LABELS]?.pt || m.role },
-        account: { id: m.account.id, name: m.account.name, phone: m.account.phone },
+        member: { id: m.id, name: m.name, email: m.email, role: m.role, role_label: ROLE_LABELS[m.role as keyof typeof ROLE_LABELS]?.en || m.role },
+        account: { id: m.account.id, name: m.account.name, phone: m.account.phone, website: (m.account as { website?: string | null }).website ?? null },
         permissions: permissionsFor(m.role),
         companies: links,
         current_company_id: current?.id || null,
-        roles: BUILDER_ROLES.map((r) => ({ key: r, label: ROLE_LABELS[r].pt, hint: ROLE_LABELS[r].hint })),
+        roles: BUILDER_ROLES.map((r) => ({ key: r, label: ROLE_LABELS[r].en, hint: ROLE_LABELS[r].hint })),
         ai_reader: isIntakeReaderConfigured(),
       },
     });
@@ -427,7 +483,7 @@ builderAccountRouter.post("/api/builder/select", requireBuilder, async (req: Bui
     const links = await linksFor(req.builderMember!.builderAccountId);
     const link = links.find((l) => l.id === id);
     if (!link) {
-      res.status(404).json({ success: false, error: "Empresa não encontrada." });
+      res.status(404).json({ success: false, error: "Company not found." });
       return;
     }
     req.session.builderLinkId = link.id;
@@ -513,7 +569,7 @@ function decodeUploads(files: Array<{ name: string; data_url: string }>): Array<
   let total = 0;
   for (const f of files) {
     const match = /^data:([^;]+);base64,(.+)$/.exec(f.data_url);
-    if (!match) throw new BuilderError(400, `O arquivo ${f.name} está em um formato inválido.`);
+    if (!match) throw new BuilderError(400, `The file ${f.name} has an invalid format.`);
     const contentType = match[1]!.toLowerCase();
     const body = Buffer.from(match[2]!, "base64");
     const ok =
@@ -521,11 +577,11 @@ function decodeUploads(files: Array<{ name: string; data_url: string }>): Array<
       (contentType === "image/jpeg" && body[0] === 0xff && body[1] === 0xd8) ||
       (contentType === "image/png" && body.subarray(0, 8).toString("hex") === "89504e470d0a1a0a") ||
       (contentType === "image/webp" && body.subarray(8, 12).toString("ascii") === "WEBP");
-    if (!ok) throw new BuilderError(400, `O tipo do arquivo ${f.name} não é aceito. Use JPG, PNG, WebP ou PDF.`);
+    if (!ok) throw new BuilderError(400, `The file type of ${f.name} is not accepted. Use JPG, PNG, WebP or PDF.`);
     total += body.length;
     out.push({ name: f.name.replace(/[^\w.-]+/g, "-").slice(0, 120) || "arquivo", contentType, body });
   }
-  if (total > 10 * 1024 * 1024) throw new BuilderError(400, "O total dos arquivos deve ser menor que 10 MB.");
+  if (total > 10 * 1024 * 1024) throw new BuilderError(400, "Files must add up to less than 10 MB.");
   return out;
 }
 
@@ -540,8 +596,12 @@ builderAccountRouter.get("/api/builder/companies/:id/jobs", requireBuilder, asyn
 builderAccountRouter.post("/api/builder/companies/:id/jobs", requireBuilder, needs("jobs.send"), async (req: BuilderReq, res, next) => {
   try {
     const parsed = pendingSchema.safeParse(req.body || {});
-    if (!parsed.success) throw new BuilderError(400, "Confira os campos do pedido e tente novamente.");
+    if (!parsed.success) throw new BuilderError(400, "Check the request fields and try again.");
     const { files, ...payload } = parsed.data;
+    if (payload.pickup) {
+      const found = await pickupForWorkOrder(req.builderMember!.builderAccountId, payload.pickup).catch(() => null);
+      if (found && !payload.pickup.toLowerCase().includes(found.location.address.toLowerCase())) payload.pickup = found.text;
+    }
     const row = await keepPendingJob(req.builderMember!, String(req.params.id), payload, decodeUploads(files));
     res.status(201).json({ success: true, data: { id: row.id, kept: true } });
   } catch (error) {
@@ -553,13 +613,13 @@ builderAccountRouter.post("/api/builder/companies/:id/jobs", requireBuilder, nee
 builderAccountRouter.post("/api/builder/read", requireBuilder, needs("jobs.send"), async (req: BuilderReq, res, next) => {
   try {
     if (!(await takeRate([{ key: `builder-read:${req.builderMember!.builderAccountId}`, max: 30, windowMs: HOUR }]))) {
-      throw new BuilderError(429, "Muitas leituras nesta hora. Preencha à mão ou tente mais tarde.");
+      throw new BuilderError(429, "Too many reads this hour. Fill it in by hand or try again later.");
     }
     const parsed = z.object({
       text: z.string().max(20_000).optional().default(""),
       files: z.array(z.object({ name: z.string().trim().min(1).max(180), data_url: z.string().min(1).max(14_000_000) })).max(5).optional().default([]),
     }).safeParse(req.body || {});
-    if (!parsed.success) throw new BuilderError(400, "Envie até 5 arquivos (JPG, PNG, WebP ou PDF) ou cole o texto.");
+    if (!parsed.success) throw new BuilderError(400, "Send up to 5 files (JPG, PNG, WebP or PDF) or paste the text.");
     const uploads = decodeUploads(parsed.data.files);
     if (!isIntakeReaderConfigured()) {
       res.json({ success: true, data: { ai_available: false, fields: null, check: [], warnings: [], match: null } });
@@ -568,7 +628,7 @@ builderAccountRouter.post("/api/builder/read", requireBuilder, needs("jobs.send"
     const files: IntakeFile[] = uploads.map((u, i) => ({ name: u.name, contentType: u.contentType, dataUrl: parsed.data.files[i]!.data_url }));
     const read = await readWorkOrder({ files, text: parsed.data.text });
     if (!read.ok) throw new BuilderError(422, read.error);
-    res.json({ success: true, data: { ai_available: true, model: read.model, fields: read.result.fields, measurement: await findMeasurementForAddress(req.builderMember!.builderAccountId, read.result.fields.address).catch(() => null), items: read.result.items, labor_total: read.result.labor_total, check: read.result.check, warnings: read.result.warnings, match: null } });
+    res.json({ success: true, data: { ai_available: true, model: read.model, fields: read.result.fields, pickup_match: await pickupForWorkOrder(req.builderMember!.builderAccountId, read.result.fields.pickup).catch(() => null), measurement: await findMeasurementForAddress(req.builderMember!.builderAccountId, read.result.fields.address).catch(() => null), items: read.result.items, labor_total: read.result.labor_total, check: read.result.check, warnings: read.result.warnings, match: null } });
   } catch (error) {
     sendError(res, error, next);
   }
@@ -595,7 +655,7 @@ builderAccountRouter.post("/api/builder/team", requireBuilder, needs("team.manag
 builderAccountRouter.patch("/api/builder/team/:id", requireBuilder, needs("team.manage"), async (req: BuilderReq, res, next) => {
   try {
     if (req.params.id === req.builderMember!.id && (req.body?.disabled || (req.body?.role && req.body.role !== req.builderMember!.role))) {
-      throw new BuilderError(409, "Você não pode mudar o seu próprio acesso. Peça a outro admin.");
+      throw new BuilderError(409, "You can't change your own access. Ask another admin.");
     }
     await updateMember(req.builderMember!, String(req.params.id), req.body || {});
     res.json({ success: true });
@@ -606,9 +666,16 @@ builderAccountRouter.patch("/api/builder/team/:id", requireBuilder, needs("team.
 
 builderAccountRouter.patch("/api/builder/account", requireBuilder, needs("team.manage"), async (req: BuilderReq, res, next) => {
   try {
-    const parsed = z.object({ name: z.string().trim().min(2).max(120), phone: z.string().trim().max(40).optional().or(z.literal("")) }).safeParse(req.body || {});
-    if (!parsed.success) throw new BuilderError(400, "Informe o nome da empresa.");
-    await prisma.builderAccount.update({ where: { id: req.builderMember!.builderAccountId }, data: { name: parsed.data.name, phone: parsed.data.phone || null } });
+    const parsed = z.object({
+      name: z.string().trim().min(2).max(120),
+      phone: z.string().trim().max(40).optional().or(z.literal("")),
+      website: z.string().trim().max(200).optional().or(z.literal("")),
+    }).safeParse(req.body || {});
+    if (!parsed.success) throw new BuilderError(400, "Enter the company name.");
+    await prisma.builderAccount.update({
+      where: { id: req.builderMember!.builderAccountId },
+      data: { name: parsed.data.name, phone: parsed.data.phone || null, ...(parsed.data.website !== undefined ? { website: parsed.data.website || null } : {}) },
+    });
     res.json({ success: true });
   } catch (error) {
     sendError(res, error, next);

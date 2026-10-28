@@ -3575,6 +3575,7 @@ model BuilderAccount {
   members     BuilderMember[]
   links       BuilderLink[]
   measurements BuilderMeasurement[]
+  pickupLocations BuilderPickupLocation[]
 }
 
 model BuilderMember {
@@ -3677,4 +3678,23 @@ model BuilderMeasurement {
 
   @@index([builderAccountId, addressKey])
   @@index([builderAccountId, status])
+}
+
+/// Where the builder's crews pick up delivered material (supplier yards, warehouses).
+model BuilderPickupLocation {
+  id               String   @id @default(uuid()) @db.Uuid
+  builderAccountId String   @db.Uuid
+  account          BuilderAccount @relation(fields: [builderAccountId], references: [id], onDelete: Cascade)
+  name             String
+  address          String
+  /// Words that identify it on a work order ("TRIWEST", "HEN", "Henderson").
+  aliases          String[] @default([])
+  phone            String?
+  hours            String?
+  notes            String?
+  isDefault        Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([builderAccountId])
 }

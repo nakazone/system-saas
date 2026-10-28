@@ -838,3 +838,90 @@ body.pp {
 }
 .pp-viz-svg .pp-viz-note.is-open { fill: #B4561A; font-weight: 700; }
 .pp-vent-viz { max-width: 420px; }
+
+/* ── Pickup location in the review ───────────────────── */
+.pp-pick-row { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: -6px; }
+.pp-pick-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; background: var(--pp-olive-soft); color: var(--pp-olive); font-size: 13px; }
+.pp-pick-chip svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; }
+.pp-pick-row select { min-height: 38px; border: 1px solid var(--pp-border); border-radius: 10px; padding: 0 10px; background: #fff; max-width: 100%; }
+
+/* ── Mate in empty states ───────────────────────────── */
+.pp-mate { display: block; width: auto; margin: 0 auto 10px; }
+.pp-mate-card { position: relative; }
+.pp-mate-card > .pp-mate { margin: 0 0 4px; }
+
+/* ── Settings ───────────────────────────────────────── */
+.pp-settings { display: grid; gap: 16px; max-width: 880px; }
+.pp-settings h3 { margin: 0 0 4px; font-size: 18px; }
+.pp-settings .pp-fields { margin-top: 12px; }
+.pp-set-head { display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; }
+.pp-set-head p { margin: 4px 0 0; font-size: 14px; }
+.pp-settings code, .pp-pick-alias code { font: 600 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--pp-surface); border-radius: 6px; padding: 2px 6px; }
+.pp-pick-list { display: grid; margin-top: 12px; }
+.pp-pick-item { display: grid; grid-template-columns: 36px 1fr auto; gap: 12px; padding: 14px 0; border-top: 1px solid var(--pp-border); align-items: start; }
+.pp-pick-item.is-editing { display: block; border-top: 0; background: var(--pp-surface); border-radius: 16px; padding: 4px 16px 16px; margin-top: 12px; }
+.pp-pick-item p { margin: 2px 0 0; font-size: 14px; }
+.pp-pick-ic { width: 36px; height: 36px; border-radius: 10px; background: var(--pp-orange-soft); color: var(--pp-orange); display: grid; place-items: center; }
+.pp-pick-ic svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; }
+.pp-pick-btns { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.pp-pick-alias { font-size: 13px !important; }
+.pp-pick-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.pp-check { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+.pp-check input { width: 18px; height: 18px; accent-color: var(--pp-orange); }
+.pp-block.pp-app-card { display: flex; gap: 14px; align-items: center; }
+.pp-app-card img { border-radius: 14px; flex: none; }
+.pp-app-card > div { flex: 1; }
+.pp-app-card p { margin: 2px 0 0; font-size: 14px; }
+.pp-app-card .pp-btn svg, .pp-install-banner svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.2; }
+@media (max-width: 640px) {
+  .pp-pick-item { grid-template-columns: 32px 1fr; }
+  .pp-pick-btns { grid-column: 2; justify-content: flex-start; }
+  .pp-set-head { flex-direction: column; }
+}
+
+/* ── Install the app ───────────────────────────────── */
+.pp-install-banner { display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 14px; }
+.pp-install-banner img { border-radius: 11px; flex: none; }
+.pp-install-banner > div { flex: 1; min-width: 0; }
+.pp-install-banner strong { display: block; font-size: 15px; }
+.pp-install-banner span { display: block; font-size: 13px; color: var(--pp-muted); }
+.pp-install-x { width: 32px; height: 32px; font-size: 20px; }
+.pp-ios-sheet { position: fixed; inset: 0; z-index: 90; background: rgba(20, 16, 12, .45); display: flex; align-items: flex-end; justify-content: center; padding: 12px; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+.pp-ios-card { width: 100%; max-width: 440px; background: #fff; border-radius: 24px; padding: 20px; box-shadow: 0 20px 50px rgba(0,0,0,.25); }
+.pp-ios-top { display: flex; align-items: center; gap: 12px; }
+.pp-ios-top img:first-child { border-radius: 12px; }
+.pp-ios-top > div { flex: 1; }
+.pp-ios-top strong { display: block; font-size: 17px; }
+.pp-ios-top span { font-size: 13px; color: var(--pp-muted); }
+.pp-ios-top .pp-mate { margin: 0; }
+.pp-ios-card ol { margin: 16px 0; padding-left: 22px; display: grid; gap: 10px; font-size: 15px; }
+.pp-ios-card ol svg { width: 18px; height: 18px; vertical-align: -3px; fill: none; stroke: #0A84FF; stroke-width: 2; }
+
+/* ── Voice dictation with Mate ─────────────────────── */
+.pp-voice { position: fixed; right: 20px; bottom: 24px; z-index: 60; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; pointer-events: none; }
+.pp-voice > * { pointer-events: auto; }
+.pp-voice-fab { position: relative; width: 68px; height: 68px; border-radius: 50%; border: 0; padding: 0; cursor: pointer; background: #fff; box-shadow: 0 10px 28px rgba(34, 30, 26, .22), 0 0 0 3px var(--pp-orange) inset; display: grid; place-items: center; transition: transform .15s ease; }
+.pp-voice-fab:active { transform: scale(.95); }
+.pp-voice-fab img { width: 56px; height: 56px; object-fit: contain; }
+.pp-voice-mic { position: absolute; right: -2px; bottom: -2px; width: 26px; height: 26px; border-radius: 50%; background: var(--pp-orange); color: #fff; display: grid; place-items: center; box-shadow: 0 0 0 3px #fff; }
+.pp-voice-mic svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
+.pp-voice[data-phase="recording"] .pp-voice-fab { box-shadow: 0 10px 28px rgba(180, 86, 26, .35), 0 0 0 3px #D92D20 inset; animation: pp-voice-pulse 1.4s ease-in-out infinite; }
+.pp-voice[data-phase="recording"] .pp-voice-mic { background: #D92D20; }
+.pp-voice[data-phase="thinking"] .pp-voice-fab { animation: pp-voice-bob 1s ease-in-out infinite; }
+@keyframes pp-voice-pulse { 0%, 100% { outline: 0 solid rgba(217, 45, 32, .25); } 50% { outline: 12px solid rgba(217, 45, 32, 0); } }
+@keyframes pp-voice-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .pp-voice-fab { animation: none !important; } }
+.pp-voice-panel { position: relative; width: min(360px, calc(100vw - 32px)); background: #fff; border: 1px solid var(--pp-border); border-radius: 18px; padding: 14px 40px 14px 16px; box-shadow: 0 16px 40px rgba(34, 30, 26, .16); font-size: 14px; }
+.pp-voice-panel strong { display: block; font-size: 15px; margin-bottom: 2px; }
+.pp-voice-panel p { margin: 4px 0 0; }
+.pp-voice-panel ul { margin: 6px 0 10px; padding-left: 18px; color: var(--pp-muted); display: grid; gap: 4px; }
+.pp-voice-panel .pp-btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2.2; }
+.pp-voice-x { position: absolute; top: 6px; right: 6px; width: 30px; height: 30px; border: 0; background: none; font-size: 20px; color: var(--pp-muted); cursor: pointer; border-radius: 50%; }
+.pp-voice-heard { color: var(--pp-muted); font-style: italic; }
+.pp-voice-acts { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.pp-voice-clock { display: flex; align-items: center; gap: 8px; color: var(--pp-muted); }
+.pp-voice-dot { width: 10px; height: 10px; border-radius: 50%; background: #D92D20; animation: pp-voice-blink 1s steps(2) infinite; }
+@keyframes pp-voice-blink { 50% { opacity: .2; } }
+@media (max-width: 1023px) {
+  .pp-voice { right: 14px; bottom: calc(84px + env(safe-area-inset-bottom)); }
+}

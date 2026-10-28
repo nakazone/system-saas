@@ -18,13 +18,14 @@ import { subdomainTenantsSupported, workspaceHomeUrl } from "../../lib/tenant/wo
 import { ensureInvoicePublicToken, publicInvoiceUrl } from "../../lib/invoices/service.js";
 import { parseChecklist } from "../lib/campo-shared.js";
 import { isJobChecklistEnabled } from "../../lib/settings/jobs.js";
-import { formatQuantity, formatTicketWhen, mapsChoiceUrls, parseLockbox, phoneDigits, stripLockbox, ticketStatus } from "../../modules/work-orders/public-ticket.js";
+import { formatQuantityEn, formatTicketWhenEn, mapsChoiceUrls, parseLockbox, phoneDigits, stripLockbox, ticketStatusEn } from "../../modules/work-orders/public-ticket.js";
 import { applyPartnerRequest } from "../../lib/builders/jobs.js";
 import { activeLinkFor, ensureShadowPartnerUser, loadActiveMember, type ActiveMember } from "../../lib/builders/accounts.js";
 import { can, permissionsFor, type BuilderPermission, type PortalRole } from "../../lib/builders/roles.js";
 import { publishAppNotification } from "../../lib/notifications/publish.js";
 import { applyBuilderJobEdit, jobEditSchema, JobEditError } from "../../lib/builders/job-edit.js";
 import { findMeasurementForAddress, markMeasurementUsed, measurementPack } from "../../lib/builders/measurements.js";
+import { pickupForWorkOrder } from "../../lib/builders/pickups.js";
 import { findJobMatch, intakeItemsSchema, isIntakeReaderConfigured, readWorkOrder, type IntakeFile } from "../../lib/partner-intake/extract.js";
 
 type PartnerRequest = TenantRequest & {
@@ -142,7 +143,7 @@ async function requirePartnerAuth(
       const member = await loadActiveMember(req.session.builderMemberId);
       const organizationId = req.organizationId;
       if (!member) {
-        res.status(401).json({ success: false, error: "Entre na sua conta de builder." });
+        res.status(401).json({ success: false, error: "Sign in to your builder account." });
         return;
       }
       const link = organizationId ? await activeLinkFor(member, organizationId) : null;
@@ -164,7 +165,7 @@ async function requirePartnerAuth(
       !partnerUserId ||
       req.session.partnerOrganizationId !== organizationId
     ) {
-      res.status(401).json({ success: false, error: "Entre na sua conta de parceiro." });
+      res.status(401).json({ success: false, error: "Sign in to continue." });
       return;
     }
 
@@ -211,7 +212,7 @@ function partnerCan(req: PartnerRequest, permission: BuilderPermission): boolean
 function requirePortal(permission: BuilderPermission) {
   return (req: PartnerRequest, res: Response, next: NextFunction): void => {
     if (!partnerCan(req, permission)) {
-      res.status(403).json({ success: false, error: "Seu papel na equipe não permite isso.", code: "forbidden" });
+      res.status(403).json({ success: false, error: "Your role on the team does not allow this.", code: "forbidden" });
       return;
     }
     next();
@@ -228,7 +229,7 @@ partnerPortalRouter.post("/api/partner-auth/login", async (req: TenantRequest, r
       })
       .safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ success: false, error: "Informe e-mail e senha válidos." });
+      res.status(400).json({ success: false, error: "Enter a valid email and password." });
       return;
     }
 
@@ -243,7 +244,7 @@ partnerPortalRouter.post("/api/partner-auth/login", async (req: TenantRequest, r
       workspaceSlug = organization?.slug;
     }
     if (!organizationId) {
-      res.status(400).json({ success: false, error: "Informe o código da empresa para entrar." });
+      res.status(400).json({ success: false, error: "Enter the company code to sign in." });
       return;
     }
 
@@ -274,7 +275,7 @@ partnerPortalRouter.post("/api/partner-auth/login", async (req: TenantRequest, r
       (!builderIsActive && !customerIsActive) ||
       !(await verifyPassword(parsed.data.password, user.passwordHash))
     ) {
-      res.status(401).json({ success: false, error: "E-mail ou senha incorretos." });
+      res.status(401).json({ success: false, error: "Wrong email or password." });
       return;
     }
 
@@ -309,7 +310,7 @@ partnerPortalRouter.post("/api/partner-auth/switch", requirePartnerAuth, async (
   try {
     const parsed = z.object({ workspace: z.string().trim().min(1).max(80) }).safeParse(req.body || {});
     if (!parsed.success) {
-      res.status(400).json({ success: false, error: "Escolha uma empresa válida." });
+      res.status(400).json({ success: false, error: "Choose a valid company." });
       return;
     }
     const organization = await prisma.organization.findFirst({
@@ -317,7 +318,7 @@ partnerPortalRouter.post("/api/partner-auth/switch", requirePartnerAuth, async (
       select: { id: true, slug: true },
     });
     if (!organization) {
-      res.status(404).json({ success: false, error: "Acesso a essa empresa não está disponível." });
+      res.status(404).json({ success: false, error: "Access to this company is not available." });
       return;
     }
     const current = req.partnerUser!;
@@ -342,14 +343,14 @@ partnerPortalRouter.post("/api/partner-auth/switch", requirePartnerAuth, async (
     const builderIsActive = Boolean(member?.builder && member.builder.status !== "inactive");
     const customerIsActive = partnerCustomerIsActive(member?.customer || null);
     if (!member || (!builderIsActive && !customerIsActive)) {
-      res.status(403).json({ success: false, error: "Essa empresa ainda não liberou acesso ao portal para este e-mail." });
+      res.status(403).json({ success: false, error: "This company has not given this email access yet." });
       return;
     }
     if (subdomainTenantsSupported() && organization.id !== current.organizationId) {
       const host = String(req.get("host") || "").split(":")[0]!.toLowerCase();
       const root = env.APP_ROOT_DOMAIN.toLowerCase();
       if (host !== root && !host.endsWith(`.${root}`)) {
-        res.status(409).json({ success: false, error: "Para trocar de fornecedor, abra o portal pelo domínio ObraMate." });
+        res.status(409).json({ success: false, error: "To switch company, open the app from the ObraMate domain." });
         return;
       }
       const token = jwt.sign(
@@ -386,7 +387,7 @@ partnerPortalRouter.post("/api/partner-auth/exchange", async (req: TenantRequest
   try {
     const token = req.cookies?.partner_portal_switch;
     if (typeof token !== "string" || !req.organizationId) {
-      res.status(401).json({ success: false, error: "A troca de fornecedor expirou. Entre novamente." });
+      res.status(401).json({ success: false, error: "The company switch expired. Sign in again." });
       return;
     }
     let payload: jwt.JwtPayload;
@@ -394,7 +395,7 @@ partnerPortalRouter.post("/api/partner-auth/exchange", async (req: TenantRequest
       payload = jwt.verify(token, env.JWT_SECRET) as jwt.JwtPayload;
     } catch {
       res.clearCookie("partner_portal_switch", partnerSwitchCookieOptions());
-      res.status(401).json({ success: false, error: "A troca de fornecedor expirou. Entre novamente." });
+      res.status(401).json({ success: false, error: "The company switch expired. Sign in again." });
       return;
     }
     if (
@@ -404,7 +405,7 @@ partnerPortalRouter.post("/api/partner-auth/exchange", async (req: TenantRequest
       typeof payload.email !== "string"
     ) {
       res.clearCookie("partner_portal_switch", partnerSwitchCookieOptions());
-      res.status(401).json({ success: false, error: "Acesso a esse fornecedor não está disponível." });
+      res.status(401).json({ success: false, error: "Access to this company is not available." });
       return;
     }
     const user = await withTenantTransaction(req.organizationId, (tx) => tx.partnerUser.findFirst({
@@ -420,7 +421,7 @@ partnerPortalRouter.post("/api/partner-auth/exchange", async (req: TenantRequest
     const customerIsActive = Boolean(user?.customer && ["builder", "contractor"].includes(user.customer.customerType.toLowerCase()));
     if (!user || (!builderIsActive && !customerIsActive)) {
       res.clearCookie("partner_portal_switch", partnerSwitchCookieOptions());
-      res.status(401).json({ success: false, error: "Acesso a esse fornecedor não está disponível." });
+      res.status(401).json({ success: false, error: "Access to this company is not available." });
       return;
     }
     await new Promise<void>((resolve, reject) => req.session.regenerate((error) => error ? reject(error) : resolve()));
@@ -505,7 +506,7 @@ partnerPortalRouter.post("/api/partner-auth/change-password", requirePartnerAuth
   try {
     const parsed = z.object({ password: z.string().min(10).max(200) }).safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ success: false, error: "A nova senha deve ter pelo menos 10 caracteres." });
+      res.status(400).json({ success: false, error: "The new password must have at least 10 characters." });
       return;
     }
     const user = req.partnerUser!;
@@ -526,7 +527,7 @@ partnerPortalRouter.get("/api/partner-portal/overview", requirePartnerAuth, asyn
   try {
     const user = req.partnerUser!;
     if (user.mustChangePassword) {
-      res.status(403).json({ success: false, error: "Troque a senha temporária para acessar seus projetos.", code: "password_change_required" });
+      res.status(403).json({ success: false, error: "Replace the temporary password to see your projects.", code: "password_change_required" });
       return;
     }
 
@@ -671,7 +672,7 @@ partnerPortalRouter.get("/api/partner-portal/invoices/:id/open", requirePartnerA
       return publicInvoiceUrl(publicBaseUrl(req), token);
     });
     if (!publicUrl) {
-      res.status(404).json({ success: false, error: "Invoice não encontrada." });
+      res.status(404).json({ success: false, error: "Invoice not found." });
       return;
     }
     res.redirect(302, publicUrl);
@@ -770,7 +771,7 @@ partnerPortalRouter.post("/api/partner-portal/requests", requirePartnerAuth, req
       }).optional(),
     }).safeParse(req.body || {});
     if (!parsed.success) {
-      res.status(400).json({ success: false, error: "Confira os campos do pedido e tente novamente." });
+      res.status(400).json({ success: false, error: "Check the request fields and try again." });
       return;
     }
     if (parsed.data.target_job_id) {
@@ -779,7 +780,7 @@ partnerPortalRouter.post("/api/partner-portal/requests", requirePartnerAuth, req
         select: { id: true },
       }));
       if (!target) {
-        res.status(400).json({ success: false, error: "Esse job não está mais disponível. Envie como um job novo." });
+        res.status(400).json({ success: false, error: "This job is no longer available. Send it as a new job." });
         return;
       }
     }
@@ -788,19 +789,19 @@ partnerPortalRouter.post("/api/partner-portal/requests", requirePartnerAuth, req
     for (const file of uploads) {
       const match = /^data:([^;]+);base64,(.+)$/.exec(file.dataUrl);
       if (!match) {
-        res.status(400).json({ success: false, error: `O arquivo ${file.name} está em um formato inválido.` });
+        res.status(400).json({ success: false, error: `The file ${file.name} has an invalid format.` });
         return;
       }
       const contentType = match[1]!.toLowerCase();
       const body = Buffer.from(match[2]!, "base64");
       totalBytes += body.length;
       if (!validUploadSignature(contentType, body)) {
-        res.status(400).json({ success: false, error: `O tipo do arquivo ${file.name} não é aceito. Use JPG, PNG, WebP ou PDF.` });
+        res.status(400).json({ success: false, error: `The file type of ${file.name} is not accepted. Use JPG, PNG, WebP or PDF.` });
         return;
       }
     }
     if (totalBytes > 10 * 1024 * 1024) {
-      res.status(400).json({ success: false, error: "O total dos arquivos deve ser menor que 10 MB." });
+      res.status(400).json({ success: false, error: "Files must add up to less than 10 MB." });
       return;
     }
     // Builder measurement for this address: its PDF and photos go with the request, sizes go to the job.
@@ -809,6 +810,16 @@ partnerPortalRouter.post("/api/partner-portal/requests", requirePartnerAuth, req
     if (parsed.data.intake) {
       delete (parsed.data.intake as { measurement_id?: string }).measurement_id;
       if (pack) Object.assign(parsed.data.intake, { measurement_id: measurementId, measurement_text: pack.text, measurement_lines: pack.summary });
+      // Saved pickup location named in the order ("TRIWEST 9176215") → full address + order number.
+      const pickup = parsed.data.intake.pickup || "";
+      if (req.builderMember && pickup) {
+        const found = await pickupForWorkOrder(req.builderMember.builderAccountId, pickup).catch(() => null);
+        if (found && !pickup.toLowerCase().includes(found.location.address.toLowerCase())) {
+          Object.assign(parsed.data.intake, { pickup: found.text, pickup_location_id: found.location.id });
+        } else if (found) {
+          Object.assign(parsed.data.intake, { pickup_location_id: found.location.id });
+        }
+      }
     }
 
     const row = await withTenantTransaction(user.organizationId, (tx) =>
@@ -894,7 +905,7 @@ partnerPortalRouter.post("/api/partner-portal/requests/read", requirePartnerAuth
       files: z.array(z.object({ name: z.string().trim().min(1).max(180), data_url: z.string().min(1).max(14_000_000) })).max(5).optional().default([]),
     }).safeParse(req.body || {});
     if (!parsed.success) {
-      res.status(400).json({ success: false, error: "Envie até 5 arquivos (JPG, PNG, WebP ou PDF) ou cole o texto." });
+      res.status(400).json({ success: false, error: "Send up to 5 files (JPG, PNG, WebP or PDF) or paste the text." });
       return;
     }
     const files: IntakeFile[] = [];
@@ -905,17 +916,17 @@ partnerPortalRouter.post("/api/partner-portal/requests/read", requirePartnerAuth
       const body = match ? Buffer.from(match[2]!, "base64") : Buffer.alloc(0);
       totalBytes += body.length;
       if (!match || !validUploadSignature(contentType, body)) {
-        res.status(400).json({ success: false, error: `O tipo do arquivo ${file.name} não é aceito. Use JPG, PNG, WebP ou PDF.` });
+        res.status(400).json({ success: false, error: `The file type of ${file.name} is not accepted. Use JPG, PNG, WebP or PDF.` });
         return;
       }
       files.push({ name: safeFileName(file.name, "arquivo"), contentType, dataUrl: file.data_url });
     }
     if (totalBytes > 10 * 1024 * 1024) {
-      res.status(400).json({ success: false, error: "O total dos arquivos deve ser menor que 10 MB." });
+      res.status(400).json({ success: false, error: "Files must add up to less than 10 MB." });
       return;
     }
     if (!files.length && !parsed.data.text.trim()) {
-      res.status(400).json({ success: false, error: "Envie um arquivo ou cole o texto do pedido." });
+      res.status(400).json({ success: false, error: "Send a file or paste the text of the order." });
       return;
     }
     if (!isIntakeReaderConfigured()) {
@@ -967,6 +978,7 @@ partnerPortalRouter.post("/api/partner-portal/requests/read", requirePartnerAuth
         fields: read.result.fields,
         items: read.result.items,
         labor_total: read.result.labor_total,
+        pickup_match: req.builderMember ? await pickupForWorkOrder(req.builderMember.builderAccountId, read.result.fields.pickup).catch(() => null) : null,
         measurement: req.builderMember ? await findMeasurementForAddress(req.builderMember.builderAccountId, read.result.fields.address).catch(() => null) : null,
         catalog: catalog.map((c) => ({
           id: c.id,
@@ -1080,11 +1092,10 @@ partnerPortalRouter.get("/api/partner-portal/jobs/:id", requirePartnerAuth, asyn
             ? parseChecklist(job.campoChecklist).map((c) => ({ text: c.text, done: Boolean(c.done) }))
             : [];
           return {
-            status: ({ "Em andamento": "Na obra", Rascunho: "Aguardando agenda" } as Record<string, string>)[ticketStatus(job.status, job.fieldStatus).label]
-              || ticketStatus(job.status, job.fieldStatus).label,
-            when: formatTicketWhen(job.scheduledStart, job.scheduledEnd, organization?.timezone),
+            status: ticketStatusEn(job.status, job.fieldStatus),
+            when: formatTicketWhenEn(job.scheduledStart, job.scheduledEnd, organization?.timezone),
             all_day: job.allDay,
-            sector: job.sector === "sand_finish" ? "Lixa e acabamento" : job.sector === "installation" ? "Instalação" : null,
+            sector: job.sector === "sand_finish" ? "Sand & finish" : job.sector === "installation" ? "Installation" : null,
             maps: job.address ? mapsChoiceUrls(job.address) : null,
             lockbox: parseLockbox(job.notes),
             attention: (job.campoAttention || "").trim() || null,
@@ -1092,7 +1103,7 @@ partnerPortalRouter.get("/api/partner-portal/jobs/:id", requirePartnerAuth, asyn
             services: job.lineItems.map((li) => ({
               id: li.id,
               name: li.serviceName,
-              qty: Number(li.quantitySqft) > 0 ? formatQuantity(Number(li.quantitySqft), li.pricingItem?.unit) : null,
+              qty: Number(li.quantitySqft) > 0 ? formatQuantityEn(Number(li.quantitySqft), li.pricingItem?.unit) : null,
               quantity: Number(li.quantitySqft) || 0,
               unit: li.pricingItem?.unit || "sq_ft",
               notes: li.notes || null,
@@ -1119,7 +1130,7 @@ partnerPortalRouter.get("/api/partner-portal/jobs/:id", requirePartnerAuth, asyn
           ...reports.map((item) => ({
             id: item.id,
             type: "report",
-            title: item.title || "Relatório da obra",
+            title: item.title || "Job report",
             created_at: item.publishedAt || item.createdAt,
             file_url: bcUrl(req, `/api/partner-portal/documents/report/${encodeURIComponent(item.id)}/file`),
           })),
@@ -1160,7 +1171,7 @@ partnerPortalRouter.get("/api/partner-portal/jobs/:id", requirePartnerAuth, asyn
       };
     });
     if (!data) {
-      res.status(404).json({ success: false, error: "Job não encontrado." });
+      res.status(404).json({ success: false, error: "Job not found." });
       return;
     }
     res.json({ success: true, data });
@@ -1176,7 +1187,7 @@ partnerPortalRouter.patch("/api/partner-portal/jobs/:id", requirePartnerAuth, re
     if (!partnerDocsReady(user, res)) return;
     const parsed = jobEditSchema.safeParse(req.body || {});
     if (!parsed.success) {
-      res.status(400).json({ success: false, error: "Confira os campos alterados." });
+      res.status(400).json({ success: false, error: "Check the changed fields." });
       return;
     }
     const org = await prisma.organization.findUnique({ where: { id: user.organizationId }, select: { timezone: true } });
@@ -1246,12 +1257,12 @@ partnerPortalRouter.get("/api/partner-portal/requests/:id/files/:index", require
     }));
     const file = Number.isInteger(index) ? requestFiles(row?.files)[index] : undefined;
     if (!file) {
-      res.status(404).json({ success: false, error: "Arquivo não encontrado." });
+      res.status(404).json({ success: false, error: "File not found." });
       return;
     }
     const stream = await storage.getStream(file.key);
     if (!stream) {
-      res.status(404).json({ success: false, error: "Arquivo indisponível." });
+      res.status(404).json({ success: false, error: "File unavailable." });
       return;
     }
     res.setHeader("Cache-Control", "private, no-store");
@@ -1340,12 +1351,12 @@ partnerPortalRouter.get("/api/partner-requests/:id/files/:index", requireCrmAuth
     }));
     const file = Number.isInteger(index) ? requestFiles(row?.files)[index] : undefined;
     if (!file) {
-      res.status(404).json({ success: false, error: "Arquivo não encontrado." });
+      res.status(404).json({ success: false, error: "File not found." });
       return;
     }
     const stream = await storage.getStream(file.key);
     if (!stream) {
-      res.status(404).json({ success: false, error: "Arquivo indisponível." });
+      res.status(404).json({ success: false, error: "File unavailable." });
       return;
     }
     res.setHeader("Cache-Control", "private, no-store");
@@ -1363,18 +1374,18 @@ partnerPortalRouter.post("/api/partner-requests/:id/accept", requireCrmAuth, req
   try {
     const parsed = z.object({ review_note: z.string().trim().max(2000).optional().default("") }).safeParse(req.body || {});
     if (!parsed.success) {
-      res.status(400).json({ success: false, error: "Observação inválida." });
+      res.status(400).json({ success: false, error: "Invalid note." });
       return;
     }
     const result = await withTenantTransaction(req.organizationId!, (tx) =>
       applyPartnerRequest(tx, req.organizationId!, String(req.params.id), parsed.data.review_note),
     );
     if (result.kind === "missing") {
-      res.status(404).json({ success: false, error: "Pedido não encontrado." });
+      res.status(404).json({ success: false, error: "Request not found." });
       return;
     }
     if (result.kind === "closed") {
-      res.status(409).json({ success: false, error: "Este pedido já foi analisado." });
+      res.status(409).json({ success: false, error: "This request was already reviewed." });
       return;
     }
     res.json({ success: true, data: result });
@@ -1387,7 +1398,7 @@ partnerPortalRouter.post("/api/partner-requests/:id/decline", requireCrmAuth, re
   try {
     const parsed = z.object({ review_note: z.string().trim().max(2000).optional().default("") }).safeParse(req.body || {});
     if (!parsed.success) {
-      res.status(400).json({ success: false, error: "Observação inválida." });
+      res.status(400).json({ success: false, error: "Invalid note." });
       return;
     }
     const row = await withTenantTransaction(req.organizationId!, (tx) => tx.partnerJobRequest.updateMany({
@@ -1395,7 +1406,7 @@ partnerPortalRouter.post("/api/partner-requests/:id/decline", requireCrmAuth, re
       data: { status: "declined", reviewedAt: new Date(), reviewNote: parsed.data.review_note || null },
     }));
     if (!row.count) {
-      res.status(404).json({ success: false, error: "Pedido pendente não encontrado." });
+      res.status(404).json({ success: false, error: "Pending request not found." });
       return;
     }
     res.json({ success: true });
@@ -1408,7 +1419,7 @@ function partnerDocsReady(user: NonNullable<PartnerRequest["partnerUser"]>, res:
   if (!user.mustChangePassword) return true;
   res.status(403).json({
     success: false,
-    error: "Troque a senha temporária para acessar o portal.",
+    error: "Replace the temporary password to continue.",
     code: "password_change_required",
   });
   return false;
@@ -1486,7 +1497,7 @@ partnerPortalRouter.get(
         const reports = reportRows.map((item) => ({
           id: item.id,
           type: "report",
-          title: item.title || "Relatório da obra",
+          title: item.title || "Job report",
           summary: item.summary || "",
           created_at: (item.publishedAt || item.createdAt).toISOString(),
           job: jobRef(item.workOrderId),
@@ -1549,12 +1560,12 @@ partnerPortalRouter.get(
         return job ? { ...media, jobNumber: job.number } : null;
       });
       if (!row) {
-        res.status(404).json({ success: false, error: "Documento não encontrado." });
+        res.status(404).json({ success: false, error: "Document not found." });
         return;
       }
       const stream = await storage.getStream(row.storageKey);
       if (!stream) {
-        res.status(404).json({ success: false, error: "Arquivo indisponível." });
+        res.status(404).json({ success: false, error: "File unavailable." });
         return;
       }
       const extension = row.type === "video" ? "mp4" : "jpg";
@@ -1591,12 +1602,12 @@ partnerPortalRouter.get(
         }),
       );
       if (!job?.deliveryAttachmentKey) {
-        res.status(404).json({ success: false, error: "Documento não encontrado." });
+        res.status(404).json({ success: false, error: "Document not found." });
         return;
       }
       const stream = await storage.getStream(job.deliveryAttachmentKey);
       if (!stream) {
-        res.status(404).json({ success: false, error: "Arquivo indisponível." });
+        res.status(404).json({ success: false, error: "File unavailable." });
         return;
       }
       const fileName = safeFileName(job.deliveryAttachmentName || "arquivo-da-obra", "arquivo-da-obra");
@@ -1661,7 +1672,7 @@ partnerPortalRouter.get(
         };
       });
       if (!payload) {
-        res.status(404).json({ success: false, error: "Documento não encontrado." });
+        res.status(404).json({ success: false, error: "Document not found." });
         return;
       }
       const report = payload.report;

@@ -33,10 +33,10 @@ const MATRIX: Record<PortalRole, BuilderPermission[]> = {
 };
 
 export const ROLE_LABELS: Record<BuilderRole, { pt: string; en: string; hint: string }> = {
-  admin: { pt: "Admin", en: "Admin", hint: "Tudo, inclusive equipe e empresas." },
-  manager: { pt: "Gerente", en: "Manager", hint: "Envia e altera jobs, vê valores, conecta empresas." },
-  office: { pt: "Escritório", en: "Office", hint: "Envia e altera jobs, vê valores e invoices." },
-  field: { pt: "Campo", en: "Field", hint: "Vê os jobs e o ticket, sem valores, e faz medições." },
+  admin: { pt: "Admin", en: "Admin", hint: "Everything, including team and companies." },
+  manager: { pt: "Gerente", en: "Manager", hint: "Sends and edits jobs, sees prices, connects companies." },
+  office: { pt: "Escritório", en: "Office", hint: "Sends and edits jobs, sees prices and invoices." },
+  field: { pt: "Campo", en: "Field", hint: "Sees jobs and tickets without prices, and measures on site." },
 };
 
 export function isBuilderRole(value: unknown): value is BuilderRole {

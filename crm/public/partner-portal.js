@@ -70,12 +70,12 @@
   function fmtDay(value, opts) {
     const d = value instanceof Date ? value : toDate(value);
     if (!d) return '';
-    return new Intl.DateTimeFormat('pt-BR', opts || { day: 'numeric', month: 'short' }).format(d).replace('.', '');
+    return new Intl.DateTimeFormat('en-US', opts || { month: 'short', day: 'numeric' }).format(d);
   }
   function fmtWeekday(value) {
     const d = value instanceof Date ? value : toDate(value);
     if (!d) return '';
-    return new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' }).format(d).replace(/\./g, '');
+    return new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).format(d);
   }
   function fmtTime(value) {
     const d = toDate(value);
@@ -102,6 +102,12 @@
     if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
     return `${Math.max(1, Math.round(size / 1024))} KB`;
   }
+  /** Mate, the ObraMate mascot, in empty states and helpers. */
+  function mate(pose, size) {
+    const h = size || 72;
+    return `<img class="pp-mate" src="/assets/img/mascot/mate-${pose}.webp?v=20261027-m2" alt="" height="${h}" style="height:${h}px" decoding="async" loading="lazy">`;
+  }
+
   function icon(name) {
     const paths = {
       back: '<path d="M15 18l-6-6 6-6"/>',
@@ -111,6 +117,10 @@
       pen: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/>',
       chev: '<path d="M9 6l6 6-6 6"/>',
       search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
+      pin: '<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
+      mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
+      gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',
+      download: '<path d="M12 4v12M7 11l5 5 5-5"/><path d="M4 20h16"/>',
     };
     return `<svg viewBox="0 0 24 24" aria-hidden="true">${paths[name] || ''}</svg>`;
   }
@@ -123,10 +133,10 @@
     const body = await response.json().catch(() => ({}));
     if (response.status === 401) {
       location.replace('partner-login.html');
-      throw new Error('Entre novamente.');
+      throw new Error('Please sign in again.');
     }
     if (!response.ok) {
-      const err = new Error(body.error || 'Não foi possível carregar os dados.');
+      const err = new Error(body.error || 'Could not load the data.');
       err.status = response.status;
       err.code = body.code;
       throw err;
@@ -139,7 +149,7 @@
 
   /* ─────────────────────────── domain ─────────────────────────── */
 
-  const JOB_STEPS = ['Recebido', 'Agendado', 'Na obra', 'Concluído'];
+  const JOB_STEPS = ['Received', 'Scheduled', 'On site', 'Completed'];
   function jobStepIndex(job) {
     if (job.status === 'completed' || job.status === 'needs_invoicing') return 3;
     if (job.status === 'in_progress') return 2;
@@ -161,25 +171,25 @@
   }
   function jobChip(job) {
     const i = jobStepIndex(job);
-    if (i === 3) return '<span class="pp-chip pp-chip--ok">Concluído</span>';
-    if (i === 2) return '<span class="pp-chip pp-chip--dark">Na obra</span>';
-    if (i === 1) return '<span class="pp-chip">Agendado</span>';
-    return '<span class="pp-chip">Aguardando agenda</span>';
+    if (i === 3) return '<span class="pp-chip pp-chip--ok">Completed</span>';
+    if (i === 2) return '<span class="pp-chip pp-chip--dark">On site</span>';
+    if (i === 1) return '<span class="pp-chip">Scheduled</span>';
+    return '<span class="pp-chip">Awaiting schedule</span>';
   }
   function jobWhen(job) {
     const start = toDate(job.scheduledStart);
     const i = jobStepIndex(job);
-    if (i === 3) return `Concluído · ${fmtDay(job.updatedAt)}`;
-    if (!start) return 'A equipe ainda vai agendar';
+    if (i === 3) return `Completed · ${fmtDay(job.updatedAt)}`;
+    if (!start) return 'Not scheduled yet';
     const late = jobLate(job);
-    if (late && i === 1) return `<span class="pp-late">Não iniciado · data passou há ${plural(late, 'dia', 'dias')}</span>`;
+    if (late && i === 1) return `<span class="pp-late">Not started · ${plural(late, 'day', 'days')} past the date</span>`;
     if (i === 2) {
       const end = toDate(job.scheduledEnd);
-      return end ? `Na obra · até ${fmtWeekday(end)}` : 'Na obra';
+      return end ? `On site · until ${fmtWeekday(end)}` : 'On site';
     }
     const d = daysBetween(new Date(), start);
-    if (d === 0) return `Hoje${job.allDay ? '' : ` · ${fmtTime(start)}`}`;
-    if (d === 1) return `Amanhã${job.allDay ? '' : ` · ${fmtTime(start)}`}`;
+    if (d === 0) return `Today${job.allDay ? '' : ` · ${fmtTime(start)}`}`;
+    if (d === 1) return `Tomorrow${job.allDay ? '' : ` · ${fmtTime(start)}`}`;
     return fmtWeekday(start);
   }
   function bars(index, steps, done) {
@@ -206,17 +216,17 @@
     const paid = inv.status === 'paid' || Number(inv.balance) <= 0;
     const due = dateOnly(inv.due_date);
     const today = startOfDay(new Date());
-    if (paid) return { key: 'paid', label: 'Paga', chip: '<span class="pp-chip pp-chip--ok">Paga</span>', days: 0 };
+    if (paid) return { key: 'paid', label: 'Paid', chip: '<span class="pp-chip pp-chip--ok">Paid</span>', days: 0 };
     if (due && due < today) {
       const days = daysBetween(due, today);
-      return { key: 'overdue', label: `Venceu há ${plural(days, 'dia', 'dias')}`, chip: `<span class="pp-chip pp-chip--late">Venceu há ${plural(days, 'dia', 'dias')}</span>`, days };
+      return { key: 'overdue', label: `${plural(days, 'day', 'days')} overdue`, chip: `<span class="pp-chip pp-chip--late">${plural(days, 'day', 'days')} overdue</span>`, days };
     }
     if (due) {
       const days = daysBetween(today, due);
-      if (days <= 7) return { key: 'soon', label: days === 0 ? 'Vence hoje' : `Vence em ${plural(days, 'dia', 'dias')}`, chip: `<span class="pp-chip pp-chip--late">${days === 0 ? 'Vence hoje' : `Vence em ${plural(days, 'dia', 'dias')}`}</span>`, days };
-      return { key: 'open', label: `Vence ${fmtDay(due)}`, chip: '<span class="pp-chip">Em aberto</span>', days };
+      if (days <= 7) return { key: 'soon', label: days === 0 ? 'Due today' : `Due in ${plural(days, 'day', 'days')}`, chip: `<span class="pp-chip pp-chip--late">${days === 0 ? 'Due today' : `Due in ${plural(days, 'day', 'days')}`}</span>`, days };
+      return { key: 'open', label: `Due ${fmtDay(due)}`, chip: '<span class="pp-chip">Open</span>', days };
     }
-    return { key: 'open', label: 'Em aberto', chip: '<span class="pp-chip">Em aberto</span>', days: 0 };
+    return { key: 'open', label: 'Open', chip: '<span class="pp-chip">Open</span>', days: 0 };
   }
   function invoiceRef(inv) {
     const job = inv.job || {};
@@ -224,9 +234,9 @@
   }
 
   function requestStatus(req) {
-    if (req.status === 'accepted') return '<span class="pp-chip pp-chip--ok">Aceito</span>';
-    if (req.status === 'declined') return '<span class="pp-chip pp-chip--late">Não aprovado</span>';
-    return '<span class="pp-chip">Aguardando a equipe</span>';
+    if (req.status === 'accepted') return '<span class="pp-chip pp-chip--ok">Accepted</span>';
+    if (req.status === 'declined') return '<span class="pp-chip pp-chip--late">Not approved</span>';
+    return '<span class="pp-chip">Waiting for the company</span>';
   }
 
   function providerName() {
@@ -235,11 +245,11 @@
       const filtered = state.coFilter && coById(state.coFilter);
       if (filtered) return filtered.company_name;
       const act = activeCompanies();
-      return act.length === 1 ? act[0].company_name : 'Todas as empresas';
+      return act.length === 1 ? act[0].company_name : 'All companies';
     }
     const user = state.user || {};
     const p = state.providers.find((x) => x.slug === user.workspace);
-    return (p && p.name) || 'Seu fornecedor';
+    return (p && p.name) || 'Your installer';
   }
   /** Builder team permissions (jobs.view, jobs.send, jobs.edit, money.view, companies.manage, team.manage). */
   function canDo(permission) {
@@ -281,7 +291,7 @@
   function coBarHtml() {
     if (!state.builder || !multiCo()) return '';
     const btn = (id, label) => `<button type="button" data-cofilter="${esc(id)}" aria-pressed="${state.coFilter === id}">${esc(label)}</button>`;
-    return `<div class="pp-cobar pp-filter" role="group" aria-label="Filtrar por empresa">${btn('', 'Todas as empresas')}${activeCompanies().map((c) => btn(c.id, c.company_name)).join('')}</div>`;
+    return `<div class="pp-cobar pp-filter" role="group" aria-label="Filter by company">${btn('', 'All companies')}${activeCompanies().map((c) => btn(c.id, c.company_name)).join('')}</div>`;
   }
   function companyInvited() {
     const c = sendCo();
@@ -350,7 +360,7 @@
           if (known) throw err;
         }
       }
-      throw new Error('Job não encontrado.');
+      throw new Error('Job not found.');
     }
     const r = await api(url);
     state.jobDetail.set(id, r.data);
@@ -366,17 +376,19 @@
 
   /* ─────────────────────────── router ─────────────────────────── */
 
+  const ROUTE_ALIAS = { home: 'inicio', calendar: 'calendario', send: 'enviar', documents: 'documentos', more: 'mais', companies: 'empresas', team: 'equipe' };
   function route() {
-    const hash = (location.hash || '#inicio').slice(1);
+    const hash = (location.hash || '#home').slice(1);
     const [name, id] = hash.split('/');
-    return { name: name || 'inicio', id: id ? decodeURIComponent(id) : '' };
+    // English URLs (#home, #send…) map to the internal page keys.
+    return { name: ROUTE_ALIAS[name] || name || 'inicio', id: id ? decodeURIComponent(id) : '' };
   }
   function setNav(name) {
     const map = { 'job': 'jobs', 'invoice': 'invoices', 'pedidos': 'enviar' };
     const key = map[name] || name;
     document.querySelectorAll('[data-nav]').forEach((el) => {
       const nav = el.getAttribute('data-nav');
-      const on = nav === key || (nav === 'mais' && ['documentos', 'enviar', 'mais', 'empresas', 'equipe', 'measurements'].includes(key) && el.classList.contains('pp-tab'));
+      const on = nav === key || (nav === 'mais' && ['documentos', 'enviar', 'mais', 'empresas', 'equipe', 'settings'].includes(key) && el.classList.contains('pp-tab'));
       if (on) el.setAttribute('aria-current', 'page');
       else el.removeAttribute('aria-current');
     });
@@ -404,9 +416,11 @@
     setNav(r.name);
     document.body.classList.remove('pp-focus');
     state.ctx = null;
+    if (r.name !== 'settings') state.pickupEdit = null;
     try {
       if (state.builder && r.name === 'empresas') { await renderCompanies(token); updateCounts(); return; }
       if (state.builder && r.name === 'equipe') { await renderTeam(token); updateCounts(); return; }
+      if (state.builder && r.name === 'settings') { await renderSettings(token); updateCounts(); return; }
       if (state.builder && r.name === 'measurements') {
         if (!canDo('measure')) { view.innerHTML = '<div class="pp-card pp-empty"><strong>Your role can’t take measurements</strong>Ask your team admin.</div>'; return; }
         await renderMeasurements(r.id, token); updateCounts(); return;
@@ -423,7 +437,7 @@
       if (token === renderToken) paintCoBar(r);
     } catch (err) {
       if (token !== renderToken) return;
-      view.innerHTML = `<p class="pp-error" role="alert">${esc(err.message || 'Não foi possível carregar.')}</p>`;
+      view.innerHTML = `<p class="pp-error" role="alert">${esc(err.message || 'Could not load.')}</p>`;
     }
     updateCounts();
   }
@@ -436,7 +450,7 @@
     const user = state.user;
     const now = new Date();
     const hour = now.getHours();
-    const hello = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
+    const hello = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
     const first = String(user.name || '').split(/\s+/)[0] || '';
     const active = state.jobs.filter(jobIsActive);
     const waiting = active.filter((j) => j.status === 'draft').length;
@@ -458,10 +472,10 @@
     const attention = [];
     overdue.concat(open.filter((inv) => invoiceState(inv).key === 'soon')).forEach((inv) => {
       const st = invoiceState(inv);
-      attention.push(`<div class="pp-att"><div class="pp-att-main"><strong>${esc(inv.number ? `Invoice ${inv.number}` : 'Invoice')} · ${money(inv.balance)}</strong><span class="${st.key === 'overdue' ? 'pp-late' : ''}">${esc(invoiceRef(inv))} · ${esc(st.label)}</span></div><a class="pp-btn pp-btn--dark pp-btn--sm" href="#invoices/${encodeURIComponent(inv.id)}">Ver invoice</a></div>`);
+      attention.push(`<div class="pp-att"><div class="pp-att-main"><strong>${esc(inv.number ? `Invoice ${inv.number}` : 'Invoice')} · ${money(inv.balance)}</strong><span class="${st.key === 'overdue' ? 'pp-late' : ''}">${esc(invoiceRef(inv))} · ${esc(st.label)}</span></div><a class="pp-btn pp-btn--dark pp-btn--sm" href="#invoices/${encodeURIComponent(inv.id)}">View invoice</a></div>`);
     });
     state.requests.filter((r) => r.status === 'declined' && daysBetween(toDate(r.created_at) || now, now) <= 30).forEach((r) => {
-      attention.push(`<div class="pp-att"><div class="pp-att-main"><strong>Pedido não aprovado · ${esc(r.title)}</strong><span>${esc(r.review_note || 'A equipe não aprovou este pedido.')}</span></div><a class="pp-btn pp-btn--sec pp-btn--sm" href="#enviar">Ver pedido</a></div>`);
+      attention.push(`<div class="pp-att"><div class="pp-att-main"><strong>Request not approved · ${esc(r.title)}</strong><span>${esc(r.review_note || 'The company did not approve this request.')}</span></div><a class="pp-btn pp-btn--sec pp-btn--sm" href="#send">View request</a></div>`);
     });
 
     const forecast = [];
@@ -475,61 +489,62 @@
     view.innerHTML = `
       <div class="pp-bento">
         <div class="pp-head" style="grid-column: span 12">
-          <div><p class="pp-eyebrow">${esc(user.company_name || '')}${user.company_name ? ' · ' : ''}${esc(fmtDay(now, { weekday: 'long', day: 'numeric', month: 'long' }))}</p><h1>${esc(hello)}${first ? `, ${esc(first)}` : ''}</h1></div>
-          <div class="pp-head-actions"><a class="pp-btn pp-btn--sec" href="#calendario">Calendário</a><a class="pp-btn pp-btn--sec" href="#documentos">Fotos e docs</a><a class="pp-btn pp-btn--pri" href="#enviar">Enviar trabalho</a></div>
+          <div><p class="pp-eyebrow">${esc(user.company_name || '')}${user.company_name ? ' · ' : ''}${esc(fmtDay(now, { weekday: 'long', month: 'long', day: 'numeric' }))}</p><h1>${esc(hello)}${first ? `, ${esc(first)}` : ''}</h1></div>
+          <div class="pp-head-actions"><a class="pp-btn pp-btn--sec" href="#calendar">Calendar</a><a class="pp-btn pp-btn--sec" href="#documents">Photos & docs</a><a class="pp-btn pp-btn--pri" href="#send">Send work</a></div>
         </div>
+        ${installBannerHtml() ? `<div style="grid-column: span 12">${installBannerHtml()}</div>` : ''}
 
-        <section class="pp-tile pp-tile--orange" style="grid-column: span 4; grid-row: span 3" aria-label="Jobs ativos">
-          <div style="font-size:14px;font-weight:500">Jobs ativos</div>
+        <section class="pp-tile pp-tile--orange" style="grid-column: span 4; grid-row: span 3" aria-label="Active jobs">
+          <div style="font-size:14px;font-weight:500">Active jobs</div>
           <div class="pp-big" style="font-size:52px">${active.length}</div>
-          <div style="font-size:14px">${state.builder && multiCo() && !state.coFilter ? `em ${activeCompanies().length} empresas` : `com ${esc(providerName())}`}</div>
+          <div style="font-size:14px">${state.builder && multiCo() && !state.coFilter ? `across ${activeCompanies().length} companies` : `with ${esc(providerName())}`}</div>
           <div class="pp-inbox-grid">
-            <div class="pp-inbox"><span style="font-size:12px">Aguardando agenda</span><b>${waiting}</b></div>
-            <div class="pp-inbox"><span style="font-size:12px">Agendados</span><b>${scheduled}</b></div>
-            <div class="pp-inbox"><span style="font-size:12px">Na obra</span><b>${onSite}</b></div>
+            <div class="pp-inbox"><span style="font-size:12px">Awaiting schedule</span><b>${waiting}</b></div>
+            <div class="pp-inbox"><span style="font-size:12px">Scheduled</span><b>${scheduled}</b></div>
+            <div class="pp-inbox"><span style="font-size:12px">On site</span><b>${onSite}</b></div>
           </div>
-          <a class="pp-tile-link" href="#jobs">Ver jobs →</a>
+          <a class="pp-tile-link" href="#jobs">View jobs →</a>
         </section>
 
-        ${canDo('money.view') ? `<section class="pp-tile pp-tile--dark" style="grid-column: span 4; grid-row: span 2" aria-label="Invoices em aberto">
-          <div class="pp-lbl">Invoices em aberto</div>
+        ${canDo('money.view') ? `<section class="pp-tile pp-tile--dark" style="grid-column: span 4; grid-row: span 2" aria-label="Open invoices">
+          <div class="pp-lbl">Open invoices</div>
           <div class="pp-big">${money(openSum)}</div>
           <div class="pp-meter" aria-hidden="true"><i style="width:${openSum ? Math.round((overdueSum / openSum) * 100) : 0}%"></i></div>
-          <div style="display:flex;justify-content:space-between;gap:8px;font-size:13px" class="pp-sub"><span>${money(overdueSum)} vencido</span><span>${money(soonSum)} vence em 7 dias</span></div>
-          <a class="pp-tile-link" href="#invoices">Ver invoices →</a>
-        </section>` : `<section class="pp-tile pp-tile--dark" style="grid-column: span 4; grid-row: span 2" aria-label="Fotos e docs">
-          <div class="pp-lbl">Fotos e documentos</div>
+          <div style="display:flex;justify-content:space-between;gap:8px;font-size:13px" class="pp-sub"><span>${money(overdueSum)} overdue</span><span>${money(soonSum)} due in 7 days</span></div>
+          <a class="pp-tile-link" href="#invoices">View invoices →</a>
+        </section>` : `<section class="pp-tile pp-tile--dark" style="grid-column: span 4; grid-row: span 2" aria-label="Photos & docs">
+          <div class="pp-lbl">Photos & documents</div>
           <div class="pp-big">${esc(providerName())}</div>
-          <div style="font-size:13px" class="pp-sub">Fotos de antes, durante e depois, relatórios e arquivos que a equipe libera.</div>
-          <a class="pp-tile-link" href="#documentos">Ver fotos e docs →</a>
+          <div style="font-size:13px" class="pp-sub">Before, during and after photos, reports and files the company shares.</div>
+          <a class="pp-tile-link" href="#documents">View photos & docs →</a>
         </section>`}
 
         <section class="pp-tile" style="grid-column: span 4; grid-row: span 3" aria-labelledby="ppNext">
-          <div class="pp-tile-head"><h2 id="ppNext">Próximos na obra</h2><a class="pp-link" href="#calendario" style="font-size:13px">Calendário</a></div>
-          ${upcoming.length ? upcoming.map((j) => `<a class="pp-inbox" href="#jobs/${encodeURIComponent(j.id)}" style="text-decoration:none"><span class="pp-lbl">${jobWhen(j)}</span><strong style="font-size:15px">${esc(j.title || 'Job')}</strong><span class="pp-muted" style="font-size:13px">${esc(j.address || '')}</span></a>`).join('') : '<div class="pp-empty" style="padding:16px 8px"><strong>Nada agendado</strong>Quando a equipe agendar um job, ele aparece aqui.</div>'}
+          <div class="pp-tile-head"><h2 id="ppNext">Coming up on site</h2><a class="pp-link" href="#calendar" style="font-size:13px">Calendar</a></div>
+          ${upcoming.length ? upcoming.map((j) => `<a class="pp-inbox" href="#jobs/${encodeURIComponent(j.id)}" style="text-decoration:none"><span class="pp-lbl">${jobWhen(j)}</span><strong style="font-size:15px">${esc(j.title || 'Job')}</strong><span class="pp-muted" style="font-size:13px">${esc(j.address || '')}</span></a>`).join('') : '<div class="pp-empty" style="padding:16px 8px"><strong>Nothing scheduled</strong>When the company schedules a job, it shows up here.</div>'}
         </section>
 
-        <section class="pp-tile pp-hide-phone" style="grid-column: span 2" aria-label="Concluídos"><div class="pp-lbl">Concluídos · 30 dias</div><div class="pp-big" style="font-size:28px">${done30}</div></section>
-        <section class="pp-tile pp-hide-phone" style="grid-column: span 2" aria-label="Pedidos"><div class="pp-lbl">Pedidos aguardando</div><div class="pp-big" style="font-size:28px">${pending}</div></section>
+        <section class="pp-tile pp-hide-phone" style="grid-column: span 2" aria-label="Completed"><div class="pp-lbl">Completed · 30 days</div><div class="pp-big" style="font-size:28px">${done30}</div></section>
+        <section class="pp-tile pp-hide-phone" style="grid-column: span 2" aria-label="Requests"><div class="pp-lbl">Requests waiting</div><div class="pp-big" style="font-size:28px">${pending}</div></section>
 
         <section class="pp-tile" style="grid-column: span 6; grid-row: span 3; gap: 4px" aria-labelledby="ppAtt">
-          <h2 id="ppAtt" style="margin-bottom:8px">Para você ${attention.length ? `<span class="pp-badge">${attention.length}</span>` : ''}</h2>
-          ${attention.length ? attention.slice(0, 5).join('') : '<div class="pp-empty" style="padding:16px 8px"><strong>Nada pendente com você</strong>Invoices a vencer e respostas da equipe aparecem aqui.</div>'}
+          <h2 id="ppAtt" style="margin-bottom:8px">For you ${attention.length ? `<span class="pp-badge">${attention.length}</span>` : ''}</h2>
+          ${attention.length ? attention.slice(0, 5).join('') : '<div class="pp-empty" style="padding:16px 8px"><strong>Nothing waiting on you</strong>Invoices coming due and replies from the company show up here.</div>'}
         </section>
 
         <section class="pp-tile pp-hide-phone" style="grid-column: span 6; grid-row: span 2" aria-labelledby="ppFc">
-          <div class="pp-tile-head"><h2 id="ppFc">Previsão de obra</h2><span class="pp-lbl">Próximos 14 dias</span></div>
-          <div class="pp-forecast" role="img" aria-label="Jobs por dia: ${esc(forecastLabel)}">${forecast.map((f, i) => `<i class="${i === 0 ? 'today' : f.n ? '' : 'zero'}" style="height:${f.n ? Math.max(14, Math.round((f.n / maxN) * 100)) : 8}%"></i>`).join('')}</div>
+          <div class="pp-tile-head"><h2 id="ppFc">On-site forecast</h2><span class="pp-lbl">Next 14 days</span></div>
+          <div class="pp-forecast" role="img" aria-label="Jobs per day: ${esc(forecastLabel)}">${forecast.map((f, i) => `<i class="${i === 0 ? 'today' : f.n ? '' : 'zero'}" style="height:${f.n ? Math.max(14, Math.round((f.n / maxN) * 100)) : 8}%"></i>`).join('')}</div>
           <div class="pp-forecast-labels" aria-hidden="true">${forecast.map((f, i) => `<span class="${i === 0 ? 'today' : ''}">${esc(fmtDay(f.d, { day: 'numeric' }))}</span>`).join('')}</div>
         </section>
 
         <button type="button" class="pp-drop" id="ppHomeDrop" style="grid-column: span 6">
           <span class="pp-drop-icon">${icon('upload')}</span>
-          <span><strong>Solte aqui uma ordem de serviço, PO ou agenda</strong><span>PDF, print, foto ou e-mail. A gente lê e você confere antes de enviar.</span></span>
+          <span><strong>Drop a work order, PO or schedule here</strong><span>PDF, screenshot, photo or e-mail. We read it and you check before sending.</span></span>
         </button>
       </div>`;
     bindDrop($('ppHomeDrop'), (files) => startSendWithFiles(files));
-    $('ppHomeDrop').addEventListener('click', () => { location.hash = '#enviar'; });
+    $('ppHomeDrop').addEventListener('click', () => { location.hash = '#send'; });
   }
 
   /* ─────────────────────────── jobs ─────────────────────────── */
@@ -552,10 +567,10 @@
     };
     const list = all.filter((j) => (state.jobStage === 'all' || jobStageKey(j) === state.jobStage) && jobMatchesQuery(j, q));
     const groups = [
-      ['Na obra', list.filter((j) => jobStageKey(j) === 'obra')],
-      ['Agendados', list.filter((j) => jobStageKey(j) === 'agendado').sort((a, b) => toDate(a.scheduledStart) - toDate(b.scheduledStart))],
-      ['Aguardando agenda', list.filter((j) => jobStageKey(j) === 'recebido')],
-      ['Concluídos', list.filter((j) => jobStageKey(j) === 'concluido')],
+      ['On site', list.filter((j) => jobStageKey(j) === 'obra')],
+      ['Scheduled', list.filter((j) => jobStageKey(j) === 'agendado').sort((a, b) => toDate(a.scheduledStart) - toDate(b.scheduledStart))],
+      ['Awaiting schedule', list.filter((j) => jobStageKey(j) === 'recebido')],
+      ['Completed', list.filter((j) => jobStageKey(j) === 'concluido')],
     ].filter(([, rows]) => rows.length);
     const selectedId = id || (window.matchMedia('(max-width: 1023px)').matches ? '' : (groups[0] && groups[0][1][0] && groups[0][1][0].id) || '');
     const late = all.filter((j) => jobLate(j)).length;
@@ -569,29 +584,29 @@
         <span class="pp-row-main">
           ${coLine(j)}
           <span class="pp-row-top"><strong>${esc(j.title || 'Job')}</strong><span>${j.number ? `#${esc(j.number)}` : ''}</span></span>
-          <span class="pp-row-sub">${esc(j.address || 'Sem endereço')}</span>
+          <span class="pp-row-sub">${esc(j.address || 'No address')}</span>
           <span class="pp-row-next pp-row-split"><span>${jobWhen(j)}</span>${j.total ? `<b>${moneyShort(j.total)}</b>` : ''}</span>
           ${bars(jobStepIndex(j), JOB_STEPS, jobStepIndex(j) === 3)}
         </span>
       </button>`;
 
     view.innerHTML = `
-      <div class="pp-head"><div><p class="pp-eyebrow">${esc(providerName())}</p><h1>Jobs</h1></div><div class="pp-head-actions"><a class="pp-btn pp-btn--pri" href="#enviar">Enviar trabalho</a></div></div>
+      <div class="pp-head"><div><p class="pp-eyebrow">${esc(providerName())}</p><h1>Jobs</h1></div><div class="pp-head-actions"><a class="pp-btn pp-btn--pri" href="#send">Send work</a></div></div>
       <div class="pp-nums">
-        <div class="pp-card pp-num"><span class="pp-lbl">Ativos</span><b>${all.filter(jobIsActive).length}</b></div>
-        <div class="pp-card pp-num"><span class="pp-lbl">Na obra</span><b>${counts.obra}</b></div>
-        <div class="pp-card pp-num"><span class="pp-lbl">Data passou</span><b class="${late ? 'pp-late' : ''}">${late}</b></div>
-        <div class="pp-card pp-num pp-hide-phone"><span class="pp-lbl">Concluídos · 30 dias</span><b>${done30}</b></div>
-        ${canDo('money.view') ? `<div class="pp-card pp-num pp-hide-phone"><span class="pp-lbl">Invoices em aberto</span><b>${moneyShort(openSum)}</b></div>` : ''}
+        <div class="pp-card pp-num"><span class="pp-lbl">Active</span><b>${all.filter(jobIsActive).length}</b></div>
+        <div class="pp-card pp-num"><span class="pp-lbl">On site</span><b>${counts.obra}</b></div>
+        <div class="pp-card pp-num"><span class="pp-lbl">Past date</span><b class="${late ? 'pp-late' : ''}">${late}</b></div>
+        <div class="pp-card pp-num pp-hide-phone"><span class="pp-lbl">Completed · 30 days</span><b>${done30}</b></div>
+        ${canDo('money.view') ? `<div class="pp-card pp-num pp-hide-phone"><span class="pp-lbl">Open invoices</span><b>${moneyShort(openSum)}</b></div>` : ''}
       </div>
       <div class="pp-split pp-split--list ${id ? 'is-open' : ''}">
-        <aside class="pp-card pp-side" aria-label="Lista de jobs">
-          <div class="pp-side-search"><label>${icon('search')}<span class="pp-sr">Buscar jobs</span><input id="ppJobSearch" type="search" placeholder="Endereço, título ou nº" value="${esc(state.q)}" /></label></div>
-          <div class="pp-filter pp-side-filter" role="group" aria-label="Etapa">${stage('all', 'Todos')}${stage('obra', 'Na obra')}${stage('agendado', 'Agendados')}${stage('recebido', 'Aguardando agenda')}${stage('concluido', 'Concluídos')}</div>
-          ${groups.length ? groups.map(([label, rows]) => `<div class="pp-group">${esc(label)} · ${rows.length}</div>${rows.map(row).join('')}`).join('') : `<div class="pp-empty"><strong>${q ? 'Nada encontrado' : 'Nenhum job ainda'}</strong>${q ? 'Tente outra busca.' : 'Envie um trabalho e ele aparece aqui quando a equipe aceitar.'}</div>`}
-          ${state.projects.length ? `<div class="pp-group">Projetos · ${state.projects.length}</div>${state.projects.map((p) => `<div class="pp-row" style="cursor:default"><span class="pp-row-main"><span class="pp-row-top"><strong>${esc(p.name || 'Projeto')}</strong><span>${p.number ? `nº ${esc(p.number)}` : ''}</span></span><span class="pp-row-sub">${esc(p.address || '')}</span></span></div>`).join('')}` : ''}
+        <aside class="pp-card pp-side" aria-label="Job list">
+          <div class="pp-side-search"><label>${icon('search')}<span class="pp-sr">Search jobs</span><input id="ppJobSearch" type="search" placeholder="Address, title or #" value="${esc(state.q)}" /></label></div>
+          <div class="pp-filter pp-side-filter" role="group" aria-label="Stage">${stage('all', 'All')}${stage('obra', 'On site')}${stage('agendado', 'Scheduled')}${stage('recebido', 'Awaiting schedule')}${stage('concluido', 'Completed')}</div>
+          ${groups.length ? groups.map(([label, rows]) => `<div class="pp-group">${esc(label)} · ${rows.length}</div>${rows.map(row).join('')}`).join('') : `<div class="pp-empty">${mate(q ? 'head-curious' : 'sleeping')}<strong>${q ? 'Nothing found' : 'No jobs yet'}</strong>${q ? 'Try another search.' : 'Send work and it shows up here once the company accepts it.'}</div>`}
+          ${state.projects.length ? `<div class="pp-group">Projects · ${state.projects.length}</div>${state.projects.map((p) => `<div class="pp-row" style="cursor:default"><span class="pp-row-main"><span class="pp-row-top"><strong>${esc(p.name || 'Project')}</strong><span>${p.number ? `#${esc(p.number)}` : ''}</span></span><span class="pp-row-sub">${esc(p.address || '')}</span></span></div>`).join('')}` : ''}
         </aside>
-        <section class="pp-main" id="ppJobPane" aria-label="Job">${selectedId ? '<div class="pp-card pp-empty">Carregando o job…</div>' : '<div class="pp-card pp-empty"><strong>Escolha um job</strong>Os detalhes aparecem aqui.</div>'}</section>
+        <section class="pp-main" id="ppJobPane" aria-label="Job">${selectedId ? '<div class="pp-card pp-empty">Loading the job…</div>' : '<div class="pp-card pp-empty"><strong>Pick a job</strong>Its details show up here.</div>'}</section>
       </div>`;
 
     view.querySelectorAll('[data-stage]').forEach((b) => b.addEventListener('click', () => { state.jobStage = b.getAttribute('data-stage'); render(); }));
@@ -621,17 +636,17 @@
     if (i === 3) {
       if (open.length) {
         const inv = open[0];
-        return { title: `Invoice ${inv.number || ''} · ${money(inv.balance)}`, text: invoiceState(inv).label, action: `<a class="pp-btn pp-btn--light" href="#invoices/${encodeURIComponent(inv.id)}">Ver invoice</a>` };
+        return { title: `Invoice ${inv.number || ''} · ${money(inv.balance)}`, text: invoiceState(inv).label, action: `<a class="pp-btn pp-btn--light" href="#invoices/${encodeURIComponent(inv.id)}">View invoice</a>` };
       }
-      return { title: 'Job concluído', text: 'Fotos e relatórios liberados pela equipe ficam nesta página.', action: '' };
+      return { title: 'Job completed', text: 'Photos and reports the company shares stay on this page.', action: '' };
     }
-    if (i === 2) return { title: end ? `Equipe na obra até ${fmtWeekday(end)}` : 'Equipe na obra', text: 'As fotos do dia aparecem aqui quando a equipe libera.', action: '' };
+    if (i === 2) return { title: end ? `Crew on site until ${fmtWeekday(end)}` : 'Crew on site', text: 'Photos of the day show up here when the company shares them.', action: '' };
     if (i === 1 && start) {
       const late = jobLate({ ...job, scheduledStart: job.scheduled_start, scheduledEnd: job.scheduled_end });
-      if (late) return { title: `A data passou há ${plural(late, 'dia', 'dias')}`, text: 'Mande uma mensagem pela atualização se algo mudou na obra.', action: `<button type="button" class="pp-btn pp-btn--light" data-update-job>Enviar atualização</button>` };
-      return { title: `Na obra ${fmtWeekday(start)}${job.all_day ? '' : `, ${fmtTime(start)}`}`, text: 'Garanta o acesso ao imóvel nesse dia.', action: `<button type="button" class="pp-btn pp-btn--light" data-update-job>Enviar atualização</button>` };
+      if (late) return { title: `${plural(late, 'day', 'days')} past the date`, text: 'Send an update if something changed on site.', action: `<button type="button" class="pp-btn pp-btn--light" data-update-job>Send update</button>` };
+      return { title: `On site ${fmtWeekday(start)}${job.all_day ? '' : `, ${fmtTime(start)}`}`, text: 'Make sure the house is open that day.', action: `<button type="button" class="pp-btn pp-btn--light" data-update-job>Send update</button>` };
     }
-    return { title: 'A equipe vai agendar', text: 'Você recebe a data aqui assim que o job for agendado.', action: `<button type="button" class="pp-btn pp-btn--light" data-update-job>Enviar atualização</button>` };
+    return { title: 'Waiting to be scheduled', text: 'You get the date here as soon as the job is scheduled.', action: `<button type="button" class="pp-btn pp-btn--light" data-update-job>Send update</button>` };
   }
 
   const ICON = {
@@ -643,10 +658,10 @@
   };
 
   function photoGrid(photos) {
-    const label = { before: 'Antes', during: 'Durante', after: 'Depois' };
+    const label = { before: 'Before', during: 'During', after: 'After' };
     return `<div class="tk-photos">${photos.slice(0, 9).map((p) => p.type === 'video'
-      ? `<a href="${esc(p.file_url)}" target="_blank" rel="noopener" class="tk-ph tk-ph--video"><span>Vídeo</span>${p.stage && label[p.stage] ? `<b>${label[p.stage]}</b>` : ''}</a>`
-      : `<a href="${esc(p.file_url)}" target="_blank" rel="noopener" class="tk-ph"><img src="${esc(p.file_url)}" alt="${esc(p.caption || 'Foto da obra')}" loading="lazy" />${p.stage && label[p.stage] ? `<b>${label[p.stage]}</b>` : ''}${p.caption ? `<i>${esc(p.caption)}</i>` : ''}</a>`).join('')}</div>`;
+      ? `<a href="${esc(p.file_url)}" target="_blank" rel="noopener" class="tk-ph tk-ph--video"><span>Video</span>${p.stage && label[p.stage] ? `<b>${label[p.stage]}</b>` : ''}</a>`
+      : `<a href="${esc(p.file_url)}" target="_blank" rel="noopener" class="tk-ph"><img src="${esc(p.file_url)}" alt="${esc(p.caption || 'Job photo')}" loading="lazy" />${p.stage && label[p.stage] ? `<b>${label[p.stage]}</b>` : ''}${p.caption ? `<i>${esc(p.caption)}</i>` : ''}</a>`).join('')}</div>`;
   }
 
   function jobDetailHtml(data) {
@@ -672,76 +687,76 @@
           <div class="tk-meta">
             ${state.builder && state.ctx ? `<span class="tk-num">${esc(state.ctx.company_name)} ·</span>` : ''}
             ${job.number ? `<span class="tk-num">JOB #${esc(job.number)}</span>` : ''}
-            <span class="tk-pill tk-pill--${pillTone}">${esc(t.status || 'Agendado')}</span>
-            ${job.external_ref ? `<span class="tk-num">· SEU Nº ${esc(job.external_ref)}</span>` : ''}
+            <span class="tk-pill tk-pill--${pillTone}">${esc(t.status || 'Scheduled')}</span>
+            ${job.external_ref ? `<span class="tk-num">· YOUR # ${esc(job.external_ref)}</span>` : ''}
           </div>
-          ${job.can_edit ? '<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-edit-job>Editar</button>' : ''}
-          <button type="button" class="tk-iconbtn" data-print-ticket aria-label="Imprimir ticket">${ICON.print}</button>
+          ${job.can_edit ? '<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-edit-job>Edit</button>' : ''}
+          <button type="button" class="tk-iconbtn" data-print-ticket aria-label="Print ticket">${ICON.print}</button>
         </div>
         <h2 id="tkTitle">${esc(job.title || 'Job')}</h2>
         ${t.sector ? `<p class="tk-sub">${esc(t.sector)}</p>` : ''}
-        ${t.total ? `<div class="tk-value"><span>Valor do job</span><b>${money(t.total)}</b></div>` : ''}
+        ${t.total ? `<div class="tk-value"><span>Job value</span><b>${money(t.total)}</b></div>` : ''}
         ${when
-          ? `<div class="tk-when"><div><div class="tk-time">${t.all_day ? 'Dia todo' : esc(when.start)}${!t.all_day && when.zone ? `<span>${esc(when.zone)}</span>` : ''}</div><div class="tk-day">${esc(when.day)}</div>${when.until ? `<div class="tk-until">${esc(when.until)}</div>` : ''}</div><span class="tk-rel">${esc(when.relative)}</span></div>`
-          : '<div class="tk-when tk-when--none">Data ainda não definida. A equipe vai agendar.</div>'}
+          ? `<div class="tk-when"><div><div class="tk-time">${t.all_day ? 'All day' : esc(when.start)}${!t.all_day && when.zone ? `<span>${esc(when.zone)}</span>` : ''}</div><div class="tk-day">${esc(when.day)}</div>${when.until ? `<div class="tk-until">${esc(when.until)}</div>` : ''}</div><span class="tk-rel">${esc(when.relative)}</span></div>`
+          : '<div class="tk-when tk-when--none">No date yet. The company will schedule it.</div>'}
         <div class="tk-steps">${barsWithLabels(i, JOB_STEPS, i === 3)}</div>
       </section>
 
-      ${t.attention ? `<section class="tk-attn" role="note"><span aria-hidden="true">!</span><div><b>Atenção</b><p>${esc(t.attention)}</p></div></section>` : ''}
+      ${t.attention ? `<section class="tk-attn" role="note"><span aria-hidden="true">!</span><div><b>Attention</b><p>${esc(t.attention)}</p></div></section>` : ''}
 
       <section class="tk-sec">
-        <h3>Local</h3>
-        <p class="tk-addr">${esc(job.address || 'Sem endereço')}</p>
+        <h3>Location</h3>
+        <p class="tk-addr">${esc(job.address || 'No address')}</p>
         ${t.maps ? `<div class="tk-two"><a class="tk-btn tk-btn--accent" href="${esc(t.maps.apple)}" target="_blank" rel="noopener">${ICON.pin}Apple Maps</a><a class="tk-btn" href="${esc(t.maps.google)}" target="_blank" rel="noopener">Google Maps</a></div>` : ''}
-        ${t.lockbox ? `<div class="tk-lock"><span>${ICON.lock}</span><div><small>Código da lockbox</small><b>${esc(t.lockbox)}</b></div></div>` : ''}
+        ${t.lockbox ? `<div class="tk-lock"><span>${ICON.lock}</span><div><small>Lockbox code</small><b>${esc(t.lockbox)}</b></div></div>` : ''}
       </section>
 
-      ${t.notes ? `<section class="tk-sec"><h3>Instruções</h3><p class="tk-notes">${esc(t.notes)}</p></section>` : ''}
+      ${t.notes ? `<section class="tk-sec"><h3>Instructions</h3><p class="tk-notes">${esc(t.notes)}</p></section>` : ''}
 
       <section class="tk-sec">
-        <h3>Serviços${services.length ? ` <small>${services.length}</small>` : ''}</h3>
+        <h3>Services${services.length ? ` <small>${services.length}</small>` : ''}</h3>
         ${services.length
           ? `<ul class="tk-list tk-svc">${services.map((sv) => `<li><span>${esc(sv.name)}${sv.notes ? `<small>${esc(sv.notes)}</small>` : ''}</span><span class="tk-amt">${sv.total ? `<b>${money(sv.total)}</b>` : ''}${sv.qty ? `<small>${esc(sv.qty)}${sv.unit_price ? ` × ${money(sv.unit_price)}` : ''}</small>` : ''}</span></li>`).join('')}${t.total ? `<li class="tk-total"><span>Total</span><b>${money(t.total)}</b></li>` : ''}</ul>`
-          : '<p class="tk-empty">A equipe ainda não lançou os serviços deste job.</p>'}
+          : '<p class="tk-empty">The company hasn’t added services to this job yet.</p>'}
       </section>
 
       ${checklist.length ? `<section class="tk-sec">
-        <h3>Checklist <small>${t.checklist_done} de ${checklist.length} feito${t.checklist_done === 1 ? '' : 's'}</small></h3>
+        <h3>Checklist <small>${t.checklist_done} of ${checklist.length} done</small></h3>
         <div class="tk-bar" aria-hidden="true"><i style="width:${pct}%"></i></div>
-        <ul class="tk-list tk-ck">${checklist.map((c) => `<li class="${c.done ? 'on' : ''}"><span class="tk-box" aria-label="${c.done ? 'Feito' : 'Pendente'}">${c.done ? ICON.check : ''}</span><span>${esc(c.text)}</span></li>`).join('')}</ul>
+        <ul class="tk-list tk-ck">${checklist.map((c) => `<li class="${c.done ? 'on' : ''}"><span class="tk-box" aria-label="${c.done ? 'Done' : 'Pending'}">${c.done ? ICON.check : ''}</span><span>${esc(c.text)}</span></li>`).join('')}</ul>
       </section>` : ''}`;
 
     const side = `
       <section class="tk-next">
-        <small>Próximo passo</small>
+        <small>Next step</small>
         <strong>${esc(next.title)}</strong>
         <p>${esc(next.text)}</p>
-        ${job.can_edit ? '<button type="button" class="tk-btn tk-btn--light" data-edit-job>Editar job</button>' : canDo('jobs.send') ? '<button type="button" class="tk-btn tk-btn--light" data-update-job>Enviar atualização</button>' : ''}
+        ${job.can_edit ? '<button type="button" class="tk-btn tk-btn--light" data-edit-job>Edit job</button>' : canDo('jobs.send') ? '<button type="button" class="tk-btn tk-btn--light" data-update-job>Send update</button>' : ''}
       </section>
 
       <section class="tk-sec" id="ppPhotos">
-        <h3>Fotos${photos.length ? ` <small>${photos.length}</small>` : ''}</h3>
-        ${photos.length ? photoGrid(photos) : '<p class="tk-empty">Nenhuma foto liberada ainda. As fotos de antes, durante e depois aparecem aqui.</p>'}
-        ${photos.length > 9 ? '<a class="pp-link" href="#documentos" style="font-size:14px">Ver todas</a>' : ''}
+        <h3>Photos${photos.length ? ` <small>${photos.length}</small>` : ''}</h3>
+        ${photos.length ? photoGrid(photos) : '<p class="tk-empty">No photos shared yet. Before, during and after photos show up here.</p>'}
+        ${photos.length > 9 ? '<a class="pp-link" href="#documents" style="font-size:14px">See all</a>' : ''}
       </section>
 
       ${canDo('money.view') ? `<section class="tk-sec">
         <h3>Invoices</h3>
-        ${invoices.length ? `<ul class="tk-list">${invoices.map((inv) => { const st = invoiceState(inv); return `<li><a href="#invoices/${encodeURIComponent(inv.id)}" class="tk-row"><span>${esc(inv.number || 'Invoice')}<small class="${['overdue', 'soon'].includes(st.key) ? 'pp-late' : ''}">${esc(st.label)}</small></span><b>${money(st.key === 'paid' ? inv.amount : inv.balance)}</b></a></li>`; }).join('')}</ul>` : '<p class="tk-empty">Nenhuma invoice deste job ainda.</p>'}
+        ${invoices.length ? `<ul class="tk-list">${invoices.map((inv) => { const st = invoiceState(inv); return `<li><a href="#invoices/${encodeURIComponent(inv.id)}" class="tk-row"><span>${esc(inv.number || 'Invoice')}<small class="${['overdue', 'soon'].includes(st.key) ? 'pp-late' : ''}">${esc(st.label)}</small></span><b>${money(st.key === 'paid' ? inv.amount : inv.balance)}</b></a></li>`; }).join('')}</ul>` : '<p class="tk-empty">No invoices for this job yet.</p>'}
       </section>` : ''}
 
-      ${docs.length ? `<section class="tk-sec"><h3>Documentos</h3><ul class="tk-list">${docs.map((d) => `<li><a href="${esc(d.file_url)}" target="_blank" rel="noopener" class="tk-row"><span>${esc(d.title)}<small>${d.type === 'report' ? 'Relatório' : d.type === 'sent' ? 'Você enviou' : 'Arquivo'}</small></span><b>Abrir</b></a></li>`).join('')}</ul></section>` : ''}
+      ${docs.length ? `<section class="tk-sec"><h3>Documents</h3><ul class="tk-list">${docs.map((d) => `<li><a href="${esc(d.file_url)}" target="_blank" rel="noopener" class="tk-row"><span>${esc(d.title)}<small>${d.type === 'report' ? 'Report' : d.type === 'sent' ? 'You sent' : 'File'}</small></span><b>Open</b></a></li>`).join('')}</ul></section>` : ''}
 
-      ${requests.length ? `<section class="tk-sec"><h3>Seus pedidos</h3>${requests.map((r) => `<div class="pp-req" style="padding:8px 0"><div class="pp-req-top"><strong>${esc(r.title)}</strong>${requestStatus(r)}</div><p>${esc(fmtDay(r.created_at))}</p>${r.review_note ? `<p class="pp-reply">${esc(r.review_note)}</p>` : ''}</div>`).join('')}</section>` : ''}
+      ${requests.length ? `<section class="tk-sec"><h3>Your requests</h3>${requests.map((r) => `<div class="pp-req" style="padding:8px 0"><div class="pp-req-top"><strong>${esc(r.title)}</strong>${requestStatus(r)}</div><p>${esc(fmtDay(r.created_at))}</p>${r.review_note ? `<p class="pp-reply">${esc(r.review_note)}</p>` : ''}</div>`).join('')}</section>` : ''}
 
-      ${office ? `<section class="tk-sec"><h3>Dúvidas? Fale com ${esc(office.name)}</h3><p class="tk-sub" style="margin:0 0 10px">${esc(office.phone)}</p><div class="tk-two"><a class="tk-btn" href="tel:+${esc(office.digits)}">${ICON.phone}Ligar</a><a class="tk-btn" href="https://wa.me/${esc(office.digits)}?text=${encodeURIComponent(`Olá, sobre o job${job.number ? ` #${job.number}` : ''} (${job.title || ''}): `)}" target="_blank" rel="noopener">WhatsApp</a></div></section>` : ''}`;
+      ${office ? `<section class="tk-sec"><h3>Questions? Contact ${esc(office.name)}</h3><p class="tk-sub" style="margin:0 0 10px">${esc(office.phone)}</p><div class="tk-two"><a class="tk-btn" href="tel:+${esc(office.digits)}">${ICON.phone}Call</a><a class="tk-btn" href="https://wa.me/${esc(office.digits)}?text=${encodeURIComponent(`Hi, about job${job.number ? ` #${job.number}` : ''} (${job.title || ''}): `)}" target="_blank" rel="noopener">WhatsApp</a></div></section>` : ''}`;
 
     return `<div class="tk" id="ppTicket">
-        <div class="tk-print-head">${esc(providerName())} · Ticket do job${job.number ? ` #${esc(job.number)}` : ''}</div>
+        <div class="tk-print-head">${esc(providerName())} · Job ticket${job.number ? ` #${esc(job.number)}` : ''}</div>
         <div class="tk-col">${work}</div>
         <div class="tk-col tk-col--side">${side}</div>
       </div>
-      <div class="pp-fixbar">${job.can_edit ? '<button type="button" class="pp-btn pp-btn--sec" data-edit-job>Editar job</button>' : '<a class="pp-btn pp-btn--sec" href="#ppPhotos">Fotos</a>'}${canDo('jobs.send') ? '<button type="button" class="pp-btn pp-btn--pri" data-update-job>Enviar atualização</button>' : '<a class="pp-btn pp-btn--sec" href="#documentos">Fotos e docs</a>'}</div>`;
+      <div class="pp-fixbar">${job.can_edit ? '<button type="button" class="pp-btn pp-btn--sec" data-edit-job>Edit job</button>' : '<a class="pp-btn pp-btn--sec" href="#ppPhotos">Photos</a>'}${canDo('jobs.send') ? '<button type="button" class="pp-btn pp-btn--pri" data-update-job>Send update</button>' : '<a class="pp-btn pp-btn--sec" href="#documents">Photos & docs</a>'}</div>`;
   }
 
   function bindJobDetail(data) {
@@ -757,7 +772,7 @@
       state.send = newSend();
       state.send.presetJob = { id: data.job.id, number: data.job.number, title: data.job.title, address: data.job.address };
       if (data._co) state.send.co = data._co;
-      location.hash = '#enviar';
+      location.hash = '#send';
     }));
   }
 
@@ -783,10 +798,10 @@
     const matches = (x) => !q || [x.inv.number, invoiceRef(x.inv), x.inv.job && x.inv.job.address, x.inv.job && x.inv.job.number].filter((v) => v != null).join(' ').toLowerCase().includes(q);
     const list = withState.filter(filters[state.invoiceFilter] || filters.open).filter(matches);
     const groups = [
-      ['Vencidas', list.filter((x) => x.st.key === 'overdue')],
-      ['Vencem em 7 dias', list.filter((x) => x.st.key === 'soon')],
-      ['Em aberto', list.filter((x) => x.st.key === 'open')],
-      ['Pagas', list.filter((x) => x.st.key === 'paid')],
+      ['Overdue', list.filter((x) => x.st.key === 'overdue')],
+      ['Due in 7 days', list.filter((x) => x.st.key === 'soon')],
+      ['Open', list.filter((x) => x.st.key === 'open')],
+      ['Paid', list.filter((x) => x.st.key === 'paid')],
     ].filter(([, rows]) => rows.length);
     const firstId = groups[0] && groups[0][1][0] && groups[0][1][0].inv.id;
     const selectedId = id || (window.matchMedia('(max-width: 1023px)').matches ? '' : firstId || '');
@@ -797,23 +812,23 @@
     view.innerHTML = `
       <div class="pp-head"><div><p class="pp-eyebrow">${esc(providerName())}</p><h1>Invoices</h1></div></div>
       <div class="pp-nums">
-        <div class="pp-card pp-num"><span class="pp-lbl">Em aberto</span><b>${money(sum(open))}</b></div>
-        <div class="pp-card pp-num"><span class="pp-lbl">Vencido</span><b class="${overdue.length ? 'pp-late' : ''}">${money(sum(overdue))}</b></div>
-        <div class="pp-card pp-num"><span class="pp-lbl">Vence em 7 dias</span><b>${money(sum(soon))}</b></div>
-        <div class="pp-card pp-num pp-hide-phone"><span class="pp-lbl">Pago · 30 dias</span><b>${money(totalOf(paid30))}</b></div>
+        <div class="pp-card pp-num"><span class="pp-lbl">Open</span><b>${money(sum(open))}</b></div>
+        <div class="pp-card pp-num"><span class="pp-lbl">Overdue</span><b class="${overdue.length ? 'pp-late' : ''}">${money(sum(overdue))}</b></div>
+        <div class="pp-card pp-num"><span class="pp-lbl">Due in 7 days</span><b>${money(sum(soon))}</b></div>
+        <div class="pp-card pp-num pp-hide-phone"><span class="pp-lbl">Paid · 30 days</span><b>${money(totalOf(paid30))}</b></div>
       </div>
-      <div class="pp-stages" role="group" aria-label="Situação">
-        ${filterBtn('open', 'Em aberto', open)}
-        ${filterBtn('overdue', 'Vencidas', overdue)}
-        <button type="button" class="pp-stage" data-inv-filter="paid" aria-pressed="${state.invoiceFilter === 'paid'}">Pagas · ${withState.filter((x) => x.st.key === 'paid').length}<b>${moneyShort(totalOf(withState.filter((x) => x.st.key === 'paid')))}</b></button>
-        <button type="button" class="pp-stage" data-inv-filter="all" aria-pressed="${state.invoiceFilter === 'all'}">Todas · ${all.length}<b>${moneyShort(totalOf(withState))}</b></button>
+      <div class="pp-stages" role="group" aria-label="Status">
+        ${filterBtn('open', 'Open', open)}
+        ${filterBtn('overdue', 'Overdue', overdue)}
+        <button type="button" class="pp-stage" data-inv-filter="paid" aria-pressed="${state.invoiceFilter === 'paid'}">Paid · ${withState.filter((x) => x.st.key === 'paid').length}<b>${moneyShort(totalOf(withState.filter((x) => x.st.key === 'paid')))}</b></button>
+        <button type="button" class="pp-stage" data-inv-filter="all" aria-pressed="${state.invoiceFilter === 'all'}">All · ${all.length}<b>${moneyShort(totalOf(withState))}</b></button>
       </div>
       <div class="pp-split pp-split--list ${id ? 'is-open' : ''}">
-        <aside class="pp-card pp-side" aria-label="Lista de invoices">
-          <div class="pp-side-search"><label>${icon('search')}<span class="pp-sr">Buscar invoices</span><input id="ppInvSearch" type="search" placeholder="Nº, endereço ou job" value="${esc(state.q)}" /></label></div>
-          ${groups.length ? groups.map(([label, rows]) => `<div class="pp-group">${esc(label)} · ${rows.length}</div>${rows.map((x) => `<button type="button" class="pp-row" data-inv="${esc(x.inv.id)}" aria-current="${x.inv.id === selectedId}"><span class="pp-row-main">${coLine(x.inv)}<span class="pp-row-top"><strong>${esc(invoiceRef(x.inv))}</strong><span style="color:var(--pp-ink);font-weight:600">${money(x.st.key === 'paid' ? x.inv.amount : x.inv.balance)}</span></span><span class="pp-row-sub">${esc(x.inv.number || 'Invoice')}${x.inv.job && x.inv.job.number ? ` · Job #${esc(x.inv.job.number)}` : ''}</span><span class="pp-row-next ${['overdue', 'soon'].includes(x.st.key) ? 'pp-late' : ''}">${esc(x.st.label)}</span></span></button>`).join('')}`).join('') : `<div class="pp-empty"><strong>${all.length ? 'Nada nesta lista' : 'Nenhuma invoice ainda'}</strong>${all.length ? 'Troque o filtro ou a busca.' : 'As invoices emitidas pelo fornecedor aparecem aqui.'}</div>`}
+        <aside class="pp-card pp-side" aria-label="Invoice list">
+          <div class="pp-side-search"><label>${icon('search')}<span class="pp-sr">Search invoices</span><input id="ppInvSearch" type="search" placeholder="#, address or job" value="${esc(state.q)}" /></label></div>
+          ${groups.length ? groups.map(([label, rows]) => `<div class="pp-group">${esc(label)} · ${rows.length}</div>${rows.map((x) => `<button type="button" class="pp-row" data-inv="${esc(x.inv.id)}" aria-current="${x.inv.id === selectedId}"><span class="pp-row-main">${coLine(x.inv)}<span class="pp-row-top"><strong>${esc(invoiceRef(x.inv))}</strong><span style="color:var(--pp-ink);font-weight:600">${money(x.st.key === 'paid' ? x.inv.amount : x.inv.balance)}</span></span><span class="pp-row-sub">${esc(x.inv.number || 'Invoice')}${x.inv.job && x.inv.job.number ? ` · Job #${esc(x.inv.job.number)}` : ''}</span><span class="pp-row-next ${['overdue', 'soon'].includes(x.st.key) ? 'pp-late' : ''}">${esc(x.st.label)}</span></span></button>`).join('')}`).join('') : `<div class="pp-empty"><strong>${all.length ? 'Nothing in this list' : 'No invoices yet'}</strong>${all.length ? 'Change the filter or the search.' : 'Invoices from your installers show up here.'}</div>`}
         </aside>
-        <section class="pp-main" aria-label="Invoice">${selected ? invoiceDetailHtml(selected.inv, selected.st) : '<div class="pp-card pp-empty"><strong>Escolha uma invoice</strong>Os detalhes aparecem aqui.</div>'}</section>
+        <section class="pp-main" aria-label="Invoice">${selected ? invoiceDetailHtml(selected.inv, selected.st) : '<div class="pp-card pp-empty"><strong>Pick an invoice</strong>Its details show up here.</div>'}</section>
       </div>`;
     if (id) document.body.classList.add('pp-focus');
     view.querySelectorAll('[data-inv-filter]').forEach((b) => b.addEventListener('click', () => { state.invoiceFilter = b.getAttribute('data-inv-filter'); location.hash = '#invoices'; render(); }));
@@ -831,42 +846,42 @@
   function invoiceDetailHtml(inv, st) {
     const job = inv.job || {};
     const paid = st.key === 'paid';
-    const steps = ['Emitida', 'Vencimento', 'Paga'];
+    const steps = ['Issued', 'Due', 'Paid'];
     const idx = paid ? 2 : 1;
     const labels = [fmtDay(inv.issued_at), inv.due_date ? fmtDay(dateOnly(inv.due_date)) : '', inv.paid_at ? fmtDay(inv.paid_at) : ''];
     const next = paid
-      ? { title: `Paga${inv.paid_at ? ` em ${fmtDay(inv.paid_at)}` : ''}`, text: 'Obrigado! O recibo fica disponível na invoice.' }
+      ? { title: `Paid${inv.paid_at ? ` on ${fmtDay(inv.paid_at)}` : ''}`, text: 'Thank you! The receipt is on the invoice.' }
       : st.key === 'overdue'
-        ? { title: `Pagar ${money(inv.balance)}`, text: `${st.label}. Abra a invoice para ver as formas de pagamento.` }
-        : { title: `Pagar ${money(inv.balance)}${inv.due_date ? ` até ${fmtDay(dateOnly(inv.due_date))}` : ''}`, text: 'Abra a invoice para ver as formas de pagamento.' };
+        ? { title: `Pay ${money(inv.balance)}`, text: `${st.label}. Open the invoice to see how to pay.` }
+        : { title: `Pay ${money(inv.balance)}${inv.due_date ? ` by ${fmtDay(dateOnly(inv.due_date))}` : ''}`, text: 'Open the invoice to see how to pay.' };
     return `
       <div class="pp-card pp-detail-head">
         <button type="button" class="pp-back" data-back="#invoices">${icon('back')}Invoices</button>
         <div class="pp-chips">${st.chip}${job.number ? `<span class="pp-chip">Job #${esc(job.number)}</span>` : ''}</div>
         <div class="pp-detail-title">
           <div><h2>${esc(inv.number || 'Invoice')} · ${money(inv.amount)}</h2><p>${esc(invoiceRef(inv))}${job.address && job.address !== invoiceRef(inv) ? ` · ${esc(job.address)}` : ''}</p></div>
-          <div class="pp-head-actions">${job.id ? `<a class="pp-btn pp-btn--sec" href="#jobs/${encodeURIComponent(job.id)}">Abrir job</a>` : ''}${inv.invoice_url ? `<a class="pp-btn pp-btn--pri" href="${esc(inv.invoice_url)}" target="_blank" rel="noopener">Abrir invoice</a>` : ''}</div>
+          <div class="pp-head-actions">${job.id ? `<a class="pp-btn pp-btn--sec" href="#jobs/${encodeURIComponent(job.id)}">Open job</a>` : ''}${inv.invoice_url ? `<a class="pp-btn pp-btn--pri" href="${esc(inv.invoice_url)}" target="_blank" rel="noopener">Open invoice</a>` : ''}</div>
         </div>
         <div>${barsWithLabels(idx, steps, paid, labels)}</div>
       </div>
       <div class="pp-cols">
         <div class="pp-col-main">
           <div class="pp-card pp-block">
-            <h3>Resumo</h3>
+            <h3>Summary</h3>
             <dl class="pp-dl">
-              <dt>Valor</dt><dd>${money(inv.amount)}</dd>
-              <dt>Pago</dt><dd>${money(inv.paid_amount)}</dd>
-              <dt style="color:var(--pp-ink);font-weight:600">Saldo</dt><dd style="font-weight:700">${money(inv.balance)}</dd>
-              <dt>Emitida</dt><dd>${esc(fmtDay(inv.issued_at, { day: 'numeric', month: 'short', year: 'numeric' }) || '—')}</dd>
-              <dt>Vencimento</dt><dd>${inv.due_date ? esc(fmtDay(dateOnly(inv.due_date), { day: 'numeric', month: 'short', year: 'numeric' })) : '—'}</dd>
+              <dt>Amount</dt><dd>${money(inv.amount)}</dd>
+              <dt>Paid</dt><dd>${money(inv.paid_amount)}</dd>
+              <dt style="color:var(--pp-ink);font-weight:600">Balance</dt><dd style="font-weight:700">${money(inv.balance)}</dd>
+              <dt>Issued</dt><dd>${esc(fmtDay(inv.issued_at, { month: 'short', day: 'numeric', year: 'numeric' }) || '—')}</dd>
+              <dt>Due</dt><dd>${inv.due_date ? esc(fmtDay(dateOnly(inv.due_date), { month: 'short', day: 'numeric', year: 'numeric' })) : '—'}</dd>
             </dl>
           </div>
         </div>
         <div class="pp-col-side">
-          <div class="pp-card pp-block pp-next"><span class="pp-lbl">Próximo passo</span><strong>${esc(next.title)}</strong><p>${esc(next.text)}</p>${inv.invoice_url ? `<div><a class="pp-btn pp-btn--light" href="${esc(inv.invoice_url)}" target="_blank" rel="noopener">Abrir invoice</a></div>` : ''}</div>
+          <div class="pp-card pp-block pp-next"><span class="pp-lbl">Next step</span><strong>${esc(next.title)}</strong><p>${esc(next.text)}</p>${inv.invoice_url ? `<div><a class="pp-btn pp-btn--light" href="${esc(inv.invoice_url)}" target="_blank" rel="noopener">Open invoice</a></div>` : ''}</div>
         </div>
       </div>
-      <div class="pp-fixbar">${job.id ? `<a class="pp-btn pp-btn--sec" href="#jobs/${encodeURIComponent(job.id)}">Abrir job</a>` : '<span></span>'}${inv.invoice_url ? `<a class="pp-btn pp-btn--pri" href="${esc(inv.invoice_url)}" target="_blank" rel="noopener">Abrir invoice</a>` : ''}</div>`;
+      <div class="pp-fixbar">${job.id ? `<a class="pp-btn pp-btn--sec" href="#jobs/${encodeURIComponent(job.id)}">Open job</a>` : '<span></span>'}${inv.invoice_url ? `<a class="pp-btn pp-btn--pri" href="${esc(inv.invoice_url)}" target="_blank" rel="noopener">Open invoice</a>` : ''}</div>`;
   }
 
   /* ─────────────────────────── calendar ─────────────────────────── */
@@ -877,28 +892,28 @@
     const offset = first.getDay();
     const start = new Date(first.getFullYear(), first.getMonth(), 1 - offset);
     const today = dateKey(new Date());
-    const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const days = Array.from({ length: 42 }, (_, i) => {
       const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
       const key = dateKey(d);
       const jobs = jobsInDay(key);
       const cls = ['pp-cal-day', d.getMonth() !== month.getMonth() ? 'is-out' : '', key === today ? 'is-today' : '', key === state.calDay ? 'is-sel' : '', jobs.length ? 'has-ev' : ''].filter(Boolean).join(' ');
-      return `<button type="button" class="${cls}" data-day="${key}" aria-label="${esc(fmtDay(d, { weekday: 'long', day: 'numeric', month: 'long' }))}${jobs.length ? `, ${plural(jobs.length, 'job', 'jobs')}` : ''}" aria-pressed="${key === state.calDay}"><span class="pp-cal-num">${d.getDate()}</span>${jobs.slice(0, 2).map((j) => `<span class="pp-cal-ev">${esc(j.title || 'Job')}</span>`).join('')}${jobs.length > 2 ? `<span class="pp-cal-more">+${jobs.length - 2}</span>` : ''}</button>`;
+      return `<button type="button" class="${cls}" data-day="${key}" aria-label="${esc(fmtDay(d, { weekday: 'long', month: 'long', day: 'numeric' }))}${jobs.length ? `, ${plural(jobs.length, 'job', 'jobs')}` : ''}" aria-pressed="${key === state.calDay}"><span class="pp-cal-num">${d.getDate()}</span>${jobs.slice(0, 2).map((j) => `<span class="pp-cal-ev">${esc(j.title || 'Job')}</span>`).join('')}${jobs.length > 2 ? `<span class="pp-cal-more">+${jobs.length - 2}</span>` : ''}</button>`;
     }).join('');
     const sel = jobsInDay(state.calDay).sort((a, b) => toDate(a.scheduledStart) - toDate(b.scheduledStart));
     const selDate = new Date(`${state.calDay}T12:00:00`);
-    const monthLabel = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(month);
+    const monthLabel = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(month);
     view.innerHTML = `
-      <div class="pp-head"><div><p class="pp-eyebrow">${esc(providerName())}</p><h1>Calendário</h1></div></div>
+      <div class="pp-head"><div><p class="pp-eyebrow">${esc(providerName())}</p><h1>Calendar</h1></div></div>
       <div class="pp-split">
-        <section class="pp-card pp-cal pp-main" aria-label="Mês">
-          <div class="pp-cal-head"><strong>${esc(monthLabel)}</strong><div class="pp-cal-ctrl"><button type="button" class="pp-ibtn" data-month="prev" aria-label="Mês anterior">‹</button><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-month="today">Hoje</button><button type="button" class="pp-ibtn" data-month="next" aria-label="Próximo mês">›</button></div></div>
+        <section class="pp-card pp-cal pp-main" aria-label="Month">
+          <div class="pp-cal-head"><strong>${esc(monthLabel)}</strong><div class="pp-cal-ctrl"><button type="button" class="pp-ibtn" data-month="prev" aria-label="Previous month">‹</button><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-month="today">Today</button><button type="button" class="pp-ibtn" data-month="next" aria-label="Next month">›</button></div></div>
           <div class="pp-cal-grid">${weekdays.map((w) => `<div class="pp-cal-wd">${w}</div>`).join('')}${days}</div>
         </section>
-        <aside class="pp-card pp-side" aria-label="Dia escolhido" style="max-width:420px">
-          <div style="padding:16px 16px 4px"><p class="pp-eyebrow" style="text-transform:capitalize">${esc(fmtDay(selDate, { weekday: 'long' }))}</p><h2 style="margin:0;font-size:22px">${esc(fmtDay(selDate, { day: 'numeric', month: 'long' }))}</h2><p class="pp-muted" style="margin:4px 0 0;font-size:14px">${sel.length ? plural(sel.length, 'job', 'jobs') : 'Nenhum job neste dia'}</p></div>
-          ${sel.map((j) => `<button type="button" class="pp-row" data-job="${esc(j.id)}"><span class="pp-row-main">${coLine(j)}<span class="pp-row-top"><strong>${esc(j.title || 'Job')}</strong><span>${j.allDay ? 'Dia todo' : esc(fmtTime(j.scheduledStart))}</span></span><span class="pp-row-sub">${esc(j.address || '')}</span><span class="pp-row-next">${jobChip(j)}</span></span></button>`).join('')}
-          <div style="padding:12px 16px 16px"><a class="pp-btn pp-btn--sec pp-btn--sm" href="#enviar">Enviar trabalho</a></div>
+        <aside class="pp-card pp-side" aria-label="Selected day" style="max-width:420px">
+          <div style="padding:16px 16px 4px"><p class="pp-eyebrow" style="text-transform:capitalize">${esc(fmtDay(selDate, { weekday: 'long' }))}</p><h2 style="margin:0;font-size:22px">${esc(fmtDay(selDate, { month: 'long', day: 'numeric' }))}</h2><p class="pp-muted" style="margin:4px 0 0;font-size:14px">${sel.length ? plural(sel.length, 'job', 'jobs') : 'No jobs this day'}</p></div>
+          ${sel.map((j) => `<button type="button" class="pp-row" data-job="${esc(j.id)}"><span class="pp-row-main">${coLine(j)}<span class="pp-row-top"><strong>${esc(j.title || 'Job')}</strong><span>${j.allDay ? 'All day' : esc(fmtTime(j.scheduledStart))}</span></span><span class="pp-row-sub">${esc(j.address || '')}</span><span class="pp-row-next">${jobChip(j)}</span></span></button>`).join('')}
+          <div style="padding:12px 16px 16px"><a class="pp-btn pp-btn--sec pp-btn--sm" href="#send">Send work</a></div>
         </aside>
       </div>`;
     view.querySelectorAll('[data-month]').forEach((b) => b.addEventListener('click', () => {
@@ -915,12 +930,12 @@
   /* ─────────────────────────── send work ─────────────────────────── */
 
   const FIELD_LABELS = {
-    address: 'Endereço da obra', title: 'Título do job', community: 'Comunidade', lot: 'Lote', plan: 'Plano',
-    external_ref: 'Seu nº do job / PO', service_type: 'Serviço', preferred_date: 'Data do job', square_feet: 'Área (sq ft)',
-    material: 'Material', contact_name: 'Contato no local', contact_phone: 'Telefone', contact_email: 'E-mail', notes: 'Observações para a equipe',
+    address: 'Job address', title: 'Job title', community: 'Community', lot: 'Lot', plan: 'Plan',
+    external_ref: 'Your job # / PO', service_type: 'Service', preferred_date: 'Job date', square_feet: 'Area (sq ft)',
+    material: 'Material', contact_name: 'On-site contact', contact_phone: 'Phone', contact_email: 'E-mail', notes: 'Notes for the crew',
   };
   const FIELD_ORDER = ['address', 'title', 'community', 'lot', 'plan', 'external_ref', 'service_type', 'preferred_date', 'pickup', 'square_feet', 'material', 'contact_name', 'contact_phone', 'contact_email', 'notes'];
-  FIELD_LABELS.pickup = 'Pickup do material (onde retirar)';
+  FIELD_LABELS.pickup = 'Material pickup (where to pick up)';
 
   function newSend() {
     return { phase: 'pick', files: [], text: '', showPaste: false, fields: null, items: [], laborTotal: null, check: [], warnings: [], match: null, mode: 'new', ai: false, model: '', error: '', presetJob: null, sent: null };
@@ -930,7 +945,7 @@
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result || ''));
-      reader.onerror = () => reject(new Error(`Não foi possível ler ${file.name}.`));
+      reader.onerror = () => reject(new Error(`Could not read ${file.name}.`));
       reader.readAsDataURL(file);
     });
   }
@@ -957,8 +972,8 @@
     const s = state.send;
     s.error = '';
     for (const file of Array.from(fileList || [])) {
-      if (s.files.length >= MAX_FILES) { s.error = `Envie até ${MAX_FILES} arquivos por vez.`; break; }
-      if (!/^(image\/(jpeg|png|webp)|application\/pdf)$/.test(file.type)) { s.error = `${file.name}: use PDF, JPG, PNG ou WebP.`; continue; }
+      if (s.files.length >= MAX_FILES) { s.error = `Send up to ${MAX_FILES} files at a time.`; break; }
+      if (!/^(image\/(jpeg|png|webp)|application\/pdf)$/.test(file.type)) { s.error = `${file.name}: use PDF, JPG, PNG or WebP.`; continue; }
       const small = await compressImage(file);
       const dataUrl = small ? small.dataUrl : await readAsDataUrl(file);
       const entry = { name: small ? small.name : file.name, type: small ? small.type : file.type, size: small ? small.size : file.size, dataUrl };
@@ -966,7 +981,7 @@
       s.files.push(entry);
     }
     const total = s.files.reduce((sum, f) => sum + f.size, 0);
-    if (total > MAX_BYTES) s.error = 'Os arquivos passam de 10 MB juntos. Tire algum ou envie em partes.';
+    if (total > MAX_BYTES) s.error = 'The files add up to more than 10 MB. Remove one or send them in parts.';
   }
   function dataUrlToBlob(dataUrl) {
     const [head, b64] = dataUrl.split(',');
@@ -979,14 +994,14 @@
   async function startSendWithFiles(files) {
     state.send = newSend();
     await addFiles(files);
-    if (location.hash !== '#enviar') location.hash = '#enviar';
+    if (location.hash !== '#send') location.hash = '#send';
     else render();
     if (!state.send.error) readWithAi();
   }
 
   async function readWithAi() {
     const s = state.send;
-    if (!s.files.length && !s.text.trim()) { s.error = 'Escolha um arquivo ou cole o texto do pedido.'; return renderSendBody(); }
+    if (!s.files.length && !s.text.trim()) { s.error = 'Pick a file or paste the text of the order.'; return renderSendBody(); }
     if (s.files.reduce((sum, f) => sum + f.size, 0) > MAX_BYTES) return renderSendBody();
     s.phase = 'reading';
     s.error = '';
@@ -997,13 +1012,16 @@
       if (!data.ai_available) {
         s.fields = emptyFields();
         s.ai = false;
-        s.warnings = ['A leitura automática não está ligada nesta empresa. Preencha os campos abaixo.'];
+        s.warnings = ['Automatic reading is not turned on for this company. Fill in the fields below.'];
       } else {
         s.fields = Object.assign(emptyFields(), data.fields || {});
         s.items = (data.items || []).map((it) => ({ ...it, create_service: true, remove: false }));
         s.catalog = data.catalog || [];
         s.measurement = data.measurement || null;
         s.useMeasurement = Boolean(s.measurement && s.measurement.status !== 'used');
+        s.pickupRaw = s.fields.pickup || '';
+        s.pickupMatch = data.pickup_match || null;
+        if (s.pickupMatch && s.pickupMatch.text) s.fields.pickup = s.pickupMatch.text;
         s.laborTotal = data.labor_total == null ? null : Number(data.labor_total);
         s.check = data.check || [];
         s.warnings = data.warnings || [];
@@ -1019,7 +1037,7 @@
       s.fields = emptyFields();
       s.ai = false;
       if (s.presetJob) { s.match = s.presetJob; s.mode = 'update'; }
-      s.warnings = [`${err.message || 'Não consegui ler o arquivo.'} Preencha os campos abaixo — o arquivo vai junto do pedido.`];
+      s.warnings = [`${err.message || 'Could not read the file.'} Fill in the fields below — the file goes with the request.`];
     }
     renderSendBody();
   }
@@ -1036,7 +1054,7 @@
       s.match = s.presetJob;
       s.mode = 'update';
       s.fields.address = s.presetJob.address || '';
-      s.fields.title = `Atualização · ${s.presetJob.title || ''}`.slice(0, 160);
+      s.fields.title = `Update · ${s.presetJob.title || ''}`.slice(0, 160);
     }
     s.phase = 'review';
     renderSendBody();
@@ -1044,18 +1062,18 @@
 
   async function renderSend(token) {
     if (!state.send) state.send = newSend();
-    await loadRequests().catch(() => {});
+    await Promise.all([loadRequests().catch(() => {}), ensurePickups()]);
     if (token !== renderToken) return;
     const target = sendCo();
     state.ctx = target;
     const allCos = (state.builder && state.builder.companies) || [];
     const picker = state.builder && allCos.length > 1 && !state.send.presetJob
-      ? `<label class="pp-sendto"><span>Enviar para</span><select id="ppSendCo">${allCos.map((c) => `<option value="${esc(c.id)}" ${target && target.id === c.id ? 'selected' : ''}>${esc(c.company_name)}${c.status === 'invited' ? ' (convidada)' : ''}</option>`).join('')}</select></label>`
-      : `<p class="pp-eyebrow">${state.builder ? 'Para ' : ''}${esc(providerName())}</p>`;
+      ? `<label class="pp-sendto"><span>Send to</span><select id="ppSendCo">${allCos.map((c) => `<option value="${esc(c.id)}" ${target && target.id === c.id ? 'selected' : ''}>${esc(c.company_name)}${c.status === 'invited' ? ' (invited)' : ''}</option>`).join('')}</select></label>`
+      : `<p class="pp-eyebrow">${state.builder ? 'To ' : ''}${esc(providerName())}</p>`;
     view.innerHTML = `
       <div class="pp-head">
-        <div>${picker}<h1>Enviar trabalho</h1></div>
-        <ol class="pp-steps" id="ppSteps" aria-label="Etapas"></ol>
+        <div>${picker}<h1>Send work</h1></div>
+        <ol class="pp-steps" id="ppSteps" aria-label="Steps"></ol>
       </div>
       <div class="pp-split pp-split--stack">
         <section class="pp-main" id="ppSendBody"></section>
@@ -1077,25 +1095,25 @@
     if (companyInvited()) {
       api(`/api/builder/companies/${encodeURIComponent(sendCo().id)}/jobs`).then((r) => {
         const rows = r.data || [];
-        box.innerHTML = `<div style="padding:16px 16px 8px"><h2 id="ppReqTitle" style="margin:0;font-size:17px">Guardados para ${esc(providerName())}</h2><p class="pp-muted" style="margin:2px 0 0;font-size:13px">Entram no sistema dela quando ela criar a conta.</p></div>
-          ${rows.length ? rows.map((j) => `<div class="pp-req"><div class="pp-req-top"><strong>${esc(j.title)}</strong>${j.delivered_at ? '<span class="pp-chip pp-chip--ok">Entregue</span>' : '<span class="pp-chip">Guardado</span>'}</div><p>${esc(j.address)}</p><p>Guardado ${esc(fmtDay(j.created_at))}${j.files ? ` · ${plural(j.files, 'arquivo', 'arquivos')}` : ''}</p></div>`).join('') : '<div class="pp-empty" style="padding:20px 16px">Nenhum job guardado ainda.</div>'}`;
+        box.innerHTML = `<div style="padding:16px 16px 8px"><h2 id="ppReqTitle" style="margin:0;font-size:17px">Held for ${esc(providerName())}</h2><p class="pp-muted" style="margin:2px 0 0;font-size:13px">They go into their system when they create their account.</p></div>
+          ${rows.length ? rows.map((j) => `<div class="pp-req"><div class="pp-req-top"><strong>${esc(j.title)}</strong>${j.delivered_at ? '<span class="pp-chip pp-chip--ok">Delivered</span>' : '<span class="pp-chip">Held</span>'}</div><p>${esc(j.address)}</p><p>Held ${esc(fmtDay(j.created_at))}${j.files ? ` · ${plural(j.files, 'file', 'files')}` : ''}</p></div>`).join('') : '<div class="pp-empty" style="padding:20px 16px">No jobs held yet.</div>'}`;
       }).catch(() => { box.innerHTML = ''; });
       return;
     }
     const rows = state.requests;
-    box.innerHTML = `<div style="padding:16px 16px 8px"><h2 id="ppReqTitle" style="margin:0;font-size:17px">Seus pedidos</h2><p class="pp-muted" style="margin:2px 0 0;font-size:13px">${rows.filter((r) => r.status === 'pending').length} aguardando a equipe</p></div>
+    box.innerHTML = `<div style="padding:16px 16px 8px"><h2 id="ppReqTitle" style="margin:0;font-size:17px">Your requests</h2><p class="pp-muted" style="margin:2px 0 0;font-size:13px">${rows.filter((r) => r.status === 'pending').length} waiting for the company</p></div>
       ${rows.length ? rows.slice(0, 30).map((r) => `<div class="pp-req">
         <div class="pp-req-top"><strong>${esc(r.title)}</strong>${requestStatus(r)}</div>
-        <p>${esc(r.address)}${r.external_ref ? ` · seu nº ${esc(r.external_ref)}` : ''}</p>
-        <p>Enviado ${esc(fmtDay(r.created_at))}${r.preferred_date ? ` · para ${esc(fmtDay(dateOnly(r.preferred_date)))}` : ''}${r.read_by_ai ? ' · lido pela IA' : ''}${r.target_job_id ? ' · atualização de job' : ''}</p>
+        <p>${esc(r.address)}${r.external_ref ? ` · your # ${esc(r.external_ref)}` : ''}</p>
+        <p>Sent ${esc(fmtDay(r.created_at))}${r.preferred_date ? ` · for ${esc(fmtDay(dateOnly(r.preferred_date)))}` : ''}${r.read_by_ai ? ' · read by AI' : ''}${r.target_job_id ? ' · job update' : ''}</p>
         ${r.review_note ? `<p class="pp-reply">${esc(r.review_note)}</p>` : ''}
-        ${r.job_id ? `<p><a class="pp-link" href="#jobs/${encodeURIComponent(r.job_id)}">Abrir job</a></p>` : ''}
-      </div>`).join('') : '<div class="pp-empty" style="padding:20px 16px">Você ainda não enviou pedidos.</div>'}`;
+        ${r.job_id ? `<p><a class="pp-link" href="#jobs/${encodeURIComponent(r.job_id)}">Open job</a></p>` : ''}
+      </div>`).join('') : '<div class="pp-empty" style="padding:20px 16px">You haven’t sent any requests yet.</div>'}`;
   }
 
   function stepsHtml(phase) {
     const idx = phase === 'pick' ? 0 : phase === 'done' ? 2 : 1;
-    return ['1 · Arquivo', '2 · Conferir', '3 · Enviado'].map((label, i) => `<li class="${i === idx ? 'on' : ''}">${label}</li>`).join('');
+    return ['1 · File', '2 · Check', '3 · Sent'].map((label, i) => `<li class="${i === idx ? 'on' : ''}">${label}</li>`).join('');
   }
 
   function renderSendBody() {
@@ -1109,9 +1127,9 @@
     if (s.phase === 'reading') {
       box.innerHTML = `<div class="pp-card pp-reading pp-reading--mate" role="status">
         <img class="pp-mate-art" src="/assets/img/mascot/mate-reading.webp?v=20261027-m2" alt="" height="96" decoding="async">
-        <div style="display:flex;gap:12px;align-items:center"><span class="pp-doc-ico" style="width:44px;height:44px">${s.files[0] && s.files[0].type === 'application/pdf' ? 'PDF' : s.files.length ? 'IMG' : 'TXT'}</span><div><strong>${esc(s.files.length ? s.files.map((f) => f.name).join(', ') : 'Texto colado')}</strong><div class="pp-muted" style="font-size:13px">Lendo endereço, nº do job, data e as linhas de serviço…</div></div></div>
+        <div style="display:flex;gap:12px;align-items:center"><span class="pp-doc-ico" style="width:44px;height:44px">${s.files[0] && s.files[0].type === 'application/pdf' ? 'PDF' : s.files.length ? 'IMG' : 'TXT'}</span><div><strong>${esc(s.files.length ? s.files.map((f) => f.name).join(', ') : 'Pasted text')}</strong><div class="pp-muted" style="font-size:13px">Reading the address, job #, date and service lines…</div></div></div>
         <div class="pp-progress"><i></i></div>
-        <p class="pp-muted" style="margin:0;font-size:14px">Leva alguns segundos. Nada é enviado antes de você conferir.</p>
+        <p class="pp-muted" style="margin:0;font-size:14px">It takes a few seconds. Nothing is sent before you check it.</p>
       </div>`;
       return;
     }
@@ -1119,17 +1137,17 @@
     if (s.phase === 'done') {
       const sent = s.sent || {};
       const updated = sent.update;
-      const title = sent.kept ? 'Job guardado' : sent.direct ? (updated ? 'Job atualizado' : 'Job criado') : (updated ? 'Atualização enviada' : 'Pedido enviado');
+      const title = sent.kept ? 'Job held' : sent.direct ? (updated ? 'Job updated' : 'Job created') : (updated ? 'Update sent' : 'Request sent');
       const text = sent.kept
-        ? `${esc(providerName())} ainda não entrou no ObraMate. O job fica guardado e entra no sistema dela assim que ela criar a conta pelo seu convite.`
+        ? `${esc(providerName())} isn’t on ObraMate yet. The job is held and goes into their system as soon as they create their account from your invite.`
         : sent.direct
-          ? `${updated ? 'A alteração já está' : 'O job já está'} no sistema de ${esc(providerName())}, e o escritório foi avisado.`
-          : `A equipe de ${esc(providerName())} confere e responde aqui. ${updated ? 'O job continua o mesmo, com as fotos e invoices juntos.' : 'Quando aceitarem, o job aparece em Jobs.'}`;
+          ? `${updated ? 'The change is already' : 'The job is already'} in ${esc(providerName())}’s system, and their office was notified.`
+          : `${esc(providerName())} checks it and replies here. ${updated ? 'It stays the same job, with its photos and invoices together.' : 'Once they accept it, the job shows up in Jobs.'}`;
       box.innerHTML = `<div class="pp-card pp-reading">
         <img class="pp-mate-art" src="/assets/img/mascot/mate-thumbs.webp?v=20261027-m2" alt="" height="96" decoding="async">
         <h2 style="margin:0;font-size:24px">${title}</h2>
         <p class="pp-muted" style="margin:0">${text}</p>
-        <div style="display:flex;gap:10px;flex-wrap:wrap"><button type="button" class="pp-btn pp-btn--pri" id="ppSendAnother">Enviar outro</button>${sent.jobId ? `<a class="pp-btn pp-btn--sec" href="#jobs/${encodeURIComponent(sent.jobId)}">Abrir job</a>` : sent.kept ? '<a class="pp-btn pp-btn--sec" href="#empresas">Ver empresas</a>' : '<a class="pp-btn pp-btn--sec" href="#jobs">Ver jobs</a>'}</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap"><button type="button" class="pp-btn pp-btn--pri" id="ppSendAnother">Send another</button>${sent.jobId ? `<a class="pp-btn pp-btn--sec" href="#jobs/${encodeURIComponent(sent.jobId)}">Open job</a>` : sent.kept ? '<a class="pp-btn pp-btn--sec" href="#companies">View companies</a>' : '<a class="pp-btn pp-btn--sec" href="#jobs">View jobs</a>'}</div>
       </div>`;
       $('ppSendAnother').addEventListener('click', () => { state.send = newSend(); renderSendBody(); });
       return;
@@ -1141,31 +1159,31 @@
       return;
     }
 
-    const files = s.files.map((f, i) => `<span class="pp-file">${esc(f.name)} · ${fileSize(f.size)}<button type="button" data-remove="${i}" aria-label="Tirar ${esc(f.name)}">×</button></span>`).join('');
+    const files = s.files.map((f, i) => `<span class="pp-file">${esc(f.name)} · ${fileSize(f.size)}<button type="button" data-remove="${i}" aria-label="Remove ${esc(f.name)}">×</button></span>`).join('');
     if (state.builder && !sendCo()) {
-      box.innerHTML = '<div class="pp-card pp-empty"><strong>Escolha uma empresa</strong>Conecte ou convide a empresa de piso para enviar jobs.<div style="margin-top:12px"><a class="pp-btn pp-btn--pri" href="#empresas">Empresas</a></div></div>';
+      box.innerHTML = '<div class="pp-card pp-empty">' + mate('wave') + '<strong>Pick a company</strong>Connect or invite your flooring company to send jobs.<div style="margin-top:12px"><a class="pp-btn pp-btn--pri" href="#companies">Companies</a></div></div>';
       return;
     }
     if (!canDo('jobs.send')) {
-      box.innerHTML = '<div class="pp-card pp-empty"><strong>Seu papel não envia jobs</strong>Peça a alguém do escritório ou ao admin da sua equipe.</div>';
+      box.innerHTML = '<div class="pp-card pp-empty"><strong>Your role can’t send jobs</strong>Ask someone in the office or your team admin.</div>';
       return;
     }
     box.innerHTML = `
-      ${companyInvited() ? `<div class="pp-match"><strong>${esc(providerName())} ainda não está no ObraMate</strong><span class="pp-muted" style="font-size:14px">O job fica guardado e entra no sistema dela assim que ela criar a conta pelo seu convite.</span></div>` : ''}
-      ${s.presetJob ? `<div class="pp-match"><strong>Atualização de ${esc(s.presetJob.title || 'job')}</strong><span class="pp-muted" style="font-size:14px">${esc(s.presetJob.address || '')} · envie a nova ordem, foto ou texto. Ela vai junto desse job.</span></div>` : ''}
+      ${companyInvited() ? `<div class="pp-match"><strong>${esc(providerName())} isn’t on ObraMate yet</strong><span class="pp-muted" style="font-size:14px">The job is held and goes into their system as soon as they create their account from your invite.</span></div>` : ''}
+      ${s.presetJob ? `<div class="pp-match"><strong>Update to ${esc(s.presetJob.title || 'job')}</strong><span class="pp-muted" style="font-size:14px">${esc(s.presetJob.address || '')} · send the new order, photo or text. It goes with this job.</span></div>` : ''}
       <button type="button" class="pp-bigdrop" id="ppBigDrop">
         ${icon('upload')}
-        <strong>Solte os arquivos aqui ou clique para escolher</strong>
-        <span>Ordem de serviço, PO, agenda, planta · PDF, JPG, PNG ou WebP · até 5 arquivos, 10 MB</span>
+        <strong>Drop files here or tap to choose</strong>
+        <span>Work order, PO, schedule, plan · PDF, JPG, PNG or WebP · up to 5 files, 10 MB</span>
       </button>
       ${files ? `<div class="pp-files">${files}</div>` : ''}
-      ${s.showPaste ? `<div class="pp-paste pp-field"><label for="ppPaste">Cole o texto do e-mail ou do sistema</label><textarea id="ppPaste" maxlength="20000" placeholder="Ex.: Job# 172369 · 109 Evergreen Dr · Install - Hardwood · Monday, October 26th…">${esc(s.text)}</textarea></div>` : ''}
+      ${s.showPaste ? `<div class="pp-paste pp-field"><label for="ppPaste">Paste the text of the e-mail or your system</label><textarea id="ppPaste" maxlength="20000" placeholder="e.g. Job# 172369 · 109 Evergreen Dr · Install - Hardwood · Monday, October 26th…">${esc(s.text)}</textarea></div>` : ''}
       ${s.error ? `<p class="pp-error" role="alert">${esc(s.error)}</p>` : ''}
-      ${s.files.length || (s.showPaste && s.text.trim()) ? `<div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end"><button type="button" class="pp-btn pp-btn--sec" id="ppManual2">Preencher à mão</button><button type="button" class="pp-btn pp-btn--pri" id="ppRead">Ler e preencher</button></div>` : ''}
+      ${s.files.length || (s.showPaste && s.text.trim()) ? `<div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end"><button type="button" class="pp-btn pp-btn--sec" id="ppManual2">Fill in by hand</button><button type="button" class="pp-btn pp-btn--pri" id="ppRead">Read and fill in</button></div>` : ''}
       <div class="pp-sources">
-        <button type="button" class="pp-source" id="ppCam">${icon('camera')}<span>Tirar foto<small>Papel ou tela do seu sistema</small></span></button>
-        <button type="button" class="pp-source" id="ppPasteBtn">${icon('text')}<span>Colar texto<small>E-mail ou aviso do sistema</small></span></button>
-        <button type="button" class="pp-source" id="ppManual">${icon('pen')}<span>Preencher à mão<small>Com ou sem arquivo</small></span></button>
+        <button type="button" class="pp-source" id="ppCam">${icon('camera')}<span>Take a photo<small>Paper or your system’s screen</small></span></button>
+        <button type="button" class="pp-source" id="ppPasteBtn">${icon('text')}<span>Paste text<small>E-mail or system notice</small></span></button>
+        <button type="button" class="pp-source" id="ppManual">${icon('pen')}<span>Fill in by hand<small>With or without a file</small></span></button>
       </div>`;
     const drop = $('ppBigDrop');
     drop.addEventListener('click', () => $('ppFileInput').click());
@@ -1207,7 +1225,7 @@
     const field = (key, opts) => {
       const o = opts || {};
       const isCheck = s.ai && s.check.includes(key);
-      const tag = s.ai && f[key] ? (isCheck ? '<span class="pp-tag-check">Confira</span>' : '<span class="pp-tag-ok">Certo</span>') : (isCheck ? '<span class="pp-tag-check">Confira</span>' : '');
+      const tag = s.ai && f[key] ? (isCheck ? '<span class="pp-tag-check">Check</span>' : '<span class="pp-tag-ok">OK</span>') : (isCheck ? '<span class="pp-tag-check">Check</span>' : '');
       const req = o.required ? ' *' : '';
       const input = o.area
         ? `<textarea id="ppF-${key}" data-field="${key}" maxlength="${o.max || 5000}">${esc(f[key])}</textarea>`
@@ -1216,17 +1234,17 @@
     };
     const match = s.match;
     const matchHtml = match ? `<div class="pp-match">
-        <strong>${s.presetJob ? 'Atualização deste job' : match.reason === 'ref' ? `Você já enviou o nº ${esc(f.external_ref)}` : 'Você já tem um job neste endereço'}</strong>
-        <span class="pp-muted" style="font-size:14px">${esc(match.title || 'Job')}${match.number ? ` · Job #${esc(match.number)}` : ''}${match.address && !String(match.title || '').toLowerCase().includes(String(match.address).toLowerCase()) ? ` · ${esc(match.address)}` : ''}. Atualizar mantém fotos, mensagens e invoices juntos.</span>
-        <div class="pp-seg" role="group" aria-label="O que fazer">
-          <button type="button" data-mode="update" aria-pressed="${s.mode === 'update'}">Atualizar esse job</button>
-          <button type="button" data-mode="new" aria-pressed="${s.mode === 'new'}">Criar um job novo</button>
+        <strong>${s.presetJob ? 'Update to this job' : match.reason === 'ref' ? `You already sent # ${esc(f.external_ref)}` : 'You already have a job at this address'}</strong>
+        <span class="pp-muted" style="font-size:14px">${esc(match.title || 'Job')}${match.number ? ` · Job #${esc(match.number)}` : ''}${match.address && !String(match.title || '').toLowerCase().includes(String(match.address).toLowerCase()) ? ` · ${esc(match.address)}` : ''}. Updating keeps photos, messages and invoices together.</span>
+        <div class="pp-seg" role="group" aria-label="What to do">
+          <button type="button" data-mode="update" aria-pressed="${s.mode === 'update'}">Update this job</button>
+          <button type="button" data-mode="new" aria-pressed="${s.mode === 'new'}">Create a new job</button>
         </div>
       </div>` : '';
     return `
       <div class="pp-card" style="padding:16px 20px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:center">
-        <div style="display:flex;gap:10px;align-items:center">${s.ai ? `<span class="pp-mateface" aria-hidden="true"><img src="/assets/img/mascot/mate-head-neutral.webp?v=20261027-m2" alt="" width="36" height="36"></span>` : ''}<div><strong style="font-size:17px">${s.ai ? 'Confira o que lemos' : 'Dados do pedido'}</strong><div class="pp-muted" style="font-size:14px">${s.ai ? `${plural(filled, 'campo preenchido', 'campos preenchidos')}${checked ? ` · <span class="pp-late">${plural(checked, 'para conferir', 'para conferir')}</span>` : ''} · nada é enviado antes de você confirmar` : 'Preencha o que souber. Endereço e título são obrigatórios.'}</div></div></div>
-        <button type="button" class="pp-link" id="ppRestart">${s.files.length || s.ai ? 'Trocar arquivo' : 'Começar de novo'}</button>
+        <div style="display:flex;gap:10px;align-items:center">${s.ai ? `<span class="pp-mateface" aria-hidden="true"><img src="/assets/img/mascot/mate-head-neutral.webp?v=20261027-m2" alt="" width="36" height="36"></span>` : ''}<div><strong style="font-size:17px">${s.ai ? 'Check what we read' : 'Request details'}</strong><div class="pp-muted" style="font-size:14px">${s.ai ? `${plural(filled, 'field filled', 'fields filled')}${checked ? ` · <span class="pp-late">${plural(checked, 'to check', 'to check')}</span>` : ''} · nothing is sent until you confirm` : 'Fill in what you know. Address and title are required.'}</div></div></div>
+        <button type="button" class="pp-link" id="ppRestart">${s.files.length || s.ai ? 'Change file' : 'Start over'}</button>
       </div>
       <div class="pp-cols">
         ${originalHtml(s)}
@@ -1240,6 +1258,7 @@
             ${field('service_type', { max: 100 })}
             ${field('preferred_date', { type: 'date' })}
             ${field('pickup', { wide: true, max: 200 })}
+            ${pickupRow(s)}
             ${field('external_ref', { max: 60 })}
             ${field('community', { max: 120 })}
             ${field('lot', { max: 20 })}
@@ -1258,14 +1277,14 @@
       <div class="pp-card pp-q-send">
         <p class="pp-error" id="ppReqError" role="alert" hidden></p>
         <div class="pp-q-send-row">
-          <span class="pp-muted">${s.mode === 'update' && match ? 'Os serviços entram nas notas do job atual.' : `Chega em ${esc(providerName())} como job${f.preferred_date ? ' agendado' : ''}, com os serviços acima.`}</span>
+          <span class="pp-muted">${s.mode === 'update' && match ? 'The services go into the current job’s notes.' : `Arrives at ${esc(providerName())} as a${f.preferred_date ? ' scheduled' : ''} job, with the services above.`}</span>
           <div class="pp-form-actions" style="border:0;padding:0;margin:0">
-            <button type="button" class="pp-btn pp-btn--sec" id="ppDiscard">Descartar</button>
-            <button type="button" class="pp-btn pp-btn--pri" id="ppSubmit" data-submit>${s.mode === 'update' && match ? 'Enviar atualização' : 'Enviar pedido'}</button>
+            <button type="button" class="pp-btn pp-btn--sec" id="ppDiscard">Discard</button>
+            <button type="button" class="pp-btn pp-btn--pri" id="ppSubmit" data-submit>${s.mode === 'update' && match ? 'Send update' : 'Send request'}</button>
           </div>
         </div>
       </div>
-      <div class="pp-fixbar"><button type="button" class="pp-btn pp-btn--sec" data-discard>Descartar</button><button type="button" class="pp-btn pp-btn--pri" data-submit>${s.mode === 'update' && match ? 'Enviar atualização' : 'Enviar pedido'}</button></div>`;
+      <div class="pp-fixbar"><button type="button" class="pp-btn pp-btn--sec" data-discard>Discard</button><button type="button" class="pp-btn pp-btn--pri" data-submit>${s.mode === 'update' && match ? 'Send update' : 'Send request'}</button></div>`;
   }
 
   const UOMS = ['SF', 'LF', 'EA', 'STEP', 'SY', 'HR'];
@@ -1273,7 +1292,7 @@
   function uomForUnit(unit) {
     return UOM_FROM_UNIT[String(unit || 'sq_ft').trim().toLowerCase().replace(/\s+/g, '_')] || 'EA';
   }
-  const UOM_LABEL = { SF: 'sq ft', LF: 'lin ft', EA: 'un', STEP: 'degrau', SY: 'sq yd', HR: 'hora' };
+  const UOM_LABEL = { SF: 'sq ft', LF: 'lin ft', EA: 'ea', STEP: 'step', SY: 'sq yd', HR: 'hour' };
   function itemTotal(it) {
     if (it.rate != null && it.rate !== '' && !Number.isNaN(Number(it.rate))) return Math.round(Number(it.rate) * Number(it.quantity || 0) * 100) / 100;
     return it.total == null ? null : Number(it.total);
@@ -1284,16 +1303,16 @@
   function itemTitle(s, it) {
     const cat = it.pricing_item_id && (s.catalog || []).find((c) => c.id === it.pricing_item_id);
     if (cat) return cat.name;
-    return String(it.service_name || it.description || it.detail || 'Serviço').trim();
+    return String(it.service_name || it.description || it.detail || 'Service').trim();
   }
   /** Order wording under the service name (what the builder's paper says). */
   function itemSub(it) {
     return [it.description, it.detail].map((x) => String(x || '').trim()).filter(Boolean).join(' · ');
   }
   const MODE_BADGE = {
-    linked: '<span class="pp-q-badge pp-q-badge--ok">cadastro</span>',
-    new: '<span class="pp-q-badge pp-q-badge--new">novo no cadastro</span>',
-    none: '<span class="pp-q-badge">só neste job</span>',
+    linked: '<span class="pp-q-badge pp-q-badge--ok">price list</span>',
+    new: '<span class="pp-q-badge pp-q-badge--new">new in price list</span>',
+    none: '<span class="pp-q-badge">this job only</span>',
   };
 
   /** The builder's own measurement for this address, sent with the job (PDF, photos, sizes). */
@@ -1324,34 +1343,34 @@
       const t = itemTotal(it);
       const open = s.editItem === i;
       return `<article class="pp-q-row ${it.remove ? 'is-off' : ''} ${open ? 'is-editing' : ''}" role="listitem">
-        <div class="pp-q-name" role="button" tabindex="0" data-it-edit="${i}" title="Editar serviço">
-          <b>${esc(itemTitle(s, it))}</b>${it.remove ? '<span class="pp-q-badge">fora do job</span>' : MODE_BADGE[itemMode(it)]}
+        <div class="pp-q-name" role="button" tabindex="0" data-it-edit="${i}" title="Edit service">
+          <b>${esc(itemTitle(s, it))}</b>${it.remove ? '<span class="pp-q-badge">removed</span>' : MODE_BADGE[itemMode(it)]}
           ${itemSub(it) ? `<small>${esc(itemSub(it))}</small>` : ''}
           ${it.area ? `<small class="pp-q-area">${esc(it.area)}</small>` : ''}
         </div>
-        <label class="pp-q-qty"><span class="pp-q-lbl">Qtd</span><input type="text" inputmode="decimal" data-it="${i}" data-k="quantity" value="${esc(it.quantity)}" aria-label="Quantidade de ${esc(itemTitle(s, it))}" ${it.remove ? 'disabled' : ''} /></label>
-        <label class="pp-q-unit"><span class="pp-q-lbl">Un.</span><select data-it="${i}" data-k="uom" aria-label="Unidade" ${it.remove ? 'disabled' : ''}>${UOMS.concat(UOMS.includes(it.uom) ? [] : [it.uom]).map((u) => `<option value="${esc(u)}" ${u === it.uom ? 'selected' : ''}>${esc(UOM_LABEL[u] || u)}</option>`).join('')}</select></label>
-        <label class="pp-q-rate"><span class="pp-q-lbl">Preço</span><span class="pp-q-cur">$</span><input type="text" inputmode="decimal" data-it="${i}" data-k="rate" value="${it.rate == null ? '' : esc(Number(it.rate).toFixed(2))}" placeholder="—" aria-label="Preço de ${esc(itemTitle(s, it))}" ${it.remove ? 'disabled' : ''} /></label>
+        <label class="pp-q-qty"><span class="pp-q-lbl">Qty</span><input type="text" inputmode="decimal" data-it="${i}" data-k="quantity" value="${esc(it.quantity)}" aria-label="Quantity of ${esc(itemTitle(s, it))}" ${it.remove ? 'disabled' : ''} /></label>
+        <label class="pp-q-unit"><span class="pp-q-lbl">Unit</span><select data-it="${i}" data-k="uom" aria-label="Unit" ${it.remove ? 'disabled' : ''}>${UOMS.concat(UOMS.includes(it.uom) ? [] : [it.uom]).map((u) => `<option value="${esc(u)}" ${u === it.uom ? 'selected' : ''}>${esc(UOM_LABEL[u] || u)}</option>`).join('')}</select></label>
+        <label class="pp-q-rate"><span class="pp-q-lbl">Price</span><span class="pp-q-cur">$</span><input type="text" inputmode="decimal" data-it="${i}" data-k="rate" value="${it.rate == null ? '' : esc(Number(it.rate).toFixed(2))}" placeholder="—" aria-label="Price of ${esc(itemTitle(s, it))}" ${it.remove ? 'disabled' : ''} /></label>
         <span class="pp-q-total" data-it-total="${i}">${t == null ? '—' : money(t)}</span>
         <div class="pp-q-act">
-          <button type="button" class="pp-q-ic" data-it-edit="${i}" aria-label="Editar ${esc(itemTitle(s, it))}" title="Editar">✎</button>
-          <button type="button" class="pp-q-ic pp-q-ic--del" data-it-rm="${i}" aria-label="${it.remove ? 'Voltar' : 'Tirar'} ${esc(itemTitle(s, it))}" title="${it.remove ? 'Voltar para o job' : 'Tirar do job'}">${it.remove ? '↺' : '×'}</button>
+          <button type="button" class="pp-q-ic" data-it-edit="${i}" aria-label="Edit ${esc(itemTitle(s, it))}" title="Edit">✎</button>
+          <button type="button" class="pp-q-ic pp-q-ic--del" data-it-rm="${i}" aria-label="${it.remove ? 'Restore' : 'Remove'} ${esc(itemTitle(s, it))}" title="${it.remove ? 'Put back on the job' : 'Remove from the job'}">${it.remove ? '↺' : '×'}</button>
         </div>
         ${open ? itemPanel(s, it, i) : ''}
       </article>`;
     };
     return `<section class="pp-q pp-field--wide" aria-labelledby="ppItemsTitle">
       <div class="pp-q-head">
-        <h3 id="ppItemsTitle">Itens · ${live.length}</h3>
-        <span class="pp-muted">${live.length ? [counts.linked ? `${counts.linked} do cadastro` : '', counts.new ? `${counts.new} ${counts.new === 1 ? 'novo' : 'novos'}` : '', counts.none ? `${counts.none} só no job` : ''].filter(Boolean).join(' · ') : 'Os serviços viram as linhas do job.'}</span>
+        <h3 id="ppItemsTitle">Items · ${live.length}</h3>
+        <span class="pp-muted">${live.length ? [counts.linked ? `${counts.linked} from price list` : '', counts.new ? `${counts.new} new` : '', counts.none ? `${counts.none} this job only` : ''].filter(Boolean).join(' · ') : 'Services become the job’s lines.'}</span>
       </div>
-      ${items.length ? `<div class="pp-q-cols" aria-hidden="true"><span>Serviço</span><span class="r">Qtd</span><span>Un.</span><span class="r">Preço</span><span class="r">Total</span><span></span></div>
-      <div class="pp-q-list" role="list">${items.map(row).join('')}</div>` : '<p class="pp-q-empty">Nenhum serviço lido nesta ordem.</p>'}
-      <button type="button" class="pp-q-add" id="ppItemAdd">+ Adicionar serviço</button>
+      ${items.length ? `<div class="pp-q-cols" aria-hidden="true"><span>Service</span><span class="r">Qty</span><span>Unit</span><span class="r">Price</span><span class="r">Total</span><span></span></div>
+      <div class="pp-q-list" role="list">${items.map(row).join('')}</div>` : '<p class="pp-q-empty">No services read from this order.</p>'}
+      <button type="button" class="pp-q-add" id="ppItemAdd">+ Add service</button>
       ${s.pickCatalog ? catalogSheet(s) : ''}
       <div class="pp-q-sum">
         <div><span>Subtotal</span><b id="ppItemsSum">${money(sum)}</b></div>
-        ${s.laborTotal != null ? `<div class="${off ? 'pp-late' : ''}" id="ppItemsCheckRow"><span>Total na ordem</span><b id="ppItemsCheck">${money(s.laborTotal)} ${off ? '· confira' : '✓'}</b></div>` : ''}
+        ${s.laborTotal != null ? `<div class="${off ? 'pp-late' : ''}" id="ppItemsCheckRow"><span>Total on the order</span><b id="ppItemsCheck">${money(s.laborTotal)} ${off ? '· check' : '✓'}</b></div>` : ''}
       </div>
     </section>`;
   }
@@ -1361,19 +1380,19 @@
     const mode = itemMode(it);
     const value = it.pricing_item_id || (mode === 'none' ? '__none' : '__new');
     return `<div class="pp-q-panel">
-      <div class="pp-q-field pp-q-field--wide"><label for="ppItCat-${i}">Serviço no cadastro de ${esc(providerName())}</label>
+      <div class="pp-q-field pp-q-field--wide"><label for="ppItCat-${i}">Service in ${esc(providerName())}’s price list</label>
         <select id="ppItCat-${i}" data-it="${i}" data-k="catalog">
-          <option value="__new" ${value === '__new' ? 'selected' : ''}>+ Criar serviço novo no cadastro</option>
+          <option value="__new" ${value === '__new' ? 'selected' : ''}>+ Create a new service in the price list</option>
           ${(s.catalog || []).map((c) => `<option value="${esc(c.id)}" ${c.id === value ? 'selected' : ''}>${esc(c.name)} · ${esc(unitLabel(c.unit))}</option>`).join('')}
-          <option value="__none" ${value === '__none' ? 'selected' : ''}>Não cadastrar (fica só neste job)</option>
+          <option value="__none" ${value === '__none' ? 'selected' : ''}>Don’t add it (this job only)</option>
         </select>
-        <span class="pp-q-help">${mode === 'linked' ? 'O job usa este serviço com o preço da ordem.' : mode === 'new' ? 'Entra no cadastro da empresa com a unidade e o preço desta linha.' : 'A linha vai para o job sem virar serviço do cadastro.'}</span>
+        <span class="pp-q-help">${mode === 'linked' ? 'The job uses this service at the order’s price.' : mode === 'new' ? 'Added to the company’s price list with this line’s unit and price.' : 'The line goes on the job without becoming a price-list service.'}</span>
       </div>
-      ${mode === 'new' ? `<div class="pp-q-field pp-q-field--wide"><label for="ppItName-${i}">Nome do serviço novo</label><input id="ppItName-${i}" data-it="${i}" data-k="service_name" value="${esc(it.service_name || it.description || '')}" maxlength="120" /></div>` : ''}
-      <div class="pp-q-field"><label for="ppItDesc-${i}">Produto / descrição da ordem</label><input id="ppItDesc-${i}" data-it="${i}" data-k="description" value="${esc(it.description)}" maxlength="200" /></div>
-      <div class="pp-q-field"><label for="ppItDet-${i}">Detalhe da instalação</label><input id="ppItDet-${i}" data-it="${i}" data-k="detail" value="${esc(it.detail)}" maxlength="200" /></div>
-      <div class="pp-q-field pp-q-field--wide"><label for="ppItArea-${i}">Ambientes</label><input id="ppItArea-${i}" data-it="${i}" data-k="area" value="${esc(it.area)}" maxlength="200" /></div>
-      <div class="pp-q-panel-actions"><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-it-done>Pronto</button></div>
+      ${mode === 'new' ? `<div class="pp-q-field pp-q-field--wide"><label for="ppItName-${i}">New service name</label><input id="ppItName-${i}" data-it="${i}" data-k="service_name" value="${esc(it.service_name || it.description || '')}" maxlength="120" /></div>` : ''}
+      <div class="pp-q-field"><label for="ppItDesc-${i}">Product / order description</label><input id="ppItDesc-${i}" data-it="${i}" data-k="description" value="${esc(it.description)}" maxlength="200" /></div>
+      <div class="pp-q-field"><label for="ppItDet-${i}">Install detail</label><input id="ppItDet-${i}" data-it="${i}" data-k="detail" value="${esc(it.detail)}" maxlength="200" /></div>
+      <div class="pp-q-field pp-q-field--wide"><label for="ppItArea-${i}">Rooms</label><input id="ppItArea-${i}" data-it="${i}" data-k="area" value="${esc(it.area)}" maxlength="200" /></div>
+      <div class="pp-q-panel-actions"><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-it-done>Done</button></div>
     </div>`;
   }
 
@@ -1381,12 +1400,12 @@
   function catalogSheet(s) {
     const q = String(s.catalogQuery || '').trim().toLowerCase();
     const list = (s.catalog || []).filter((c) => !q || c.name.toLowerCase().includes(q)).slice(0, 60);
-    return `<div class="pp-q-sheet" role="dialog" aria-label="Adicionar serviço">
-      <div class="pp-q-sheet-head"><input id="ppCatSearch" type="search" placeholder="Buscar no cadastro de ${esc(providerName())}" value="${esc(s.catalogQuery || '')}" autocomplete="off" /><button type="button" class="pp-q-ic" id="ppCatClose" aria-label="Fechar">×</button></div>
+    return `<div class="pp-q-sheet" role="dialog" aria-label="Add service">
+      <div class="pp-q-sheet-head"><input id="ppCatSearch" type="search" placeholder="Search ${esc(providerName())}’s price list" value="${esc(s.catalogQuery || '')}" autocomplete="off" /><button type="button" class="pp-q-ic" id="ppCatClose" aria-label="Close">×</button></div>
       <div class="pp-q-sheet-list">
-        ${list.map((c) => `<button type="button" class="pp-q-opt" data-cat-add="${esc(c.id)}"><span><b>${esc(c.name)}</b><small>${esc(unitLabel(c.unit))}${c.category ? ` · ${esc(({ installation: 'Instalação', sand_finish: 'Lixa e acabamento', supply: 'Material', custom: 'Outros' })[c.category] || c.category.replace(/_/g, ' '))}` : ''}</small></span>${c.price != null ? `<em>${money(c.price)}</em>` : ''}</button>`).join('') || '<p class="pp-q-empty">Nada com esse nome no cadastro.</p>'}
+        ${list.map((c) => `<button type="button" class="pp-q-opt" data-cat-add="${esc(c.id)}"><span><b>${esc(c.name)}</b><small>${esc(unitLabel(c.unit))}${c.category ? ` · ${esc(({ installation: 'Installation', sand_finish: 'Sand & finish', supply: 'Supply', custom: 'Other' })[c.category] || c.category.replace(/_/g, ' '))}` : ''}</small></span>${c.price != null ? `<em>${money(c.price)}</em>` : ''}</button>`).join('') || '<p class="pp-q-empty">Nothing with that name in the price list.</p>'}
       </div>
-      <button type="button" class="pp-q-opt pp-q-opt--free" id="ppCatFree"><span><b>+ Linha livre</b><small>Serviço que não está no cadastro</small></span></button>
+      <button type="button" class="pp-q-opt pp-q-opt--free" id="ppCatFree"><span><b>+ Custom line</b><small>A service that isn’t in the price list</small></span></button>
     </div>`;
   }
 
@@ -1401,7 +1420,7 @@
       if (chk && s.laborTotal != null) {
         const off = Math.abs(sum - s.laborTotal) > 0.5;
         $('ppItemsCheckRow').className = off ? 'pp-late' : '';
-        chk.textContent = `${money(s.laborTotal)} ${off ? '· confira' : '✓'}`;
+        chk.textContent = `${money(s.laborTotal)} ${off ? '· check' : '✓'}`;
       }
     };
     const rerender = (focusSel) => {
@@ -1498,20 +1517,55 @@
 
   function filesEditor(s) {
     const chips = s.files.length
-      ? `<div class="pp-files">${s.files.map((f, i) => `<span class="pp-file">${esc(f.name)} · ${fileSize(f.size)}<button type="button" data-remove="${i}" aria-label="Tirar ${esc(f.name)}">×</button></span>`).join('')}</div>`
-      : '<span class="pp-muted" style="font-size:14px">Nenhum arquivo ainda. PDF, JPG, PNG ou WebP.</span>';
+      ? `<div class="pp-files">${s.files.map((f, i) => `<span class="pp-file">${esc(f.name)} · ${fileSize(f.size)}<button type="button" data-remove="${i}" aria-label="Remove ${esc(f.name)}">×</button></span>`).join('')}</div>`
+      : '<span class="pp-muted" style="font-size:14px">No files yet. PDF, JPG, PNG or WebP.</span>';
     return `<div class="pp-field pp-field--wide" id="ppFileBox">
-      <span style="font-size:13px;color:var(--pp-muted);font-weight:500">Arquivos</span>
+      <span style="font-size:13px;color:var(--pp-muted);font-weight:500">Files</span>
       ${chips}
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
-        <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" id="ppAddFiles">Adicionar arquivos</button>
-        <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" id="ppAddCamera">Tirar foto</button>
+        <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" id="ppAddFiles">Add files</button>
+        <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" id="ppAddCamera">Take a photo</button>
       </div>
     </div>`;
   }
 
+  /* Pickup: saved locations of the builder account, linked to the order by name/alias. */
+  async function ensurePickups(force) {
+    if (!state.builder) return [];
+    if (state.pickups && !force) return state.pickups;
+    try { state.pickups = (await api('/api/builder/pickups')).data || []; } catch (_) { state.pickups = state.pickups || []; }
+    return state.pickups;
+  }
+  function pickupOrderNo(text) {
+    const m = /\b(\d{5,12})\b/.exec(String(text || ''));
+    return m ? m[1] : '';
+  }
+  function pickupLine(loc, order) {
+    return [`${loc.name} — ${loc.address}`, order ? `Order ${order}` : '', loc.hours || '', loc.phone || ''].filter(Boolean).join(' · ').slice(0, 200);
+  }
+  function pickupRow(s) {
+    if (!state.builder) return '';
+    const list = state.pickups || [];
+    const m = s.pickupMatch;
+    const chip = m ? `<span class="pp-pick-chip">${icon('pin')}Linked to <b>${esc(m.location.name)}</b></span>` : '';
+    const sel = list.length
+      ? `<label class="pp-sr" for="ppPickLoc">Saved pickup locations</label><select id="ppPickLoc" data-pick-loc><option value="">${m ? 'Change location…' : 'Pick a saved location…'}</option>${list.map((l) => `<option value="${esc(l.id)}" ${m && m.location.id === l.id ? 'selected' : ''}>${esc(l.name)}${l.is_default ? ' (default)' : ''}</option>`).join('')}</select>`
+      : (canDo('team.manage') ? '<a class="pp-link" href="#settings">Save your pickup locations</a>' : '');
+    if (!chip && !sel) return '';
+    return `<div class="pp-pick-row pp-field--wide">${chip}${sel}</div>`;
+  }
+
   function bindReview() {
     const s = state.send;
+    const pickSel = view.querySelector('[data-pick-loc]');
+    if (pickSel) pickSel.addEventListener('change', () => {
+      const loc = (state.pickups || []).find((l) => l.id === pickSel.value);
+      if (!loc) return;
+      const order = pickupOrderNo(s.pickupRaw || s.fields.pickup);
+      s.fields.pickup = pickupLine(loc, order);
+      s.pickupMatch = { location: loc, text: s.fields.pickup };
+      renderSendBody();
+    });
     view.querySelectorAll('[data-field]').forEach((el) => el.addEventListener('input', () => {
       s.fields[el.getAttribute('data-field')] = el.value;
       el.closest('.pp-field').classList.remove('is-check');
@@ -1558,21 +1612,21 @@
     const f = s.fields;
     const err = $('ppReqError');
     err.hidden = true;
-    if (!f.address.trim() || f.address.trim().length < 4) { err.textContent = 'Informe o endereço da obra.'; err.hidden = false; $('ppF-address').focus(); return; }
+    if (!f.address.trim() || f.address.trim().length < 4) { err.textContent = 'Enter the job address.'; err.hidden = false; $('ppF-address').focus(); return; }
     if (!f.title.trim()) f.title = [f.service_type, f.address].filter(Boolean).join(' · ').slice(0, 160);
-    if (f.title.trim().length < 3) { err.textContent = 'Dê um título ao job.'; err.hidden = false; $('ppF-title').focus(); return; }
-    if (f.contact_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.contact_email)) { err.textContent = 'Confira o e-mail de contato.'; err.hidden = false; return; }
+    if (f.title.trim().length < 3) { err.textContent = 'Give the job a title.'; err.hidden = false; $('ppF-title').focus(); return; }
+    if (f.contact_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.contact_email)) { err.textContent = 'Check the contact e-mail.'; err.hidden = false; return; }
     const extra = [
-      f.community ? `Comunidade: ${f.community}` : '',
-      f.lot ? `Lote: ${f.lot}` : '',
-      f.plan ? `Plano: ${f.plan}` : '',
-      f.square_feet ? `Área: ${f.square_feet} sq ft` : '',
+      f.community ? `Community: ${f.community}` : '',
+      f.lot ? `Lot: ${f.lot}` : '',
+      f.plan ? `Plan: ${f.plan}` : '',
+      f.square_feet ? `Area: ${f.square_feet} sq ft` : '',
       f.material ? `Material: ${f.material}` : '',
     ].filter(Boolean).join(' · ');
     const notes = [f.notes.trim(), extra].filter(Boolean).join('\n');
     const update = s.mode === 'update' && s.match;
     const buttons = view.querySelectorAll('#ppSubmit, [data-submit]');
-    buttons.forEach((b) => { b.disabled = true; b.textContent = 'Enviando…'; });
+    buttons.forEach((b) => { b.disabled = true; b.textContent = 'Sending…'; });
     try {
       if (companyInvited()) {
         await postJson(`/api/builder/companies/${encodeURIComponent(sendCo().id)}/jobs`, {
@@ -1620,9 +1674,9 @@
       renderRequestsList();
       updateCounts();
     } catch (e) {
-      err.textContent = e.message || 'Não foi possível enviar.';
+      err.textContent = e.message || 'Could not send.';
       err.hidden = false;
-      buttons.forEach((b) => { b.disabled = false; b.textContent = update ? 'Enviar atualização' : 'Enviar pedido'; });
+      buttons.forEach((b) => { b.disabled = false; b.textContent = update ? 'Send update' : 'Send request'; });
     }
   }
 
@@ -1639,7 +1693,7 @@
   /* ─────────────────────────── documents ─────────────────────────── */
 
   async function renderDocuments(token) {
-    if (!state.loaded.documents) view.innerHTML = '<div class="pp-card pp-empty">Carregando fotos e documentos…</div>';
+    if (!state.loaded.documents) view.innerHTML = '<div class="pp-card pp-empty">Loading photos and documents…</div>';
     await loadDocuments();
     if (token !== renderToken) return;
     const q = state.docQuery.trim().toLowerCase();
@@ -1650,18 +1704,18 @@
     });
     const btn = (key, label) => `<button type="button" data-doc-filter="${key}" aria-pressed="${state.docFilter === key}">${label}</button>`;
     view.innerHTML = `
-      <div class="pp-head"><div><p class="pp-eyebrow">${state.builder && multiCo() && !state.coFilter ? 'Liberados pelas equipes das suas empresas' : `Liberados pela equipe de ${esc(providerName())}`}</p><h1>Fotos e docs</h1></div><span class="pp-muted">${plural(list.length, 'item', 'itens')}</span></div>
+      <div class="pp-head"><div><p class="pp-eyebrow">${state.builder && multiCo() && !state.coFilter ? 'Shared by your companies' : `Shared by ${esc(providerName())}`}</p><h1>Photos & docs</h1></div><span class="pp-muted">${plural(list.length, 'item', 'items')}</span></div>
       <div class="pp-tools">
-        <div class="pp-side-search"><label>${icon('search')}<span class="pp-sr">Buscar documentos</span><input id="ppDocSearch" type="search" placeholder="Obra ou documento" value="${esc(state.docQuery)}" /></label></div>
-        <div class="pp-filter" role="group" aria-label="Tipo">${btn('all', 'Tudo')}${btn('photo', 'Fotos e vídeos')}${btn('report', 'Relatórios')}${btn('file', 'Arquivos')}</div>
+        <div class="pp-side-search"><label>${icon('search')}<span class="pp-sr">Search documents</span><input id="ppDocSearch" type="search" placeholder="Job or document" value="${esc(state.docQuery)}" /></label></div>
+        <div class="pp-filter" role="group" aria-label="Type">${btn('all', 'All')}${btn('photo', 'Photos & videos')}${btn('report', 'Reports')}${btn('file', 'Files')}</div>
       </div>
       ${list.length ? `<div class="pp-doc-grid">${list.map((d) => {
         const job = d.job || {};
         const prev = d.type === 'photo'
           ? `<a class="pp-doc-prev" href="${esc(d.file_url)}" target="_blank" rel="noopener"><img src="${esc(d.file_url)}" alt="${esc(d.title)}" loading="lazy" /></a>`
-          : `<div class="pp-doc-prev" aria-hidden="true">${d.type === 'report' ? 'PDF' : d.type === 'video' ? 'VÍDEO' : 'ARQUIVO'}</div>`;
-        return `<article class="pp-card pp-doc-card">${prev}<div class="pp-doc-body"><span class="pp-lbl">${d.type === 'photo' ? 'Foto' : d.type === 'video' ? 'Vídeo' : d.type === 'report' ? 'Relatório' : 'Arquivo'}${d.created_at ? ` · ${esc(fmtDay(d.created_at))}` : ''}</span><h3>${esc(d.title || 'Documento')}</h3><p>${job.id ? `<a class="pp-link" href="#jobs/${encodeURIComponent(job.id)}">${esc(job.title || 'Job')}${job.number ? ` · #${esc(job.number)}` : ''}</a>` : ''}</p>${job.address ? `<p>${esc(job.address)}</p>` : ''}<div class="pp-doc-actions"><a class="pp-btn pp-btn--sec pp-btn--sm" href="${esc(d.file_url)}" target="_blank" rel="noopener">Ver</a><a class="pp-btn pp-btn--sec pp-btn--sm" href="${esc(d.file_url)}?download=1">Baixar</a></div></div></article>`;
-      }).join('')}</div>` : `<div class="pp-card pp-empty"><strong>${state.documents.length ? 'Nada encontrado' : 'Nada liberado ainda'}</strong>${state.documents.length ? 'Troque a busca ou o filtro.' : 'Quando a equipe liberar fotos, relatórios ou arquivos de uma obra, eles aparecem aqui.'}</div>`}`;
+          : `<div class="pp-doc-prev" aria-hidden="true">${d.type === 'report' ? 'PDF' : d.type === 'video' ? 'VIDEO' : 'FILE'}</div>`;
+        return `<article class="pp-card pp-doc-card">${prev}<div class="pp-doc-body"><span class="pp-lbl">${d.type === 'photo' ? 'Photo' : d.type === 'video' ? 'Video' : d.type === 'report' ? 'Report' : 'File'}${d.created_at ? ` · ${esc(fmtDay(d.created_at))}` : ''}</span><h3>${esc(d.title || 'Document')}</h3><p>${job.id ? `<a class="pp-link" href="#jobs/${encodeURIComponent(job.id)}">${esc(job.title || 'Job')}${job.number ? ` · #${esc(job.number)}` : ''}</a>` : ''}</p>${job.address ? `<p>${esc(job.address)}</p>` : ''}<div class="pp-doc-actions"><a class="pp-btn pp-btn--sec pp-btn--sm" href="${esc(d.file_url)}" target="_blank" rel="noopener">View</a><a class="pp-btn pp-btn--sec pp-btn--sm" href="${esc(d.file_url)}?download=1">Download</a></div></div></article>`;
+      }).join('')}</div>` : `<div class="pp-card pp-empty">${mate(state.documents.length ? 'head-curious' : 'tablet')}<strong>${state.documents.length ? 'Nothing found' : 'Nothing shared yet'}</strong>${state.documents.length ? 'Change the search or the filter.' : 'When the company shares photos, reports or files of a job, they show up here.'}</div>`}`;
     view.querySelectorAll('[data-doc-filter]').forEach((b) => b.addEventListener('click', () => { state.docFilter = b.getAttribute('data-doc-filter'); render(); }));
     const s = $('ppDocSearch');
     s.addEventListener('input', () => { state.docQuery = s.value; const pos = s.selectionStart; render().then(() => { const x = $('ppDocSearch'); if (x) { x.focus(); x.setSelectionRange(pos, pos); } }); });
@@ -1669,7 +1723,7 @@
 
   /* ─────────────────────────── builder account: companies, team, job edits ─────────────────────────── */
 
-  const ROLE_PT = { admin: 'Admin', manager: 'Gerente', office: 'Escritório', field: 'Campo' };
+  const ROLE_PT = { admin: 'Admin', manager: 'Manager', office: 'Office', field: 'Field' };
 
   async function refreshOverview() {
     if (!companyActive()) {
@@ -1717,9 +1771,9 @@
   }
 
   function companyStatusChip(c) {
-    if (c.status === 'active') return '<span class="pp-chip pp-chip--ok">Conectada</span>';
-    if (c.status === 'invited') return '<span class="pp-chip pp-chip--late">Convite enviado</span>';
-    return '<span class="pp-chip">Indisponível</span>';
+    if (c.status === 'active') return '<span class="pp-chip pp-chip--ok">Connected</span>';
+    if (c.status === 'invited') return '<span class="pp-chip pp-chip--late">Invite sent</span>';
+    return '<span class="pp-chip">Unavailable</span>';
   }
 
   function smsHref(phone, text) {
@@ -1733,14 +1787,15 @@
     if (token !== renderToken) return;
     const invited = companies.filter((c) => c.status === 'invited');
     view.innerHTML = `
-      <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder.account.name)}</p><h1>${companies.length ? 'Escolha uma empresa' : 'Bem-vindo ao ObraMate'}</h1></div></div>
-      <div class="pp-card pp-block" style="max-width:720px">
-        <h3 style="font-size:18px">${companies.length ? 'Nenhuma empresa conectada ainda' : 'Conecte sua primeira empresa de piso'}</h3>
-        <p class="pp-muted" style="margin:0">Já usa ObraMate? Conecte pelo e-mail do admin dela e os jobs que você enviar entram direto no sistema dela. Ainda não usa? Convide por e-mail ou mensagem — os jobs que você mandar ficam guardados até ela entrar.</p>
-        ${canDo('companies.manage') ? '<div><a class="pp-btn pp-btn--pri" href="#empresas">Adicionar empresa</a></div>' : '<p class="pp-muted" style="margin:0">Peça ao admin ou gerente da sua equipe para conectar uma empresa.</p>'}
+      <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder.account.name)}</p><h1>${companies.length ? 'Choose a company' : 'Welcome to ObraBuilder'}</h1></div></div>
+      <div class="pp-card pp-block pp-mate-card" style="max-width:720px">
+        ${mate('wave', 88)}
+        <h3 style="font-size:18px">${companies.length ? 'No company connected yet' : 'Connect your first flooring company'}</h3>
+        <p class="pp-muted" style="margin:0">Already on ObraMate? Connect with their admin's email and the jobs you send go straight into their system. Not yet? Invite them by email or text — the jobs you send are kept until they join.</p>
+        ${canDo('companies.manage') ? '<div><a class="pp-btn pp-btn--pri" href="#companies">Add company</a></div>' : '<p class="pp-muted" style="margin:0">Ask your team admin or manager to connect a company.</p>'}
       </div>
-      ${invited.length ? `<div class="pp-card" style="overflow:hidden;max-width:720px"><div class="pp-group">Convidadas · ${invited.length}</div>${invited.map((c) => `<button type="button" class="pp-row" data-pick="${esc(c.id)}"><span class="pp-row-main"><span class="pp-row-top"><strong>${esc(c.company_name)}</strong>${companyStatusChip(c)}</span><span class="pp-row-sub">${esc(c.contact_email || '')}${c.pending_jobs ? ` · ${plural(c.pending_jobs, 'job guardado', 'jobs guardados')}` : ''}</span></span></button>`).join('')}</div>` : ''}`;
-    view.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', async () => { await selectCompany(b.getAttribute('data-pick')); location.hash = '#enviar'; render(); }));
+      ${invited.length ? `<div class="pp-card" style="overflow:hidden;max-width:720px"><div class="pp-group">Invited · ${invited.length}</div>${invited.map((c) => `<button type="button" class="pp-row" data-pick="${esc(c.id)}"><span class="pp-row-main"><span class="pp-row-top"><strong>${esc(c.company_name)}</strong>${companyStatusChip(c)}</span><span class="pp-row-sub">${esc(c.contact_email || '')}${c.pending_jobs ? ` · ${plural(c.pending_jobs, 'job waiting', 'jobs waiting')}` : ''}</span></span></button>`).join('')}</div>` : ''}`;
+    view.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', async () => { await selectCompany(b.getAttribute('data-pick')); location.hash = '#send'; render(); }));
   }
 
   async function renderCompanies(token) {
@@ -1751,34 +1806,34 @@
     const row = (c) => `<div class="pp-req" style="padding:14px 18px">
         <div class="pp-req-top"><strong style="font-size:16px">${esc(c.company_name)}</strong>${companyStatusChip(c)}</div>
         <p>${esc([c.contact_name, c.contact_email, c.contact_phone].filter(Boolean).join(' · '))}</p>
-        <p>${c.status === 'active' ? `Conectada ${esc(fmtDay(c.activated_at))}` : `Convite enviado ${esc(fmtDay(c.invited_at))}`}${c.pending_jobs ? ` · ${plural(c.pending_jobs, 'job guardado', 'jobs guardados')}` : ''}</p>
+        <p>${c.status === 'active' ? `Connected ${esc(fmtDay(c.activated_at))}` : `Invite sent ${esc(fmtDay(c.invited_at))}`}${c.pending_jobs ? ` · ${plural(c.pending_jobs, 'job waiting', 'jobs waiting')}` : ''}</p>
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
-          ${canDo('jobs.send') && c.status !== 'unavailable' ? `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-send-to="${esc(c.id)}">Enviar job</button>` : ''}
-          ${c.status === 'active' ? `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-see-jobs="${esc(c.id)}">Ver jobs</button>` : ''}
-          ${manage && c.status === 'invited' ? `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-resend="${esc(c.id)}">Reenviar convite</button>` : ''}
-          ${manage ? `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-remove-co="${esc(c.id)}">Remover</button>` : ''}
+          ${canDo('jobs.send') && c.status !== 'unavailable' ? `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-send-to="${esc(c.id)}">Send job</button>` : ''}
+          ${c.status === 'active' ? `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-see-jobs="${esc(c.id)}">View jobs</button>` : ''}
+          ${manage && c.status === 'invited' ? `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-resend="${esc(c.id)}">Resend invite</button>` : ''}
+          ${manage ? `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-remove-co="${esc(c.id)}">Remove</button>` : ''}
         </div>
         <div data-invite-out="${esc(c.id)}"></div>
       </div>`;
     view.innerHTML = `
-      <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder.account.name)}</p><h1>Empresas</h1></div></div>
+      <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder.account.name)}</p><h1>Companies</h1></div></div>
       <div class="pp-split pp-split--stack">
         <section class="pp-main">
           <div class="pp-card" style="overflow:hidden">
-            ${companies.length ? companies.map(row).join('') : '<div class="pp-empty"><strong>Nenhuma empresa ainda</strong>Adicione a empresa de piso que faz seus jobs.</div>'}
+            ${companies.length ? companies.map(row).join('') : '<div class="pp-empty">' + mate('wave') + '<strong>No companies yet</strong>Add the flooring company that does your jobs.</div>'}
           </div>
         </section>
         ${manage ? `<aside class="pp-card pp-side pp-block" aria-labelledby="ppAddCo">
-          <h3 id="ppAddCo" style="font-size:17px">Adicionar empresa</h3>
-          <p class="pp-muted" style="margin:0;font-size:14px">Informe o e-mail do admin da empresa de piso. Se ela já usa ObraMate, conecta na hora. Se não, mandamos o convite com o preço de indicação.</p>
+          <h3 id="ppAddCo" style="font-size:17px">Add company</h3>
+          <p class="pp-muted" style="margin:0;font-size:14px">Enter the email of the flooring company's admin. If they already use ObraMate, they connect right away. If not, we send them an invite with the referral price.</p>
           <form id="ppCoForm" class="pp-fields" style="grid-template-columns:1fr" novalidate>
-            <div class="pp-field"><label for="ppCoEmail">E-mail do admin *</label><input id="ppCoEmail" type="email" maxlength="200" autocomplete="off" required /></div>
-            <div class="pp-field"><label for="ppCoName">Nome da empresa</label><input id="ppCoName" maxlength="120" placeholder="Só se ela ainda não usa ObraMate" /></div>
-            <div class="pp-field"><label for="ppCoContact">Contato</label><input id="ppCoContact" maxlength="120" /></div>
-            <div class="pp-field"><label for="ppCoPhone">Celular (para o convite por mensagem)</label><input id="ppCoPhone" type="tel" maxlength="40" /></div>
+            <div class="pp-field"><label for="ppCoEmail">Admin email *</label><input id="ppCoEmail" type="email" maxlength="200" autocomplete="off" required /></div>
+            <div class="pp-field"><label for="ppCoName">Company name</label><input id="ppCoName" maxlength="120" placeholder="Only if they're not on ObraMate yet" /></div>
+            <div class="pp-field"><label for="ppCoContact">Contact</label><input id="ppCoContact" maxlength="120" /></div>
+            <div class="pp-field"><label for="ppCoPhone">Mobile (for the text invite)</label><input id="ppCoPhone" type="tel" maxlength="40" /></div>
             <p class="pp-error" id="ppCoError" role="alert" hidden></p>
             <div id="ppCoResult"></div>
-            <div><button type="submit" class="pp-btn pp-btn--pri" id="ppCoSave">Conectar ou convidar</button></div>
+            <div><button type="submit" class="pp-btn pp-btn--pri" id="ppCoSave">Connect or invite</button></div>
           </form>
         </aside>` : ''}
       </div>`;
@@ -1786,7 +1841,7 @@
       state.send = newSend();
       state.send.co = b.getAttribute('data-send-to');
       postJson('/api/builder/select', { company_id: state.send.co }).catch(() => {});
-      location.hash = '#enviar';
+      location.hash = '#send';
     }));
     view.querySelectorAll('[data-see-jobs]').forEach((b) => b.addEventListener('click', () => {
       state.coFilter = b.getAttribute('data-see-jobs');
@@ -1795,32 +1850,32 @@
     }));
     const inviteActions = (out, data, phone) => {
       if (!out) return;
-      out.innerHTML = `<div class="pp-success" style="margin-top:10px">Convite enviado por e-mail${data.offer ? ` · oferta: ${esc(data.offer)}` : ''}.</div>
+      out.innerHTML = `<div class="pp-success" style="margin-top:10px">Invite sent by email${data.offer ? ` · offer: ${esc(data.offer)}` : ''}.</div>
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
-          <a class="pp-btn pp-btn--pri pp-btn--sm" href="${esc(smsHref(phone, data.sms_text))}">Enviar por mensagem</a>
-          <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-copy="${esc(data.invite_url)}">Copiar link</button>
+          <a class="pp-btn pp-btn--pri pp-btn--sm" href="${esc(smsHref(phone, data.sms_text))}">Send by text</a>
+          <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-copy="${esc(data.invite_url)}">Copy link</button>
         </div>`;
       out.querySelectorAll('[data-copy]').forEach((c) => c.addEventListener('click', async () => {
-        try { await navigator.clipboard.writeText(c.getAttribute('data-copy')); c.textContent = 'Copiado'; } catch (_) { window.prompt('Copie o link', c.getAttribute('data-copy')); }
+        try { await navigator.clipboard.writeText(c.getAttribute('data-copy')); c.textContent = 'Copied'; } catch (_) { window.prompt('Copy the link', c.getAttribute('data-copy')); }
       }));
     };
     view.querySelectorAll('[data-resend]').forEach((b) => b.addEventListener('click', async () => {
       const id = b.getAttribute('data-resend');
       b.disabled = true;
-      b.textContent = 'Enviando…';
+      b.textContent = 'Sending…';
       try {
         const r = await postJson(`/api/builder/companies/${encodeURIComponent(id)}/resend`, {});
         const c = companies.find((x) => x.id === id) || {};
         inviteActions(view.querySelector(`[data-invite-out="${CSS.escape(id)}"]`), r.data, c.contact_phone);
-        b.textContent = 'Reenviado';
+        b.textContent = 'Resent';
       } catch (e) {
         b.disabled = false;
-        b.textContent = 'Reenviar convite';
+        b.textContent = 'Resend invite';
         window.alert(e.message);
       }
     }));
     view.querySelectorAll('[data-remove-co]').forEach((b) => b.addEventListener('click', async () => {
-      if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Confirmar remoção'; return; }
+      if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Confirm removal'; return; }
       b.disabled = true;
       try {
         await api(`/api/builder/companies/${encodeURIComponent(b.getAttribute('data-remove-co'))}`, { method: 'DELETE' });
@@ -1839,7 +1894,7 @@
       err.hidden = true;
       $('ppCoResult').innerHTML = '';
       btn.disabled = true;
-      btn.textContent = 'Procurando…';
+      btn.textContent = 'Looking up…';
       const phone = $('ppCoPhone').value.trim();
       try {
         const r = await postJson('/api/builder/companies', {
@@ -1851,7 +1906,7 @@
         const data = r.data;
         await reloadAllCompanies();
         if (data.kind === 'linked') {
-          $('ppCoResult').innerHTML = `<div class="pp-success">${esc(data.company_name)} já usa ObraMate e está conectada. Os jobs que você enviar entram direto no sistema dela.</div><div style="margin-top:8px"><a class="pp-btn pp-btn--pri pp-btn--sm" href="#enviar">Enviar um job</a></div>`;
+          $('ppCoResult').innerHTML = `<div class="pp-success">${esc(data.company_name)} already uses ObraMate and is now connected. The jobs you send go straight into their system.</div><div style="margin-top:8px"><a class="pp-btn pp-btn--pri pp-btn--sm" href="#send">Send a job</a></div>`;
         } else {
           inviteActions($('ppCoResult'), data, phone);
         }
@@ -1859,12 +1914,12 @@
         const list = view.querySelector('.pp-main .pp-card');
         if (list) list.innerHTML = (state.builder.companies || []).map(row).join('');
       } catch (ex) {
-        err.textContent = ex.message || 'Não foi possível adicionar.';
+        err.textContent = ex.message || 'Could not add the company.';
         err.hidden = false;
-        if (/nome/i.test(ex.message || '')) $('ppCoName').focus();
+        if (/name/i.test(ex.message || '')) $('ppCoName').focus();
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Conectar ou convidar';
+        btn.textContent = 'Connect or invite';
       }
     });
   }
@@ -1877,35 +1932,35 @@
     const roles = state.builder.roles || [];
     const me = state.builder.member.id;
     view.innerHTML = `
-      <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder.account.name)}</p><h1>Equipe</h1></div></div>
+      <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder.account.name)}</p><h1>Team</h1></div></div>
       <div class="pp-split pp-split--stack">
         <section class="pp-main">
           <div class="pp-card" style="overflow:hidden">
             ${rows.map((m) => `<div class="pp-req" style="padding:14px 18px">
-              <div class="pp-req-top"><strong style="font-size:16px">${esc(m.name)}${m.id === me ? ' <span class="pp-muted" style="font-weight:500">(você)</span>' : ''}</strong>${m.status === 'invited' ? '<span class="pp-chip pp-chip--late">Convite enviado</span>' : `<span class="pp-chip">${esc(ROLE_PT[m.role] || m.role)}</span>`}</div>
-              <p>${esc(m.email)}${m.phone ? ` · ${esc(m.phone)}` : ''}${m.last_login_at ? ` · entrou ${esc(fmtDay(m.last_login_at))}` : ''}</p>
+              <div class="pp-req-top"><strong style="font-size:16px">${esc(m.name)}${m.id === me ? ' <span class="pp-muted" style="font-weight:500">(you)</span>' : ''}</strong>${m.status === 'invited' ? '<span class="pp-chip pp-chip--late">Invite sent</span>' : `<span class="pp-chip">${esc(ROLE_PT[m.role] || m.role)}</span>`}</div>
+              <p>${esc(m.email)}${m.phone ? ` · ${esc(m.phone)}` : ''}${m.last_login_at ? ` · last login ${esc(fmtDay(m.last_login_at))}` : ''}</p>
               ${manage && m.id !== me ? `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:center">
-                <label class="pp-sr" for="ppRole-${esc(m.id)}">Papel de ${esc(m.name)}</label>
+                <label class="pp-sr" for="ppRole-${esc(m.id)}">Role of ${esc(m.name)}</label>
                 <select id="ppRole-${esc(m.id)}" data-role="${esc(m.id)}" style="min-height:38px;border:1px solid var(--pp-border);border-radius:10px;padding:0 10px;background:#fff">${roles.map((ro) => `<option value="${ro.key}" ${ro.key === m.role ? 'selected' : ''}>${esc(ro.label)}</option>`).join('')}</select>
-                <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-disable="${esc(m.id)}">Remover acesso</button>
+                <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-disable="${esc(m.id)}">Remove access</button>
               </div>` : ''}
             </div>`).join('')}
           </div>
           <div class="pp-card pp-block">
-            <h3>O que cada papel faz</h3>
+            <h3>What each role can do</h3>
             <ul class="tk-list">${roles.map((ro) => `<li><span><b>${esc(ro.label)}</b><small>${esc(ro.hint)}</small></span></li>`).join('')}</ul>
           </div>
         </section>
         ${manage ? `<aside class="pp-card pp-side pp-block">
-          <h3 style="font-size:17px">Convidar pessoa</h3>
+          <h3 style="font-size:17px">Invite someone</h3>
           <form id="ppTeamForm" class="pp-fields" style="grid-template-columns:1fr" novalidate>
-            <div class="pp-field"><label for="ppTmName">Nome *</label><input id="ppTmName" maxlength="120" required /></div>
-            <div class="pp-field"><label for="ppTmEmail">E-mail *</label><input id="ppTmEmail" type="email" maxlength="200" required /></div>
-            <div class="pp-field"><label for="ppTmPhone">Celular</label><input id="ppTmPhone" type="tel" maxlength="40" /></div>
-            <div class="pp-field"><label for="ppTmRole">Papel</label><select id="ppTmRole">${roles.map((ro) => `<option value="${ro.key}" ${ro.key === 'office' ? 'selected' : ''}>${esc(ro.label)} — ${esc(ro.hint)}</option>`).join('')}</select></div>
+            <div class="pp-field"><label for="ppTmName">Name *</label><input id="ppTmName" maxlength="120" required /></div>
+            <div class="pp-field"><label for="ppTmEmail">Email *</label><input id="ppTmEmail" type="email" maxlength="200" required /></div>
+            <div class="pp-field"><label for="ppTmPhone">Mobile</label><input id="ppTmPhone" type="tel" maxlength="40" /></div>
+            <div class="pp-field"><label for="ppTmRole">Role</label><select id="ppTmRole">${roles.map((ro) => `<option value="${ro.key}" ${ro.key === 'office' ? 'selected' : ''}>${esc(ro.label)} — ${esc(ro.hint)}</option>`).join('')}</select></div>
             <p class="pp-error" id="ppTmError" role="alert" hidden></p>
             <div id="ppTmResult"></div>
-            <div><button type="submit" class="pp-btn pp-btn--pri" id="ppTmSave">Enviar convite</button></div>
+            <div><button type="submit" class="pp-btn pp-btn--pri" id="ppTmSave">Send invite</button></div>
           </form>
         </aside>` : ''}
       </div>`;
@@ -1913,7 +1968,7 @@
       try { await api(`/api/builder/team/${encodeURIComponent(sel.getAttribute('data-role'))}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: sel.value }) }); render(); } catch (e) { window.alert(e.message); render(); }
     }));
     view.querySelectorAll('[data-disable]').forEach((b) => b.addEventListener('click', async () => {
-      if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Confirmar'; return; }
+      if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Confirm'; return; }
       try { await api(`/api/builder/team/${encodeURIComponent(b.getAttribute('data-disable'))}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ disabled: true }) }); render(); } catch (e) { window.alert(e.message); }
     }));
     const form = $('ppTeamForm');
@@ -1923,23 +1978,216 @@
       const btn = $('ppTmSave');
       err.hidden = true;
       btn.disabled = true;
-      btn.textContent = 'Enviando…';
+      btn.textContent = 'Sending…';
       try {
         const res = await postJson('/api/builder/team', { name: $('ppTmName').value.trim(), email: $('ppTmEmail').value.trim(), phone: $('ppTmPhone').value.trim(), role: $('ppTmRole').value });
         await render();
         const out = $('ppTmResult');
-        if (out) out.innerHTML = `<div class="pp-success">Convite enviado por e-mail.${res.data && res.data.devLink ? ` <a href="${esc(res.data.devLink)}">Link (teste)</a>` : ''}</div>`;
+        if (out) out.innerHTML = `<div class="pp-success">Invite sent by email.${res.data && res.data.devLink ? ` <a href="${esc(res.data.devLink)}">Link (test)</a>` : ''}</div>`;
       } catch (ex) {
-        err.textContent = ex.message || 'Não foi possível convidar.';
+        err.textContent = ex.message || 'Could not send the invite.';
         err.hidden = false;
         btn.disabled = false;
-        btn.textContent = 'Enviar convite';
+        btn.textContent = 'Send invite';
       }
     });
   }
 
+  /* ─────────────────────────── settings (builder admin) ─────────────────────────── */
+
+  async function renderSettings(token) {
+    if (!canDo('team.manage')) {
+      view.innerHTML = `<div class="pp-card pp-empty">${mate('head-sorry')}<strong>Only admins can open settings</strong>Ask your team admin.</div>`;
+      return;
+    }
+    await loadMe();
+    const list = await ensurePickups(true);
+    if (token !== renderToken) return;
+    const acc = state.builder.account;
+    const edit = state.pickupEdit || null; // id being edited, 'new', or null
+    const locForm = (loc) => {
+      const l = loc || { name: '', address: '', aliases: [], phone: '', hours: '', notes: '', is_default: !list.length };
+      const aliases = (l.aliases || []).filter((a) => a.toLowerCase() !== String(l.name || '').toLowerCase()).join(', ');
+      return `<form class="pp-fields pp-pick-form" id="ppPickForm" data-id="${esc(loc ? loc.id : '')}" novalidate>
+          <div class="pp-field"><label for="ppPkName">Name *</label><input id="ppPkName" maxlength="80" required value="${esc(l.name)}" placeholder="e.g. TriWest Henderson" /></div>
+          <div class="pp-field"><label for="ppPkAliases">Name on work orders <span>(comma separated)</span></label><input id="ppPkAliases" maxlength="300" value="${esc(aliases)}" placeholder="e.g. TRIWEST, TW Henderson" /></div>
+          <div class="pp-field pp-field--wide"><label for="ppPkAddr">Address *</label><input id="ppPkAddr" maxlength="300" required value="${esc(l.address)}" data-om-address-autocomplete /></div>
+          <div class="pp-field"><label for="ppPkPhone">Phone</label><input id="ppPkPhone" type="tel" maxlength="40" value="${esc(l.phone || '')}" /></div>
+          <div class="pp-field"><label for="ppPkHours">Pickup hours</label><input id="ppPkHours" maxlength="120" value="${esc(l.hours || '')}" placeholder="e.g. Mon–Fri 6:30 AM – 3 PM" /></div>
+          <div class="pp-field pp-field--wide"><label for="ppPkNotes">Notes for the crew</label><input id="ppPkNotes" maxlength="500" value="${esc(l.notes || '')}" placeholder="e.g. Will-call door on the north side" /></div>
+          <label class="pp-check pp-field--wide"><input type="checkbox" id="ppPkDefault" ${l.is_default ? 'checked' : ''} /> Default pickup location</label>
+          <p class="pp-error pp-field--wide" id="ppPkError" role="alert" hidden></p>
+          <div class="pp-field--wide pp-pick-actions"><button type="button" class="pp-btn pp-btn--sec" data-pk-cancel>Cancel</button><button type="submit" class="pp-btn pp-btn--pri" id="ppPkSave">${loc ? 'Save location' : 'Add location'}</button></div>
+        </form>`;
+    };
+    const locRow = (l) => edit === l.id ? `<div class="pp-pick-item is-editing">${locForm(l)}</div>` : `<div class="pp-pick-item">
+        <span class="pp-pick-ic">${icon('pin')}</span>
+        <div class="pp-pick-main">
+          <div class="pp-req-top"><strong>${esc(l.name)}</strong>${l.is_default ? '<span class="pp-chip pp-chip--ok">Default</span>' : ''}</div>
+          <p>${esc(l.address)}</p>
+          ${[l.hours, l.phone].filter(Boolean).length ? `<p class="pp-muted">${esc([l.hours, l.phone].filter(Boolean).join(' · '))}</p>` : ''}
+          <p class="pp-muted pp-pick-alias">Matches work orders that say: ${(l.aliases || []).map((a) => `<code>${esc(a)}</code>`).join(' ')}</p>
+        </div>
+        <div class="pp-pick-btns"><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-pk-edit="${esc(l.id)}">Edit</button><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-pk-del="${esc(l.id)}">Delete</button></div>
+      </div>`;
+    view.innerHTML = `
+      <div class="pp-head"><div><p class="pp-eyebrow">${esc(acc.name)}</p><h1>Settings</h1></div></div>
+      <div class="pp-settings">
+        <section class="pp-card pp-block" aria-labelledby="ppSetCo">
+          <h3 id="ppSetCo">Company</h3>
+          <form id="ppAccForm" class="pp-fields" novalidate>
+            <div class="pp-field pp-field--wide"><label for="ppAccName">Company name *</label><input id="ppAccName" maxlength="120" required value="${esc(acc.name || '')}" /></div>
+            <div class="pp-field"><label for="ppAccPhone">Phone</label><input id="ppAccPhone" type="tel" maxlength="40" value="${esc(acc.phone || '')}" /></div>
+            <div class="pp-field"><label for="ppAccWeb">Website</label><input id="ppAccWeb" type="url" maxlength="200" value="${esc(acc.website || '')}" placeholder="https://" /></div>
+            <p class="pp-error pp-field--wide" id="ppAccError" role="alert" hidden></p>
+            <div class="pp-field--wide"><button type="submit" class="pp-btn pp-btn--pri" id="ppAccSave">Save</button> <span class="pp-muted" id="ppAccOk" hidden>Saved</span></div>
+          </form>
+        </section>
+        <section class="pp-card pp-block" aria-labelledby="ppSetPick">
+          <div class="pp-set-head"><div><h3 id="ppSetPick">Delivery pickup locations</h3><p class="pp-muted">Supplier yards where your crews pick up delivered material. When a work order names one (like <code>TRIWEST 9176215</code>), the job gets the full address and the order number automatically.</p></div>${edit === 'new' ? '' : '<button type="button" class="pp-btn pp-btn--pri pp-btn--sm" data-pk-new>Add location</button>'}</div>
+          ${edit === 'new' ? `<div class="pp-pick-item is-editing">${locForm(null)}</div>` : ''}
+          <div class="pp-pick-list">${list.length ? list.map(locRow).join('') : (edit === 'new' ? '' : `<div class="pp-empty">${mate('point', 64)}<strong>No pickup locations yet</strong>Add the yards and warehouses your suppliers use.</div>`)}</div>
+        </section>
+        <section class="pp-card pp-block pp-app-card" aria-labelledby="ppSetApp">
+          <img src="/assets/obrabuilder/icon-192.png?v=1" alt="" width="56" height="56" />
+          <div><h3 id="ppSetApp">ObraBuilder on your phone</h3><p class="pp-muted">Install the app to send work orders and measure on site from your home screen.</p></div>
+          ${isStandaloneApp() ? '<span class="pp-chip pp-chip--ok">Installed</span>' : `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-install-app ${canInstallApp() ? '' : 'hidden'}>${icon('download')}Install</button>`}
+        </section>
+      </div>`;
+    if (typeof window.sfBootCrmAddressAutocomplete === 'function') window.sfBootCrmAddressAutocomplete();
+    paintInstall();
+    const accForm = $('ppAccForm');
+    accForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const err = $('ppAccError');
+      const btn = $('ppAccSave');
+      err.hidden = true;
+      $('ppAccOk').hidden = true;
+      btn.disabled = true;
+      try {
+        await api('/api/builder/account', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: $('ppAccName').value.trim(), phone: $('ppAccPhone').value.trim(), website: $('ppAccWeb').value.trim() }) });
+        await loadMe();
+        paintShell();
+        $('ppAccOk').hidden = false;
+      } catch (ex) {
+        err.textContent = ex.message || 'Could not save.';
+        err.hidden = false;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+    const again = (id) => { state.pickupEdit = id; render(); };
+    view.querySelectorAll('[data-pk-new]').forEach((b) => b.addEventListener('click', () => again('new')));
+    view.querySelectorAll('[data-pk-edit]').forEach((b) => b.addEventListener('click', () => again(b.getAttribute('data-pk-edit'))));
+    view.querySelectorAll('[data-pk-cancel]').forEach((b) => b.addEventListener('click', () => again(null)));
+    view.querySelectorAll('[data-pk-del]').forEach((b) => b.addEventListener('click', async () => {
+      if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Confirm delete'; return; }
+      b.disabled = true;
+      try { await api(`/api/builder/pickups/${encodeURIComponent(b.getAttribute('data-pk-del'))}`, { method: 'DELETE' }); again(null); } catch (ex) { b.disabled = false; window.alert(ex.message); }
+    }));
+    const pf = $('ppPickForm');
+    if (pf) {
+      const first = $('ppPkName');
+      if (first && !first.value) first.focus();
+      pf.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const err = $('ppPkError');
+        const btn = $('ppPkSave');
+        err.hidden = true;
+        const name = $('ppPkName').value.trim();
+        const address = $('ppPkAddr').value.trim();
+        if (name.length < 2 || address.length < 4) { err.textContent = 'Enter a name and the address of the pickup location.'; err.hidden = false; return; }
+        const payload = {
+          name,
+          address,
+          aliases: $('ppPkAliases').value.split(/[,;\n]/).map((a) => a.trim()).filter((a) => a.length >= 2).slice(0, 11),
+          phone: $('ppPkPhone').value.trim(),
+          hours: $('ppPkHours').value.trim(),
+          notes: $('ppPkNotes').value.trim(),
+          is_default: $('ppPkDefault').checked,
+        };
+        const id = pf.getAttribute('data-id');
+        btn.disabled = true;
+        try {
+          if (id) await api(`/api/builder/pickups/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          else await postJson('/api/builder/pickups', payload);
+          again(null);
+        } catch (ex) {
+          err.textContent = ex.message || 'Could not save.';
+          err.hidden = false;
+          btn.disabled = false;
+        }
+      });
+    }
+  }
+
+  /* ─────────────────────────── install the app (PWA) ─────────────────────────── */
+
+  let installEvt = null;
+  function isStandaloneApp() {
+    return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  }
+  function isIosDevice() {
+    return /iPhone|iPad|iPod/i.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+  }
+  function canInstallApp() {
+    return !isStandaloneApp() && Boolean(installEvt || isIosDevice());
+  }
+  function paintInstall() {
+    const ok = canInstallApp();
+    document.querySelectorAll('[data-install-app]').forEach((el) => { el.hidden = !ok; });
+  }
+  function iosInstallSheet() {
+    const old = $('ppIosSheet');
+    if (old) old.remove();
+    document.body.insertAdjacentHTML('beforeend', `<div class="pp-ios-sheet" id="ppIosSheet" role="dialog" aria-modal="true" aria-labelledby="ppIosTitle">
+      <div class="pp-ios-card">
+        <div class="pp-ios-top"><img src="/assets/obrabuilder/icon-192.png?v=1" alt="" width="52" height="52" /><div><strong id="ppIosTitle">Install ObraBuilder</strong><span>Add it to your Home Screen</span></div>${mate('thumbs', 64)}</div>
+        <ol>
+          <li>Tap <b>Share</b> <svg viewBox="0 0 24 24" aria-label="Share icon"><path d="M12 15V3M8 7l4-4 4 4"/><path d="M6 11H5v10h14V11h-1"/></svg> at the bottom of Safari.</li>
+          <li>Scroll and tap <b>Add to Home Screen</b>.</li>
+          <li>Tap <b>Add</b>. ObraBuilder opens like an app.</li>
+        </ol>
+        <button type="button" class="pp-btn pp-btn--pri" data-ios-close style="width:100%">Got it</button>
+      </div>
+    </div>`);
+    const sheet = $('ppIosSheet');
+    sheet.addEventListener('click', (e) => { if (e.target === sheet || e.target.closest('[data-ios-close]')) sheet.remove(); });
+  }
+  async function installApp() {
+    if (installEvt) {
+      const evt = installEvt;
+      installEvt = null;
+      evt.prompt();
+      try { await evt.userChoice; } catch (_) { /* dismissed */ }
+      paintInstall();
+      return;
+    }
+    if (isIosDevice()) iosInstallSheet();
+  }
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; paintInstall(); });
+  window.addEventListener('appinstalled', () => { installEvt = null; paintInstall(); });
+  window.addEventListener('hashchange', () => { const sh = $('ppIosSheet'); if (sh) sh.remove(); });
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-install-app]');
+    if (b) { e.preventDefault(); openMenu(false); installApp(); }
+    const x = e.target.closest('[data-install-dismiss]');
+    if (x) { try { localStorage.setItem('ob_install_dismissed', String(Date.now())); } catch (_) { /* private mode */ } const card = x.closest('.pp-install-banner'); if (card) card.remove(); }
+  });
+  /** Phone-only invitation on Home to install the app (dismissible for 30 days). */
+  function installBannerHtml() {
+    if (!canInstallApp() || !window.matchMedia('(max-width: 1023px)').matches) return '';
+    let dismissed = 0;
+    try { dismissed = Number(localStorage.getItem('ob_install_dismissed') || 0); } catch (_) { dismissed = 0; }
+    if (dismissed && Date.now() - dismissed < 30 * 86400000) return '';
+    return `<div class="pp-card pp-install-banner"><img src="/assets/obrabuilder/icon-192.png?v=1" alt="" width="44" height="44" /><div><strong>Get the ObraBuilder app</strong><span>Faster on site — right from your home screen.</span></div><button type="button" class="pp-btn pp-btn--pri pp-btn--sm" data-install-app>Install</button><button type="button" class="pp-ibtn pp-install-x" data-install-dismiss aria-label="Not now">×</button></div>`;
+  }
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => { navigator.serviceWorker.register('/obrabuilder-sw.js', { scope: '/partner' }).catch(() => {}); });
+  }
+
   function unitLabel(unit) {
-    return ({ sq_ft: 'sq ft', linear_ft: 'linear ft', step: 'degrau', unit: 'unidade', hour: 'hora', each: 'unidade' })[unit] || String(unit || '').replace(/_/g, ' ');
+    return ({ sq_ft: 'sq ft', linear_ft: 'linear ft', step: 'step', unit: 'unit', hour: 'hour', each: 'each' })[unit] || String(unit || '').replace(/_/g, ' ');
   }
 
   /** Date and time of a job in the company's time zone (what the edit form sends back). */
@@ -1975,38 +2223,38 @@
       const svcRow = (sv, i, kind) => `<li class="${sv.remove ? 'pp-ed-off' : ''}">
           <div class="pp-ed-svc">
             <span><b>${esc(sv.name)}</b>${sv.unit_price != null ? `<small>${money(sv.unit_price)} / ${esc(unitLabel(sv.unit))}</small>` : ''}</span>
-            <label class="pp-sr" for="ppEdQ-${kind}-${i}">Quantidade de ${esc(sv.name)}</label>
+            <label class="pp-sr" for="ppEdQ-${kind}-${i}">Quantity of ${esc(sv.name)}</label>
             <input id="ppEdQ-${kind}-${i}" type="number" min="0" step="0.01" value="${esc(sv.quantity)}" data-q="${kind}:${i}" ${sv.remove ? 'disabled' : ''} />
             <span class="pp-muted">${esc(unitLabel(sv.unit))}</span>
-            <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-rm="${kind}:${i}">${sv.remove ? 'Desfazer' : 'Remover'}</button>
+            <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-rm="${kind}:${i}">${sv.remove ? 'Undo' : 'Remove'}</button>
           </div>
-          <input type="text" placeholder="Nota do serviço (opcional)" maxlength="500" value="${esc(sv.notes)}" data-n="${kind}:${i}" ${sv.remove ? 'disabled' : ''} />
+          <input type="text" placeholder="Service note (optional)" maxlength="500" value="${esc(sv.notes)}" data-n="${kind}:${i}" ${sv.remove ? 'disabled' : ''} />
         </li>`;
       pane.innerHTML = `
         <div class="tk tk--edit">
           <section class="tk-hero">
-            <div class="tk-hero-top"><button type="button" class="pp-back" data-ed-cancel style="display:inline-flex">${icon('back')}Voltar</button><div class="tk-meta"><span class="tk-num">EDITAR JOB${job.number ? ` #${esc(job.number)}` : ''}</span></div></div>
-            <p class="pp-muted" style="margin:0 0 4px">As mudanças valem na hora no sistema de ${esc(providerName())} e o escritório é avisado.</p>
+            <div class="tk-hero-top"><button type="button" class="pp-back" data-ed-cancel style="display:inline-flex">${icon('back')}Back</button><div class="tk-meta"><span class="tk-num">EDIT JOB${job.number ? ` #${esc(job.number)}` : ''}</span></div></div>
+            <p class="pp-muted" style="margin:0 0 4px">Changes apply right away in ${esc(providerName())}'s system and their office is notified.</p>
           </section>
           <section class="tk-sec pp-fields" style="grid-template-columns:1fr 1fr">
-            <div class="pp-field pp-field--wide"><label for="ppEdTitle">Título</label><input id="ppEdTitle" maxlength="160" value="${esc(job.title || '')}" /></div>
-            <div class="pp-field pp-field--wide"><label for="ppEdAddr">Endereço</label><input id="ppEdAddr" maxlength="300" value="${esc(job.address || '')}" data-om-address-autocomplete /></div>
-            <div class="pp-field"><label for="ppEdDate">Data</label><input id="ppEdDate" type="date" value="${esc(start.date)}" /></div>
-            <div class="pp-field"><label for="ppEdTime">Horário <span>(vazio = dia todo)</span></label><input id="ppEdTime" type="time" value="${job.all_day ? '' : esc(start.time)}" /></div>
-            <div class="pp-field"><label for="ppEdEnd">Termina em</label><input id="ppEdEnd" type="date" value="${esc(end.date)}" /></div>
-            <div class="pp-field"><label for="ppEdLock">Código da lockbox</label><input id="ppEdLock" maxlength="40" value="${esc(lockbox)}" /></div>
-            <div class="pp-field pp-field--wide"><label for="ppEdAttn">Atenção (aparece em destaque para a equipe)</label><input id="ppEdAttn" maxlength="2000" value="${esc(t.attention || '')}" /></div>
-            <div class="pp-field pp-field--wide"><label for="ppEdNotes">Instruções</label><textarea id="ppEdNotes" maxlength="5000">${esc(instructions)}</textarea></div>
+            <div class="pp-field pp-field--wide"><label for="ppEdTitle">Title</label><input id="ppEdTitle" maxlength="160" value="${esc(job.title || '')}" /></div>
+            <div class="pp-field pp-field--wide"><label for="ppEdAddr">Address</label><input id="ppEdAddr" maxlength="300" value="${esc(job.address || '')}" data-om-address-autocomplete /></div>
+            <div class="pp-field"><label for="ppEdDate">Date</label><input id="ppEdDate" type="date" value="${esc(start.date)}" /></div>
+            <div class="pp-field"><label for="ppEdTime">Time <span>(empty = all day)</span></label><input id="ppEdTime" type="time" value="${job.all_day ? '' : esc(start.time)}" /></div>
+            <div class="pp-field"><label for="ppEdEnd">Ends on</label><input id="ppEdEnd" type="date" value="${esc(end.date)}" /></div>
+            <div class="pp-field"><label for="ppEdLock">Lockbox code</label><input id="ppEdLock" maxlength="40" value="${esc(lockbox)}" /></div>
+            <div class="pp-field pp-field--wide"><label for="ppEdAttn">Attention (highlighted for the crew)</label><input id="ppEdAttn" maxlength="2000" value="${esc(t.attention || '')}" /></div>
+            <div class="pp-field pp-field--wide"><label for="ppEdNotes">Instructions</label><textarea id="ppEdNotes" maxlength="5000">${esc(instructions)}</textarea></div>
           </section>
           <section class="tk-sec">
-            <h3>Serviços</h3>
+            <h3>Services</h3>
             <ul class="tk-list pp-ed-list">${services.map((sv, i) => svcRow(sv, i, 'e')).join('')}${added.map((sv, i) => svcRow(sv, i, 'a')).join('')}</ul>
-            ${state.priceList.length ? `<div class="pp-field" style="margin-top:12px"><label for="ppEdAdd">Adicionar serviço da tabela de ${esc(providerName())}</label><select id="ppEdAdd"><option value="">Escolher serviço…</option>${state.priceList.map((it) => `<option value="${esc(it.id)}">${esc(it.name)}${it.price != null ? ` · ${money(it.price)} / ${esc(unitLabel(it.unit))}` : ''}</option>`).join('')}</select></div>` : '<p class="tk-empty" style="margin-top:10px">A empresa não liberou a tabela de serviços no portal. Descreva novos serviços nas instruções.</p>'}
+            ${state.priceList.length ? `<div class="pp-field" style="margin-top:12px"><label for="ppEdAdd">Add a service from ${esc(providerName())}'s price list</label><select id="ppEdAdd"><option value="">Choose a service…</option>${state.priceList.map((it) => `<option value="${esc(it.id)}">${esc(it.name)}${it.price != null ? ` · ${money(it.price)} / ${esc(unitLabel(it.unit))}` : ''}</option>`).join('')}</select></div>` : '<p class="tk-empty" style="margin-top:10px">The company hasn’t shared its price list in the portal. Describe new services in the instructions.</p>'}
           </section>
           <p class="pp-error" id="ppEdError" role="alert" hidden></p>
-          <div class="pp-form-actions" style="border:0"><button type="button" class="pp-btn pp-btn--sec" data-ed-cancel>Cancelar</button><button type="button" class="pp-btn pp-btn--pri" id="ppEdSave">Salvar alterações</button></div>
+          <div class="pp-form-actions" style="border:0"><button type="button" class="pp-btn pp-btn--sec" data-ed-cancel>Cancel</button><button type="button" class="pp-btn pp-btn--pri" id="ppEdSave">Save changes</button></div>
         </div>
-        <div class="pp-fixbar"><button type="button" class="pp-btn pp-btn--sec" data-ed-cancel>Cancelar</button><button type="button" class="pp-btn pp-btn--pri" data-ed-save>Salvar</button></div>`;
+        <div class="pp-fixbar"><button type="button" class="pp-btn pp-btn--sec" data-ed-cancel>Cancel</button><button type="button" class="pp-btn pp-btn--pri" data-ed-save>Save</button></div>`;
       document.body.classList.add('pp-focus');
       if (typeof window.sfBootCrmAddressAutocomplete === 'function') window.sfBootCrmAddressAutocomplete();
       pane.querySelectorAll('[data-ed-cancel]').forEach((b) => b.addEventListener('click', () => render()));
@@ -2059,20 +2307,20 @@
         ...services.filter((sv, i) => sv.remove || sv.quantity !== (t.services[i] || {}).quantity || (sv.notes || '') !== ((t.services[i] || {}).notes || '')).map((sv) => ({ id: sv.id, quantity: sv.quantity, notes: sv.notes, remove: sv.remove })),
         ...added.filter((sv) => sv.quantity > 0).map((sv) => ({ pricing_item_id: sv.pricing_item_id, quantity: sv.quantity, notes: sv.notes })),
       ];
-      if (added.some((sv) => !(sv.quantity > 0))) { err.textContent = 'Informe a quantidade dos serviços adicionados.'; err.hidden = false; return; }
+      if (added.some((sv) => !(sv.quantity > 0))) { err.textContent = 'Enter the quantity of the added services.'; err.hidden = false; return; }
       if (svc.length) payload.services = svc;
       if (!Object.keys(payload).length) { render(); return; }
       const btns = pane.querySelectorAll('#ppEdSave, [data-ed-save]');
-      btns.forEach((b) => { b.disabled = true; b.textContent = 'Salvando…'; });
+      btns.forEach((b) => { b.disabled = true; b.textContent = 'Saving…'; });
       try {
         await api(`/api/partner-portal/jobs/${encodeURIComponent(job.id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), co });
         state.jobDetail.delete(job.id);
         await refreshOverview();
         await render();
       } catch (e) {
-        err.textContent = e.message || 'Não foi possível salvar.';
+        err.textContent = e.message || 'Could not save.';
         err.hidden = false;
-        btns.forEach((b) => { b.disabled = false; b.textContent = 'Salvar alterações'; });
+        btns.forEach((b) => { b.disabled = false; b.textContent = 'Save changes'; });
       }
     }
     draw();
@@ -2084,16 +2332,20 @@
     // The brand is the builder's own account; the selected flooring company is the subtitle.
     $('ppProvider').textContent = state.builder.account.name;
     const nAct = activeCompanies().length;
-    $('ppBrandSub').textContent = nAct ? `${nAct} ${nAct === 1 ? 'empresa conectada' : 'empresas conectadas'}` : 'Portal do builder';
+    $('ppBrandSub').textContent = nAct ? `ObraBuilder · ${nAct} ${nAct === 1 ? 'company' : 'companies'}` : 'ObraBuilder';
     $('ppMark').textContent = initials(state.builder.account.name);
-    document.title = `${state.builder.account.name} · Portal do builder`;
+    document.title = `${state.builder.account.name} · ObraBuilder`;
     const tools = $('ppProviderTools');
     const companies = state.builder.companies || [];
     tools.hidden = false;
-    tools.innerHTML = `<label>${companies.length ? `Empresas · ${companies.length}` : 'Empresas'}</label><a class="pp-menu-item" href="#empresas" style="text-decoration:none">${canDo('companies.manage') ? 'Conectar ou convidar empresa' : 'Ver empresas'}</a><a class="pp-menu-item" href="#equipe" style="text-decoration:none">Equipe</a>`;
+    tools.innerHTML = `<label>${companies.length ? `Companies · ${companies.length}` : 'Companies'}</label><a class="pp-menu-item" href="#companies" style="text-decoration:none">${canDo('companies.manage') ? 'Connect or invite a company' : 'View companies'}</a><a class="pp-menu-item" href="#team" style="text-decoration:none">Team</a>${canDo('team.manage') ? '<a class="pp-menu-item" href="#settings" style="text-decoration:none">Settings</a>' : ''}`;
     document.querySelectorAll('[data-builder-only]').forEach((el) => { el.hidden = false; });
     document.querySelectorAll('[data-nav="invoices"]').forEach((el) => { el.hidden = !canDo('money.view'); });
     document.querySelectorAll('[data-nav="measurements"]').forEach((el) => { el.hidden = !canDo('measure'); });
+    document.querySelectorAll('[data-nav="settings"]').forEach((el) => { el.hidden = !canDo('team.manage'); });
+    // Phone tab bar: Measure replaces Calendar for builders who measure (Calendar moves to More).
+    document.querySelectorAll('.pp-tab[data-nav="calendario"]').forEach((el) => { el.hidden = canDo('measure'); });
+    paintInstall();
   }
 
   /* ─────────────────────────── measurements (stairs & vents) ─────────────────────────── */
@@ -2220,7 +2472,7 @@
               <span class="pp-row-sub">${esc([m.community, m.lot ? `Lot ${m.lot}` : ''].filter(Boolean).join(' · '))}${m.community || m.lot ? ' · ' : ''}${esc(countsText(m.counts))}</span>
               <span class="pp-row-next">${esc(m.completed_by || m.updated_by || m.created_by || '')} · ${esc(fmtDayEn(m.completed_at || m.updated_at))}</span>
             </span>
-          </a>`).join('') : '<div class="pp-empty"><strong>No measurements yet</strong>Start with the house address.</div>'}
+          </a>`).join('') : '<div class="pp-empty">' + mate('point') + '<strong>No measurements yet</strong>Start with the house address.</div>'}
       </div>`;
     if (typeof window.sfBootCrmAddressAutocomplete === 'function') window.sfBootCrmAddressAutocomplete();
     $('ppMeasNewBtn').addEventListener('click', () => { const f = $('ppMeasNew'); f.hidden = false; $('ppMnAddr').focus(); });
@@ -2611,7 +2863,7 @@
         <div class="pp-vent-foot">${photoStrip(m, v.photos, `${p}.photos`)}${locked ? '' : `<button type="button" class="pp-q-ic pp-q-ic--del" data-vent-rm="${i}" aria-label="Remove vent ${i + 1}">×</button>`}</div>
       </section>`;
     }).join('');
-    return `${rows || '<div class="pp-card pp-empty"><strong>No vents measured</strong>Add each vent with its size, type and finish.</div>'}${locked ? '' : '<button type="button" class="pp-q-add pp-q-add--block" id="ppVentAdd">+ Vent (same as last)</button>'}`;
+    return `${rows || '<div class="pp-card pp-empty">' + mate('head-thinking', 56) + '<strong>No vents measured</strong>Add each vent with its size, type and finish.</div>'}${locked ? '' : '<button type="button" class="pp-q-add pp-q-add--block" id="ppVentAdd">+ Vent (same as last)</button>'}`;
   }
 
   function measSummaryHtml(m) {
@@ -2646,7 +2898,7 @@
             <button type="button" role="tab" data-mtab="vents" aria-selected="${m.tab === 'vents'}" aria-pressed="${m.tab === 'vents'}">Vents · ${c.vents}</button>
           </div>
           ${m.tab === 'stairs'
-            ? `${(m.data.stairs || []).map((s, i) => stairHtml(m, s, i)).join('') || '<div class="pp-card pp-empty"><strong>No stairs yet</strong>Add a stair and measure it step by step.</div>'}${locked ? '' : '<button type="button" class="pp-q-add pp-q-add--block" id="ppStairAdd">+ Stair</button>'}`
+            ? `${(m.data.stairs || []).map((s, i) => stairHtml(m, s, i)).join('') || '<div class="pp-card pp-empty">' + mate('head-thinking', 56) + '<strong>No stairs yet</strong>Add a stair and measure it step by step.</div>'}${locked ? '' : '<button type="button" class="pp-q-add pp-q-add--block" id="ppStairAdd">+ Stair</button>'}`
             : ventsHtml(m)}
         </div>
         <aside class="pp-meas-side">
@@ -2657,9 +2909,11 @@
           </div>
           ${locked ? '' : '<button type="button" class="pp-link pp-late" id="ppMeasDel" style="justify-self:start">Delete measurement</button>'}
         </aside>
-      </div>`;
+      </div>
+      ${locked || !state.builder.ai_reader ? '' : voiceFabHtml()}`;
     paintMeasSaved();
     bindMeasurement();
+    bindVoice();
   }
 
   function measAt(path) {
@@ -2911,27 +3165,261 @@
     });
   }
 
+  /* ─────────────────────────── voice dictation (Mate) ─────────────────────────── */
+
+  const voice = { rec: null, chunks: [], stream: null, timer: null, started: 0, phase: 'idle', undo: null, last: null };
+  const MATE_FACE = { idle: 'head-happy', recording: 'head-listening', thinking: 'head-thinking', done: 'head-talking', error: 'head-sorry' };
+
+  function voiceFabHtml() {
+    if (!window.MediaRecorder || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return '';
+    return `<div class="pp-voice" id="ppVoice" data-phase="idle">
+      <div class="pp-voice-panel" id="ppVoicePanel" hidden></div>
+      <button type="button" class="pp-voice-fab" id="ppVoiceBtn" aria-label="Dictate measurements to Mate">
+        <img src="/assets/img/mascot/mate-head-happy.webp?v=20261027-m2" alt="" width="52" height="52" />
+        <span class="pp-voice-mic">${icon('mic')}</span>
+      </button>
+    </div>`;
+  }
+  function voicePanel(html) {
+    const p = $('ppVoicePanel');
+    if (!p) return;
+    p.hidden = !html;
+    p.innerHTML = html ? `<button type="button" class="pp-voice-x" data-voice-close aria-label="Close">×</button>${html}` : '';
+  }
+  function voiceFace(phase) {
+    voice.phase = phase;
+    const box = $('ppVoice');
+    if (!box) return;
+    box.setAttribute('data-phase', phase);
+    const img = box.querySelector('.pp-voice-fab img');
+    if (img) img.src = `/assets/img/mascot/mate-${MATE_FACE[phase] || 'head-happy'}.webp?v=20261027-m2`;
+    const btn = $('ppVoiceBtn');
+    if (btn) btn.setAttribute('aria-label', phase === 'recording' ? 'Stop and send to Mate' : 'Dictate measurements to Mate');
+  }
+  function voiceHint() {
+    voicePanel(`<strong>Talk to Mate</strong>
+      <p>Tap Mate and say the sizes. For example:</p>
+      <ul>
+        <li>“Step one, thirty-six by eleven and a quarter, left side open, forty-five.”</li>
+        <li>“Riser seven and a half. Add twelve more the same.”</li>
+        <li>“Vent four by ten, flush mount, white oak, kitchen.”</li>
+      </ul>
+      <button type="button" class="pp-btn pp-btn--pri pp-btn--sm" data-voice-start>${icon('mic')}Start talking</button>`);
+  }
+  function fmtClock(ms) {
+    const sec = Math.floor(ms / 1000);
+    return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+  }
+  async function voiceStart() {
+    const m = state.meas;
+    if (!m || m.status === 'used') return;
+    try {
+      voice.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    } catch (_) {
+      voiceFace('error');
+      voicePanel('<strong>Mate can’t hear you</strong><p>Allow the microphone for this site in your browser settings, then try again.</p>');
+      return;
+    }
+    const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus'];
+    const type = types.find((t) => window.MediaRecorder.isTypeSupported && window.MediaRecorder.isTypeSupported(t)) || '';
+    voice.chunks = [];
+    voice.rec = new window.MediaRecorder(voice.stream, type ? { mimeType: type } : undefined);
+    voice.rec.addEventListener('dataavailable', (e) => { if (e.data && e.data.size) voice.chunks.push(e.data); });
+    voice.rec.addEventListener('stop', voiceSend);
+    voice.rec.start();
+    voice.started = Date.now();
+    voiceFace('recording');
+    const paint = () => voicePanel(`<strong>Mate is listening…</strong><p class="pp-voice-clock"><span class="pp-voice-dot"></span>${fmtClock(Date.now() - voice.started)} · tap Mate when you finish</p>`);
+    paint();
+    clearInterval(voice.timer);
+    voice.timer = setInterval(() => {
+      if (Date.now() - voice.started > 60000) { voiceStop(); return; }
+      paint();
+    }, 500);
+  }
+  function voiceStop() {
+    clearInterval(voice.timer);
+    if (voice.rec && voice.rec.state !== 'inactive') voice.rec.stop();
+    if (voice.stream) voice.stream.getTracks().forEach((t) => t.stop());
+    voice.stream = null;
+  }
+  function voiceCancel() {
+    if (voice.rec) voice.rec.removeEventListener('stop', voiceSend);
+    voiceStop();
+    voice.rec = null;
+    voiceFace('idle');
+    voicePanel('');
+  }
+  async function voiceSend() {
+    const m = state.meas;
+    const rec = voice.rec;
+    voice.rec = null;
+    if (!m || !rec) return;
+    const blob = new Blob(voice.chunks, { type: rec.mimeType || 'audio/webm' });
+    voice.chunks = [];
+    if (blob.size < 800 || Date.now() - voice.started < 700) {
+      voiceFace('idle');
+      voicePanel('<strong>That was too short</strong><p>Hold on a second longer and say the sizes.</p>');
+      return;
+    }
+    voiceFace('thinking');
+    voicePanel('<strong>Mate is writing it down…</strong><p class="pp-muted">Turning what you said into sizes.</p>');
+    try {
+      const audio = await readAsDataUrl(blob);
+      if (m.dirty) await measSaveNow();
+      const si = Math.min(m.voiceStair || 0, Math.max(0, (m.data.stairs || []).length - 1));
+      const r = await postJson(`/api/builder/measurements/${encodeURIComponent(m.id)}/voice`, { audio, data: m.data, stair: si, step: (m.vizSel && m.vizSel[si]) || 0 });
+      const out = r.data || {};
+      if (state.meas !== m) return;
+      const before = JSON.stringify(m.data);
+      const res = applyVoiceActions(m, out.actions || []);
+      voiceFace(res.changed ? 'done' : 'error');
+      if (res.changed) {
+        voice.undo = { id: m.id, data: before, tab: m.tab };
+        m.tab = res.tab || m.tab;
+        measSaveSoon();
+        const y = window.scrollY;
+        paintMeasurement();
+        window.scrollTo(0, y);
+      }
+      voicePanel(`<strong>${esc(out.reply || (res.changed ? 'Done.' : 'I didn’t catch any sizes.'))}</strong>
+        ${out.unclear ? `<p class="pp-late">${esc(out.unclear)}</p>` : ''}
+        ${out.transcript ? `<p class="pp-voice-heard">“${esc(out.transcript)}”</p>` : ''}
+        <div class="pp-voice-acts">${res.changed ? '<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-voice-undo>Undo</button>' : ''}<button type="button" class="pp-btn pp-btn--pri pp-btn--sm" data-voice-start>${icon('mic')}Keep talking</button></div>`);
+    } catch (e) {
+      voiceFace('error');
+      voicePanel(`<strong>Mate couldn’t do that</strong><p>${esc(e.message || 'Try again.')}</p><div class="pp-voice-acts"><button type="button" class="pp-btn pp-btn--pri pp-btn--sm" data-voice-start>${icon('mic')}Try again</button></div>`);
+    }
+  }
+  function voiceUndo() {
+    const m = state.meas;
+    const u = voice.undo;
+    if (!m || !u || u.id !== m.id) return;
+    m.data = JSON.parse(u.data);
+    m.tab = u.tab;
+    voice.undo = null;
+    measSaveSoon();
+    const y = window.scrollY;
+    paintMeasurement();
+    window.scrollTo(0, y);
+    voiceFace('idle');
+    voicePanel('<strong>Undone</strong><p>Back to how it was.</p>');
+  }
+  /** Applies Mate's edit actions to the measurement (same shapes as the editor). */
+  function applyVoiceActions(m, actions) {
+    const d = m.data;
+    d.stairs = d.stairs || [];
+    d.vents = d.vents || [];
+    let changed = 0;
+    let tab = '';
+    const STAIR_KEYS = ['name', 'species', 'finish', 'color', 'riser_material'];
+    const pick = (a, keys) => keys.reduce((o, k) => { if (a[k] != null && a[k] !== '') o[k] = a[k]; return o; }, {});
+    const stairAt = (i) => {
+      if (!d.stairs.length) d.stairs.push(newStair(0));
+      const idx = Math.min(Math.max(0, Number(i) || 0), d.stairs.length - 1);
+      m.voiceStair = idx;
+      return d.stairs[idx];
+    };
+    const dims = (st, a) => {
+      ['tread_w', 'tread_d', 'riser_w', 'riser_h'].forEach((k) => { if (a[k] != null) st[k] = Number(a[k]); });
+      if (a.riser_h != null && a.riser_w == null && st.riser_w == null && st.tread_w != null) st.riser_w = st.tread_w;
+      if (a.open) st.open = a.open;
+      if (a.ret) st.ret = a.ret;
+      if (typeof a.no_riser === 'boolean') st.no_riser = a.no_riser;
+    };
+    for (const a of actions) {
+      if (!a || !a.type) continue;
+      if (a.type === 'add_stair') {
+        d.stairs.push({ ...newStair(d.stairs.length + 1), ...pick(a, STAIR_KEYS) });
+        m.voiceStair = d.stairs.length - 1;
+        tab = 'stairs';
+      } else if (a.type === 'set_stair') {
+        Object.assign(stairAt(a.stair), pick(a, STAIR_KEYS));
+        tab = 'stairs';
+      } else if (a.type === 'set_steps') {
+        const s = stairAt(a.stair);
+        const from = Math.max(1, a.from);
+        const to = Math.max(from, a.to || from);
+        while (s.steps.length < to) s.steps.push(newStep(null));
+        for (let i = from - 1; i < to; i += 1) dims(s.steps[i], a);
+        m.vizSel = m.vizSel || {};
+        m.vizSel[m.voiceStair] = to - 1;
+        tab = 'stairs';
+      } else if (a.type === 'add_steps') {
+        const s = stairAt(a.stair);
+        for (let n = 0; n < a.count; n += 1) {
+          const st = newStep(s.steps[s.steps.length - 1] || null);
+          dims(st, a);
+          s.steps.push(st);
+        }
+        m.vizSel = m.vizSel || {};
+        m.vizSel[m.voiceStair] = s.steps.length - 1;
+        tab = 'stairs';
+      } else if (a.type === 'remove_steps') {
+        const s = stairAt(a.stair);
+        const from = Math.max(1, a.from);
+        const to = Math.max(from, a.to || from);
+        s.steps.splice(from - 1, to - from + 1);
+        tab = 'stairs';
+      } else if (a.type === 'add_nosing') {
+        const s = stairAt(a.stair);
+        s.nosings.push({ id: uid(), length: Number(a.length) || null, qty: a.qty || 1, type: a.nosing_type || 'flush', note: a.note || '' });
+        tab = 'stairs';
+      } else if (a.type === 'add_vent') {
+        d.vents.push({ ...newVent(null), size: String(a.size || '4x10').replace(/\s+/g, ''), type: a.vent_type || 'flush', qty: a.qty || 1, room: a.room || '', ...pick(a, ['species', 'finish', 'color']) });
+        tab = 'vents';
+      } else continue;
+      changed += 1;
+    }
+    return { changed, tab };
+  }
+  function bindVoice() {
+    const box = $('ppVoice');
+    if (!box) return;
+    voiceFace(['recording', 'thinking'].includes(voice.phase) ? voice.phase : 'idle');
+    $('ppVoiceBtn').addEventListener('click', () => {
+      if (voice.phase === 'recording') { voiceStop(); return; }
+      if (voice.phase === 'thinking') return;
+      let seen = false;
+      try { seen = localStorage.getItem('ob_voice_hint') === '1'; localStorage.setItem('ob_voice_hint', '1'); } catch (_) { seen = true; }
+      if (!seen) { voiceHint(); return; }
+      voiceStart();
+    });
+    box.addEventListener('click', (e) => {
+      if (e.target.closest('[data-voice-start]')) voiceStart();
+      else if (e.target.closest('[data-voice-undo]')) voiceUndo();
+      else if (e.target.closest('[data-voice-close]')) { if (voice.phase === 'recording') voiceCancel(); else { voiceFace('idle'); voicePanel(''); } }
+    });
+  }
+  window.addEventListener('hashchange', () => { if (voice.phase === 'recording') voiceCancel(); });
+  // Which stair the builder is working on (voice edits go there unless another stair is named).
+  view.addEventListener('focusin', (e) => { const row = e.target.closest('[data-step-row]'); if (row && state.meas) state.meas.voiceStair = Number(row.getAttribute('data-step-row').split(':')[0]); });
+  view.addEventListener('click', (e) => { const viz = e.target.closest('[data-viz-stair]'); if (viz && state.meas) state.meas.voiceStair = Number(viz.getAttribute('data-viz-stair')); }, true);
+
   /* ─────────────────────────── more (phone) ─────────────────────────── */
 
   function renderMore() {
     const declined = state.requests.filter((r) => r.status === 'declined').length;
     const item = (href, label, sub, extra) => `<a class="pp-row" href="${href}" style="text-decoration:none;align-items:center"><span class="pp-row-main"><strong style="font-size:15px">${esc(label)}</strong>${sub ? `<span class="pp-row-sub">${esc(sub)}</span>` : ''}</span>${extra || ''}${icon('chev').replace('<svg', '<svg style="width:16px;height:16px;fill:none;stroke:#98A2B3;stroke-width:2.2"')}</a>`;
     view.innerHTML = `
-      <div class="pp-head"><h1>Mais</h1></div>
+      <div class="pp-head"><h1>More</h1></div>
       <div class="pp-card" style="overflow:hidden">
-        ${item('#enviar', 'Enviar trabalho', 'PDF, foto ou texto')}
-        ${item('#enviar', 'Seus pedidos', `${state.requests.filter((r) => r.status === 'pending').length} aguardando a equipe`, declined ? `<span class="pp-badge">${declined}</span>` : '')}
-        ${item('#documentos', 'Fotos e docs', 'Liberados pela equipe')}
+        ${item('#send', 'Send work', 'PDF, photo or text')}
+        ${state.builder && canDo('measure') ? item('#calendar', 'Calendar', 'Every job by day') : ''}
+        ${item('#send', 'Your requests', `${state.requests.filter((r) => r.status === 'pending').length} waiting for the company`, declined ? `<span class="pp-badge">${declined}</span>` : '')}
+        ${item('#documents', 'Photos & docs', 'Shared by the company')}
       </div>
       ${state.builder ? `<div class="pp-card" style="overflow:hidden">
-        ${item('#empresas', 'Empresas', activeCompanies().length ? `${activeCompanies().length} conectadas` : 'Conecte ou convide empresas de piso')}
+        ${item('#companies', 'Companies', activeCompanies().length ? `${activeCompanies().length} connected` : 'Connect or invite flooring companies')}
         ${canDo('measure') ? item('#measurements', 'Measurements', 'Stairs and vents measured on site') : ''}
-        ${item('#equipe', 'Equipe', `${state.builder.account.name} · ${state.builder.member.role_label}`)}
+        ${item('#team', 'Team', `${state.builder.account.name} · ${state.builder.member.role_label}`)}
+        ${canDo('team.manage') ? item('#settings', 'Settings', 'Company info and pickup locations') : ''}
       </div>` : ''}
       <div class="pp-card" style="overflow:hidden">
         <div style="padding:14px 16px"><strong>${esc(state.user.name || '')}</strong><div class="pp-muted" style="font-size:13px">${esc(state.user.email || '')}${state.user.company_name ? ` · ${esc(state.user.company_name)}` : ''}</div></div>
-        ${!state.builder && state.providers.length > 1 ? `<button type="button" class="pp-row" id="ppMoreSwitch"><span class="pp-row-main"><strong style="font-size:15px">Trocar de fornecedor</strong><span class="pp-row-sub">Agora: ${esc(providerName())}</span></span></button>` : ''}
-        <button type="button" class="pp-row" id="ppMoreLogout"><span class="pp-row-main"><strong style="font-size:15px" class="pp-late">Sair</strong></span></button>
+        ${!state.builder && state.providers.length > 1 ? `<button type="button" class="pp-row" id="ppMoreSwitch"><span class="pp-row-main"><strong style="font-size:15px">Switch company</strong><span class="pp-row-sub">Now: ${esc(providerName())}</span></span></button>` : ''}
+        ${canInstallApp() ? '<button type="button" class="pp-row" data-install-app><span class="pp-row-main"><strong style="font-size:15px">Install the ObraBuilder app</strong><span class="pp-row-sub">Open it from your home screen</span></span></button>' : ''}
+        <button type="button" class="pp-row" id="ppMoreLogout"><span class="pp-row-main"><strong style="font-size:15px" class="pp-late">Sign out</strong></span></button>
       </div>`;
     const sw = $('ppMoreSwitch');
     if (sw) sw.addEventListener('click', () => { openMenu(true); });
@@ -2956,13 +3444,13 @@
     $('ppTabs').hidden = true;
     $('ppSearchFab').hidden = true;
     view.innerHTML = `
-      <div class="pp-head"><div><p class="pp-eyebrow">Primeiro acesso</p><h1>Crie sua senha</h1></div></div>
+      <div class="pp-head"><div><p class="pp-eyebrow">First sign-in</p><h1>Create your password</h1></div></div>
       <form class="pp-card pp-password" id="ppPwForm">
-        <p class="pp-muted" style="margin:0">Por segurança, troque a senha temporária antes de abrir seus jobs.</p>
-        <div class="pp-field"><label for="ppPw1">Nova senha (mínimo 10 caracteres)</label><input id="ppPw1" type="password" minlength="10" autocomplete="new-password" required /></div>
-        <div class="pp-field"><label for="ppPw2">Repita a nova senha</label><input id="ppPw2" type="password" minlength="10" autocomplete="new-password" required /></div>
+        <p class="pp-muted" style="margin:0">For security, replace the temporary password before opening your jobs.</p>
+        <div class="pp-field"><label for="ppPw1">New password (at least 10 characters)</label><input id="ppPw1" type="password" minlength="10" autocomplete="new-password" required /></div>
+        <div class="pp-field"><label for="ppPw2">Repeat the new password</label><input id="ppPw2" type="password" minlength="10" autocomplete="new-password" required /></div>
         <p class="pp-error" id="ppPwError" role="alert" hidden></p>
-        <div><button class="pp-btn pp-btn--pri" id="ppPwSave" type="submit">Salvar senha</button></div>
+        <div><button class="pp-btn pp-btn--pri" id="ppPwSave" type="submit">Save password</button></div>
       </form>`;
     $('ppPwForm').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -2970,18 +3458,18 @@
       const btn = $('ppPwSave');
       err.hidden = true;
       const pw = $('ppPw1').value;
-      if (pw.length < 10) { err.textContent = 'Use pelo menos 10 caracteres.'; err.hidden = false; return; }
-      if (pw !== $('ppPw2').value) { err.textContent = 'As senhas não são iguais.'; err.hidden = false; return; }
+      if (pw.length < 10) { err.textContent = 'Use at least 10 characters.'; err.hidden = false; return; }
+      if (pw !== $('ppPw2').value) { err.textContent = 'The passwords do not match.'; err.hidden = false; return; }
       btn.disabled = true;
-      btn.textContent = 'Salvando…';
+      btn.textContent = 'Saving…';
       try {
         await postJson('/api/partner-auth/change-password', { password: pw });
         await boot();
       } catch (ex) {
-        err.textContent = ex.message || 'Não foi possível salvar a senha.';
+        err.textContent = ex.message || 'Could not save the password.';
         err.hidden = false;
         btn.disabled = false;
-        btn.textContent = 'Salvar senha';
+        btn.textContent = 'Save password';
       }
     });
   }
@@ -2989,12 +3477,12 @@
   function renderSearchResults() {
     const q = $('ppSearchMobile').value.trim().toLowerCase();
     const box = $('ppSearchResults');
-    if (!q) { box.innerHTML = '<div class="pp-empty">Digite um endereço, título ou número.</div>'; return; }
+    if (!q) { box.innerHTML = '<div class="pp-empty">Type an address, title or number.</div>'; return; }
     const jobs = state.jobs.filter((j) => jobMatchesQuery(j, q)).slice(0, 8);
     const invs = state.invoices.filter((inv) => [inv.number, invoiceRef(inv), inv.job && inv.job.address].filter(Boolean).join(' ').toLowerCase().includes(q)).slice(0, 5);
     box.innerHTML = (jobs.length || invs.length)
       ? `${jobs.length ? '<div class="pp-group">Jobs</div>' : ''}${jobs.map((j) => `<a class="pp-row" href="#jobs/${encodeURIComponent(j.id)}" style="text-decoration:none"><span class="pp-row-main"><strong style="font-size:15px">${esc(j.title || 'Job')}</strong><span class="pp-row-sub">${esc(j.address || '')}</span></span></a>`).join('')}${invs.length ? '<div class="pp-group">Invoices</div>' : ''}${invs.map((inv) => `<a class="pp-row" href="#invoices/${encodeURIComponent(inv.id)}" style="text-decoration:none"><span class="pp-row-main"><strong style="font-size:15px">${esc(inv.number || 'Invoice')} · ${money(inv.amount)}</strong><span class="pp-row-sub">${esc(invoiceRef(inv))}</span></span></a>`).join('')}`
-      : '<div class="pp-empty">Nada encontrado.</div>';
+      : '<div class="pp-empty">Nothing found.</div>';
     box.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => { $('ppSearchSheet').hidden = true; }));
   }
 
@@ -3011,14 +3499,14 @@
       const workspace = $('ppProviderSelect').value;
       if (!workspace) return;
       btn.disabled = true;
-      btn.textContent = 'Trocando…';
+      btn.textContent = 'Switching…';
       try {
         const r = await postJson('/api/partner-auth/switch', { workspace });
         location.replace((r.data && r.data.redirect_url) || 'partner-portal.html');
       } catch (err) {
         btn.disabled = false;
-        btn.textContent = 'Trocar de fornecedor';
-        window.alert(err.message || 'Não foi possível trocar de fornecedor.');
+        btn.textContent = 'Switch company';
+        window.alert(err.message || 'Could not switch company.');
       }
     });
     const search = $('ppSearch');
@@ -3036,13 +3524,13 @@
       if (!state.send) state.send = newSend();
       await addFiles(e.target.files);
       e.target.value = '';
-      if (route().name !== 'enviar') location.hash = '#enviar'; else renderSendBody();
+      if (route().name !== 'enviar') location.hash = '#send'; else renderSendBody();
     });
     $('ppCameraInput').addEventListener('change', async (e) => {
       if (!state.send) state.send = newSend();
       await addFiles(e.target.files);
       e.target.value = '';
-      if (route().name !== 'enviar') location.hash = '#enviar'; else renderSendBody();
+      if (route().name !== 'enviar') location.hash = '#send'; else renderSendBody();
     });
     window.addEventListener('hashchange', () => { window.scrollTo({ top: 0 }); render(); });
     window.addEventListener('resize', (() => { let mobile = window.matchMedia('(max-width: 1023px)').matches; return () => { const now = window.matchMedia('(max-width: 1023px)').matches; if (now !== mobile) { mobile = now; if (['jobs', 'invoices'].includes(route().name)) render(); } }; })());
@@ -3055,7 +3543,7 @@
     if (state.user.builder_account) {
       await loadMe();
       $('ppAvatar').textContent = initials(state.user.name || state.user.email);
-      $('ppAvatar').setAttribute('aria-label', `Conta: ${state.user.name || state.user.email || ''}`);
+      $('ppAvatar').setAttribute('aria-label', `Account: ${state.user.name || state.user.email || ''}`);
       $('ppUserName').textContent = state.user.name || '';
       $('ppUserEmail').textContent = [state.user.email, `${state.builder.account.name} · ${state.builder.member.role_label}`].join(' · ');
       paintShell();
@@ -3063,7 +3551,7 @@
       $('ppDock').hidden = false;
       $('ppTabs').hidden = false;
       $('ppSearchFab').hidden = false;
-      if (!location.hash && !activeCompanies().length) location.hash = '#empresas';
+      if (!location.hash && !activeCompanies().length) location.hash = '#companies';
       await refreshOverview().catch(() => {});
       loadInvoices().then(updateCounts).catch(() => {});
       loadRequests().then(updateCounts).catch(() => {});
@@ -3074,10 +3562,10 @@
     const prov = providerName();
     const builderName = state.user.company_name || state.user.name || prov;
     $('ppProvider').textContent = builderName;
-    $('ppBrandSub').textContent = `Empresa: ${prov}`;
+    $('ppBrandSub').textContent = `Company: ${prov}`;
     $('ppMark').textContent = initials(builderName);
     $('ppAvatar').textContent = initials(state.user.name || state.user.email);
-    $('ppAvatar').setAttribute('aria-label', `Conta: ${state.user.name || state.user.email || ''}`);
+    $('ppAvatar').setAttribute('aria-label', `Account: ${state.user.name || state.user.email || ''}`);
     $('ppUserName').textContent = state.user.name || '';
     $('ppUserEmail').textContent = [state.user.email, state.user.company_name].filter(Boolean).join(' · ');
     $('ppProviderTools').hidden = state.providers.length < 2;
@@ -3085,7 +3573,7 @@
       $('ppProviderSelect').innerHTML = state.providers.map((p) => `<option value="${esc(p.slug)}">${esc(p.name || p.company_name)}</option>`).join('');
       $('ppProviderSelect').value = state.user.workspace || '';
     }
-    document.title = `${prov} · Portal do builder`;
+    document.title = `${prov} · ObraBuilder`;
     if (state.user.must_change_password) { renderPassword(); return; }
     if (typeof window.sfBootCrmAddressAutocomplete === 'function') window.sfBootCrmAddressAutocomplete();
     $('ppDock').hidden = false;
@@ -3102,6 +3590,6 @@
 
   bindShell();
   boot().catch((err) => {
-    view.innerHTML = `<p class="pp-error" role="alert">${esc(err.message || 'Não foi possível carregar o portal.')}</p>`;
+    view.innerHTML = `<p class="pp-error" role="alert">${esc(err.message || 'Could not load ObraBuilder.')}</p>`;
   });
 })();

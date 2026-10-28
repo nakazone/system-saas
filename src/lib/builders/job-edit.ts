@@ -64,8 +64,8 @@ export async function applyBuilderJobEdit(
     where: { id: params.jobId, organizationId, ...params.scope, status: { not: "canceled" } },
     select: { id: true, number: true, title: true, status: true, address: true, notes: true, campoAttention: true, scheduledStart: true, scheduledEnd: true, allDay: true },
   });
-  if (!job) throw new JobEditError(404, "Job não encontrado.");
-  if (["completed", "needs_invoicing"].includes(job.status)) throw new JobEditError(409, "Job concluído não pode mais ser alterado pelo portal. Fale com a empresa.");
+  if (!job) throw new JobEditError(404, "Job not found.");
+  if (["completed", "needs_invoicing"].includes(job.status)) throw new JobEditError(409, "A completed job can no longer be changed here. Contact the company.");
 
   const tz = safeTimeZone(params.timezone);
   const data: Record<string, unknown> = {};
@@ -172,7 +172,7 @@ export async function applyBuilderJobEdit(
         }
       } else if (s.pricing_item_id && !s.remove) {
         const item = await tx.pricingItem.findFirst({ where: { id: s.pricing_item_id, organizationId, active: true, isVisible: true } });
-        if (!item) throw new JobEditError(400, "Esse serviço não está na tabela da empresa.");
+        if (!item) throw new JobEditError(400, "This service is not on the company's price list.");
         const unit = Number(item.priceBuilder) || Number(item.partnerPrice ?? 0) || Number(item.price) || 0;
         const qty = round2(s.quantity);
         order += 1;

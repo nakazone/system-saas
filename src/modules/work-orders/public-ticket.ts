@@ -71,6 +71,49 @@ export function formatTicketWhen(
   return { day, start, until, relative, zone: tzAbbrev(startAt, tz), multiDay };
 }
 
+/** English version of {@link formatTicketWhen} (ObraBuilder app): "Friday, Oct 2", "until 5:00 PM". */
+export function formatTicketWhenEn(
+  startAt: Date | null | undefined,
+  endAt: Date | null | undefined,
+  timeZone: string | null | undefined,
+  now = new Date(),
+): TicketWhen | null {
+  if (!startAt) return null;
+  const tz = safeTimeZone(timeZone);
+  const fmt = (d: Date, o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-US", { timeZone: tz, ...o }).format(d);
+  const time = (d: Date) => fmt(d, { hour: "numeric", minute: "2-digit" });
+  const day = fmt(startAt, { weekday: "long", month: "short", day: "numeric" });
+  let until: string | null = null;
+  let multiDay = false;
+  if (endAt && endAt.getTime() > startAt.getTime()) {
+    if (zonedDateKey(endAt, tz) === zonedDateKey(startAt, tz)) {
+      until = `until ${time(endAt)}`;
+    } else {
+      multiDay = true;
+      until = `until ${fmt(endAt, { weekday: "short", month: "short", day: "numeric" })} · ${time(endAt)}`;
+    }
+  }
+  const diff = zonedDayDiff(now, startAt, tz);
+  const relative =
+    diff === 0 ? "Today" : diff === 1 ? "Tomorrow" : diff === -1 ? "Yesterday" : diff > 1 ? `In ${diff} days` : `${-diff} days ago`;
+  return { day, start: time(startAt), until, relative, zone: tzAbbrev(startAt, tz), multiDay };
+}
+
+const JOB_STATUS_EN: Record<string, string> = {
+  draft: "Awaiting schedule",
+  scheduled: "Scheduled",
+  in_progress: "On site",
+  completed: "Completed",
+  canceled: "Canceled",
+};
+
+/** Job status label in English for the builder app. */
+export function ticketStatusEn(status: string, fieldStatus: string | null | undefined): string {
+  if (status === "scheduled" && fieldStatus === "en_route") return "Crew on the way";
+  if (status === "scheduled" && fieldStatus === "on_site") return "On site";
+  return JOB_STATUS_EN[status] || status;
+}
+
 /** "1 de dezembro de 2026" — used for "link válido até". */
 export function formatLongDate(date: Date, timeZone: string | null | undefined): string {
   const p = zonedParts(date, safeTimeZone(timeZone));
@@ -124,6 +167,19 @@ export function formatQuantity(qty: number, unit: string | null | undefined): st
   const label = UNIT_LABELS[raw];
   if (!label) return `${n} ${raw.replace(/_/g, " ")}`;
   return `${n} ${qty === 1 ? label[0] : label[1]}`;
+}
+
+const UNIT_LABELS_EN: Record<string, [string, string]> = {
+  step: ["step", "steps"], steps: ["step", "steps"], unit: ["unit", "units"], units: ["unit", "units"],
+  each: ["each", "each"], piece: ["piece", "pieces"], pieces: ["piece", "pieces"], hour: ["hour", "hours"], hours: ["hour", "hours"],
+};
+
+/** {@link formatQuantity} with English unit names (ObraBuilder app). */
+export function formatQuantityEn(qty: number, unit: string | null | undefined): string {
+  const raw = String(unit || "sq_ft").trim().toLowerCase().replace(/\s+/g, "_");
+  const en = UNIT_LABELS_EN[raw];
+  if (!en || !qty) return formatQuantity(qty, unit);
+  return `${qty.toLocaleString("en-US", { maximumFractionDigits: 2 })} ${qty === 1 ? en[0] : en[1]}`;
 }
 
 function escapeHtml(s: string): string {

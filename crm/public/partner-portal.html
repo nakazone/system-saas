@@ -1,84 +1,95 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#f7f8fa" />
-  <title>Portal do builder · ObraMate</title>
-  <link rel="icon" href="/favicon.ico" sizes="any" />
-  <link rel="stylesheet" href="partner-portal-v2.css?v=20261028-pm5" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="ObraBuilder" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="application-name" content="ObraBuilder" />
+  <title>ObraBuilder</title>
+  <link rel="manifest" href="/obrabuilder.webmanifest" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/obrabuilder/favicon-32.png?v=1" />
+  <link rel="icon" type="image/svg+xml" href="/assets/obrabuilder/icon.svg?v=1" />
+  <link rel="apple-touch-icon" href="/assets/obrabuilder/apple-touch-icon.png?v=1" />
+  <link rel="stylesheet" href="partner-portal-v2.css?v=20261028-ob2" />
 </head>
 <body class="pp">
   <header class="pp-top">
     <div class="pp-top-in">
-      <a class="pp-brand" href="#inicio" aria-label="Início do portal">
+      <a class="pp-brand" href="#home" aria-label="ObraBuilder home">
         <span class="pp-mark" id="ppMark" aria-hidden="true">·</span>
-        <span class="pp-brand-text"><strong id="ppProvider">Carregando…</strong><span id="ppBrandSub">Portal do builder</span></span>
+        <span class="pp-brand-text"><strong id="ppProvider">ObraBuilder</strong><span id="ppBrandSub">Loading…</span></span>
       </a>
       <label class="pp-search" for="ppSearch">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
-        <span class="pp-sr">Buscar</span>
-        <input id="ppSearch" type="search" autocomplete="off" placeholder="Buscar jobs, endereços, invoices…" />
+        <span class="pp-sr">Search</span>
+        <input id="ppSearch" type="search" autocomplete="off" placeholder="Search jobs, addresses, invoices…" />
         <span class="pp-kbd" aria-hidden="true">⌘K</span>
       </label>
       <div class="pp-top-actions">
-        <a class="pp-btn pp-btn--pri pp-send-top" href="#enviar">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Enviar trabalho
+        <a class="pp-btn pp-btn--pri pp-send-top" href="#send">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Send work
         </a>
-        <a class="pp-ibtn pp-plus-mobile" href="#enviar" aria-label="Enviar trabalho">
+        <a class="pp-ibtn pp-plus-mobile" href="#send" aria-label="Send work">
           <svg viewBox="0 0 24 24" aria-hidden="true" style="width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round"><path d="M12 5v14M5 12h14"/></svg>
         </a>
         <button type="button" class="pp-ibtn pp-avatar" id="ppAvatar" aria-haspopup="true" aria-expanded="false" aria-controls="ppMenu">··</button>
         <div class="pp-menu" id="ppMenu" hidden>
           <div class="pp-menu-head"><strong id="ppUserName"></strong><span id="ppUserEmail"></span></div>
           <div id="ppProviderTools" hidden>
-            <label for="ppProviderSelect">Fornecedor</label>
+            <label for="ppProviderSelect">Company</label>
             <select id="ppProviderSelect"></select>
-            <button type="button" class="pp-menu-item" id="ppProviderSwitch">Trocar de fornecedor</button>
+            <button type="button" class="pp-menu-item" id="ppProviderSwitch">Switch company</button>
           </div>
-          <button type="button" class="pp-menu-item" id="ppLogout">Sair</button>
+          <button type="button" class="pp-menu-item" data-install-app hidden>Install the app</button>
+          <button type="button" class="pp-menu-item" id="ppLogout">Sign out</button>
         </div>
       </div>
     </div>
   </header>
 
   <main class="pp-wrap" id="ppView" aria-live="polite">
-    <div class="pp-empty"><strong>Carregando o portal…</strong></div>
+    <div class="pp-empty"><strong>Loading ObraBuilder…</strong></div>
   </main>
 
-  <nav class="pp-dock" id="ppDock" aria-label="Navegação" hidden>
-    <a class="pp-di" href="#inicio" data-nav="inicio"><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9H4z"/></svg></span>Início</a>
+  <nav class="pp-dock" id="ppDock" aria-label="Navigation" hidden>
+    <a class="pp-di" href="#home" data-nav="inicio"><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9H4z"/></svg></span>Home</a>
     <span class="pp-sep" aria-hidden="true"></span>
     <a class="pp-di" href="#jobs" data-nav="jobs"><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16v12H4z"/><path d="M9 8V5h6v3"/></svg></span>Jobs</a>
-    <a class="pp-di" href="#calendario" data-nav="calendario"><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v14H4z"/><path d="M8 3v5M16 3v5M4 11h16"/></svg></span>Calendário</a>
-    <a class="pp-di" href="#documentos" data-nav="documentos"><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>Fotos e docs</a>
+    <a class="pp-di" href="#calendar" data-nav="calendario"><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v14H4z"/><path d="M8 3v5M16 3v5M4 11h16"/></svg></span>Calendar</a>
+    <a class="pp-di" href="#documents" data-nav="documentos"><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>Docs</a>
     <span class="pp-sep" aria-hidden="true"></span>
     <a class="pp-di" href="#invoices" data-nav="invoices"><span class="pp-count" data-count="invoices" hidden></span><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg></span>Invoices</a>
-    <a class="pp-di" href="#enviar" data-nav="enviar"><span class="pp-count" data-count="pedidos" hidden></span><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></span>Pedidos</a>
+    <a class="pp-di" href="#send" data-nav="enviar"><span class="pp-count" data-count="pedidos" hidden></span><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></span>Requests</a>
     <span class="pp-sep" aria-hidden="true" data-builder-only hidden></span>
     <a class="pp-di" href="#measurements" data-nav="measurements" data-builder-only hidden><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17 17 3l4 4L7 21H3z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/></svg></span>Measurements</a>
-    <a class="pp-di" href="#empresas" data-nav="empresas" data-builder-only hidden><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V8l6-4v16M10 20V10h10v10M3 20h18"/><path d="M14 14h2M14 17h2"/></svg></span>Empresas</a>
-    <a class="pp-di" href="#equipe" data-nav="equipe" data-builder-only hidden><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/></svg></span>Equipe</a>
+    <a class="pp-di" href="#companies" data-nav="empresas" data-builder-only hidden><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V8l6-4v16M10 20V10h10v10M3 20h18"/><path d="M14 14h2M14 17h2"/></svg></span>Companies</a>
+    <a class="pp-di" href="#team" data-nav="equipe" data-builder-only hidden><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/></svg></span>Team</a>
+    <a class="pp-di" href="#settings" data-nav="settings" data-builder-only data-admin-only hidden><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></span>Settings</a>
   </nav>
 
-  <nav class="pp-tabs" id="ppTabs" aria-label="Abas" hidden>
-    <a class="pp-tab" href="#inicio" data-nav="inicio"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9H4z"/></svg>Início</a>
+  <nav class="pp-tabs" id="ppTabs" aria-label="Tabs" hidden>
+    <a class="pp-tab" href="#home" data-nav="inicio"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9H4z"/></svg>Home</a>
     <a class="pp-tab" href="#jobs" data-nav="jobs"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16v12H4z"/><path d="M9 8V5h6v3"/></svg>Jobs</a>
-    <a class="pp-tab" href="#calendario" data-nav="calendario"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v14H4z"/><path d="M8 3v5M16 3v5M4 11h16"/></svg>Calendário</a>
+    <a class="pp-tab" href="#calendar" data-nav="calendario"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v14H4z"/><path d="M8 3v5M16 3v5M4 11h16"/></svg>Calendar</a>
+    <a class="pp-tab" href="#measurements" data-nav="measurements" data-builder-only hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17 17 3l4 4L7 21H3z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/></svg>Measure</a>
     <a class="pp-tab" href="#invoices" data-nav="invoices"><span class="pp-count" data-count="invoices" hidden></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>Invoices</a>
-    <a class="pp-tab" href="#mais" data-nav="mais"><span class="pp-count" data-count="pedidos" hidden></span><svg viewBox="0 0 24 24" aria-hidden="true" style="fill:currentColor;stroke:none"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>Mais</a>
+    <a class="pp-tab" href="#more" data-nav="mais"><span class="pp-count" data-count="pedidos" hidden></span><svg viewBox="0 0 24 24" aria-hidden="true" style="fill:currentColor;stroke:none"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>More</a>
   </nav>
-  <button type="button" class="pp-search-fab" id="ppSearchFab" aria-label="Buscar" hidden>
+  <button type="button" class="pp-search-fab" id="ppSearchFab" aria-label="Search" hidden>
     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
   </button>
   <div class="pp-search-sheet" id="ppSearchSheet" hidden>
     <div style="display:flex;gap:10px;align-items:center">
       <label class="pp-search" for="ppSearchMobile" style="flex:1">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
-        <span class="pp-sr">Buscar</span>
-        <input id="ppSearchMobile" type="search" autocomplete="off" placeholder="Jobs, endereços, invoices…" />
+        <span class="pp-sr">Search</span>
+        <input id="ppSearchMobile" type="search" autocomplete="off" placeholder="Jobs, addresses, invoices…" />
       </label>
-      <button type="button" class="pp-link" id="ppSearchClose" style="text-decoration:none">Cancelar</button>
+      <button type="button" class="pp-link" id="ppSearchClose" style="text-decoration:none">Cancel</button>
     </div>
     <div id="ppSearchResults" class="pp-card" style="overflow:hidden"></div>
   </div>
@@ -86,6 +97,6 @@
   <input type="file" id="ppFileInput" accept="image/jpeg,image/png,image/webp,application/pdf" multiple hidden />
   <input type="file" id="ppCameraInput" accept="image/*" capture="environment" hidden />
   <script src="crm-address-autocomplete.js?v=20261028-pac" defer></script>
-  <script src="partner-portal.js?v=20261028-pm5" defer></script>
+  <script src="partner-portal.js?v=20261028-ob2" defer></script>
 </body>
 </html>

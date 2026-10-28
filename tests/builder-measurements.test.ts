@@ -59,3 +59,38 @@ describe("width filter", () => {
     expect(out).not.toContain("48 ×");
   });
 });
+
+import { matchPickup, pickupOrderNumber, pickupText } from "../src/lib/builders/pickups.js";
+
+describe("pickup locations", () => {
+  const locs = [
+    { id: "1", name: "TriWest Henderson", address: "9751 E 102nd Ave, Henderson, CO 80640", aliases: ["TRIWEST", "Tri West"], phone: null, hours: "7am–3pm", notes: null, is_default: false },
+    { id: "2", name: "CFC Arvada", address: "5420 Ward Rd, Arvada, CO", aliases: ["CFC"], phone: null, hours: null, notes: null, is_default: false },
+  ];
+  it("links the supplier named on the work order", () => {
+    expect(matchPickup(locs, "Triwest · 9176215")?.id).toBe("1");
+    expect(matchPickup(locs, "TRI WEST 9176215")?.id).toBe("1");
+    expect(matchPickup(locs, "Home Depot")).toBeNull();
+  });
+  it("keeps the supplier order number", () => {
+    expect(pickupOrderNumber("Triwest · 9176215")).toBe("9176215");
+    expect(pickupText(locs[0]!, "9176215")).toBe("TriWest Henderson — 9751 E 102nd Ave, Henderson, CO 80640 · Order 9176215 · 7am–3pm");
+  });
+});
+
+import { formatQuantityEn, formatTicketWhenEn, ticketStatusEn } from "../src/modules/work-orders/public-ticket.js";
+
+describe("ObraBuilder ticket texts in English", () => {
+  it("formats the job date and status in English", () => {
+    const start = new Date("2026-10-02T13:30:00Z");
+    const w = formatTicketWhenEn(start, new Date("2026-10-02T23:00:00Z"), "America/Denver", new Date("2026-10-01T18:00:00Z"))!;
+    expect(w.day).toBe("Friday, Oct 2");
+    expect(w.start).toBe("7:30 AM");
+    expect(w.until).toBe("until 5:00 PM");
+    expect(w.relative).toBe("Tomorrow");
+    expect(ticketStatusEn("scheduled", "on_site")).toBe("On site");
+    expect(ticketStatusEn("draft", null)).toBe("Awaiting schedule");
+    expect(formatQuantityEn(9, "step")).toBe("9 steps");
+    expect(formatQuantityEn(1200, "sq_ft")).toBe("1,200 sq ft");
+  });
+});

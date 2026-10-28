@@ -8,7 +8,7 @@
   async function request(url, options) {
     const response = await fetch(url, { credentials: 'include', ...options });
     const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(body.error || 'Não foi possível concluir o acesso.');
+    if (!response.ok) throw new Error(body.error || 'Could not complete the sign-in.');
     return body;
   }
 
@@ -23,10 +23,10 @@
       if (state.authenticated) location.replace('partner-portal.html');
     } catch (_) {
       if (new URLSearchParams(location.search).get('switch') === '1') {
-        error.textContent = 'Não foi possível trocar de fornecedor. Entre novamente pelo portal.';
+        error.textContent = 'Could not switch company. Sign in again.';
         error.hidden = false;
       }
-      // A tela de login também é usada sem uma sessão ativa.
+      // The sign-in screen is also shown without an active session.
     }
   }
 
@@ -34,7 +34,7 @@
     event.preventDefault();
     error.hidden = true;
     button.disabled = true;
-    button.textContent = 'Entrando…';
+    button.textContent = 'Signing in…';
     try {
       const workspace = document.getElementById('workspace').value.trim();
       await request('/api/partner-auth/login', {
@@ -48,10 +48,10 @@
       });
       location.replace('partner-portal.html');
     } catch (err) {
-      error.textContent = err.message || 'Não foi possível entrar.';
+      error.textContent = err.message || 'Could not sign in.';
       error.hidden = false;
       button.disabled = false;
-      button.textContent = 'Entrar no portal';
+      button.textContent = 'Sign in';
     }
   });
 

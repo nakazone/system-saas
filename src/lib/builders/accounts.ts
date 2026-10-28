@@ -253,7 +253,7 @@ export async function activeLinkFor(member: ActiveMember, organizationId: string
  */
 export async function ensureShadowPartnerUser(member: ActiveMember, link: { organizationId: string | null; tenantBuilderId: string | null }) {
   const organizationId = link.organizationId;
-  if (!organizationId) throw new BuilderError(409, "Esta empresa ainda não entrou no ObraMate.");
+  if (!organizationId) throw new BuilderError(409, "This company has not joined ObraMate yet.");
   return withTenantTransaction(organizationId, async (tx) => {
     const select = {
       id: true,
@@ -314,14 +314,14 @@ export async function inviteMember(actor: ActiveMember, raw: unknown): Promise<{
     phone: z.string().trim().max(40).optional().or(z.literal("")),
     role: z.string(),
   }).safeParse(raw);
-  if (!parsed.success || !isBuilderRole(parsed.data.role)) throw new BuilderError(400, "Confira nome, e-mail e papel.");
+  if (!parsed.success || !isBuilderRole(parsed.data.role)) throw new BuilderError(400, "Check the name, email and role.");
   const d = parsed.data;
   if (!(await takeRate([{ key: `builder-member-invite:${actor.builderAccountId}`, max: 40, windowMs: DAY }]))) {
-    throw new BuilderError(429, "Muitos convites hoje. Tente amanhã.");
+    throw new BuilderError(429, "Too many invites today. Try again tomorrow.");
   }
   const taken = await prisma.builderMember.findUnique({ where: { email: d.email } });
-  if (taken && taken.builderAccountId !== actor.builderAccountId) throw new BuilderError(409, "Esse e-mail já está em outra conta de builder.", "email");
-  if (taken && taken.status === "active") throw new BuilderError(409, "Essa pessoa já está na equipe.", "email");
+  if (taken && taken.builderAccountId !== actor.builderAccountId) throw new BuilderError(409, "This email is already on another builder account.", "email");
+  if (taken && taken.status === "active") throw new BuilderError(409, "This person is already on the team.", "email");
   const member = taken
     ? await prisma.builderMember.update({ where: { id: taken.id }, data: { name: d.name, phone: d.phone || null, role: d.role, status: "invited", invitedById: actor.id } })
     : await prisma.builderMember.create({
@@ -340,15 +340,15 @@ export async function inviteMember(actor: ActiveMember, raw: unknown): Promise<{
 
 export async function updateMember(actor: ActiveMember, memberId: string, raw: unknown) {
   const parsed = z.object({ role: z.string().optional(), disabled: z.boolean().optional() }).safeParse(raw);
-  if (!parsed.success) throw new BuilderError(400, "Dados inválidos.");
+  if (!parsed.success) throw new BuilderError(400, "Invalid data.");
   const m = await prisma.builderMember.findFirst({ where: { id: memberId, builderAccountId: actor.builderAccountId } });
-  if (!m) throw new BuilderError(404, "Pessoa não encontrada.");
+  if (!m) throw new BuilderError(404, "Person not found.");
   const nextRole = parsed.data.role;
-  if (nextRole !== undefined && !isBuilderRole(nextRole)) throw new BuilderError(400, "Papel inválido.");
+  if (nextRole !== undefined && !isBuilderRole(nextRole)) throw new BuilderError(400, "Invalid role.");
   const losingAdmin = m.role === "admin" && ((nextRole && nextRole !== "admin") || parsed.data.disabled);
   if (losingAdmin) {
     const admins = await prisma.builderMember.count({ where: { builderAccountId: actor.builderAccountId, role: "admin", status: "active", id: { not: m.id } } });
-    if (!admins) throw new BuilderError(409, "A conta precisa de pelo menos um admin ativo.");
+    if (!admins) throw new BuilderError(409, "The account needs at least one active admin.");
   }
   return prisma.builderMember.update({
     where: { id: m.id },
@@ -394,16 +394,16 @@ export type CompanyResult =
 /** Links a company already on ObraMate (by its admin's e-mail) or invites it. */
 export async function addCompany(actor: ActiveMember, raw: unknown): Promise<CompanyResult> {
   const parsed = companySchema.safeParse(raw);
-  if (!parsed.success) throw new BuilderError(400, "Informe o e-mail do responsável pela empresa.", "email");
+  if (!parsed.success) throw new BuilderError(400, "Enter the email of the company's admin.", "email");
   const d = parsed.data;
   if (!(await takeRate([{ key: `builder-company:${actor.builderAccountId}`, max: 30, windowMs: DAY }]))) {
-    throw new BuilderError(429, "Muitas empresas adicionadas hoje. Tente amanhã.");
+    throw new BuilderError(429, "Too many companies added today. Try again tomorrow.");
   }
   const admin = await companyAdminByEmail(d.email);
   if (admin) {
     const org = admin.organization;
     const existing = await prisma.builderLink.findFirst({ where: { builderAccountId: actor.builderAccountId, organizationId: org.id, status: { in: ["active", "invited"] } } });
-    if (existing?.status === "active") throw new BuilderError(409, `Você já está conectado à ${org.name}.`);
+    if (existing?.status === "active") throw new BuilderError(409, `You are already connected to ${org.name}.`);
     const link = existing
       ? await prisma.builderLink.update({ where: { id: existing.id }, data: { companyName: org.name, contactEmail: d.email } })
       : await prisma.builderLink.create({
@@ -429,9 +429,9 @@ export async function addCompany(actor: ActiveMember, raw: unknown): Promise<Com
 
   const anyUser = await prisma.user.findFirst({ where: { email: { equals: d.email, mode: "insensitive" }, status: "active" }, select: { organization: { select: { name: true } } } });
   if (anyUser) {
-    throw new BuilderError(409, `Esse e-mail é de um usuário da ${anyUser.organization.name}, mas não do admin. Use o e-mail do admin da empresa.`, "email");
+    throw new BuilderError(409, `This email belongs to a user at ${anyUser.organization.name}, but not the admin. Use the company admin's email.`, "email");
   }
-  if (!d.company_name) throw new BuilderError(400, "Essa empresa ainda não usa o ObraMate. Informe o nome dela para enviar o convite.", "company_name");
+  if (!d.company_name) throw new BuilderError(400, "This company is not on ObraMate yet. Enter its name to send the invite.", "company_name");
 
   const already = await prisma.builderLink.findFirst({
     where: { builderAccountId: actor.builderAccountId, status: "invited", contactEmail: d.email, organizationId: null },
@@ -484,13 +484,13 @@ export async function addCompany(actor: ActiveMember, raw: unknown): Promise<Com
 /** New invitation link (and e-mail) for a company that has not joined yet. */
 export async function resendCompanyInvite(actor: ActiveMember, linkId: string): Promise<CompanyResult> {
   const link = await prisma.builderLink.findFirst({ where: { id: linkId, builderAccountId: actor.builderAccountId, status: "invited", organizationId: null } });
-  if (!link || !link.contactEmail) throw new BuilderError(404, "Convite não encontrado.");
+  if (!link || !link.contactEmail) throw new BuilderError(404, "Invite not found.");
   return addCompany(actor, { email: link.contactEmail, company_name: link.companyName, contact_name: link.contactName || "", phone: link.contactPhone || "" });
 }
 
 export async function removeLink(actor: ActiveMember, linkId: string): Promise<void> {
   const link = await prisma.builderLink.findFirst({ where: { id: linkId, builderAccountId: actor.builderAccountId, status: { in: ["active", "invited"] } } });
-  if (!link) throw new BuilderError(404, "Empresa não encontrada.");
+  if (!link) throw new BuilderError(404, "Company not found.");
   await prisma.builderLink.update({ where: { id: link.id }, data: { status: "removed", removedAt: new Date() } });
   if (link.signupInviteId && !link.organizationId) {
     await prisma.signupInvite.updateMany({ where: { id: link.signupInviteId, usedAt: null }, data: { revokedAt: new Date() } });
@@ -571,7 +571,7 @@ export async function keepPendingJob(
   uploads: Array<{ name: string; contentType: string; body: Buffer }>,
 ) {
   const link = await prisma.builderLink.findFirst({ where: { id: linkId, builderAccountId: actor.builderAccountId, status: "invited", organizationId: null } });
-  if (!link) throw new BuilderError(404, "Empresa convidada não encontrada.");
+  if (!link) throw new BuilderError(404, "Invited company not found.");
   const row = await prisma.builderPendingJob.create({ data: { builderLinkId: link.id, memberId: actor.id, payload: payload as Prisma.InputJsonValue } });
   const files: PendingFile[] = [];
   for (const u of uploads) {
