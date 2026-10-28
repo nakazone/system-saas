@@ -235,6 +235,8 @@ function present(row: Row, names: Map<string, string>, full: boolean) {
     completed_at: row.completedAt,
     used_at: row.usedAt,
     work_order_id: row.workOrderId,
+    lat: row.geoLat,
+    lng: row.geoLng,
     created_by: names.get(row.createdByMemberId) || null,
     updated_by: row.updatedByMemberId ? names.get(row.updatedByMemberId) || null : null,
     completed_by: row.completedByMemberId ? names.get(row.completedByMemberId) || null : null,
@@ -252,6 +254,32 @@ export async function listMeasurements(member: ActiveMember) {
   return rows.map((r) => present(r, names, false));
 }
 
+/** Meters between two points (haversine). */
+export function distanceM(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const R = 6371000;
+  const rad = (x: number) => (x * Math.PI) / 180;
+  const dLat = rad(b.lat - a.lat);
+  const dLng = rad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+/** Measurements taken near where the builder is now (same house, within ~150 m). */
+export async function nearbyMeasurements(member: ActiveMember, lat: number, lng: number, radiusM = 150) {
+  const rows = await prisma.builderMeasurement.findMany({
+    where: { builderAccountId: member.builderAccountId, geoLat: { not: null }, geoLng: { not: null } },
+    orderBy: [{ updatedAt: "desc" }],
+    take: 500,
+  });
+  const near = rows
+    .map((r) => ({ r, d: distanceM({ lat, lng }, { lat: r.geoLat!, lng: r.geoLng! }) }))
+    .filter((x) => x.d <= radiusM)
+    .sort((a, b) => a.d - b.d)
+    .slice(0, 5);
+  const names = await memberNames(near.flatMap((x) => [x.r.createdByMemberId, x.r.updatedByMemberId, x.r.completedByMemberId]));
+  return near.map((x) => ({ ...present(x.r, names, false), distance_m: Math.round(x.d) }));
+}
+
 export async function getMeasurement(member: ActiveMember, measurementId: string) {
   const row = await own(member, measurementId);
   const names = await memberNames([row.createdByMemberId, row.updatedByMemberId, row.completedByMemberId]);
@@ -263,6 +291,8 @@ const headSchema = z.object({
   community: z.string().trim().max(120).optional().default(""),
   lot: z.string().trim().max(20).optional().default(""),
   notes: z.string().trim().max(2000).optional().default(""),
+  lat: z.number().min(-90).max(90).nullable().optional(),
+  lng: z.number().min(-180).max(180).nullable().optional(),
 });
 
 export async function createMeasurement(member: ActiveMember, raw: unknown) {
@@ -278,6 +308,8 @@ export async function createMeasurement(member: ActiveMember, raw: unknown) {
       community: d.community || null,
       lot: d.lot || null,
       notes: d.notes || null,
+      geoLat: d.lat ?? null,
+      geoLng: d.lng ?? null,
       data: { stairs: [], vents: [] },
       createdByMemberId: member.id,
       log: [logEntry(member, "created it")],
@@ -305,6 +337,7 @@ export async function saveMeasurement(member: ActiveMember, measurementId: strin
       ...(h.community !== undefined ? { community: h.community || null } : {}),
       ...(h.lot !== undefined ? { lot: h.lot || null } : {}),
       ...(h.notes !== undefined ? { notes: h.notes || null } : {}),
+      ...(h.lat != null && h.lng != null ? { geoLat: h.lat, geoLng: h.lng } : {}),
       data: data.data,
       updatedByMemberId: member.id,
       // One log line per person per hour is enough for "who measured".

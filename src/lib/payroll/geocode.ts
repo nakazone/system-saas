@@ -96,3 +96,57 @@ export async function ensureJobGeo(organizationId: string, workOrderId: string):
     return null;
   }
 }
+
+export type ReverseAddress = { address: string; street: string; city: string; state: string; postal_code: string };
+
+/** Street address at a point (Google if keyed; Nominatim fallback). Null when unknown. */
+export async function reverseGeocode(lat: number, lng: number, opts: GeocodeOpts = {}): Promise<ReverseAddress | null> {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const timeoutMs = opts.timeoutMs ?? 4000;
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const key = mapsKey();
+    if (key) {
+      const r = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&result_type=street_address|premise&key=${encodeURIComponent(key)}`,
+        { signal: ac.signal },
+      );
+      const j = (await r.json().catch(() => ({}))) as {
+        status?: string;
+        results?: { formatted_address?: string; address_components?: { long_name: string; short_name: string; types: string[] }[] }[];
+      };
+      const first = j.status === "OK" ? j.results?.[0] : undefined;
+      if (first?.formatted_address) {
+        const comp = (type: string, short = false) => {
+          const c = (first.address_components || []).find((x) => x.types.includes(type));
+          return c ? (short ? c.short_name : c.long_name) : "";
+        };
+        const street = [comp("street_number"), comp("route", true)].filter(Boolean).join(" ");
+        const city = comp("locality") || comp("sublocality") || comp("administrative_area_level_3");
+        const state = comp("administrative_area_level_1", true);
+        const zip = comp("postal_code");
+        const address = street ? `${street}, ${[city, [state, zip].filter(Boolean).join(" ")].filter(Boolean).join(", ")}` : first.formatted_address.replace(/, (USA|United States)$/, "");
+        return { address, street, city, state, postal_code: zip };
+      }
+    }
+    if (opts.allowNominatim === false) return null;
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&addressdetails=1&lat=${lat}&lon=${lng}`, {
+      signal: ac.signal,
+      headers: { Accept: "application/json", "User-Agent": "ObraMateCRM/1.0 (builder-measure)" },
+    });
+    const j = (await r.json().catch(() => ({}))) as { address?: Record<string, string>; display_name?: string };
+    const a = j.address || {};
+    const street = [a.house_number, a.road].filter(Boolean).join(" ");
+    const city = a.city || a.town || a.village || a.hamlet || a.suburb || "";
+    const stateRaw = a["ISO3166-2-lvl4"] ? a["ISO3166-2-lvl4"].split("-")[1] || "" : a.state || "";
+    const zip = a.postcode || "";
+    if (!street && !j.display_name) return null;
+    const address = street ? `${street}, ${[city, [stateRaw, zip].filter(Boolean).join(" ")].filter(Boolean).join(", ")}` : String(j.display_name);
+    return { address, street, city, state: stateRaw, postal_code: zip };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(t);
+  }
+}

@@ -121,6 +121,16 @@
       mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
       gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',
       download: '<path d="M12 4v12M7 11l5 5 5-5"/><path d="M4 20h16"/>',
+      chat: '<path d="M4 5h16v11H9l-5 4z"/>',
+      ruler: '<path d="M3 17 17 3l4 4L7 21H3z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/>',
+      cal: '<path d="M4 6h16v14H4z"/><path d="M8 3v5M16 3v5M4 11h16"/>',
+      phone: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/>',
+      mail: '<path d="M4 6h16v12H4z"/><path d="M4 7l8 6 8-6"/>',
+      globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+      locate: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7"/>',
+      user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+      tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/>',
+      shield: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/>',
     };
     return `<svg viewBox="0 0 24 24" aria-hidden="true">${paths[name] || ''}</svg>`;
   }
@@ -396,7 +406,7 @@
   let renderToken = 0;
   /** Company filter under the page title on list pages (builders with 2+ companies). */
   function paintCoBar(r) {
-    if (!['inicio', 'jobs', 'invoices', 'calendario', 'documentos'].includes(r.name)) return;
+    if (!['jobs', 'invoices', 'documentos'].includes(r.name)) return;
     if (r.id && window.matchMedia('(max-width: 1023px)').matches) return;
     const html = coBarHtml();
     if (!html) return;
@@ -418,15 +428,16 @@
     state.ctx = null;
     if (r.name !== 'settings') state.pickupEdit = null;
     try {
-      if (state.builder && r.name === 'empresas') { await renderCompanies(token); updateCounts(); return; }
+      if (state.builder && r.name === 'empresas') { await renderCompanies(r.id, token); updateCounts(); return; }
       if (state.builder && r.name === 'equipe') { await renderTeam(token); updateCounts(); return; }
-      if (state.builder && r.name === 'settings') { await renderSettings(token); updateCounts(); return; }
+      if (state.builder && r.name === 'settings') { await renderSettings(r.id, token); updateCounts(); return; }
       if (state.builder && r.name === 'measurements') {
         if (!canDo('measure')) { view.innerHTML = '<div class="pp-card pp-empty"><strong>Your role can’t take measurements</strong>Ask your team admin.</div>'; return; }
         await renderMeasurements(r.id, token); updateCounts(); return;
       }
       if (state.meas && state.meas.dirty) measSaveNow();
       if (state.builder && !companyActive() && !['enviar', 'mais'].includes(r.name)) { await renderNoCompany(token); updateCounts(); return; }
+      if (state.builder && ['inicio', 'calendario'].includes(r.name) && state.coFilter) { state.coFilter = ''; applyCoFilter(); }
       if (r.name === 'jobs') await renderJobs(r.id, token);
       else if (r.name === 'invoices') await renderInvoices(r.id, token);
       else if (r.name === 'calendario') renderCalendar();
@@ -445,7 +456,11 @@
   /* ─────────────────────────── home ─────────────────────────── */
 
   async function renderHome(token) {
-    await Promise.all([loadInvoices(), loadRequests()]);
+    await Promise.all([
+      loadInvoices(),
+      loadRequests(),
+      state.builder && canDo('measure') ? api('/api/builder/measurements').then((r) => { state.homeMeas = r.data || []; }).catch(() => {}) : null,
+    ]);
     if (token !== renderToken) return;
     const user = state.user;
     const now = new Date();
@@ -489,15 +504,16 @@
     view.innerHTML = `
       <div class="pp-bento">
         <div class="pp-head" style="grid-column: span 12">
-          <div><p class="pp-eyebrow">${esc(user.company_name || '')}${user.company_name ? ' · ' : ''}${esc(fmtDay(now, { weekday: 'long', month: 'long', day: 'numeric' }))}</p><h1>${esc(hello)}${first ? `, ${esc(first)}` : ''}</h1></div>
+          <div><p class="pp-eyebrow">${esc(fmtDay(now, { weekday: 'long', month: 'long', day: 'numeric' }))}</p><h1>${esc(hello)}${first ? `, ${esc(first)}` : ''}</h1></div>
           <div class="pp-head-actions"><a class="pp-btn pp-btn--sec" href="#calendar">Calendar</a><a class="pp-btn pp-btn--sec" href="#documents">Photos & docs</a><a class="pp-btn pp-btn--pri" href="#send">Send work</a></div>
         </div>
         ${installBannerHtml() ? `<div style="grid-column: span 12">${installBannerHtml()}</div>` : ''}
+        ${state.builder ? homeQuickHtml(now) : ''}
 
         <section class="pp-tile pp-tile--orange" style="grid-column: span 4; grid-row: span 3" aria-label="Active jobs">
           <div style="font-size:14px;font-weight:500">Active jobs</div>
           <div class="pp-big" style="font-size:52px">${active.length}</div>
-          <div style="font-size:14px">${state.builder && multiCo() && !state.coFilter ? `across ${activeCompanies().length} companies` : `with ${esc(providerName())}`}</div>
+          <div style="font-size:14px">${state.builder ? `${plural(done30, 'completed', 'completed')} in the last 30 days` : `with ${esc(providerName())}`}</div>
           <div class="pp-inbox-grid">
             <div class="pp-inbox"><span style="font-size:12px">Awaiting schedule</span><b>${waiting}</b></div>
             <div class="pp-inbox"><span style="font-size:12px">Scheduled</span><b>${scheduled}</b></div>
@@ -544,7 +560,25 @@
         </button>
       </div>`;
     bindDrop($('ppHomeDrop'), (files) => startSendWithFiles(files));
+    view.querySelectorAll('[data-qa-camera]').forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); $('ppCameraInput').click(); }));
     $('ppHomeDrop').addEventListener('click', () => { location.hash = '#send'; });
+  }
+
+  /** Builder home: big actions for the phone, today's jobs and measurements in progress. */
+  function homeQuickHtml(now) {
+    const today = jobsInDay(dateKey(now)).sort((a, b) => toDate(a.scheduledStart) - toDate(b.scheduledStart));
+    const act = (href, ic, label, sub, attrs) => `<a class="pp-qa" href="${href}" ${attrs || ''}><span class="pp-qa-ic">${icon(ic)}</span><span><strong>${esc(label)}</strong><small>${esc(sub)}</small></span></a>`;
+    const meas = (state.homeMeas || []).filter((m) => m.status === 'draft').slice(0, 3);
+    return `<section class="pp-qa-grid" style="grid-column: span 12" aria-label="Quick actions">
+        ${canDo('jobs.send') ? act('#send', 'upload', 'Send work order', 'PDF, photo or text') : ''}
+        ${canDo('measure') ? act('#measurements/new', 'ruler', 'Measure', 'Stairs & vents on site') : ''}
+        ${canDo('jobs.send') ? act('#send', 'camera', 'Snap a work order', 'Use the camera', 'data-qa-camera') : ''}
+        ${act('#calendar', 'cal', 'Calendar', today.length ? `${plural(today.length, 'job', 'jobs')} today` : 'Nothing today')}
+      </section>
+      ${today.length ? `<section class="pp-tile pp-today" style="grid-column: span 12" aria-labelledby="ppToday"><div class="pp-tile-head"><h2 id="ppToday">Today on site</h2><span class="pp-lbl">${today.length}</span></div>
+        <div class="pp-today-list">${today.map((j) => `<a class="pp-today-item" href="#jobs/${encodeURIComponent(j.id)}"><span class="pp-today-time">${j.allDay ? 'All day' : esc(fmtTime(j.scheduledStart))}</span><span class="pp-today-main"><strong>${esc(j.title || 'Job')}</strong><small>${esc(j.address || '')}</small></span>${jobChip(j)}</a>`).join('')}</div></section>` : ''}
+      ${meas.length ? `<section class="pp-tile" style="grid-column: span 12" aria-labelledby="ppMeasHome"><div class="pp-tile-head"><h2 id="ppMeasHome">Measurements in progress</h2><a class="pp-link" href="#measurements" style="font-size:13px">All</a></div>
+        ${meas.map((m) => `<a class="pp-today-item" href="#measurements/${esc(m.id)}"><span class="pp-today-time">${icon('ruler')}</span><span class="pp-today-main"><strong>${esc(m.address)}</strong><small>${esc(countsText(m.counts))}</small></span><span class="pp-chip pp-chip--late">In progress</span></a>`).join('')}</section>` : ''}`;
   }
 
   /* ─────────────────────────── jobs ─────────────────────────── */
@@ -591,7 +625,7 @@
       </button>`;
 
     view.innerHTML = `
-      <div class="pp-head"><div><p class="pp-eyebrow">${esc(providerName())}</p><h1>Jobs</h1></div><div class="pp-head-actions"><a class="pp-btn pp-btn--pri" href="#send">Send work</a></div></div>
+      <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder ? (state.coFilter && coById(state.coFilter) ? coById(state.coFilter).company_name : state.builder.account.name) : providerName())}</p><h1>Jobs</h1></div><div class="pp-head-actions"><a class="pp-btn pp-btn--pri" href="#send">Send work</a></div></div>
       <div class="pp-nums">
         <div class="pp-card pp-num"><span class="pp-lbl">Active</span><b>${all.filter(jobIsActive).length}</b></div>
         <div class="pp-card pp-num"><span class="pp-lbl">On site</span><b>${counts.obra}</b></div>
@@ -810,7 +844,7 @@
     const totalOf = (rows) => rows.reduce((s, x) => s + Number(x.inv.amount || 0), 0);
 
     view.innerHTML = `
-      <div class="pp-head"><div><p class="pp-eyebrow">${esc(providerName())}</p><h1>Invoices</h1></div></div>
+      <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder ? (state.coFilter && coById(state.coFilter) ? coById(state.coFilter).company_name : state.builder.account.name) : providerName())}</p><h1>Invoices</h1></div></div>
       <div class="pp-nums">
         <div class="pp-card pp-num"><span class="pp-lbl">Open</span><b>${money(sum(open))}</b></div>
         <div class="pp-card pp-num"><span class="pp-lbl">Overdue</span><b class="${overdue.length ? 'pp-late' : ''}">${money(sum(overdue))}</b></div>
@@ -903,8 +937,31 @@
     const sel = jobsInDay(state.calDay).sort((a, b) => toDate(a.scheduledStart) - toDate(b.scheduledStart));
     const selDate = new Date(`${state.calDay}T12:00:00`);
     const monthLabel = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(month);
+    const phone = window.matchMedia('(max-width: 1023px)').matches;
+    const mode = state.calMode || (phone ? 'list' : 'month');
+    const seg = `<div class="pp-seg pp-cal-mode" role="group" aria-label="View"><button type="button" data-calmode="list" aria-pressed="${mode === 'list'}">List</button><button type="button" data-calmode="month" aria-pressed="${mode === 'month'}">Month</button></div>`;
+    const eyebrow = state.builder ? state.builder.account.name : providerName();
+    if (mode === 'list') {
+      // Agenda: the next 45 days that have jobs, grouped by day (phone friendly).
+      const base = startOfDay(new Date());
+      const groups = [];
+      for (let i = -1; i < 45; i++) {
+        const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
+        const jobs = jobsInDay(dateKey(d)).sort((a, b) => toDate(a.scheduledStart) - toDate(b.scheduledStart));
+        if (jobs.length) groups.push({ d, jobs, today: i === 0 });
+      }
+      view.innerHTML = `
+        <div class="pp-head"><div><p class="pp-eyebrow">${esc(eyebrow)}</p><h1>Calendar</h1></div><div class="pp-head-actions">${seg}</div></div>
+        <div class="pp-agenda">${groups.length ? groups.map((g) => `<section class="pp-agenda-day ${g.today ? 'is-today' : ''}">
+            <div class="pp-agenda-date"><b>${esc(fmtDay(g.d, { day: 'numeric' }))}</b><span>${esc(g.today ? 'Today' : fmtDay(g.d, { weekday: 'short' }))}</span><small>${esc(fmtDay(g.d, { month: 'short' }))}</small></div>
+            <div class="pp-card pp-agenda-jobs">${g.jobs.map((j) => `<button type="button" class="pp-row" data-job="${esc(j.id)}"><span class="pp-row-main">${coLine(j)}<span class="pp-row-top"><strong>${esc(j.title || 'Job')}</strong><span>${j.allDay ? 'All day' : esc(fmtTime(j.scheduledStart))}</span></span><span class="pp-row-sub">${esc(j.address || '')}</span><span class="pp-row-next">${jobChip(j)}</span></span></button>`).join('')}</div>
+          </section>`).join('') : `<div class="pp-card pp-empty">${mate('sleeping')}<strong>Nothing scheduled</strong>Jobs show up here when the company schedules them.</div>`}</div>`;
+      view.querySelectorAll('[data-calmode]').forEach((b) => b.addEventListener('click', () => { state.calMode = b.getAttribute('data-calmode'); renderCalendar(); }));
+      view.querySelectorAll('[data-job]').forEach((b) => b.addEventListener('click', () => { location.hash = `#jobs/${encodeURIComponent(b.getAttribute('data-job'))}`; }));
+      return;
+    }
     view.innerHTML = `
-      <div class="pp-head"><div><p class="pp-eyebrow">${esc(providerName())}</p><h1>Calendar</h1></div></div>
+      <div class="pp-head"><div><p class="pp-eyebrow">${esc(eyebrow)}</p><h1>Calendar</h1></div><div class="pp-head-actions">${seg}</div></div>
       <div class="pp-split">
         <section class="pp-card pp-cal pp-main" aria-label="Month">
           <div class="pp-cal-head"><strong>${esc(monthLabel)}</strong><div class="pp-cal-ctrl"><button type="button" class="pp-ibtn" data-month="prev" aria-label="Previous month">‹</button><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-month="today">Today</button><button type="button" class="pp-ibtn" data-month="next" aria-label="Next month">›</button></div></div>
@@ -924,6 +981,7 @@
       renderCalendar();
     }));
     view.querySelectorAll('[data-day]').forEach((b) => b.addEventListener('click', () => { state.calDay = b.getAttribute('data-day'); renderCalendar(); }));
+    view.querySelectorAll('[data-calmode]').forEach((b) => b.addEventListener('click', () => { state.calMode = b.getAttribute('data-calmode'); renderCalendar(); }));
     view.querySelectorAll('[data-job]').forEach((b) => b.addEventListener('click', () => { location.hash = `#jobs/${encodeURIComponent(b.getAttribute('data-job'))}`; }));
   }
 
@@ -1016,6 +1074,10 @@
       } else {
         s.fields = Object.assign(emptyFields(), data.fields || {});
         s.items = (data.items || []).map((it) => ({ ...it, create_service: true, remove: false }));
+        if (state.builder && canDo('money.view') && sendCo()) {
+          s.agreed = await api(`/api/builder/prices?company=${encodeURIComponent(sendCo().id)}`).then((x) => x.data || []).catch(() => []);
+          applyAgreed(s);
+        }
         s.catalog = data.catalog || [];
         s.measurement = data.measurement || null;
         s.useMeasurement = Boolean(s.measurement && s.measurement.status !== 'used');
@@ -1173,7 +1235,7 @@
       ${s.presetJob ? `<div class="pp-match"><strong>Update to ${esc(s.presetJob.title || 'job')}</strong><span class="pp-muted" style="font-size:14px">${esc(s.presetJob.address || '')} · send the new order, photo or text. It goes with this job.</span></div>` : ''}
       <button type="button" class="pp-bigdrop" id="ppBigDrop">
         ${icon('upload')}
-        <strong>Drop files here or tap to choose</strong>
+        <strong><span class="pp-hide-phone">Drop files here or tap to choose</span><span class="pp-only-phone">Choose a file</span></strong>
         <span>Work order, PO, schedule, plan · PDF, JPG, PNG or WebP · up to 5 files, 10 MB</span>
       </button>
       ${files ? `<div class="pp-files">${files}</div>` : ''}
@@ -1347,6 +1409,7 @@
           <b>${esc(itemTitle(s, it))}</b>${it.remove ? '<span class="pp-q-badge">removed</span>' : MODE_BADGE[itemMode(it)]}
           ${itemSub(it) ? `<small>${esc(itemSub(it))}</small>` : ''}
           ${it.area ? `<small class="pp-q-area">${esc(it.area)}</small>` : ''}
+          ${agreedChip(s, it)}
         </div>
         <label class="pp-q-qty"><span class="pp-q-lbl">Qty</span><input type="text" inputmode="decimal" data-it="${i}" data-k="quantity" value="${esc(it.quantity)}" aria-label="Quantity of ${esc(itemTitle(s, it))}" ${it.remove ? 'disabled' : ''} /></label>
         <label class="pp-q-unit"><span class="pp-q-lbl">Unit</span><select data-it="${i}" data-k="uom" aria-label="Unit" ${it.remove ? 'disabled' : ''}>${UOMS.concat(UOMS.includes(it.uom) ? [] : [it.uom]).map((u) => `<option value="${esc(u)}" ${u === it.uom ? 'selected' : ''}>${esc(UOM_LABEL[u] || u)}</option>`).join('')}</select></label>
@@ -1373,6 +1436,35 @@
         ${s.laborTotal != null ? `<div class="${off ? 'pp-late' : ''}" id="ppItemsCheckRow"><span>Total on the order</span><b id="ppItemsCheck">${money(s.laborTotal)} ${off ? '· check' : '✓'}</b></div>` : ''}
       </div>
     </section>`;
+  }
+
+  /** The builder's agreed price for a line (Settings › Price lists), matched by service or name. */
+  function agreedFor(s, it) {
+    const list = s.agreed || [];
+    if (!list.length) return null;
+    const norm = (t) => String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    if (it.pricing_item_id) {
+      const byId = list.find((p) => p.pricing_item_id === it.pricing_item_id);
+      if (byId) return byId;
+    }
+    const names = [it.service_name, it.description, itemTitle(s, it)].map(norm).filter(Boolean);
+    return list.find((p) => names.includes(norm(p.name))) || null;
+  }
+  function agreedChip(s, it) {
+    if (it.remove) return '';
+    const a = agreedFor(s, it);
+    if (!a) return '';
+    const rate = it.rate == null || it.rate === '' ? null : Number(it.rate);
+    if (rate == null) return `<small class="pp-q-agreed">Your price ${money(a.price)} · <button type="button" class="pp-link" data-it-agreed="${s.items.indexOf(it)}">Use it</button></small>`;
+    if (Math.abs(rate - a.price) < 0.005) return `<small class="pp-q-agreed is-ok">✓ Your agreed price</small>`;
+    return `<small class="pp-q-agreed is-diff">Agreed ${money(a.price)}, order says ${money(rate)} · <button type="button" class="pp-link" data-it-agreed="${s.items.indexOf(it)}">Use ${money(a.price)}</button></small>`;
+  }
+  /** Lines without a price take the agreed one as soon as the order is read. */
+  function applyAgreed(s) {
+    (s.items || []).forEach((it) => {
+      const a = agreedFor(s, it);
+      if (a && (it.rate == null || it.rate === '' || Number(it.rate) === 0) && !it.remove) it.rate = a.price;
+    });
   }
 
   /** Inline editor under a line (like the quote's item editor): which service, name, wording. */
@@ -1456,6 +1548,12 @@
       el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
     });
     view.querySelectorAll('[data-it-done]').forEach((b) => b.addEventListener('click', () => { s.editItem = null; rerender(); }));
+    view.querySelectorAll('[data-it-agreed]').forEach((b) => b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const it = s.items[Number(b.getAttribute('data-it-agreed'))];
+      const ag = it && agreedFor(s, it);
+      if (ag) { it.rate = ag.price; rerender(); }
+    }));
     view.querySelectorAll('[data-it-rm]').forEach((b) => b.addEventListener('click', () => {
       const i = Number(b.getAttribute('data-it-rm'));
       const it = s.items[i];
@@ -1798,96 +1896,107 @@
     view.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', async () => { await selectCompany(b.getAttribute('data-pick')); location.hash = '#send'; render(); }));
   }
 
-  async function renderCompanies(token) {
+  /* ─────────────────────────── sheet (bottom sheet on phones, dialog on desktop) ─────────────────────────── */
+
+  function closeSheet() {
+    const old = $('ppSheet');
+    if (old) old.remove();
+    document.body.classList.remove('pp-sheet-open');
+  }
+  /** Opens a sheet with a title and body HTML; returns its root so the caller binds events. */
+  function openSheet(title, body, opts) {
+    closeSheet();
+    const o = opts || {};
+    document.body.insertAdjacentHTML('beforeend', `<div class="pp-sheet" id="ppSheet" role="dialog" aria-modal="true" aria-labelledby="ppSheetTitle">
+      <div class="pp-sheet-card ${o.wide ? 'is-wide' : ''}">
+        <div class="pp-sheet-grab" aria-hidden="true"></div>
+        <div class="pp-sheet-head"><h2 id="ppSheetTitle">${esc(title)}</h2><button type="button" class="pp-sheet-x" data-sheet-close aria-label="Close">×</button></div>
+        <div class="pp-sheet-body">${body}</div>
+      </div>
+    </div>`);
+    document.body.classList.add('pp-sheet-open');
+    const root = $('ppSheet');
+    root.addEventListener('click', (e) => { if (e.target === root || e.target.closest('[data-sheet-close]')) closeSheet(); });
+    if (typeof window.sfBootCrmAddressAutocomplete === 'function') window.sfBootCrmAddressAutocomplete();
+    const first = root.querySelector('input:not([type=hidden]):not([disabled]), select, textarea');
+    if (first && !o.noFocus && window.matchMedia('(min-width: 1024px)').matches) first.focus();
+    return root;
+  }
+  window.addEventListener('hashchange', closeSheet);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !(e.target && e.target.hasAttribute && e.target.hasAttribute('data-om-address-autocomplete'))) closeSheet(); });
+
+  /* ─────────────────────────── companies ─────────────────────────── */
+
+  const UNIT_OPTS = [['sq_ft', 'sq ft'], ['linear_ft', 'linear ft'], ['step', 'step'], ['each', 'each'], ['hour', 'hour'], ['fixed', 'fixed']];
+
+  /** Company logo: its ObraMate logo, else the icon of its website, else initials. */
+  function coLogo(c, size) {
+    const p = (c && c.profile) || {};
+    const s = size || 48;
+    const ini = esc(initials(c.company_name || '?'));
+    const bg = p.color && /^#[0-9a-f]{3,8}$/i.test(p.color) ? p.color : '#221E1A';
+    // Only the company's own logo; site icons from the web were too often blank or generic.
+    const img = p.logo_url;
+    // The site icon is small: shown on a white tile in the middle; a real logo fills the tile.
+    return `<span class="pp-co-logo ${p.logo_url ? 'has-logo' : ''}" style="width:${s}px;height:${s}px;--co:${bg}">${img ? `<img class="${p.logo_url ? '' : 'is-icon'}" src="${esc(img)}" alt="" loading="lazy" onerror="this.remove()" onload="if(this.naturalWidth&lt;24&amp;&amp;this.classList.contains('is-icon'))this.remove()" />` : ''}<b>${ini}</b></span>`;
+  }
+  function coStats(c) {
+    const jobs = (state.all.jobs || []).filter((j) => j._co === c.id);
+    const active = jobs.filter(jobIsActive).length;
+    const invs = (state.all.invoices || []).filter((i) => i._co === c.id && invoiceState(i).key !== 'paid');
+    const open = invs.reduce((s, i) => s + Number(i.balance || 0), 0);
+    const overdue = invs.filter((i) => invoiceState(i).key === 'overdue').length;
+    return { active, total: jobs.length, open, overdue };
+  }
+  function contactButtons(p, c) {
+    const phone = p.phone || c.contact_phone;
+    const email = p.email || c.contact_email;
+    const btn = (href, ic, label, ext) => `<a class="pp-act" href="${esc(href)}" ${ext ? 'target="_blank" rel="noopener"' : ''}><span>${icon(ic)}</span>${esc(label)}</a>`;
+    return [
+      phone ? btn(`tel:${String(phone).replace(/[^\d+]/g, '')}`, 'phone', 'Call') : '',
+      phone ? btn(smsHref(phone, ''), 'chat', 'Text') : '',
+      email ? btn(`mailto:${email}`, 'mail', 'Email') : '',
+      p.website ? btn(p.website, 'globe', 'Website', true) : '',
+      p.address ? btn(`https://maps.google.com/?q=${encodeURIComponent(p.address)}`, 'pin', 'Map', true) : '',
+    ].join('');
+  }
+
+  async function renderCompanies(id, token) {
     await loadMe();
+    if (companyActive() && !((state.all && state.all.jobs) || []).length) await refreshOverview().catch(() => {});
+    if (canDo('money.view')) await loadInvoices().catch(() => {});
     if (token !== renderToken) return;
+    if (id) return renderCompany(id, token);
     const companies = state.builder.companies || [];
     const manage = canDo('companies.manage');
-    const row = (c) => `<div class="pp-req" style="padding:14px 18px">
-        <div class="pp-req-top"><strong style="font-size:16px">${esc(c.company_name)}</strong>${companyStatusChip(c)}</div>
-        <p>${esc([c.contact_name, c.contact_email, c.contact_phone].filter(Boolean).join(' · '))}</p>
-        <p>${c.status === 'active' ? `Connected ${esc(fmtDay(c.activated_at))}` : `Invite sent ${esc(fmtDay(c.invited_at))}`}${c.pending_jobs ? ` · ${plural(c.pending_jobs, 'job waiting', 'jobs waiting')}` : ''}</p>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
-          ${canDo('jobs.send') && c.status !== 'unavailable' ? `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-send-to="${esc(c.id)}">Send job</button>` : ''}
-          ${c.status === 'active' ? `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-see-jobs="${esc(c.id)}">View jobs</button>` : ''}
-          ${manage && c.status === 'invited' ? `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-resend="${esc(c.id)}">Resend invite</button>` : ''}
-          ${manage ? `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-remove-co="${esc(c.id)}">Remove</button>` : ''}
-        </div>
-        <div data-invite-out="${esc(c.id)}"></div>
-      </div>`;
-    view.innerHTML = `
-      <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder.account.name)}</p><h1>Companies</h1></div></div>
-      <div class="pp-split pp-split--stack">
-        <section class="pp-main">
-          <div class="pp-card" style="overflow:hidden">
-            ${companies.length ? companies.map(row).join('') : '<div class="pp-empty">' + mate('wave') + '<strong>No companies yet</strong>Add the flooring company that does your jobs.</div>'}
-          </div>
-        </section>
-        ${manage ? `<aside class="pp-card pp-side pp-block" aria-labelledby="ppAddCo">
-          <h3 id="ppAddCo" style="font-size:17px">Add company</h3>
-          <p class="pp-muted" style="margin:0;font-size:14px">Enter the email of the flooring company's admin. If they already use ObraMate, they connect right away. If not, we send them an invite with the referral price.</p>
-          <form id="ppCoForm" class="pp-fields" style="grid-template-columns:1fr" novalidate>
-            <div class="pp-field"><label for="ppCoEmail">Admin email *</label><input id="ppCoEmail" type="email" maxlength="200" autocomplete="off" required /></div>
-            <div class="pp-field"><label for="ppCoName">Company name</label><input id="ppCoName" maxlength="120" placeholder="Only if they're not on ObraMate yet" /></div>
-            <div class="pp-field"><label for="ppCoContact">Contact</label><input id="ppCoContact" maxlength="120" /></div>
-            <div class="pp-field"><label for="ppCoPhone">Mobile (for the text invite)</label><input id="ppCoPhone" type="tel" maxlength="40" /></div>
-            <p class="pp-error" id="ppCoError" role="alert" hidden></p>
-            <div id="ppCoResult"></div>
-            <div><button type="submit" class="pp-btn pp-btn--pri" id="ppCoSave">Connect or invite</button></div>
-          </form>
-        </aside>` : ''}
-      </div>`;
-    view.querySelectorAll('[data-send-to]').forEach((b) => b.addEventListener('click', () => {
-      state.send = newSend();
-      state.send.co = b.getAttribute('data-send-to');
-      postJson('/api/builder/select', { company_id: state.send.co }).catch(() => {});
-      location.hash = '#send';
-    }));
-    view.querySelectorAll('[data-see-jobs]').forEach((b) => b.addEventListener('click', () => {
-      state.coFilter = b.getAttribute('data-see-jobs');
-      applyCoFilter();
-      location.hash = '#jobs';
-    }));
-    const inviteActions = (out, data, phone) => {
-      if (!out) return;
-      out.innerHTML = `<div class="pp-success" style="margin-top:10px">Invite sent by email${data.offer ? ` · offer: ${esc(data.offer)}` : ''}.</div>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
-          <a class="pp-btn pp-btn--pri pp-btn--sm" href="${esc(smsHref(phone, data.sms_text))}">Send by text</a>
-          <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-copy="${esc(data.invite_url)}">Copy link</button>
-        </div>`;
-      out.querySelectorAll('[data-copy]').forEach((c) => c.addEventListener('click', async () => {
-        try { await navigator.clipboard.writeText(c.getAttribute('data-copy')); c.textContent = 'Copied'; } catch (_) { window.prompt('Copy the link', c.getAttribute('data-copy')); }
-      }));
+    const card = (c) => {
+      const p = c.profile || {};
+      const st = coStats(c);
+      return `<a class="pp-card pp-co-card" href="#companies/${esc(c.id)}">
+          <div class="pp-co-top">${coLogo(c, 52)}<div class="pp-co-name"><strong>${esc(c.company_name)}</strong><span>${esc(p.address || [c.contact_name, c.contact_email].filter(Boolean).join(' · ') || '')}</span></div>${companyStatusChip(c)}</div>
+          ${c.status === 'active' ? `<div class="pp-co-stats"><span><b>${st.active}</b> active jobs</span>${canDo('money.view') ? `<span><b>${money(st.open)}</b> open${st.overdue ? ` · <em class="pp-late">${st.overdue} overdue</em>` : ''}</span>` : ''}</div>` : `<div class="pp-co-stats"><span>Invited ${esc(fmtDay(c.invited_at))}</span>${c.pending_jobs ? `<span><b>${c.pending_jobs}</b> ${c.pending_jobs === 1 ? 'job waiting' : 'jobs waiting'}</span>` : ''}</div>`}
+        </a>`;
     };
-    view.querySelectorAll('[data-resend]').forEach((b) => b.addEventListener('click', async () => {
-      const id = b.getAttribute('data-resend');
-      b.disabled = true;
-      b.textContent = 'Sending…';
-      try {
-        const r = await postJson(`/api/builder/companies/${encodeURIComponent(id)}/resend`, {});
-        const c = companies.find((x) => x.id === id) || {};
-        inviteActions(view.querySelector(`[data-invite-out="${CSS.escape(id)}"]`), r.data, c.contact_phone);
-        b.textContent = 'Resent';
-      } catch (e) {
-        b.disabled = false;
-        b.textContent = 'Resend invite';
-        window.alert(e.message);
-      }
-    }));
-    view.querySelectorAll('[data-remove-co]').forEach((b) => b.addEventListener('click', async () => {
-      if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Confirm removal'; return; }
-      b.disabled = true;
-      try {
-        await api(`/api/builder/companies/${encodeURIComponent(b.getAttribute('data-remove-co'))}`, { method: 'DELETE' });
-        await reloadAllCompanies();
-        render();
-      } catch (e) {
-        b.disabled = false;
-        window.alert(e.message);
-      }
-    }));
-    const form = $('ppCoForm');
-    if (form) form.addEventListener('submit', async (e) => {
+    view.innerHTML = `
+      <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder.account.name)}</p><h1>Companies</h1></div>${manage ? '<div class="pp-head-actions"><button type="button" class="pp-btn pp-btn--pri" data-co-add>+ Add company</button></div>' : ''}</div>
+      ${companies.length ? `<div class="pp-co-grid">${companies.map(card).join('')}</div>` : `<div class="pp-card pp-empty">${mate('wave')}<strong>No companies yet</strong>Add the flooring company that does your jobs.${manage ? '<div style="margin-top:12px"><button type="button" class="pp-btn pp-btn--pri" data-co-add>Add company</button></div>' : ''}</div>`}`;
+    view.querySelectorAll('[data-co-add]').forEach((b) => b.addEventListener('click', openAddCompany));
+  }
+
+  function openAddCompany() {
+    const root = openSheet('Add a flooring company', `
+      <p class="pp-muted" style="margin:0 0 12px">Enter the email of the company's admin. If they already use ObraMate, they connect right away with their logo and contacts. If not, we send them an invite with the referral price.</p>
+      <form id="ppCoForm" class="pp-fields" style="grid-template-columns:1fr" novalidate>
+        <div class="pp-field"><label for="ppCoEmail">Admin email *</label><input id="ppCoEmail" type="email" inputmode="email" maxlength="200" autocomplete="off" required /></div>
+        <div class="pp-field"><label for="ppCoName">Company name</label><input id="ppCoName" maxlength="120" placeholder="Only if they're not on ObraMate yet" /></div>
+        <div class="pp-field"><label for="ppCoContact">Contact</label><input id="ppCoContact" maxlength="120" autocomplete="off" /></div>
+        <div class="pp-field"><label for="ppCoPhone">Mobile (for the text invite)</label><input id="ppCoPhone" type="tel" inputmode="tel" maxlength="40" /></div>
+        <p class="pp-error" id="ppCoError" role="alert" hidden></p>
+        <div id="ppCoResult"></div>
+        <div class="pp-sheet-actions"><button type="submit" class="pp-btn pp-btn--pri" id="ppCoSave">Connect or invite</button></div>
+      </form>`);
+    const form = root.querySelector('#ppCoForm');
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const err = $('ppCoError');
       const btn = $('ppCoSave');
@@ -1897,228 +2006,514 @@
       btn.textContent = 'Looking up…';
       const phone = $('ppCoPhone').value.trim();
       try {
-        const r = await postJson('/api/builder/companies', {
-          email: $('ppCoEmail').value.trim(),
-          company_name: $('ppCoName').value.trim(),
-          contact_name: $('ppCoContact').value.trim(),
-          phone,
-        });
+        const r = await postJson('/api/builder/companies', { email: $('ppCoEmail').value.trim(), company_name: $('ppCoName').value.trim(), contact_name: $('ppCoContact').value.trim(), phone });
         const data = r.data;
         await reloadAllCompanies();
         if (data.kind === 'linked') {
-          $('ppCoResult').innerHTML = `<div class="pp-success">${esc(data.company_name)} already uses ObraMate and is now connected. The jobs you send go straight into their system.</div><div style="margin-top:8px"><a class="pp-btn pp-btn--pri pp-btn--sm" href="#send">Send a job</a></div>`;
+          $('ppCoResult').innerHTML = `<div class="pp-success">${esc(data.company_name)} already uses ObraMate and is now connected.</div><div class="pp-sheet-actions"><a class="pp-btn pp-btn--pri" href="#send">Send a job</a></div>`;
         } else {
           inviteActions($('ppCoResult'), data, phone);
         }
-        form.reset();
-        const list = view.querySelector('.pp-main .pp-card');
-        if (list) list.innerHTML = (state.builder.companies || []).map(row).join('');
+        form.querySelectorAll('input').forEach((i) => { i.value = ''; });
+        btn.hidden = true;
+        if (route().name === 'empresas') render();
       } catch (ex) {
         err.textContent = ex.message || 'Could not add the company.';
         err.hidden = false;
         if (/name/i.test(ex.message || '')) $('ppCoName').focus();
-      } finally {
         btn.disabled = false;
         btn.textContent = 'Connect or invite';
       }
     });
   }
+  function inviteActions(out, data, phone) {
+    if (!out) return;
+    out.innerHTML = `<div class="pp-success" style="margin-top:10px">Invite sent by email${data.offer ? ` · offer: ${esc(data.offer)}` : ''}.</div>
+      <div class="pp-sheet-actions">
+        ${phone ? `<a class="pp-btn pp-btn--pri pp-btn--sm" href="${esc(smsHref(phone, data.sms_text))}">Send by text</a>` : ''}
+        <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-copy="${esc(data.invite_url)}">Copy link</button>
+      </div>`;
+    out.querySelectorAll('[data-copy]').forEach((c) => c.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(c.getAttribute('data-copy')); c.textContent = 'Copied'; } catch (_) { window.prompt('Copy the link', c.getAttribute('data-copy')); }
+    }));
+  }
+
+  async function renderCompany(id, token) {
+    const c = coById(id);
+    if (!c) { view.innerHTML = `<div class="pp-card pp-empty">${mate('head-curious')}<strong>Company not found</strong><a class="pp-link" href="#companies">Back to companies</a></div>`; return; }
+    const p = c.profile || {};
+    const manage = canDo('companies.manage');
+    const money_ = canDo('money.view');
+    const prices = money_ ? await api(`/api/builder/prices?company=${encodeURIComponent(c.id)}`).then((r) => r.data || []).catch(() => []) : [];
+    if (token !== renderToken) return;
+    const st = coStats(c);
+    const recent = (state.all.jobs || []).filter((j) => j._co === c.id).sort((a, b) => (toDate(b.updatedAt) || 0) - (toDate(a.updatedAt) || 0)).slice(0, 5);
+    const facts = [
+      p.address ? ['Address', esc(p.address)] : null,
+      (p.phone || c.contact_phone) ? ['Phone', esc(p.phone || c.contact_phone)] : null,
+      (p.email || c.contact_email) ? ['Email', esc(p.email || c.contact_email)] : null,
+      p.website ? ['Website', `<a class="pp-link" href="${esc(p.website)}" target="_blank" rel="noopener">${esc(p.website.replace(/^https?:\/\//, '').replace(/\/$/, ''))}</a>`] : null,
+      c.contact_name ? ['Your contact', esc(c.contact_name)] : null,
+      p.license ? ['License', esc(p.license)] : null,
+      p.insurance ? ['Insurance', `${esc(p.insurance.carrier)}${p.insurance.expires_on ? ` · ${insuranceText(p.insurance.expires_on)}` : ''}`] : null,
+      c.status === 'active' ? ['Connected', esc(fmtDay(c.activated_at))] : ['Invited', esc(fmtDay(c.invited_at))],
+    ].filter(Boolean);
+    view.innerHTML = `
+      <div class="pp-head pp-co-head">
+        <div><a class="pp-back" href="#companies" style="display:inline-flex">${icon('back')}Companies</a>
+          <div class="pp-co-hero">${coLogo(c, 72)}<div><h1>${esc(c.company_name)}</h1><p class="pp-muted" style="margin:4px 0 0">${companyStatusChip(c)}</p></div></div>
+        </div>
+        ${canDo('jobs.send') && c.status !== 'unavailable' ? `<div class="pp-head-actions"><button type="button" class="pp-btn pp-btn--pri" data-send-to="${esc(c.id)}">Send job</button></div>` : ''}
+      </div>
+      <div class="pp-acts">${contactButtons(p, c)}</div>
+      <div class="pp-co-layout">
+        <div class="pp-co-main">
+          ${c.status === 'active' ? `<div class="pp-co-kpis">
+            <a class="pp-card pp-kpi" href="#jobs" data-see-jobs="${esc(c.id)}"><span class="pp-lbl">Active jobs</span><b>${st.active}</b><small>${st.total} in total</small></a>
+            ${money_ ? `<a class="pp-card pp-kpi" href="#invoices" data-see-inv="${esc(c.id)}"><span class="pp-lbl">Open invoices</span><b>${money(st.open)}</b><small class="${st.overdue ? 'pp-late' : ''}">${st.overdue ? `${st.overdue} overdue` : 'Nothing overdue'}</small></a>` : ''}
+          </div>` : `<div class="pp-card pp-block"><strong>Waiting for ${esc(c.company_name)} to join</strong><p class="pp-muted" style="margin:4px 0 0">${c.pending_jobs ? `${plural(c.pending_jobs, 'job is', 'jobs are')} kept until they sign up.` : 'Jobs you send are kept until they sign up.'}</p>${manage ? `<div class="pp-sheet-actions" style="justify-content:flex-start"><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-resend="${esc(c.id)}">Resend invite</button></div><div data-invite-out></div>` : ''}</div>`}
+          ${money_ ? `<section class="pp-card pp-block" aria-labelledby="ppPrices">
+            <div class="pp-set-head"><div><h3 id="ppPrices">Your price list</h3><p class="pp-muted">Prices you agreed with ${esc(c.company_name)}. When you send a work order, lines without a price get these, and different prices are flagged.</p></div>${manage ? '<button type="button" class="pp-btn pp-btn--pri pp-btn--sm" data-price-new>+ Price</button>' : ''}</div>
+            ${prices.length ? `<div class="pp-price-list">${prices.map((pr) => `<button type="button" class="pp-price-row" data-price="${esc(pr.id)}" ${manage ? '' : 'disabled'}><span><strong>${esc(pr.name)}</strong>${pr.notes ? `<small>${esc(pr.notes)}</small>` : ''}</span><b>${money(pr.price)}<small> / ${esc(unitText(pr.unit))}</small></b></button>`).join('')}</div>` : `<div class="pp-empty" style="padding:18px 8px">${mate('head-thinking', 56)}<strong>No prices yet</strong>${manage ? 'Add the services you buy from this company and the agreed price.' : 'Ask an admin to add your agreed prices.'}</div>`}
+            ${manage && prices.length && activeCompanies().length > 1 ? `<div class="pp-sheet-actions" style="justify-content:flex-start"><label class="pp-sr" for="ppCopyTo">Copy prices to</label><select id="ppCopyTo" class="pp-select"><option value="">Copy these prices to…</option>${(state.builder.companies || []).filter((x) => x.id !== c.id).map((x) => `<option value="${esc(x.id)}">${esc(x.company_name)}</option>`).join('')}</select></div>` : ''}
+          </section>` : ''}
+          ${recent.length ? `<section class="pp-card" style="overflow:hidden" aria-label="Recent jobs"><div class="pp-group">Recent jobs</div>${recent.map((j) => `<a class="pp-row" href="#jobs/${encodeURIComponent(j.id)}" style="text-decoration:none"><span class="pp-row-main"><span class="pp-row-top"><strong>${esc(j.title || 'Job')}</strong>${jobChip(j)}</span><span class="pp-row-sub">${esc(j.address || '')}</span></span></a>`).join('')}</section>` : ''}
+        </div>
+        <aside class="pp-co-side">
+          <div class="pp-card pp-block"><h3>Details</h3><dl class="pp-facts">${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>
+            ${c.status === 'active' && !p.logo_url ? '<p class="pp-muted" style="font-size:13px;margin:8px 0 0">Logo and contacts come from the company’s ObraMate profile.</p>' : ''}
+          </div>
+          ${manage ? `<button type="button" class="pp-link pp-late" data-remove-co="${esc(c.id)}" style="justify-self:start">Disconnect ${esc(c.company_name)}</button>` : ''}
+        </aside>
+      </div>`;
+    view.querySelectorAll('[data-send-to]').forEach((b) => b.addEventListener('click', () => {
+      state.send = newSend();
+      state.send.co = b.getAttribute('data-send-to');
+      postJson('/api/builder/select', { company_id: state.send.co }).catch(() => {});
+      location.hash = '#send';
+    }));
+    view.querySelectorAll('[data-see-jobs]').forEach((b) => b.addEventListener('click', (e) => { e.preventDefault(); state.coFilter = c.id; applyCoFilter(); location.hash = '#jobs'; }));
+    view.querySelectorAll('[data-see-inv]').forEach((b) => b.addEventListener('click', (e) => { e.preventDefault(); state.coFilter = c.id; applyCoFilter(); location.hash = '#invoices'; }));
+    view.querySelectorAll('[data-resend]').forEach((b) => b.addEventListener('click', async () => {
+      b.disabled = true;
+      b.textContent = 'Sending…';
+      try {
+        const r = await postJson(`/api/builder/companies/${encodeURIComponent(c.id)}/resend`, {});
+        inviteActions(view.querySelector('[data-invite-out]'), r.data, c.contact_phone);
+        b.textContent = 'Resent';
+      } catch (e) {
+        b.disabled = false;
+        b.textContent = 'Resend invite';
+        window.alert(e.message);
+      }
+    }));
+    view.querySelectorAll('[data-remove-co]').forEach((b) => b.addEventListener('click', async () => {
+      if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = `Tap again to disconnect ${c.company_name}`; return; }
+      b.disabled = true;
+      try {
+        await api(`/api/builder/companies/${encodeURIComponent(c.id)}`, { method: 'DELETE' });
+        await reloadAllCompanies();
+        location.hash = '#companies';
+      } catch (e) {
+        b.disabled = false;
+        window.alert(e.message);
+      }
+    }));
+    const priceSheet = (pr) => openPriceSheet(c, pr, () => render());
+    view.querySelectorAll('[data-price-new]').forEach((b) => b.addEventListener('click', () => priceSheet(null)));
+    view.querySelectorAll('[data-price]').forEach((b) => b.addEventListener('click', () => priceSheet(prices.find((x) => x.id === b.getAttribute('data-price')))));
+    const copy = $('ppCopyTo');
+    if (copy) copy.addEventListener('change', async () => {
+      if (!copy.value) return;
+      try {
+        const r = await postJson('/api/builder/prices/copy', { from: c.id, to: copy.value });
+        window.alert(r.data.copied ? `${plural(r.data.copied, 'price', 'prices')} copied.` : 'That company already has these prices.');
+      } catch (e) { window.alert(e.message); }
+      copy.value = '';
+    });
+  }
+  function insuranceText(iso) {
+    const d = toDate(`${iso}T12:00:00`);
+    if (!d) return '';
+    const days = Math.round((d - new Date()) / 86400000);
+    return days < 0 ? `<span class="pp-late">expired ${esc(fmtDay(d))}</span>` : days <= 30 ? `<span class="pp-late">expires ${esc(fmtDay(d))}</span>` : `valid until ${esc(fmtDay(d))}`;
+  }
+  function unitText(u) {
+    return (UNIT_OPTS.find((x) => x[0] === u) || [u, String(u || '').replace(/_/g, ' ')])[1];
+  }
+  /** Add or edit an agreed price; the company's catalog is offered when it is connected. */
+  async function openPriceSheet(c, pr, done) {
+    const catalog = c.status === 'active' ? await api('/api/partner-portal/price-list', { co: c.id }).then((r) => r.data || []).catch(() => []) : [];
+    const x = pr || { name: '', unit: 'each', price: '', notes: '', pricing_item_id: '' };
+    const root = openSheet(pr ? 'Edit price' : `New price · ${c.company_name}`, `
+      <form id="ppPriceForm" class="pp-fields" novalidate>
+        ${catalog.length ? `<div class="pp-field pp-field--wide"><label for="ppPrCat">Service in ${esc(c.company_name)}’s list</label><select id="ppPrCat"><option value="">— Other service —</option>${catalog.map((it) => `<option value="${esc(it.id)}" data-unit="${esc(it.unit || '')}" data-name="${esc(it.name)}" ${x.pricing_item_id === it.id ? 'selected' : ''}>${esc(it.name)}${it.price != null ? ` · their price ${money(it.price)}` : ''}</option>`).join('')}</select></div>` : ''}
+        <div class="pp-field pp-field--wide"><label for="ppPrName">Service *</label><input id="ppPrName" maxlength="160" required value="${esc(x.name)}" placeholder="e.g. Stair tread install" /></div>
+        <div class="pp-field"><label for="ppPrPrice">Agreed price *</label><input id="ppPrPrice" type="number" inputmode="decimal" min="0" step="0.01" required value="${esc(x.price)}" /></div>
+        <div class="pp-field"><label for="ppPrUnit">Per</label><select id="ppPrUnit">${UNIT_OPTS.map(([k, l]) => `<option value="${k}" ${x.unit === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+        <div class="pp-field pp-field--wide"><label for="ppPrNotes">Notes</label><input id="ppPrNotes" maxlength="300" value="${esc(x.notes || '')}" placeholder="e.g. includes haul-away" /></div>
+        <p class="pp-error pp-field--wide" id="ppPrErr" role="alert" hidden></p>
+        <div class="pp-sheet-actions pp-field--wide">${pr ? '<button type="button" class="pp-btn pp-btn--sec" data-pr-del>Delete</button>' : ''}<button type="submit" class="pp-btn pp-btn--pri">${pr ? 'Save' : 'Add price'}</button></div>
+      </form>`);
+    const cat = root.querySelector('#ppPrCat');
+    if (cat) cat.addEventListener('change', () => {
+      const opt = cat.selectedOptions[0];
+      if (!opt || !opt.value) return;
+      $('ppPrName').value = opt.getAttribute('data-name');
+      const u = ({ sq_ft: 'sq_ft', sqft: 'sq_ft', linear_ft: 'linear_ft', lf: 'linear_ft', step: 'step', unit: 'each', each: 'each', hour: 'hour', fixed: 'fixed', flat: 'fixed' })[opt.getAttribute('data-unit')];
+      if (u) $('ppPrUnit').value = u;
+      $('ppPrPrice').focus();
+    });
+    root.querySelector('#ppPriceForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const err = $('ppPrErr');
+      err.hidden = true;
+      const payload = { company_id: c.id, pricing_item_id: cat ? cat.value : '', name: $('ppPrName').value.trim(), unit: $('ppPrUnit').value, price: Number($('ppPrPrice').value), notes: $('ppPrNotes').value.trim() };
+      if (payload.name.length < 2 || !($('ppPrPrice').value !== '' && payload.price >= 0)) { err.textContent = 'Enter the service name and the price.'; err.hidden = false; return; }
+      try {
+        if (pr) await api(`/api/builder/prices/${encodeURIComponent(pr.id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        else await postJson('/api/builder/prices', payload);
+        state.prices = null;
+        closeSheet();
+        done();
+      } catch (ex) { err.textContent = ex.message || 'Could not save.'; err.hidden = false; }
+    });
+    const del = root.querySelector('[data-pr-del]');
+    if (del) del.addEventListener('click', async () => {
+      if (del.dataset.armed !== '1') { del.dataset.armed = '1'; del.textContent = 'Tap again to delete'; return; }
+      try { await api(`/api/builder/prices/${encodeURIComponent(pr.id)}`, { method: 'DELETE' }); state.prices = null; closeSheet(); done(); } catch (ex) { window.alert(ex.message); }
+    });
+  }
+
+  /* ─────────────────────────── team ─────────────────────────── */
 
   async function renderTeam(token) {
-    const r = await api('/api/builder/team');
+    const manage = canDo('team.manage');
+    const r = await api(`/api/builder/team${manage ? '?all=1' : ''}`);
     if (token !== renderToken) return;
     const rows = r.data || [];
-    const manage = canDo('team.manage');
     const roles = state.builder.roles || [];
     const me = state.builder.member.id;
+    const active = rows.filter((m) => m.status === 'active');
+    const invited = rows.filter((m) => m.status === 'invited');
+    const off = rows.filter((m) => m.status === 'disabled');
+    const roleLabel = (k) => ((roles.find((x) => x.key === k) || {}).label || ROLE_PT[k] || k);
+    const person = (m) => `<button type="button" class="pp-row pp-person ${m.status === 'disabled' ? 'is-off' : ''}" data-person="${esc(m.id)}" ${manage || m.id === me ? '' : 'disabled'}>
+        <span class="pp-avatar-sm" aria-hidden="true">${esc(initials(m.name))}</span>
+        <span class="pp-row-main"><span class="pp-row-top"><strong>${esc(m.name)}${m.id === me ? ' <span class="pp-muted" style="font-weight:500">(you)</span>' : ''}</strong><span class="pp-chip">${esc(roleLabel(m.role))}</span></span>
+          <span class="pp-row-sub">${esc([m.title, m.email].filter(Boolean).join(' · '))}</span>
+          <span class="pp-row-next">${m.status === 'invited' ? `<span class="pp-chip pp-chip--late">Invite sent${m.invited_by ? ` by ${esc(m.invited_by)}` : ''}</span>` : m.status === 'disabled' ? '<span class="pp-chip">No access</span>' : m.last_login_at ? `Last seen ${esc(fmtDay(m.last_login_at))}` : 'Not signed in yet'}</span>
+        </span></button>`;
+    const group = (label, list) => list.length ? `<div class="pp-group">${label} · ${list.length}</div>${list.map(person).join('')}` : '';
     view.innerHTML = `
-      <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder.account.name)}</p><h1>Team</h1></div></div>
-      <div class="pp-split pp-split--stack">
-        <section class="pp-main">
-          <div class="pp-card" style="overflow:hidden">
-            ${rows.map((m) => `<div class="pp-req" style="padding:14px 18px">
-              <div class="pp-req-top"><strong style="font-size:16px">${esc(m.name)}${m.id === me ? ' <span class="pp-muted" style="font-weight:500">(you)</span>' : ''}</strong>${m.status === 'invited' ? '<span class="pp-chip pp-chip--late">Invite sent</span>' : `<span class="pp-chip">${esc(ROLE_PT[m.role] || m.role)}</span>`}</div>
-              <p>${esc(m.email)}${m.phone ? ` · ${esc(m.phone)}` : ''}${m.last_login_at ? ` · last login ${esc(fmtDay(m.last_login_at))}` : ''}</p>
-              ${manage && m.id !== me ? `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:center">
-                <label class="pp-sr" for="ppRole-${esc(m.id)}">Role of ${esc(m.name)}</label>
-                <select id="ppRole-${esc(m.id)}" data-role="${esc(m.id)}" style="min-height:38px;border:1px solid var(--pp-border);border-radius:10px;padding:0 10px;background:#fff">${roles.map((ro) => `<option value="${ro.key}" ${ro.key === m.role ? 'selected' : ''}>${esc(ro.label)}</option>`).join('')}</select>
-                <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-disable="${esc(m.id)}">Remove access</button>
-              </div>` : ''}
-            </div>`).join('')}
-          </div>
-          <div class="pp-card pp-block">
-            <h3>What each role can do</h3>
-            <ul class="tk-list">${roles.map((ro) => `<li><span><b>${esc(ro.label)}</b><small>${esc(ro.hint)}</small></span></li>`).join('')}</ul>
-          </div>
-        </section>
-        ${manage ? `<aside class="pp-card pp-side pp-block">
-          <h3 style="font-size:17px">Invite someone</h3>
-          <form id="ppTeamForm" class="pp-fields" style="grid-template-columns:1fr" novalidate>
-            <div class="pp-field"><label for="ppTmName">Name *</label><input id="ppTmName" maxlength="120" required /></div>
-            <div class="pp-field"><label for="ppTmEmail">Email *</label><input id="ppTmEmail" type="email" maxlength="200" required /></div>
-            <div class="pp-field"><label for="ppTmPhone">Mobile</label><input id="ppTmPhone" type="tel" maxlength="40" /></div>
-            <div class="pp-field"><label for="ppTmRole">Role</label><select id="ppTmRole">${roles.map((ro) => `<option value="${ro.key}" ${ro.key === 'office' ? 'selected' : ''}>${esc(ro.label)} — ${esc(ro.hint)}</option>`).join('')}</select></div>
-            <p class="pp-error" id="ppTmError" role="alert" hidden></p>
-            <div id="ppTmResult"></div>
-            <div><button type="submit" class="pp-btn pp-btn--pri" id="ppTmSave">Send invite</button></div>
-          </form>
-        </aside>` : ''}
+      <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder.account.name)}</p><h1>Team</h1></div>${manage ? '<div class="pp-head-actions"><button type="button" class="pp-btn pp-btn--pri" data-invite>+ Invite</button></div>' : ''}</div>
+      <div class="pp-co-layout">
+        <div class="pp-co-main"><div class="pp-card" style="overflow:hidden">${group('Active', active)}${group('Invited', invited)}${group('No access', off)}</div></div>
+        <aside class="pp-co-side"><div class="pp-card pp-block"><h3>What each role can do</h3><ul class="tk-list">${roles.map((ro) => `<li><span><b>${esc(ro.label)}</b><small>${esc(ro.hint)}</small></span></li>`).join('')}</ul></div></aside>
       </div>`;
-    view.querySelectorAll('[data-role]').forEach((sel) => sel.addEventListener('change', async () => {
-      try { await api(`/api/builder/team/${encodeURIComponent(sel.getAttribute('data-role'))}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: sel.value }) }); render(); } catch (e) { window.alert(e.message); render(); }
+    view.querySelectorAll('[data-invite]').forEach((b) => b.addEventListener('click', () => openMemberSheet(null, roles)));
+    view.querySelectorAll('[data-person]').forEach((b) => b.addEventListener('click', () => {
+      const m = rows.find((x) => x.id === b.getAttribute('data-person'));
+      if (m) openMemberSheet(m, roles);
     }));
-    view.querySelectorAll('[data-disable]').forEach((b) => b.addEventListener('click', async () => {
-      if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Confirm'; return; }
-      try { await api(`/api/builder/team/${encodeURIComponent(b.getAttribute('data-disable'))}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ disabled: true }) }); render(); } catch (e) { window.alert(e.message); }
-    }));
-    const form = $('ppTeamForm');
-    if (form) form.addEventListener('submit', async (e) => {
+  }
+
+  /** Invite someone, or edit / resend / remove a person on the team. */
+  function openMemberSheet(m, roles) {
+    const me = state.builder.member.id;
+    const self = m && m.id === me;
+    const manage = canDo('team.manage');
+    const invited = m && m.status === 'invited';
+    const off = m && m.status === 'disabled';
+    const root = openSheet(m ? (self ? 'Your profile' : m.name) : 'Invite someone', `
+      <form id="ppMemForm" class="pp-fields" novalidate>
+        <div class="pp-field pp-field--wide"><label for="ppMName">Name *</label><input id="ppMName" maxlength="120" required value="${esc(m ? m.name : '')}" autocomplete="off" /></div>
+        <div class="pp-field"><label for="ppMEmail">Email ${m && !invited ? '<span>(sign-in)</span>' : '*'}</label><input id="ppMEmail" type="email" inputmode="email" maxlength="200" value="${esc(m ? m.email : '')}" ${m && !invited ? 'disabled' : ''} autocomplete="off" /></div>
+        <div class="pp-field"><label for="ppMPhone">Mobile</label><input id="ppMPhone" type="tel" inputmode="tel" maxlength="40" value="${esc(m && m.phone ? m.phone : '')}" /></div>
+        <div class="pp-field"><label for="ppMTitle">Job title</label><input id="ppMTitle" maxlength="80" value="${esc(m && m.title ? m.title : '')}" placeholder="e.g. Superintendent" /></div>
+        <div class="pp-field"><label for="ppMRole">Role</label><select id="ppMRole" ${self || !manage ? 'disabled' : ''}>${roles.map((ro) => `<option value="${ro.key}" ${(m ? m.role : 'office') === ro.key ? 'selected' : ''}>${esc(ro.label)}</option>`).join('')}</select></div>
+        <p class="pp-muted pp-field--wide" id="ppMHint" style="margin:0;font-size:13px"></p>
+        <p class="pp-error pp-field--wide" id="ppMErr" role="alert" hidden></p>
+        <div id="ppMOut" class="pp-field--wide"></div>
+        <div class="pp-sheet-actions pp-field--wide">
+          ${m && !self && manage ? (off ? '<button type="button" class="pp-btn pp-btn--sec" data-m-on>Give access back</button>' : `<button type="button" class="pp-btn pp-btn--sec pp-late" data-m-rm>${invited ? 'Cancel invite' : 'Remove access'}</button>`) : ''}
+          ${invited && manage ? '<button type="button" class="pp-btn pp-btn--sec" data-m-resend>Resend invite</button>' : ''}
+          <button type="submit" class="pp-btn pp-btn--pri">${m ? 'Save' : 'Send invite'}</button>
+        </div>
+        ${m && m.phone && !self ? `<div class="pp-acts pp-field--wide"><a class="pp-act" href="tel:${esc(String(m.phone).replace(/[^\d+]/g, ''))}"><span>${icon('phone')}</span>Call</a><a class="pp-act" href="${esc(smsHref(m.phone, ''))}"><span>${icon('chat')}</span>Text</a><a class="pp-act" href="mailto:${esc(m.email)}"><span>${icon('mail')}</span>Email</a></div>` : ''}
+      </form>`);
+    const hint = () => { const ro = roles.find((x) => x.key === $('ppMRole').value); $('ppMHint').textContent = ro ? ro.hint : ''; };
+    hint();
+    $('ppMRole').addEventListener('change', hint);
+    const err = $('ppMErr');
+    const fail = (ex) => { err.textContent = ex.message || 'Could not save.'; err.hidden = false; };
+    root.querySelector('#ppMemForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const err = $('ppTmError');
-      const btn = $('ppTmSave');
       err.hidden = true;
-      btn.disabled = true;
-      btn.textContent = 'Sending…';
+      const body = { name: $('ppMName').value.trim(), phone: $('ppMPhone').value.trim(), title: $('ppMTitle').value.trim() };
       try {
-        const res = await postJson('/api/builder/team', { name: $('ppTmName').value.trim(), email: $('ppTmEmail').value.trim(), phone: $('ppTmPhone').value.trim(), role: $('ppTmRole').value });
-        await render();
-        const out = $('ppTmResult');
-        if (out) out.innerHTML = `<div class="pp-success">Invite sent by email.${res.data && res.data.devLink ? ` <a href="${esc(res.data.devLink)}">Link (test)</a>` : ''}</div>`;
-      } catch (ex) {
-        err.textContent = ex.message || 'Could not send the invite.';
-        err.hidden = false;
-        btn.disabled = false;
-        btn.textContent = 'Send invite';
-      }
+        if (!m) {
+          const res = await postJson('/api/builder/team', { ...body, email: $('ppMEmail').value.trim(), role: $('ppMRole').value });
+          await render();
+          openSheet('Invite sent', `<div class="pp-success">We emailed ${esc(body.name)} a link to join ${esc(state.builder.account.name)}.${res.data && res.data.devLink ? ` <a href="${esc(res.data.devLink)}">Link (test)</a>` : ''}</div><div class="pp-sheet-actions"><button type="button" class="pp-btn pp-btn--pri" data-sheet-close>Done</button></div>`);
+          return;
+        }
+        if (self) {
+          await api('/api/builder/me', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+          await loadMe();
+        } else {
+          await api(`/api/builder/team/${encodeURIComponent(m.id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, role: $('ppMRole').value, ...(invited ? { email: $('ppMEmail').value.trim() } : {}) }) });
+        }
+        closeSheet();
+        render();
+      } catch (ex) { fail(ex); }
+    });
+    const rm = root.querySelector('[data-m-rm]');
+    if (rm) rm.addEventListener('click', async () => {
+      if (rm.dataset.armed !== '1') { rm.dataset.armed = '1'; rm.textContent = 'Tap again to confirm'; return; }
+      try { await api(`/api/builder/team/${encodeURIComponent(m.id)}`, { method: 'DELETE' }); closeSheet(); render(); } catch (ex) { fail(ex); }
+    });
+    const on = root.querySelector('[data-m-on]');
+    if (on) on.addEventListener('click', async () => {
+      try { await api(`/api/builder/team/${encodeURIComponent(m.id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ disabled: false }) }); closeSheet(); render(); } catch (ex) { fail(ex); }
+    });
+    const rs = root.querySelector('[data-m-resend]');
+    if (rs) rs.addEventListener('click', async () => {
+      rs.disabled = true;
+      try {
+        const r = await postJson(`/api/builder/team/${encodeURIComponent(m.id)}/resend`, {});
+        $('ppMOut').innerHTML = `<div class="pp-success">New invite sent to ${esc(m.email)}.${r.data && r.data.devLink ? ` <a href="${esc(r.data.devLink)}">Link (test)</a>` : ''}</div>`;
+      } catch (ex) { rs.disabled = false; fail(ex); }
     });
   }
 
   /* ─────────────────────────── settings (builder admin) ─────────────────────────── */
 
-  async function renderSettings(token) {
-    if (!canDo('team.manage')) {
-      view.innerHTML = `<div class="pp-card pp-empty">${mate('head-sorry')}<strong>Only admins can open settings</strong>Ask your team admin.</div>`;
+  const SETTINGS_SECTIONS = [
+    { key: 'profile', label: 'Your profile', sub: 'Name, phone and job title', ic: 'user', perm: null },
+    { key: 'company', label: 'Company', sub: 'Logo, contacts, address and license', ic: 'shield', perm: 'team.manage' },
+    { key: 'pickups', label: 'Pickup locations', sub: 'Supplier yards linked to work orders', ic: 'pin', perm: 'team.manage' },
+    { key: 'prices', label: 'Price lists', sub: 'Agreed prices for each company', ic: 'tag', perm: 'money.view' },
+    { key: 'team', label: 'Team', sub: 'People, roles and invites', ic: 'user', perm: null, href: '#team' },
+    { key: 'app', label: 'App', sub: 'Install ObraBuilder on your phone', ic: 'download', perm: null },
+  ];
+
+  async function renderSettings(section, token) {
+    await loadMe();
+    if (token !== renderToken) return;
+    const sections = SETTINGS_SECTIONS.filter((x) => !x.perm || canDo(x.perm));
+    const acc = state.builder.account;
+    const head = (title, back) => `<div class="pp-head"><div>${back ? `<a class="pp-back" href="#settings" style="display:inline-flex">${icon('back')}Settings</a>` : `<p class="pp-eyebrow">${esc(acc.name)}</p>`}<h1>${esc(title)}</h1></div></div>`;
+    const sec = sections.find((x) => x.key === section);
+    if (!sec) {
+      const me = state.builder.member;
+      view.innerHTML = `${head('Settings')}
+        <div class="pp-set-hub">
+          <a class="pp-card pp-set-me" href="#settings/profile">${acc.logo_url ? `<img class="pp-set-logo" src="${esc(acc.logo_url)}" alt="" />` : `<span class="pp-avatar-sm pp-avatar-lg" aria-hidden="true">${esc(initials(me.name))}</span>`}<span><strong>${esc(me.name)}</strong><small>${esc([me.role_label, acc.name].join(' · '))}</small><small>${esc(me.email)}</small></span>${icon('chev')}</a>
+          <div class="pp-card pp-set-list">${sections.map((x) => `<a class="pp-set-row" href="${x.href || `#settings/${x.key}`}"><span class="pp-set-ic">${icon(x.ic)}</span><span><strong>${esc(x.label)}</strong><small>${esc(x.sub)}</small></span>${icon('chev')}</a>`).join('')}</div>
+          <button type="button" class="pp-card pp-set-row pp-set-out" id="ppSetLogout"><span class="pp-set-ic">${icon('back')}</span><span><strong class="pp-late">Sign out</strong></span></button>
+        </div>`;
+      $('ppSetLogout').addEventListener('click', logout);
       return;
     }
-    await loadMe();
+    if (sec.key === 'profile') return settingsProfile(head);
+    if (sec.key === 'company') return settingsCompany(head, acc);
+    if (sec.key === 'pickups') return settingsPickups(head, token);
+    if (sec.key === 'prices') return settingsPrices(head, token);
+    if (sec.key === 'app') return settingsApp(head);
+  }
+
+  function formError(id, ex) {
+    const err = $(id);
+    if (!err) return;
+    err.textContent = (ex && ex.message) || 'Could not save.';
+    err.hidden = false;
+  }
+  function savedFlash(btn) {
+    const t = btn.textContent;
+    btn.textContent = 'Saved ✓';
+    setTimeout(() => { btn.textContent = t; }, 1600);
+  }
+
+  function settingsProfile(head) {
+    const me = state.builder.member;
+    const p = state.builder.member_profile || {};
+    view.innerHTML = `${head('Your profile', true)}
+      <form class="pp-card pp-block pp-set-form" id="ppMeForm" novalidate>
+        <div class="pp-fields">
+          <div class="pp-field pp-field--wide"><label for="ppMeName">Name *</label><input id="ppMeName" maxlength="120" required value="${esc(me.name)}" autocomplete="name" /></div>
+          <div class="pp-field"><label for="ppMePhone">Mobile</label><input id="ppMePhone" type="tel" inputmode="tel" maxlength="40" value="${esc(p.phone || '')}" autocomplete="tel" /></div>
+          <div class="pp-field"><label for="ppMeTitle">Job title</label><input id="ppMeTitle" maxlength="80" value="${esc(p.title || '')}" placeholder="e.g. Superintendent" /></div>
+          <div class="pp-field pp-field--wide"><label for="ppMeEmail">Email <span>(sign-in)</span></label><input id="ppMeEmail" value="${esc(me.email)}" disabled /></div>
+          <p class="pp-muted pp-field--wide" style="margin:0;font-size:13px">Role: <b>${esc(me.role_label)}</b>. To change the email or role, ask your team admin.</p>
+          <p class="pp-error pp-field--wide" id="ppMeErr" role="alert" hidden></p>
+          <div class="pp-sheet-actions pp-field--wide"><a class="pp-btn pp-btn--sec" href="/builders/forgot">Change password</a><button type="submit" class="pp-btn pp-btn--pri">Save</button></div>
+        </div>
+      </form>`;
+    $('ppMeForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      $('ppMeErr').hidden = true;
+      const btn = e.target.querySelector('[type=submit]');
+      try {
+        await api('/api/builder/me', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: $('ppMeName').value.trim(), phone: $('ppMePhone').value.trim(), title: $('ppMeTitle').value.trim() }) });
+        await loadMe();
+        paintShell();
+        savedFlash(btn);
+      } catch (ex) { formError('ppMeErr', ex); }
+    });
+  }
+
+  function settingsCompany(head, acc) {
+    const f = (id, label, val, attrs) => `<div class="pp-field ${attrs && attrs.wide ? 'pp-field--wide' : ''}"><label for="${id}">${label}</label><input id="${id}" value="${esc(val || '')}" ${attrs && attrs.extra ? attrs.extra : ''} /></div>`;
+    view.innerHTML = `${head('Company', true)}
+      <form class="pp-set-form" id="ppAccForm" novalidate>
+        <section class="pp-card pp-block pp-logo-box">
+          <div class="pp-logo-prev">${acc.logo_url ? `<img src="${esc(acc.logo_url)}" alt="${esc(acc.name)} logo" />` : `<b>${esc(initials(acc.name))}</b>`}</div>
+          <div><strong>Logo</strong><p class="pp-muted" style="margin:2px 0 8px;font-size:13px">Shown on your account and to the companies you work with. PNG, JPG or WebP, up to 2 MB.</p>
+            <label class="pp-btn pp-btn--sec pp-btn--sm"><input type="file" id="ppLogoIn" accept="image/png,image/jpeg,image/webp" hidden />${acc.logo_url ? 'Change logo' : 'Upload logo'}</label>
+            ${acc.logo_url ? '<button type="button" class="pp-link" id="ppLogoRm" style="margin-left:8px">Remove</button>' : ''}</div>
+        </section>
+        <section class="pp-card pp-block"><h3>Company</h3><div class="pp-fields">
+          ${f('ppAcName', 'Company name *', acc.name, { wide: true, extra: 'maxlength="120" required autocomplete="organization"' })}
+          ${f('ppAcPhone', 'Office phone', acc.phone, { extra: 'type="tel" inputmode="tel" maxlength="40"' })}
+          ${f('ppAcEmail', 'Office email', acc.email, { extra: 'type="email" inputmode="email" maxlength="200"' })}
+          ${f('ppAcBill', 'Billing email <span>(invoices)</span>', acc.billing_email, { extra: 'type="email" inputmode="email" maxlength="200"' })}
+          ${f('ppAcWeb', 'Website', acc.website, { extra: 'type="url" inputmode="url" maxlength="200" placeholder="https://"' })}
+          ${f('ppAcLic', 'Builder license #', acc.license_number, { extra: 'maxlength="80"' })}
+        </div></section>
+        <section class="pp-card pp-block"><h3>Office address</h3><div class="pp-fields">
+          ${f('ppAcA1', 'Street', acc.address_line1, { wide: true, extra: 'maxlength="200" autocomplete="address-line1" data-om-address-autocomplete' })}
+          ${f('ppAcA2', 'Suite / unit', acc.address_line2, { extra: 'maxlength="120" autocomplete="address-line2"' })}
+          ${f('ppAcCity', 'City', acc.city, { extra: 'maxlength="80" autocomplete="address-level2"' })}
+          ${f('ppAcState', 'State', acc.state, { extra: 'maxlength="40" autocomplete="address-level1"' })}
+          ${f('ppAcZip', 'ZIP', acc.postal_code, { extra: 'maxlength="20" inputmode="numeric" autocomplete="postal-code"' })}
+        </div></section>
+        <p class="pp-error" id="ppAccErr" role="alert" hidden></p>
+        <div class="pp-set-save"><button type="submit" class="pp-btn pp-btn--pri">Save company</button></div>
+      </form>`;
+    if (typeof window.sfBootCrmAddressAutocomplete === 'function') window.sfBootCrmAddressAutocomplete();
+    // Google autocomplete fills the whole address into the street box: split it.
+    const a1 = $('ppAcA1');
+    a1.addEventListener('change', () => {
+      const parts = a1.value.split(',').map((x) => x.trim()).filter(Boolean);
+      if (parts.length >= 3) {
+        a1.value = parts[0];
+        $('ppAcCity').value = parts[1];
+        const m = /^([A-Z]{2})\s*(\d{5})?/.exec(parts[2]);
+        if (m) { $('ppAcState').value = m[1]; if (m[2]) $('ppAcZip').value = m[2]; }
+      }
+    });
+    $('ppAccForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      $('ppAccErr').hidden = true;
+      const btn = e.target.querySelector('[type=submit]');
+      const v = (id) => $(id).value.trim();
+      try {
+        await api('/api/builder/account', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: v('ppAcName'), phone: v('ppAcPhone'), email: v('ppAcEmail'), billing_email: v('ppAcBill'), website: v('ppAcWeb'), license_number: v('ppAcLic'), address_line1: v('ppAcA1'), address_line2: v('ppAcA2'), city: v('ppAcCity'), state: v('ppAcState'), postal_code: v('ppAcZip') }) });
+        await loadMe();
+        paintShell();
+        savedFlash(btn);
+      } catch (ex) { formError('ppAccErr', ex); }
+    });
+    $('ppLogoIn').addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      try {
+        const data = await readAsDataUrl(await shrinkLogo(file));
+        await postJson('/api/builder/account/logo', { data_url: data });
+        await loadMe();
+        paintShell();
+        render();
+      } catch (ex) { formError('ppAccErr', ex); }
+    });
+    const rm = $('ppLogoRm');
+    if (rm) rm.addEventListener('click', async () => { await postJson('/api/builder/account/logo', { data_url: '' }); await loadMe(); paintShell(); render(); });
+  }
+  /** Logos are resized to 512 px so big photos still upload. */
+  async function shrinkLogo(file) {
+    if (file.size < 600 * 1024 || !window.createImageBitmap) return file;
+    try {
+      const bmp = await createImageBitmap(file);
+      const k = Math.min(1, 512 / Math.max(bmp.width, bmp.height));
+      const cv = document.createElement('canvas');
+      cv.width = Math.round(bmp.width * k);
+      cv.height = Math.round(bmp.height * k);
+      cv.getContext('2d').drawImage(bmp, 0, 0, cv.width, cv.height);
+      const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
+      return blob ? new File([blob], 'logo.png', { type: 'image/png' }) : file;
+    } catch (_) { return file; }
+  }
+
+  async function settingsPrices(head, token) {
+    const all = await api('/api/builder/prices').then((r) => r.data || []).catch(() => []);
+    if (token !== renderToken) return;
+    const companies = state.builder.companies || [];
+    view.innerHTML = `${head('Price lists', true)}
+      <p class="pp-muted pp-meas-intro">The prices you agreed with each flooring company. When you send them a work order, lines without a price get yours, and different prices are flagged before you send.</p>
+      ${companies.length ? `<div class="pp-card pp-set-list">${companies.map((c) => {
+        const n = all.filter((p) => p.company_id === c.id).length;
+        return `<a class="pp-set-row" href="#companies/${esc(c.id)}">${coLogo(c, 40)}<span><strong>${esc(c.company_name)}</strong><small>${n ? plural(n, 'price', 'prices') : 'No prices yet'}</small></span>${icon('chev')}</a>`;
+      }).join('')}</div>` : `<div class="pp-card pp-empty">${mate('wave')}<strong>Connect a company first</strong><a class="pp-link" href="#companies">Companies</a></div>`}`;
+  }
+
+  function settingsApp(head) {
+    view.innerHTML = `${head('App', true)}
+      <section class="pp-card pp-block pp-app-card">
+        <img src="/assets/obrabuilder/icon-192.png?v=1" alt="" width="56" height="56" />
+        <div><h3>ObraBuilder on your phone</h3><p class="pp-muted">Install the app to send work orders and measure on site from your home screen.</p></div>
+        ${isStandaloneApp() ? '<span class="pp-chip pp-chip--ok">Installed</span>' : `<button type="button" class="pp-btn pp-btn--pri pp-btn--sm" data-install-app ${canInstallApp() ? '' : 'hidden'}>${icon('download')}Install</button>`}
+      </section>
+      ${!isStandaloneApp() && !canInstallApp() ? '<p class="pp-muted" style="max-width:880px">On iPhone, open this page in Safari and tap Share › Add to Home Screen. On Android, open it in Chrome and tap Install.</p>' : ''}
+      <section class="pp-card pp-block" style="max-width:880px"><h3>Voice with Mate</h3><p class="pp-muted" style="margin:4px 0 0">In a measurement, tap Mate and say the sizes. Mate fills in treads, risers, nosings and vents, and you can undo.</p></section>`;
+    paintInstall();
+  }
+
+  async function settingsPickups(head, token) {
     const list = await ensurePickups(true);
     if (token !== renderToken) return;
-    const acc = state.builder.account;
-    const edit = state.pickupEdit || null; // id being edited, 'new', or null
-    const locForm = (loc) => {
+    const open = (loc) => {
       const l = loc || { name: '', address: '', aliases: [], phone: '', hours: '', notes: '', is_default: !list.length };
       const aliases = (l.aliases || []).filter((a) => a.toLowerCase() !== String(l.name || '').toLowerCase()).join(', ');
-      return `<form class="pp-fields pp-pick-form" id="ppPickForm" data-id="${esc(loc ? loc.id : '')}" novalidate>
-          <div class="pp-field"><label for="ppPkName">Name *</label><input id="ppPkName" maxlength="80" required value="${esc(l.name)}" placeholder="e.g. TriWest Henderson" /></div>
-          <div class="pp-field"><label for="ppPkAliases">Name on work orders <span>(comma separated)</span></label><input id="ppPkAliases" maxlength="300" value="${esc(aliases)}" placeholder="e.g. TRIWEST, TW Henderson" /></div>
+      const root = openSheet(loc ? 'Edit pickup location' : 'New pickup location', `<form class="pp-fields" id="ppPickForm" novalidate>
+          <div class="pp-field pp-field--wide"><label for="ppPkName">Name *</label><input id="ppPkName" maxlength="80" required value="${esc(l.name)}" placeholder="e.g. TriWest Henderson" /></div>
+          <div class="pp-field pp-field--wide"><label for="ppPkAliases">Name on work orders <span>(comma separated)</span></label><input id="ppPkAliases" maxlength="300" value="${esc(aliases)}" placeholder="e.g. TRIWEST, TW Henderson" /></div>
           <div class="pp-field pp-field--wide"><label for="ppPkAddr">Address *</label><input id="ppPkAddr" maxlength="300" required value="${esc(l.address)}" data-om-address-autocomplete /></div>
-          <div class="pp-field"><label for="ppPkPhone">Phone</label><input id="ppPkPhone" type="tel" maxlength="40" value="${esc(l.phone || '')}" /></div>
+          <div class="pp-field"><label for="ppPkPhone">Phone</label><input id="ppPkPhone" type="tel" inputmode="tel" maxlength="40" value="${esc(l.phone || '')}" /></div>
           <div class="pp-field"><label for="ppPkHours">Pickup hours</label><input id="ppPkHours" maxlength="120" value="${esc(l.hours || '')}" placeholder="e.g. Mon–Fri 6:30 AM – 3 PM" /></div>
           <div class="pp-field pp-field--wide"><label for="ppPkNotes">Notes for the crew</label><input id="ppPkNotes" maxlength="500" value="${esc(l.notes || '')}" placeholder="e.g. Will-call door on the north side" /></div>
           <label class="pp-check pp-field--wide"><input type="checkbox" id="ppPkDefault" ${l.is_default ? 'checked' : ''} /> Default pickup location</label>
           <p class="pp-error pp-field--wide" id="ppPkError" role="alert" hidden></p>
-          <div class="pp-field--wide pp-pick-actions"><button type="button" class="pp-btn pp-btn--sec" data-pk-cancel>Cancel</button><button type="submit" class="pp-btn pp-btn--pri" id="ppPkSave">${loc ? 'Save location' : 'Add location'}</button></div>
-        </form>`;
-    };
-    const locRow = (l) => edit === l.id ? `<div class="pp-pick-item is-editing">${locForm(l)}</div>` : `<div class="pp-pick-item">
-        <span class="pp-pick-ic">${icon('pin')}</span>
-        <div class="pp-pick-main">
-          <div class="pp-req-top"><strong>${esc(l.name)}</strong>${l.is_default ? '<span class="pp-chip pp-chip--ok">Default</span>' : ''}</div>
-          <p>${esc(l.address)}</p>
-          ${[l.hours, l.phone].filter(Boolean).length ? `<p class="pp-muted">${esc([l.hours, l.phone].filter(Boolean).join(' · '))}</p>` : ''}
-          <p class="pp-muted pp-pick-alias">Matches work orders that say: ${(l.aliases || []).map((a) => `<code>${esc(a)}</code>`).join(' ')}</p>
-        </div>
-        <div class="pp-pick-btns"><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-pk-edit="${esc(l.id)}">Edit</button><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-pk-del="${esc(l.id)}">Delete</button></div>
-      </div>`;
-    view.innerHTML = `
-      <div class="pp-head"><div><p class="pp-eyebrow">${esc(acc.name)}</p><h1>Settings</h1></div></div>
-      <div class="pp-settings">
-        <section class="pp-card pp-block" aria-labelledby="ppSetCo">
-          <h3 id="ppSetCo">Company</h3>
-          <form id="ppAccForm" class="pp-fields" novalidate>
-            <div class="pp-field pp-field--wide"><label for="ppAccName">Company name *</label><input id="ppAccName" maxlength="120" required value="${esc(acc.name || '')}" /></div>
-            <div class="pp-field"><label for="ppAccPhone">Phone</label><input id="ppAccPhone" type="tel" maxlength="40" value="${esc(acc.phone || '')}" /></div>
-            <div class="pp-field"><label for="ppAccWeb">Website</label><input id="ppAccWeb" type="url" maxlength="200" value="${esc(acc.website || '')}" placeholder="https://" /></div>
-            <p class="pp-error pp-field--wide" id="ppAccError" role="alert" hidden></p>
-            <div class="pp-field--wide"><button type="submit" class="pp-btn pp-btn--pri" id="ppAccSave">Save</button> <span class="pp-muted" id="ppAccOk" hidden>Saved</span></div>
-          </form>
-        </section>
-        <section class="pp-card pp-block" aria-labelledby="ppSetPick">
-          <div class="pp-set-head"><div><h3 id="ppSetPick">Delivery pickup locations</h3><p class="pp-muted">Supplier yards where your crews pick up delivered material. When a work order names one (like <code>TRIWEST 9176215</code>), the job gets the full address and the order number automatically.</p></div>${edit === 'new' ? '' : '<button type="button" class="pp-btn pp-btn--pri pp-btn--sm" data-pk-new>Add location</button>'}</div>
-          ${edit === 'new' ? `<div class="pp-pick-item is-editing">${locForm(null)}</div>` : ''}
-          <div class="pp-pick-list">${list.length ? list.map(locRow).join('') : (edit === 'new' ? '' : `<div class="pp-empty">${mate('point', 64)}<strong>No pickup locations yet</strong>Add the yards and warehouses your suppliers use.</div>`)}</div>
-        </section>
-        <section class="pp-card pp-block pp-app-card" aria-labelledby="ppSetApp">
-          <img src="/assets/obrabuilder/icon-192.png?v=1" alt="" width="56" height="56" />
-          <div><h3 id="ppSetApp">ObraBuilder on your phone</h3><p class="pp-muted">Install the app to send work orders and measure on site from your home screen.</p></div>
-          ${isStandaloneApp() ? '<span class="pp-chip pp-chip--ok">Installed</span>' : `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-install-app ${canInstallApp() ? '' : 'hidden'}>${icon('download')}Install</button>`}
-        </section>
-      </div>`;
-    if (typeof window.sfBootCrmAddressAutocomplete === 'function') window.sfBootCrmAddressAutocomplete();
-    paintInstall();
-    const accForm = $('ppAccForm');
-    accForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const err = $('ppAccError');
-      const btn = $('ppAccSave');
-      err.hidden = true;
-      $('ppAccOk').hidden = true;
-      btn.disabled = true;
-      try {
-        await api('/api/builder/account', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: $('ppAccName').value.trim(), phone: $('ppAccPhone').value.trim(), website: $('ppAccWeb').value.trim() }) });
-        await loadMe();
-        paintShell();
-        $('ppAccOk').hidden = false;
-      } catch (ex) {
-        err.textContent = ex.message || 'Could not save.';
-        err.hidden = false;
-      } finally {
-        btn.disabled = false;
-      }
-    });
-    const again = (id) => { state.pickupEdit = id; render(); };
-    view.querySelectorAll('[data-pk-new]').forEach((b) => b.addEventListener('click', () => again('new')));
-    view.querySelectorAll('[data-pk-edit]').forEach((b) => b.addEventListener('click', () => again(b.getAttribute('data-pk-edit'))));
-    view.querySelectorAll('[data-pk-cancel]').forEach((b) => b.addEventListener('click', () => again(null)));
-    view.querySelectorAll('[data-pk-del]').forEach((b) => b.addEventListener('click', async () => {
-      if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Confirm delete'; return; }
-      b.disabled = true;
-      try { await api(`/api/builder/pickups/${encodeURIComponent(b.getAttribute('data-pk-del'))}`, { method: 'DELETE' }); again(null); } catch (ex) { b.disabled = false; window.alert(ex.message); }
-    }));
-    const pf = $('ppPickForm');
-    if (pf) {
-      const first = $('ppPkName');
-      if (first && !first.value) first.focus();
-      pf.addEventListener('submit', async (e) => {
+          <div class="pp-sheet-actions pp-field--wide">${loc ? '<button type="button" class="pp-btn pp-btn--sec pp-late" data-pk-del>Delete</button>' : ''}<button type="submit" class="pp-btn pp-btn--pri">${loc ? 'Save location' : 'Add location'}</button></div>
+        </form>`);
+      root.querySelector('#ppPickForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const err = $('ppPkError');
-        const btn = $('ppPkSave');
-        err.hidden = true;
         const name = $('ppPkName').value.trim();
         const address = $('ppPkAddr').value.trim();
-        if (name.length < 2 || address.length < 4) { err.textContent = 'Enter a name and the address of the pickup location.'; err.hidden = false; return; }
+        if (name.length < 2 || address.length < 4) { formError('ppPkError', { message: 'Enter a name and the address of the pickup location.' }); return; }
         const payload = {
-          name,
-          address,
+          name, address,
           aliases: $('ppPkAliases').value.split(/[,;\n]/).map((a) => a.trim()).filter((a) => a.length >= 2).slice(0, 11),
-          phone: $('ppPkPhone').value.trim(),
-          hours: $('ppPkHours').value.trim(),
-          notes: $('ppPkNotes').value.trim(),
-          is_default: $('ppPkDefault').checked,
+          phone: $('ppPkPhone').value.trim(), hours: $('ppPkHours').value.trim(), notes: $('ppPkNotes').value.trim(), is_default: $('ppPkDefault').checked,
         };
-        const id = pf.getAttribute('data-id');
-        btn.disabled = true;
         try {
-          if (id) await api(`/api/builder/pickups/${encodeURIComponent(id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          if (loc) await api(`/api/builder/pickups/${encodeURIComponent(loc.id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
           else await postJson('/api/builder/pickups', payload);
-          again(null);
-        } catch (ex) {
-          err.textContent = ex.message || 'Could not save.';
-          err.hidden = false;
-          btn.disabled = false;
-        }
+          closeSheet();
+          render();
+        } catch (ex) { formError('ppPkError', ex); }
       });
-    }
+      const del = root.querySelector('[data-pk-del]');
+      if (del) del.addEventListener('click', async () => {
+        if (del.dataset.armed !== '1') { del.dataset.armed = '1'; del.textContent = 'Tap again to delete'; return; }
+        try { await api(`/api/builder/pickups/${encodeURIComponent(loc.id)}`, { method: 'DELETE' }); closeSheet(); render(); } catch (ex) { formError('ppPkError', ex); }
+      });
+    };
+    view.innerHTML = `${head('Pickup locations', true)}
+      <p class="pp-muted pp-meas-intro">Supplier yards where your crews pick up delivered material. When a work order names one (like <code>TRIWEST 9176215</code>), the job gets the full address and the order number automatically.</p>
+      <div class="pp-sheet-actions" style="justify-content:flex-start;max-width:880px;margin-bottom:12px"><button type="button" class="pp-btn pp-btn--pri" data-pk-new>+ Add location</button></div>
+      ${list.length ? `<div class="pp-card pp-set-list">${list.map((l) => `<button type="button" class="pp-set-row" data-pk="${esc(l.id)}"><span class="pp-set-ic">${icon('pin')}</span><span><strong>${esc(l.name)}${l.is_default ? ' <span class="pp-chip pp-chip--ok">Default</span>' : ''}</strong><small>${esc(l.address)}</small>${[l.hours, l.phone].filter(Boolean).length ? `<small>${esc([l.hours, l.phone].filter(Boolean).join(' · '))}</small>` : ''}<small class="pp-pick-alias">Matches: ${(l.aliases || []).map((a) => `<code>${esc(a)}</code>`).join(' ')}</small></span>${icon('chev')}</button>`).join('')}</div>` : `<div class="pp-card pp-empty">${mate('point', 64)}<strong>No pickup locations yet</strong>Add the yards and warehouses your suppliers use.</div>`}`;
+    view.querySelectorAll('[data-pk-new]').forEach((b) => b.addEventListener('click', () => open(null)));
+    view.querySelectorAll('[data-pk]').forEach((b) => b.addEventListener('click', () => open(list.find((x) => x.id === b.getAttribute('data-pk')))));
   }
 
   /* ─────────────────────────── install the app (PWA) ─────────────────────────── */
@@ -2332,8 +2727,10 @@
     // The brand is the builder's own account; the selected flooring company is the subtitle.
     $('ppProvider').textContent = state.builder.account.name;
     const nAct = activeCompanies().length;
-    $('ppBrandSub').textContent = nAct ? `ObraBuilder · ${nAct} ${nAct === 1 ? 'company' : 'companies'}` : 'ObraBuilder';
-    $('ppMark').textContent = initials(state.builder.account.name);
+    $('ppBrandSub').textContent = 'ObraBuilder';
+    const mark = $('ppMark');
+    if (state.builder.account.logo_url) { mark.innerHTML = `<img src="${esc(state.builder.account.logo_url)}" alt="" />`; mark.classList.add('has-logo'); }
+    else { mark.textContent = initials(state.builder.account.name); mark.classList.remove('has-logo'); }
     document.title = `${state.builder.account.name} · ObraBuilder`;
     const tools = $('ppProviderTools');
     const companies = state.builder.companies || [];
@@ -2342,7 +2739,7 @@
     document.querySelectorAll('[data-builder-only]').forEach((el) => { el.hidden = false; });
     document.querySelectorAll('[data-nav="invoices"]').forEach((el) => { el.hidden = !canDo('money.view'); });
     document.querySelectorAll('[data-nav="measurements"]').forEach((el) => { el.hidden = !canDo('measure'); });
-    document.querySelectorAll('[data-nav="settings"]').forEach((el) => { el.hidden = !canDo('team.manage'); });
+    document.querySelectorAll('[data-nav="settings"]').forEach((el) => { el.hidden = false; });
     // Phone tab bar: Measure replaces Calendar for builders who measure (Calendar moves to More).
     document.querySelectorAll('.pp-tab[data-nav="calendario"]').forEach((el) => { el.hidden = canDo('measure'); });
     paintInstall();
@@ -2448,19 +2845,19 @@
   }
 
   async function renderMeasurements(id, token) {
-    if (id) return renderMeasurement(id, token);
+    if (id && id !== 'new') return renderMeasurement(id, token);
     const r = await api('/api/builder/measurements');
     if (token !== renderToken) return;
     const rows = r.data || [];
     view.innerHTML = `
       <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder.account.name)}</p><h1>Measurements</h1></div><div class="pp-head-actions"><button type="button" class="pp-btn pp-btn--pri" id="ppMeasNewBtn">New measurement</button></div></div>
       <p class="pp-muted pp-meas-intro">Measure stairs (treads, risers and nosings) and vents on site. Each measurement is saved by address and goes with the Work Order when you send it for that house.</p>
-      <form class="pp-card pp-block pp-meas-new" id="ppMeasNew" ${rows.length ? 'hidden' : ''} novalidate>
+      <form class="pp-card pp-block pp-meas-new" id="ppMeasNew" ${rows.length && id !== 'new' ? 'hidden' : ''} novalidate>
         <h3>New measurement</h3>
+        <button type="button" class="pp-geo-btn" id="ppMnGeo">${icon('locate')}<span><strong>Use my location</strong><small>Find the address of the house you’re at</small></span></button>
+        <div id="ppMnNear"></div>
         <div class="pp-fields">
           <div class="pp-field pp-field--wide"><label for="ppMnAddr">Job address *</label><input id="ppMnAddr" maxlength="300" autocomplete="street-address" data-om-address-autocomplete required placeholder="e.g. 322 Lower Ranch View Rd, Granby, CO" /></div>
-          <div class="pp-field"><label for="ppMnCom">Community</label><input id="ppMnCom" maxlength="120" /></div>
-          <div class="pp-field"><label for="ppMnLot">Lot</label><input id="ppMnLot" maxlength="20" /></div>
         </div>
         <p class="pp-error" id="ppMnErr" role="alert" hidden></p>
         <div><button type="submit" class="pp-btn pp-btn--pri" id="ppMnSave">Start measuring</button></div>
@@ -2469,13 +2866,43 @@
         ${rows.length ? rows.map((m) => `<a class="pp-row pp-meas-row" href="#measurements/${esc(m.id)}" style="text-decoration:none">
             <span class="pp-row-main">
               <span class="pp-row-top"><strong>${esc(m.address)}</strong>${measStatusChip(m)}</span>
-              <span class="pp-row-sub">${esc([m.community, m.lot ? `Lot ${m.lot}` : ''].filter(Boolean).join(' · '))}${m.community || m.lot ? ' · ' : ''}${esc(countsText(m.counts))}</span>
+              <span class="pp-row-sub">${esc(countsText(m.counts))}</span>
               <span class="pp-row-next">${esc(m.completed_by || m.updated_by || m.created_by || '')} · ${esc(fmtDayEn(m.completed_at || m.updated_at))}</span>
             </span>
           </a>`).join('') : '<div class="pp-empty">' + mate('point') + '<strong>No measurements yet</strong>Start with the house address.</div>'}
       </div>`;
     if (typeof window.sfBootCrmAddressAutocomplete === 'function') window.sfBootCrmAddressAutocomplete();
-    $('ppMeasNewBtn').addEventListener('click', () => { const f = $('ppMeasNew'); f.hidden = false; $('ppMnAddr').focus(); });
+    $('ppMeasNewBtn').addEventListener('click', () => { const f = $('ppMeasNew'); f.hidden = false; f.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    let geo = null;
+    const geoBtn = $('ppMnGeo');
+    const locate = () => {
+      if (!navigator.geolocation) { formError('ppMnErr', { message: 'This phone can’t share its location. Type the address.' }); return; }
+      geoBtn.disabled = true;
+      geoBtn.querySelector('strong').textContent = 'Finding where you are…';
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        geo = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        try {
+          const r = await postJson('/api/builder/geo', geo);
+          const place = r.data.place;
+          if (place && place.address) $('ppMnAddr').value = place.address;
+          geoBtn.querySelector('strong').textContent = place ? 'Address found' : 'Location found';
+          geoBtn.querySelector('small').textContent = place ? 'Check it and start measuring' : 'Type the street address';
+          geoBtn.classList.add('is-done');
+          const near = r.data.nearby || [];
+          $('ppMnNear').innerHTML = near.length ? `<div class="pp-match"><strong>Already measured here</strong>${near.map((m) => `<a class="pp-today-item" href="#measurements/${esc(m.id)}"><span class="pp-today-time">${icon('ruler')}</span><span class="pp-today-main"><strong>${esc(m.address)}</strong><small>${esc(countsText(m.counts))} · ${esc(fmtDayEn(m.updated_at))}</small></span>${measStatusChip(m)}</a>`).join('')}</div>` : '';
+        } catch (ex) {
+          formError('ppMnErr', ex);
+          geoBtn.querySelector('strong').textContent = 'Use my location';
+        }
+        geoBtn.disabled = false;
+      }, (err) => {
+        geoBtn.disabled = false;
+        geoBtn.querySelector('strong').textContent = 'Use my location';
+        formError('ppMnErr', { message: err && err.code === 1 ? 'Location is off for this site. Allow it in your browser settings, or type the address.' : 'Could not get your location. Type the address.' });
+      }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+    };
+    geoBtn.addEventListener('click', locate);
+    if (id === 'new' && navigator.geolocation && window.matchMedia('(max-width: 1023px)').matches) locate();
     $('ppMeasNew').addEventListener('submit', async (e) => {
       e.preventDefault();
       const err = $('ppMnErr');
@@ -2483,7 +2910,7 @@
       const btn = $('ppMnSave');
       btn.disabled = true;
       try {
-        const res = await postJson('/api/builder/measurements', { address: $('ppMnAddr').value.trim(), community: $('ppMnCom').value.trim(), lot: $('ppMnLot').value.trim() });
+        const res = await postJson('/api/builder/measurements', { address: $('ppMnAddr').value.trim(), ...(geo || {}) });
         location.hash = `#measurements/${res.data.id}`;
       } catch (ex) {
         err.textContent = ex.message || 'Could not create it.';
@@ -2510,7 +2937,7 @@
     m.saving = true;
     paintMeasSaved();
     try {
-      const r = await api(`/api/builder/measurements/${encodeURIComponent(m.id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: m.data, notes: m.notes || '', community: m.community || '', lot: m.lot || '' }) });
+      const r = await api(`/api/builder/measurements/${encodeURIComponent(m.id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: m.data, notes: m.notes || '' }) });
       m.updated_at = r.data.updated_at;
       m.log = r.data.log;
       m.saveError = '';
@@ -2889,8 +3316,6 @@
       <div class="pp-meas-layout">
         <div class="pp-meas-main">
           <div class="pp-card pp-meas-info">
-            <label><span>Community</span><input data-head="community" value="${esc(m.community || '')}" maxlength="120" ${locked ? 'disabled' : ''} /></label>
-            <label><span>Lot</span><input data-head="lot" value="${esc(m.lot || '')}" maxlength="20" ${locked ? 'disabled' : ''} /></label>
             <label class="pp-meas-info-wide"><span>General notes</span><input data-head="notes" value="${esc(m.notes || '')}" maxlength="2000" placeholder="e.g. access through the garage, concrete slab" ${locked ? 'disabled' : ''} /></label>
           </div>
           <div class="pp-seg pp-meas-tabs" role="tablist">
@@ -3413,7 +3838,7 @@
         ${item('#companies', 'Companies', activeCompanies().length ? `${activeCompanies().length} connected` : 'Connect or invite flooring companies')}
         ${canDo('measure') ? item('#measurements', 'Measurements', 'Stairs and vents measured on site') : ''}
         ${item('#team', 'Team', `${state.builder.account.name} · ${state.builder.member.role_label}`)}
-        ${canDo('team.manage') ? item('#settings', 'Settings', 'Company info and pickup locations') : ''}
+        ${item('#settings', 'Settings', canDo('team.manage') ? 'Profile, company, pickups and prices' : 'Your profile and the app')}
       </div>` : ''}
       <div class="pp-card" style="overflow:hidden">
         <div style="padding:14px 16px"><strong>${esc(state.user.name || '')}</strong><div class="pp-muted" style="font-size:13px">${esc(state.user.email || '')}${state.user.company_name ? ` · ${esc(state.user.company_name)}` : ''}</div></div>

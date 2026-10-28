@@ -3571,6 +3571,16 @@ model BuilderAccount {
   name        String
   phone       String?
   website     String?
+  /// Contact details (ObraBuilder › Settings)
+  email        String?
+  billingEmail String?
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  state        String?
+  postalCode   String?
+  licenseNumber String?
+  logoUrl      String?
   /// active | suspended
   status      String   @default("active")
   createdAt   DateTime @default(now())
@@ -3580,6 +3590,7 @@ model BuilderAccount {
   links       BuilderLink[]
   measurements BuilderMeasurement[]
   pickupLocations BuilderPickupLocation[]
+  priceItems  BuilderPriceItem[]
 }
 
 model BuilderMember {
@@ -3590,6 +3601,8 @@ model BuilderMember {
   name             String
   phone            String?
   passwordHash     String?
+  /// Job title shown on the team ("Superintendent", "Purchasing").
+  title            String?
   /// admin | manager | office | field
   role             String    @default("office")
   /// pending_email (sign-up not confirmed) | invited | active | disabled
@@ -3664,6 +3677,9 @@ model BuilderMeasurement {
   community           String?
   lot                 String?
   notes               String?
+  /// Where it was measured (phone location), to suggest it when the builder is on site again.
+  geoLat              Float?
+  geoLng              Float?
   /// { stairs: [...], vents: [...] } — see src/lib/builders/measurements.ts
   data                Json      @default("{}")
   /// draft | done | used
@@ -3701,4 +3717,23 @@ model BuilderPickupLocation {
   updatedAt        DateTime @updatedAt
 
   @@index([builderAccountId])
+}
+
+/// Prices the builder agreed with one flooring company (per service), used when sending work orders.
+model BuilderPriceItem {
+  id               String   @id @default(uuid()) @db.Uuid
+  builderAccountId String   @db.Uuid
+  account          BuilderAccount @relation(fields: [builderAccountId], references: [id], onDelete: Cascade)
+  builderLinkId    String   @db.Uuid
+  /// Service in the company's catalog this price is for (when linked).
+  pricingItemId    String?  @db.Uuid
+  name             String
+  /// sq_ft | linear_ft | step | each | hour | fixed
+  unit             String   @default("each")
+  price            Decimal  @db.Decimal(12, 2)
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([builderAccountId, builderLinkId])
 }

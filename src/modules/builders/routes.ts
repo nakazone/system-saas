@@ -19,6 +19,9 @@ import {
   keepPendingJob,
   linksFor,
   listMembers,
+  removeMember,
+  resendMemberInvite,
+  updateOwnProfile,
   listPendingJobs,
   loadActiveMember,
   loginBuilderMember,
@@ -34,6 +37,31 @@ import {
 import { can, permissionsFor, ROLE_LABELS, BUILDER_ROLES, type BuilderPermission } from "../../lib/builders/roles.js";
 import { deletePickup, listPickups, pickupForWorkOrder, savePickup } from "../../lib/builders/pickups.js";
 import { voiceToActions } from "../../lib/builders/voice.js";
+import { copyPrices, deletePrice, listPrices, savePrice } from "../../lib/builders/prices.js";
+import { storage } from "../../lib/storage/index.js";
+import { reverseGeocode } from "../../lib/payroll/geocode.js";
+
+function accountView(a: {
+  id: string; name: string; phone: string | null; website?: string | null; email?: string | null; billingEmail?: string | null;
+  addressLine1?: string | null; addressLine2?: string | null; city?: string | null; state?: string | null; postalCode?: string | null;
+  licenseNumber?: string | null; logoUrl?: string | null;
+}) {
+  return {
+    id: a.id,
+    name: a.name,
+    phone: a.phone,
+    website: a.website ?? null,
+    email: a.email ?? null,
+    billing_email: a.billingEmail ?? null,
+    address_line1: a.addressLine1 ?? null,
+    address_line2: a.addressLine2 ?? null,
+    city: a.city ?? null,
+    state: a.state ?? null,
+    postal_code: a.postalCode ?? null,
+    license_number: a.licenseNumber ?? null,
+    logo_url: a.logoUrl ?? null,
+  };
+}
 import {
   addPhoto,
   completeMeasurement,
@@ -41,6 +69,7 @@ import {
   deleteMeasurement,
   getMeasurement,
   listMeasurements,
+  nearbyMeasurements,
   findMeasurementForAddress,
   measurementPack,
   photoStream,
@@ -407,6 +436,22 @@ builderAccountRouter.post("/api/builder/measurements/:id/photos", requireBuilder
   }
 });
 
+/** Address at the phone's location (for a new measurement) and measurements already taken there. */
+builderAccountRouter.post("/api/builder/geo", requireBuilder, needs("measure"), async (req: BuilderReq, res, next) => {
+  try {
+    const lat = Number(req.body?.lat);
+    const lng = Number(req.body?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) throw new BuilderError(400, "Location not available.");
+    if (!(await takeRate([{ key: `builder-geo:${req.builderMember!.builderAccountId}`, max: 120, windowMs: HOUR }]))) {
+      throw new BuilderError(429, "Too many location lookups. Type the address.");
+    }
+    const [place, nearby] = await Promise.all([reverseGeocode(lat, lng).catch(() => null), nearbyMeasurements(req.builderMember!, lat, lng).catch(() => [])]);
+    res.json({ success: true, data: { place, nearby } });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
 builderAccountRouter.post("/api/builder/measurements/:id/voice", requireBuilder, needs("measure"), async (req: BuilderReq, res, next) => {
   try {
     const m = await getMeasurement(req.builderMember!, String(req.params.id));
@@ -464,7 +509,8 @@ builderAccountRouter.get("/api/builder/me", requireBuilder, async (req: BuilderR
       success: true,
       data: {
         member: { id: m.id, name: m.name, email: m.email, role: m.role, role_label: ROLE_LABELS[m.role as keyof typeof ROLE_LABELS]?.en || m.role },
-        account: { id: m.account.id, name: m.account.name, phone: m.account.phone, website: (m.account as { website?: string | null }).website ?? null },
+        member_profile: { phone: m.phone, title: (m as { title?: string | null }).title ?? null },
+        account: accountView(m.account),
         permissions: permissionsFor(m.role),
         companies: links,
         current_company_id: current?.id || null,
@@ -638,7 +684,7 @@ builderAccountRouter.post("/api/builder/read", requireBuilder, needs("jobs.send"
 
 builderAccountRouter.get("/api/builder/team", requireBuilder, async (req: BuilderReq, res, next) => {
   try {
-    res.json({ success: true, data: await listMembers(req.builderMember!.builderAccountId) });
+    res.json({ success: true, data: await listMembers(req.builderMember!.builderAccountId, req.query.all === "1" && can(req.builderMember!.role, "team.manage")) });
   } catch (error) {
     next(error);
   }
@@ -664,18 +710,131 @@ builderAccountRouter.patch("/api/builder/team/:id", requireBuilder, needs("team.
   }
 });
 
+builderAccountRouter.post("/api/builder/team/:id/resend", requireBuilder, needs("team.manage"), async (req: BuilderReq, res, next) => {
+  try {
+    res.json({ success: true, data: await resendMemberInvite(req.builderMember!, String(req.params.id)) });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
+builderAccountRouter.delete("/api/builder/team/:id", requireBuilder, needs("team.manage"), async (req: BuilderReq, res, next) => {
+  try {
+    res.json({ success: true, data: { result: await removeMember(req.builderMember!, String(req.params.id)) } });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
+builderAccountRouter.patch("/api/builder/me", requireBuilder, async (req: BuilderReq, res, next) => {
+  try {
+    await updateOwnProfile(req.builderMember!, req.body || {});
+    res.json({ success: true });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
 builderAccountRouter.patch("/api/builder/account", requireBuilder, needs("team.manage"), async (req: BuilderReq, res, next) => {
   try {
+    const opt = (max: number) => z.string().trim().max(max).optional().or(z.literal(""));
     const parsed = z.object({
       name: z.string().trim().min(2).max(120),
-      phone: z.string().trim().max(40).optional().or(z.literal("")),
-      website: z.string().trim().max(200).optional().or(z.literal("")),
+      phone: opt(40),
+      website: opt(200),
+      email: z.union([z.string().trim().toLowerCase().email().max(200), z.literal("")]).optional(),
+      billing_email: z.union([z.string().trim().toLowerCase().email().max(200), z.literal("")]).optional(),
+      address_line1: opt(200),
+      address_line2: opt(120),
+      city: opt(80),
+      state: opt(40),
+      postal_code: opt(20),
+      license_number: opt(80),
     }).safeParse(req.body || {});
-    if (!parsed.success) throw new BuilderError(400, "Enter the company name.");
+    if (!parsed.success) {
+      const bad = parsed.error.issues[0]?.path[0];
+      throw new BuilderError(400, bad === "name" ? "Enter the company name." : `Check the ${String(bad || "fields").replace(/_/g, " ")}.`);
+    }
+    const d = parsed.data;
+    const v = (x: string | undefined) => (x === undefined ? undefined : x || null);
     await prisma.builderAccount.update({
       where: { id: req.builderMember!.builderAccountId },
-      data: { name: parsed.data.name, phone: parsed.data.phone || null, ...(parsed.data.website !== undefined ? { website: parsed.data.website || null } : {}) },
+      data: {
+        name: d.name,
+        phone: d.phone || null,
+        website: v(d.website),
+        email: v(d.email),
+        billingEmail: v(d.billing_email),
+        addressLine1: v(d.address_line1),
+        addressLine2: v(d.address_line2),
+        city: v(d.city),
+        state: v(d.state),
+        postalCode: v(d.postal_code),
+        licenseNumber: v(d.license_number),
+      },
     });
+    res.json({ success: true });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
+const LOGO_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+builderAccountRouter.post("/api/builder/account/logo", requireBuilder, needs("team.manage"), async (req: BuilderReq, res, next) => {
+  try {
+    const raw = String(req.body?.data_url || "");
+    if (!raw) {
+      await prisma.builderAccount.update({ where: { id: req.builderMember!.builderAccountId }, data: { logoUrl: null } });
+      res.json({ success: true, data: { logo_url: null } });
+      return;
+    }
+    const m = /^data:([^;]+);base64,(.+)$/.exec(raw);
+    if (!m || !LOGO_TYPES.has(m[1]!.toLowerCase())) throw new BuilderError(400, "Use a PNG, JPG or WebP logo.");
+    const body = Buffer.from(m[2]!, "base64");
+    if (body.length > 2 * 1024 * 1024) throw new BuilderError(400, "The logo must be under 2 MB.");
+    const ok = (body[0] === 0xff && body[1] === 0xd8) || body.subarray(0, 8).toString("hex") === "89504e470d0a1a0a" || body.subarray(8, 12).toString("ascii") === "WEBP";
+    if (!ok) throw new BuilderError(400, "That file doesn’t look like an image.");
+    const stored = await storage.upload({ key: `builders/${req.builderMember!.builderAccountId}/logo-${Date.now()}`, body, contentType: m[1]!.toLowerCase() });
+    await prisma.builderAccount.update({ where: { id: req.builderMember!.builderAccountId }, data: { logoUrl: stored.url } });
+    res.json({ success: true, data: { logo_url: stored.url } });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
+/* ───────────────────────── agreed prices per company ───────────────────────── */
+
+builderAccountRouter.get("/api/builder/prices", requireBuilder, needs("money.view"), async (req: BuilderReq, res, next) => {
+  try {
+    res.json({ success: true, data: await listPrices(req.builderMember!.builderAccountId, typeof req.query.company === "string" ? req.query.company : undefined) });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+builderAccountRouter.post("/api/builder/prices", requireBuilder, needs("companies.manage"), async (req: BuilderReq, res, next) => {
+  try {
+    res.status(201).json({ success: true, data: await savePrice(req.builderMember!, null, req.body || {}) });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+builderAccountRouter.post("/api/builder/prices/copy", requireBuilder, needs("companies.manage"), async (req: BuilderReq, res, next) => {
+  try {
+    res.json({ success: true, data: { copied: await copyPrices(req.builderMember!, String(req.body?.from || ""), String(req.body?.to || "")) } });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+builderAccountRouter.patch("/api/builder/prices/:id", requireBuilder, needs("companies.manage"), async (req: BuilderReq, res, next) => {
+  try {
+    res.json({ success: true, data: await savePrice(req.builderMember!, String(req.params.id), req.body || {}) });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+builderAccountRouter.delete("/api/builder/prices/:id", requireBuilder, needs("companies.manage"), async (req: BuilderReq, res, next) => {
+  try {
+    await deletePrice(req.builderMember!, String(req.params.id));
     res.json({ success: true });
   } catch (error) {
     sendError(res, error, next);
