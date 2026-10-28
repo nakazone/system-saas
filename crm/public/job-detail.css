@@ -80,6 +80,10 @@
 .jd-step.is-cur small { color: var(--jd-ink); }
 .jd-step.is-canceled { color: #B4561A; }
 .jd-step.is-canceled i { border-color: #e7b3aa; }
+.jd-field-split { display: flex; gap: 3px; width: 84px; margin-top: 5px; }
+.jd-field-split b { flex: 1; height: 5px; border-radius: 3px; background: #E5E7EB; }
+.jd-field-split b.is-ok { background: var(--jd-terra, #E7792C); }
+.jd-field-split b.is-cur { background: var(--jd-ink, #221E1A); }
 .jd-step.is-btn { cursor: pointer; outline: none; }
 .jd-step.is-btn:focus-visible { box-shadow: 0 0 0 2px rgba(231,121,44,.35); border-radius: 8px; }
 

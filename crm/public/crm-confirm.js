@@ -99,9 +99,27 @@
     });
   }
 
-  /** Atalho tipado para concluir job — mesmo copy em lista, detalhe e mobile. */
-  crmConfirm.completeJob = function completeJob(jobLabel) {
+  /** Atalho tipado para concluir job — mesmo copy em lista, detalhe e mobile.
+   *  opts.sector "installation" | "sand" fecha só aquele setor. */
+  crmConfirm.completeJob = function completeJob(jobLabel, opts) {
     const name = String(jobLabel || "").trim();
+    const sector = opts && opts.sector;
+    if (sector === "installation") {
+      return crmConfirm({
+        title: name ? `Concluir instalação de “${name}”?` : "Concluir a instalação?",
+        text: "A instalação fica pronta. A lixa continua em aberto até você concluir esse setor.",
+        ok: "Concluir instalação",
+        cancel: "Voltar",
+      });
+    }
+    if (sector === "sand") {
+      return crmConfirm({
+        title: name ? `Concluir lixa de “${name}”?` : "Concluir a lixa?",
+        text: "A lixa fica pronta e o job passa para Concluído.",
+        ok: "Concluir lixa",
+        cancel: "Voltar",
+      });
+    }
     return crmConfirm({
       title: name ? `Concluir “${name}”?` : "Concluir este job?",
       text: "O job passa para Concluído e fica disponível para faturar o que ainda falta.",

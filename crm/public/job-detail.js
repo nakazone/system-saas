@@ -204,7 +204,10 @@
       if (undated) return { label: "Schedule Job", act: "edit" };
       if (!job.line_items?.length) return { label: "Adicionar serviços", act: "services" };
       if (job.status === "draft" || job.status === "scheduled") return { label: "Iniciar job", act: "start" };
-      if (job.status === "in_progress") return { label: "Concluir job", act: "complete" };
+      if (job.status === "in_progress") {
+        const nxt = window.JobsInfo?.nextFinish?.(job);
+        return { label: nxt ? nxt.label : "Concluir job", act: "complete" };
+      }
     }
     return null;
   }
@@ -235,14 +238,7 @@
     if (act === "services") return openSection("services");
     if (act === "schedule") return openSection("schedule");
     if (act === "start") return setStatus("in_progress", "Job iniciado.");
-    if (act === "complete") {
-      const label = job?.title || clientName();
-      const ok = window.crmConfirm?.completeJob
-        ? await window.crmConfirm.completeJob(label)
-        : confirm("Marcar o job como concluído?");
-      if (!ok) return;
-      return setStatus("completed", "Job concluído.");
-    }
+    if (act === "complete") return finishJob();
   }
   async function setStatus(status, msg) {
     const j = await api(`/api/work-orders/${jobId}`, { method: "PUT", body: JSON.stringify({ status }) });
@@ -252,19 +248,26 @@
     renderAll();
   }
 
+  async function finishJob() {
+    const J = window.JobsInfo;
+    const nxt = J?.nextFinish?.(job);
+    const label = job?.title || clientName();
+    const ok = window.crmConfirm?.completeJob
+      ? await window.crmConfirm.completeJob(label, nxt)
+      : confirm(nxt?.confirm || "Marcar o job como concluído?");
+    if (!ok) return;
+    return setStatus("completed", nxt?.toast || "Job concluído.");
+  }
   async function applyStep(idx) {
     if (!canManage || !job || job.status === "canceled" || Number.isNaN(idx)) return;
     const J = window.JobsInfo;
     const status = J?.statusForStep?.(idx);
     if (status) {
-      if (J.atStatus(job, status)) return;
-      if (status === "completed") {
-        const label = job.title || clientName();
-        const ok = window.crmConfirm?.completeJob
-          ? await window.crmConfirm.completeJob(label)
-          : confirm("Marcar o job como concluído?");
-        if (!ok) return;
+      if (status === "completed" || (status === "in_progress" && job.status === "in_progress" && J?.nextFinish?.(job))) {
+        await finishJob();
+        return;
       }
+      if (J.atStatus(job, status)) return;
       await setStatus(status, J.STATUS_STEP_MSG?.[status] || "Status atualizado.");
       return;
     }
@@ -293,12 +296,19 @@
       },
       {
         label: "Em campo",
-        sub:
-          inField
+        sub: (() => {
+          const p = window.JobsInfo?.sectorProgress?.(job);
+          if (p?.both && inField) {
+            if (!p.installation) return "Instalação em aberto";
+            if (!p.sand) return "Instalação feita · falta a lixa";
+          }
+          return inField
             ? field?.field_status_label || "em andamento"
             : field?.hours?.total
               ? `${qty(field.hours.total)} h registradas`
-              : "",
+              : "";
+        })(),
+        split: window.JobsInfo?.fieldHalves?.(job) || null,
         state: done ? "ok" : inField ? "cur" : "",
       },
       { label: "Concluído", sub: "", state: done ? "ok" : "" },
@@ -329,10 +339,23 @@
       .map((s, i) => {
         const st = J?.statusForStep?.(i);
         const clickable = canManage && (st || (i === 3 && canBill));
-        const tip = st ? `Mover para ${s.label}` : i === 3 ? "Faturar" : i === 4 ? "Pagamento nas faturas" : s.label;
+        const nxt = window.JobsInfo?.nextFinish?.(job);
+        const tip = st
+          ? i === 1 && nxt
+            ? nxt.label
+            : `Mover para ${s.label}`
+          : i === 3
+            ? "Faturar"
+            : i === 4
+              ? "Pagamento nas faturas"
+              : s.label;
+        const halves = s.split;
+        const bar = halves
+          ? `<span class="jd-field-split" aria-hidden="true"><b class="${s.state === "ok" ? "is-ok" : halves.inst === "d" ? "is-ok" : halves.inst === "n" ? "is-cur" : ""}"></b><b class="${s.state === "ok" ? "is-ok" : halves.sand === "d" ? "is-ok" : halves.sand === "n" ? "is-cur" : ""}"></b></span>`
+          : "";
         return `<li class="jd-step${s.state ? ` is-${s.state}` : ""}${clickable ? " is-btn" : ""}"${
           clickable ? ` role="button" tabindex="0" data-jd-step="${i}" title="${esc(tip)}" aria-label="${esc(tip)}"` : ""
-        }><i>${s.state === "ok" ? "✓" : i + 1}</i><span>${esc(s.label)}${s.sub ? `<small>${esc(s.sub)}</small>` : ""}</span></li>`;
+        }><i>${s.state === "ok" ? "✓" : i + 1}</i><span>${esc(s.label)}${s.sub ? `<small>${esc(s.sub)}</small>` : ""}${bar}</span></li>`;
       })
       .join("");
   }
@@ -496,13 +519,17 @@
         invs.length
           ? `<ul class="jd-invs">${invs
               .map(
-                (i) => `<li><a href="${esc(i.url)}"><span><b>${esc(i.invoice_number || "Fatura")}</b><small>${esc(i.invoice_type_label || "")}</small></span>
+                (i) => `<li><a href="invoices.html?id=${encodeURIComponent(i.id)}"><span><b>${esc(i.invoice_number || "Fatura")}</b><small>${esc(i.invoice_type_label || "")}</small></span>
                 <span class="jd-tag jd-tag--${esc(i.display_status)}">${esc(INV_ST[i.display_status] || i.display_status)}</span><span class="jd-invs__amt">${money0(i.amount)}</span></a></li>`,
               )
               .join("")}</ul>`
           : ""
       }
       ${(() => {
+        const viewBtns = (billing.data || [])
+          .filter((i) => i && i.id && i.status !== "void" && i.display_status !== "void")
+          .map((i) => `<a class="jd-btn jd-btn--block" href="invoices.html?id=${encodeURIComponent(i.id)}">Ver invoice${i.invoice_number ? ` ${esc(i.invoice_number)}` : ""}</a>`)
+          .join("");
         const canEmit = canInvoice && job.status !== "canceled" && b.remaining_to_invoice > 0.004 && b.billing_status !== "no_value";
         const invoiceBtn = canEmit
           ? `<button type="button" class="jd-btn jd-btn--pri jd-btn--block" data-primary="invoice">Emitir Invoice</button>`
@@ -511,7 +538,7 @@
           canManage && job.status !== "completed" && job.status !== "canceled"
             ? `<button type="button" class="jd-btn jd-btn--block" data-primary="complete">Marcar como concluído</button>`
             : "";
-        return invoiceBtn || completeBtn ? `<div class="jd-money-acts">${invoiceBtn}${completeBtn}</div>` : "";
+        return viewBtns || invoiceBtn || completeBtn ? `<div class="jd-money-acts">${viewBtns}${invoiceBtn}${completeBtn}</div>` : "";
       })()}`;
   }
 

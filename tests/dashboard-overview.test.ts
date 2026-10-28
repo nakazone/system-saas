@@ -320,6 +320,34 @@ describe("dashboard quote + invoice sections", () => {
     expect(days.every((d, i) => i < 2 || d.count === 0)).toBe(true);
   });
 
+  it("counts installation and sand as separate forecast visits", () => {
+    const both: WorkOrderRow = {
+      id: "both",
+      number: 8,
+      title: "Hill",
+      status: "scheduled",
+      fieldStatus: "scheduled",
+      scheduledStart: NOW,
+      scheduledEnd: new Date(NOW.getTime() + 4 * HOUR),
+      address: "1 Main",
+      customerName: null,
+      assigneeName: null,
+      crewName: null,
+      crewColor: null,
+      geoLat: null,
+      geoLng: null,
+      sector: "both",
+      installationStart: NOW,
+      sandScheduledStart: new Date(NOW.getTime() + DAY),
+    };
+    const days = buildJobsForecast([both], NOW, TZ, 7);
+    expect(days[0]!.count).toBe(1);
+    expect(days[0]!.jobs[0]!.title).toBe("Hill · Instalação");
+    expect(days[1]!.count).toBe(1);
+    expect(days[1]!.jobs[0]!.title).toBe("Hill · Lixa");
+    expect(days[1]!.jobs[0]!.id).toBe("both");
+  });
+
   it("uses the open balance (amount − receipts) and the org's today for overdue invoices", () => {
     const { receivables, attention } = buildInvoiceSection(
       [

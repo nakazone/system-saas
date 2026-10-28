@@ -144,6 +144,11 @@ export type WorkOrderRow = {
   crewColor: string | null;
   geoLat: number | null;
   geoLng: number | null;
+  /** Present on forecast rows. Omitted means the visit is scheduledStart only. */
+  sector?: string | null;
+  /** Installation start when it can differ from scheduledStart (null = no installation date). */
+  installationStart?: Date | null;
+  sandScheduledStart?: Date | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -777,20 +782,40 @@ export function buildJobsForecast(
     buckets.push({ date: zonedDateKey(dayStart, tz), count: 0, jobs: [] });
   }
   const byDate = new Map(buckets.map((b) => [b.date, b]));
-  const sorted = [...workOrders].sort((a, b) => a.scheduledStart.getTime() - b.scheduledStart.getTime());
-  for (const wo of sorted) {
-    const key = zonedDateKey(wo.scheduledStart, tz);
+  const slots: { wo: WorkOrderRow; start: Date; end: Date; title: string }[] = [];
+  for (const wo of workOrders) {
+    const sand = wo.sector === "both" && wo.sandScheduledStart ? wo.sandScheduledStart : null;
+    const inst = wo.installationStart !== undefined ? wo.installationStart : wo.scheduledStart;
+    if (inst) {
+      const end =
+        wo.scheduledEnd && (wo.installationStart === undefined || wo.scheduledStart)
+          ? wo.scheduledEnd
+          : inst;
+      slots.push({
+        wo,
+        start: inst,
+        end,
+        title: sand ? `${wo.title} · Instalação` : wo.title,
+      });
+    }
+    if (sand) {
+      slots.push({ wo, start: sand, end: sand, title: `${wo.title} · Lixa` });
+    }
+  }
+  slots.sort((a, b) => a.start.getTime() - b.start.getTime());
+  for (const slot of slots) {
+    const key = zonedDateKey(slot.start, tz);
     const bucket = byDate.get(key);
     if (!bucket) continue;
     bucket.count += 1;
     bucket.jobs.push({
-      id: wo.id,
-      title: wo.title,
-      start: wo.scheduledStart.toISOString(),
-      end: wo.scheduledEnd.toISOString(),
-      person: wo.crewName || wo.assigneeName || null,
-      address: wo.address,
-      href: `job-detail.html?id=${encodeURIComponent(wo.id)}`,
+      id: slot.wo.id,
+      title: slot.title,
+      start: slot.start.toISOString(),
+      end: slot.end.toISOString(),
+      person: slot.wo.crewName || slot.wo.assigneeName || null,
+      address: slot.wo.address,
+      href: `job-detail.html?id=${encodeURIComponent(slot.wo.id)}`,
     });
   }
   return buckets;
@@ -1049,7 +1074,10 @@ export async function loadDashboardOverview(
       tx.workOrder.findMany({
         where: {
           status: { not: "canceled" },
-          scheduledStart: { not: null, gte: todayStart, lt: forecastEnd },
+          OR: [
+            { scheduledStart: { not: null, gte: todayStart, lt: forecastEnd } },
+            { sector: "both", sandScheduledStart: { not: null, gte: todayStart, lt: forecastEnd } },
+          ],
         },
         orderBy: { scheduledStart: "asc" },
         select: {
@@ -1058,8 +1086,10 @@ export async function loadDashboardOverview(
           title: true,
           status: true,
           fieldStatus: true,
+          sector: true,
           scheduledStart: true,
           scheduledEnd: true,
+          sandScheduledStart: true,
           address: true,
           geoLat: true,
           geoLng: true,
@@ -1163,7 +1193,20 @@ export async function loadDashboardOverview(
       }
     }
     overview.today_events = todayEvents;
-    overview.jobs_forecast = buildJobsForecast(workOrdersForecast.map(mapWo), now, tz);
+    overview.jobs_forecast = buildJobsForecast(
+      workOrdersForecast.map((wo) => ({
+        ...mapWo({
+          ...wo,
+          scheduledStart: wo.scheduledStart ?? wo.sandScheduledStart,
+          scheduledEnd: wo.scheduledEnd ?? wo.scheduledStart ?? wo.sandScheduledStart,
+        }),
+        sector: wo.sector,
+        installationStart: wo.scheduledStart,
+        sandScheduledStart: wo.sandScheduledStart,
+      })),
+      now,
+      tz,
+    );
   }
 
   const ranked = rankAttention(attention);
