@@ -911,7 +911,7 @@ partnerPortalRouter.post("/api/partner-portal/requests/read", requirePartnerAuth
     const catalog = await withTenantTransaction(user.organizationId, (tx) => tx.pricingItem.findMany({
       where: { organizationId: user.organizationId, active: true },
       orderBy: [{ category: "asc" }, { sortOrder: "asc" }, { name: "asc" }],
-      select: { id: true, name: true, unit: true, category: true },
+      select: { id: true, name: true, unit: true, category: true, priceBuilder: true, partnerPrice: true, price: true },
       take: 200,
     }));
     const read = await readWorkOrder({ files, text: parsed.data.text, catalog });
@@ -952,7 +952,13 @@ partnerPortalRouter.post("/api/partner-portal/requests/read", requirePartnerAuth
         fields: read.result.fields,
         items: read.result.items,
         labor_total: read.result.labor_total,
-        catalog: catalog.map((c) => ({ id: c.id, name: c.name, unit: c.unit, category: c.category })),
+        catalog: catalog.map((c) => ({
+          id: c.id,
+          name: c.name,
+          unit: c.unit,
+          category: c.category,
+          price: partnerCan(req, "money.view") ? Number(c.priceBuilder) || Number(c.partnerPrice ?? 0) || Number(c.price) || 0 : null,
+        })),
         check: read.result.check,
         warnings: read.result.warnings,
         match,
