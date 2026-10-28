@@ -5,7 +5,7 @@ import { notesWithLockbox, jobEditSchema } from "../src/lib/builders/job-edit.js
 describe("builder roles", () => {
   it("gives admins every permission and field only viewing", () => {
     expect(permissionsFor("admin")).toEqual(expect.arrayContaining(["jobs.view", "jobs.send", "jobs.edit", "money.view", "companies.manage", "team.manage"]));
-    expect(permissionsFor("field")).toEqual(["jobs.view"]);
+    expect(permissionsFor("field")).toEqual(["jobs.view", "measure"]);
   });
   it("keeps team management with admins only", () => {
     expect(can("manager", "team.manage")).toBe(false);

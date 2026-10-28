@@ -450,6 +450,12 @@ export async function markMeasurementUsed(accountId: string, measurementId: stri
 
 /* ───────────────────────────── PDF ───────────────────────────── */
 
+/** PDF fonts have no ⅛-style glyphs: "11¼" → "11-1/4". */
+function ascii(text: string): string {
+  const map: Record<string, string> = { "¼": "1/4", "½": "1/2", "¾": "3/4", "⅛": "1/8", "⅜": "3/8", "⅝": "5/8", "⅞": "7/8", "⅓": "1/3", "⅔": "2/3" };
+  return text.replace(/(\d)?([¼½¾⅛⅜⅝⅞⅓⅔])/g, (_m, d: string | undefined, f: string) => `${d ? `${d}-` : ""}${map[f]}`);
+}
+
 export async function measurementPdf(m: { builder: string; address: string; community: string | null; lot: string | null; notes: string | null; data: MeasurementData; measuredBy: string; measuredAt: Date | null }): Promise<Buffer> {
   const doc = new PDFDocument({ size: "LETTER", margin: 40 });
   const chunks: Buffer[] = [];
@@ -474,11 +480,14 @@ export async function measurementPdf(m: { builder: string; address: string; comm
   doc.font("Helvetica-Bold").fontSize(11).fillColor(ink).text("Resumo");
   doc.moveDown(0.2);
   for (const l of summarize(m.data)) {
-    ensure(16);
+    const t = ascii(l.text);
+    doc.font("Helvetica").fontSize(9.5);
+    const h = doc.heightOfString(t, { width: W - 70 });
+    ensure(h + 6);
     const y = doc.y;
-    doc.font("Helvetica").fontSize(9.5).fillColor(ink).text(l.text, 40, y, { width: W - 70 });
+    doc.fillColor(ink).text(t, 40, y, { width: W - 70 });
     doc.font("Helvetica-Bold").text(`${l.qty} ${l.uom}`, 40 + W - 60, y, { width: 60, align: "right" });
-    doc.moveDown(0.15);
+    doc.y = y + h + 5;
   }
   doc.moveDown(0.6);
 
@@ -490,33 +499,35 @@ export async function measurementPdf(m: { builder: string; address: string; comm
     doc.font("Helvetica").fontSize(9).fillColor(muted).text([s.species, s.finish, s.color, s.riser_material === "primed" ? "risers primed" : s.riser_material === "paint_grade" ? "risers paint grade" : s.riser_material === "none" ? "sem risers" : ""].filter(Boolean).join(" · ") || "—");
     if (s.note) doc.fillColor(ink).text(s.note, { width: W });
     doc.moveDown(0.3);
-    const cols = [40, 70, 190, 310, 440];
+    const cols = [40, 66, 170, 274, 470];
     const head = ["#", "Tread (L × P)", "Riser (L × A)", "Lados", "Obs."];
     ensure(14);
     let y = doc.y;
     doc.font("Helvetica-Bold").fontSize(8).fillColor(muted);
     head.forEach((h, i) => doc.text(h, cols[i]!, y, { width: (cols[i + 1] ?? 40 + W) - cols[i]! - 4 }));
-    doc.moveDown(0.2);
+    doc.y = y + 14;
     s.steps.forEach((st, i) => {
-      ensure(14);
       y = doc.y;
       doc.font("Helvetica").fontSize(9).fillColor(ink);
-      const cells = [
+      const raw = [
         String(i + 1),
         st.tread_w || st.tread_d ? `${fmtInches(st.tread_w)}" × ${fmtInches(st.tread_d)}"` : "—",
         st.no_riser || s.riser_material === "none" ? "sem riser" : st.riser_w || st.riser_h ? `${fmtInches(st.riser_w)}" × ${fmtInches(st.riser_h)}"` : "—",
         openLabel(st.open, st.ret),
         st.note || "",
       ];
-      cells.forEach((c, j) => doc.text(c, cols[j]!, y, { width: (cols[j + 1] ?? 40 + W) - cols[j]! - 4 }));
-      doc.moveDown(0.1);
+      const cells = raw.map(ascii);
+      const h = Math.max(12, ...cells.map((c, j) => doc.heightOfString(c || " ", { width: (cols[j + 1] ?? 40 + W) - cols[j]! - 4 })));
+      if (y + h > doc.page.height - 50) { doc.addPage(); y = doc.y; }
+      cells.forEach((c, j) => { if (c) doc.text(c, cols[j]!, y, { width: (cols[j + 1] ?? 40 + W) - cols[j]! - 4 }); });
+      doc.y = y + h + 3;
     });
     if (s.nosings.length) {
       doc.moveDown(0.3);
       doc.font("Helvetica-Bold").fontSize(9).fillColor(ink).text("Nosings", 40);
       for (const n of s.nosings) {
         ensure(12);
-        doc.font("Helvetica").fontSize(9).text(`${n.qty || 1} × ${fmtInches(n.length)}" · ${n.type === "overlap" ? "overlap" : n.type === "stair_nose" ? "stair nose" : "flush"}${n.note ? ` · ${n.note}` : ""}`, 50);
+        doc.font("Helvetica").fontSize(9).text(ascii(`${n.qty || 1} × ${fmtInches(n.length)}" · ${n.type === "overlap" ? "overlap" : n.type === "stair_nose" ? "stair nose" : "flush"}${n.note ? ` · ${n.note}` : ""}`), 50);
       }
     }
     doc.moveDown(0.6);

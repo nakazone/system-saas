@@ -1002,6 +1002,8 @@
         s.fields = Object.assign(emptyFields(), data.fields || {});
         s.items = (data.items || []).map((it) => ({ ...it, create_service: true, remove: false }));
         s.catalog = data.catalog || [];
+        s.measurement = data.measurement || null;
+        s.useMeasurement = Boolean(s.measurement && s.measurement.status !== 'used');
         s.laborTotal = data.labor_total == null ? null : Number(data.labor_total);
         s.check = data.check || [];
         s.warnings = data.warnings || [];
@@ -1251,6 +1253,7 @@
           </div>
         </form>
       </div>
+      ${measurementBanner(s)}
       <div class="pp-card pp-q-card">${itemsEditor(s)}</div>
       <div class="pp-card pp-q-send">
         <p class="pp-error" id="ppReqError" role="alert" hidden></p>
@@ -1292,6 +1295,22 @@
     new: '<span class="pp-q-badge pp-q-badge--new">novo no cadastro</span>',
     none: '<span class="pp-q-badge">só neste job</span>',
   };
+
+  /** The builder's own measurement for this address, sent with the job (PDF, photos, sizes). */
+  function measurementBanner(s) {
+    const m = s.measurement;
+    if (!state.builder || !m) return '';
+    const lines = (m.summary || []).slice(0, 8);
+    return `<section class="pp-card pp-meas-hit ${s.useMeasurement ? 'is-on' : ''}" aria-labelledby="ppMeasHitT">
+      <div class="pp-meas-hit-head">
+        <div><span class="pp-lbl">Medição encontrada para este endereço</span><h3 id="ppMeasHitT">${esc(m.address)}</h3>
+          <p class="pp-muted">${esc(countsText(m.counts || {}))} · medido por ${esc(m.measured_by || '—')} em ${esc(fmtDay(m.measured_at))}${m.status === 'used' ? ' · <span class="pp-late">já enviada em outro job</span>' : m.status === 'draft' ? ' · ainda em andamento' : ''}</p></div>
+        <a class="pp-btn pp-btn--sec pp-btn--sm" href="#medicoes/${esc(m.id)}" target="_blank" rel="noopener">Ver medição</a>
+      </div>
+      ${lines.length ? `<ul class="pp-meas-sum pp-meas-sum--compact">${lines.map((l) => `<li><span>${esc(l.text)}</span><em>${esc(l.qty)} ${esc(l.uom)}</em></li>`).join('')}${(m.summary || []).length > lines.length ? `<li class="pp-muted">+ ${(m.summary || []).length - lines.length} itens</li>` : ''}</ul>` : ''}
+      <label class="pp-meas-use"><input type="checkbox" id="ppUseMeas" ${s.useMeasurement ? 'checked' : ''} /> <span>Enviar a medição com este job — PDF, fotos e as medidas nas linhas de treads, risers, nosings e vents</span></label>
+    </section>`;
+  }
 
   /** Services of the order, laid out like the quote's items: name, qty, unit, price, total. */
   function itemsEditor(s) {
@@ -1513,6 +1532,23 @@
     $('ppDiscard').addEventListener('click', discard);
     view.querySelectorAll('[data-discard]').forEach((b) => b.addEventListener('click', discard));
     bindItems();
+    const use = $('ppUseMeas');
+    if (use) use.addEventListener('change', () => { s.useMeasurement = use.checked; use.closest('.pp-meas-hit').classList.toggle('is-on', use.checked); });
+    const addrEl = $('ppF-address');
+    if (addrEl && state.builder) addrEl.addEventListener('blur', async () => {
+      const a = addrEl.value.trim();
+      if (a.length < 6 || a === s.measuredLookup) return;
+      s.measuredLookup = a;
+      try {
+        const r = await api(`/api/builder/measurements/match?address=${encodeURIComponent(a)}`);
+        const found = r.data;
+        if (found && (!s.measurement || s.measurement.id !== found.id)) {
+          s.measurement = found;
+          s.useMeasurement = found.status !== 'used';
+          renderSendBody();
+        }
+      } catch (_) { /* no measurement lookup */ }
+    });
     $('ppReqForm').addEventListener('submit', (e) => { e.preventDefault(); submitRequest(); });
     view.querySelectorAll('[data-submit]').forEach((b) => b.addEventListener('click', submitRequest));
   }
@@ -1552,6 +1588,7 @@
           files: s.files.map((x) => ({ name: x.name, data_url: x.dataUrl })),
           items: itemsPayload(s),
           pickup: (f.pickup || '').trim().slice(0, 200),
+          measurement_id: s.measurement && s.useMeasurement ? s.measurement.id : '',
         });
         s.files.forEach((x) => x.url && URL.revokeObjectURL(x.url));
         s.sent = { kept: true };
@@ -1572,7 +1609,7 @@
         external_ref: f.external_ref.trim().slice(0, 60),
         target_job_id: update ? s.match.id : '',
         files: s.files.map((x) => ({ name: x.name, data_url: x.dataUrl })),
-        intake: { source: s.ai ? 'ai' : 'manual', fields_checked: s.check, ...(s.model ? { model: s.model.slice(0, 80) } : {}), items: itemsPayload(s), labor_total: s.laborTotal, pickup: (f.pickup || '').trim().slice(0, 200) },
+        intake: { source: s.ai ? 'ai' : 'manual', fields_checked: s.check, ...(s.model ? { model: s.model.slice(0, 80) } : {}), items: itemsPayload(s), labor_total: s.laborTotal, pickup: (f.pickup || '').trim().slice(0, 200), ...(s.measurement && s.useMeasurement ? { measurement_id: s.measurement.id } : {}) },
       }, state.builder ? sendCo().id : undefined);
       s.files.forEach((x) => x.url && URL.revokeObjectURL(x.url));
       s.sent = { update: Boolean(update), jobId: sent.data && sent.data.job_id, direct: Boolean(sent.data && sent.data.status === 'accepted') };
@@ -2064,8 +2101,8 @@
   const SPECIES = ['White Oak', 'Red Oak', 'Hickory', 'Maple', 'Walnut', 'Ash', 'Brazilian Cherry'];
   const FINISHES = ['Unfinished (acabamento no local)', 'Prefinished', 'Primed'];
   const VENT_SIZES = ['2x10', '2x12', '3x10', '3x12', '4x10', '4x12', '4x14', '6x10', '6x12'];
-  const OPEN_OPTS = [['none', 'Fechado'], ['left', 'Esquerdo aberto'], ['right', 'Direito aberto'], ['both', 'Os dois abertos']];
-  const RET_OPTS = [['45', 'Retorno 45°'], ['flat', 'Retorno reto (flat)'], ['bullnose', 'Bullnose']];
+  const OPEN_OPTS = [['none', 'Fechado'], ['left', 'Esq. aberto'], ['right', 'Dir. aberto'], ['both', 'Ambos abertos']];
+  const RET_OPTS = [['45', '45° (mitered)'], ['flat', 'Flat'], ['bullnose', 'Bullnose']];
   const VENT_TYPES = [['flush', 'Flush mount'], ['self_rimming', 'Self-rimming (drop-in)'], ['return_air', 'Return air']];
   const RISER_OPTS = [['same', 'Mesma madeira'], ['primed', 'Primed'], ['paint_grade', 'Paint grade'], ['none', 'Sem riser']];
   const FRAC = { '¼': 0.25, '½': 0.5, '¾': 0.75, '⅛': 0.125, '⅜': 0.375, '⅝': 0.625, '⅞': 0.875 };
@@ -2133,7 +2170,7 @@
     return { stairs: (data.stairs || []).length, treads, risers, nosings, vents };
   }
   function countsText(c) {
-    return [c.stairs ? plural(c.stairs, 'escada', 'escadas') : '', c.treads ? `${c.treads} treads` : '', c.risers ? `${c.risers} risers` : '', c.nosings ? `${c.nosings} nosings` : '', c.vents ? plural(c.vents, 'vent', 'vents') : ''].filter(Boolean).join(' · ') || 'Nada medido ainda';
+    return [c.stairs ? plural(c.stairs, 'escada', 'escadas') : '', c.treads ? `${c.treads} treads` : '', c.risers ? `${c.risers} risers` : '', c.nosings ? plural(c.nosings, 'nosing', 'nosings') : '', c.vents ? plural(c.vents, 'vent', 'vents') : ''].filter(Boolean).join(' · ') || 'Nada medido ainda';
   }
   function measStatusChip(m) {
     if (m.status === 'used') return '<span class="pp-chip pp-chip--dark">Enviada no job</span>';
@@ -2290,8 +2327,8 @@
         <label><span>Cor / stain</span><input data-txt="${p}.color" value="${esc(s.color)}" maxlength="80" placeholder="Ex.: Natural, Jacobean" ${locked ? 'disabled' : ''} /></label>
         <label><span>Risers</span>${sel(RISER_OPTS, s.riser_material, `data-set="${p}.riser_material" ${locked ? 'disabled' : ''}`)}</label>
       </div>
-      <div class="pp-steps-head" aria-hidden="true"><span>#</span><span>Tread (larg. × prof.)</span><span>Riser (larg. × alt.)</span><span>Lado aberto</span><span>Retorno</span><span></span></div>
-      <div class="pp-steps" role="list">${steps || '<p class="pp-q-empty">Adicione o primeiro degrau. Medidas em polegadas: 48, 11 1/4, 11¼ ou 11.25.</p>'}</div>
+      <div class="pp-stair-cols" aria-hidden="true"><span>#</span><span>Tread (larg. × prof.)</span><span>Riser (larg. × alt.)</span><span>Lado aberto</span><span>Retorno</span><span></span></div>
+      <div class="pp-stair-steps" role="list">${steps || '<p class="pp-q-empty">Adicione o primeiro degrau. Medidas em polegadas: 48, 11 1/4, 11¼ ou 11.25.</p>'}</div>
       ${locked ? '' : `<div class="pp-stair-add">
         <button type="button" class="pp-q-add" data-step-add="${si}">+ Degrau${(s.steps || []).length ? ' (igual ao último)' : ''}</button>
         ${(s.steps || []).length ? `<span class="pp-stair-many"><label for="ppMany-${si}">Mais</label><input id="ppMany-${si}" type="number" min="1" max="40" value="5" /><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-step-many="${si}">degraus iguais</button></span>` : ''}

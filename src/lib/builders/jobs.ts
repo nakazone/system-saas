@@ -47,7 +47,13 @@ export function measuredFor(line: { description: string; detail: string; service
   const t = `${line.description} ${line.detail} ${line.service_name || ""}`.toLowerCase();
   const kind = /\briser/.test(t) ? "riser" : /\btread|\bstair/.test(t) ? "tread" : /nos(e|ing)/.test(t) ? "nosing" : /\bvent/.test(t) ? "vent" : "";
   if (!kind) return "";
-  const pick = lines.filter((l) => l.kind === kind);
+  let pick = lines.filter((l) => l.kind === kind);
+  // A line that names its width ("48\" tread") only gets the pieces of that width.
+  const width = /(\d{2,3}(?:\.\d+)?)\s*(?:"|”|''|in\b|inch)/i.exec(`${line.description} ${line.detail}`)?.[1];
+  if (width && (kind === "tread" || kind === "riser")) {
+    const same = pick.filter((l) => new RegExp(`(^|\\s)${width.replace(".", "\\.")}\\D?\\s*×`).test(l.text));
+    if (same.length) pick = same;
+  }
   if (!pick.length) return "";
   return `Medido: ${pick.map((l) => `${l.text.replace(/^.*? · (Tread|Riser|Nosing) /, "")} (${l.qty})`).join("; ")}`;
 }
