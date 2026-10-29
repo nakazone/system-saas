@@ -4679,7 +4679,7 @@
   function openMenu(open) {
     const menu = $('ppMenu');
     menu.hidden = !open;
-    $('ppAvatar').setAttribute('aria-expanded', open ? 'true' : 'false');
+    $('ppChip').setAttribute('aria-expanded', open ? 'true' : 'false');
     if (open) window.scrollTo({ top: 0 });
   }
   async function logout() {
@@ -4690,8 +4690,6 @@
   function renderPassword() {
     $('ppDock').hidden = true;
     $('ppTabs').hidden = true;
-    $('ppSideNav').hidden = true;
-    document.body.classList.remove('pp-has-side');
     $('ppSearchFab').hidden = true;
     view.innerHTML = `
       <div class="pp-head"><div><p class="pp-eyebrow">First sign-in</p><h1>Create your password</h1></div></div>
@@ -4737,11 +4735,12 @@
   }
 
   function bindShell() {
-    $('ppAvatar').addEventListener('click', (e) => { e.stopPropagation(); openMenu($('ppMenu').hidden); });
+    $('ppChip').addEventListener('click', (e) => { e.stopPropagation(); openMenu($('ppMenu').hidden); });
     document.addEventListener('click', (e) => { if (!$('ppMenu').hidden && !e.target.closest('#ppMenu')) openMenu(false); });
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') { openMenu(false); $('ppSearchSheet').hidden = true; }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); $('ppSearch').focus(); }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j' && !$('ppMateBtn').hidden) { e.preventDefault(); openMate(); }
     });
     $('ppLogout').addEventListener('click', logout);
     $('ppMateBtn').addEventListener('click', () => openMate());
@@ -4794,15 +4793,15 @@
     if (state.user.builder_account) {
       await loadMe();
       $('ppAvatar').textContent = initials(state.user.name || state.user.email);
-      $('ppAvatar').setAttribute('aria-label', `Account: ${state.user.name || state.user.email || ''}`);
+      $('ppChip').setAttribute('aria-label', `Account: ${state.user.name || state.user.email || ''}`);
+      $('ppChipName').textContent = state.user.name || state.user.email || '';
+      $('ppChipRole').textContent = state.builder.member.role_label || '';
       $('ppUserName').textContent = state.user.name || '';
       $('ppUserEmail').textContent = [state.user.email, `${state.builder.account.name} · ${state.builder.member.role_label}`].join(' · ');
       paintShell();
       if (typeof window.sfBootCrmAddressAutocomplete === 'function') window.sfBootCrmAddressAutocomplete();
       $('ppDock').hidden = false;
       $('ppTabs').hidden = false;
-      $('ppSideNav').hidden = false;
-      document.body.classList.add('pp-has-side');
       $('ppSearchFab').hidden = false;
       if (!location.hash && !activeCompanies().length) location.hash = '#companies';
       await refreshOverview().catch(() => {});
@@ -4818,7 +4817,9 @@
     $('ppBrandSub').textContent = `Company: ${prov}`;
     $('ppMark').textContent = initials(builderName);
     $('ppAvatar').textContent = initials(state.user.name || state.user.email);
-    $('ppAvatar').setAttribute('aria-label', `Account: ${state.user.name || state.user.email || ''}`);
+    $('ppChip').setAttribute('aria-label', `Account: ${state.user.name || state.user.email || ''}`);
+    $('ppChipName').textContent = state.user.name || state.user.email || '';
+    $('ppChipRole').textContent = prov || '';
     $('ppUserName').textContent = state.user.name || '';
     $('ppUserEmail').textContent = [state.user.email, state.user.company_name].filter(Boolean).join(' · ');
     $('ppProviderTools').hidden = state.providers.length < 2;
@@ -4831,8 +4832,6 @@
     if (typeof window.sfBootCrmAddressAutocomplete === 'function') window.sfBootCrmAddressAutocomplete();
     $('ppDock').hidden = false;
     $('ppTabs').hidden = false;
-    $('ppSideNav').hidden = false;
-    document.body.classList.add('pp-has-side');
     $('ppSearchFab').hidden = false;
     const overview = await api('/api/partner-portal/overview');
     const data = overview.data || {};

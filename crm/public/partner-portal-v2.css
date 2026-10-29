@@ -1689,43 +1689,6 @@ body.pp-sheet-open { overflow: hidden; }
   .pp-meas-layout--stairs .pp-viz-box[data-viz-box="3d"] > svg { max-height: 230px !important; }
 }
 
-/* ═══════════ Navigation: sidebar on desktop/tablet (the floating dock covered content) ═══════════ */
-.pp-sidenav { display: none; }
-@media (min-width: 768px) {
-  body.pp-has-side .pp-dock { display: none !important; }
-  .pp-sidenav:not([hidden]) {
-    display: block; position: fixed; z-index: 25; left: 0; top: 65px; bottom: 0; width: 232px;
-    padding: 14px 12px 24px; overflow-y: auto; background: #FFFFFF; border-right: 1px solid var(--pp-border);
-  }
-  .pp-sidenav nav { display: grid; gap: 2px; }
-  .pp-sn { position: relative; display: flex; align-items: center; gap: 12px; min-height: 42px; padding: 0 12px; border-radius: 12px; text-decoration: none !important; color: var(--pp-muted); font-weight: 500; font-size: 15px; transition: background-color 160ms ease, color 160ms ease, transform 140ms var(--pp-ease-out); }
-  .pp-sn svg { width: 21px; height: 21px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-  .pp-sn[hidden] { display: none !important; }
-  .pp-sn:active { transform: scale(.98); }
-  .pp-sn[aria-current="page"] { background: var(--pp-ink); color: #FFFFFF; font-weight: 600; }
-  .pp-sn[aria-current="page"] svg { color: var(--pp-orange); }
-  .pp-sn .pp-count { position: absolute; left: 26px; top: 5px; right: auto; }
-  .pp-sn-group { display: block; margin: 16px 12px 6px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #98A2B3; }
-  @media (hover: hover) and (pointer: fine) { .pp-sn:not([aria-current="page"]):hover { background: var(--pp-surface); color: var(--pp-ink); } }
-  body.pp-has-side .pp-wrap { margin-left: 232px; padding-bottom: 48px; }
-  body.pp-has-side .pp-top-in { max-width: none; }
-}
-/* Tablet: icon rail with small labels. */
-@media (min-width: 768px) and (max-width: 1180px) {
-  .pp-sidenav:not([hidden]) { width: 88px; padding: 10px 8px; }
-  .pp-sn { flex-direction: column; justify-content: center; gap: 4px; min-height: 60px; padding: 6px 2px; font-size: 11px; text-align: center; }
-  .pp-sn span { line-height: 1.15; }
-  .pp-sn .pp-count { left: 50%; top: 2px; margin-left: 6px; }
-  .pp-sn-group { margin: 10px 0 4px; height: 1px; overflow: hidden; color: transparent; background: var(--pp-border); }
-  body.pp-has-side .pp-wrap { margin-left: 88px; --pp-pad: 20px; }
-}
-@media (min-width: 768px) {
-  /* Fixed bars that used to sit over the dock move up with it gone. */
-  body.pp-has-side .pp-voice { bottom: 24px; }
-  body.pp-has-side .pp-toast { bottom: 24px; left: calc(50% + 116px); }
-}
-@media (min-width: 768px) and (max-width: 1180px) { body.pp-has-side .pp-toast { left: calc(50% + 44px); } }
-
 /* ── Get set up (compact) ─────────────────────────── */
 .pp-setup2 { position: relative; display: flex; gap: 18px; align-items: center; padding: 16px 20px; overflow: hidden; background: linear-gradient(120deg, #FFF4EA 0%, #FFFFFF 58%); border-color: #F3D9C6; }
 .pp-setup2-art { width: 104px; height: 120px; object-fit: contain; object-position: bottom; flex: none; align-self: flex-end; margin: -6px 0 -16px; }
@@ -1774,7 +1737,6 @@ body.pp-sheet-open { overflow: hidden; }
 button.pp-set-out { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 48px; border: 1px solid var(--pp-border); border-radius: var(--pp-radius, 16px); background: var(--pp-card, #fff); color: var(--pp-late, #c2410c); font: inherit; font-weight: 600; font-size: 15px; cursor: pointer; }
 button.pp-set-out svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 button.pp-set-out:hover { background: var(--pp-bg); }
-@media (min-width: 1181px) { body.pp-has-side .pp-sn .pp-count { left: auto; right: 12px; top: 50%; transform: translateY(-50%); } }
 
 /* Phone tab bar: solid pill + soft scrim so content doesn't bleed through the labels */
 @media (max-width: 767px) {
@@ -1790,4 +1752,89 @@ button.pp-set-out:hover { background: var(--pp-bg); }
   .pp-install-banner span { display: none; }
   .pp-install-banner strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
   .pp-install-banner > div { min-width: 0; }
+}
+
+/* ═══════════ Shell = ObraMate shell (top bar, floating module dock, phone tab bar) ═══════════ */
+.pp-uchip { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 10px 0 4px; border-radius: 999px; border: 1px solid transparent; background: transparent; cursor: pointer; color: var(--pp-ink); transition: background 150ms ease, border-color 150ms ease; }
+.pp-uchip:hover, .pp-uchip[aria-expanded="true"] { background: #FFFFFF; border-color: var(--pp-border); }
+.pp-uchip .pp-avatar { width: 30px; height: 30px; border-radius: 999px; background: var(--pp-ink); color: #FFFFFF; display: grid; place-items: center; font-size: 10px; font-weight: 700; letter-spacing: .02em; flex: none; }
+.pp-uchip-txt { display: grid; text-align: left; line-height: 1.15; max-width: 150px; }
+.pp-uchip-txt > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#ppChipName { font-size: 11.5px; font-weight: 700; }
+#ppChipRole { font-size: 9.5px; font-weight: 500; color: #98A2B3; }
+.pp-mate-txt, .pp-mate-btn .pp-kbd { display: none; }
+
+@media (min-width: 768px) {
+  .pp-top { background: rgba(247, 248, 250, .9); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border-bottom: 1px solid var(--pp-border); }
+  .pp-top-in { max-width: none; height: 56px; padding: 0 32px; gap: 14px; }
+  .pp-brand { margin-right: auto; }
+  .pp-mark { width: 34px; height: 34px; }
+  .pp-brand-text strong { font-size: 14px; font-weight: 700; }
+  .pp-brand-text span { font-size: 11px; color: #98A2B3; }
+  /* Ask Mate pill, like "Peça ao Mate…" */
+  .pp-mate-btn:not([hidden]) { display: inline-flex; width: auto; height: 36px; padding: 0 10px 0 6px; gap: 6px; border-radius: 10px; background: #FFFFFF; border: 1px solid var(--pp-border); overflow: visible; font-size: 13px; color: var(--pp-ink); flex: none; }
+  .pp-mate-btn img { width: 24px; height: 24px; margin: 0; object-fit: cover; object-position: top; border-radius: 999px; background: var(--pp-orange-soft); }
+  .pp-mate-btn:hover { border-color: var(--pp-orange); }
+  .pp-mate-txt { display: inline; font-weight: 500; }
+  .pp-mate-btn .pp-kbd { display: inline; font-size: 10.5px; font-family: inherit; color: var(--pp-muted); background: var(--pp-bg); }
+  .pp-search { flex: 0 1 420px; max-width: 420px; min-width: 200px; margin: 0; height: 38px; padding: 0 12px; gap: 8px; border-radius: 12px; background: #FFFFFF; border: 1px solid var(--pp-border); box-shadow: 0 1px 2px rgba(16, 24, 40, .04); color: #98A2B3; transition: border-color 150ms ease, box-shadow 150ms ease; }
+  .pp-search:focus-within { border-color: var(--pp-orange); box-shadow: 0 0 0 3px rgba(232, 121, 44, .15); }
+  .pp-search input { font-size: 13px; }
+  .pp-search .pp-kbd { font-size: 10.5px; background: var(--pp-bg); }
+  .pp-top-actions { gap: 8px; }
+  .pp-send-top { min-height: 38px; height: 38px; padding: 0 14px; border-radius: 10px; font-size: 13px; font-weight: 700; gap: 5px; box-shadow: 0 1px 2px rgba(232, 121, 44, .25); }
+  .pp-send-top svg { width: 16px; height: 16px; stroke-width: 2.4; }
+  .pp-menu { top: 48px; }
+
+  .pp-wrap { padding: 22px 32px 132px; }
+  .pp-head h1 { font-size: 28px; font-weight: 700; letter-spacing: -.02em; }
+
+  /* Floating module dock — same build as ObraMate's */
+  .pp-dock {
+    left: 50%; bottom: 18px; transform: translateX(-50%); max-width: calc(100% - 24px);
+    align-items: flex-end; gap: 0; padding: 8px 10px; border: 0; border-radius: 24px;
+    background: rgba(255, 255, 255, .86); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+    box-shadow: 0 0 0 1px var(--pp-border), 0 18px 40px -18px rgba(16, 24, 40, .3);
+    overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none;
+  }
+  .pp-dock::-webkit-scrollbar { display: none; }
+  .pp-dg { display: flex; align-items: flex-end; gap: 2px; flex: none; position: relative; }
+  .pp-dg + .pp-dg { margin-left: 13px; }
+  .pp-dg + .pp-dg::before { content: ""; position: absolute; left: -7px; top: 6px; width: 1px; height: 40px; background: var(--pp-border); }
+  .pp-sep { display: none; }
+  .pp-di { min-width: 56px; gap: 4px; padding: 2px 2px 0; color: #475467; font-size: 10.5px; transition: transform 280ms cubic-bezier(.34, 1.56, .64, 1); }
+  .pp-di .pp-ic { width: 44px; height: 44px; border-radius: 14px; background: transparent; color: var(--pp-ink); transition: background 200ms ease, color 200ms ease, box-shadow 200ms ease; }
+  .pp-di svg { width: 22px; height: 22px; stroke-width: 1.75; }
+  .pp-dl { font-size: 10.5px; font-weight: 550; letter-spacing: -.01em; line-height: 1.15; white-space: nowrap; }
+  .pp-di:hover { transform: translateY(-3px); }
+  .pp-di:hover .pp-ic { background: rgba(34, 30, 26, .06); transform: none; }
+  .pp-di[aria-current="page"] .pp-ic { background: var(--pp-ink); color: #FFFFFF; box-shadow: 0 6px 14px -6px rgba(16, 24, 40, .45); }
+  .pp-di[aria-current="page"] .pp-dl { color: var(--pp-ink); font-weight: 650; }
+  .pp-di .pp-count { top: -2px; right: 2px; min-width: 18px; height: 18px; font-size: 10px; padding: 0 5px; box-shadow: 0 0 0 2px #FFFFFF; z-index: 1; }
+}
+@media (min-width: 768px) and (max-width: 1100px) {
+  .pp-top-in { padding: 0 20px; gap: 10px; }
+  .pp-wrap { padding-left: 20px; padding-right: 20px; }
+  .pp-brand-text, .pp-mate-btn .pp-kbd, .pp-search .pp-kbd, .pp-uchip-txt { display: none; }
+  .pp-mate-txt { display: none; }
+  .pp-mate-btn:not([hidden]) { width: 38px; height: 38px; padding: 0; justify-content: center; }
+  .pp-search { flex: 1 1 auto; max-width: none; }
+  .pp-dock { left: 12px; right: 12px; transform: none; max-width: none; justify-content: safe center; }
+}
+@media (prefers-reduced-motion: reduce) { .pp-di, .pp-di:hover { transition: none; transform: none; } }
+
+/* Phone: same chrome as ObraMate on the phone */
+@media (max-width: 767px) {
+  .pp-brand-text { display: none; }
+  .pp-top-actions { margin-left: auto; gap: 8px; }
+  .pp-mate-btn:not([hidden]) { margin-left: auto; }
+  .pp-mate-btn:not([hidden]) + .pp-search + .pp-top-actions { margin-left: 0; }
+  .pp-plus-mobile, .pp-top .pp-mate-btn { box-shadow: 0 1px 2px rgba(16, 24, 40, .06); }
+  .pp-uchip { padding: 0; height: 44px; border: 0; }
+  .pp-uchip:hover, .pp-uchip[aria-expanded="true"] { background: transparent; border: 0; }
+  .pp-uchip-txt { display: none; }
+  .pp-uchip .pp-avatar { width: 44px; height: 44px; font-size: 14px; }
+  .pp-tab { border-radius: 26px; }
+  .pp-tab[aria-current="page"] { color: var(--pp-orange); background: rgba(16, 24, 40, .05); }
+  .pp-tab[aria-current="page"] svg { stroke: currentColor; }
 }
