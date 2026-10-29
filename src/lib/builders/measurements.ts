@@ -94,6 +94,11 @@ export const measurementDataSchema = z.object({
   vents: z.array(ventSchema).max(80).optional().default([]),
   /** Floor plan takeoff (see takeoff.ts). */
   plan: planSchema.nullable().optional().default(null),
+  /** Who took the measurements on site and when (names typed or picked from the team). */
+  measured: z.object({
+    names: z.array(z.string().trim().min(1).max(80)).max(6).optional().default([]),
+    on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).or(z.literal("")).optional().default(""),
+  }).optional().default({ names: [], on: "" }),
 });
 export type MeasurementData = z.infer<typeof measurementDataSchema>;
 export type Stair = z.infer<typeof stairSchema>;
@@ -101,7 +106,7 @@ export type Vent = z.infer<typeof ventSchema>;
 
 export function parseData(raw: unknown): MeasurementData {
   const parsed = measurementDataSchema.safeParse(raw ?? {});
-  if (!parsed.success) return { stairs: [], vents: [], plan: null };
+  if (!parsed.success) return { stairs: [], vents: [], plan: null, measured: { names: [], on: "" } };
   const data = parsed.data;
   const byId = new Map(data.stairs.map((stair) => [stair.id, stair]));
   for (const stair of data.stairs) {
@@ -299,6 +304,7 @@ function present(row: Row, names: Map<string, string>, full: boolean) {
     created_by: names.get(row.createdByMemberId) || null,
     updated_by: row.updatedByMemberId ? names.get(row.updatedByMemberId) || null : null,
     completed_by: row.completedByMemberId ? names.get(row.completedByMemberId) || null : null,
+    measured: data.measured,
     ...(full ? { data, log: Array.isArray(row.log) ? row.log : [], summary: summarize(data) } : {}),
   };
 }
@@ -543,7 +549,7 @@ export async function findMeasurementForAddress(accountId: string, address: stri
   if (!pick) return null;
   const names = await memberNames([pick.createdByMemberId, pick.updatedByMemberId, pick.completedByMemberId]);
   const p = present(pick, names, true);
-  return { id: p.id, address: p.address, status: p.status, counts: p.counts, summary: p.summary, measured_by: p.completed_by || p.updated_by || p.created_by, measured_at: pick.completedAt || pick.updatedAt, used_at: p.used_at };
+  return { id: p.id, address: p.address, status: p.status, counts: p.counts, summary: p.summary, measured_by: (p.measured && p.measured.names.length ? p.measured.names.join(" & ") : "") || p.completed_by || p.updated_by || p.created_by, measured_at: p.measured && p.measured.on ? new Date(`${p.measured.on}T12:00:00Z`) : pick.completedAt || pick.updatedAt, used_at: p.used_at };
 }
 
 async function readBuffer(key: string): Promise<Buffer | null> {
@@ -566,9 +572,11 @@ export async function measurementPack(accountId: string, measurementId: string):
   if (!row) return null;
   const data = parseData(row.data);
   const names = await memberNames([row.createdByMemberId, row.updatedByMemberId, row.completedByMemberId]);
-  const measuredBy = (row.completedByMemberId && names.get(row.completedByMemberId)) || (row.updatedByMemberId && names.get(row.updatedByMemberId)) || names.get(row.createdByMemberId) || "Builder";
+  const typedBy = data.measured && data.measured.names.length ? data.measured.names.join(" & ") : "";
+  const measuredBy = typedBy || (row.completedByMemberId && names.get(row.completedByMemberId)) || (row.updatedByMemberId && names.get(row.updatedByMemberId)) || names.get(row.createdByMemberId) || "Builder";
+  const measuredAt = data.measured && data.measured.on ? new Date(`${data.measured.on}T12:00:00Z`) : row.completedAt || row.updatedAt;
   const account = await prisma.builderAccount.findUnique({ where: { id: accountId }, select: { name: true } });
-  const pdf = await measurementPdf({ accountId, builder: account?.name || "Builder", address: row.address, community: row.community, lot: row.lot, notes: row.notes, data, measuredBy, measuredAt: row.completedAt || row.updatedAt });
+  const pdf = await measurementPdf({ accountId, builder: account?.name || "Builder", address: row.address, community: row.community, lot: row.lot, notes: row.notes, data, measuredBy, measuredAt });
   const files: MeasurementPack["files"] = [{ name: `Measurement - ${row.address}.pdf`.replace(/[\\/:*?"<>|]+/g, " ").slice(0, 150), contentType: "application/pdf", body: pdf }];
   let n = 0;
   const photo = async (key: string, label: string) => {
@@ -586,7 +594,7 @@ export async function measurementPack(accountId: string, measurementId: string):
     const ext = data.plan.file.key.split(".").pop() || "pdf";
     if (body) files.push({ name: `Plans - ${row.address}.${ext}`.replace(/[\\/:*?"<>|]+/g, " ").slice(0, 150), contentType: data.plan.file.type, body });
   }
-  return { text: summaryText({ address: row.address, data, measuredBy, measuredAt: row.completedAt || row.updatedAt }), summary: summarize(data), files };
+  return { text: summaryText({ address: row.address, data, measuredBy, measuredAt }), summary: summarize(data), files };
 }
 
 export async function markMeasurementUsed(accountId: string, measurementId: string, organizationId: string, workOrderId: string | null, memberName: string) {
