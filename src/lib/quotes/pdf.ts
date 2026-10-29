@@ -325,6 +325,8 @@ export type QuotePdfInput = {
     email?: string | null;
   } | null;
   publicQuoteUrl?: string | null;
+  /** Builder-side quotes (ObraBuilder): no "approve and sign online" box. */
+  hideOnlineApproval?: boolean;
   signatureUrl?: string | null;
   signedByName?: string | null;
   signedAt?: Date | null;
@@ -1268,6 +1270,7 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
     y += 36;
 
     // CTA
+    if (!input.hideOnlineApproval) {
     ensureSpace(56);
     const ctaH = 48;
     doc.roundedRect(margin, y, contentW, ctaH, 6).fill(PAL.panelBg);
@@ -1287,6 +1290,7 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
     const lw = doc.widthOfString(linkDisplay);
     doc.text(linkDisplay, pageW - margin - 16 - lw, y + 18, { lineBreak: false });
     y += ctaH + 10;
+    }
 
     // Stamp footers on all pages
     const range = doc.bufferedPageRange();
