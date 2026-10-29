@@ -37,7 +37,7 @@ import {
 } from "../../lib/builders/accounts.js";
 import { can, permissionsFor, ROLE_LABELS, BUILDER_ROLES, type BuilderPermission } from "../../lib/builders/roles.js";
 import { deletePickup, listPickups, pickupForWorkOrder, savePickup } from "../../lib/builders/pickups.js";
-import { voiceToActions } from "../../lib/builders/voice.js";
+import { stairFromPhotos, voiceToActions } from "../../lib/builders/voice.js";
 import { askMate } from "../../lib/builders/mate.js";
 import { copyPrices, deletePrice, listPrices, savePrice } from "../../lib/builders/prices.js";
 import { parseTakeoffSettings, takeoffSettings } from "../../lib/builders/takeoff.js";
@@ -68,6 +68,7 @@ function accountView(a: {
 }
 import {
   addPhoto,
+  floorQuotePdf,
   addPlanFile,
   addPlanPreview,
   planFileStream,
@@ -485,6 +486,21 @@ builderAccountRouter.post("/api/builder/geo", requireBuilder, needs("measure"), 
   }
 });
 
+/** A stair built by Mate from site photos (+ the sizes said or typed). Returns edit actions, nothing is saved. */
+builderAccountRouter.post("/api/builder/measurements/:id/stair-photos", requireBuilder, needs("measure"), async (req: BuilderReq, res, next) => {
+  try {
+    const m = await getMeasurement(req.builderMember!, String(req.params.id));
+    if (m.status === "used") throw new BuilderError(409, "This measurement was already sent with a job.");
+    if (!(await takeRate([{ key: `builder-voice:${req.builderMember!.builderAccountId}`, max: 200, windowMs: HOUR }]))) {
+      throw new BuilderError(429, "Too many requests to Mate this hour. Try again later.");
+    }
+    const photos = Array.isArray(req.body?.photos) ? req.body.photos.map(String) : [];
+    res.json({ success: true, data: await stairFromPhotos({ photos, text: String(req.body?.text || ""), audio: req.body?.audio ? String(req.body.audio) : undefined, data: req.body?.data ?? m.data }) });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
 builderAccountRouter.post("/api/builder/measurements/:id/voice", requireBuilder, needs("measure"), async (req: BuilderReq, res, next) => {
   try {
     const m = await getMeasurement(req.builderMember!, String(req.params.id));
@@ -546,6 +562,18 @@ builderAccountRouter.get("/api/builder/measurements/:id/photo", requireBuilder, 
     res.setHeader("Content-Type", contentType);
     res.setHeader("Cache-Control", "private, max-age=3600");
     stream.pipe(res);
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
+/** The floor quote in ObraMate's quote layout (company branding, builder as client). */
+builderAccountRouter.get("/api/builder/measurements/:id/quote-pdf", requireBuilder, needs("money.view"), async (req: BuilderReq, res, next) => {
+  try {
+    const out = await floorQuotePdf(req.builderMember!, String(req.params.id), typeof req.query.company === "string" ? req.query.company : null);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `${req.query.download ? "attachment" : "inline"}; filename="${encodeURIComponent(out.name)}"`);
+    res.send(out.body);
   } catch (error) {
     sendError(res, error, next);
   }

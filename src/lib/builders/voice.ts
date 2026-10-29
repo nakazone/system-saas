@@ -45,6 +45,8 @@ export const voiceActionSchema = z.discriminatedUnion("type", [
     finish: z.string().max(60).optional(),
     color: z.string().max(80).optional(),
     riser_material: z.enum(["same", "primed", "paint_grade", "none"]).optional(),
+    landing_w: num,
+    landing_d: num,
   }),
   z.object({
     type: z.literal("add_stair"),
@@ -53,6 +55,8 @@ export const voiceActionSchema = z.discriminatedUnion("type", [
     finish: z.string().max(60).optional(),
     color: z.string().max(80).optional(),
     riser_material: z.enum(["same", "primed", "paint_grade", "none"]).optional(),
+    landing_w: num,
+    landing_d: num,
   }),
   z.object({
     type: z.literal("add_nosing"),
@@ -82,7 +86,12 @@ export const voiceActionSchema = z.discriminatedUnion("type", [
 export type VoiceAction = z.infer<typeof voiceActionSchema>;
 
 const SYSTEM = `You turn a builder's spoken stair and vent measurements into edit actions for a measuring app.
-All sizes are inches as decimals: "eleven and a quarter" = 11.25, "seven and a half" = 7.5, "forty-eight" = 48, "five eighths" = 0.625, "thirty-six and three quarters" = 36.75.
+The builder may speak English, Portuguese or Spanish, or mix them. The transcript is automatic and often writes numbers oddly — read them like a flooring installer would.
+All sizes are inches as decimals: "eleven and a quarter" = 11.25, "seven and a half" = 7.5, "forty-eight" = 48, "five eighths" = 0.625, "thirty-six and three quarters" = 36.75, "eleven one eighth" = 11.125.
+Fractions in the transcript: "11 1/4", "11-1/4", "11 1 4", "11 and 1 4", "11 1/4\"", "eleven a quarter", "11 quarter" all mean 11.25; "7 1 2" = 7.5; "36 3 4" = 36.75; "11 5 8" = 11.625; "11 3 8ths" = 11.375. A number followed by "1 4", "1 2", "3 4", "1 8", "3 8", "5 8", "7 8" is a whole number plus that fraction — never 11.14 or 114.
+Portuguese/Spanish: "por"/"x" = by; "e um quarto"/"y cuarto" = .25, "e meio"/"y medio" = .5, "e três quartos"/"tres cuartos" = .75, "degrau"/"escalón" = step, "espelho"/"contrahuella" = riser, "piso do degrau"/"huella" = tread, "lado esquerdo aberto" = left open, "lado direito aberto" = right open, "os dois lados abertos"/"ambos lados" = both, "fechado" = none.
+Typical sizes help you choose: tread width 30–72, tread depth 9–14, riser height 5–8.5, riser width = tread width. If two numbers are said for a tread, the bigger is the width and the smaller the depth.
+Inches only: "3 feet 6" / "3 pés e 6" = 42. Metric: "106 centimeters" = 41.73.
 Tread = width x depth (e.g. "48 by 11 1/4"). Riser = width x height. If only one size pair is said for a step, it is the tread; "riser seven and a half" sets riser_h (riser_w = tread width unless said).
 Open side: "left side open"/"open left" = left, "right open" = right, "both sides open"/"double return" = both, "closed"/"between walls" = none.
 Return: "45"/"mitered" = "45", "flat"/"square" = "flat", "bullnose"/"round" = "bullnose".
@@ -100,6 +109,42 @@ Action types:
 {"type":"remove_steps","stair":0,"from":9,"to":9}
 Only include fields that were said. Never invent sizes. If nothing usable was said, return no actions and explain in "unclear".`;
 
+/** Sizes that can't be right for a stair (transcription slips): fix the obvious ones, flag the rest. */
+export function checkActions(actions: VoiceAction[]): { actions: VoiceAction[]; checks: string[] } {
+  const checks: string[] = [];
+  const fixFraction = (v: number | null | undefined): number | null | undefined => {
+    if (v == null) return v;
+    // "11 1 4" read as 1114 / 11.14 → 11.25
+    const s = String(v);
+    const m = /^(\d{1,2})\.?(1)(2|4|8)$/.exec(s.replace(/\.0+$/, ""));
+    if (m && v > 20) return Number(m[1]) + 1 / Number(m[3]);
+    const m2 = /^(\d{1,2})\.(1)(2|4|8)$/.exec(s);
+    if (m2) return Number(m2[1]) + 1 / Number(m2[3]);
+    const m3 = /^(\d{1,2})\.?(3|5|7)(4|8)$/.exec(s);
+    if (m3 && (v > 100 || /\./.test(s))) return Number(m3[1]) + Number(m3[2]) / Number(m3[3]);
+    return v;
+  };
+  for (const a of actions) {
+    if (a.type !== "set_steps" && a.type !== "add_steps" && a.type !== "add_riser") continue;
+    const o = a as Record<string, unknown>;
+    for (const k of ["tread_w", "tread_d", "riser_w", "riser_h"]) {
+      if (typeof o[k] === "number") o[k] = fixFraction(o[k] as number);
+    }
+    if (typeof o.tread_w === "number" && typeof o.tread_d === "number" && (o.tread_w as number) < (o.tread_d as number)) {
+      [o.tread_w, o.tread_d] = [o.tread_d, o.tread_w];
+    }
+    const out = (k: string, lo: number, hi: number, label: string) => {
+      const v = o[k];
+      if (typeof v === "number" && v > 0 && (v < lo || v > hi)) checks.push(`${label} ${v}" looks unusual — check it.`);
+    };
+    out("tread_w", 18, 96, "Tread width");
+    out("tread_d", 7, 16, "Tread depth");
+    out("riser_h", 3, 9.5, "Riser height");
+    out("riser_w", 18, 96, "Riser width");
+  }
+  return { actions, checks: [...new Set(checks)].slice(0, 4) };
+}
+
 function context(data: MeasurementData, stair: number, step: number): string {
   const stairs = data.stairs.map((s, i) => {
     const treads = s.steps.filter((component) => component.kind !== "riser" && (component.tread_w || component.tread_d)).length;
@@ -109,6 +154,11 @@ function context(data: MeasurementData, stair: number, step: number): string {
   return "Stairs:\n" + stairs
     + "\nCurrent stair index: " + (data.stairs.length ? Math.min(stair, data.stairs.length - 1) : "none (add_stair first)")
     + "\nSelected component: " + (step + 1)
+    + (() => {
+      const s = data.stairs[Math.min(stair, Math.max(0, data.stairs.length - 1))];
+      const last = s ? s.steps.filter((x) => x.tread_w || x.tread_d || x.riser_h).slice(-2) : [];
+      return last.length ? "\nLast measured steps on the current stair: " + last.map((x) => `${x.tread_w ?? "?"} x ${x.tread_d ?? "?"} / riser ${x.riser_h ?? "?"} / ${x.open}`).join("; ") : "";
+    })()
     + "\nVents measured: " + data.vents.length
     + '\nIf asked for a riser without a tread, use {"type":"add_riser","stair":0,"count":1,"riser_w":48,"riser_h":7.5}.';
 }
@@ -125,8 +175,8 @@ export async function voiceToActions(input: { dataUrl: string; data: unknown; st
   const tr = await aiTranscribeAudio({
     body,
     contentType,
-    language: "en",
-    prompt: "Stair measurements: tread, riser, nosing, by, and a quarter, and a half, three quarters, left side open, right side open, both sides open, 45, mitered, flat return, bullnose, vent, 4 by 10, flush mount, self rimming, White Oak, Red Oak, Hickory, prefinished, Jacobean.",
+    languages: ["en", "pt", "es"],
+    prompt: "Stair measurements: step 1, 42 by 11 1/4, riser 7 1/2, 48 x 11-3/4, tread, riser, nosing, and a quarter, and a half, three quarters, left side open, right side open, both sides open, 45, mitered, flat return, bullnose, vent 4 by 10, flush mount, self rimming, White Oak, Red Oak, Hickory, prefinished, Jacobean. Degrau, espelho, quarenta e dois por onze e um quarto, lado esquerdo aberto.",
     keywords: ["tread", "riser", "nosing", "bullnose", "mitered", "flush mount", "self rimming", "White Oak", "Red Oak", "Hickory", "Jacobean", "prefinished"],
     timeoutMs: 45_000,
   });
@@ -145,15 +195,83 @@ export async function voiceToActions(input: { dataUrl: string; data: unknown; st
   } catch {
     raw = {};
   }
-  const actions: VoiceAction[] = [];
+  const parsedActions: VoiceAction[] = [];
   for (const a of Array.isArray(raw.actions) ? raw.actions.slice(0, 40) : []) {
     const parsed = voiceActionSchema.safeParse(a);
-    if (parsed.success) actions.push(parsed.data);
+    if (parsed.success) parsedActions.push(parsed.data);
   }
+  const { actions, checks } = checkActions(parsedActions);
   return {
     transcript: tr.text,
     actions,
     reply: String(raw.reply || "").slice(0, 300),
-    unclear: String(raw.unclear || "").slice(0, 300),
+    unclear: [String(raw.unclear || "").slice(0, 300), ...checks].filter(Boolean).join(" "),
+  };
+}
+
+/* ───────────────────────────── stair from photos ───────────────────────────── */
+
+const PHOTO_SYSTEM = `You look at photos of a stair on a job site (framed or finished) and build it in a stair measuring app for a flooring installer who will put hardwood treads and risers on it.
+From the photos, work out:
+- how many treads and risers, counted from the bottom (step 1 = lowest tread). If the top step is the upper floor itself, the stair ends with a riser only (use add_riser).
+- for each step, which sides are OPEN as seen standing at the bottom looking up: a side is open when there is no wall right against the step (an exposed side/stringer or skirt where the tread will need a return or overhang). Closed = between walls.
+- a bigger starter step at the bottom (wider/longer or bullnose) → set_steps for step 1 with its own sizes and ret "bullnose" if rounded.
+- a landing (flat platform) at the top or in the middle → set_stair with landing_w/landing_d if known.
+Sizes (inches, decimals) come from what the builder said or typed (any language: English, Portuguese, Spanish). Use them exactly. If no size was given for something, estimate a typical value from the photo (tread depth 10–11.25, riser 7–7.75, width from the opening: 36, 42 or 48) and say in "reply" that the sizes are estimates to check.
+Group equal steps: one add_steps per run of steps with the same sizes and open sides; use set_steps only for exceptions.
+Start with add_stair (give it a short name like "Main stair") unless the builder says to fill the current stair.
+Return ONLY JSON: {"actions":[...], "reply":"<one or two short sentences: what you built>", "unclear":"<what you could not see or understand, or empty>", "observations":["<short notes the installer should know, e.g. 'Bottom step is wider — starter step', 'Skirt on the right side'>"]}.
+Action shapes:
+{"type":"add_stair","name":"Main stair"}
+{"type":"add_steps","stair":0,"count":8,"tread_w":42,"tread_d":11.25,"riser_w":42,"riser_h":7.5,"open":"right","ret":"45"}
+{"type":"set_steps","stair":0,"from":1,"to":1,"tread_w":48,"tread_d":12,"open":"both","ret":"bullnose"}
+{"type":"add_riser","stair":0,"count":1,"riser_w":42,"riser_h":7.5}
+{"type":"set_stair","stair":0,"landing_w":42,"landing_d":42}
+Stair indexes are 0-based; after add_stair the new stair index = number of stairs already in the measurement.`;
+
+export async function stairFromPhotos(input: { photos: string[]; text?: string; audio?: string; data: unknown }): Promise<{ transcript: string; actions: VoiceAction[]; reply: string; unclear: string; observations: string[] }> {
+  if (!isAiConfigured()) throw new BuilderError(503, "Mate is not set up on this server yet.");
+  const photos = (input.photos || []).filter((p) => /^data:image\/(jpeg|png|webp);base64,/.test(String(p))).slice(0, 4);
+  if (!photos.length) throw new BuilderError(400, "Add at least one photo of the stair.");
+  if (photos.some((p) => p.length > 6 * 1024 * 1024)) throw new BuilderError(400, "A photo is too large.");
+  let said = String(input.text || "").trim().slice(0, 1500);
+  let transcript = "";
+  if (input.audio) {
+    const m = /^data:([^;]+)(?:;[^,]*)?;base64,(.+)$/.exec(String(input.audio));
+    if (m && /^audio\//.test(m[1]!.toLowerCase())) {
+      const body = Buffer.from(m[2]!, "base64");
+      if (body.length >= 800 && body.length <= 12 * 1024 * 1024) {
+        const tr = await aiTranscribeAudio({ body, contentType: m[1]!.toLowerCase(), languages: ["en", "pt", "es"], prompt: "Stair: 9 steps, 42 by 11 1/4, riser 7 1/2, right side open, left side open, landing, bullnose. Degrau, espelho, lado direito aberto.", timeoutMs: 45_000 });
+        if (tr.ok) { transcript = tr.text.trim(); said = [said, transcript].filter(Boolean).join("\n"); }
+      }
+    }
+  }
+  const data = parseData(input.data);
+  const res = await aiChatJson({
+    system: PHOTO_SYSTEM,
+    user: `Stairs already in this measurement: ${data.stairs.length}.\n\nWhat the builder said or typed (may be empty):\n"""${said || "(nothing — estimate the sizes)"}"""\n\n${photos.length} photo(s) of the stair follow.`,
+    imageUrls: photos,
+    timeoutMs: 60_000,
+  });
+  if (!res.ok) throw new BuilderError(502, "Mate couldn’t look at the photos right now. Try again.");
+  let raw: { actions?: unknown; reply?: unknown; unclear?: unknown; observations?: unknown } = {};
+  try {
+    const t = res.text;
+    raw = JSON.parse(t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1));
+  } catch {
+    raw = {};
+  }
+  const parsedActions: VoiceAction[] = [];
+  for (const a of Array.isArray(raw.actions) ? raw.actions.slice(0, 40) : []) {
+    const parsed = voiceActionSchema.safeParse(a);
+    if (parsed.success) parsedActions.push(parsed.data);
+  }
+  const { actions, checks } = checkActions(parsedActions);
+  return {
+    transcript,
+    actions,
+    reply: String(raw.reply || "").slice(0, 400),
+    unclear: [String(raw.unclear || "").slice(0, 300), ...checks].filter(Boolean).join(" "),
+    observations: (Array.isArray(raw.observations) ? raw.observations : []).map((o) => String(o).slice(0, 160)).filter(Boolean).slice(0, 6),
   };
 }

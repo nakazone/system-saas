@@ -760,6 +760,32 @@ function usd(n: number): string {
   return n.toLocaleString("en-US", { style: "currency", currency: "USD" });
 }
 
+const WOOD_TONE: Record<string, string> = { "white oak": "#D6B488", "red oak": "#C8936E", hickory: "#CDA06C", maple: "#E9D3AA", walnut: "#6E4B34", ash: "#DEC79F", "brazilian cherry": "#8E3B22" };
+
+/** A vent seen from above: wood frame, louvers, size lines (like the app's drawing). */
+function drawVent(doc: MeasurementPdfDocument, v: { size: string; type: string; species: string }, x: number, y: number, w: number, h: number) {
+  const m = /^(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)$/i.exec(String(v.size || "").trim());
+  const A = m ? Number(m[1]) : 4; const B = m ? Number(m[2]) : 10;
+  const vw = Math.max(A, B); const vh = Math.min(A, B);
+  const scale = Math.min((w - 40) / vw, (h - 34) / vh);
+  const dw = vw * scale; const dh = vh * scale; const x0 = x + (w - dw) / 2; const y0 = y + 16 + (h - 34 - dh) / 2;
+  const tone = WOOD_TONE[String(v.species || "").toLowerCase()] || "#D6B488";
+  if (v.type === "self_rimming") doc.roundedRect(x0 - 2, y0 + 2, dw + 4, dh + 4, 4).fill("#E4DED6");
+  doc.roundedRect(x0, y0, dw, dh, v.type === "self_rimming" ? 4 : 1.5).fillAndStroke(tone, "#4A3726");
+  const lip = (v.type === "self_rimming" ? 0.9 : 0.55) * scale;
+  const slots = Math.max(3, Math.round(vw / 1.1));
+  const inner = dw - 2 * lip - 0.7 * scale;
+  for (let i = 0; i < slots; i++) {
+    doc.roundedRect(x0 + lip + 0.35 * scale + (i * inner) / slots, y0 + lip + 0.35 * scale, inner / slots - 0.25 * scale, dh - 2 * lip - 0.7 * scale, 1).fillOpacity(0.78).fill("#2A1C12");
+  }
+  doc.fillOpacity(1);
+  doc.lineWidth(0.6).strokeColor("#98A2B3");
+  doc.moveTo(x0, y0 - 8).lineTo(x0 + dw, y0 - 8).stroke();
+  doc.moveTo(x0 + dw + 8, y0).lineTo(x0 + dw + 8, y0 + dh).stroke();
+  doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#475467").text(`${fmtInches(vw)}"`, x0, y0 - 17, { width: dw, align: "center" });
+  doc.text(`${fmtInches(vh)}"`, x0 + dw + 11, y0 + dh / 2 - 4, { width: 30 });
+}
+
 /** Greedy rectangles of equal non-zero cells (for drawing the floors over the plan). */
 function gridRects(cells: Int32Array, w: number, _h: number, x0: number, y0: number, x1: number, y1: number) {
   const done = new Uint8Array(cells.length); const out: Array<{ x: number; y: number; w: number; h: number; v: number }> = [];
@@ -794,7 +820,7 @@ function decodeRle(rle: string, n: number): Int32Array {
 const KIND_WORDS: Partial<Record<string, RegExp>> = { hardwood: /hard\s?wood|\bwood\b|engineered|oak/i, lvp: /\blvp\b|\blvt\b|vinyl/i, laminate: /laminate/i, carpet: /carpet/i, rubber: /rubber/i };
 
 /** Same pricing the app shows on the Quote tab: chosen price, else matched by name (sq ft items). */
-async function planQuote(accountId: string | undefined, plan: NonNullable<MeasurementData["plan"]>) {
+export async function planQuote(accountId: string | undefined, plan: NonNullable<MeasurementData["plan"]>) {
   if (!accountId || !plan.quote_link_id) return null;
   const [link, prices] = await Promise.all([
     prisma.builderLink.findFirst({ where: { id: plan.quote_link_id, builderAccountId: accountId }, select: { companyName: true } }),
@@ -815,7 +841,7 @@ async function planQuote(accountId: string | undefined, plan: NonNullable<Measur
     lines.push({ name: `${t.label} install`, spec: t.spec, qty, rate: ins ? ins.price : null });
     if (t.kind === "hardwood" && t.sand_finish) {
       const s = pick(`${t.key}:sand`, (p) => /sand|refinish|finish/i.test(p.name));
-      lines.push({ name: "Sand & finish", spec: t.label, qty, rate: s ? s.price : null });
+      lines.push({ name: plan.materials.filter((x) => x.kind === "hardwood" && x.include).length > 1 ? `Sand & finish · ${t.label}` : "Sand & finish", spec: [t.label, ...(plan.materials.find((x) => x.key === t.key)?.spec?.color ? [plan.materials.find((x) => x.key === t.key)!.spec.color] : [])].join(" · "), qty, rate: s ? s.price : null });
     }
   }
   return { company: link.companyName, lines };
@@ -879,6 +905,27 @@ export async function measurementPdf(m: PdfInput): Promise<Buffer> {
       doc.y = y + h;
     }
     doc.y += 10;
+  };
+
+  /** Up to 8 site photos as a row of thumbnails. */
+  const photoStrip = async (keys: string[], title: string) => {
+    const list = (keys || []).slice(0, 8);
+    if (!list.length) return;
+    const bufs = (await Promise.all(list.map((k) => readBuffer(k).catch(() => null)))).filter((b): b is Buffer => Boolean(b));
+    if (!bufs.length) return;
+    const per = 4; const gap = 8; const tw = (W - gap * (per - 1)) / per; const th = tw * 0.75;
+    ensure(th + 24);
+    doc.font("Helvetica-Bold").fontSize(8).fillColor(C.muted).text(ascii(title).toUpperCase(), L, doc.y, { characterSpacing: 0.5 });
+    let y = doc.y + 4;
+    bufs.forEach((b, i) => {
+      if (i && i % per === 0) { y += th + gap; if (y + th > BOTTOM) { doc.addPage(); y = 40; } }
+      const x = L + (i % per) * (tw + gap);
+      doc.save(); doc.roundedRect(x, y, tw, th, 6).clip();
+      doc.rect(x, y, tw, th).fill(C.soft);
+      try { doc.image(b, x, y, { cover: [tw, th], align: "center", valign: "center" }); } catch { /* bad photo */ }
+      doc.restore();
+    });
+    doc.y = y + th + 12;
   };
 
   /* ── header band ── */
@@ -1084,15 +1131,30 @@ export async function measurementPdf(m: PdfInput): Promise<Buffer> {
         s.nosings.map((n) => [String(n.qty || 1), `${fmtInches(n.length)}"`, n.type === "overlap" ? "overlap" : n.type === "stair_nose" ? "stair nose" : "flush", [nosingPosition(s, n), n.note].filter(Boolean).join(" · ")]),
       );
     }
+    await photoStrip(s.photos, `Photos · ${s.name || "stair"}`);
   }
 
-  /* ── vents ── */
+  /* ── vents: a drawing of each, then the list ── */
   if (m.data.vents.length) {
-    section("Vents");
+    section("Vents", `${cnt.vents} ${cnt.vents === 1 ? "vent" : "vents"} · drawn from above, sizes in inches`);
+    const per = 3; const gap = 10; const cw = (W - gap * (per - 1)) / per; const chh = 150;
+    for (let i = 0; i < m.data.vents.length; i += per) {
+      ensure(chh + 10);
+      const y = doc.y;
+      m.data.vents.slice(i, i + per).forEach((v, j) => {
+        const x = L + j * (cw + gap);
+        doc.roundedRect(x, y, cw, chh, 8).fillAndStroke(C.soft, C.line);
+        drawVent(doc, v, x + 6, y + 6, cw - 12, 92);
+        doc.font("Helvetica-Bold").fontSize(10).fillColor(C.ink).text(`${v.qty || 1} × ${v.size || "?"}`, x + 10, y + 104, { width: cw - 20, lineBreak: false });
+        doc.font("Helvetica").fontSize(8).fillColor(C.muted).text(ascii([VENT_LABEL[v.type] || v.type, [v.species, v.finish, v.color].filter(Boolean).join(" · "), v.room].filter(Boolean).join(" · ")), x + 10, y + 118, { width: cw - 20, height: 26, ellipsis: true });
+      });
+      doc.y = y + chh + 10;
+    }
     table(
       [{ w: 50, label: "Qty", align: "right" }, { w: 70, label: "Size" }, { w: 130, label: "Type" }, { w: 152, label: "Wood" }, { w: 130, label: "Room / notes" }],
       m.data.vents.map((v) => [String(v.qty || 1), v.size || "?", VENT_LABEL[v.type] || v.type, [v.species, v.finish, v.color].filter(Boolean).join(" · ") || "—", [v.room, v.note].filter(Boolean).join(" · ")]),
     );
+    await photoStrip(m.data.vents.flatMap((v) => v.photos), "Vent photos");
   }
 
   /* ── footer on every page ── */
@@ -1107,4 +1169,86 @@ export async function measurementPdf(m: PdfInput): Promise<Buffer> {
   }
   doc.end();
   return done;
+}
+
+/* ───────────────────────────── floor quote (ObraMate quote layout) ───────────────────────────── */
+
+/**
+ * The floors of a measurement as a quote, in the same layout as a quote made in ObraMate:
+ * the flooring company's logo and colors on top, the builder as the client, rooms, lines and totals.
+ */
+export async function floorQuotePdf(member: ActiveMember, measurementId: string, linkId?: string | null): Promise<{ name: string; body: Buffer }> {
+  const row = await own(member, measurementId);
+  const data = parseData(row.data);
+  const plan = data.plan;
+  if (!plan || !plan.levels.length) throw new BuilderError(400, "Measure the floors from the plans first.");
+  const usePlan = linkId ? { ...plan, quote_link_id: linkId, quote_prices: linkId === plan.quote_link_id ? plan.quote_prices : {} } : plan;
+  const quote = await planQuote(member.builderAccountId, usePlan);
+  const [account, link] = await Promise.all([
+    prisma.builderAccount.findUnique({ where: { id: member.builderAccountId } }),
+    usePlan.quote_link_id ? prisma.builderLink.findFirst({ where: { id: usePlan.quote_link_id, builderAccountId: member.builderAccountId } }) : null,
+  ]);
+  const org = link?.organizationId ? await prisma.organization.findUnique({ where: { id: link.organizationId }, select: { name: true, logoUrl: true, primaryColor: true, accentColor: true, contactEmail: true, contactPhone: true, quoteValidityDays: true } }) : null;
+  const settings = takeoffSettings(account?.takeoffSettings);
+  const totals = planTotals(plan).filter((t) => t.include);
+  const lines = (quote?.lines || planTotals(plan).filter((t) => t.include).map((t) => ({ name: `${t.label} install`, spec: t.spec, qty: Math.ceil(t.area_sf), rate: null as number | null })));
+  const pdfLines = lines.map((l) => ({
+    name: l.name,
+    description: l.spec || "",
+    quantity: l.qty,
+    unit: "sq_ft",
+    unitPrice: l.rate ?? 0,
+    amount: Math.round((l.rate ?? 0) * l.qty * 100) / 100,
+    serviceType: /sand|finish/i.test(l.name) ? "refinishing" : "installation",
+    itemType: "service",
+  }));
+  const subtotal = pdfLines.reduce((a, l) => a + l.amount, 0);
+  const rooms: Array<{ name: string; areaSqft: number }> = [];
+  for (const lv of plan.levels.filter((x) => x.include)) {
+    for (const r of lv.rooms) {
+      const mat = plan.materials.find((x) => x.key === r.material);
+      if (r.exclude || !mat?.include) continue;
+      rooms.push({ name: `${r.name} (${lv.name} · ${mat.label})`, areaSqft: Math.round(r.area_sf) });
+    }
+  }
+  const materialNote = totals.map((t) => {
+    const w = settings.waste[t.kind] ?? 10;
+    return `${t.label}${t.spec ? ` (${t.spec})` : ""}: ${Math.round(t.area_sf).toLocaleString("en-US")} SF measured, ${withWaste(t.area_sf, w).toLocaleString("en-US")} SF to order with ${w}% waste.`;
+  }).join("\n");
+  const missing = lines.filter((l) => l.rate == null).length;
+  const { buildQuotePdf } = await import("../quotes/pdf.js");
+  const body = await buildQuotePdf({
+    organizationName: org?.name || link?.companyName || "Flooring company",
+    organizationContact: [org?.contactPhone || link?.contactPhone, org?.contactEmail || link?.contactEmail].filter(Boolean).join(" · ") || null,
+    organizationLogoUrl: org?.logoUrl || null,
+    brandPrimary: org?.primaryColor || null,
+    brandAccent: org?.accentColor || null,
+    title: `Flooring · ${row.address}`,
+    number: `M-${row.id.slice(0, 6).toUpperCase()}`,
+    status: "draft",
+    issueDate: new Date(),
+    validUntil: new Date(Date.now() + (org?.quoteValidityDays || 30) * 86400e3),
+    customerName: account?.name || "Builder",
+    customerEmail: account?.email || null,
+    customerPhone: account?.phone || null,
+    projectName: [row.community, row.lot ? `Lot ${row.lot}` : ""].filter(Boolean).join(" · ") || null,
+    projectAddress: row.address,
+    floorAreaSqft: Math.round(totals.reduce((a, t) => a + t.area_sf, 0)),
+    rooms,
+    optionGroups: [],
+    lines: pdfLines,
+    clientView: { showQuantities: true, showUnitPrices: true, showLineTotals: true, showRoomBreakdown: true },
+    subtotal,
+    taxTotal: 0,
+    total: subtotal,
+    hideOnlineApproval: true,
+    inclusions: [
+      ...lines.map((l) => `${l.name}${l.spec ? ` — ${l.spec}` : ""}`),
+      `Quantities from the house plans: ${totals.map((t) => `${t.label} ${Math.round(t.area_sf).toLocaleString("en-US")} SF`).join(", ")}`,
+    ].slice(0, 8),
+    paymentSchedule: [{ label: `Per your agreement with ${org?.name || link?.companyName || "the company"}`, amount: subtotal }],
+    notes: [materialNote, missing ? `${missing} line${missing === 1 ? "" : "s"} without an agreed price yet.` : "", "Measured from the house plans in ObraBuilder. Areas exclude walls; final quantities are confirmed on site."].filter(Boolean).join("\n\n"),
+    terms: null,
+  });
+  return { name: `Quote - ${row.address}.pdf`.replace(/[\\/:*?"<>|]+/g, " ").slice(0, 150), body };
 }

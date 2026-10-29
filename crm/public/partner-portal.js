@@ -4409,6 +4409,7 @@
     return lines;
   }
 
+  /** The quote laid out like an ObraMate quote (the company's logo and colors, builder as client). */
   function floorsQuoteHtml(m, prices) {
     const plan = m.data.plan; const locked = m.status === 'used';
     const companies = state.builder.companies || [];
@@ -4419,32 +4420,48 @@
     const missing = lines.filter((l) => !l.price).length;
     const totals = planTotals(plan).filter((t) => t.include);
     const co = companies.find((c) => c.id === plan.quote_link_id);
-    return `<div class="pp-plan-quote">
-      <section class="pp-card pp-block">
-        <div class="pp-block-head"><h3>Quote for the floors</h3>
-          ${companies.length ? `<label class="pp-plan-co"><span class="pp-sr">Company</span>${sel(companies.map((c) => [c.id, c.company_name]), plan.quote_link_id || '', `data-pq-co aria-label="Price list of" ${locked ? 'disabled' : ''}`)}</label>` : ''}</div>
-        ${!companies.length ? `<p class="pp-muted">Connect a flooring company to price the work with the prices you agreed. <a class="pp-link" href="#companies">Companies</a></p>` : ''}
-        <div class="pp-plan-qtable" role="table" aria-label="Services">
-          <div class="pp-plan-qrow pp-plan-qrow--head" role="row"><span role="columnheader">Service</span><span role="columnheader">Qty</span>${money_ ? '<span role="columnheader">Price</span><span role="columnheader">Total</span>' : ''}</div>
-          ${lines.map((l) => `<div class="pp-plan-qrow" role="row">
-            <span class="pp-plan-qname"><span class="pp-swatch" style="background:${esc(l.color)}"></span>${esc(l.name)}${l.spec ? `<small>${esc(l.spec)}</small>` : ''}</span>
-            <span>${fmtSf(l.qty)}</span>
-            ${money_ ? `<span>${sel([['', sq.length ? 'Choose a price…' : 'No sq ft prices'], ...sq.map((p) => [p.id, `${p.name} · ${money(p.price)}/sq ft`])], l.price ? l.price.id : '', `data-pq-price="${esc(l.key)}" aria-label="Price for ${esc(l.name)}" ${locked ? 'disabled' : ''}`)}</span>
-            <span class="pp-plan-qtotal">${l.price ? money(l.price.price * l.qty) : '—'}</span>` : ''}
-          </div>`).join('')}
-          ${money_ ? `<div class="pp-plan-qrow pp-plan-qrow--sum" role="row"><span>Total labor</span><span></span><span>${missing ? `<small class="pp-late">${missing} without a price</small>` : ''}</span><span class="pp-plan-qtotal">${money(total)}</span></div>` : ''}
+    const prof = (co && co.profile) || {};
+    const primary = /^#[0-9a-f]{6}$/i.test(prof.color || '') ? prof.color : '#1F4E79';
+    const acc = state.builder.account;
+    const num = `M-${String(m.id).slice(0, 6).toUpperCase()}`;
+    const today = new Date();
+    const valid = new Date(Date.now() + 30 * 86400e3);
+    const fmtD = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const secs = [['Installation', lines.filter((l) => l.kind !== 'sand')], ['Sand & finish', lines.filter((l) => l.kind === 'sand')]].filter(([, ls]) => ls.length);
+    const pdfUrl = co ? `/api/builder/measurements/${encodeURIComponent(m.id)}/quote-pdf?company=${encodeURIComponent(co.id)}` : '';
+    const controls = `<section class="pp-card pp-block pp-qp-ctl">
+        <h3>Prices</h3>
+        ${companies.length ? `<label class="pp-field"><span>Company</span>${sel(companies.map((c) => [c.id, c.company_name]), plan.quote_link_id || '', `data-pq-co aria-label="Quote from" ${locked ? 'disabled' : ''}`)}</label>` : `<p class="pp-muted">Connect a flooring company to price the work. <a class="pp-link" href="#companies">Companies</a></p>`}
+        ${money_ ? lines.map((l) => `<label class="pp-field"><span><i class="pp-swatch" style="background:${esc(l.color)}"></i> ${esc(l.name)} · ${fmtSf(l.qty)}</span>${sel([['', sq.length ? 'Choose a price…' : 'No sq ft prices yet'], ...sq.map((p) => [p.id, `${p.name} · ${money(p.price)}/sq ft`])], l.price ? l.price.id : '', `data-pq-price="${esc(l.key)}" aria-label="Price for ${esc(l.name)}" ${locked ? 'disabled' : ''}`)}</label>`).join('') : '<p class="pp-muted">Your role can’t see prices.</p>'}
+        ${money_ && co ? `<p class="pp-muted pp-plan-note">From your <a class="pp-link" href="#companies/${esc(co.id)}">${esc(co.company_name)} price list</a>. Missing a service? Add it there in “sq ft”.</p>` : ''}
+        <div class="pp-qp-acts">
+          ${pdfUrl && money_ ? `<a class="pp-btn pp-btn--sec" href="${pdfUrl}" target="_blank" rel="noopener">${icon('download')}Quote PDF</a>` : ''}
+          ${locked ? '' : `<button type="button" class="pp-btn pp-btn--pri" data-send-wo>${icon('send')}Send work order</button>`}
         </div>
-        ${money_ && co ? `<p class="pp-muted pp-plan-note">Prices from your <a class="pp-link" href="#companies/${esc(co.id)}">${esc(co.company_name)} price list</a>. Missing a service? Add it there with the unit “sq ft”.</p>` : ''}
-      </section>
-      <section class="pp-card pp-block">
-        <div class="pp-block-head"><h3>Material to order</h3><a class="pp-link" href="#settings/takeoff">Waste settings</a></div>
-        <div class="pp-plan-qtable" role="table" aria-label="Material">
-          <div class="pp-plan-qrow pp-plan-qrow--head pp-plan-qrow--mat" role="row"><span role="columnheader">Floor</span><span role="columnheader">Measured</span><span role="columnheader">Waste</span><span role="columnheader">To order</span></div>
-          ${totals.map((t) => { const o = orderQty(t); return `<div class="pp-plan-qrow pp-plan-qrow--mat" role="row"><span class="pp-plan-qname"><span class="pp-swatch" style="background:${esc(t.color)}"></span>${esc(t.label)}<small>${specText(t) ? `${esc(specText(t))}<br>` : ''}${t.levels.map((l) => `${esc(l.name)} ${fmtSf(l.area)}`).join(' · ')}</small></span><span>${fmtSf(t.area)}</span><span>${o.waste}%</span><b>${fmtSf(o.sf)}${o.boxes ? `<small>${o.boxes} boxes</small>` : ''}</b></div>`; }).join('')}
+      </section>`;
+    const paper = `<article class="pp-qp" style="--qp:${esc(primary)}" aria-label="Quote">
+        <div class="pp-qp-bar"></div>
+        <header class="pp-qp-head">
+          <div class="pp-qp-org">${prof.logo_url ? `<img src="${esc(prof.logo_url)}" alt="" />` : `<span class="pp-qp-mark">${esc(initials(co ? co.company_name : 'Q'))}</span>`}<div><strong>${esc(co ? co.company_name : 'Flooring company')}</strong><small>${esc([prof.phone || co && co.contact_phone, prof.email || co && co.contact_email].filter(Boolean).join(' · '))}</small></div></div>
+          <div class="pp-qp-num"><small>QUOTE</small><b>${esc(num)}</b><span>Issued ${esc(fmtD(today))}</span><span>Valid until ${esc(fmtD(valid))}</span></div>
+        </header>
+        <div class="pp-qp-parties">
+          <div><small>BILL TO</small><strong>${esc(acc.name)}</strong><span>${esc(acc.email || '')}</span><span>${esc(acc.phone || '')}</span></div>
+          <div><small>JOB SITE</small><strong>Flooring · ${esc(m.address)}</strong><span>${esc([m.community, m.lot ? `Lot ${m.lot}` : ''].filter(Boolean).join(' · '))}</span></div>
+          <div><small>PREPARED BY</small><strong>${esc(co ? co.company_name : '—')}</strong><span>From ObraBuilder measurement</span></div>
         </div>
-      </section>
-      <div class="pp-plan-foot">${locked ? '' : `<button type="button" class="pp-btn pp-btn--pri" data-send-wo>${icon('send')}Send work order</button>`}<span class="pp-muted">Opens the work order already filled in: address, these lines and prices, the floor totals, the PDF and the plans. You can add your own work order file.</span></div>
-    </div>`;
+        ${secs.map(([title, ls]) => { const st = ls.reduce((a, l) => a + (l.price ? l.price.price * l.qty : 0), 0); return `<section class="pp-qp-sec">
+          <div class="pp-qp-sechead"><span>${esc(title.toUpperCase())}</span>${money_ ? `<small>Section total ${esc(money(st))}</small>` : ''}</div>
+          <div class="pp-qp-row pp-qp-row--head"><span>DESCRIPTION</span><span>QTY</span>${money_ ? '<span>RATE</span><span>AMOUNT</span>' : ''}</div>
+          ${ls.map((l) => `<div class="pp-qp-row"><span><strong>${esc(l.name)}</strong>${l.spec ? `<small>${esc(l.spec)}</small>` : ''}</span><span>${Math.round(l.qty).toLocaleString('en-US')} sq ft</span>${money_ ? `<span>${l.price ? money(l.price.price) : '<em class="pp-late">no price</em>'}</span><span><b>${l.price ? money(l.price.price * l.qty) : '—'}</b></span>` : ''}</div>`).join('')}
+        </section>`; }).join('')}
+        ${money_ ? `<div class="pp-qp-foot">
+          <div class="pp-qp-incl"><small>WHAT’S INCLUDED</small>${lines.map((l) => `<span>${icon('check')}${esc(l.name)}${l.spec ? ` — ${esc(l.spec)}` : ''}</span>`).join('')}<span>${icon('check')}Quantities from the house plans: ${esc(totals.map((t) => `${t.label} ${fmtSf(t.area)}`).join(', '))}</span></div>
+          <div class="pp-qp-tot"><div><span>Subtotal</span><b>${money(total)}</b></div><div><span>Tax</span><b>${money(0)}</b></div><div class="pp-qp-total"><span>TOTAL</span><b>${money(total)}</b></div>${missing ? `<p class="pp-late">${plural(missing, 'line', 'lines')} without a price</p>` : ''}</div>
+        </div>` : ''}
+        <div class="pp-qp-mat"><small>MATERIAL TO ORDER</small>${totals.map((t) => { const o = orderQty(t); return `<div><span><i class="pp-swatch" style="background:${esc(t.color)}"></i>${esc(t.label)}${specText(t) ? ` · ${esc(specText(t))}` : ''}</span><span>${fmtSf(t.area)} measured · ${o.waste}% waste</span><b>${fmtSf(o.sf)}${o.boxes ? ` · ${o.boxes} boxes` : ''}</b></div>`; }).join('')}<a class="pp-link" href="#settings/takeoff">Waste settings</a></div>
+      </article>`;
+    return `<div class="pp-qp-wrap">${controls}${paper}</div>`;
   }
 
   function floorsHtml(m) {
@@ -4643,7 +4660,7 @@
       </div>
       <div class="pp-mpanel" role="tabpanel">
         ${m.tab === 'stairs'
-          ? `<div class="pp-meas-layout pp-meas-layout--stairs"><div class="pp-meas-main">${stairsWorkbenchHtml(m)}${locked ? '' : '<button type="button" class="pp-q-add pp-q-add--block" id="ppStairAdd">+ Stair</button>'}</div></div>`
+          ? `<div class="pp-meas-layout pp-meas-layout--stairs"><div class="pp-meas-main">${stairsWorkbenchHtml(m)}${locked ? '' : `<div class="pp-stair-adds"><button type="button" class="pp-q-add pp-q-add--block" id="ppStairAdd">+ Stair</button>${state.builder && state.builder.ai_reader ? `<button type="button" class="pp-q-add pp-q-add--block pp-stair-photo-btn" id="ppStairPhotos">${icon('camera')}Stair from photos</button>` : ''}</div>`}</div></div>`
           : m.tab === 'vents' ? ventsHtml(m) : m.tab === 'floors' ? floorsHtml(m) : measSummaryTabHtml(m)}
       </div>
       ${locked || !state.builder.ai_reader ? '' : voiceFabHtml()}`;
@@ -4841,6 +4858,8 @@
       redraw();
       if (el.value === '__other') { const inp = view.querySelector(`[data-txt="${p}.size"]`); if (inp) { inp.value = ''; inp.focus(); } }
     }));
+    const stairPh = $('ppStairPhotos');
+    if (stairPh) stairPh.addEventListener('click', openStairPhotos);
     const stairAdd = $('ppStairAdd');
     if (stairAdd) stairAdd.addEventListener('click', () => {
       const prev = m.data.stairs[m.data.stairs.length - 1];
@@ -5070,6 +5089,7 @@
         <li>“Riser seven and a half. Add twelve more the same.”</li>
         <li>“Vent four by ten, flush mount, white oak, kitchen.”</li>
       </ul>
+      <p class="pp-muted" style="font-size:13px">English, Português or Español — say fractions the way you say them on site (“eleven and a quarter”, “onze e um quarto”). Mate warns you when a size looks wrong.</p>
       <button type="button" class="pp-btn pp-btn--pri pp-btn--sm" data-voice-start>${icon('mic')}Start talking</button>`);
   }
   function fmtClock(ms) {
@@ -5196,12 +5216,16 @@
     };
     for (const a of actions) {
       if (!a || !a.type) continue;
+      const landing = (s) => { if (a.landing_w != null || a.landing_d != null) s.landing = { enabled: true, width: a.landing_w != null ? Number(a.landing_w) : (s.landing && s.landing.width) || null, depth: a.landing_d != null ? Number(a.landing_d) : (s.landing && s.landing.depth) || null }; };
       if (a.type === 'add_stair') {
         d.stairs.push({ ...newStair(d.stairs.length + 1), ...pick(a, STAIR_KEYS) });
         m.voiceStair = d.stairs.length - 1;
+        landing(d.stairs[d.stairs.length - 1]);
         tab = 'stairs';
       } else if (a.type === 'set_stair') {
-        Object.assign(stairAt(a.stair), pick(a, STAIR_KEYS));
+        const st = stairAt(a.stair);
+        Object.assign(st, pick(a, STAIR_KEYS));
+        landing(st);
         tab = 'stairs';
       } else if (a.type === 'set_steps') {
         const s = stairAt(a.stair);
@@ -5252,8 +5276,111 @@
       } else continue;
       changed += 1;
     }
+    if (changed && d.stairs[m.voiceStair]) m.activeStairId = d.stairs[m.voiceStair].id;
     return { changed, tab };
   }
+  /** Photo → JPEG data URL no bigger than `max` px (what Mate looks at and what is stored). */
+  function shrinkPhoto(file, max) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const k = Math.min(1, (max || 1600) / Math.max(img.naturalWidth, img.naturalHeight));
+        const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        resolve(c.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error(`Could not open ${file.name}.`)); };
+      img.src = url;
+    });
+  }
+
+  /** Stair from photos: the builder snaps the stair, says or types the sizes, Mate builds it (with undo). */
+  function openStairPhotos() {
+    const m = state.meas;
+    if (!m || m.status === 'used') return;
+    const st = { photos: [], text: '', audio: null, rec: null, chunks: [], recording: false };
+    const canMic = Boolean(window.MediaRecorder && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+    const root = openSheet('Stair from photos', `<div class="pp-sph" id="ppSph">
+        <div class="pp-sph-tip">${mate('snap', 72)}<p>Take 1–4 photos of the stair: one from the bottom looking up and one from the side. Then say or type the sizes you measured — Mate counts the steps, sees which sides are open and builds it in 3D.</p></div>
+        <div class="pp-sph-photos" id="ppSphPhotos"></div>
+        <div class="pp-sph-add"><label class="pp-btn pp-btn--sec pp-btn--sm">${icon('camera')}Take photo<input type="file" accept="image/*" capture="environment" data-sph-add hidden /></label><label class="pp-btn pp-btn--sec pp-btn--sm">${icon('upload')}Choose photos<input type="file" accept="image/*" multiple data-sph-add hidden /></label></div>
+        <div class="pp-field"><label for="ppSphText">Sizes and notes <span>(optional)</span></label><textarea id="ppSphText" rows="3" maxlength="1500" placeholder="e.g. 9 steps, 42 wide, 11 1/4 deep, risers 7 1/2, right side open, bottom step 48 bullnose"></textarea></div>
+        ${canMic ? `<button type="button" class="pp-btn pp-btn--sec pp-sph-mic" data-sph-mic>${icon('mic')}<span>Say the sizes</span></button>` : ''}
+        <p class="pp-error" id="ppSphErr" role="alert" hidden></p>
+        <div class="pp-plan-progress" data-sph-wait hidden><span>Mate is looking at the stair…</span><b><i style="width:60%"></i></b></div>
+        <div class="pp-sheet-actions"><button type="button" class="pp-btn pp-btn--pri" data-sph-go disabled>Build the stair</button></div>
+      </div>`, { noFocus: true });
+    const paint = () => {
+      root.querySelector('#ppSphPhotos').innerHTML = st.photos.map((p, i) => `<span class="pp-sph-ph"><img src="${p}" alt="Stair photo ${i + 1}" /><button type="button" data-sph-rm="${i}" aria-label="Remove photo ${i + 1}">×</button></span>`).join('');
+      root.querySelectorAll('[data-sph-rm]').forEach((b) => b.addEventListener('click', () => { st.photos.splice(+b.getAttribute('data-sph-rm'), 1); paint(); }));
+      root.querySelector('[data-sph-go]').disabled = !st.photos.length;
+    };
+    root.querySelectorAll('[data-sph-add]').forEach((inp) => inp.addEventListener('change', async () => {
+      for (const f of Array.from(inp.files || [])) { if (st.photos.length >= 4) break; try { st.photos.push(await shrinkPhoto(f, 1600)); } catch (_) { /* skip */ } }
+      inp.value = '';
+      paint();
+    }));
+    const mic = root.querySelector('[data-sph-mic]');
+    if (mic) mic.addEventListener('click', async () => {
+      if (st.recording) { st.rec.stop(); return; }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+        const type = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find((t) => window.MediaRecorder.isTypeSupported && window.MediaRecorder.isTypeSupported(t)) || '';
+        st.chunks = []; st.rec = new window.MediaRecorder(stream, type ? { mimeType: type } : undefined);
+        st.rec.addEventListener('dataavailable', (e) => { if (e.data && e.data.size) st.chunks.push(e.data); });
+        st.rec.addEventListener('stop', async () => {
+          stream.getTracks().forEach((t) => t.stop());
+          st.recording = false;
+          const blob = new Blob(st.chunks, { type: st.rec.mimeType || 'audio/webm' });
+          st.audio = blob.size > 800 ? await readAsDataUrl(blob) : null;
+          mic.classList.remove('is-rec');
+          mic.querySelector('span').textContent = st.audio ? 'Sizes recorded · record again' : 'Say the sizes';
+        });
+        st.rec.start(); st.recording = true;
+        mic.classList.add('is-rec');
+        mic.querySelector('span').textContent = 'Listening… tap to stop';
+      } catch (_) { formError('ppSphErr', { message: 'Allow the microphone for this site, or type the sizes.' }); }
+    });
+    root.querySelector('[data-sph-go]').addEventListener('click', async () => {
+      if (st.recording) st.rec.stop();
+      const go = root.querySelector('[data-sph-go]'); go.disabled = true;
+      $('ppSphErr').hidden = true;
+      root.querySelector('[data-sph-wait]').hidden = false;
+      try {
+        if (m.dirty) await measSaveNow();
+        const r = await postJson(`/api/builder/measurements/${encodeURIComponent(m.id)}/stair-photos`, { photos: st.photos, text: $('ppSphText').value.trim(), audio: st.audio, data: m.data });
+        const out = r.data || {};
+        if (state.meas !== m) return;
+        const before = JSON.stringify(m.data);
+        const count = (m.data.stairs || []).length;
+        const res = applyVoiceActions(m, out.actions || []);
+        if (!res.changed) throw new Error(out.unclear || 'Mate couldn’t build a stair from these photos. Try a photo from the bottom of the stair.');
+        // keep the photos on the stair Mate built (or the current one)
+        const target = m.data.stairs[(m.data.stairs.length > count ? m.data.stairs.length - 1 : m.voiceStair) || 0];
+        for (const p of st.photos) {
+          try { const up = await postJson(`/api/builder/measurements/${encodeURIComponent(m.id)}/photos`, { data_url: p }); if (target) { target.photos = target.photos || []; if (target.photos.length < 12) target.photos.push(up.data.key); } } catch (_) { /* photo is optional */ }
+        }
+        if (target && out.observations && out.observations.length) target.note = [target.note, ...out.observations].filter(Boolean).join(' · ').slice(0, 500);
+        m.tab = 'stairs';
+        measSaveSoon();
+        const body = root.querySelector('#ppSph');
+        body.innerHTML = `<div class="pp-sph-done">${mate('thumbs', 96)}<div><strong>${esc(out.reply || 'Stair built.')}</strong>
+          ${out.observations && out.observations.length ? `<ul>${out.observations.map((o) => `<li>${esc(o)}</li>`).join('')}</ul>` : ''}
+          ${out.unclear ? `<p class="pp-late">${esc(out.unclear)}</p>` : ''}
+          ${out.transcript ? `<p class="pp-voice-heard">“${esc(out.transcript)}”</p>` : ''}</div></div>
+          <div class="pp-sheet-actions"><button type="button" class="pp-btn pp-btn--sec" data-sph-undo>Undo</button><button type="button" class="pp-btn pp-btn--pri" data-sheet-close>See the stair</button></div>`;
+        body.querySelector('[data-sph-undo]').addEventListener('click', () => { m.data = JSON.parse(before); measSaveSoon(); closeSheet(); paintMeasurement(); });
+        paintMeasurement();
+      } catch (ex) {
+        root.querySelector('[data-sph-wait]').hidden = true;
+        formError('ppSphErr', ex);
+        go.disabled = false;
+      }
+    });
+  }
+
   function bindVoice() {
     const box = $('ppVoice');
     if (!box) return;
