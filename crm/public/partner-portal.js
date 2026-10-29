@@ -3157,7 +3157,7 @@
     return '<span class="pp-chip pp-chip--late">In progress</span>';
   }
   function newStair(n) {
-    return { id: uid(), name: n ? `Stair ${n}` : 'Main stair', layout: 'straight', round_diameter: null, round_center_diameter: null, round_sweep: '270', starts_on_landing_of: null, landing: { enabled: false, width: null, depth: null }, species: 'White Oak', finish: FINISHES[0], color: '', riser_material: 'same', steps: [], nosings: [], photos: [], note: '' };
+    return { id: uid(), name: n ? `Stair ${n}` : 'Main stair', layout: 'straight', round_diameter: null, round_center_diameter: null, round_sweep: '270', starts_on_landing_of: null, turn: 'straight', landing: { enabled: false, width: null, depth: null }, species: 'White Oak', finish: FINISHES[0], color: '', riser_material: 'same', steps: [], nosings: [], photos: [], note: '' };
   }
   function newStep(prev, kind) {
     const componentKind = kind || 'step';
@@ -3538,6 +3538,15 @@
     </svg>`;
   }
 
+  const STAIR_TURNS = ['straight', 'left', 'right', 'u_left', 'u_right'];
+  const turnIc = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`;
+  const TURN_OPTS = [
+    ['straight', 'Straight', turnIc('M12 20V4M7 9l5-5 5 5')],
+    ['left', 'Turn left', turnIc('M16 20v-8H5M9 8l-4 4 4 4')],
+    ['right', 'Turn right', turnIc('M8 20v-8h11M15 8l4 4-4 4')],
+    ['u_left', 'U-turn left', turnIc('M17 20V9a4 4 0 0 0-8 0v11M5 16l4 4 4-4')],
+    ['u_right', 'U-turn right', turnIc('M7 20V9a4 4 0 0 1 8 0v11M11 16l4 4 4-4')],
+  ];
   /** Whole stair drawn from component rows, including riser-only endings and optional landings. */
   function stairSvg(stairOrFlights, sel, mirror, flightIndexes, selectedByFlight, activeFlightIndex) {
     const flights = Array.isArray(stairOrFlights) ? stairOrFlights : [stairOrFlights];
@@ -3559,13 +3568,17 @@
     });
     if (!flightData.some(({ components, flight }) => components.length || (flight.landing && flight.landing.enabled))) return '<p class="pp-muted pp-viz-empty">The stair builds itself here as you measure the steps.</p>';
     const cos = Math.cos(Math.PI / 6); const sin = Math.sin(Math.PI / 6);
-    const P = (x, y, z) => { const xx = mirror ? -x : x; return [(xx + y) * cos, (xx - y) * sin - z]; };
-    const pts = (arr) => arr.map((p) => P(...p).map((v) => v.toFixed(2)).join(',')).join(' ');
+    // World → screen (isometric). Each flight has its own frame so a flight can turn on the landing.
+    const PW = (x, y, z) => { const xx = mirror ? -x : x; return [(xx + y) * cos, (xx - y) * sin - z]; };
     const shapes = []; const all = [];
-    let z = 0; let y = 0;
     const nose = 1.25; const thickness = 1;
-    const geoByFlight = flightData.map(({ flight, flightIndex, components }) => {
+    const firstWidth = (flight) => { const st = (flight.steps || []).find((x) => x.kind !== 'riser' && x.tread_w) || (flight.steps || []).find((x) => x.riser_w); return Number(st && (st.tread_w || st.riser_w)) || 36; };
+    let z = 0;
+    // frame: world = o + x*ax + y*ay  (ax = flight's "right" direction, ay = walking direction)
+    let frame = { ox: 0, oy: 0, ax: [1, 0], ay: [0, 1] };
+    const geoByFlight = flightData.map(({ flight, flightIndex, components }, pos) => {
       const flightRows = [];
+      let y = 0;
       let lastW = Number(flight.width) || 36; let lastD = Number(flight.depth) || 11.25;
       for (const { step, index } of components) {
         const riserOnly = step.kind === 'riser';
@@ -3576,85 +3589,124 @@
         if (!riserOnly) { y += D - nose; lastW = W; lastD = D; }
         z += H;
       }
-      const landing = flight.landing && flight.landing.enabled ? {
-        flight,
-        flightIndex,
-        width: Number(flight.landing.width) || lastW,
-        depth: Number(flight.landing.depth) || lastD,
-        y0: y,
-        z0: z,
-      } : null;
-      if (landing) y += landing.depth;
-      return { rows: flightRows, landing };
+      const next = flightData[pos + 1] && flightData[pos + 1].flight;
+      const turn = next && STAIR_TURNS.includes(next.turn) ? next.turn : 'straight';
+      const nextW = next ? firstWidth(next) : lastW;
+      let landing = null;
+      const myFrame = frame;
+      if (flight.landing && flight.landing.enabled) {
+        const uTurn = turn === 'u_left' || turn === 'u_right';
+        // a U-turn landing always spans both flights side by side
+        const width = uTurn ? Math.max(Number(flight.landing.width) || 0, lastW + nextW) : Number(flight.landing.width) || lastW;
+        const depth = Number(flight.landing.depth) || (turn === 'straight' ? lastD : Math.max(lastD, nextW));
+        // U-turns: the landing reaches over the next flight, beside this one
+        const x0 = turn === 'u_left' ? lastW - width : 0;
+        landing = { flight, flightIndex, x0, width, depth, y0: y, z0: z };
+        const at = (lx, ly) => [myFrame.ox + lx * myFrame.ax[0] + ly * myFrame.ay[0], myFrame.oy + lx * myFrame.ax[1] + ly * myFrame.ay[1]];
+        const rot = (v, k) => (k === 'left' ? [-v[1], v[0]] : k === 'right' ? [v[1], -v[0]] : k === 'back' ? [-v[0], -v[1]] : v);
+        const yEnd = y + depth;
+        if (turn === 'straight') { const o = at(0, yEnd); frame = { ox: o[0], oy: o[1], ax: myFrame.ax, ay: myFrame.ay }; }
+        else if (turn === 'left') { const o = at(x0, y); frame = { ox: o[0], oy: o[1], ax: myFrame.ay, ay: rot(myFrame.ay, 'left') }; }
+        else if (turn === 'right') { const o = at(x0 + width, yEnd); frame = { ox: o[0], oy: o[1], ax: rot(myFrame.ay, 'back'), ay: rot(myFrame.ay, 'right') }; }
+        else if (turn === 'u_left') { const o = at(0, y); frame = { ox: o[0], oy: o[1], ax: rot(myFrame.ax, 'back'), ay: rot(myFrame.ay, 'back') }; }
+        else { const o = at(lastW + nextW, y); frame = { ox: o[0], oy: o[1], ax: rot(myFrame.ax, 'back'), ay: rot(myFrame.ay, 'back') }; }
+      } else {
+        const o = [myFrame.ox + y * myFrame.ay[0], myFrame.oy + y * myFrame.ay[1]];
+        frame = { ox: o[0], oy: o[1], ax: myFrame.ax, ay: myFrame.ay };
+      }
+      return { rows: flightRows, landing, frame: myFrame };
     });
+    // Painter's order: farther pieces first (depth = screen-forward direction).
+    const groups = [];
     for (let flightPosition = geoByFlight.length - 1; flightPosition >= 0; flightPosition -= 1) {
-      const { rows, landing } = geoByFlight[flightPosition];
+      const { rows, landing, frame: fr } = geoByFlight[flightPosition];
+      const toW = (x, y) => [fr.ox + x * fr.ax[0] + y * fr.ay[0], fr.oy + x * fr.ax[1] + y * fr.ay[1]];
+      const P = (x, y, z) => { const w = toW(x, y); return PW(w[0], w[1], z); };
+      const pts = (arr) => arr.map((p) => P(...p).map((v) => v.toFixed(2)).join(',')).join(' ');
+      const depthOf = (x, y) => { const w = toW(x, y); return (mirror ? -w[0] : w[0]) - w[1]; };
+      // which long side of this flight faces the viewer
+      const rightVisible = ((mirror ? -fr.ax[0] : fr.ax[0]) - fr.ax[1]) > 0;
+      const facesViewer = ((mirror ? -fr.ay[0] : fr.ay[0]) - fr.ay[1]) < 0;
+      let cur = null;
+      const open = (key) => { cur = { key, parts: [] }; groups.push(cur); };
+      const put = (svg) => cur.parts.push(svg);
       const flightInfo = flightData[flightPosition];
       const { flight, flightIndex, vizId: flightVizId, tone: flightTone } = flightInfo;
       if (landing) {
-        const { width: landingWidth, depth: landingDepth, y0: landY, z0: landTop } = landing;
+        const { x0: lx0, width: landingWidth, depth: landingDepth, y0: landY, z0: landTop } = landing;
+        const lx1 = lx0 + landingWidth;
+        open(depthOf((lx0 + lx1) / 2, landY + landingDepth / 2) - 0.5);
+        const sideX = rightVisible ? lx1 : lx0;
+        const endY = facesViewer ? landY + landingDepth : landY;
         const sides = [
-          [[landingWidth, landY, landTop - thickness], [landingWidth, landY + landingDepth, landTop - thickness], [landingWidth, landY + landingDepth, landTop], [landingWidth, landY, landTop]],
-          [[0, landY + landingDepth, landTop - thickness], [landingWidth, landY + landingDepth, landTop - thickness], [landingWidth, landY + landingDepth, landTop], [0, landY + landingDepth, landTop]],
+          [[sideX, landY, landTop - thickness], [sideX, landY + landingDepth, landTop - thickness], [sideX, landY + landingDepth, landTop], [sideX, landY, landTop]],
+          [[lx0, endY, landTop - thickness], [lx1, endY, landTop - thickness], [lx1, endY, landTop], [lx0, endY, landTop]],
         ];
-        sides.forEach((side) => shapes.push(`<polygon points="${pts(side)}" fill="${hexMix(flightTone.base, '#2A1C12', 0.22)}" stroke="#4A3726" stroke-width=".3"/>`));
+        sides.forEach((side) => put(`<polygon points="${pts(side)}" fill="${hexMix(flightTone.base, '#2A1C12', 0.22)}" stroke="#4A3726" stroke-width=".3"/>`));
         sides.forEach((side) => side.forEach((point) => all.push(P(...point))));
-        const platform = [[0, landY, landTop], [landingWidth, landY, landTop], [landingWidth, landY + landingDepth, landTop], [0, landY + landingDepth, landTop]];
-        shapes.push(`<polygon points="${pts(platform)}" fill="url(#${flightVizId}t)" stroke="#4A3726" stroke-width=".35" class="pp-viz-landing"><title>Landing ${fmtIn(landingWidth)}" × ${fmtIn(landingDepth)}" before ${esc(flight.name || 'next flight')}</title></polygon>`);
+        const platform = [[lx0, landY, landTop], [lx1, landY, landTop], [lx1, landY + landingDepth, landTop], [lx0, landY + landingDepth, landTop]];
+        put(`<polygon points="${pts(platform)}" fill="url(#${flightVizId}t)" stroke="#4A3726" stroke-width=".35" class="pp-viz-landing"><title>Landing ${fmtIn(landingWidth)}" × ${fmtIn(landingDepth)}" before ${esc(flight.name || 'next flight')}</title></polygon>`);
         platform.forEach((point) => all.push(P(...point)));
         for (const nosing of landingNosings(flight)) {
-          const a = P(0, landY + landingDepth - 0.35, landTop + 0.08); const b = P(landingWidth, landY + landingDepth - 0.35, landTop + 0.08);
-          shapes.push(`<path d="M${a[0].toFixed(2)} ${a[1].toFixed(2)}L${b[0].toFixed(2)} ${b[1].toFixed(2)}" stroke="#B4561A" stroke-width="1.5" stroke-linecap="round" class="pp-viz-nosing"><title>${esc(`${nosing.qty || 1} ${nosing.type} nosing · landing edge`)}</title></path>`);
+          const a = P(lx0, landY + landingDepth - 0.35, landTop + 0.08); const b = P(lx1, landY + landingDepth - 0.35, landTop + 0.08);
+          put(`<path d="M${a[0].toFixed(2)} ${a[1].toFixed(2)}L${b[0].toFixed(2)} ${b[1].toFixed(2)}" stroke="#B4561A" stroke-width="1.5" stroke-linecap="round" class="pp-viz-nosing"><title>${esc(`${nosing.qty || 1} ${nosing.type} nosing · landing edge`)}</title></path>`);
         }
-        const label = P(landingWidth / 2, landY + landingDepth / 2, landTop + 0.1);
-        shapes.push(`<text class="pp-viz-landing-label" x="${label[0].toFixed(2)}" y="${label[1].toFixed(2)}" text-anchor="middle" dominant-baseline="central">LANDING</text>`);
+        const label = P((lx0 + lx1) / 2, landY + landingDepth / 2, landTop + 0.1);
+        put(`<text class="pp-viz-landing-label" x="${label[0].toFixed(2)}" y="${label[1].toFixed(2)}" text-anchor="middle" dominant-baseline="central">LANDING</text>`);
       }
       for (let k = rows.length - 1; k >= 0; k -= 1) {
       const g = rows[k];
       const { st, index, riserOnly, W, D, H, y0, z0 } = g;
+      open(depthOf(W / 2, y0 + D / 2) + z0 * 0.002);
       const selected = selectedByFlight && selectedByFlight[flightIndex] !== undefined
         ? selectedByFlight[flightIndex]
         : flightIndex === (activeFlightIndex !== undefined ? activeFlightIndex : flightIndexes && flightIndexes[0] !== undefined ? flightIndexes[0] : 0) ? sel : -1;
       const top = z0 + H; const isSelected = index === selected;
       if (riserOnly) {
         const riser = [[0, y0, z0], [W, y0, z0], [W, y0, top], [0, y0, top]];
-        shapes.push(`<polygon points="${pts(riser)}" fill="url(#${flightVizId}r)" stroke="${isSelected ? '#E7792C' : '#5B4632'}" stroke-width="${isSelected ? '1' : '.35'}" data-viz-flight="${flightIndex}" data-viz-step="${index}" class="pp-viz-tread pp-viz-riser-only"><title>${esc(flight.name || 'Stair')} · Riser only ${index + 1}: ${fmtIn(st.riser_w) || fmtIn(W)}" × ${fmtIn(H)}"</title></polygon>`);
+        put(`<polygon points="${pts(riser)}" fill="url(#${flightVizId}r)" stroke="${isSelected ? '#E7792C' : '#5B4632'}" stroke-width="${isSelected ? '1' : '.35'}" data-viz-flight="${flightIndex}" data-viz-step="${index}" class="pp-viz-tread pp-viz-riser-only"><title>${esc(flight.name || 'Stair')} · Riser only ${index + 1}: ${fmtIn(st.riser_w) || fmtIn(W)}" × ${fmtIn(H)}"</title></polygon>`);
         riser.forEach((point) => all.push(P(...point)));
         continue;
       }
       const yf = y0 - nose;
       const leftOpen = st.open === 'left' || st.open === 'both';
       const rightOpen = st.open === 'right' || st.open === 'both';
-      const sideOpen = mirror ? leftOpen : rightOpen; const sideX = mirror ? 0 : W;
+      const sideOpen = rightVisible ? rightOpen : leftOpen; const sideX = rightVisible ? W : 0;
       const riserW = Number(st.riser_w) || W;
       const riser = [[0, y0, z0], [riserW, y0, z0], [riserW, y0, top - thickness], [0, y0, top - thickness]];
-      if (flight.riser_material !== 'none' && !st.no_riser) shapes.push(`<polygon points="${pts(riser)}" fill="url(#${flightVizId}r)" stroke="#5B4632" stroke-width=".25"/>`);
+      if (facesViewer && flight.riser_material !== 'none' && !st.no_riser) put(`<polygon points="${pts(riser)}" fill="url(#${flightVizId}r)" stroke="#5B4632" stroke-width=".25"/>`);
       const side = [[sideX, y0, z0], [sideX, y0 + D, z0], [sideX, y0 + D, top], [sideX, yf, top], [sideX, yf, top - thickness], [sideX, y0, top - thickness]];
-      shapes.push(sideOpen
+      put(sideOpen
         ? `<polygon points="${pts(side)}" fill="${hexMix(flightTone.base, '#2A1C12', 0.28)}" stroke="#4A3726" stroke-width=".25"/>`
         : `<polygon points="${pts(side)}" fill="#E4E7EC" stroke="#C0C6CF" stroke-width=".25"/>`);
+      // a flight coming toward the viewer shows the back of each step instead of the riser
+      if (!facesViewer) {
+        const back = [[0, y0 + D, z0], [W, y0 + D, z0], [W, y0 + D, top], [0, y0 + D, top]];
+        put(`<polygon points="${pts(back)}" fill="${hexMix(flightTone.base, '#2A1C12', 0.35)}" stroke="#4A3726" stroke-width=".25"/>`);
+      }
       const front = [[0, yf, top - thickness], [W, yf, top - thickness], [W, yf, top], [0, yf, top]];
-      shapes.push(`<polygon points="${pts(front)}" fill="${hexMix(flightTone.base, '#2A1C12', 0.18)}" stroke="#4A3726" stroke-width=".25"/>`);
+      if (facesViewer) put(`<polygon points="${pts(front)}" fill="${hexMix(flightTone.base, '#2A1C12', 0.18)}" stroke="#4A3726" stroke-width=".25"/>`);
       const tread = [[0, yf, top], [W, yf, top], [W, y0 + D, top], [0, y0 + D, top]];
-      shapes.push(`<polygon points="${pts(tread)}" fill="url(#${flightVizId}t)" stroke="${isSelected ? '#E7792C' : '#4A3726'}" stroke-width="${isSelected ? '.9' : '.25'}" data-viz-flight="${flightIndex}" data-viz-step="${index}" class="pp-viz-tread"><title>${esc(flight.name || 'Stair')} · Tread ${index + 1}: ${fmtIn(W)}" × ${fmtIn(D)}" · ${openText(st.open, st.ret)}</title></polygon>`);
-      if (isGlossy(flight.finish)) shapes.push(`<polygon points="${pts(tread)}" fill="url(#${flightVizId}tg)" pointer-events="none"/>`);
+      put(`<polygon points="${pts(tread)}" fill="url(#${flightVizId}t)" stroke="${isSelected ? '#E7792C' : '#4A3726'}" stroke-width="${isSelected ? '.9' : '.25'}" data-viz-flight="${flightIndex}" data-viz-step="${index}" class="pp-viz-tread"><title>${esc(flight.name || 'Stair')} · Tread ${index + 1}: ${fmtIn(W)}" × ${fmtIn(D)}" · ${openText(st.open, st.ret)}</title></polygon>`);
+      if (isGlossy(flight.finish)) put(`<polygon points="${pts(tread)}" fill="url(#${flightVizId}tg)" pointer-events="none"/>`);
       for (const [nosingIndex, nosing] of nosingsForTread(flight, st).entries()) {
         const edgeY = yf + (nosing.type === 'flush' ? 0.08 : nosing.type === 'overlap' ? -0.4 : -0.2) + nosingIndex * 0.16;
         const a = P(0, edgeY, top + 0.08); const b = P(W, edgeY, top + 0.08);
-        shapes.push(`<path d="M${a[0].toFixed(2)} ${a[1].toFixed(2)}L${b[0].toFixed(2)} ${b[1].toFixed(2)}" stroke="#B4561A" stroke-width="1.4" stroke-linecap="round" class="pp-viz-nosing"><title>${esc(`${nosing.qty || 1} ${nosing.type} nosing · ${fmtIn(nosing.length)} inches`)}</title></path>`);
+        put(`<path d="M${a[0].toFixed(2)} ${a[1].toFixed(2)}L${b[0].toFixed(2)} ${b[1].toFixed(2)}" stroke="#B4561A" stroke-width="1.4" stroke-linecap="round" class="pp-viz-nosing"><title>${esc(`${nosing.qty || 1} ${nosing.type} nosing · ${fmtIn(nosing.length)} inches`)}</title></path>`);
       }
       if (sideOpen && st.ret !== 'bullnose') {
         const a = P(sideX, yf, top);
         const b = P(sideX, yf + (st.ret === 'flat' ? 0 : nose), top - (st.ret === 'flat' ? thickness : 0));
-        shapes.push(`<path d="M${a[0].toFixed(2)} ${a[1].toFixed(2)}L${b[0].toFixed(2)} ${b[1].toFixed(2)}" stroke="#2A1C12" stroke-width=".35"/>`);
+        put(`<path d="M${a[0].toFixed(2)} ${a[1].toFixed(2)}L${b[0].toFixed(2)} ${b[1].toFixed(2)}" stroke="#2A1C12" stroke-width=".35"/>`);
       }
       [riser, side, front, tread].forEach((poly) => poly.forEach((point) => all.push(P(...point))));
       if (isSelected) {
         const c = P(W / 2, y0 + D / 2, top);
-        shapes.push(`<g class="pp-viz-pin"><circle cx="${c[0].toFixed(2)}" cy="${c[1].toFixed(2)}" r="3.4"/><text x="${c[0].toFixed(2)}" y="${c[1].toFixed(2)}" text-anchor="middle" dominant-baseline="central">${index + 1}</text></g>`);
+        put(`<g class="pp-viz-pin"><circle cx="${c[0].toFixed(2)}" cy="${c[1].toFixed(2)}" r="3.4"/><text x="${c[0].toFixed(2)}" y="${c[1].toFixed(2)}" text-anchor="middle" dominant-baseline="central">${index + 1}</text></g>`);
       }
       }
     }
+    groups.map((g, n) => ({ g, n })).sort((a, b) => a.g.key - b.g.key || a.n - b.n).forEach(({ g }) => shapes.push(...g.parts));
     const xs = all.map((point) => point[0]); const ys = all.map((point) => point[1]);
     const pad = 8; const minX = Math.min(...xs) - pad; const minY = Math.min(...ys) - pad;
     const w = Math.max(...xs) - minX + pad; const h = Math.max(...ys) - minY + pad;
@@ -3777,7 +3829,10 @@
 
   function stairVizHtml(m, s, si) {
     const sel = Math.min(Math.max(0, (m.vizSel && m.vizSel[si]) || 0), Math.max(0, (s.steps || []).length - 1));
-    const mirror = Boolean(m.vizMirror && m.vizMirror[si]);
+    const chain0 = stairChainFor(m.data, s.id);
+    // turning right reads better seen from the other side: flip the default view
+    const autoFlip = chain0.slice(1).some((flight) => flight.turn === 'right' || flight.turn === 'u_right');
+    const mirror = Boolean(m.vizMirror && m.vizMirror[si]) !== autoFlip;
     const mirrorButton = s.layout === 'round' ? '' : '<button type="button" class="pp-link" data-viz-mirror="' + si + '">' + (mirror ? 'View from the right' : 'View from the left') + '</button>';
     const chain = stairChainFor(m.data, s.id);
     const connected = chain.length > 1;
@@ -3790,9 +3845,17 @@
     const drawingHint = connected
       ? 'Both flights and the connecting landing stay visible. Select a tread or riser to edit it.'
       : s.layout === 'round' ? 'The plan places each tread around the selected stair sweep.' : 'Select any tread or riser to edit its measurements.';
+    // how each upper flight leaves its landing (L or U stairs)
+    const locked = m.status === 'used';
+    const turnPick = connected && !mixedLayout ? chain.slice(1).map((flight) => {
+      const fi = m.data.stairs.findIndex((x) => x.id === flight.id);
+      const cur = STAIR_TURNS.includes(flight.turn) ? flight.turn : 'straight';
+      return `<div class="pp-turn" role="group" aria-label="${esc(flight.name || 'Upper flight')} leaves the landing"><span>${chain.length > 2 ? esc(flight.name || 'Upper flight') : 'From the landing'}</span>${TURN_OPTS.map(([k, l, ic]) => `<button type="button" data-turn="${fi}:${k}" aria-pressed="${cur === k}" title="${esc(l)}" ${locked ? 'disabled' : ''}>${ic}<span>${esc(l)}</span></button>`).join('')}</div>`;
+    }).join('') : '';
     return `<div class="pp-viz" data-viz-stair="${si}">
       <div class="pp-viz-3d">
         <div class="pp-viz-bar"><span class="pp-step-lbl pp-viz-lbl">${drawingTitle}</span>${mixedLayout ? '' : mirrorButton}</div>
+        ${turnPick}
         <div class="pp-viz-box" data-viz-box="3d">${drawing}</div>
         <p class="pp-viz-hint">${drawingHint}</p>
       </div>
@@ -5121,8 +5184,15 @@
       const s = m.data.stairs[si];
       const sel = m.vizSel[si] || 0;
       const st = s.steps[sel];
-      const t = e.target.closest('[data-viz-step],[data-viz-side],[data-viz-ret],[data-viz-prev],[data-viz-next],[data-viz-mirror]');
+      const t = e.target.closest('[data-viz-step],[data-viz-side],[data-viz-ret],[data-viz-prev],[data-viz-next],[data-viz-mirror],[data-turn]');
       if (!t) return;
+      if (t.hasAttribute('data-turn')) {
+        if (m.status === 'used') return;
+        const [fi, k] = t.getAttribute('data-turn').split(':');
+        const fl = m.data.stairs[Number(fi)];
+        if (fl && STAIR_TURNS.includes(k)) { fl.turn = k; measSaveSoon(); redraw(); }
+        return;
+      }
       if (t.hasAttribute('data-viz-step')) {
         const targetSi = Number(t.getAttribute('data-viz-flight'));
         const targetIndex = Number(t.getAttribute('data-viz-step'));
@@ -5598,17 +5668,20 @@
         lower.landing = { enabled: true, width: (lower.landing && lower.landing.width) || null, depth: (lower.landing && lower.landing.depth) || null };
         s.starts_on_landing_of = lower.id;
       };
+      const turnOf = (s) => { if (STAIR_TURNS.includes(a.turn)) s.turn = a.turn; };
       if (a.type === 'add_stair') {
         d.stairs.push({ ...newStair(d.stairs.length + 1), ...pick(a, STAIR_KEYS) });
         m.voiceStair = d.stairs.length - 1;
         landing(d.stairs[d.stairs.length - 1]);
         linkTo(d.stairs[d.stairs.length - 1]);
+        turnOf(d.stairs[d.stairs.length - 1]);
         tab = 'stairs';
       } else if (a.type === 'set_stair') {
         const st = stairAt(a.stair);
         Object.assign(st, pick(a, STAIR_KEYS));
         landing(st);
         linkTo(st);
+        turnOf(st);
         tab = 'stairs';
       } else if (a.type === 'set_steps') {
         const s = stairAt(a.stair);

@@ -51,6 +51,8 @@ export const voiceActionSchema = z.discriminatedUnion("type", [
     landing: z.boolean().optional(),
     /** Index of the lower flight whose landing this flight starts from. */
     starts_on_landing_of: stairRef.optional(),
+    /** Direction this flight leaves the landing, seen walking up the lower flight. */
+    turn: z.enum(["straight", "left", "right", "u_left", "u_right"]).optional(),
   }),
   z.object({
     type: z.literal("add_stair"),
@@ -65,6 +67,8 @@ export const voiceActionSchema = z.discriminatedUnion("type", [
     landing: z.boolean().optional(),
     /** Index of the lower flight whose landing this flight starts from. */
     starts_on_landing_of: stairRef.optional(),
+    /** Direction this flight leaves the landing, seen walking up the lower flight. */
+    turn: z.enum(["straight", "left", "right", "u_left", "u_right"]).optional(),
   }),
   z.object({
     type: z.literal("add_nosing"),
@@ -251,6 +255,7 @@ FIRST decide how many FLIGHTS there are. Many houses have two flights joined by 
 - A landing is a flat platform much deeper than a tread (usually 36–48" deep), often at a window or where the stair turns 90° or 180°. A flight is a run of steps between two floors/landings.
 - Different photos often show DIFFERENT flights of the same stair: one photo taken from the lower floor looking up to the landing, another taken from the landing (or near it) looking up to the upper floor. Clues: a different window, different walls/railings, a different floor at the bottom (the landing's flooring), the stair turning. If two photos show different step counts, open sides or surroundings, they are two flights — do NOT merge them into one and do not count the same steps twice.
 - When there is a landing between flights: build the LOWER flight first with add_stair (landing:true, plus landing_w/landing_d if known — the landing width is usually the stair width), then the UPPER flight with add_stair and "starts_on_landing_of" = the index of the lower flight. Name them e.g. "Lower flight" and "Upper flight".
+- Say which way the upper flight leaves the landing with "turn", as seen by someone walking UP the lower flight: "straight" (keeps going the same direction), "left"/"right" (90° turn, L-shaped stair), "u_left"/"u_right" (180° turn, U-shaped: the upper flight runs back beside the lower one, on its left or right). Look at where the upper flight is in the photos relative to the lower flight: a wall with stepped drywall rising above and beside the lower flight, a window on the landing with the upper flight coming back, or the photo taken from the landing facing the opposite direction all mean a U-turn. Never use "straight" unless the flights are clearly in one line.
 - Count each flight separately from its own bottom (step 1 = lowest tread of that flight). The landing itself is NOT a step of either flight. The lower flight's last riser goes up to the landing; if the upper floor is the top of the upper flight, end the upper flight with a riser (add_riser).
 
 For each flight work out:
@@ -260,12 +265,12 @@ For each flight work out:
 Sizes (inches, decimals) come from what the builder said or typed (any language: English, Portuguese, Spanish). Use them exactly. If no size was given for something, estimate a typical value from the photo (tread depth 10–11.25, riser 7–7.75, width from the opening: 36, 42 or 48) and say in "reply" that the sizes are estimates to check.
 Group equal steps: one add_steps per run of steps with the same sizes and open sides; use set_steps only for exceptions.
 Start with add_stair unless the builder says to fill the current stair.
-Return ONLY JSON: {"flights": <number of flights you found>, "actions":[...], "reply":"<one or two short sentences: what you built, e.g. '2 flights with a landing: 8 steps up to the landing, then 9 to the upper floor'>", "unclear":"<what you could not see or understand, or empty>", "observations":["<short notes the installer should know, e.g. 'Landing at the window', 'Right side open on the lower flight'>"]}.
+Return ONLY JSON: {"flights": <number of flights you found>, "actions":[...], "reply":"<one or two short sentences: what you built, e.g. '2 flights with a landing (U-turn to the left): 8 steps up to the landing, then 9 to the upper floor'>", "unclear":"<what you could not see or understand, or empty>", "observations":["<short notes the installer should know, e.g. 'Landing at the window', 'Right side open on the lower flight'>"]}.
 Action shapes:
 {"type":"add_stair","name":"Lower flight","landing":true,"landing_w":42,"landing_d":42}
 {"type":"add_steps","stair":0,"count":8,"tread_w":42,"tread_d":11.25,"riser_w":42,"riser_h":7.5,"open":"right","ret":"45"}
 {"type":"add_riser","stair":0,"count":1,"riser_w":42,"riser_h":7.5}
-{"type":"add_stair","name":"Upper flight","starts_on_landing_of":0}
+{"type":"add_stair","name":"Upper flight","starts_on_landing_of":0,"turn":"u_left"}
 {"type":"add_steps","stair":1,"count":9,"tread_w":42,"tread_d":11.25,"riser_w":42,"riser_h":7.5,"open":"left"}
 {"type":"set_steps","stair":0,"from":1,"to":1,"tread_w":48,"tread_d":12,"open":"both","ret":"bullnose"}
 {"type":"set_stair","stair":0,"landing":true,"landing_w":42,"landing_d":42}

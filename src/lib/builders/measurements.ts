@@ -65,6 +65,8 @@ const stairSchema = z.object({
   round_sweep: z.enum(["180", "270", "360"]).optional().default("270"),
   /** ID of the lower flight whose landing this flight starts from. */
   starts_on_landing_of: z.string().trim().max(40).nullable().optional().default(null),
+  /** Which way this flight leaves the lower flight's landing, as seen walking up the lower flight. */
+  turn: z.enum(["straight", "left", "right", "u_left", "u_right"]).optional().default("straight"),
   landing: landingSchema.optional().default({ enabled: false, width: null, depth: null }),
   species: text(60),
   finish: text(60),
