@@ -96,8 +96,14 @@
   function rawStatus(q) {
     return String(q.status || 'draft').toLowerCase();
   }
-  function groupOf(q) {
+  /** A sent e-mail is not a draft, even if a later save left the status field behind. */
+  function effectiveStatus(q) {
     const s = rawStatus(q);
+    if (s === 'draft' && (q.email_sent_at || q.sent_at)) return 'sent';
+    return s;
+  }
+  function groupOf(q) {
+    const s = effectiveStatus(q);
     if (s === 'approved' || s === 'accepted' || s === 'converted' || s === 'invoiced') return 'approved';
     if (s === 'archived' || s === 'rejected') return 'archived';
     if (s === 'draft') return 'draft';
@@ -443,9 +449,24 @@
     ['rejected', 'Recusado'],
     ['archived', 'Arquivado'],
   ];
+  const promotedSent = new Set();
+  const keepDraft = new Set();
+  function maybePromoteSent(q) {
+    if (!q || !st.canEdit || promotedSent.has(String(q.id)) || keepDraft.has(String(q.id))) return;
+    if (rawStatus(q) !== 'draft' || !(q.email_sent_at || q.sent_at)) return;
+    promotedSent.add(String(q.id));
+    q.status = 'sent';
+    void api(`/api/quotes/${encodeURIComponent(q.id)}/status`, {
+      method: 'POST',
+      body: JSON.stringify({ status: 'sent' }),
+    }).catch(() => {
+      promotedSent.delete(String(q.id));
+    });
+  }
   function statusSelect(q) {
     if (!st.canEdit) return '';
-    const cur = rawStatus(q);
+    maybePromoteSent(q);
+    const cur = effectiveStatus(q);
     const opts = STATUS_OPTS.slice();
     if (!opts.some(([v]) => v === cur)) opts.unshift([cur, cur]);
     return `<label class="qs-status">Status<select data-qs-status="${esc(q.id)}" aria-label="Status do quote">${opts
@@ -455,6 +476,8 @@
   async function setQuoteStatus(id, status, selectEl) {
     const q = st.rows.find((r) => String(r.id) === String(id));
     const prev = q ? rawStatus(q) : '';
+    if (status === 'draft') keepDraft.add(String(id));
+    else keepDraft.delete(String(id));
     try {
       const j = await api(`/api/quotes/${encodeURIComponent(id)}/status`, {
         method: 'POST',

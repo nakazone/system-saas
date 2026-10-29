@@ -2185,12 +2185,34 @@ customersQuotesRouter.put(
           : false;
         // Notes, address, client ID, terms, and dates stay approved. Only a service change asks for a new signature.
         const invalidate = linesChanged && quoteHadClientApproval(existing);
+        const prevPayload =
+          existing.payload && typeof existing.payload === "object" && !Array.isArray(existing.payload)
+            ? (existing.payload as Record<string, unknown>)
+            : {};
+        const nextPayload: Record<string, unknown> = { ...(body as Record<string, unknown>) };
+        delete nextPayload.status_touched;
+        for (const key of ["email_sent_at", "sent_at", "pdf_viewed_at"] as const) {
+          if ((nextPayload[key] == null || nextPayload[key] === "") && prevPayload[key] != null) {
+            nextPayload[key] = prevPayload[key];
+          }
+        }
+        const incomingStatus = body.status !== undefined ? String(body.status).trim() : undefined;
+        const incomingNorm = String(incomingStatus || "").toLowerCase();
+        const alreadySent =
+          ["sent", "viewed"].includes(String(existing.status || "").toLowerCase()) ||
+          Boolean(prevPayload.email_sent_at || prevPayload.sent_at);
+        let statusToWrite = invalidate ? "sent" : incomingStatus;
+        // A save that still has the form on Draft must not undo a quote that was already e-mailed.
+        if (!invalidate && incomingNorm === "draft" && alreadySent && body.status_touched !== true) {
+          const kept = String(existing.status || "").trim().toLowerCase();
+          statusToWrite = kept && kept !== "draft" ? kept : "sent";
+        }
         let updated = await tx.quote.update({
           where: { id },
           data: {
             // Keep title as the party/client label. job_name lives only in payload as a note.
             title: body.title !== undefined ? String(body.title) : undefined,
-            status: invalidate ? "sent" : body.status !== undefined ? String(body.status) : undefined,
+            status: statusToWrite,
             salespersonId: existing.salespersonId || req.user?.id || undefined,
             ...(invalidate ? clearedClientSignature() : {}),
             flooringType: body.flooring_type !== undefined ? String(body.flooring_type) : undefined,
@@ -2210,7 +2232,7 @@ customersQuotesRouter.put(
                   discountValue: new Prisma.Decimal(discountFieldsFromBody(body).discountValue),
                 }
               : {}),
-            payload: body,
+            payload: nextPayload as Prisma.InputJsonValue,
           },
           include: { customer: { select: { name: true } }, lineItems: { orderBy: { sortOrder: "asc" } } },
         });

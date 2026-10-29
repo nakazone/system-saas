@@ -2906,8 +2906,9 @@
     if (opts && opts.markSent) {
       const statusEl = $('status');
       if (statusEl && (statusEl.value === 'draft' || pub.approval_reset)) statusEl.value = 'sent';
+      if (!loadedQuoteStatus || loadedQuoteStatus === 'draft' || pub.approval_reset) loadedQuoteStatus = 'sent';
+      qbRenderProgress();
       if (pub.approval_reset) {
-        loadedQuoteStatus = 'sent';
         qbToast('O cliente precisa aprovar e assinar este quote de novo.', 'success');
       }
     }
@@ -3017,6 +3018,8 @@
   let loadedQuotePdfViewedAt = null;
   /** Status persistido no servidor (pode diferir do dropdown até guardar). */
   let loadedQuoteStatus = null;
+  /** True only after the user changes the status control. A stale Draft must not undo a sent quote. */
+  let statusTouched = false;
   /** Preserved when the client-notes field is removed from the editor UI. */
   let loadedQuoteNotes = null;
   let quoteViewPollTimer = null;
@@ -3610,7 +3613,8 @@
       if (sendId === quoteId) {
         const statusEl = $('status');
         if (statusEl && (statusEl.value === 'draft' || r.approval_reset)) statusEl.value = 'sent';
-        if (r.approval_reset) loadedQuoteStatus = 'sent';
+        if (!loadedQuoteStatus || loadedQuoteStatus === 'draft' || r.approval_reset) loadedQuoteStatus = 'sent';
+        qbRenderProgress();
         startQuoteViewPolling();
       }
       const ccNote = extras.length ? ` (CC: ${extras.join(', ')})` : '';
@@ -6003,6 +6007,7 @@
       $('qbEmailPreviewExtraInput')?.focus();
     });
     $('status')?.addEventListener('change', () => {
+      statusTouched = true;
       syncInvoiceUiVisibility();
       qbRenderProgress();
     });
@@ -6149,8 +6154,10 @@
       setCatalogPricingMode('customer');
     }
     const qStatus = q.status || 'draft';
-    $('status').value = qStatus;
-    loadedQuoteStatus = qStatus;
+    const sentOnFile = Boolean(q.email_sent_at);
+    statusTouched = false;
+    $('status').value = qStatus === 'draft' && sentOnFile ? 'sent' : qStatus;
+    loadedQuoteStatus = $('status').value;
     $('expirationDate').value = q.expiration_date ? String(q.expiration_date).slice(0, 10) : '';
     loadedQuoteNotes = q.notes || null;
     if ($('notes')) $('notes').value = loadedQuoteNotes || '';
@@ -6265,6 +6272,12 @@
     return '';
   }
 
+  function quoteStatusForSave() {
+    const current = String($('status')?.value || 'draft').toLowerCase();
+    if (!statusTouched && current === 'draft' && (qbMeta.email_sent_at || loadedQuoteEmailSentAt)) return 'sent';
+    return current;
+  }
+
   function payload() {
     const { sub, tax, total } = recalc();
     const dt = $('discountType').value;
@@ -6290,7 +6303,9 @@
       title: displayTitle || undefined,
       job_name: jobName || null,
       job_address: jobAddr || null,
-      status: $('status').value,
+      status: quoteStatusForSave(),
+      status_touched: statusTouched,
+      email_sent_at: qbMeta.email_sent_at || undefined,
       expiration_date: $('expirationDate').value || null,
       notes: $('notes') ? ($('notes').value || null) : loadedQuoteNotes,
       terms_conditions: $('terms').value || null,
@@ -6345,6 +6360,7 @@
           loadedQuoteStatus = q.status || body.status || loadedQuoteStatus;
           const statusEl = $('status');
           if (statusEl && q.status) statusEl.value = q.status;
+          qbRenderProgress();
           if (r.approval_reset) {
             qbToast('Os serviços mudaram. O cliente precisa aprovar e assinar de novo.', 'success');
           }
