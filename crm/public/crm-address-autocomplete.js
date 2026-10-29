@@ -726,6 +726,11 @@
 
   var PRESETS = [
     {
+      // ObraBuilder › Settings › Company: street + city/state/zip filled from the pick
+      input: '#ppAcA1',
+      map: { line1: '#ppAcA1', line2: '#ppAcA2', city: '#ppAcCity', state: '#ppAcState', zip: '#ppAcZip' },
+    },
+    {
       input: '#cxAddress',
       map: { combined: '#cxAddress' },
     },
