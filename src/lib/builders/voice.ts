@@ -31,6 +31,13 @@ export const voiceActionSchema = z.discriminatedUnion("type", [
     ret: z.enum(["45", "flat", "bullnose"]).optional(),
   }),
   z.object({
+    type: z.literal("add_riser"),
+    stair: stairRef,
+    count: z.number().int().min(1).max(40).default(1),
+    riser_w: num,
+    riser_h: num,
+  }),
+  z.object({
     type: z.literal("set_stair"),
     stair: stairRef,
     name: z.string().max(80).optional(),
@@ -94,8 +101,16 @@ Action types:
 Only include fields that were said. Never invent sizes. If nothing usable was said, return no actions and explain in "unclear".`;
 
 function context(data: MeasurementData, stair: number, step: number): string {
-  const stairs = data.stairs.map((s, i) => `${i}: "${s.name || "Stair"}" — ${s.steps.length} steps${i === stair ? " (current)" : ""}`).join("\n") || "(no stairs yet)";
-  return `Stairs:\n${stairs}\nCurrent stair index: ${data.stairs.length ? Math.min(stair, data.stairs.length - 1) : "none (add_stair first)"}\nSelected step: ${step + 1}\nVents measured: ${data.vents.length}`;
+  const stairs = data.stairs.map((s, i) => {
+    const treads = s.steps.filter((component) => component.kind !== "riser" && (component.tread_w || component.tread_d)).length;
+    const risers = s.steps.filter((component) => (component.kind === "riser" || (!component.no_riser && s.riser_material !== "none")) && (component.riser_w || component.riser_h)).length;
+    return i + ': "' + (s.name || "Stair") + '" — ' + treads + " treads / " + risers + " risers" + (i === stair ? " (current)" : "");
+  }).join("\n") || "(no stairs yet)";
+  return "Stairs:\n" + stairs
+    + "\nCurrent stair index: " + (data.stairs.length ? Math.min(stair, data.stairs.length - 1) : "none (add_stair first)")
+    + "\nSelected component: " + (step + 1)
+    + "\nVents measured: " + data.vents.length
+    + '\nIf asked for a riser without a tread, use {"type":"add_riser","stair":0,"count":1,"riser_w":48,"riser_h":7.5}.';
 }
 
 export async function voiceToActions(input: { dataUrl: string; data: unknown; stair: number; step: number }): Promise<{ transcript: string; actions: VoiceAction[]; reply: string; unclear: string }> {

@@ -179,8 +179,8 @@ body.qb-dashboard-inner .qb-items-foot__add:hover { border-color: var(--q-terra)
 .qb-tl li { display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 700; color: var(--q-mut); }
 .qb-tl li i { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--q-line); flex: none; display: grid; place-items: center; font-style: normal; font-size: 11px; font-weight: 900; }
 .qb-tl li.is-on { color: var(--q-ink); }
-.qb-tl li.is-on i { background: var(--q-ink); border-color: var(--q-ink); color: #fff; }
-.qb-tl li.is-now i { border-color: var(--q-terra); }
+.qb-tl li.is-on i { background: var(--q-terra); border-color: var(--q-terra); color: #fff; }
+.qb-tl li.is-now i { background: var(--q-ink); border-color: var(--q-ink); }
 .qb-tl li.is-now { color: var(--q-ink2); }
 .qb-tl li.is-bad { color: #B4561A; }
 .qb-tl li.is-bad i { background: #B4561A; border-color: #B4561A; color: #fff; }

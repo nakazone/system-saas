@@ -2794,6 +2794,15 @@
     const side = { left: 'left open', right: 'right open', both: 'both sides open' }[open] || open;
     return `${side} · ${{ '45': '45°', flat: 'flat', bullnose: 'bullnose' }[ret] || ret}`;
   }
+  function treadSteps(stair) {
+    return (stair.steps || []).filter((step) => step.kind !== 'riser' && (step.tread_w || step.tread_d));
+  }
+  function nosingPositionLabel(stair, nosing) {
+    if (nosing.position === 'landing' && stair.landing && stair.landing.enabled) return 'landing edge';
+    const treads = treadSteps(stair);
+    const index = treads.findIndex((step) => step.id === nosing.position);
+    return `tread ${index >= 0 ? index + 1 : treads.length || 'at top'}`;
+  }
   /** Same grouping the PDF uses: equal pieces counted together. */
   function measSummary(data) {
     const out = [];
@@ -2803,13 +2812,15 @@
       const tr = new Map();
       const ri = new Map();
       (s.steps || []).forEach((st) => {
-        if (st.tread_w || st.tread_d) { const k = `${fmtIn(st.tread_w) || '?'}" × ${fmtIn(st.tread_d) || '?'}" · ${openText(st.open, st.ret)}`; tr.set(k, (tr.get(k) || 0) + 1); }
-        if (!st.no_riser && s.riser_material !== 'none' && (st.riser_w || st.riser_h)) { const k = `${fmtIn(st.riser_w) || '?'}" × ${fmtIn(st.riser_h) || '?'}"`; ri.set(k, (ri.get(k) || 0) + 1); }
+        if (st.kind !== 'riser' && (st.tread_w || st.tread_d)) { const k = `${fmtIn(st.tread_w) || '?'}" × ${fmtIn(st.tread_d) || '?'}" · ${openText(st.open, st.ret)}`; tr.set(k, (tr.get(k) || 0) + 1); }
+        const hasRiser = st.kind === 'riser' ? s.riser_material !== 'none' : !st.no_riser && s.riser_material !== 'none';
+        if (hasRiser && (st.riser_w || st.riser_h)) { const k = `${fmtIn(st.riser_w) || '?'}" × ${fmtIn(st.riser_h) || '?'}"`; ri.set(k, (ri.get(k) || 0) + 1); }
       });
       tr.forEach((n, k) => out.push({ kind: 'Tread', group: label, text: `${wood ? `${wood} · ` : ''}${k}`, qty: n }));
       const rw = s.riser_material === 'primed' ? 'Primed' : s.riser_material === 'paint_grade' ? 'Paint grade' : wood;
       ri.forEach((n, k) => out.push({ kind: 'Riser', group: label, text: `${rw ? `${rw} · ` : ''}${k}`, qty: n }));
-      (s.nosings || []).forEach((ns) => { if (ns.length) out.push({ kind: 'Nosing', group: label, text: `${fmtIn(ns.length)}" · ${{ flush: 'flush', overlap: 'overlap', stair_nose: 'stair nose' }[ns.type] || ns.type}`, qty: ns.qty || 1 }); });
+      (s.nosings || []).forEach((ns) => { if (ns.length) out.push({ kind: 'Nosing', group: label, text: `${fmtIn(ns.length)}" · ${{ flush: 'flush', overlap: 'overlap', stair_nose: 'stair nose' }[ns.type] || ns.type} · ${nosingPositionLabel(s, ns)}`, qty: ns.qty || 1 }); });
+      if (s.landing && s.landing.enabled) out.push({ kind: 'Landing', group: label, text: `${fmtIn(s.landing.width) || '?'}" × ${fmtIn(s.landing.depth) || '?'}" · after final riser`, qty: 1 });
     });
     const vm = new Map();
     (data.vents || []).forEach((v) => {
@@ -2822,14 +2833,19 @@
   function measCounts(data) {
     let treads = 0; let risers = 0; let nosings = 0;
     (data.stairs || []).forEach((s) => {
-      (s.steps || []).forEach((st) => { if (st.tread_w || st.tread_d) treads += 1; if (!st.no_riser && s.riser_material !== 'none' && (st.riser_w || st.riser_h)) risers += 1; });
+      (s.steps || []).forEach((st) => {
+        if (st.kind !== 'riser' && (st.tread_w || st.tread_d)) treads += 1;
+        const hasRiser = st.kind === 'riser' ? s.riser_material !== 'none' : !st.no_riser && s.riser_material !== 'none';
+        if (hasRiser && (st.riser_w || st.riser_h)) risers += 1;
+      });
       (s.nosings || []).forEach((n) => { if (n.length) nosings += n.qty || 1; });
     });
     const vents = (data.vents || []).reduce((a, v) => a + (v.qty || 1), 0);
-    return { stairs: (data.stairs || []).length, treads, risers, nosings, vents };
+    const landings = (data.stairs || []).filter((s) => s.landing && s.landing.enabled).length;
+    return { stairs: (data.stairs || []).length, treads, risers, nosings, landings, vents };
   }
   function countsText(c) {
-    return [c.stairs ? `${c.stairs} ${c.stairs === 1 ? 'stair' : 'stairs'}` : '', c.treads ? `${c.treads} treads` : '', c.risers ? `${c.risers} risers` : '', c.nosings ? `${c.nosings} ${c.nosings === 1 ? 'nosing' : 'nosings'}` : '', c.vents ? `${c.vents} ${c.vents === 1 ? 'vent' : 'vents'}` : ''].filter(Boolean).join(' · ') || 'Nothing measured yet';
+    return [c.stairs ? `${c.stairs} ${c.stairs === 1 ? 'stair' : 'stairs'}` : '', c.treads ? `${c.treads} treads` : '', c.risers ? `${c.risers} risers` : '', c.nosings ? `${c.nosings} ${c.nosings === 1 ? 'nosing' : 'nosings'}` : '', c.landings ? `${c.landings} ${c.landings === 1 ? 'landing' : 'landings'}` : '', c.vents ? `${c.vents} ${c.vents === 1 ? 'vent' : 'vents'}` : ''].filter(Boolean).join(' · ') || 'Nothing measured yet';
   }
   function measStatusChip(m) {
     if (m.status === 'used') return '<span class="pp-chip pp-chip--dark">Sent with job</span>';
@@ -2837,12 +2853,16 @@
     return '<span class="pp-chip pp-chip--late">In progress</span>';
   }
   function newStair(n) {
-    return { id: uid(), name: n ? `Stair ${n}` : 'Main stair', species: 'White Oak', finish: FINISHES[0], color: '', riser_material: 'same', steps: [], nosings: [], photos: [], note: '' };
+    return { id: uid(), name: n ? `Stair ${n}` : 'Main stair', layout: 'straight', round_diameter: null, round_center_diameter: null, round_sweep: '270', landing: { enabled: false, width: null, depth: null }, species: 'White Oak', finish: FINISHES[0], color: '', riser_material: 'same', steps: [], nosings: [], photos: [], note: '' };
   }
-  function newStep(prev) {
+  function newStep(prev, kind) {
+    const componentKind = kind || 'step';
+    if (componentKind === 'riser') {
+      return { id: uid(), kind: 'riser', tread_w: null, tread_d: null, riser_w: prev && (prev.riser_w || prev.tread_w) || null, riser_h: prev && prev.riser_h || null, open: 'none', ret: '45', no_riser: false, note: '' };
+    }
     return prev
-      ? { ...prev, id: uid(), note: '' }
-      : { id: uid(), tread_w: null, tread_d: null, riser_w: null, riser_h: null, open: 'none', ret: '45', no_riser: false, note: '' };
+      ? { ...prev, id: uid(), kind: componentKind, note: '' }
+      : { id: uid(), kind: componentKind, tread_w: null, tread_d: null, riser_w: null, riser_h: null, open: 'none', ret: '45', no_riser: false, note: '' };
   }
   function newVent(prev) {
     return prev ? { ...prev, id: uid(), room: '', photos: [], note: '' } : { id: uid(), room: '', size: '4x10', type: 'flush', species: 'White Oak', finish: FINISHES[0], color: '', qty: 1, photos: [], note: '' };
@@ -2855,7 +2875,7 @@
     const rows = r.data || [];
     view.innerHTML = `
       <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder.account.name)}</p><h1>Measurements</h1></div><div class="pp-head-actions"><button type="button" class="pp-btn pp-btn--pri" id="ppMeasNewBtn">New measurement</button></div></div>
-      <p class="pp-muted pp-meas-intro">Measure stairs (treads, risers and nosings) and vents on site. Each measurement is saved by address and goes with the Work Order when you send it for that house.</p>
+      <p class="pp-muted pp-meas-intro">Measure straight or round stairs, separate risers, landings, nosings and vents on site. Each measurement is saved by address and goes with the Work Order for that house.</p>
       <form class="pp-card pp-block pp-meas-new" id="ppMeasNew" ${rows.length && id !== 'new' ? 'hidden' : ''} novalidate>
         <h3>New measurement</h3>
         <button type="button" class="pp-geo-btn" id="ppMnGeo">${icon('locate')}<span><strong>Use my location</strong><small>Find the address of the house you’re at</small></span></button>
@@ -3054,6 +3074,8 @@
     const leftOpen = st.open === 'left' || st.open === 'both';
     const rightOpen = st.open === 'right' || st.open === 'both';
     const nose = Math.min(1.25, D / 6);
+    const nosings = nosingsForTread(stair, st);
+    const nosingMarks = nosings.length ? `<rect x="0" y="${D - nose}" width="${W}" height="${nose}" fill="#E7792C" opacity=".24"/><path d="M0 ${D - nose}H${W}" stroke="#B4561A" stroke-width=".55" stroke-dasharray="${nosings.some((n) => n.type === 'overlap') ? '1.4 .45' : 'none'}"><title>${esc(nosings.map((n) => `${n.qty || 1} ${n.type} nosing`).join(', '))}</title></path>` : '';
     const R = 1.7;
     const capFill = hexMix(tone.base, '#2A1C12', 0.3);
     const end = (x, dir, open) => {
@@ -3076,6 +3098,7 @@
       <rect x="0" y="0" width="${W}" height="${D}" fill="url(#${id}w)" stroke="#5B4632" stroke-width=".14"/>
       ${isGlossy(stair.finish) ? `<rect x="0" y="0" width="${W}" height="${D}" fill="url(#${id}wg)"/>` : ''}
       <rect x="0" y="${D - nose}" width="${W}" height="${nose}" fill="#000" opacity=".07"/>
+      ${nosingMarks}
       <path d="M0 ${D}H${W}" stroke="#3E2C1E" stroke-width=".22"/>
       ${dimLine(0, -4.2, W, -4.2, `${fmtIn(W)}"`)}
       ${dimLine(W + (rightOpen ? 3.2 : 4.4), 0, W + (rightOpen ? 3.2 : 4.4), D, `${fmtIn(D)}"`)}
@@ -3106,78 +3129,178 @@
     </svg>`;
   }
 
-  /** The whole stair in 3D (isometric), built from each step's own numbers. */
+  function effectiveNosingPosition(stair, nosing) {
+    if (nosing.position === 'landing' && stair.landing && stair.landing.enabled) return 'landing';
+    const treads = treadSteps(stair);
+    if (treads.some((step) => step.id === nosing.position)) return nosing.position;
+    return treads.length ? treads[treads.length - 1].id : '';
+  }
+  function nosingsForTread(stair, step) {
+    return (stair.nosings || []).filter((nosing) => nosing.length && effectiveNosingPosition(stair, nosing) === step.id);
+  }
+  function landingNosings(stair) {
+    return (stair.nosings || []).filter((nosing) => nosing.length && effectiveNosingPosition(stair, nosing) === 'landing');
+  }
+
+  /** Plan view for curved/spiral stairs. Each measured tread becomes a radial sector. */
+  function roundStairSvg(stair, selected) {
+    const treads = treadSteps(stair);
+    const extraRisers = (stair.steps || []).map((step, index) => ({ step, index })).filter(({ step }) => step.kind === 'riser');
+    if (!treads.length && !extraRisers.length && !(stair.landing && stair.landing.enabled)) return '<p class="pp-muted pp-viz-empty">Add a tread to build the round stair plan.</p>';
+    const id = `pv${(vizSeq += 1)}`;
+    const tone = woodTone(stair.species, stair.color, false);
+    const cx = 100; const cy = 100; const outer = 62;
+    const diameter = Number(stair.round_diameter) || 60;
+    const centerDiameter = Number(stair.round_center_diameter) || 6;
+    const scale = outer / Math.max(diameter / 2, 1);
+    const inner = Math.min(outer - 8, Math.max(8, centerDiameter / 2 * scale));
+    const sweep = Number(stair.round_sweep) || 270;
+    const start = -90 - sweep / 2;
+    const span = treads.length ? sweep / treads.length : sweep;
+    const polar = (radius, angle) => [cx + radius * Math.cos(angle * Math.PI / 180), cy + radius * Math.sin(angle * Math.PI / 180)];
+    const sectorPath = (r0, r1, a0, a1) => {
+      const p0 = polar(r1, a0); const p1 = polar(r1, a1);
+      const q1 = polar(r0, a1); const q0 = polar(r0, a0);
+      if (Math.abs(a1 - a0) >= 359.9) {
+        const middle = (a0 + a1) / 2;
+        const pm = polar(r1, middle); const qm = polar(r0, middle);
+        const pt = (p) => p[0].toFixed(2) + ' ' + p[1].toFixed(2);
+        return 'M' + pt(p0) + ' A' + r1 + ' ' + r1 + ' 0 1 1 ' + pt(pm) + ' A' + r1 + ' ' + r1 + ' 0 1 1 ' + pt(p1)
+          + ' L' + pt(q1) + ' A' + r0 + ' ' + r0 + ' 0 1 0 ' + pt(qm) + ' A' + r0 + ' ' + r0 + ' 0 1 0 ' + pt(q0) + ' Z';
+      }
+      const large = Math.abs(a1 - a0) > 180 ? 1 : 0;
+      return `M${p0[0].toFixed(2)} ${p0[1].toFixed(2)} A${r1} ${r1} 0 ${large} 1 ${p1[0].toFixed(2)} ${p1[1].toFixed(2)} L${q1[0].toFixed(2)} ${q1[1].toFixed(2)} A${r0} ${r0} 0 ${large} 0 ${q0[0].toFixed(2)} ${q0[1].toFixed(2)} Z`;
+    };
+    const endAngle = start + sweep;
+    const riserMarks = extraRisers.map(({ step, index }, i) => {
+      const angle = endAngle + (i - (extraRisers.length - 1) / 2) * 2;
+      const a = polar(inner, angle); const b = polar(outer, angle);
+      return '<path d="M' + a[0].toFixed(2) + ' ' + a[1].toFixed(2) + 'L' + b[0].toFixed(2) + ' ' + b[1].toFixed(2) + '" stroke="' + (index === selected ? '#E7792C' : '#B4561A') + '" stroke-width="' + (index === selected ? '3' : '1.5') + '" data-viz-step="' + index + '" class="pp-viz-tread pp-viz-riser-only"><title>Riser only ' + (i + 1) + ' · ' + fmtIn(step.riser_h) + ' inches high</title></path>';
+    }).join('');
+    const sectors = treads.map((step, i) => {
+      const a0 = start + span * i; const a1 = start + span * (i + 1); const middle = (a0 + a1) / 2;
+      const isSelected = stair.steps.indexOf(step) === selected;
+      const marks = nosingsForTread(stair, step);
+      const label = polar((inner + outer) / 2, middle);
+      const index = stair.steps.indexOf(step);
+      const nosePaths = marks.map((nosing) => `<path d="${sectorPath(outer - 2.4, outer + (nosing.type === 'overlap' ? 1.8 : 0.8), a0, a1)}" fill="#E7792C" stroke="#B4561A" stroke-width=".6" class="pp-viz-nosing"><title>${esc(`${nosing.qty || 1} ${nosing.type} nosing · ${fmtIn(nosing.length)} inches`)}</title></path>`).join('');
+      return `<path d="${sectorPath(inner, outer, a0, a1)}" fill="url(#${id}t)" stroke="${isSelected ? '#E7792C' : '#4A3726'}" stroke-width="${isSelected ? '2.2' : '.8'}" data-viz-step="${index}" class="pp-viz-tread"><title>Tread ${i + 1} · ${fmtIn(step.tread_w) || '—'} × ${fmtIn(step.tread_d) || '—'} inches</title></path><text class="pp-viz-round-label" x="${label[0].toFixed(1)}" y="${label[1].toFixed(1)}" text-anchor="middle" dominant-baseline="central">${i + 1}</text>${nosePaths}`;
+    }).join('') + riserMarks;
+    const landing = stair.landing && stair.landing.enabled
+      ? (() => {
+        const endAngle = start + sweep;
+        const width = Number(stair.landing.width) || 36;
+        const depth = Number(stair.landing.depth) || 18;
+        const widthPx = Math.min(outer * 1.45, width * scale);
+        const depthPx = Math.min(outer * 0.65, depth * scale);
+        const marks = landingNosings(stair);
+        return `<g transform="translate(${cx} ${cy}) rotate(${endAngle})"><rect x="${outer}" y="${-widthPx / 2}" width="${depthPx}" height="${widthPx}" rx="1.5" fill="${tone.base}" stroke="#4A3726" stroke-width="1.2" class="pp-viz-landing"/><text class="pp-viz-round-label" x="${outer + depthPx / 2}" y="0" text-anchor="middle" dominant-baseline="central">LANDING</text>${marks.map((nosing) => `<path d="M${outer + depthPx} ${-widthPx / 2}L${outer + depthPx} ${widthPx / 2}" stroke="#B4561A" stroke-width="2.8" class="pp-viz-nosing"><title>${esc(`${nosing.qty || 1} ${nosing.type} nosing · landing edge`)}</title></path>`).join('')}</g>`;
+      })()
+      : '';
+    return `<svg class="pp-viz-svg pp-viz-stair pp-viz-round" viewBox="-10 -10 220 220" role="img" aria-label="Round stair plan: ${treads.length} treads, ${fmtIn(diameter)} inch outside diameter, ${fmtIn(centerDiameter)} inch center opening">
+      <defs>${woodDefs(`${id}t`, tone, isGlossy(stair.finish))}</defs>
+      <circle cx="${cx}" cy="${cy}" r="${outer}" fill="#FFF" stroke="#D0D5DD" stroke-width="1.2"/>
+      ${sectors}
+      <circle cx="${cx}" cy="${cy}" r="${inner}" fill="#F1F3F5" stroke="#667085" stroke-width="1" stroke-dasharray="3 2"/>
+      <text class="pp-viz-round-label" x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central">CENTER</text>
+      ${landing}
+      <text class="pp-viz-round-meta" x="${cx}" y="14" text-anchor="middle">Ø ${fmtIn(stair.round_diameter) || 'Set outside diameter'}" · ${sweep}°</text>
+      <text class="pp-viz-round-meta" x="${cx}" y="190" text-anchor="middle">Center opening ${fmtIn(stair.round_center_diameter) || '—'}"</text>
+    </svg>`;
+  }
+
+  /** Whole stair drawn from component rows, including riser-only endings and optional landings. */
   function stairSvg(stair, sel, mirror) {
-    const steps = (stair.steps || []).filter((st) => st.tread_w || st.tread_d || st.riser_h);
-    if (!steps.length) return '<p class="pp-muted pp-viz-empty">The stair builds itself here as you measure the steps.</p>';
+    if (stair.layout === 'round') return roundStairSvg(stair, sel);
+    const components = (stair.steps || []).map((step, index) => ({ step, index })).filter(({ step }) => step.kind === 'riser' ? step.riser_w || step.riser_h : step.tread_w || step.tread_d || step.riser_h);
+    if (!components.length && !(stair.landing && stair.landing.enabled)) return '<p class="pp-muted pp-viz-empty">The stair builds itself here as you measure the steps.</p>';
     const id = `pv${(vizSeq += 1)}`;
     const tone = woodTone(stair.species, stair.color, false);
     const paint = stair.riser_material === 'primed' || stair.riser_material === 'paint_grade';
     const rTone = woodTone(stair.species, stair.color, paint);
-    const cos = Math.cos(Math.PI / 6);
-    const sin = Math.sin(Math.PI / 6);
+    const cos = Math.cos(Math.PI / 6); const sin = Math.sin(Math.PI / 6);
     const P = (x, y, z) => { const xx = mirror ? -x : x; return [(xx + y) * cos, (xx - y) * sin - z]; };
     const pts = (arr) => arr.map((p) => P(...p).map((v) => v.toFixed(2)).join(',')).join(' ');
-    const shapes = [];
-    const all = [];
-    let z = 0;
-    let y = 0;
-    const geo = steps.map((st) => {
-      const W = Number(st.tread_w) || 36;
-      const D = Number(st.tread_d) || 11.25;
-      const H = Number(st.riser_h) || 7.5;
-      const g = { st, W, D, H, y0: y, z0: z };
-      y += D - 1.25;
+    const shapes = []; const all = [];
+    let z = 0; let y = 0; let lastW = 36; let lastD = 11.25;
+    const nose = 1.25; const thickness = 1;
+    const geo = components.map(({ step, index }) => {
+      const riserOnly = step.kind === 'riser';
+      const W = Number(riserOnly ? step.riser_w : step.tread_w) || Number(step.riser_w) || lastW;
+      const D = Number(step.tread_d) || lastD;
+      const H = Number(step.riser_h) || 7.5;
+      const row = { st: step, index, riserOnly, W, D, H, y0: y, z0: z };
+      if (!riserOnly) { y += D - nose; lastW = W; lastD = D; }
       z += H;
-      return g;
+      return row;
     });
-    const nose = 1.25;
-    const T = 1;
-    // Back to front so nearer steps cover farther ones.
     for (let k = geo.length - 1; k >= 0; k -= 1) {
       const g = geo[k];
-      const { st, W, D, H, y0, z0 } = g;
-      const top = z0 + H;
+      const { st, index, riserOnly, W, D, H, y0, z0 } = g;
+      const top = z0 + H; const isSelected = index === sel;
+      if (riserOnly) {
+        const riser = [[0, y0, z0], [W, y0, z0], [W, y0, top], [0, y0, top]];
+        shapes.push(`<polygon points="${pts(riser)}" fill="url(#${id}r)" stroke="${isSelected ? '#E7792C' : '#5B4632'}" stroke-width="${isSelected ? '1' : '.35'}" data-viz-step="${index}" class="pp-viz-tread pp-viz-riser-only"><title>Riser only ${index + 1}: ${fmtIn(st.riser_w) || fmtIn(W)}" × ${fmtIn(H)}"</title></polygon>`);
+        riser.forEach((point) => all.push(P(...point)));
+        continue;
+      }
       const yf = y0 - nose;
-      const isSel = stair.steps.indexOf(st) === sel;
       const leftOpen = st.open === 'left' || st.open === 'both';
       const rightOpen = st.open === 'right' || st.open === 'both';
-      const sideOpen = mirror ? leftOpen : rightOpen;
-      const sideX = mirror ? 0 : W;
-      // riser (front face)
-      const riser = [[0, y0, z0], [W, y0, z0], [W, y0, top - T], [0, y0, top - T]];
-      if (!(stair.riser_material === 'none' || st.no_riser)) shapes.push(`<polygon points="${pts(riser)}" fill="url(#${id}r)" stroke="#5B4632" stroke-width=".25"/>`);
-      // visible end: open = return caps in wood, closed = skirt/wall
-      const side = [[sideX, y0, z0], [sideX, y0 + D, z0], [sideX, y0 + D, top], [sideX, yf, top], [sideX, yf, top - T], [sideX, y0, top - T]];
+      const sideOpen = mirror ? leftOpen : rightOpen; const sideX = mirror ? 0 : W;
+      const riserW = Number(st.riser_w) || W;
+      const riser = [[0, y0, z0], [riserW, y0, z0], [riserW, y0, top - thickness], [0, y0, top - thickness]];
+      if (stair.riser_material !== 'none' && !st.no_riser) shapes.push(`<polygon points="${pts(riser)}" fill="url(#${id}r)" stroke="#5B4632" stroke-width=".25"/>`);
+      const side = [[sideX, y0, z0], [sideX, y0 + D, z0], [sideX, y0 + D, top], [sideX, yf, top], [sideX, yf, top - thickness], [sideX, y0, top - thickness]];
       shapes.push(sideOpen
         ? `<polygon points="${pts(side)}" fill="${hexMix(tone.base, '#2A1C12', 0.28)}" stroke="#4A3726" stroke-width=".25"/>`
         : `<polygon points="${pts(side)}" fill="#E4E7EC" stroke="#C0C6CF" stroke-width=".25"/>`);
-      // tread nose front edge
-      const front = [[0, yf, top - T], [W, yf, top - T], [W, yf, top], [0, yf, top]];
+      const front = [[0, yf, top - thickness], [W, yf, top - thickness], [W, yf, top], [0, yf, top]];
       shapes.push(`<polygon points="${pts(front)}" fill="${hexMix(tone.base, '#2A1C12', 0.18)}" stroke="#4A3726" stroke-width=".25"/>`);
-      // tread top
       const tread = [[0, yf, top], [W, yf, top], [W, y0 + D, top], [0, y0 + D, top]];
-      shapes.push(`<polygon points="${pts(tread)}" fill="url(#${id}t)" stroke="${isSel ? '#E7792C' : '#4A3726'}" stroke-width="${isSel ? '.9' : '.25'}" data-viz-step="${stair.steps.indexOf(st)}" class="pp-viz-tread"><title>Step ${stair.steps.indexOf(st) + 1}: ${fmtIn(W)}" × ${fmtIn(D)}" · ${openText(st.open, st.ret)}</title></polygon>`);
+      shapes.push(`<polygon points="${pts(tread)}" fill="url(#${id}t)" stroke="${isSelected ? '#E7792C' : '#4A3726'}" stroke-width="${isSelected ? '.9' : '.25'}" data-viz-step="${index}" class="pp-viz-tread"><title>Tread ${index + 1}: ${fmtIn(W)}" × ${fmtIn(D)}" · ${openText(st.open, st.ret)}</title></polygon>`);
       if (isGlossy(stair.finish)) shapes.push(`<polygon points="${pts(tread)}" fill="url(#${id}tg)" pointer-events="none"/>`);
+      for (const [nosingIndex, nosing] of nosingsForTread(stair, st).entries()) {
+        const edgeY = yf + (nosing.type === 'flush' ? 0.08 : nosing.type === 'overlap' ? -0.4 : -0.2) + nosingIndex * 0.16;
+        const a = P(0, edgeY, top + 0.08); const b = P(W, edgeY, top + 0.08);
+        shapes.push(`<path d="M${a[0].toFixed(2)} ${a[1].toFixed(2)}L${b[0].toFixed(2)} ${b[1].toFixed(2)}" stroke="#B4561A" stroke-width="1.4" stroke-linecap="round" class="pp-viz-nosing"><title>${esc(`${nosing.qty || 1} ${nosing.type} nosing · ${fmtIn(nosing.length)} inches`)}</title></path>`);
+      }
       if (sideOpen && st.ret !== 'bullnose') {
         const a = P(sideX, yf, top);
-        const b = P(sideX, yf + (st.ret === 'flat' ? 0 : nose), top - (st.ret === 'flat' ? T : 0));
+        const b = P(sideX, yf + (st.ret === 'flat' ? 0 : nose), top - (st.ret === 'flat' ? thickness : 0));
         shapes.push(`<path d="M${a[0].toFixed(2)} ${a[1].toFixed(2)}L${b[0].toFixed(2)} ${b[1].toFixed(2)}" stroke="#2A1C12" stroke-width=".35"/>`);
       }
-      [riser, side, front, tread].forEach((poly) => poly.forEach((p) => all.push(P(...p))));
-      if (isSel) {
+      [riser, side, front, tread].forEach((poly) => poly.forEach((point) => all.push(P(...point))));
+      if (isSelected) {
         const c = P(W / 2, y0 + D / 2, top);
-        shapes.push(`<g class="pp-viz-pin"><circle cx="${c[0].toFixed(2)}" cy="${c[1].toFixed(2)}" r="3.4"/><text x="${c[0].toFixed(2)}" y="${c[1].toFixed(2)}" text-anchor="middle" dominant-baseline="central">${stair.steps.indexOf(st) + 1}</text></g>`);
+        shapes.push(`<g class="pp-viz-pin"><circle cx="${c[0].toFixed(2)}" cy="${c[1].toFixed(2)}" r="3.4"/><text x="${c[0].toFixed(2)}" y="${c[1].toFixed(2)}" text-anchor="middle" dominant-baseline="central">${index + 1}</text></g>`);
       }
     }
-    const xs = all.map((p) => p[0]);
-    const ys = all.map((p) => p[1]);
-    const pad = 6;
-    const minX = Math.min(...xs) - pad;
-    const minY = Math.min(...ys) - pad;
-    const w = Math.max(...xs) - minX + pad;
-    const h = Math.max(...ys) - minY + pad;
-    return `<svg class="pp-viz-svg pp-viz-stair" viewBox="${minX.toFixed(1)} ${minY.toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}" role="img" aria-label="Assembled stair with ${steps.length} steps">
+    if (stair.landing && stair.landing.enabled) {
+      const landingWidth = Number(stair.landing.width) || lastW;
+      const landingDepth = Number(stair.landing.depth) || lastD;
+      const landY = y; const landTop = z; const thickness = 1;
+      const sides = [
+        [[landingWidth, landY, landTop - thickness], [landingWidth, landY + landingDepth, landTop - thickness], [landingWidth, landY + landingDepth, landTop], [landingWidth, landY, landTop]],
+        [[0, landY + landingDepth, landTop - thickness], [landingWidth, landY + landingDepth, landTop - thickness], [landingWidth, landY + landingDepth, landTop], [0, landY + landingDepth, landTop]],
+      ];
+      sides.forEach((side) => shapes.push(`<polygon points="${pts(side)}" fill="${hexMix(tone.base, '#2A1C12', 0.22)}" stroke="#4A3726" stroke-width=".3"/>`));
+      sides.forEach((side) => side.forEach((point) => all.push(P(...point))));
+      const platform = [[0, landY, landTop], [landingWidth, landY, landTop], [landingWidth, landY + landingDepth, landTop], [0, landY + landingDepth, landTop]];
+      shapes.push(`<polygon points="${pts(platform)}" fill="url(#${id}t)" stroke="#4A3726" stroke-width=".35" class="pp-viz-landing"><title>Landing ${fmtIn(landingWidth)}" × ${fmtIn(landingDepth)}" after final riser</title></polygon>`);
+      platform.forEach((point) => all.push(P(...point)));
+      for (const nosing of landingNosings(stair)) {
+        const a = P(0, landY + landingDepth - 0.35, landTop + 0.08); const b = P(landingWidth, landY + landingDepth - 0.35, landTop + 0.08);
+        shapes.push(`<path d="M${a[0].toFixed(2)} ${a[1].toFixed(2)}L${b[0].toFixed(2)} ${b[1].toFixed(2)}" stroke="#B4561A" stroke-width="1.5" stroke-linecap="round" class="pp-viz-nosing"><title>${esc(`${nosing.qty || 1} ${nosing.type} nosing · landing edge`)}</title></path>`);
+      }
+      const label = P(landingWidth / 2, landY + landingDepth / 2, landTop + 0.1);
+      shapes.push(`<text class="pp-viz-landing-label" x="${label[0].toFixed(2)}" y="${label[1].toFixed(2)}" text-anchor="middle" dominant-baseline="central">LANDING</text>`);
+    }
+    const xs = all.map((point) => point[0]); const ys = all.map((point) => point[1]);
+    const pad = 8; const minX = Math.min(...xs) - pad; const minY = Math.min(...ys) - pad;
+    const w = Math.max(...xs) - minX + pad; const h = Math.max(...ys) - minY + pad;
+    const counts = measCounts({ stairs: [stair], vents: [] });
+    return `<svg class="pp-viz-svg pp-viz-stair" viewBox="${minX.toFixed(1)} ${minY.toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}" role="img" aria-label="Assembled stair with ${counts.treads} treads and ${counts.risers} risers${stair.landing && stair.landing.enabled ? ', ending at a landing' : ''}">
       <defs>${woodDefs(`${id}t`, tone, isGlossy(stair.finish))}${woodDefs(`${id}r`, rTone, !paint && isGlossy(stair.finish), true)}</defs>
       ${shapes.join('')}
     </svg>`;
@@ -3215,61 +3338,119 @@
     const st = (s.steps || [])[sel];
     const mirror = Boolean(m.vizMirror && m.vizMirror[si]);
     const locked = m.status === 'used';
+    const treadIndex = st ? treadSteps(s).findIndex((step) => step.id === st.id) : -1;
+    const componentLabel = st && st.kind === 'riser'
+      ? 'Riser only · ' + (sel + 1) + ' of ' + s.steps.length
+      : 'Tread ' + (treadIndex >= 0 ? treadIndex + 1 : sel + 1) + ' · ' + (sel + 1) + ' of ' + s.steps.length;
+    const mirrorButton = s.layout === 'round' ? '' : '<button type="button" class="pp-link" data-viz-mirror="' + si + '">' + (mirror ? 'View from the right' : 'View from the left') + '</button>';
+    const returnChips = RET_OPTS.map(([v, l]) => '<button type="button" data-viz-ret="' + v + '" aria-pressed="' + (st && st.ret === v) + '"' + (st && st.open === 'none' ? ' disabled' : '') + '>' + esc(l) + '</button>').join('');
+    let detail = '<p class="pp-muted pp-viz-empty">Add a tread or riser to see its details.</p>';
+    if (st && st.kind === 'riser') {
+      detail = '<div class="pp-viz-box" data-viz-box="riser"><span class="pp-viz-cap">Riser only · front view</span>' + riserSvg(s, st, sel) + '</div>';
+    } else if (st) {
+      detail = '<div class="pp-viz-box" data-viz-box="tread"><span class="pp-viz-cap">' + (s.layout === 'round' ? 'Tread piece · top view' : 'Tread · top view') + '</span>' + treadSvg(s, st, sel, !locked) + '</div>'
+        + (locked || s.layout === 'round' ? '' : '<div class="pp-viz-chips" role="group" aria-label="Return">' + returnChips + '</div>')
+        + '<div class="pp-viz-box" data-viz-box="riser"><span class="pp-viz-cap">Riser · front view</span>' + riserSvg(s, st, sel) + '</div>';
+    }
     return `<div class="pp-viz" data-viz-stair="${si}">
       <div class="pp-viz-3d">
-        <div class="pp-viz-bar"><span class="pp-step-lbl pp-viz-lbl">Assembled stair</span><button type="button" class="pp-link" data-viz-mirror="${si}">${mirror ? 'View from the right' : 'View from the left'}</button></div>
+        <div class="pp-viz-bar"><span class="pp-step-lbl pp-viz-lbl">${s.layout === 'round' ? 'Round stair plan' : 'Assembled stair'}</span>${mirrorButton}</div>
         <div class="pp-viz-box" data-viz-box="3d">${stairSvg(s, sel, mirror)}</div>
-        <p class="pp-viz-hint">Tap a step to see and change its measurements.</p>
+        <p class="pp-viz-hint">${s.layout === 'round' ? 'Each measured tread is placed around the selected stair sweep.' : 'Tap a tread or riser to select its measurements.'}</p>
       </div>
       <div class="pp-viz-step">
-        ${st ? `<div class="pp-viz-bar"><span class="pp-step-lbl pp-viz-lbl">Step ${sel + 1} of ${s.steps.length}</span><span class="pp-viz-nav"><button type="button" class="pp-q-ic" data-viz-prev="${si}" aria-label="Previous step" ${sel === 0 ? 'disabled' : ''}>‹</button><button type="button" class="pp-q-ic" data-viz-next="${si}" aria-label="Next step" ${sel >= s.steps.length - 1 ? 'disabled' : ''}>›</button></span></div>
-        <div class="pp-viz-box" data-viz-box="tread"><span class="pp-viz-cap">Tread · top view</span>${treadSvg(s, st, sel, !locked)}</div>
-        ${locked ? '' : `<div class="pp-viz-chips" role="group" aria-label="Return">${RET_OPTS.map(([v, l]) => `<button type="button" data-viz-ret="${v}" aria-pressed="${st.ret === v}" ${st.open === 'none' ? 'disabled' : ''}>${esc(l)}</button>`).join('')}</div>`}
-        <div class="pp-viz-box" data-viz-box="riser"><span class="pp-viz-cap">Riser · front view</span>${riserSvg(s, st, sel)}</div>` : '<p class="pp-muted pp-viz-empty">Add a step.</p>'}
+        ${st ? '<div class="pp-viz-bar"><span class="pp-step-lbl pp-viz-lbl">' + componentLabel + '</span><span class="pp-viz-nav"><button type="button" class="pp-q-ic" data-viz-prev="' + si + '" aria-label="Previous component"' + (sel === 0 ? ' disabled' : '') + '>‹</button><button type="button" class="pp-q-ic" data-viz-next="' + si + '" aria-label="Next component"' + (sel >= s.steps.length - 1 ? ' disabled' : '') + '>›</button></span></div>' + detail : detail}
       </div>
     </div>`;
   }
 
   function stairHtml(m, s, si) {
     const locked = m.status === 'used';
-    const p = `stairs.${si}`;
+    const p = 'stairs.' + si;
     const selStep = (m.vizSel && m.vizSel[si]) || 0;
-    const steps = (s.steps || []).map((st, i) => `<div class="pp-step ${st.open !== 'none' ? 'is-open' : ''} ${i === selStep ? 'is-sel' : ''}" role="listitem" data-step-row="${si}:${i}">
-        <span class="pp-step-n">${i + 1}</span>
-        <div class="pp-step-dim"><span class="pp-step-lbl">Tread</span>${inch(`${p}.steps.${i}.tread_w`, st.tread_w, `Tread ${i + 1} width`, locked)}<em>×</em>${inch(`${p}.steps.${i}.tread_d`, st.tread_d, `Tread ${i + 1} depth`, locked)}</div>
-        <div class="pp-step-dim ${s.riser_material === 'none' || st.no_riser ? 'is-off' : ''}"><span class="pp-step-lbl">Riser</span>${inch(`${p}.steps.${i}.riser_w`, st.riser_w, `Riser ${i + 1} width`, locked || s.riser_material === 'none' || st.no_riser)}<em>×</em>${inch(`${p}.steps.${i}.riser_h`, st.riser_h, `Riser ${i + 1} height`, locked || s.riser_material === 'none' || st.no_riser)}</div>
-        <div class="pp-step-side"><span class="pp-step-lbl">Side</span>${sel(OPEN_OPTS, st.open, `data-set="${p}.steps.${i}.open" aria-label="Open side of step ${i + 1}" ${locked ? 'disabled' : ''}`)}</div>
-        <div class="pp-step-ret"><span class="pp-step-lbl">Return</span>${sel(RET_OPTS, st.ret, `data-set="${p}.steps.${i}.ret" aria-label="Return of step ${i + 1}" ${locked || st.open === 'none' ? 'disabled' : ''}`)}</div>
-        ${locked ? '' : `<div class="pp-step-act"><button type="button" class="pp-q-ic" data-step-down="${si}:${i}" title="Copy to the steps below" aria-label="Copy step ${i + 1} to the steps below">⇣</button><button type="button" class="pp-q-ic pp-q-ic--del" data-step-rm="${si}:${i}" aria-label="Remove step ${i + 1}">×</button></div>`}
-      </div>`).join('');
-    const nos = (s.nosings || []).map((n, i) => `<div class="pp-nos">
-        <label><span class="pp-step-lbl">Length</span>${inch(`${p}.nosings.${i}.length`, n.length, `Nosing ${i + 1} length`, locked)}</label>
-        <label><span class="pp-step-lbl">Qty</span><input type="number" min="1" max="500" data-num="${p}.nosings.${i}.qty" value="${esc(n.qty || 1)}" ${locked ? 'disabled' : ''} /></label>
-        <label><span class="pp-step-lbl">Type</span>${sel([['flush', 'Flush'], ['overlap', 'Overlap'], ['stair_nose', 'Stair nose']], n.type, `data-set="${p}.nosings.${i}.type" ${locked ? 'disabled' : ''}`)}</label>
-        <label class="pp-nos-note"><span class="pp-step-lbl">Where</span><input data-txt="${p}.nosings.${i}.note" value="${esc(n.note)}" maxlength="200" placeholder="e.g. top of stair, landing" ${locked ? 'disabled' : ''} /></label>
-        ${locked ? '' : `<button type="button" class="pp-q-ic pp-q-ic--del" data-nos-rm="${si}:${i}" aria-label="Remove nosing ${i + 1}">×</button>`}
-      </div>`).join('');
+    const steps = (s.steps || []).map((st, i) => {
+      const riserOnly = st.kind === 'riser';
+      const treadIndex = treadSteps(s).findIndex((step) => step.id === st.id);
+      const treadNo = treadIndex >= 0 ? treadIndex + 1 : i + 1;
+      const path = p + '.steps.' + i;
+      const tread = riserOnly
+        ? '<div class="pp-step-riser-only-label"><strong>Riser only</strong><small>No tread on this component</small></div>'
+        : '<div class="pp-step-dim pp-step-dim--tread"><span class="pp-step-lbl">Tread ' + treadNo + '</span>'
+          + inch(path + '.tread_w', st.tread_w, 'Tread ' + treadNo + ' width', locked) + '<em>×</em>'
+          + inch(path + '.tread_d', st.tread_d, 'Tread ' + treadNo + ' depth', locked) + '</div>';
+      const riserDisabled = locked || s.riser_material === 'none' || (!riserOnly && st.no_riser);
+      const riser = '<div class="pp-step-dim pp-step-dim--riser ' + (riserDisabled ? 'is-off' : '') + '"><span class="pp-step-lbl">Riser ' + (i + 1) + '</span>'
+        + inch(path + '.riser_w', st.riser_w, 'Riser ' + (i + 1) + ' width', riserDisabled) + '<em>×</em>'
+        + inch(path + '.riser_h', st.riser_h, 'Riser ' + (i + 1) + ' height', riserDisabled) + '</div>';
+      const sides = riserOnly ? '' : '<div class="pp-step-side"><span class="pp-step-lbl">Side</span>'
+        + sel(OPEN_OPTS, st.open, 'data-set="' + path + '.open" aria-label="Open side of tread ' + treadNo + '"' + (locked ? ' disabled' : '')) + '</div>'
+        + '<div class="pp-step-ret"><span class="pp-step-lbl">Return</span>'
+        + sel(RET_OPTS, st.ret, 'data-set="' + path + '.ret" aria-label="Return of tread ' + treadNo + '"' + (locked || st.open === 'none' ? ' disabled' : '')) + '</div>';
+      const actions = locked ? '' : '<div class="pp-step-act">'
+        + (riserOnly ? '' : '<button type="button" class="pp-q-ic" data-step-down="' + si + ':' + i + '" title="Copy to the steps below" aria-label="Copy tread ' + treadNo + ' to the steps below">⇣</button>')
+        + '<button type="button" class="pp-q-ic pp-q-ic--del" data-step-rm="' + si + ':' + i + '" aria-label="Remove ' + (riserOnly ? 'riser' : 'tread ' + treadNo) + '">×</button></div>';
+      return `<div class="pp-step ${st.open !== 'none' ? 'is-open' : ''} ${i === selStep ? 'is-sel' : ''}" role="listitem" data-kind="${riserOnly ? 'riser' : 'step'}" data-step-row="${si}:${i}">
+        <span class="pp-step-n">${i + 1}</span>${tread}${riser}${sides}${actions}
+      </div>`;
+    }).join('');
+    const nosingOptions = [
+      ...treadSteps(s).map((step, i) => [step.id, 'Tread ' + (i + 1)]),
+      ...(s.landing && s.landing.enabled ? [['landing', 'Landing edge']] : []),
+      ...(!treadSteps(s).length && !(s.landing && s.landing.enabled) ? [['', 'Top of stair']] : []),
+    ];
+    const nos = (s.nosings || []).map((n, i) => {
+      const path = p + '.nosings.' + i;
+      const position = effectiveNosingPosition(s, n);
+      return `<div class="pp-nos">
+        <label><span class="pp-step-lbl">Length</span>${inch(path + '.length', n.length, 'Nosing ' + (i + 1) + ' length', locked)}</label>
+        <label><span class="pp-step-lbl">Qty</span><input type="number" min="1" max="500" data-num="${path}.qty" value="${esc(n.qty || 1)}" ${locked ? 'disabled' : ''} /></label>
+        <label><span class="pp-step-lbl">Type</span>${sel([['flush', 'Flush'], ['overlap', 'Overlap'], ['stair_nose', 'Stair nose']], n.type, 'data-set="' + path + '.type"' + (locked ? ' disabled' : ''))}</label>
+        <label><span class="pp-step-lbl">Position</span>${sel(nosingOptions, position, 'data-set="' + path + '.position"' + (locked ? ' disabled' : ''))}</label>
+        <label class="pp-nos-note"><span class="pp-step-lbl">Note</span><input data-txt="${path}.note" value="${esc(n.note)}" maxlength="200" placeholder="Optional detail" ${locked ? 'disabled' : ''} /></label>
+        ${locked ? '' : '<button type="button" class="pp-q-ic pp-q-ic--del" data-nos-rm="' + si + ':' + i + '" aria-label="Remove nosing ' + (i + 1) + '">×</button>'}
+      </div>`;
+    }).join('');
+    const counts = measCounts({ stairs: [s], vents: [] });
+    const shapeOptions = [['straight', 'Straight'], ['round', 'Round / curved']];
+    const roundFields = s.layout === 'round'
+      ? `<div class="pp-stair-shape-fields">
+          <label><span>Outside diameter</span>${inch(p + '.round_diameter', s.round_diameter, 'Round stair outside diameter', locked)}</label>
+          <label><span>Center opening</span>${inch(p + '.round_center_diameter', s.round_center_diameter, 'Round stair center opening diameter', locked)}</label>
+          <label><span>Stair sweep</span>${sel([['180', '180°'], ['270', '270°'], ['360', '360°']], s.round_sweep || '270', 'data-set="' + p + '.round_sweep"' + (locked ? ' disabled' : ''))}</label>
+        </div><p class="pp-meas-help">The plan divides the selected sweep across measured treads.</p>`
+      : '';
+    const landingFields = s.landing && s.landing.enabled
+      ? `<div class="pp-stair-shape-fields pp-stair-landing-fields">
+          <label><span>Landing width</span>${inch(p + '.landing.width', s.landing.width, 'Landing width', locked)}</label>
+          <label><span>Landing depth</span>${inch(p + '.landing.depth', s.landing.depth, 'Landing depth', locked)}</label>
+        </div>`
+      : '';
     return `<section class="pp-card pp-stair" aria-label="${esc(s.name || 'Stair')}">
       <div class="pp-stair-head">
         <input class="pp-stair-name" data-txt="${p}.name" value="${esc(s.name)}" maxlength="80" aria-label="Stair name" ${locked ? 'disabled' : ''} />
-        <span class="pp-muted">${(s.steps || []).length} steps</span>
-        ${locked ? '' : `<button type="button" class="pp-q-ic pp-q-ic--del" data-stair-rm="${si}" aria-label="Remove ${esc(s.name || 'stair')}">×</button>`}
+        <span class="pp-muted">${counts.treads} treads · ${counts.risers} risers</span>
+        ${locked ? '' : '<button type="button" class="pp-q-ic pp-q-ic--del" data-stair-rm="' + si + '" aria-label="Remove ' + esc(s.name || 'stair') + '">×</button>'}
       </div>
       <div class="pp-stair-spec">
-        <label><span>Wood</span>${selFree(SPECIES, s.species, `data-free="${p}.species" ${locked ? 'disabled' : ''}`)}${SPECIES.includes(s.species) || !s.species ? '' : `<input data-txt="${p}.species" value="${esc(s.species)}" maxlength="60" ${locked ? 'disabled' : ''} />`}</label>
-        <label><span>Finish</span>${selFree(FINISHES, s.finish, `data-free="${p}.finish" ${locked ? 'disabled' : ''}`)}${FINISHES.includes(s.finish) || !s.finish ? '' : `<input data-txt="${p}.finish" value="${esc(s.finish)}" maxlength="60" ${locked ? 'disabled' : ''} />`}</label>
+        <label><span>Layout</span>${sel(shapeOptions, s.layout || 'straight', 'data-set="' + p + '.layout"' + (locked ? ' disabled' : ''))}</label>
+        <label><span>Wood</span>${selFree(SPECIES, s.species, 'data-free="' + p + '.species"' + (locked ? ' disabled' : ''))}${SPECIES.includes(s.species) || !s.species ? '' : '<input data-txt="' + p + '.species" value="' + esc(s.species) + '" maxlength="60"' + (locked ? ' disabled' : '') + ' />'}</label>
+        <label><span>Finish</span>${selFree(FINISHES, s.finish, 'data-free="' + p + '.finish"' + (locked ? ' disabled' : ''))}${FINISHES.includes(s.finish) || !s.finish ? '' : '<input data-txt="' + p + '.finish" value="' + esc(s.finish) + '" maxlength="60"' + (locked ? ' disabled' : '') + ' />'}</label>
         <label><span>Color / stain</span><input data-txt="${p}.color" value="${esc(s.color)}" maxlength="80" placeholder="e.g. Natural, Jacobean" ${locked ? 'disabled' : ''} /></label>
-        <label><span>Risers</span>${sel(RISER_OPTS, s.riser_material, `data-set="${p}.riser_material" ${locked ? 'disabled' : ''}`)}</label>
+        <label><span>Risers</span>${sel(RISER_OPTS, s.riser_material, 'data-set="' + p + '.riser_material"' + (locked ? ' disabled' : ''))}</label>
+      </div>
+      <div class="pp-stair-options">${roundFields}
+        <div class="pp-stair-landing">
+          <label class="pp-stair-toggle"><input type="checkbox" data-bool="${p}.landing.enabled" ${s.landing && s.landing.enabled ? 'checked' : ''} ${locked ? 'disabled' : ''} /><span><strong>Add a landing after the stair</strong><small>The drawing places it after the final measured component.</small></span></label>
+          ${landingFields}
+        </div>
       </div>
       ${stairVizHtml(m, s, si)}
       <div class="pp-stair-cols" aria-hidden="true"><span>#</span><span>Tread (width × depth)</span><span>Riser (width × height)</span><span>Open side</span><span>Return</span><span></span></div>
-      <div class="pp-stair-steps" role="list">${steps || '<p class="pp-q-empty">Add the first step. Inches: 48, 11 1/4, 11¼ or 11.25.</p>'}</div>
-      ${locked ? '' : `<div class="pp-stair-add">
-        <button type="button" class="pp-q-add" data-step-add="${si}">+ Step${(s.steps || []).length ? ' (same as last)' : ''}</button>
-        ${(s.steps || []).length ? `<span class="pp-stair-many"><label for="ppMany-${si}">Add</label><input id="ppMany-${si}" type="number" min="1" max="40" value="5" /><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-step-many="${si}">equal steps</button></span>` : ''}
-      </div>`}
-      <div class="pp-stair-sub"><h4>Nosings</h4>${nos || '<p class="pp-muted" style="margin:0;font-size:13px">No nosings (landing / top).</p>'}${locked ? '' : `<button type="button" class="pp-link" data-nos-add="${si}">+ Nosing</button>`}</div>
-      <div class="pp-stair-sub"><h4>Photos</h4>${photoStrip(m, s.photos, `${p}.photos`)}</div>
+      <div class="pp-stair-steps" role="list">${steps || '<p class="pp-q-empty">Add the first tread and riser. Enter sizes in inches, such as 48 or 11 1/4.</p>'}</div>
+      ${locked ? '' : '<div class="pp-stair-add"><button type="button" class="pp-q-add" data-step-add="' + si + '">+ Step (tread + riser)</button><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-riser-add="' + si + '"' + (s.riser_material === 'none' ? ' disabled' : '') + '>+ Riser only</button>'
+        + ((s.steps || []).length ? '<span class="pp-stair-many"><label for="ppMany-' + si + '">Add</label><input id="ppMany-' + si + '" type="number" min="1" max="40" value="5" /><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-step-many="' + si + '">equal steps</button></span>' : '') + '</div>'}
+      <div class="pp-stair-sub"><h4>Nosings</h4>${nos || '<p class="pp-muted" style="margin:0;font-size:13px">Add a nosing and choose the tread or landing edge it belongs to.</p>'}${locked ? '' : '<button type="button" class="pp-link" data-nos-add="' + si + '">+ Nosing</button>'}</div>
+      <div class="pp-stair-sub"><h4>Photos</h4>${photoStrip(m, s.photos, p + '.photos')}</div>
       <div class="pp-stair-sub"><h4>Notes</h4><textarea data-txt="${p}.note" maxlength="500" placeholder="e.g. right wall out of square, existing skirt board" ${locked ? 'disabled' : ''}>${esc(s.note)}</textarea></div>
     </section>`;
   }
@@ -3323,7 +3504,7 @@
             <label class="pp-meas-info-wide"><span>General notes</span><input data-head="notes" value="${esc(m.notes || '')}" maxlength="2000" placeholder="e.g. access through the garage, concrete slab" ${locked ? 'disabled' : ''} /></label>
           </div>
           <div class="pp-seg pp-meas-tabs" role="tablist">
-            <button type="button" role="tab" data-mtab="stairs" aria-selected="${m.tab === 'stairs'}" aria-pressed="${m.tab === 'stairs'}">Stairs · ${c.treads} treads</button>
+            <button type="button" role="tab" data-mtab="stairs" aria-selected="${m.tab === 'stairs'}" aria-pressed="${m.tab === 'stairs'}">Stairs · ${c.treads} treads · ${c.risers} risers</button>
             <button type="button" role="tab" data-mtab="vents" aria-selected="${m.tab === 'vents'}" aria-pressed="${m.tab === 'vents'}">Vents · ${c.vents}</button>
           </div>
           ${m.tab === 'stairs'
@@ -3452,6 +3633,12 @@
     view.querySelectorAll('[data-txt]').forEach((el) => el.addEventListener('blur', measRefreshSide));
     view.querySelectorAll('[data-num]').forEach((el) => el.addEventListener('input', () => { const { obj, key } = measAt(el.getAttribute('data-num')); obj[key] = Math.max(1, Math.round(Number(el.value) || 1)); measSaveSoon(); measRefreshSide(); }));
     view.querySelectorAll('[data-set]').forEach((el) => el.addEventListener('change', () => { const { obj, key } = measAt(el.getAttribute('data-set')); obj[key] = el.value; measSaveSoon(); redraw(); }));
+    view.querySelectorAll('[data-bool]').forEach((el) => el.addEventListener('change', () => {
+      const { obj, key } = measAt(el.getAttribute('data-bool'));
+      obj[key] = el.checked;
+      measSaveSoon();
+      redraw();
+    }));
     view.querySelectorAll('[data-free]').forEach((el) => el.addEventListener('change', () => {
       const { obj, key } = measAt(el.getAttribute('data-free'));
       obj[key] = el.value === '__other' ? ' ' : el.value;
@@ -3487,18 +3674,30 @@
     }));
     view.querySelectorAll('[data-step-add]').forEach((b) => b.addEventListener('click', () => {
       const s = m.data.stairs[Number(b.getAttribute('data-step-add'))];
-      s.steps.push(newStep(s.steps[s.steps.length - 1]));
+      const previousTread = [...s.steps].reverse().find((step) => step.kind !== 'riser') || null;
+      s.steps.push(newStep(previousTread, 'step'));
       measSaveSoon();
       redraw();
       const si = Number(b.getAttribute('data-step-add'));
       const el = view.querySelector(`[data-in="stairs.${si}.steps.${s.steps.length - 1}.tread_w"]`);
       if (el) el.focus();
     }));
+    view.querySelectorAll('[data-riser-add]').forEach((b) => b.addEventListener('click', () => {
+      const si = Number(b.getAttribute('data-riser-add'));
+      const s = m.data.stairs[si];
+      const previous = [...s.steps].reverse().find((step) => step.kind === 'riser' || step.riser_h != null) || s.steps[s.steps.length - 1] || null;
+      s.steps.push(newStep(previous, 'riser'));
+      measSaveSoon();
+      redraw();
+    }));
     view.querySelectorAll('[data-step-many]').forEach((b) => b.addEventListener('click', () => {
       const si = Number(b.getAttribute('data-step-many'));
       const s = m.data.stairs[si];
       const n = Math.min(40, Math.max(1, Number(($(`ppMany-${si}`) || {}).value) || 1));
-      for (let i = 0; i < n && s.steps.length < 60; i += 1) s.steps.push(newStep(s.steps[s.steps.length - 1]));
+      for (let i = 0; i < n && s.steps.length < 60; i += 1) {
+        const previousTread = [...s.steps].reverse().find((step) => step.kind !== 'riser') || null;
+        s.steps.push(newStep(previousTread, 'step'));
+      }
       measSaveSoon();
       redraw();
     }));
@@ -3506,7 +3705,10 @@
       const [si, i] = b.getAttribute('data-step-down').split(':').map(Number);
       const s = m.data.stairs[si];
       const src = s.steps[i];
-      for (let j = i + 1; j < s.steps.length; j += 1) s.steps[j] = { ...src, id: s.steps[j].id, note: s.steps[j].note };
+      for (let j = i + 1; j < s.steps.length; j += 1) {
+        if (s.steps[j].kind === 'riser') continue;
+        s.steps[j] = { ...src, id: s.steps[j].id, note: s.steps[j].note };
+      }
       measSaveSoon();
       redraw();
     }));
@@ -3518,8 +3720,10 @@
     }));
     view.querySelectorAll('[data-nos-add]').forEach((b) => b.addEventListener('click', () => {
       const s = m.data.stairs[Number(b.getAttribute('data-nos-add'))];
-      const last = s.steps[s.steps.length - 1];
-      s.nosings.push({ id: uid(), length: last ? last.tread_w : null, qty: 1, type: 'flush', note: '' });
+      const last = treadSteps(s).slice(-1)[0];
+      const position = last ? last.id : s.landing && s.landing.enabled ? 'landing' : '';
+      const length = last ? last.tread_w : s.landing && s.landing.enabled ? s.landing.width : null;
+      s.nosings.push({ id: uid(), length, qty: 1, type: 'flush', position, note: '' });
       measSaveSoon();
       redraw();
     }));
@@ -3750,6 +3954,7 @@
       return d.stairs[idx];
     };
     const dims = (st, a) => {
+      if (a.tread_w != null || a.tread_d != null) st.kind = 'step';
       ['tread_w', 'tread_d', 'riser_w', 'riser_h'].forEach((k) => { if (a[k] != null) st[k] = Number(a[k]); });
       if (a.riser_h != null && a.riser_w == null && st.riser_w == null && st.tread_w != null) st.riser_w = st.tread_w;
       if (a.open) st.open = a.open;
@@ -3769,7 +3974,7 @@
         const s = stairAt(a.stair);
         const from = Math.max(1, a.from);
         const to = Math.max(from, a.to || from);
-        while (s.steps.length < to) s.steps.push(newStep(null));
+        while (s.steps.length < to) s.steps.push(newStep(null, 'step'));
         for (let i = from - 1; i < to; i += 1) dims(s.steps[i], a);
         m.vizSel = m.vizSel || {};
         m.vizSel[m.voiceStair] = to - 1;
@@ -3777,7 +3982,8 @@
       } else if (a.type === 'add_steps') {
         const s = stairAt(a.stair);
         for (let n = 0; n < a.count; n += 1) {
-          const st = newStep(s.steps[s.steps.length - 1] || null);
+          const previousTread = [...s.steps].reverse().find((step) => step.kind !== 'riser') || null;
+          const st = newStep(previousTread, 'step');
           dims(st, a);
           s.steps.push(st);
         }
@@ -3790,9 +3996,22 @@
         const to = Math.max(from, a.to || from);
         s.steps.splice(from - 1, to - from + 1);
         tab = 'stairs';
+      } else if (a.type === 'add_riser') {
+        const s = stairAt(a.stair);
+        for (let n = 0; n < a.count; n += 1) {
+          const previous = [...s.steps].reverse().find((step) => step.kind === 'riser' || step.riser_h != null) || s.steps[s.steps.length - 1] || null;
+          const st = newStep(previous, 'riser');
+          dims(st, a);
+          s.steps.push(st);
+        }
+        m.vizSel = m.vizSel || {};
+        m.vizSel[m.voiceStair] = s.steps.length - 1;
+        tab = 'stairs';
       } else if (a.type === 'add_nosing') {
         const s = stairAt(a.stair);
-        s.nosings.push({ id: uid(), length: Number(a.length) || null, qty: a.qty || 1, type: a.nosing_type || 'flush', note: a.note || '' });
+        const last = treadSteps(s).slice(-1)[0];
+        const position = last ? last.id : s.landing && s.landing.enabled ? 'landing' : '';
+        s.nosings.push({ id: uid(), length: Number(a.length) || null, qty: a.qty || 1, type: a.nosing_type || 'flush', position, note: a.note || '' });
         tab = 'stairs';
       } else if (a.type === 'add_vent') {
         d.vents.push({ ...newVent(null), size: String(a.size || '4x10').replace(/\s+/g, ''), type: a.vent_type || 'flush', qty: a.qty || 1, room: a.room || '', ...pick(a, ['species', 'finish', 'color']) });

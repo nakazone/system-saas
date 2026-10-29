@@ -511,14 +511,32 @@ export async function ensureInvoicesOnApprove(
   const quoteTotal = quoteContractTotal(quote);
   if (quoteTotal <= 0) return [];
 
-  // Two saves (approve + emit, or a double click) used to each insert a full invoice.
+  // Quote approval and job "Emitir Invoice" both insert. Lock quote, then job, in that order.
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${params.quoteId}))`;
+  if (quote.workOrderId) {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${quote.workOrderId}))`;
+  }
 
   const existing = await tx.quoteInvoice.findMany({
     where: { quoteId: params.quoteId, status: { not: "void" } },
     select: { id: true },
   });
-  if (existing.length > 0) return existing.map((i) => i.id);
+  // A job invoice is stored with quoteId null. Counting only quoteId used to issue a second full invoice.
+  const jobOrphans = quote.workOrderId
+    ? await tx.quoteInvoice.findMany({
+        where: { workOrderId: quote.workOrderId, quoteId: null, status: { not: "void" } },
+        select: { id: true },
+      })
+    : [];
+  if (jobOrphans.length) {
+    await tx.quoteInvoice.updateMany({
+      where: { id: { in: jobOrphans.map((row) => row.id) } },
+      data: { quoteId: params.quoteId },
+    });
+  }
+  if (existing.length > 0 || jobOrphans.length > 0) {
+    return [...existing.map((row) => row.id), ...jobOrphans.map((row) => row.id)];
+  }
 
   try {
     let schedule = await tx.paymentSchedule.findFirst({
@@ -601,7 +619,13 @@ export async function ensureInvoicesOnApprove(
 
   // Hard guarantee: approved quotes with value always get a draft invoice.
   const stillNone = await tx.quoteInvoice.findFirst({
-    where: { quoteId: params.quoteId, status: { not: "void" } },
+    where: {
+      status: { not: "void" },
+      OR: [
+        { quoteId: params.quoteId },
+        ...(quote.workOrderId ? [{ workOrderId: quote.workOrderId }] : []),
+      ],
+    },
     select: { id: true },
   });
   if (stillNone) return [stillNone.id];

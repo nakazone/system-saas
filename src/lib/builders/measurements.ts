@@ -25,6 +25,8 @@ export const VENT_TYPES = ["flush", "self_rimming", "return_air"] as const;
 
 const stepSchema = z.object({
   id,
+  /** A stair can finish with an extra riser before the upper floor/landing. */
+  kind: z.enum(["step", "riser"]).optional().default("step"),
   tread_w: inches,
   tread_d: inches,
   riser_w: inches,
@@ -40,12 +42,25 @@ const nosingSchema = z.object({
   length: inches,
   qty: z.number().int().min(0).max(500).optional().default(1),
   type: z.enum(["flush", "overlap", "stair_nose"]).optional().default("flush"),
+  /** Step ID or "landing"; empty/legacy values are drawn on the last tread. */
+  position: z.string().trim().max(40).optional().default(""),
   note: text(200),
+});
+
+const landingSchema = z.object({
+  enabled: z.boolean().optional().default(false),
+  width: inches,
+  depth: inches,
 });
 
 const stairSchema = z.object({
   id,
   name: text(80),
+  layout: z.enum(["straight", "round"]).optional().default("straight"),
+  round_diameter: inches,
+  round_center_diameter: inches,
+  round_sweep: z.enum(["180", "270", "360"]).optional().default("270"),
+  landing: landingSchema.optional().default({ enabled: false, width: null, depth: null }),
   species: text(60),
   finish: text(60),
   color: text(80),
@@ -130,7 +145,19 @@ export function openLabel(open: string, ret: string): string {
   return `${OPEN_LABEL[open] || open} · ${RET_LABEL[ret] || ret}`;
 }
 
-export type SummaryLine = { kind: "tread" | "riser" | "nosing" | "vent"; text: string; qty: number; uom: "EA" | "LF" };
+export type SummaryLine = { kind: "tread" | "riser" | "nosing" | "landing" | "vent"; text: string; qty: number; uom: "EA" | "LF" };
+
+function treadSteps(stair: Stair) {
+  return stair.steps.filter((step) => step.kind !== "riser" && (step.tread_w || step.tread_d));
+}
+
+function nosingPosition(stair: Stair, nosing: z.infer<typeof nosingSchema>): string {
+  if (nosing.position === "landing" && stair.landing.enabled) return "landing";
+  const treads = treadSteps(stair);
+  const index = treads.findIndex((step) => step.id === nosing.position);
+  if (index >= 0) return `tread ${index + 1}`;
+  return treads.length ? `tread ${treads.length}` : "top of stair";
+}
 
 /** Groups equal pieces: "Tread White Oak 48 × 11¼ · both sides open · 45° return — 8 EA". */
 export function summarize(data: MeasurementData): SummaryLine[] {
@@ -141,12 +168,15 @@ export function summarize(data: MeasurementData): SummaryLine[] {
     const treads = new Map<string, number>();
     const risers = new Map<string, number>();
     for (const st of stair.steps) {
-      if (st.tread_w || st.tread_d) {
+      if (st.kind !== "riser" && (st.tread_w || st.tread_d)) {
         const k = `${fmtInches(st.tread_w)} × ${fmtInches(st.tread_d)} · ${openLabel(st.open, st.ret)}`;
         treads.set(k, (treads.get(k) || 0) + 1);
       }
-      if (!st.no_riser && stair.riser_material !== "none" && (st.riser_w || st.riser_h)) {
+      if (st.kind !== "riser" && !st.no_riser && stair.riser_material !== "none" && (st.riser_w || st.riser_h)) {
         const k = `${fmtInches(st.riser_w)} × ${fmtInches(st.riser_h)}${st.open !== "none" ? ` · ${OPEN_LABEL[st.open]}` : ""}`;
+        risers.set(k, (risers.get(k) || 0) + 1);
+      } else if (st.kind === "riser" && stair.riser_material !== "none" && (st.riser_w || st.riser_h)) {
+        const k = `${fmtInches(st.riser_w)} × ${fmtInches(st.riser_h)}`;
         risers.set(k, (risers.get(k) || 0) + 1);
       }
     }
@@ -156,7 +186,10 @@ export function summarize(data: MeasurementData): SummaryLine[] {
     for (const ns of stair.nosings) {
       if (!ns.length) continue;
       const type = ns.type === "overlap" ? "overlap" : ns.type === "stair_nose" ? "stair nose" : "flush";
-      out.push({ kind: "nosing", qty: ns.qty || 1, uom: "EA", text: `${label} · Nosing ${type}${wood ? ` ${wood}` : ""} ${fmtInches(ns.length)}"${ns.note ? ` · ${ns.note}` : ""}` });
+      out.push({ kind: "nosing", qty: ns.qty || 1, uom: "EA", text: `${label} · Nosing ${type}${wood ? ` ${wood}` : ""} ${fmtInches(ns.length)}" · ${nosingPosition(stair, ns)}${ns.note ? ` · ${ns.note}` : ""}` });
+    }
+    if (stair.landing.enabled) {
+      out.push({ kind: "landing", qty: 1, uom: "EA", text: `${label} · Landing ${wood ? `${wood} ` : ""}${fmtInches(stair.landing.width)} × ${fmtInches(stair.landing.depth)}"` });
     }
   }
   const vents = new Map<string, number>();
@@ -172,20 +205,24 @@ export function counts(data: MeasurementData) {
   let treads = 0;
   let risers = 0;
   let nosings = 0;
+  let landings = 0;
   for (const s of data.stairs) {
     for (const st of s.steps) {
-      if (st.tread_w || st.tread_d) treads += 1;
-      if (!st.no_riser && s.riser_material !== "none" && (st.riser_w || st.riser_h)) risers += 1;
+      if (st.kind !== "riser" && (st.tread_w || st.tread_d)) treads += 1;
+      if (st.kind === "riser" ? s.riser_material !== "none" && (st.riser_w || st.riser_h) : !st.no_riser && s.riser_material !== "none" && (st.riser_w || st.riser_h)) risers += 1;
     }
     for (const n of s.nosings) if (n.length) nosings += n.qty || 1;
+    if (s.landing.enabled) landings += 1;
   }
   const vents = data.vents.reduce((a, v) => a + (v.qty || 1), 0);
-  return { stairs: data.stairs.length, treads, risers, nosings, vents };
+  return { stairs: data.stairs.length, treads, risers, nosings, landings, vents };
 }
 
 /** Text for the job notes, in the words a work order uses (e.g. "48" – double returns – 8 EA"). */
 export function summaryText(m: { address: string; data: MeasurementData; measuredBy: string; measuredAt: Date | null }): string {
-  const lines = summarize(m.data).map((l) => `- ${l.text} — ${l.qty} ${l.uom}`);
+  const shapes = m.data.stairs.filter((stair) => stair.layout === "round").map((stair) =>
+    `- ${stair.name || "Stair"} · Round stair · Ø ${fmtInches(stair.round_diameter)}" outside · Ø ${fmtInches(stair.round_center_diameter)}" center · ${stair.round_sweep}° sweep`);
+  const lines = [...shapes, ...summarize(m.data).map((l) => `- ${l.text} — ${l.qty} ${l.uom}`)];
   const who = `${m.measuredBy}${m.measuredAt ? ` on ${m.measuredAt.toISOString().slice(0, 10)}` : ""}`;
   return [`Builder measurement (${who}):`, ...lines].join("\n");
 }
@@ -529,11 +566,15 @@ export async function measurementPdf(m: { builder: string; address: string; comm
     rule();
     doc.moveDown(0.4);
     doc.font("Helvetica-Bold").fontSize(12).fillColor(ink).text(s.name || "Stair", 40);
-    doc.font("Helvetica").fontSize(9).fillColor(muted).text([s.species, s.finish, s.color, s.riser_material === "primed" ? "risers primed" : s.riser_material === "paint_grade" ? "risers paint grade" : s.riser_material === "none" ? "no risers" : ""].filter(Boolean).join(" · ") || "—");
+    const shape = s.layout === "round"
+      ? "Round stair · Ø " + fmtInches(s.round_diameter) + "\" outside · Ø " + fmtInches(s.round_center_diameter) + "\" center · " + s.round_sweep + "° sweep"
+      : "Straight stair";
+    doc.font("Helvetica").fontSize(9).fillColor(muted).text([shape, s.species, s.finish, s.color, s.riser_material === "primed" ? "risers primed" : s.riser_material === "paint_grade" ? "risers paint grade" : s.riser_material === "none" ? "no risers" : ""].filter(Boolean).join(" · ") || "—");
+    if (s.landing.enabled) doc.fillColor(muted).text("Landing after final component · " + fmtInches(s.landing.width) + "\" × " + fmtInches(s.landing.depth) + "\"");
     if (s.note) doc.fillColor(ink).text(s.note, { width: W });
     doc.moveDown(0.3);
-    const cols = [40, 66, 170, 274, 470];
-    const head = ["#", "Tread (W x D)", "Riser (W x H)", "Sides", "Notes"];
+    const cols = [40, 116, 220, 324, 454, 572];
+    const head = ["Part", "Tread (W x D)", "Riser (W x H)", "Sides", "Notes"];
     ensure(14);
     let y = doc.y;
     doc.font("Helvetica-Bold").fontSize(8).fillColor(muted);
@@ -549,6 +590,11 @@ export async function measurementPdf(m: { builder: string; address: string; comm
         openLabel(st.open, st.ret),
         st.note || "",
       ];
+      if (st.kind === "riser") {
+        raw[0] = "Riser only " + (i + 1);
+        raw[1] = "—";
+        raw[3] = "—";
+      }
       const cells = raw.map(ascii);
       const h = Math.max(12, ...cells.map((c, j) => doc.heightOfString(c || " ", { width: (cols[j + 1] ?? 40 + W) - cols[j]! - 4 })));
       if (y + h > doc.page.height - 50) { doc.addPage(); y = doc.y; }
@@ -559,7 +605,8 @@ export async function measurementPdf(m: { builder: string; address: string; comm
       doc.moveDown(0.3);
       doc.font("Helvetica-Bold").fontSize(9).fillColor(ink).text("Nosings", 40);
       for (const n of s.nosings) {
-        ensure(12);
+        ensure(28);
+        doc.font("Helvetica").fontSize(8).fillColor(muted).text(ascii("Position: " + nosingPosition(s, n)), 50);
         doc.font("Helvetica").fontSize(9).text(ascii(`${n.qty || 1} × ${fmtInches(n.length)}" · ${n.type === "overlap" ? "overlap" : n.type === "stair_nose" ? "stair nose" : "flush"}${n.note ? ` · ${n.note}` : ""}`), 50);
       }
     }
