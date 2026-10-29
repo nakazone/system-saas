@@ -2540,3 +2540,7 @@ button.tk-fact:hover { border-color: #E7792C; }
 .pp-wz-back { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin: 0 0 12px; padding: 10px 14px; border-radius: 14px; background: #FFF8F2; border: 1px solid #F6C8A4; font-size: 14px; font-weight: 600; }
 .pp-wz-back span { display: inline-flex; align-items: center; gap: 8px; }
 .pp-track .pp-mate-art { width: auto; max-width: 160px; align-self: center; object-fit: contain; }
+.pp-plan-pickrow { grid-template-columns: 18px minmax(140px, 220px) minmax(0, 1fr) auto; padding: 6px 0; }
+.pp-plan-pickrow small { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; }
+.pp-plan-pickrow.is-unsure select { border-color: #F6C8A4; background: #FFF8F2; }
+@media (max-width: 767px) { .pp-plan-pickrow { grid-template-columns: 18px minmax(0, 1fr) auto; } .pp-plan-pickrow small { grid-column: 2 / 4; grid-row: 2; } }

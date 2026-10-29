@@ -4911,10 +4911,13 @@
     planProgress(root, 'Finding the floor legend…', 22);
     let mats = await window.ObTakeoff.legend(opened);
     if (!mats.length) {
-      mats = await pickColors(opened);
+      // no legend: the floors are highlighted and named in callouts ("6\" WHITE OAK - SITE FIN.", "TILE")
+      planProgress(root, 'No legend — reading the colors and notes on the plans…', 24);
+      const mk = window.ObTakeoff.markupColors ? await window.ObTakeoff.markupColors(opened) : { mats: [], unknown: [] };
+      mats = await pickColors(opened, mk);
       if (!mats || !mats.length) throw new Error('No floor colors were marked, so nothing was measured.');
     }
-    mats.forEach((x) => { if (x.kind === 'hardwood') x.sand_finish = true; });
+    mats.forEach((x) => { if (x.kind === 'hardwood' && x.sand_finish == null) x.sand_finish = true; });
     // reading again keeps what the person already chose for each floor (product, counted or not)
     const before = (m.data && m.data.plan && m.data.plan.materials) || [];
     mats.forEach((x) => {
@@ -4959,31 +4962,49 @@
   }
 
   /** Scans/photos: the person taps each floor color and says what it is. */
-  function pickColors(opened) {
+  function pickColors(opened, found) {
     return new Promise(async (resolve) => {
-      const sh = opened.sheets[0];
+      const f = found || { mats: [], unknown: [] };
+      // the sheet with the most color shows best what to tap
+      const sh = opened.sheets.reduce((a, b) => ((b.noteBoxes || []).length > (a.noteBoxes || []).length ? b : a), opened.sheets[0]);
       const Z = Math.min(2, 1400 / sh.ptW);
       const r = await window.ObTakeoff.render(sh, Z);
-      const mats = [];
-      const root = openSheet('Mark the floor colors', `<p class="pp-muted" style="margin:0 0 10px">These plans have no legend Mate can read. Tap a colored floor, then say what it is. Repeat for each floor color.</p>
-        <div class="pp-plan-pick"><img alt="Plan sheet" src="${r.canvas.toDataURL('image/jpeg', 0.85)}" /></div>
+      // plans printed small on a page: show only the drawing (crop the white margins)
+      const crop = (() => {
+        const d = r.ctx.getImageData(0, 0, r.W, r.H).data; let x0 = r.W; let y0 = r.H; let x1 = 0; let y1 = 0;
+        for (let y = 0; y < r.H; y += 2) for (let x = 0; x < r.W; x += 2) { const i = (y * r.W + x) * 4; if (d[i] + d[i + 1] + d[i + 2] < 720) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; } }
+        if (x1 <= x0 || y1 <= y0) return { x: 0, y: 0, w: r.W, h: r.H, url: r.canvas.toDataURL('image/jpeg', 0.85) };
+        const pad = 12; x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(r.W, x1 + pad); y1 = Math.min(r.H, y1 + pad);
+        const cv = document.createElement('canvas'); cv.width = x1 - x0; cv.height = y1 - y0;
+        cv.getContext('2d').drawImage(r.canvas, x0, y0, cv.width, cv.height, 0, 0, cv.width, cv.height);
+        return { x: x0, y: y0, w: cv.width, h: cv.height, url: cv.toDataURL('image/jpeg', 0.85) };
+      })();
+      const mats = [
+        ...f.mats.map((x) => ({ ...x })),
+        ...f.unknown.map((u, i) => ({ key: `floor-u${i}`, label: 'Not flooring', color: u.color, kind: 'other', include: false, sand_finish: false, unsure: true })),
+      ];
+      const intro = f.mats.length || f.unknown.length
+        ? `These plans have no legend, so Mate read the colors and the notes on them${f.mats.some((x) => x.from === 'note') ? ' (like the note written on a colored box)' : ''}. Check what each color is — tap the plan to add a color it missed.`
+        : 'These plans have no legend Mate can read. Tap a colored floor, then say what it is. Repeat for each floor color.';
+      const root = openSheet(f.mats.length ? 'Check the floor colors' : 'Mark the floor colors', `<p class="pp-muted" style="margin:0 0 10px">${esc(intro)}</p>
         <div class="pp-plan-picked" data-picked></div>
+        <div class="pp-plan-pick"><img alt="Plan sheet" src="${crop.url}" /></div>
         <div class="pp-sheet-actions"><button type="button" class="pp-btn pp-btn--pri" data-picked-done>Measure these floors</button></div>`, { wide: true, noFocus: true });
-      const paint = () => { root.querySelector('[data-picked]').innerHTML = mats.map((x, i) => `<div class="pp-plan-pickrow"><span class="pp-swatch" style="background:${esc(x.color)}"></span>${sel(FLOOR_KIND_OPTS, x.kind, `data-pick-kind="${i}" aria-label="Floor type"`)}<button type="button" class="pp-link pp-late" data-pick-rm="${i}">Remove</button></div>`).join('') || '<p class="pp-muted" style="margin:6px 0">No colors yet.</p>';
-        root.querySelectorAll('[data-pick-kind]').forEach((s) => s.addEventListener('change', () => { const x = mats[+s.getAttribute('data-pick-kind')]; x.kind = s.value; x.label = FLOOR_KIND_OPTS.find((o) => o[0] === s.value)[1]; x.include = FLOORING_KINDS.includes(s.value); }));
+      const paint = () => { root.querySelector('[data-picked]').innerHTML = mats.map((x, i) => `<div class="pp-plan-pickrow ${x.unsure ? 'is-unsure' : ''}"><span class="pp-swatch" style="background:${esc(x.color)}"></span>${sel(FLOOR_KIND_OPTS, x.kind, `data-pick-kind="${i}" aria-label="Floor type"`)}<small class="pp-muted">${x.unsure ? 'Mate couldn’t tell — choose' : x.from === 'note' ? `From the note${x.spec && Object.keys(x.spec).length ? `: ${esc(Object.values(x.spec).join(' · '))}` : ''}` : x.from === 'callout' ? 'From a callout next to it' : ''}</small><button type="button" class="pp-link pp-late" data-pick-rm="${i}">Remove</button></div>`).join('') || '<p class="pp-muted" style="margin:6px 0">No colors yet.</p>';
+        root.querySelectorAll('[data-pick-kind]').forEach((s) => s.addEventListener('change', () => { const x = mats[+s.getAttribute('data-pick-kind')]; x.kind = s.value; x.label = FLOOR_KIND_OPTS.find((o) => o[0] === s.value)[1]; x.include = FLOORING_KINDS.includes(s.value); x.unsure = false; x.sand_finish = s.value === 'hardwood'; }));
         root.querySelectorAll('[data-pick-rm]').forEach((b) => b.addEventListener('click', () => { mats.splice(+b.getAttribute('data-pick-rm'), 1); paint(); }));
       };
       paint();
       root.querySelector('.pp-plan-pick img').addEventListener('click', (e) => {
         const img = e.currentTarget; const rect = img.getBoundingClientRect();
-        const x = Math.round(((e.clientX - rect.left) / rect.width) * r.W); const y = Math.round(((e.clientY - rect.top) / rect.height) * r.H);
+        const x = crop.x + Math.round(((e.clientX - rect.left) / rect.width) * crop.w); const y = crop.y + Math.round(((e.clientY - rect.top) / rect.height) * crop.h);
         const color = window.ObTakeoff.colorAt(r.canvas, x, y);
         if (!color) { mateToast('head-curious', 'That spot has no color', 'Tap inside a colored floor.'); return; }
         mats.push({ key: `floor-${mats.length + 1}`, label: 'Hardwood', color, kind: 'hardwood', include: true, sand_finish: true });
         paint();
       });
       let done = false;
-      root.querySelector('[data-picked-done]').addEventListener('click', () => { done = true; closeSheet(); resolve(mats.map((x, i) => ({ ...x, key: `${x.kind}-${i + 1}` }))); });
+      root.querySelector('[data-picked-done]').addEventListener('click', () => { done = true; closeSheet(); resolve(mats.map((x, i) => { const { unsure, from, ...rest } = x; void unsure; void from; return { ...rest, key: `${x.kind}-${i + 1}` }; })); });
       new MutationObserver((_, obs) => { if (!root.isConnected) { obs.disconnect(); if (!done) resolve(null); } }).observe(document.body, { childList: true });
     });
   }
