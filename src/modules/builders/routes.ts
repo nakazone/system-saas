@@ -859,7 +859,7 @@ builderAccountRouter.post("/api/builder/read", requireBuilder, needs("jobs.send"
     const files: IntakeFile[] = uploads.map((u, i) => ({ name: u.name, contentType: u.contentType, dataUrl: parsed.data.files[i]!.data_url }));
     const read = await readWorkOrder({ files, text: parsed.data.text });
     if (!read.ok) throw new BuilderError(422, read.error);
-    res.json({ success: true, data: { ai_available: true, model: read.model, fields: read.result.fields, pickup_match: await pickupForWorkOrder(req.builderMember!.builderAccountId, read.result.fields.pickup).catch(() => null), measurement: await findMeasurementForAddress(req.builderMember!.builderAccountId, read.result.fields.address).catch(() => null), items: read.result.items, labor_total: read.result.labor_total, check: read.result.check, warnings: read.result.warnings, match: null } });
+    res.json({ success: true, data: { ai_available: true, model: read.model, fields: read.result.fields, pickup_match: await pickupForWorkOrder(req.builderMember!.builderAccountId, read.result.fields.pickup).catch(() => null), measurement: await findMeasurementForAddress(req.builderMember!.builderAccountId, read.result.fields.address).catch(() => null), items: read.result.items, stairs: read.result.stairs || [], stair_finish: read.result.stair_finish || "", labor_total: read.result.labor_total, check: read.result.check, warnings: read.result.warnings, match: null } });
   } catch (error) {
     sendError(res, error, next);
   }

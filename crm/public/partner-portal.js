@@ -1240,6 +1240,8 @@
           applyAgreed(s);
         }
         s.catalog = data.catalog || [];
+        s.orderStairs = Array.isArray(data.stairs) ? data.stairs : [];
+        s.stairFinish = data.stair_finish || '';
         s.measurement = data.measurement || null;
         s.useMeasurement = Boolean(s.measurement && s.measurement.status !== 'used');
         s.pickupRaw = s.fields.pickup || '';
@@ -1679,7 +1681,16 @@
       if (byId) return byId;
     }
     const names = [it.service_name, it.description, itemTitle(s, it)].map(norm).filter(Boolean);
-    return list.find((p) => names.includes(norm(p.name))) || null;
+    const exact = list.find((p) => names.includes(norm(p.name)));
+    if (exact) return exact;
+    // same kind of work in other words ("Stair refinishing" for "SITE FINISHED SAND/2 COAT TREADS")
+    const text = `${it.service_name || ''} ${it.description || ''} ${it.detail || ''}`;
+    const kind = serviceKindOf(text);
+    if (kind === 'other') return null;
+    const same = list.filter((p) => serviceKindOf(p.name) === kind);
+    const wOf = (t) => Number((/\b(\d{2}(?:\.\d+)?)\s*(?:"|”|″|inch|in\b)/i.exec(String(t)) || [])[1] || 0);
+    const w = wOf(text);
+    return (w && same.find((p) => wOf(p.name) === w)) || (same.length === 1 ? same[0] : same.find((p) => !wOf(p.name)) || null);
   }
   function agreedChip(s, it) {
     if (it.remove) return '';
@@ -1908,27 +1919,59 @@
       if (!isTread && !isRiser) return;
       const wm = t.match(/(\d{2,3}(?:\.\d+)?)\s*(?:"|''|”|in\b|inch)/i) || t.match(/\b(3\d|4\d|5\d|6\d|7\d)\b/);
       const w = wm ? Number(wm[1]) : 0;
-      const k = String(w || '?');
+      const k = `${w || '?'}`;
       const g = stairs.get(k) || { w, treads: 0, risers: 0, open: 'none', species: '' };
       if (isTread) g.treads += qty; else g.risers += qty;
       if (/double|both/i.test(t)) g.open = 'both'; else if (/left/i.test(t) && g.open === 'none') g.open = 'left'; else if (/right/i.test(t) && g.open === 'none') g.open = 'right';
       g.species = g.species || species(t);
       stairs.set(k, g);
     });
-    return { stairs: [...stairs.values()].filter((g) => g.treads || g.risers).sort((a, b) => b.w - a.w), vents };
+    const fromItems = [...stairs.values()].filter((g) => g.treads || g.risers);
+    const spec = (state.send && state.send.orderStairs) || [];
+    const OPEN = { double: 'both', left: 'left', right: 'right', none: 'none' };
+    // a flight with N treads has N + 1 risers when the order doesn't say
+    const flights = (spec.length ? spec.map((f) => ({ w: Number(f.width) || 0, treads: Number(f.treads) || 0, risers: Number(f.risers) || 0, open: OPEN[f.returns] || 'none', species: f.species || '' })) : fromItems)
+      .map((g) => ({ ...g, risers: g.risers || (g.treads ? g.treads + 1 : 0) }));
+    const finish = (state.send && state.send.stairFinish) || ((items || []).some((it) => !it.remove && serviceKindOf(`${it.service_name} ${it.description} ${it.detail}`) === 'stair_sand_finish') ? 'site' : '');
+    return { stairs: flights, vents, finish };
+  }
+  /** Same kinds of work as the server (src/lib/partner-intake/extract.ts › serviceKind). */
+  function serviceKindOf(text) {
+    const t = String(text || '').toLowerCase();
+    const stair = /\b(?:stairs?|steps?|treads?|risers?|landing)\b/.test(t);
+    const finish = /\b(?:sand(?:ing)?|re-?finish(?:ing)?|site\s*finish(?:ed)?|finish(?:ing)?\s*(?:on\s*)?site|\d\s*coats?|stain(?:ing)?|poly(?:urethane)?|screen\s*(?:&|and)\s*coat)\b/.test(t) || /\bsand\s*(?:&|and|\/)/.test(t);
+    if (/\bvents?\b|\bregisters?\b|\bgrill(?:e|s)?\b/.test(t)) return 'vent';
+    if (stair && finish) return 'stair_sand_finish';
+    if (/\bnos(?:ing|e)s?\b/.test(t)) return 'nosing';
+    if (/\brisers?\b/.test(t) && !/\btreads?\b/.test(t)) return 'stair_riser';
+    if (stair) return 'stair_tread';
+    if (finish) return 'floor_sand_finish';
+    return 'other';
   }
   const OPEN_TXT = { both: 'double returns (both sides open)', left: 'left returns (left side open)', right: 'right returns (right side open)', none: 'between walls' };
   function orderStairText(det) {
-    return ['From the work order (use these counts, widths and open sides exactly):', ...det.stairs.map((g) => `- ${g.treads} treads ${g.w || '?'}" wide, ${OPEN_TXT[g.open]}; ${g.risers} risers ${g.w || '?'}"${g.species ? `; ${g.species}` : ''}.`),
-      det.stairs.length > 1 ? 'Each width is one flight of the same stair. From the photos work out which flight is the lower one, the landing between them and which way the upper flight turns.' : 'From the photos work out landings and how the stair turns.',
+    return ['From the work order (use these counts, widths and open sides exactly):', ...det.stairs.map((g, i) => `- ${det.stairs.length > 1 ? `Flight ${i + 1}: ` : ''}${g.treads} treads ${g.w || '?'}" wide, ${OPEN_TXT[g.open]}; ${g.risers} risers ${g.w || '?'}"${g.species ? `; ${g.species}` : ''}.`),
+      det.finish === 'site' ? 'The treads are sanded and finished on site (finish: "Unfinished (site finished)").' : '',
+      det.stairs.length > 1 ? `These are ${det.stairs.length} flights of ONE stair joined by a landing, listed lower flight first. Build them as connected flights (landing on each lower flight, starts_on_landing_of on the next). From the photos work out the landing size and which way each upper flight turns.` : 'From the photos work out landings and how the stair turns.',
       'Estimate tread depth and riser height from the photos.'].join('\n');
   }
   /** Without photos: one straight flight per width, typical depth/height to check on site. */
   function orderActions(det, base) {
     const out = [];
+    const many = det.stairs.length > 1;
+    const finish = det.finish === 'site' ? 'Unfinished (site finished)' : det.finish === 'prefinished' ? 'Prefinished' : '';
     det.stairs.forEach((g, i) => {
       const w = g.w || 42;
-      out.push({ type: 'add_stair', name: `${w}" stair`, ...(g.species ? { species: g.species } : {}) });
+      const last = i === det.stairs.length - 1;
+      out.push({
+        type: 'add_stair',
+        name: many ? (i === 0 ? 'Lower flight' : last ? 'Upper flight' : `Flight ${i + 1}`) : `${w}" stair`,
+        ...(g.species ? { species: g.species } : {}),
+        ...(finish ? { finish } : {}),
+        // flights of one stair: each lower flight ends on a landing the next one starts from
+        ...(many && !last ? { landing: true, landing_w: w, landing_d: w } : {}),
+        ...(many && i > 0 ? { starts_on_landing_of: base + i - 1, turn: 'straight' } : {}),
+      });
       if (g.treads) out.push({ type: 'add_steps', stair: base + i, count: g.treads, tread_w: w, tread_d: 11.25, riser_w: w, riser_h: 7.5, open: g.open, ret: '45' });
       const extra = g.risers - g.treads;
       if (extra > 0) out.push({ type: 'add_riser', stair: base + i, count: extra, riser_w: w, riser_h: 7.5 });
@@ -1969,7 +2012,7 @@
           <a class="pp-btn pp-btn--sec pp-btn--sm" href="#measurements/${esc(m.id)}">${icon('pen')}Adjust</a></div>
         ${s.measReply ? `<div class="pp-wz-mate">${mate('head-talking', 40)}<div><p>${esc(s.measReply)}</p>${(s.measObs || []).length ? `<ul>${s.measObs.map((o) => `<li>${esc(o)}</li>`).join('')}</ul>` : ''}</div></div>` : ''}
         <div class="pp-wz-grid">
-          <div class="pp-wz-viz">${s.measData ? (measDrawingHtml(s.measData) || '<p class="pp-muted pp-viz-empty">No stairs in this measurement.</p>') : '<p class="pp-muted pp-viz-empty">Loading the drawing…</p>'}</div>
+          <div class="pp-wz-viz">${s.measData ? `${wzTurnHtml(s)}${measDrawingHtml(s.measData) || '<p class="pp-muted pp-viz-empty">No stairs in this measurement.</p>'}` : '<p class="pp-muted pp-viz-empty">Loading the drawing…</p>'}</div>
           <div class="pp-wz-side">
             ${lines.length ? `<ul class="pp-meas-sum pp-meas-sum--compact">${lines.map((l) => `<li><span>${esc(l.text)}</span><em>${esc(l.qty)} ${esc(l.uom)}</em></li>`).join('')}${(m.summary || []).length > lines.length ? `<li class="pp-muted">+ ${(m.summary || []).length - lines.length} more</li>` : ''}</ul>` : ''}
             <label class="pp-meas-use"><input type="checkbox" id="ppUseMeas" ${s.useMeasurement ? 'checked' : ''} ${m.status === 'used' ? 'disabled' : ''} /> <span>Send it with the job — PDF, 3D drawing, photos and the sizes on each line</span></label>
@@ -1980,11 +2023,11 @@
     }
     if (det.stairs.length || det.vents.length) {
       return `<section class="pp-card pp-wz">
-        <div class="pp-wz-head"><div><span class="pp-lbl">Step 2 · Measure</span><h2>Build the 3D measurement</h2><p class="pp-muted">Mate found these in the work order. Add photos of the stair so it joins the flights, the landing and the turn — or build it with typical sizes and adjust later.</p></div></div>
+        <div class="pp-wz-head"><div><span class="pp-lbl">Step 2 · Measure</span><h2>${det.stairs.length > 1 ? `One stair · ${det.stairs.length} flights and a landing` : 'Build the 3D measurement'}</h2><p class="pp-muted">Mate found these in the work order${det.finish === 'site' ? ' — treads sanded &amp; finished on site' : ''}. Add photos of the stair so it joins the flights, the landing and the turn — or build it with typical sizes and adjust later.</p></div></div>
         <div class="pp-wz-grid">
           <div>
             <ul class="pp-wz-found">
-              ${det.stairs.map((g) => `<li><span class="pp-wz-ic">${icon('ruler')}</span><span><strong>${g.w ? `${g.w}"` : 'Stair'} · ${g.treads} treads · ${g.risers} risers</strong><small>${esc(OPEN_TXT[g.open])}${g.species ? ` · ${esc(g.species)}` : ''}</small></span></li>`).join('')}
+              ${det.stairs.map((g, i) => `<li><span class="pp-wz-ic">${icon('ruler')}</span><span><strong>${det.stairs.length > 1 ? `${i === 0 ? 'Lower flight' : i === det.stairs.length - 1 ? 'Upper flight' : `Flight ${i + 1}`} · ` : ''}${g.w ? `${g.w}"` : 'Stair'} · ${g.treads} treads · ${g.risers} risers</strong><small>${esc(OPEN_TXT[g.open])}${g.species ? ` · ${esc(g.species)}` : ''}</small></span></li>`).join('')}
               ${det.vents.map((v) => `<li><span class="pp-wz-ic">${icon('home')}</span><span><strong>${v.qty} vent${v.qty === 1 ? '' : 's'} · ${esc(v.size.replace('x', '×'))} ${esc(VENT_TYPE_LABEL[v.type] || '')}</strong><small>${esc([v.species, v.color].filter(Boolean).join(' · ') || 'Wood and finish to confirm')}</small></span></li>`).join('')}
             </ul>
           </div>
@@ -2000,6 +2043,16 @@
       ${mate('head-curious', 64)}<div><h2>Nothing to measure in this order</h2><p class="pp-muted">No stairs or vents in the lines. Go on to the quote, or take a measurement on site.</p>
       ${canMeasure ? '<a class="pp-link" href="#measurements/new">New measurement</a>' : ''}</div>
     </section>`;
+  }
+  /** How each upper flight leaves its landing, right on the drawing. */
+  function wzTurnHtml(s) {
+    const stairs = (s.measData && s.measData.stairs) || [];
+    const uppers = stairs.map((st, i) => ({ st, i })).filter(({ st }) => st.starts_on_landing_of && stairs.some((x) => x.id === st.starts_on_landing_of));
+    if (!uppers.length || (s.measurement && s.measurement.status === 'used')) return '';
+    return uppers.map(({ st, i }) => {
+      const cur = STAIR_TURNS.includes(st.turn) ? st.turn : 'straight';
+      return `<div class="pp-turn pp-wz-turn" role="group" aria-label="How ${esc(st.name || 'the upper flight')} leaves the landing"><span>${uppers.length > 1 ? esc(st.name || 'Upper flight') : 'At the landing'}</span>${TURN_OPTS.map(([k, l, ic]) => `<button type="button" data-wz-turn="${i}:${k}" aria-pressed="${cur === k}" title="${esc(l)}">${ic}<span>${esc(l)}</span></button>`).join('')}</div>`;
+    }).join('');
   }
   function quoteTotal(s) { return Math.round((s.items || []).filter((it) => !it.remove).reduce((a, it) => a + (itemTotal(it) || 0), 0) * 100) / 100; }
   function quoteStepHtml(s) {
@@ -2112,6 +2165,14 @@
     view.querySelectorAll('[data-wz-build]').forEach((b) => b.addEventListener('click', () => buildMeasurementFromOrder(b)));
     view.querySelectorAll('.pp-wz-head a[href^="#measurements/"]').forEach((a) => a.addEventListener('click', () => { s.measLeft = true; }));
     view.querySelectorAll('[data-wz-qpdf]').forEach((b) => b.addEventListener('click', () => openQuotePdf(b)));
+    view.querySelectorAll('[data-wz-turn]').forEach((b) => b.addEventListener('click', async () => {
+      const [i, k] = b.getAttribute('data-wz-turn').split(':');
+      const st = s.measData && s.measData.stairs[Number(i)];
+      if (!st || !STAIR_TURNS.includes(k) || st.turn === k) return;
+      st.turn = k;
+      renderSendBody();
+      try { await api(`/api/builder/measurements/${encodeURIComponent(s.measurement.id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: s.measData }) }); } catch (e) { mateToast('head-sorry', 'Not saved', e.message); }
+    }));
     const cp = view.querySelector('#ppSendBody [data-send-copick]');
     if (cp) cp.addEventListener('click', () => openCoPicker('Quote from', s.co || (sendCo() && sendCo().id), async (id) => {
       s.co = id;
