@@ -1,11 +1,21 @@
 /**
- * Configurações › Faturas — SMS de envio + regra de data na baixa.
- * Placeholders SMS: [name] [company] [invoice_number] [amount] [balance] [due_date] [link]
+ * Configurações › Faturas — SMS, e-mails por tipo de pagamento e regra de data na baixa.
+ * Placeholders: [name] [company] [invoice_number] [amount] [balance] [paid] [due_date] [link]
  */
 import { z } from "zod";
 
 export type InvoiceShareMessages = {
   sms_body: string;
+  /** Opening copy when sending a deposit, progress, or custom invoice. */
+  email_partial: string;
+  /** Opening copy when sending the remaining balance. */
+  email_balance: string;
+  /** Opening copy when sending a full invoice. */
+  email_full: string;
+  /** Receipt when a balance remains after this payment. */
+  receipt_partial: string;
+  /** Receipt when this payment settles the invoice. */
+  receipt_full: string;
 };
 
 /** Default date suggested when recording a payment (baixa). */
@@ -34,17 +44,47 @@ export function defaultDueDate(invoiceSettings: unknown, from = new Date()): Dat
 export const DEFAULT_INVOICE_SHARE_MESSAGES: InvoiceShareMessages = {
   sms_body:
     "Hi [name], your invoice [invoice_number] is ready.\n\nBalance due: [balance]\nDue: [due_date]\n\nView & pay here:\n[link]\n\nThank you!",
+  email_partial:
+    "Here is invoice [invoice_number] for a partial payment of [balance].\n\nDue: [due_date]\n\nView and pay:\n[link]",
+  email_balance:
+    "Here is invoice [invoice_number] for the remaining balance of [balance].\n\nDue: [due_date]\n\nView and pay:\n[link]",
+  email_full:
+    "Here is invoice [invoice_number] for [amount].\n\nBalance due: [balance]\nDue: [due_date]\n\nView and pay:\n[link]",
+  receipt_partial:
+    "We received your payment of [paid] for invoice [invoice_number].\n\nRemaining balance: [balance].",
+  receipt_full:
+    "We received your payment of [paid] for invoice [invoice_number].\n\nThis invoice is now paid in full.",
 };
 
 const SHARE_SMS_MAX = 2000;
 
+function shareText(raw: unknown, fallback: string): string {
+  return typeof raw === "string" && raw.trim() ? raw.trim().slice(0, SHARE_SMS_MAX) : fallback;
+}
+
 export function parseInvoiceShareMessages(raw: unknown): InvoiceShareMessages {
   const o = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
-  const sms =
-    typeof o.sms_body === "string" && o.sms_body.trim()
-      ? o.sms_body.trim().slice(0, SHARE_SMS_MAX)
-      : DEFAULT_INVOICE_SHARE_MESSAGES.sms_body;
-  return { sms_body: sms };
+  const d = DEFAULT_INVOICE_SHARE_MESSAGES;
+  return {
+    sms_body: shareText(o.sms_body, d.sms_body),
+    email_partial: shareText(o.email_partial, d.email_partial),
+    email_balance: shareText(o.email_balance, d.email_balance),
+    email_full: shareText(o.email_full, d.email_full),
+    receipt_partial: shareText(o.receipt_partial, d.receipt_partial),
+    receipt_full: shareText(o.receipt_full, d.receipt_full),
+  };
+}
+
+/** Which saved e-mail opens a send, from the invoice type. */
+export function invoiceEmailBodyForType(messages: InvoiceShareMessages, invoiceType: string | null | undefined): string {
+  const t = String(invoiceType || "").toLowerCase();
+  if (t === "final") return messages.email_balance;
+  if (t === "deposit" || t === "progress" || t === "custom" || t === "other") return messages.email_partial;
+  return messages.email_full;
+}
+
+export function receiptEmailBody(messages: InvoiceShareMessages, settled: boolean): string {
+  return settled ? messages.receipt_full : messages.receipt_partial;
 }
 
 export function parsePaymentDateDefault(raw: unknown): InvoicePaymentDateDefault {
@@ -65,6 +105,11 @@ export const invoiceSettingsPatchSchema = z
     share_messages: z
       .object({
         sms_body: z.string().trim().min(1, "Indique o texto do SMS").max(SHARE_SMS_MAX),
+        email_partial: z.string().trim().max(SHARE_SMS_MAX).optional(),
+        email_balance: z.string().trim().max(SHARE_SMS_MAX).optional(),
+        email_full: z.string().trim().max(SHARE_SMS_MAX).optional(),
+        receipt_partial: z.string().trim().max(SHARE_SMS_MAX).optional(),
+        receipt_full: z.string().trim().max(SHARE_SMS_MAX).optional(),
       })
       .optional(),
     payment_date_default: z.enum(["today", "due_date"]).optional(),
@@ -78,6 +123,7 @@ export type InvoiceSmsVars = {
   invoice_number?: string | null;
   amount?: string | null;
   balance?: string | null;
+  paid?: string | null;
   due_date?: string | null;
   link?: string | null;
 };
@@ -91,6 +137,7 @@ export function applyInvoiceShareTemplate(template: string, vars: InvoiceSmsVars
     invoice_number: String(vars.invoice_number || "").trim(),
     amount: String(vars.amount || "").trim(),
     balance: String(vars.balance || "").trim(),
+    paid: String(vars.paid || "").trim(),
     due_date: String(vars.due_date || "").trim(),
     link: String(vars.link || "").trim(),
   };
@@ -99,6 +146,7 @@ export function applyInvoiceShareTemplate(template: string, vars: InvoiceSmsVars
   out = out.replace(/\[invoice_number\]/gi, map.invoice_number);
   out = out.replace(/\[amount\]/gi, map.amount);
   out = out.replace(/\[balance\]/gi, map.balance);
+  out = out.replace(/\[paid\]/gi, map.paid);
   out = out.replace(/\[due_date\]/gi, map.due_date);
   out = out.replace(/\[link\]/gi, map.link);
   out = out.replace(/\(\s*\)/g, "");

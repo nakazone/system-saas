@@ -123,10 +123,6 @@
             <button type="button" class="inv-btn inv-btn--icon" id="btnDeleteInvoice" aria-label="Excluir" title="Excluir">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>
             </button>
-            <button type="button" class="inv-btn inv-btn--secondary" id="btnSend" hidden>
-              <span id="btnSendLabel">Enviar</span>
-            </button>
-            <button type="button" class="inv-btn inv-btn--primary" id="btnReceive" hidden>Receber pagamento</button>
           </div>
         </header>
 
@@ -229,15 +225,22 @@
         <button type="button" class="inv-x" data-close aria-label="Fechar">×</button>
       </header>
       <div class="inv-modal__body">
+        <div class="inv-pay-math" id="payMath" aria-live="polite">
+          <div><span>Total</span><b id="payMathTotal">$0.00</b></div>
+          <div><span>Pago</span><b id="payMathPaid">$0.00</b></div>
+          <div class="is-now"><span>Este pagamento</span><b id="payMathNow">$0.00</b></div>
+          <div class="is-bal"><span>Saldo depois</span><b id="payMathAfter">$0.00</b></div>
+          <p class="inv-pay-math__note" id="payMathNote"></p>
+        </div>
         <div class="inv-pay-opts" id="payOpts">
           <label class="inv-pay-opt">
             <input type="radio" name="payMode" value="partial" />
-            <span class="inv-pay-opt__t">Pagamento parcial<span class="inv-pay-opt__d">Percentual do saldo desta fatura</span></span>
-            <span><input class="inv-pay-opt__inp" type="number" id="payPct" min="1" max="99" step="1" value="50" aria-label="Percentual" /> %</span>
+            <span class="inv-pay-opt__t">Pagamento parcial<span class="inv-pay-opt__d">Percentual do total da fatura, até o saldo</span></span>
+            <span class="inv-pay-opt__side"><input class="inv-pay-opt__inp" type="number" id="payPct" min="1" max="100" step="1" value="50" aria-label="Percentual" /> % <b id="payPartialAmount">$0.00</b></span>
           </label>
           <label class="inv-pay-opt">
             <input type="radio" name="payMode" value="amount" />
-            <span class="inv-pay-opt__t">Valor<span class="inv-pay-opt__d">O que já entrou, até o saldo</span></span>
+            <span class="inv-pay-opt__t">Outro valor<span class="inv-pay-opt__d" id="payAmountHint">Até o saldo em aberto</span></span>
             <span>$ <input class="inv-pay-opt__inp" type="number" id="payAmount" inputmode="decimal" min="0.01" step="0.01" placeholder="0.00" aria-label="Valor" /></span>
           </label>
           <label class="inv-pay-opt">
@@ -246,7 +249,7 @@
             <span class="inv-pay-opt__v" id="payFullAmount">$0.00</span>
           </label>
         </div>
-        <p class="inv-after" id="payAfter"></p>
+        <p class="inv-after" id="payAfter" hidden></p>
 
         <div class="inv-row2">
           <label class="inv-field">
@@ -326,9 +329,10 @@
         <label class="inv-field"><span>Para</span><input type="email" id="sendTo" required placeholder="cliente@email.com" /></label>
         <label class="inv-field"><span>Mensagem <em>opcional</em></span><textarea id="sendMsg" rows="4" maxlength="4000" placeholder="Here is your invoice…"></textarea></label>
         <div class="inv-share">
-          <span>Ou compartilhe o link</span>
+          <span>Link da fatura</span>
+          <p class="inv-share__status" id="sendLinkStatus">Gerando link…</p>
           <div class="inv-share__row">
-            <input type="text" id="sendLink" readonly placeholder="Gerar link…" />
+            <input type="text" id="sendLink" readonly placeholder="Gerando link…" />
             <button type="button" class="inv-btn inv-btn--secondary" id="btnCopyLink">Copiar</button>
             <a class="inv-btn inv-btn--secondary" id="btnSms" href="#">SMS</a>
           </div>
@@ -387,7 +391,7 @@
   <script src="crm-shell.js?v=20261028-ptrhome"></script>
   <script src="om-gestures.js?v=20261028-ptrhome"></script>
   <script src="crm-pdf-viewer.js?v=20261027-pdf1"></script>
-  <script src="invoice-page.js?v=20261027-invui"></script>
+  <script src="invoice-page.js?v=20261028-invpay"></script>
   <script src="invoices-page.js?v=20261028-listrow"></script>
 </body>
 </html>

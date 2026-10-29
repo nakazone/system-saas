@@ -45,7 +45,7 @@ export function intakeMeasurement(intake: unknown): { text: string; lines: Measu
 /** Measured sizes that belong to an order line (treads to the tread line, vents to the vent line…). */
 export function measuredFor(line: { description: string; detail: string; service_name?: string }, lines: MeasuredLine[]): string {
   const t = `${line.description} ${line.detail} ${line.service_name || ""}`.toLowerCase();
-  const kind = /\briser/.test(t) ? "riser" : /\btread|\bstair/.test(t) ? "tread" : /nos(e|ing)/.test(t) ? "nosing" : /\bvent/.test(t) ? "vent" : "";
+  const kind = /\briser/.test(t) ? "riser" : /\blanding/.test(t) ? "landing" : /\btread|\bstair/.test(t) ? "tread" : /nos(e|ing)/.test(t) ? "nosing" : /\bvent/.test(t) ? "vent" : "";
   if (!kind) return "";
   let pick = lines.filter((l) => l.kind === kind);
   // A line that names its width ("48\" tread") only gets the pieces of that width.

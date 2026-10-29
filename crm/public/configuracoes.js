@@ -69,7 +69,7 @@
       subs: [
         { id: "msg-leads", label: "Leads por fase", section: "mensagens-fase", perm: "settings.manage", desc: "E-mails e SMS de cada fase do pipeline, com o cupom.", keywords: "mensagem email e-mail sms template fase pipeline lead novo visita follow-up cupom coupon gelo" },
         { id: "msg-orcamento", label: "Envio do orçamento", section: "mensagens-orcamento", perm: "settings.manage", desc: "SMS e WhatsApp ao enviar o orçamento e o follow-up depois que o cliente abriu.", keywords: "sms whatsapp mensagem orçamento quote enviar link follow-up" },
-        { id: "msg-fatura", label: "Envio da fatura", section: "mensagens-faturas", perm: "settings.manage", desc: "SMS ao enviar o link da fatura.", keywords: "sms mensagem invoice fatura enviar link" },
+        { id: "msg-fatura", label: "Envio da fatura", section: "mensagens-faturas", perm: "settings.manage", desc: "SMS e e-mails de pagamento parcial, saldo e total.", keywords: "sms email e-mail mensagem invoice fatura enviar link recibo parcial total saldo" },
         { id: "faturas-baixa", label: "Baixa de fatura", section: "faturas-baixa", perm: "settings.manage", desc: "Data padrão ao registrar um pagamento (hoje ou vencimento).", keywords: "baixa pagamento fatura invoice data vencimento hoje due date" },
         { id: "automacoes", label: "Automações", section: "automacoes-leads", perm: "settings.manage", desc: "Mover leads automaticamente no pipeline.", keywords: "automação follow-up quote sent estágio dias pipeline lead" },
         { id: "indicacoes", label: "Indicações", section: "indicacoes", perm: "settings.manage", desc: "Cashback para Particular quando a fatura do indicado é paga.", keywords: "indicação referral cashback comissão particular percentual projeto fatura" },
@@ -707,7 +707,7 @@
     { title: "Marca e aparência", desc: "Logo e cores", href: "#marca", perm: "settings.manage" },
     { title: "Orçamentos", desc: "Numeração, validade, termos e assinatura", href: "#orcamentos", perm: "settings.manage" },
     { title: "Mensagens do Orçamento", desc: "SMS e WhatsApp ao enviar o orçamento", href: "#mensagens-orcamento", perm: "settings.manage" },
-    { title: "Mensagens das Faturas", desc: "SMS ao enviar o link da fatura", href: "#mensagens-faturas", perm: "settings.manage" },
+    { title: "Mensagens das Faturas", desc: "SMS e e-mails de parcial, saldo e total", href: "#mensagens-faturas", perm: "settings.manage" },
     { title: "Mensagens para Leads", desc: "E-mails padrão em cada etapa do pipeline", href: "#mensagens-fase", perm: "settings.manage" },
     { title: "Automações de Leads", desc: "Mover Quote Sent → Follow-up automaticamente", href: "#automacoes-leads", perm: "settings.manage" },
     { title: "Jobs", desc: "Checklist e opções do Campo", href: "#jobs", perm: "settings.manage" },
@@ -1846,18 +1846,37 @@
     else if (state.quotes.snapshot) fillShareMessages({ share_messages: state.quotes.snapshot.share_messages });
   }
 
+  const INV_EMAIL_KEYS = ["email_partial", "email_balance", "email_full", "receipt_partial", "receipt_full"];
   const INV_SHARE_MSG_DEFAULTS = {
     sms_body:
       "Hi [name], your invoice [invoice_number] is ready.\n\nBalance due: [balance]\nDue: [due_date]\n\nView & pay here:\n[link]\n\nThank you!",
+    email_partial:
+      "Here is invoice [invoice_number] for a partial payment of [balance].\n\nDue: [due_date]\n\nView and pay:\n[link]",
+    email_balance:
+      "Here is invoice [invoice_number] for the remaining balance of [balance].\n\nDue: [due_date]\n\nView and pay:\n[link]",
+    email_full:
+      "Here is invoice [invoice_number] for [amount].\n\nBalance due: [balance]\nDue: [due_date]\n\nView and pay:\n[link]",
+    receipt_partial:
+      "We received your payment of [paid] for invoice [invoice_number].\n\nRemaining balance: [balance].",
+    receipt_full:
+      "We received your payment of [paid] for invoice [invoice_number].\n\nThis invoice is now paid in full.",
   };
 
   function readInvoiceShareMessages() {
-    return { sms_body: String($("inv_sms_body")?.value || "").trim() };
+    const out = { sms_body: String($("inv_sms_body")?.value || "").trim() };
+    INV_EMAIL_KEYS.forEach((key) => {
+      out[key] = String($(`inv_${key}`)?.value || "").trim() || INV_SHARE_MSG_DEFAULTS[key];
+    });
+    return out;
   }
 
   function fillInvoiceShareMessages(d) {
     const sm = (d && d.share_messages) || {};
     if ($("inv_sms_body")) $("inv_sms_body").value = sm.sms_body || INV_SHARE_MSG_DEFAULTS.sms_body;
+    INV_EMAIL_KEYS.forEach((key) => {
+      const el = $(`inv_${key}`);
+      if (el) el.value = sm[key] || INV_SHARE_MSG_DEFAULTS[key];
+    });
     syncInvoiceShareMsgCounts();
   }
 
@@ -1935,14 +1954,14 @@
     try {
       const j = await api("/api/settings/invoices", {
         method: "PATCH",
-        body: JSON.stringify({ share_messages: { sms_body: sms } }),
+        body: JSON.stringify({ share_messages: readInvoiceShareMessages() }),
       });
       state.invoices.data = j.data;
       fillInvoiceShareMessages(j.data);
       fillInvoicePaymentDateDefault(j.data);
       rememberInvoiceSnapshot(j.data);
       state.invoices.loaded = true;
-      notify("Mensagem de SMS das faturas salva.", "success");
+      notify("Mensagens das faturas salvas.", "success");
       return true;
     } catch (err) {
       notify(err.message || "Não foi possível salvar.", "error");
@@ -2014,11 +2033,12 @@
       });
     }
     $("btnInvShareMsgDefaults")?.addEventListener("click", () => {
-      const sms = $("inv_sms_body");
-      const hasCustom = sms && sms.value.trim() && sms.value.trim() !== INV_SHARE_MSG_DEFAULTS.sms_body;
-      if (hasCustom && !window.confirm("Restaurar o texto padrão em inglês?")) return;
-      if (sms) sms.value = INV_SHARE_MSG_DEFAULTS.sms_body;
-      syncInvoiceShareMsgCounts();
+      const current = readInvoiceShareMessages();
+      const hasCustom = Object.keys(INV_SHARE_MSG_DEFAULTS).some(
+        (key) => current[key] && current[key] !== INV_SHARE_MSG_DEFAULTS[key],
+      );
+      if (hasCustom && !window.confirm("Restaurar os textos padrão em inglês?")) return;
+      fillInvoiceShareMessages({ share_messages: INV_SHARE_MSG_DEFAULTS });
       updateSavebar();
     });
   }

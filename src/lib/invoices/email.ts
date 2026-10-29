@@ -61,25 +61,31 @@ export function invoiceEmail(input: InvoiceEmailInput): { subject: string; text:
   const accent = input.accentColor && HEX.test(input.accentColor) ? input.accentColor : "#e8792c";
   const subject = `Invoice ${input.invoiceNumber} from ${input.companyName} — ${money(input.balance)}${due}`;
   const custom = input.message?.trim() || "";
+  const opening = custom || `Here is invoice ${input.invoiceNumber} for ${money(input.amount)}.`;
+  const showBalance = !custom.includes(money(input.balance));
+  const showLink = !input.publicUrl || !custom.includes(input.publicUrl);
   const text = [
     hi,
     "",
-    custom || `Here is invoice ${input.invoiceNumber} for ${money(input.amount)}.`,
-    `Balance due: ${money(input.balance)}${due}.`,
-    "",
-    `View and download your invoice: ${input.publicUrl}`,
-    input.paymentInstructions?.trim() ? `\nHow to pay:\n${input.paymentInstructions.trim()}` : "",
+    opening,
+    ...(showBalance ? [`Balance due: ${money(input.balance)}${due}.`] : []),
+    ...(showLink ? ["", `View and download your invoice: ${input.publicUrl}`] : []),
+    ...(input.paymentInstructions?.trim() ? ["", `How to pay:\n${input.paymentInstructions.trim()}`] : []),
     "",
     `Thank you,\n${input.companyName}`,
   ].join("\n");
   const html = shell(
     input,
     `<p style="margin:0 0 12px">${esc(hi)}</p>
-<p style="margin:0 0 12px">${esc(custom || `Here is invoice ${input.invoiceNumber} for ${money(input.amount)}.`).replace(/\n/g, "<br>")}</p>
-<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:16px 0;background:#f7f4ee;border-radius:8px"><tr>
+<p style="margin:0 0 12px">${esc(opening).replace(/\n/g, "<br>")}</p>
+${
+  showBalance
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:16px 0;background:#f7f4ee;border-radius:8px"><tr>
 <td style="padding:14px 16px;color:#6b645c;font-size:13px">Balance due${esc(due)}</td>
-<td style="padding:14px 16px;text-align:right;font-size:20px;font-weight:700">${money(input.balance)}</td></tr></table>
-${button(input.publicUrl, "View invoice", accent)}
+<td style="padding:14px 16px;text-align:right;font-size:20px;font-weight:700">${money(input.balance)}</td></tr></table>`
+    : ""
+}
+${showLink ? button(input.publicUrl, "View invoice", accent) : ""}
 ${input.paymentInstructions?.trim() ? `<p style="margin:0 0 4px;font-size:12px;font-weight:700;color:${esc(accent)};text-transform:uppercase;letter-spacing:.06em">How to pay</p><p style="margin:0;white-space:pre-line">${esc(input.paymentInstructions.trim())}</p>` : ""}`,
   );
   return { subject, text, html };
@@ -94,6 +100,8 @@ export type ReceiptEmailInput = Brand & {
   methodLabel?: string | null;
   balance: number;
   publicUrl?: string | null;
+  /** Saved receipt copy, already filled. Replaces the default lead when set. */
+  message?: string | null;
 };
 
 export function receiptEmail(input: ReceiptEmailInput): { subject: string; text: string; html: string } {
@@ -101,17 +109,32 @@ export function receiptEmail(input: ReceiptEmailInput): { subject: string; text:
   const accent = input.accentColor && HEX.test(input.accentColor) ? input.accentColor : "#e8792c";
   const settled = input.balance <= 0.004;
   const subject = `Payment received — receipt ${input.receiptNumber} (${input.companyName})`;
-  const lead = `We received your payment of ${money(input.amount)} on ${fmtDate(input.paidAt)}${
-    input.methodLabel ? ` (${input.methodLabel})` : ""
-  } for invoice ${input.invoiceNumber}.`;
-  const tail = settled
-    ? `Invoice ${input.invoiceNumber} is now paid in full.`
-    : `Remaining balance on invoice ${input.invoiceNumber}: ${money(input.balance)}.`;
-  const text = [hi, "", lead, tail, "", "Your receipt is attached as a PDF.", input.publicUrl ? `Invoice: ${input.publicUrl}` : "", "", `Thank you,\n${input.companyName}`].join("\n");
+  const custom = input.message?.trim() || "";
+  const lead =
+    custom ||
+    `We received your payment of ${money(input.amount)} on ${fmtDate(input.paidAt)}${
+      input.methodLabel ? ` (${input.methodLabel})` : ""
+    } for invoice ${input.invoiceNumber}.`;
+  const tail = custom
+    ? ""
+    : settled
+      ? `Invoice ${input.invoiceNumber} is now paid in full.`
+      : `Remaining balance on invoice ${input.invoiceNumber}: ${money(input.balance)}.`;
+  const text = [
+    hi,
+    "",
+    lead,
+    ...(tail ? [tail] : []),
+    "",
+    "Your receipt is attached as a PDF.",
+    ...(input.publicUrl ? [`Invoice: ${input.publicUrl}`] : []),
+    "",
+    `Thank you,\n${input.companyName}`,
+  ].join("\n");
   const html = shell(
     input,
     `<p style="margin:0 0 12px">${esc(hi)}</p>
-<p style="margin:0 0 12px">${esc(lead)}</p>
+<p style="margin:0 0 12px">${esc(lead).replace(/\n/g, "<br>")}</p>
 <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:16px 0;background:#f7f4ee;border-radius:8px">
 <tr><td style="padding:12px 16px;color:#6b645c;font-size:13px">Receipt ${esc(input.receiptNumber)}</td><td style="padding:12px 16px;text-align:right;font-size:20px;font-weight:700">${money(input.amount)}</td></tr>
 <tr><td style="padding:0 16px 12px;color:#6b645c;font-size:13px">${settled ? "Invoice status" : "Remaining balance"}</td><td style="padding:0 16px 12px;text-align:right;font-weight:700">${settled ? "Paid in full" : money(input.balance)}</td></tr></table>

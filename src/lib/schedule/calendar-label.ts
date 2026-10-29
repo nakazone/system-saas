@@ -50,7 +50,7 @@ function tokenKey(token: string): string {
   return token.toLowerCase().replace(/\./g, "");
 }
 
-/** "123 Oak Street, Denver" → "123 Oak". "123 N Oak St" → "123 N Oak". */
+/** "123 N Oak Street, Denver" → "123 Oak". Always number + one street word. */
 export function streetChip(address: string | null | undefined): string {
   const line = String(address || "")
     .split(",")[0]
@@ -63,16 +63,28 @@ export function streetChip(address: string | null | undefined): string {
     number = tokens[0];
     i = 1;
   }
-  const name: string[] = [];
-  if (i < tokens.length && STREET_DIR.has(tokenKey(tokens[i]))) {
-    name.push(tokens[i]);
-    i += 1;
-  }
+  while (i < tokens.length && STREET_DIR.has(tokenKey(tokens[i]))) i += 1;
+  let street = "";
   if (i < tokens.length && !STREET_SUFFIX.has(tokenKey(tokens[i]))) {
-    name.push(tokens[i]);
+    street = tokens[i];
   }
-  const chip = [number, ...name].filter(Boolean).join(" ");
+  const chip = [number, street].filter(Boolean).join(" ");
   return chip || tokens.slice(0, 2).join(" ");
+}
+
+/** Prefer a full "number street" chip. The job title often carries it after a dash. */
+export function calendarStreet(address?: string | null, title?: string | null): string {
+  const fromAddress = streetChip(address);
+  if (/\d/.test(fromAddress) && /[A-Za-z]/.test(fromAddress)) return fromAddress;
+  const pieces = String(title || "")
+    .split(/\s+[—–-]\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  for (const part of pieces) {
+    const chip = streetChip(part);
+    if (/\d/.test(chip) && /[A-Za-z]/.test(chip)) return chip;
+  }
+  return fromAddress;
 }
 
 export function isBuilderParty(
@@ -153,12 +165,13 @@ export function builderCalendarTitle(opts: {
   company?: string | null;
   fallback?: string | null;
   address?: string | null;
+  title?: string | null;
 }): string {
   const who =
     String(opts.nickname || "").trim() ||
     String(opts.company || "").trim() ||
     String(opts.fallback || "").trim();
-  const street = streetChip(opts.address);
+  const street = calendarStreet(opts.address, opts.title);
   return [who, street].filter(Boolean).join(" ") || street || "Job";
 }
 
@@ -183,6 +196,7 @@ export function jobCalendarTitle(input: {
       company: input.company || input.builderName,
       fallback: input.customerName || input.title,
       address: input.address,
+      title: input.title,
     });
   }
   const name = String(input.customerName || input.sourceName || input.title || "").trim() || "Cliente";
