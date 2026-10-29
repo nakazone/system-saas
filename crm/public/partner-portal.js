@@ -2590,7 +2590,7 @@
   function settingsApp(head) {
     setOut.innerHTML = `${head('App', true)}
       <section class="pp-card pp-block pp-app-card">
-        <img src="/assets/obrabuilder/icon-192.png?v=1" alt="" width="56" height="56" />
+        <img src="/assets/obrabuilder/icon-192.png?v=2" alt="" width="56" height="56" />
         <div><h3>ObraBuilder on your phone</h3><p class="pp-muted">Install the app to send work orders and measure on site from your home screen.</p></div>
         ${isStandaloneApp() ? '<span class="pp-chip pp-chip--ok">Installed</span>' : `<button type="button" class="pp-btn pp-btn--pri pp-btn--sm" data-install-app ${canInstallApp() ? '' : 'hidden'}>${icon('download')}Install</button>`}
       </section>
@@ -2669,7 +2669,7 @@
     if (old) old.remove();
     document.body.insertAdjacentHTML('beforeend', `<div class="pp-ios-sheet" id="ppIosSheet" role="dialog" aria-modal="true" aria-labelledby="ppIosTitle">
       <div class="pp-ios-card">
-        <div class="pp-ios-top"><img src="/assets/obrabuilder/icon-192.png?v=1" alt="" width="52" height="52" /><div><strong id="ppIosTitle">Install ObraBuilder</strong><span>Add it to your Home Screen</span></div>${mate('thumbs', 64)}</div>
+        <div class="pp-ios-top"><img src="/assets/obrabuilder/icon-192.png?v=2" alt="" width="52" height="52" /><div><strong id="ppIosTitle">Install ObraBuilder</strong><span>Add it to your Home Screen</span></div>${mate('thumbs', 64)}</div>
         <ol>
           <li>Tap <b>Share</b> <svg viewBox="0 0 24 24" aria-label="Share icon"><path d="M12 15V3M8 7l4-4 4 4"/><path d="M6 11H5v10h14V11h-1"/></svg> at the bottom of Safari.</li>
           <li>Scroll and tap <b>Add to Home Screen</b>.</li>
@@ -2707,7 +2707,7 @@
     let dismissed = 0;
     try { dismissed = Number(localStorage.getItem('ob_install_dismissed') || 0); } catch (_) { dismissed = 0; }
     if (dismissed && Date.now() - dismissed < 30 * 86400000) return '';
-    return `<div class="pp-card pp-install-banner"><img src="/assets/obrabuilder/icon-192.png?v=1" alt="" width="44" height="44" /><div><strong>Get the app</strong><span>ObraBuilder on your home screen — faster on site.</span></div><button type="button" class="pp-btn pp-btn--pri pp-btn--sm" data-install-app>Install</button><button type="button" class="pp-ibtn pp-install-x" data-install-dismiss aria-label="Not now">×</button></div>`;
+    return `<div class="pp-card pp-install-banner"><img src="/assets/obrabuilder/icon-192.png?v=2" alt="" width="44" height="44" /><div><strong>Get the app</strong><span>ObraBuilder on your home screen — faster on site.</span></div><button type="button" class="pp-btn pp-btn--pri pp-btn--sm" data-install-app>Install</button><button type="button" class="pp-ibtn pp-install-x" data-install-dismiss aria-label="Not now">×</button></div>`;
   }
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => { navigator.serviceWorker.register('/obrabuilder-sw.js', { scope: '/partner' }).catch(() => {}); });

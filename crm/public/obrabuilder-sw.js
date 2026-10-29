@@ -2,8 +2,8 @@
  * ObraBuilder — service worker for the builder app (scope /partner). Network first; the app
  * shell is kept for a quick start and an offline message. API calls are never cached.
  */
-const CACHE = 'obrabuilder-v1';
-const SHELL = ['/partner-portal.html', '/partner-login.html', '/obrabuilder.webmanifest', '/assets/obrabuilder/icon-192.png?v=1'];
+const CACHE = 'obrabuilder-v2';
+const SHELL = ['/partner-portal.html', '/partner-login.html', '/obrabuilder.webmanifest', '/assets/obrabuilder/icon-192.png?v=2'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).catch(() => {}).then(() => self.skipWaiting()));
