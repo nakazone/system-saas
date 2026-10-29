@@ -5589,16 +5589,26 @@
     };
     for (const a of actions) {
       if (!a || !a.type) continue;
-      const landing = (s) => { if (a.landing_w != null || a.landing_d != null) s.landing = { enabled: true, width: a.landing_w != null ? Number(a.landing_w) : (s.landing && s.landing.width) || null, depth: a.landing_d != null ? Number(a.landing_d) : (s.landing && s.landing.depth) || null }; };
+      const landing = (s) => { if (a.landing === true || a.landing_w != null || a.landing_d != null) s.landing = { enabled: true, width: a.landing_w != null ? Number(a.landing_w) : (s.landing && s.landing.width) || null, depth: a.landing_d != null ? Number(a.landing_d) : (s.landing && s.landing.depth) || null }; };
+      // an upper flight starts from the lower flight's landing
+      const linkTo = (s) => {
+        if (a.starts_on_landing_of == null) return;
+        const lower = d.stairs[Number(a.starts_on_landing_of)];
+        if (!lower || lower === s || d.stairs.some((f) => f !== s && f.starts_on_landing_of === lower.id)) return;
+        lower.landing = { enabled: true, width: (lower.landing && lower.landing.width) || null, depth: (lower.landing && lower.landing.depth) || null };
+        s.starts_on_landing_of = lower.id;
+      };
       if (a.type === 'add_stair') {
         d.stairs.push({ ...newStair(d.stairs.length + 1), ...pick(a, STAIR_KEYS) });
         m.voiceStair = d.stairs.length - 1;
         landing(d.stairs[d.stairs.length - 1]);
+        linkTo(d.stairs[d.stairs.length - 1]);
         tab = 'stairs';
       } else if (a.type === 'set_stair') {
         const st = stairAt(a.stair);
         Object.assign(st, pick(a, STAIR_KEYS));
         landing(st);
+        linkTo(st);
         tab = 'stairs';
       } else if (a.type === 'set_steps') {
         const s = stairAt(a.stair);
@@ -5676,10 +5686,10 @@
     const st = { photos: [], text: '', audio: null, rec: null, chunks: [], recording: false };
     const canMic = Boolean(window.MediaRecorder && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
     const root = openSheet('Stair from photos', `<div class="pp-sph" id="ppSph">
-        <div class="pp-sph-tip">${mate('snap', 72)}<p>Take 1–4 photos of the stair: one from the bottom looking up and one from the side. Then say or type the sizes you measured — Mate counts the steps, sees which sides are open and builds it in 3D.</p></div>
+        <div class="pp-sph-tip">${mate('snap', 72)}<p>Take 1–4 photos of the stair: one from the bottom looking up and one from the side. <b>Two flights with a landing?</b> Take one photo of each flight — Mate builds both and joins them at the landing. Then say or type the sizes you measured.</p></div>
         <div class="pp-sph-photos" id="ppSphPhotos"></div>
         <div class="pp-sph-add"><label class="pp-btn pp-btn--sec pp-btn--sm">${icon('camera')}Take photo<input type="file" accept="image/*" capture="environment" data-sph-add hidden /></label><label class="pp-btn pp-btn--sec pp-btn--sm">${icon('upload')}Choose photos<input type="file" accept="image/*" multiple data-sph-add hidden /></label></div>
-        <div class="pp-field"><label for="ppSphText">Sizes and notes <span>(optional)</span></label><textarea id="ppSphText" rows="3" maxlength="1500" placeholder="e.g. 9 steps, 42 wide, 11 1/4 deep, risers 7 1/2, right side open, bottom step 48 bullnose"></textarea></div>
+        <div class="pp-field"><label for="ppSphText">Sizes and notes <span>(optional)</span></label><textarea id="ppSphText" rows="3" maxlength="1500" placeholder="e.g. 2 flights with a landing: 8 steps up to the landing, 9 to the top, 42 wide, 11 1/4 deep, risers 7 1/2, landing 42 x 42"></textarea></div>
         ${canMic ? `<button type="button" class="pp-btn pp-btn--sec pp-sph-mic" data-sph-mic>${icon('mic')}<span>Say the sizes</span></button>` : ''}
         <p class="pp-error" id="ppSphErr" role="alert" hidden></p>
         <div class="pp-plan-progress" data-sph-wait hidden><span>Mate is looking at the stair…</span><b><i style="width:60%"></i></b></div>

@@ -47,6 +47,10 @@ export const voiceActionSchema = z.discriminatedUnion("type", [
     riser_material: z.enum(["same", "primed", "paint_grade", "none"]).optional(),
     landing_w: num,
     landing_d: num,
+    /** true = this flight ends on a landing (even when its size is unknown). */
+    landing: z.boolean().optional(),
+    /** Index of the lower flight whose landing this flight starts from. */
+    starts_on_landing_of: stairRef.optional(),
   }),
   z.object({
     type: z.literal("add_stair"),
@@ -57,6 +61,10 @@ export const voiceActionSchema = z.discriminatedUnion("type", [
     riser_material: z.enum(["same", "primed", "paint_grade", "none"]).optional(),
     landing_w: num,
     landing_d: num,
+    /** true = this flight ends on a landing (even when its size is unknown). */
+    landing: z.boolean().optional(),
+    /** Index of the lower flight whose landing this flight starts from. */
+    starts_on_landing_of: stairRef.optional(),
   }),
   z.object({
     type: z.literal("add_nosing"),
@@ -211,23 +219,57 @@ export async function voiceToActions(input: { dataUrl: string; data: unknown; st
 
 /* ───────────────────────────── stair from photos ───────────────────────────── */
 
+/** Keeps flight links sane: the lower flight exists and has its landing on; no self links. */
+export function linkFlights(actions: VoiceAction[], existing: number): VoiceAction[] {
+  let count = existing;
+  const landingOn = new Set<number>();
+  for (const a of actions) {
+    if (a.type === "add_stair") {
+      if (a.starts_on_landing_of != null && a.starts_on_landing_of >= count) delete a.starts_on_landing_of;
+      if (a.starts_on_landing_of != null) landingOn.add(a.starts_on_landing_of);
+      count += 1;
+    } else if (a.type === "set_stair" && a.starts_on_landing_of != null) {
+      if (a.starts_on_landing_of === a.stair || a.starts_on_landing_of >= count) delete a.starts_on_landing_of;
+      else landingOn.add(a.starts_on_landing_of);
+    }
+  }
+  for (const idx of landingOn) {
+    let k = existing;
+    let found = false;
+    for (const a of actions) {
+      if (a.type === "add_stair") { if (k === idx) { a.landing = true; found = true; } k += 1; }
+      else if (a.type === "set_stair" && a.stair === idx) { a.landing = true; found = true; }
+    }
+    if (!found) actions.unshift({ type: "set_stair", stair: idx, landing: true });
+  }
+  return actions;
+}
+
 const PHOTO_SYSTEM = `You look at photos of a stair on a job site (framed or finished) and build it in a stair measuring app for a flooring installer who will put hardwood treads and risers on it.
-From the photos, work out:
-- how many treads and risers, counted from the bottom (step 1 = lowest tread). If the top step is the upper floor itself, the stair ends with a riser only (use add_riser).
-- for each step, which sides are OPEN as seen standing at the bottom looking up: a side is open when there is no wall right against the step (an exposed side/stringer or skirt where the tread will need a return or overhang). Closed = between walls.
+
+FIRST decide how many FLIGHTS there are. Many houses have two flights joined by a landing (an L or U turn, or a straight run broken by a flat platform):
+- A landing is a flat platform much deeper than a tread (usually 36–48" deep), often at a window or where the stair turns 90° or 180°. A flight is a run of steps between two floors/landings.
+- Different photos often show DIFFERENT flights of the same stair: one photo taken from the lower floor looking up to the landing, another taken from the landing (or near it) looking up to the upper floor. Clues: a different window, different walls/railings, a different floor at the bottom (the landing's flooring), the stair turning. If two photos show different step counts, open sides or surroundings, they are two flights — do NOT merge them into one and do not count the same steps twice.
+- When there is a landing between flights: build the LOWER flight first with add_stair (landing:true, plus landing_w/landing_d if known — the landing width is usually the stair width), then the UPPER flight with add_stair and "starts_on_landing_of" = the index of the lower flight. Name them e.g. "Lower flight" and "Upper flight".
+- Count each flight separately from its own bottom (step 1 = lowest tread of that flight). The landing itself is NOT a step of either flight. The lower flight's last riser goes up to the landing; if the upper floor is the top of the upper flight, end the upper flight with a riser (add_riser).
+
+For each flight work out:
+- how many treads and risers. If the top step is the floor/landing itself, the flight ends with a riser only (use add_riser).
+- which sides are OPEN as seen standing at the bottom of that flight looking up: a side is open when there is no wall right against the step (exposed side/stringer, or a temporary 2x4 guard rail where a balustrade will go). Closed = between walls.
 - a bigger starter step at the bottom (wider/longer or bullnose) → set_steps for step 1 with its own sizes and ret "bullnose" if rounded.
-- a landing (flat platform) at the top or in the middle → set_stair with landing_w/landing_d if known.
 Sizes (inches, decimals) come from what the builder said or typed (any language: English, Portuguese, Spanish). Use them exactly. If no size was given for something, estimate a typical value from the photo (tread depth 10–11.25, riser 7–7.75, width from the opening: 36, 42 or 48) and say in "reply" that the sizes are estimates to check.
 Group equal steps: one add_steps per run of steps with the same sizes and open sides; use set_steps only for exceptions.
-Start with add_stair (give it a short name like "Main stair") unless the builder says to fill the current stair.
-Return ONLY JSON: {"actions":[...], "reply":"<one or two short sentences: what you built>", "unclear":"<what you could not see or understand, or empty>", "observations":["<short notes the installer should know, e.g. 'Bottom step is wider — starter step', 'Skirt on the right side'>"]}.
+Start with add_stair unless the builder says to fill the current stair.
+Return ONLY JSON: {"flights": <number of flights you found>, "actions":[...], "reply":"<one or two short sentences: what you built, e.g. '2 flights with a landing: 8 steps up to the landing, then 9 to the upper floor'>", "unclear":"<what you could not see or understand, or empty>", "observations":["<short notes the installer should know, e.g. 'Landing at the window', 'Right side open on the lower flight'>"]}.
 Action shapes:
-{"type":"add_stair","name":"Main stair"}
+{"type":"add_stair","name":"Lower flight","landing":true,"landing_w":42,"landing_d":42}
 {"type":"add_steps","stair":0,"count":8,"tread_w":42,"tread_d":11.25,"riser_w":42,"riser_h":7.5,"open":"right","ret":"45"}
-{"type":"set_steps","stair":0,"from":1,"to":1,"tread_w":48,"tread_d":12,"open":"both","ret":"bullnose"}
 {"type":"add_riser","stair":0,"count":1,"riser_w":42,"riser_h":7.5}
-{"type":"set_stair","stair":0,"landing_w":42,"landing_d":42}
-Stair indexes are 0-based; after add_stair the new stair index = number of stairs already in the measurement.`;
+{"type":"add_stair","name":"Upper flight","starts_on_landing_of":0}
+{"type":"add_steps","stair":1,"count":9,"tread_w":42,"tread_d":11.25,"riser_w":42,"riser_h":7.5,"open":"left"}
+{"type":"set_steps","stair":0,"from":1,"to":1,"tread_w":48,"tread_d":12,"open":"both","ret":"bullnose"}
+{"type":"set_stair","stair":0,"landing":true,"landing_w":42,"landing_d":42}
+Stair indexes are 0-based and count the stairs already in the measurement: the first add_stair gets index = number of stairs already there, the next one +1.`;
 
 export async function stairFromPhotos(input: { photos: string[]; text?: string; audio?: string; data: unknown }): Promise<{ transcript: string; actions: VoiceAction[]; reply: string; unclear: string; observations: string[] }> {
   if (!isAiConfigured()) throw new BuilderError(503, "Mate is not set up on this server yet.");
@@ -249,7 +291,7 @@ export async function stairFromPhotos(input: { photos: string[]; text?: string; 
   const data = parseData(input.data);
   const res = await aiChatJson({
     system: PHOTO_SYSTEM,
-    user: `Stairs already in this measurement: ${data.stairs.length}.\n\nWhat the builder said or typed (may be empty):\n"""${said || "(nothing — estimate the sizes)"}"""\n\n${photos.length} photo(s) of the stair follow.`,
+    user: `Stairs already in this measurement: ${data.stairs.length} (so the first new stair is index ${data.stairs.length}).\n\nWhat the builder said or typed (may be empty):\n"""${said || "(nothing — estimate the sizes)"}"""\n\n${photos.length} photo(s) follow. They may show different flights of the same stair — check for a landing between flights before counting.`,
     imageUrls: photos,
     timeoutMs: 60_000,
   });
@@ -266,7 +308,7 @@ export async function stairFromPhotos(input: { photos: string[]; text?: string; 
     const parsed = voiceActionSchema.safeParse(a);
     if (parsed.success) parsedActions.push(parsed.data);
   }
-  const { actions, checks } = checkActions(parsedActions);
+  const { actions, checks } = checkActions(linkFlights(parsedActions, data.stairs.length));
   return {
     transcript,
     actions,
