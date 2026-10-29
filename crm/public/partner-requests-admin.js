@@ -141,10 +141,28 @@
         item.review_note ? `<p><strong>Resposta enviada:</strong> ${escapeHtml(item.review_note)}</p>` : '',
         item.work_order ? `<p><strong>Job criado:</strong> #${escapeHtml(item.work_order.number || '')} ${escapeHtml(item.work_order.title)}</p>` : '',
       ].join('');
-      const review = item.status === 'pending' ? `<div class="requests-review"><label for="review-${escapeHtml(item.id)}">Mensagem para o Builder (opcional)</label><textarea id="review-${escapeHtml(item.id)}" maxlength="2000" placeholder="Confirmação, pedido de informação ou motivo da recusa…"></textarea><div class="requests-actions"><button type="button" data-action="accept" data-id="${escapeHtml(item.id)}">${item.target_job ? 'Aceitar e atualizar o Job' : 'Aceitar e criar Job'}</button><button type="button" data-action="decline" data-id="${escapeHtml(item.id)}">Não aprovar</button></div></div>` : '';
+      const pref = item.preferred_date ? String(item.preferred_date).slice(0, 10) : '';
+      const sid = escapeHtml(item.id);
+      const sched = item.status === 'pending' ? `<fieldset class="requests-sched"><legend>Agendar o serviço</legend>
+        <div class="requests-sched-row">
+          <label>Data<input type="date" id="sd-${sid}" value="${escapeHtml(pref)}" required /></label>
+          <label>Início<input type="time" id="ss-${sid}" value="08:00" step="900" /></label>
+          <label>Fim<input type="time" id="se-${sid}" value="16:00" step="900" /></label>
+          <label class="requests-sched-all"><input type="checkbox" id="sa-${sid}" /> Dia inteiro</label>
+        </div>
+        <p class="requests-sched-hint">${pref ? `O builder pediu ${escapeHtml(formatDate(item.preferred_date))}. ` : ''}O builder recebe o aviso com a data no app.</p>
+      </fieldset>` : '';
+      const review = item.status === 'pending' ? `${sched}<div class="requests-review"><label for="review-${escapeHtml(item.id)}">Mensagem para o Builder (opcional)</label><textarea id="review-${escapeHtml(item.id)}" maxlength="2000" placeholder="Confirmação, pedido de informação ou motivo da recusa…"></textarea><div class="requests-actions"><button type="button" data-action="accept" data-id="${escapeHtml(item.id)}">${item.target_job ? 'Aprovar e atualizar o Job' : 'Aprovar e agendar'}</button><button type="button" data-action="decline" data-id="${escapeHtml(item.id)}">Não aprovar</button></div></div>` : '';
       return `<article class="requests-card"><div class="requests-card-head"><div><h2>${escapeHtml(item.title)}</h2><p class="requests-meta">${escapeHtml(item.partner_company)} · ${escapeHtml(formatDate(item.created_at))}${item.read_by_ai ? ' · lido pela IA a partir do arquivo' : ''}${item.target_job ? ' · atualização' : ''}</p></div><span class="requests-status ${statusClass}">${statusLabel(item.status)}</span></div><div class="requests-info">${details}</div>${files ? `<div class="requests-files">${files}</div>` : ''}${review}</article>`;
     }).join('');
   }
+
+  list.addEventListener('change', (event) => {
+    const box = event.target.closest('[id^="sa-"]');
+    if (!box) return;
+    const id = box.id.slice(3);
+    ['ss-', 'se-'].forEach((p) => { const el = $(p + id); if (el) el.disabled = box.checked; });
+  });
 
   list.addEventListener('click', async (event) => {
     const button = event.target.closest('[data-action]');
@@ -153,12 +171,25 @@
     const action = button.getAttribute('data-action');
     const note = $(`review-${id}`)?.value.trim() || '';
     if (action === 'decline' && !note && !window.confirm('Não aprovar este pedido sem adicionar uma mensagem?')) return;
+    let schedule = null;
+    if (action === 'accept') {
+      const date = $(`sd-${id}`) ? $(`sd-${id}`).value : '';
+      if (!date) {
+        error.textContent = 'Escolha a data do serviço para aprovar.';
+        error.hidden = false;
+        if ($(`sd-${id}`)) $(`sd-${id}`).focus();
+        return;
+      }
+      const allDay = Boolean($(`sa-${id}`) && $(`sa-${id}`).checked);
+      schedule = { date, start: allDay ? '' : ($(`ss-${id}`) || {}).value || '', end: allDay ? '' : ($(`se-${id}`) || {}).value || '', all_day: allDay };
+    }
+    error.hidden = true;
     button.disabled = true;
     try {
       await request(`/api/partner-requests/${encodeURIComponent(id)}/${action}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ review_note: note }),
+        body: JSON.stringify({ review_note: note, ...(schedule ? { schedule } : {}) }),
       });
       await load();
     } catch (err) {

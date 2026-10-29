@@ -454,6 +454,7 @@
       if (state.builder && r.name === 'empresas') { await renderCompanies(r.id, token); updateCounts(); return; }
       if (state.builder && r.name === 'equipe') { await renderTeam(token); updateCounts(); return; }
       if (state.builder && r.name === 'settings') { await renderSettings(r.id, token); updateCounts(); return; }
+      if (state.builder && r.name === 'notifications') { await renderNotifications(token); updateCounts(); return; }
       if (state.builder && r.name === 'measurements') {
         if (!canDo('measure')) { view.innerHTML = '<div class="pp-card pp-empty"><strong>Your role can’t take measurements</strong>Ask your team admin.</div>'; return; }
         await renderMeasurements(r.id, token); updateCounts(); return;
@@ -610,6 +611,92 @@
         <div class="pp-today-list">${today.map((j) => `<a class="pp-today-item" href="#jobs/${encodeURIComponent(j.id)}"><span class="pp-today-time">${j.allDay ? 'All day' : esc(fmtTime(j.scheduledStart))}</span><span class="pp-today-main"><strong>${esc(j.title || 'Job')}</strong><small>${esc(j.address || '')}</small></span>${jobChip(j)}</a>`).join('')}</div></section>` : ''}
       ${meas.length ? `<section class="pp-tile" style="grid-column: span 12" aria-labelledby="ppMeasHome"><div class="pp-tile-head"><h2 id="ppMeasHome">Measurements in progress</h2><a class="pp-link" href="#measurements" style="font-size:13px">All</a></div>
         ${meas.map((m) => `<a class="pp-today-item" href="#measurements/${esc(m.id)}"><span class="pp-today-time">${icon('ruler')}</span><span class="pp-today-main"><strong>${esc(m.address)}</strong><small>${esc(countsText(m.counts))}</small></span><span class="pp-chip pp-chip--late">In progress</span></a>`).join('')}</section>` : ''}`;
+  }
+
+  /* ─────────────────────────── notifications (bell + push) ─────────────────────────── */
+
+  const NOTE_IC = { accepted: 'check', declined: 'back', scheduled: 'cal', rescheduled: 'cal', started: 'pin', photos: 'camera', report: 'text', completed: 'check' };
+  async function loadNotes(fresh) {
+    if (!state.builder) return null;
+    try {
+      const r = await api(`/api/builder/notifications${fresh ? '?fresh=1' : ''}`);
+      state.notes = r;
+      paintBell();
+      return r;
+    } catch (_) { return null; }
+  }
+  function paintBell() {
+    const bell = $('ppBell'); const n = $('ppBellN');
+    if (!bell) return;
+    bell.hidden = !state.builder;
+    const u = (state.notes && state.notes.unread) || 0;
+    n.hidden = !u;
+    n.textContent = u > 9 ? '9+' : String(u);
+    bell.setAttribute('aria-label', u ? `Notifications, ${u} new` : 'Notifications');
+  }
+  function noteAgo(at) {
+    const d = toDate(at); if (!d) return '';
+    const min = Math.round((Date.now() - d.getTime()) / 60000);
+    if (min < 1) return 'now';
+    if (min < 60) return `${min} min ago`;
+    if (min < 60 * 24) return `${Math.round(min / 60)} h ago`;
+    return fmtDayEn(at, { month: 'short', day: 'numeric' });
+  }
+  function pushSupported() { return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window; }
+  async function pushState() {
+    if (!pushSupported()) return 'unsupported';
+    if (Notification.permission === 'denied') return 'denied';
+    try {
+      const reg = await navigator.serviceWorker.getRegistration('/partner');
+      const sub = reg && await reg.pushManager.getSubscription();
+      return sub ? 'on' : 'off';
+    } catch (_) { return 'off'; }
+  }
+  function urlB64(base64) {
+    const pad = '='.repeat((4 - (base64.length % 4)) % 4);
+    const raw = atob((base64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+    return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+  }
+  async function enablePush() {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') throw new Error('Notifications are blocked for this site. Allow them in the browser settings.');
+    const reg = (await navigator.serviceWorker.getRegistration('/partner')) || (await navigator.serviceWorker.register('/obrabuilder-sw.js', { scope: '/partner' }));
+    await navigator.serviceWorker.ready;
+    const k = await api('/api/builder/push/key');
+    if (!k.data || !k.data.key) throw new Error('Push is not set up on the server yet.');
+    const sub = (await reg.pushManager.getSubscription()) || (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64(k.data.key) }));
+    await postJson('/api/builder/push/subscribe', { subscription: sub.toJSON() });
+  }
+  async function disablePush() {
+    const reg = await navigator.serviceWorker.getRegistration('/partner');
+    const sub = reg && await reg.pushManager.getSubscription();
+    if (sub) { await postJson('/api/builder/push/unsubscribe', { endpoint: sub.endpoint }).catch(() => {}); await sub.unsubscribe(); }
+  }
+  async function renderNotifications(token) {
+    const r = (await loadNotes(true)) || { data: [], unread: 0 };
+    if (token !== renderToken) return;
+    const ps = await pushState();
+    const rows = r.data || [];
+    const today = dateKey(new Date());
+    const groups = [];
+    rows.forEach((n) => { const k = dateKey(n.at) === today ? 'Today' : fmtDayEn(n.at, { weekday: 'long', month: 'short', day: 'numeric' }); let g = groups.find((x) => x[0] === k); if (!g) { g = [k, []]; groups.push(g); } g[1].push(n); });
+    const pushCard = ps === 'unsupported' ? '' : `<section class="pp-card pp-npush ${ps === 'on' ? 'is-on' : ''}">
+        <span class="pp-npush-ic" aria-hidden="true">${mate(ps === 'on' ? 'head-happy' : 'head-curious', 44)}</span>
+        <div><strong>${ps === 'on' ? 'Push is on for this device' : ps === 'denied' ? 'Notifications are blocked' : 'Get a push on this phone'}</strong><small>${ps === 'on' ? 'You get a heads-up when a company accepts, schedules, starts, shares photos or finishes.' : ps === 'denied' ? 'Allow notifications for ObraBuilder in the browser settings, then come back.' : isStandaloneApp() || !/iPhone|iPad/.test(navigator.userAgent) ? 'Know right away when a company accepts and schedules your work.' : 'On iPhone, add ObraBuilder to the Home Screen first (Share › Add to Home Screen).'}</small></div>
+        ${ps === 'on' ? '<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-push-test>Send a test</button><button type="button" class="pp-link" data-push-off>Turn off</button>' : ps === 'denied' ? '' : '<button type="button" class="pp-btn pp-btn--pri pp-btn--sm" data-push-on>Turn on</button>'}
+      </section>`;
+    view.innerHTML = `
+      <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder.account.name)}</p><h1>Notifications</h1></div></div>
+      ${pushCard}
+      ${rows.length ? groups.map(([k, list]) => `<div class="pp-ngroup">${esc(k)}</div><section class="pp-card pp-nlist">${list.map((n) => `<a class="pp-nrow ${n.unread ? 'is-new' : ''} is-${esc(n.kind)}" href="${esc(n.url || '#jobs')}"><span class="pp-nic" aria-hidden="true">${icon(NOTE_IC[n.kind] || 'chat')}</span><span class="pp-nmain"><strong>${esc(n.title)}</strong>${n.body ? `<small>${esc(n.body)}</small>` : ''}<em>${esc([n.company, noteAgo(n.at)].filter(Boolean).join(' · '))}</em></span>${n.unread ? '<i class="pp-ndot" aria-label="New"></i>' : ''}</a>`).join('')}</section>`).join('')
+        : `<div class="pp-card pp-empty">${mate('sleeping', 90)}<strong>No notifications yet</strong>When a company accepts and schedules your work, shares photos or finishes a job, it shows up here.</div>`}`;
+    const on = view.querySelector('[data-push-on]');
+    if (on) on.addEventListener('click', async () => { on.disabled = true; try { await enablePush(); mateToast('head-happy', 'Push is on', 'You’ll get a heads-up on this device.'); render(); } catch (e) { on.disabled = false; mateToast('head-sorry', 'Couldn’t turn it on', e.message); } });
+    const off = view.querySelector('[data-push-off]');
+    if (off) off.addEventListener('click', async () => { await disablePush().catch(() => {}); render(); });
+    const test = view.querySelector('[data-push-test]');
+    if (test) test.addEventListener('click', async () => { test.disabled = true; await postJson('/api/builder/push/test', {}).catch(() => {}); setTimeout(() => { test.disabled = false; }, 3000); });
+    if (r.unread) { postJson('/api/builder/notifications/seen', {}).catch(() => {}); if (state.notes) { state.notes.unread = 0; paintBell(); } }
   }
 
   /* ─────────────────────────── jobs ─────────────────────────── */
@@ -1168,8 +1255,11 @@
       }
       if (s.presetJob) s.match = s.presetJob;
       s.phase = 'review';
+      s.step = s.presetJob ? 'details' : 'measure';
+      if (s.measurement && !s.measData) loadMeasData(s);
     } catch (err) {
       s.phase = 'review';
+      s.step = 'details';
       s.fields = emptyFields();
       s.ai = false;
       if (s.presetJob) { s.match = s.presetJob; s.mode = 'update'; }
@@ -1193,11 +1283,14 @@
       s.fields.title = `Update · ${s.presetJob.title || ''}`.slice(0, 160);
     }
     s.phase = 'review';
+    s.step = 'details';
     renderSendBody();
   }
 
   async function renderSend(token) {
     if (!state.send) state.send = newSend();
+    // back from adjusting the measurement: show its latest drawing and lines
+    if (state.send.phase === 'review' && state.send.measurement && state.send.measurement.id && state.send.measLeft) { state.send.measLeft = false; state.send.measData = null; loadMeasData(state.send); }
     await Promise.all([loadRequests().catch(() => {}), ensurePickups()]);
     if (token !== renderToken) return;
     const target = sendCo();
@@ -1255,9 +1348,17 @@
       </div>`).join('') : '<div class="pp-empty" style="padding:20px 16px">You haven’t sent any requests yet.</div>'}`;
   }
 
+  const WZ_STEPS = [['pick', 'Work order'], ['measure', 'Measure'], ['quote', 'Quote'], ['details', 'Send'], ['done', 'Track']];
   function stepsHtml(phase) {
-    const idx = phase === 'pick' ? 0 : phase === 'done' ? 2 : 1;
-    return ['1 · Choose', '2 · Check', '3 · Sent'].map((label, i) => `<li class="${i === idx ? 'on' : i < idx ? 'done' : ''}">${label}</li>`).join('');
+    const s = state.send || {};
+    const key = phase === 'review' ? (s.step || 'measure') : phase === 'reading' ? 'pick' : phase;
+    const idx = Math.max(0, WZ_STEPS.findIndex(([k]) => k === key));
+    const canJump = phase === 'review';
+    return WZ_STEPS.map(([k, label], i) => {
+      const cls = i === idx ? 'on' : i < idx ? 'done' : '';
+      const jump = canJump && i >= 1 && i <= 3 && i !== idx;
+      return `<li class="${cls}">${jump ? `<button type="button" data-wz-go="${k}">` : '<span>'}<b>${i + 1}</b>${esc(label)}${jump ? '</button>' : '</span>'}</li>`;
+    }).join('');
   }
 
   function renderSendBody() {
@@ -1287,19 +1388,35 @@
         : sent.direct
           ? `${updated ? 'The change is already' : 'The job is already'} in ${esc(providerName())}’s system, and their office was notified.`
           : `${esc(providerName())} checks it and replies here. ${updated ? 'It stays the same job, with its photos and invoices together.' : 'Once they accept it, the job shows up in Jobs.'}`;
-      box.innerHTML = `<div class="pp-card pp-reading">
+      const track = [
+        ['Sent', 'Work order, measurement and quote', 'done'],
+        [sent.direct ? 'Created in their system' : 'Approved & scheduled', sent.direct ? 'They set the date next' : `${esc(providerName())} approves it and picks the date`, sent.direct ? 'done' : 'now'],
+        ['On site', 'Photos of the work as the crew shares them', ''],
+        ['Completed', 'Photos, report and invoice', ''],
+      ];
+      box.innerHTML = `<div class="pp-card pp-reading pp-track">
         <img class="pp-mate-art" src="/assets/img/mascot/mate-thumbs.webp?v=20261027-m2" alt="" height="96" decoding="async">
         <h2 style="margin:0;font-size:24px">${title}</h2>
         <p class="pp-muted" style="margin:0">${text}</p>
-        <div style="display:flex;gap:10px;flex-wrap:wrap"><button type="button" class="pp-btn pp-btn--pri" id="ppSendAnother">Send another</button>${sent.jobId ? `<a class="pp-btn pp-btn--sec" href="#jobs/${encodeURIComponent(sent.jobId)}">Open job</a>` : sent.kept ? '<a class="pp-btn pp-btn--sec" href="#companies">View companies</a>' : '<a class="pp-btn pp-btn--sec" href="#jobs">View jobs</a>'}</div>
+        ${sent.kept ? '' : `<ol class="pp-track-line">${track.map(([t, d, st]) => `<li class="${st}"><i aria-hidden="true">${st === 'done' ? icon('check') : ''}</i><div><strong>${esc(t)}</strong><small>${d}</small></div></li>`).join('')}</ol>
+        <div class="pp-track-push" id="ppTrackPush"></div>`}
+        <div style="display:flex;gap:10px;flex-wrap:wrap"><button type="button" class="pp-btn pp-btn--pri" id="ppSendAnother">Send another</button>${sent.jobId ? `<a class="pp-btn pp-btn--sec" href="#jobs/${encodeURIComponent(sent.jobId)}">Open job</a>` : sent.kept ? '<a class="pp-btn pp-btn--sec" href="#companies">View companies</a>' : '<a class="pp-btn pp-btn--sec" href="#notifications">Notifications</a>'}</div>
       </div>`;
       $('ppSendAnother').addEventListener('click', () => { state.send = newSend(); renderSendBody(); });
+      pushState().then((ps) => {
+        const el = $('ppTrackPush');
+        if (!el || ps === 'on' || ps === 'unsupported' || ps === 'denied') return;
+        el.innerHTML = `<span>${icon('chat')}Get a push on this phone when they approve, schedule and send photos.</span><button type="button" class="pp-btn pp-btn--sec pp-btn--sm">Turn on</button>`;
+        el.querySelector('button').addEventListener('click', async (e) => { e.currentTarget.disabled = true; try { await enablePush(); el.innerHTML = `<span>${icon('check')}Push is on for this device.</span>`; } catch (er) { el.innerHTML = `<span class="pp-late">${esc(er.message)}</span>`; } });
+      });
       return;
     }
 
     if (s.phase === 'review') {
+      if (!s.step) s.step = 'measure';
       box.innerHTML = reviewHtml(s);
       bindReview();
+      bindWizard();
       return;
     }
 
@@ -1406,11 +1523,14 @@
           <button type="button" data-mode="new" aria-pressed="${s.mode === 'new'}">Create a new job</button>
         </div>
       </div>` : '';
-    return `
-      <div class="pp-card" style="padding:16px 20px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:center">
-        <div style="display:flex;gap:10px;align-items:center">${s.ai || s.fromMeas ? `<span class="pp-mateface" aria-hidden="true"><img src="/assets/img/mascot/mate-head-neutral.webp?v=20261027-m2" alt="" width="36" height="36"></span>` : ''}<div><strong style="font-size:17px">${s.fromMeas ? 'Work order from your measurement' : s.ai ? 'Check what we read' : 'Request details'}</strong><div class="pp-muted" style="font-size:14px">${s.fromMeas ? 'Address, floors and prices are filled in. Add your work order file or PO # if you have one.' : s.ai ? `${plural(filled, 'field filled', 'fields filled')}${checked ? ` · <span class="pp-late">${plural(checked, 'to check', 'to check')}</span>` : ''} · nothing is sent until you confirm` : 'Fill in what you know. Address and title are required.'}</div></div></div>
+    const top = `
+      <div class="pp-card pp-wz-top">
+        <div style="display:flex;gap:10px;align-items:center">${s.ai || s.fromMeas ? `<span class="pp-mateface" aria-hidden="true"><img src="/assets/img/mascot/mate-head-neutral.webp?v=20261027-m2" alt="" width="36" height="36"></span>` : ''}<div><strong style="font-size:17px">${esc(f.title || (s.fromMeas ? 'Work order from your measurement' : s.ai ? 'Work order read by Mate' : 'New work order'))}</strong><div class="pp-muted" style="font-size:14px">${esc(f.address || 'No address yet')}${f.external_ref ? ` · PO ${esc(f.external_ref)}` : ''}${s.ai && checked ? ` · <span class="pp-late">${plural(checked, 'field', 'fields')} to check</span>` : ''}</div></div></div>
         <button type="button" class="pp-link" id="ppRestart">${s.files.length || s.ai ? 'Change file' : 'Start over'}</button>
-      </div>
+      </div>`;
+    if (s.step === 'measure') return `${top}${measureStepHtml(s)}${wizardNav(s)}`;
+    if (s.step === 'quote') return `${top}${quoteStepHtml(s)}${wizardNav(s)}`;
+    return `${top}
       <div class="pp-cols">
         ${originalHtml(s)}
         <form class="pp-card pp-form" id="ppReqForm" novalidate>
@@ -1443,19 +1563,19 @@
           </div></fieldset>
         </form>
       </div>
-      ${measurementBanner(s)}
-      <div class="pp-card pp-q-card">${itemsEditor(s)}</div>
+      ${sendSummaryHtml(s)}
       <div class="pp-card pp-q-send">
         <p class="pp-error" id="ppReqError" role="alert" hidden></p>
         <div class="pp-q-send-row">
-          <span class="pp-muted">${s.mode === 'update' && match ? 'The services go into the current job’s notes.' : `Arrives at ${esc(providerName())} as a${f.preferred_date ? ' scheduled' : ''} job, with the services above.`}</span>
+          <button type="button" class="pp-btn pp-btn--sec" data-wz-go="quote">${icon('back')}Quote</button>
+          <span class="pp-muted">${s.mode === 'update' && match ? 'The services go into the current job’s notes.' : `${esc(providerName())} approves it and picks the date — you get a notification.`}</span>
           <div class="pp-form-actions" style="border:0;padding:0;margin:0">
             <button type="button" class="pp-btn pp-btn--sec" id="ppDiscard">Discard</button>
-            <button type="button" class="pp-btn pp-btn--pri" id="ppSubmit" data-submit>${s.mode === 'update' && match ? 'Send update' : 'Send request'}</button>
+            <button type="button" class="pp-btn pp-btn--pri" id="ppSubmit" data-submit>${icon('send')}${s.mode === 'update' && match ? 'Send update' : `Send to ${esc(providerName())}`}</button>
           </div>
         </div>
       </div>
-      <div class="pp-fixbar"><button type="button" class="pp-btn pp-btn--sec" data-discard>Discard</button><button type="button" class="pp-btn pp-btn--pri" data-submit>${s.mode === 'update' && match ? 'Send update' : 'Send request'}</button></div>`;
+      <div class="pp-fixbar"><button type="button" class="pp-btn pp-btn--sec" data-wz-go="quote">Back</button><button type="button" class="pp-btn pp-btn--pri" data-submit>${s.mode === 'update' && match ? 'Send update' : 'Send'}</button></div>`;
   }
 
   const UOMS = ['SF', 'LF', 'EA', 'STEP', 'SY', 'HR'];
@@ -1768,6 +1888,239 @@
     return `<div class="pp-pick-row pp-field--wide">${chip}${sel}</div>`;
   }
 
+  /* ─────────── work order wizard: Measure (3D) and Quote steps ─────────── */
+
+  /** Stairs and vents the order asks for, read from its service lines. */
+  function orderTakeoff(items) {
+    const stairs = new Map(); const vents = [];
+    const species = (t) => (t.match(/white oak|red oak|hickory|maple|walnut|ash|birch/i) || [''])[0].replace(/\b\w/g, (c) => c.toUpperCase());
+    (items || []).filter((it) => !it.remove).forEach((it) => {
+      const t = [it.description, it.detail, it.service_name, it.area].filter(Boolean).join(' ');
+      const qty = Math.round(Number(String(it.quantity).replace(/[^\d.]/g, '')) || 0);
+      if (!qty) return;
+      if (/vent|register|grill/i.test(t)) {
+        const sz = t.match(/(\d{1,2})\s*[xX×]\s*(\d{1,2})/);
+        vents.push({ size: sz ? `${sz[1]}x${sz[2]}` : '4x10', type: /self.?rim|drop.?in/i.test(t) ? 'self_rimming' : /return/i.test(t) ? 'return_air' : 'flush', qty, species: species(t), color: (it.detail && !/\d\s*x\s*\d/i.test(it.detail) ? it.detail : '').slice(0, 80) });
+        return;
+      }
+      if (/sand|finish|coat|stain|paint|demo|remov/i.test(t)) return;
+      const isTread = /tread/i.test(t); const isRiser = /riser/i.test(t);
+      if (!isTread && !isRiser) return;
+      const wm = t.match(/(\d{2,3}(?:\.\d+)?)\s*(?:"|''|”|in\b|inch)/i) || t.match(/\b(3\d|4\d|5\d|6\d|7\d)\b/);
+      const w = wm ? Number(wm[1]) : 0;
+      const k = String(w || '?');
+      const g = stairs.get(k) || { w, treads: 0, risers: 0, open: 'none', species: '' };
+      if (isTread) g.treads += qty; else g.risers += qty;
+      if (/double|both/i.test(t)) g.open = 'both'; else if (/left/i.test(t) && g.open === 'none') g.open = 'left'; else if (/right/i.test(t) && g.open === 'none') g.open = 'right';
+      g.species = g.species || species(t);
+      stairs.set(k, g);
+    });
+    return { stairs: [...stairs.values()].filter((g) => g.treads || g.risers).sort((a, b) => b.w - a.w), vents };
+  }
+  const OPEN_TXT = { both: 'double returns (both sides open)', left: 'left returns (left side open)', right: 'right returns (right side open)', none: 'between walls' };
+  function orderStairText(det) {
+    return ['From the work order (use these counts, widths and open sides exactly):', ...det.stairs.map((g) => `- ${g.treads} treads ${g.w || '?'}" wide, ${OPEN_TXT[g.open]}; ${g.risers} risers ${g.w || '?'}"${g.species ? `; ${g.species}` : ''}.`),
+      det.stairs.length > 1 ? 'Each width is one flight of the same stair. From the photos work out which flight is the lower one, the landing between them and which way the upper flight turns.' : 'From the photos work out landings and how the stair turns.',
+      'Estimate tread depth and riser height from the photos.'].join('\n');
+  }
+  /** Without photos: one straight flight per width, typical depth/height to check on site. */
+  function orderActions(det, base) {
+    const out = [];
+    det.stairs.forEach((g, i) => {
+      const w = g.w || 42;
+      out.push({ type: 'add_stair', name: `${w}" stair`, ...(g.species ? { species: g.species } : {}) });
+      if (g.treads) out.push({ type: 'add_steps', stair: base + i, count: g.treads, tread_w: w, tread_d: 11.25, riser_w: w, riser_h: 7.5, open: g.open, ret: '45' });
+      const extra = g.risers - g.treads;
+      if (extra > 0) out.push({ type: 'add_riser', stair: base + i, count: extra, riser_w: w, riser_h: 7.5 });
+    });
+    return out;
+  }
+  async function loadMeasData(s) {
+    if (!s.measurement || !s.measurement.id || s.measData) return;
+    try {
+      const r = await api(`/api/builder/measurements/${encodeURIComponent(s.measurement.id)}`);
+      s.measData = r.data.data;
+      const c = measCounts(r.data.data || {});
+      s.measurement = { ...s.measurement, status: r.data.status, counts: { ...(s.measurement.counts || {}), ...c }, summary: measSummary(r.data.data || {}).map((l) => ({ text: `${l.kind} · ${l.text}`, qty: Number(l.qty).toLocaleString('en-US'), uom: l.uom || 'EA' })) };
+      if (state.send === s && s.phase === 'review' && s.step === 'measure') renderSendBody(); } catch (_) { /* summary only */ }
+  }
+  function measDrawingHtml(data) {
+    const stairs = (data && data.stairs) || [];
+    const roots = stairs.filter((st) => !st.starts_on_landing_of || !stairs.some((x) => x.id === st.starts_on_landing_of));
+    if (!roots.length) return '';
+    return roots.map((root) => {
+      const chain = stairChainFor(data, root.id);
+      const idx = chain.map((fl) => stairs.findIndex((x) => x.id === fl.id));
+      const flip = chain.slice(1).some((fl) => fl.turn === 'right' || fl.turn === 'u_right');
+      return `<div class="pp-wz-draw"><span class="pp-lbl">${chain.length > 1 ? `${esc(root.name || 'Stair')} · ${chain.length} flights` : esc(root.name || 'Stair')}</span>${stairSvg(chain.length > 1 ? chain : root, -1, flip, idx, {}, -1)}</div>`;
+    }).join('');
+  }
+  function measureStepHtml(s) {
+    const det = orderTakeoff(s.items);
+    const m = s.measurement;
+    const photos = s.measPhotos || [];
+    const canMeasure = canDo('measure');
+    const photoPicker = `<div class="pp-wz-photos">${photos.map((p, i) => `<span class="pp-sph-ph"><img src="${p}" alt="Stair photo ${i + 1}" /><button type="button" data-wz-ph-rm="${i}" aria-label="Remove photo ${i + 1}">×</button></span>`).join('')}
+        ${photos.length < 4 ? `<label class="pp-wz-addph">${icon('camera')}<span>${photos.length ? 'Add photo' : 'Add stair photos'}</span><input type="file" accept="image/*" multiple data-wz-ph hidden /></label>` : ''}</div>`;
+    if (m) {
+      const lines = (m.summary || []).slice(0, 10);
+      return `<section class="pp-card pp-wz">
+        <div class="pp-wz-head"><div><span class="pp-lbl">Step 2 · Measure</span><h2>${s.measBuilt ? 'Measurement built from the order' : 'Measurement for this address'}</h2><p class="pp-muted">${esc(countsText(m.counts || {}))}${m.measured_by ? ` · ${esc(m.measured_by)}` : ''}${m.status === 'used' ? ' · <span class="pp-late">already sent with another job</span>' : ''}</p></div>
+          <a class="pp-btn pp-btn--sec pp-btn--sm" href="#measurements/${esc(m.id)}">${icon('pen')}Adjust</a></div>
+        ${s.measReply ? `<div class="pp-wz-mate">${mate('head-talking', 40)}<div><p>${esc(s.measReply)}</p>${(s.measObs || []).length ? `<ul>${s.measObs.map((o) => `<li>${esc(o)}</li>`).join('')}</ul>` : ''}</div></div>` : ''}
+        <div class="pp-wz-grid">
+          <div class="pp-wz-viz">${s.measData ? (measDrawingHtml(s.measData) || '<p class="pp-muted pp-viz-empty">No stairs in this measurement.</p>') : '<p class="pp-muted pp-viz-empty">Loading the drawing…</p>'}</div>
+          <div class="pp-wz-side">
+            ${lines.length ? `<ul class="pp-meas-sum pp-meas-sum--compact">${lines.map((l) => `<li><span>${esc(l.text)}</span><em>${esc(l.qty)} ${esc(l.uom)}</em></li>`).join('')}${(m.summary || []).length > lines.length ? `<li class="pp-muted">+ ${(m.summary || []).length - lines.length} more</li>` : ''}</ul>` : ''}
+            <label class="pp-meas-use"><input type="checkbox" id="ppUseMeas" ${s.useMeasurement ? 'checked' : ''} ${m.status === 'used' ? 'disabled' : ''} /> <span>Send it with the job — PDF, 3D drawing, photos and the sizes on each line</span></label>
+            ${canMeasure && det.stairs.length && m.status !== 'used' ? `<details class="pp-wz-redo"><summary>Rebuild from the order with photos</summary>${photoPicker}<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-wz-build>${icon('camera')}Rebuild with Mate</button></details>` : ''}
+          </div>
+        </div>
+      </section>`;
+    }
+    if (det.stairs.length || det.vents.length) {
+      return `<section class="pp-card pp-wz">
+        <div class="pp-wz-head"><div><span class="pp-lbl">Step 2 · Measure</span><h2>Build the 3D measurement</h2><p class="pp-muted">Mate found these in the work order. Add photos of the stair so it joins the flights, the landing and the turn — or build it with typical sizes and adjust later.</p></div></div>
+        <div class="pp-wz-grid">
+          <div>
+            <ul class="pp-wz-found">
+              ${det.stairs.map((g) => `<li><span class="pp-wz-ic">${icon('ruler')}</span><span><strong>${g.w ? `${g.w}"` : 'Stair'} · ${g.treads} treads · ${g.risers} risers</strong><small>${esc(OPEN_TXT[g.open])}${g.species ? ` · ${esc(g.species)}` : ''}</small></span></li>`).join('')}
+              ${det.vents.map((v) => `<li><span class="pp-wz-ic">${icon('home')}</span><span><strong>${v.qty} vent${v.qty === 1 ? '' : 's'} · ${esc(v.size.replace('x', '×'))} ${esc(VENT_TYPE_LABEL[v.type] || '')}</strong><small>${esc([v.species, v.color].filter(Boolean).join(' · ') || 'Wood and finish to confirm')}</small></span></li>`).join('')}
+            </ul>
+          </div>
+          <div class="pp-wz-side">
+            ${det.stairs.length ? `<span class="pp-flabel">Stair photos <small class="pp-muted">(optional, up to 4 — one of each flight)</small></span>${photoPicker}` : ''}
+            ${canMeasure ? `<button type="button" class="pp-btn pp-btn--pri" data-wz-build>${photos.length ? `${icon('camera')}Build the 3D with Mate` : 'Build with typical sizes'}</button>` : '<p class="pp-muted">Your role can’t take measurements.</p>'}
+            <p class="pp-error" id="ppWzErr" role="alert" hidden></p>
+          </div>
+        </div>
+      </section>`;
+    }
+    return `<section class="pp-card pp-wz pp-wz--empty">
+      ${mate('head-curious', 64)}<div><h2>Nothing to measure in this order</h2><p class="pp-muted">No stairs or vents in the lines. Go on to the quote, or take a measurement on site.</p>
+      ${canMeasure ? '<a class="pp-link" href="#measurements/new">New measurement</a>' : ''}</div>
+    </section>`;
+  }
+  function quoteTotal(s) { return Math.round((s.items || []).filter((it) => !it.remove).reduce((a, it) => a + (itemTotal(it) || 0), 0) * 100) / 100; }
+  function quoteStepHtml(s) {
+    const co = sendCo();
+    const live = (s.items || []).filter((it) => !it.remove);
+    const noPrice = live.filter((it) => it.rate == null || it.rate === '').length;
+    return `<section class="pp-card pp-wz pp-wz-q">
+        <div class="pp-wz-head"><div><span class="pp-lbl">Step 3 · Quote</span><h2>Services at ${esc(co ? co.company_name : 'the company')}’s prices</h2><p class="pp-muted">${live.length ? `${plural(live.length, 'service', 'services')} from the order, priced from your agreed price list.${noPrice ? ` <span class="pp-late">${plural(noPrice, 'line has', 'lines have')} no price yet.</span>` : ''}` : 'Add the services for this job.'}</p></div>
+          <div class="pp-wz-qacts">${canDo('money.view') && live.length && co && !companyInvited() ? `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-wz-qpdf>${icon('download')}Quote PDF</button>` : ''}</div></div>
+      </section>
+      <div class="pp-card pp-q-card">${itemsEditor(s)}</div>`;
+  }
+  function sendSummaryHtml(s) {
+    const m = s.measurement && s.useMeasurement ? s.measurement : null;
+    const live = (s.items || []).filter((it) => !it.remove);
+    return `<section class="pp-card pp-wz-sum">
+      <button type="button" data-wz-go="measure"><span class="pp-lbl">Measurement</span><strong>${m ? esc(countsText(m.counts || {})) : 'Not included'}</strong><small>${m ? 'PDF, 3D drawing and photos go with the job' : 'Optional'}</small></button>
+      <button type="button" data-wz-go="quote"><span class="pp-lbl">Quote</span><strong>${live.length ? money(quoteTotal(s)) : 'No services'}</strong><small>${plural(live.length, 'service', 'services')}</small></button>
+      <div><span class="pp-lbl">Files</span><strong>${s.files.length ? plural(s.files.length, 'file', 'files') : 'None'}</strong><small>${s.files.length ? esc(s.files.map((x) => x.name).join(', ')).slice(0, 80) : 'The work order goes with the job'}</small></div>
+    </section>`;
+  }
+  function wizardNav(s) {
+    const order = ['measure', 'quote', 'details'];
+    const i = order.indexOf(s.step);
+    const next = order[i + 1]; const prev = order[i - 1];
+    const label = { measure: 'Measure', quote: 'Quote', details: 'Job details & send' };
+    return `<div class="pp-wz-nav">${prev ? `<button type="button" class="pp-btn pp-btn--sec" data-wz-go="${prev}">${icon('back')}${label[prev]}</button>` : '<span></span>'}
+      ${next ? `<button type="button" class="pp-btn pp-btn--pri" data-wz-go="${next}">Continue · ${label[next]}${icon('chev')}</button>` : ''}</div>
+      <div class="pp-fixbar">${prev ? `<button type="button" class="pp-btn pp-btn--sec" data-wz-go="${prev}">Back</button>` : '<button type="button" class="pp-btn pp-btn--sec" data-discard>Discard</button>'}${next ? `<button type="button" class="pp-btn pp-btn--pri" data-wz-go="${next}">Continue</button>` : ''}</div>`;
+  }
+  async function buildMeasurementFromOrder(btn) {
+    const s = state.send;
+    const det = orderTakeoff(s.items);
+    const err = $('ppWzErr');
+    if (btn) { btn.disabled = true; btn.innerHTML = `${mate('head-thinking', 22)} ${s.measPhotos && s.measPhotos.length ? 'Mate is looking at the stair…' : 'Building…'}`; }
+    try {
+      let m;
+      if (s.measurement && s.measurement.id && s.measurement.status !== 'used' && s.measBuilt) {
+        const r = await api(`/api/builder/measurements/${encodeURIComponent(s.measurement.id)}`);
+        m = { ...r.data };
+        m.data = { ...(m.data || {}), stairs: [], vents: [] };
+      } else {
+        const f = s.fields || {};
+        const r = await postJson('/api/builder/measurements', { address: (f.address || '').trim().length >= 4 ? f.address.trim() : 'Work order (address to confirm)', community: f.community || '', lot: f.lot || '', notes: f.external_ref ? `From work order ${f.external_ref}` : 'From a work order' });
+        m = { ...r.data };
+        m.data = { stairs: [], vents: [], ...(m.data || {}) };
+      }
+      m.data.stairs = m.data.stairs || []; m.data.vents = m.data.vents || [];
+      let actions = [];
+      s.measReply = ''; s.measObs = [];
+      if (det.stairs.length && s.measPhotos && s.measPhotos.length) {
+        try {
+          const r = await postJson(`/api/builder/measurements/${encodeURIComponent(m.id)}/stair-photos`, { photos: s.measPhotos, text: orderStairText(det), data: m.data });
+          actions = (r.data && r.data.actions) || [];
+          s.measReply = (r.data && r.data.reply) || '';
+          s.measObs = (r.data && r.data.observations) || [];
+        } catch (e) {
+          s.measReply = `${e.message || 'Mate couldn’t look at the photos.'} Built with typical sizes instead.`;
+        }
+      }
+      if (!actions.some((a) => a.type === 'add_stair')) actions = actions.concat(orderActions(det, m.data.stairs.length));
+      det.vents.forEach((v) => actions.push({ type: 'add_vent', size: v.size, vent_type: v.type, qty: v.qty, ...(v.species ? { species: v.species } : {}), ...(v.color ? { color: v.color } : {}) }));
+      applyVoiceActions(m, actions);
+      const saved = await api(`/api/builder/measurements/${encodeURIComponent(m.id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: m.data, notes: m.notes || '' }) });
+      const c = measCounts(m.data);
+      s.measurement = { id: m.id, address: saved.data.address || m.address, status: saved.data.status || 'draft', counts: c, summary: measSummary(m.data).map((l) => ({ text: `${l.kind} · ${l.text}`, qty: Number(l.qty).toLocaleString('en-US'), uom: l.uom || 'EA' })), measured_by: state.builder.member.name, measured_at: new Date().toISOString() };
+      s.measData = m.data;
+      s.useMeasurement = true;
+      s.measBuilt = true;
+      state.homeMeas = null;
+      renderSendBody();
+      mateToast('measure', 'Measurement ready', countsText(c));
+    } catch (e) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Try again'; }
+      if (err) { err.textContent = e.message || 'Could not build the measurement.'; err.hidden = false; }
+    }
+  }
+  async function openQuotePdf(btn) {
+    const s = state.send; const f = s.fields || {}; const co = sendCo();
+    const live = (s.items || []).filter((it) => !it.remove);
+    btn.disabled = true;
+    const win = window.open('', '_blank');
+    try {
+      const res = await fetch('/api/builder/quote-pdf', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        company: co.id, title: f.title || '', address: (f.address || '').trim() || 'Address to confirm', ref: f.external_ref || '',
+        measurement: s.measurement && s.useMeasurement ? countsText(s.measurement.counts || {}) : '',
+        items: live.map((it) => ({ name: itemTitle(s, it).slice(0, 160), detail: (itemSub(it) || '').slice(0, 300), qty: Number(String(it.quantity).replace(/[^\d.]/g, '')) || 0, uom: it.uom || 'EA', rate: it.rate == null || it.rate === '' ? null : Number(it.rate) })),
+      }) });
+      if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || 'Could not make the PDF.'); }
+      const url = URL.createObjectURL(await res.blob());
+      if (win) win.location.href = url; else window.open(url, '_blank');
+    } catch (e) {
+      if (win) win.close();
+      mateToast('head-sorry', 'Quote PDF', e.message);
+    } finally { btn.disabled = false; }
+  }
+  function bindWizard() {
+    const s = state.send;
+    const go = (k) => { s.step = k; renderSendBody(); const top = $('ppSendBody'); if (top) window.scrollTo({ top: Math.max(0, top.getBoundingClientRect().top + window.scrollY - 140), behavior: 'smooth' }); };
+    document.querySelectorAll('[data-wz-go]').forEach((b) => { if (b.dataset.wzBound) return; b.dataset.wzBound = '1'; b.addEventListener('click', () => go(b.getAttribute('data-wz-go'))); });
+    view.querySelectorAll('[data-wz-ph]').forEach((inp) => inp.addEventListener('change', async () => {
+      const files = [...(inp.files || [])].slice(0, 4 - (s.measPhotos || []).length);
+      s.measPhotos = s.measPhotos || [];
+      for (const file of files) { try { s.measPhotos.push(await shrinkPhoto(file, 1600)); } catch (_) { /* skip */ } }
+      const keepOpen = Boolean(inp.closest('details'));
+      renderSendBody();
+      if (keepOpen) { const d = view.querySelector('.pp-wz-redo'); if (d) d.open = true; }
+    }));
+    view.querySelectorAll('[data-wz-ph-rm]').forEach((b) => b.addEventListener('click', () => { s.measPhotos.splice(Number(b.getAttribute('data-wz-ph-rm')), 1); renderSendBody(); }));
+    view.querySelectorAll('[data-wz-build]').forEach((b) => b.addEventListener('click', () => buildMeasurementFromOrder(b)));
+    view.querySelectorAll('.pp-wz-head a[href^="#measurements/"]').forEach((a) => a.addEventListener('click', () => { s.measLeft = true; }));
+    view.querySelectorAll('[data-wz-qpdf]').forEach((b) => b.addEventListener('click', () => openQuotePdf(b)));
+    const cp = view.querySelector('#ppSendBody [data-send-copick]');
+    if (cp) cp.addEventListener('click', () => openCoPicker('Quote from', s.co || (sendCo() && sendCo().id), async (id) => {
+      s.co = id;
+      postJson('/api/builder/select', { company_id: id }).catch(() => {});
+      if (canDo('money.view')) { s.agreed = await api(`/api/builder/prices?company=${encodeURIComponent(id)}`).then((x) => x.data || []).catch(() => []); applyAgreed(s); }
+      renderSend(renderToken);
+    }));
+  }
+
   function bindReview() {
     const s = state.send;
     const pickSel = view.querySelector('[data-pick-loc]');
@@ -1798,9 +2151,9 @@
     view.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => { s.mode = b.getAttribute('data-mode'); renderSendBody(); }));
     $('ppRestart').addEventListener('click', () => { const preset = s.presetJob; const co = s.co; state.send = newSend(); state.send.presetJob = preset; state.send.co = co; renderSendBody(); });
     const discard = () => { state.send = newSend(); renderSendBody(); };
-    $('ppDiscard').addEventListener('click', discard);
+    if ($('ppDiscard')) $('ppDiscard').addEventListener('click', discard);
     view.querySelectorAll('[data-discard]').forEach((b) => b.addEventListener('click', discard));
-    bindItems();
+    if ($('ppItemsTitle')) bindItems();
     const use = $('ppUseMeas');
     if (use) use.addEventListener('change', () => { s.useMeasurement = use.checked; use.closest('.pp-meas-hit').classList.toggle('is-on', use.checked); });
     const addrEl = $('ppF-address');
@@ -1818,7 +2171,7 @@
         }
       } catch (_) { /* no measurement lookup */ }
     });
-    $('ppReqForm').addEventListener('submit', (e) => { e.preventDefault(); submitRequest(); });
+    if ($('ppReqForm')) $('ppReqForm').addEventListener('submit', (e) => { e.preventDefault(); submitRequest(); });
     view.querySelectorAll('[data-submit]').forEach((b) => b.addEventListener('click', submitRequest));
   }
 
@@ -4657,7 +5010,8 @@
     };
     s.useMeasurement = m.status !== 'used';
     s.fromMeas = { id: m.id, hasPlans: Boolean(plan && plan.file) };
-    s.ai = false; s.mode = 'new'; s.phase = 'review';
+    s.ai = false; s.mode = 'new'; s.phase = 'review'; s.step = 'measure';
+    s.measData = m.data;
     state.send = s;
     if (s.co) postJson('/api/builder/select', { company_id: s.co }).catch(() => {});
     if (fromSendPage && location.hash === '#send') render(); else location.hash = '#send';
@@ -5093,6 +5447,7 @@
           </div>
         </div>
       </div>
+      ${state.send && state.send.phase === 'review' && state.send.measurement && state.send.measurement.id === m.id ? `<div class="pp-wz-back"><span>${mate('head-happy', 28)}You’re sending a work order with this measurement.</span><a class="pp-btn pp-btn--pri pp-btn--sm" href="#send">Back to the work order</a></div>` : ''}
       ${locked ? `<div class="pp-match"><strong>This measurement was already sent with the Work Order</strong><span class="pp-muted" style="font-size:14px">${m.work_order_id ? `<a class="pp-link" href="#jobs/${encodeURIComponent(m.work_order_id)}">Open the job</a> · ` : ''}To measure again, start a new measurement for this address.</span></div>` : ''}
       <div class="pp-mtabs" role="tablist" aria-label="Measurement sections">
         ${tab('stairs', 'Stairs', c.treads + c.risers ? `${c.treads}·${c.risers}` : null)}${tab('vents', 'Vents', c.vents || null)}${tab('floors', 'Floor Plan', ft ? (ft >= 1000 ? `${(Math.round(ft / 100) / 10).toLocaleString('en-US')}k sf` : `${Math.round(ft)} sf`) : null)}${tab('summary', 'Summary', null)}
@@ -6164,6 +6519,9 @@
       $('ppUserName').textContent = state.user.name || '';
       $('ppUserEmail').textContent = [state.user.email, `${state.builder.account.name} · ${state.builder.member.role_label}`].join(' · ');
       paintShell();
+      loadNotes(true);
+      setInterval(() => { if (document.visibilityState === 'visible') loadNotes(true); }, 120000);
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') loadNotes(true); });
       if (typeof window.sfBootCrmAddressAutocomplete === 'function') window.sfBootCrmAddressAutocomplete();
       $('ppDock').hidden = false;
       $('ppTabs').hidden = false;

@@ -201,11 +201,35 @@ export type ApplyResult =
  * or — when the builder asked to update a job — an update appended to that job.
  * Used by the office "Aceitar" button and, for builder accounts, right when the builder sends.
  */
+export type AcceptSchedule = { date: string; start?: string; end?: string; all_day?: boolean };
+
+/** "2026-11-02" + "07:30" → UTC instants in the company's time zone. */
+async function scheduleFromPick(tx: TenantPrisma, organizationId: string, pick: AcceptSchedule) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(pick.date || "");
+  if (!m) return null;
+  const org = await tx.organization.findUnique({ where: { id: organizationId }, select: { timezone: true } });
+  const tz = safeTimeZone(org?.timezone);
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const hm = (v: string | undefined, fb: [number, number]): [number, number] => { const x = /^(\d{1,2}):(\d{2})$/.exec(v || ""); return x ? [Math.min(23, Number(x[1])), Math.min(59, Number(x[2]))] : fb; };
+  const allDay = Boolean(pick.all_day) || !pick.start;
+  const [sh, sm] = allDay ? [8, 0] : hm(pick.start, [8, 0]);
+  let [eh, em] = allDay ? [16, 0] : hm(pick.end, [Math.min(23, sh + 8), sm]);
+  if (eh * 60 + em <= sh * 60 + sm) [eh, em] = [Math.min(23, sh + 8), sm];
+  return {
+    scheduledStart: zonedWallTimeToUtc(tz, y, mo, d, sh, sm),
+    scheduledEnd: zonedWallTimeToUtc(tz, y, mo, d, eh, em),
+    allDay,
+    status: "scheduled",
+  };
+}
+
 export async function applyPartnerRequest(
   tx: TenantPrisma,
   organizationId: string,
   requestId: string,
   reviewNote: string | null | undefined,
+  /** Date the company picked when approving (company time zone). Wins over the builder's preferred date. */
+  pick?: AcceptSchedule | null,
 ): Promise<ApplyResult> {
   const request = await tx.partnerJobRequest.findFirst({
     where: { id: requestId, organizationId: organizationId },
@@ -233,9 +257,10 @@ export async function applyPartnerRequest(
         intakeMeasurement(request.intake) ? intakeMeasurement(request.intake)!.text : "",
         intakeLines(request.intake).length ? `Serviços na ordem:\n${linesText(intakeLines(request.intake))}` : "",
       ].filter(Boolean).join("\n");
+      const picked = pick ? await scheduleFromPick(tx, organizationId, pick) : null;
       await tx.workOrder.update({
         where: { id: target.id },
-        data: { notes: [target.notes, update].filter(Boolean).join("\n\n") },
+        data: { notes: [target.notes, update].filter(Boolean).join("\n\n"), ...(picked ? { scheduledStart: picked.scheduledStart, scheduledEnd: picked.scheduledEnd, allDay: picked.allDay, status: picked.status } : {}) },
       });
       await tx.partnerJobRequest.update({
         where: { id: request.id },
@@ -276,8 +301,8 @@ export async function applyPartnerRequest(
   `;
   const pickup = intakePickup(request.intake);
   // The order's date becomes the job date (all day, in the company's time zone).
-  let schedule: { scheduledStart: Date; scheduledEnd: Date; allDay: boolean; status: string } | null = null;
-  if (request.preferredDate) {
+  let schedule: { scheduledStart: Date; scheduledEnd: Date; allDay: boolean; status: string } | null = pick ? await scheduleFromPick(tx, organizationId, pick) : null;
+  if (!schedule && request.preferredDate) {
     const org = await tx.organization.findUnique({ where: { id: organizationId }, select: { timezone: true } });
     const tz = safeTimeZone(org?.timezone);
     const d = request.preferredDate;
@@ -295,7 +320,7 @@ export async function applyPartnerRequest(
       number,
       title: request.title,
       status: schedule ? schedule.status : "draft",
-      ...(schedule ? { scheduledStart: schedule.scheduledStart, scheduledEnd: schedule.scheduledEnd, allDay: true } : {}),
+      ...(schedule ? { scheduledStart: schedule.scheduledStart, scheduledEnd: schedule.scheduledEnd, allDay: schedule.allDay } : {}),
       ...(pickup ? { campoAttention: `Pickup do material: ${pickup}` } : {}),
       sourceType,
       sourceName,

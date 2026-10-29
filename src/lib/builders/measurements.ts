@@ -1265,3 +1265,62 @@ export async function floorQuotePdf(member: ActiveMember, measurementId: string,
   });
   return { name: `Quote - ${row.address}.pdf`.replace(/[\\/:*?"<>|]+/g, " ").slice(0, 150), body };
 }
+
+/** Quote PDF for a work order on the way to a company: the order's services at the agreed prices. */
+export async function orderQuotePdf(
+  member: ActiveMember,
+  input: { linkId: string; title: string; address: string; ref?: string; items: Array<{ name: string; detail?: string; qty: number; uom: string; rate: number | null }>; measurement?: string },
+): Promise<{ name: string; body: Buffer }> {
+  const [account, link] = await Promise.all([
+    prisma.builderAccount.findUnique({ where: { id: member.builderAccountId } }),
+    prisma.builderLink.findFirst({ where: { id: input.linkId, builderAccountId: member.builderAccountId } }),
+  ]);
+  if (!link) throw new BuilderError(404, "Company not found.");
+  const org = link.organizationId ? await prisma.organization.findUnique({ where: { id: link.organizationId }, select: { name: true, logoUrl: true, contactEmail: true, contactPhone: true, quoteValidityDays: true } }) : null;
+  const unit = (u: string) => (/^sf$|sq/i.test(u) ? "sq_ft" : /^lf$|lin/i.test(u) ? "linear_ft" : "each");
+  const pdfLines = input.items.slice(0, 80).map((l) => ({
+    name: l.name.slice(0, 160),
+    description: (l.detail || "").slice(0, 300),
+    quantity: l.qty,
+    unit: unit(l.uom),
+    unitPrice: l.rate ?? 0,
+    amount: Math.round((l.rate ?? 0) * l.qty * 100) / 100,
+    serviceType: /sand|finish/i.test(l.name) ? "refinishing" : "installation",
+    itemType: "service",
+  }));
+  const subtotal = Math.round(pdfLines.reduce((a, l) => a + l.amount, 0) * 100) / 100;
+  const missing = input.items.filter((l) => l.rate == null).length;
+  const { buildQuotePdf } = await import("../quotes/pdf.js");
+  const company = org?.name || link.companyName || "the company";
+  const body = await buildQuotePdf({
+    organizationName: org?.name || link.companyName || "Flooring company",
+    organizationContact: [org?.contactPhone || link.contactPhone, org?.contactEmail || link.contactEmail].filter(Boolean).join(" · ") || null,
+    organizationLogoUrl: org?.logoUrl || null,
+    brandPrimary: "#221E1A",
+    brandAccent: "#E7792C",
+    title: input.title.slice(0, 160) || `Work order · ${input.address}`,
+    number: input.ref ? `PO ${input.ref}`.slice(0, 40) : `WO-${Date.now().toString(36).toUpperCase().slice(-6)}`,
+    status: "draft",
+    issueDate: new Date(),
+    validUntil: new Date(Date.now() + (org?.quoteValidityDays || 30) * 86400e3),
+    customerName: account?.name || "Builder",
+    customerEmail: account?.email || null,
+    customerPhone: account?.phone || null,
+    projectName: null,
+    projectAddress: input.address,
+    floorAreaSqft: null,
+    rooms: [],
+    optionGroups: [],
+    lines: pdfLines,
+    clientView: { showQuantities: true, showUnitPrices: true, showLineTotals: true, showRoomBreakdown: false },
+    subtotal,
+    taxTotal: 0,
+    total: subtotal,
+    hideOnlineApproval: true,
+    inclusions: input.items.slice(0, 8).map((l) => `${l.name}${l.detail ? ` — ${l.detail}` : ""}`),
+    paymentSchedule: [{ label: `Per your agreement with ${company}`, amount: subtotal }],
+    notes: [input.measurement ? `Measured on site: ${input.measurement}` : "", missing ? `${missing} line${missing === 1 ? "" : "s"} without an agreed price yet.` : ""].filter(Boolean).join("\n\n") || null,
+    terms: null,
+  });
+  return { name: `Quote - ${input.address}.pdf`.replace(/[\\/:*?"<>|]+/g, " ").slice(0, 150), body };
+}
