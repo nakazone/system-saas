@@ -2,7 +2,7 @@
  * ObraBuilder — service worker for the builder app (scope /partner). Network first; the app
  * shell is kept for a quick start and an offline message. API calls are never cached.
  */
-const CACHE = 'obrabuilder-v2';
+const CACHE = 'obrabuilder-v3';
 const SHELL = ['/partner-portal.html', '/partner-login.html', '/obrabuilder.webmanifest', '/assets/obrabuilder/icon-192.png?v=2'];
 
 self.addEventListener('install', (e) => {
@@ -30,4 +30,28 @@ self.addEventListener('fetch', (e) => {
       return Response.error();
     }),
   );
+});
+
+// Push from ObraBuilder: a company accepted, scheduled, started, shared photos or finished a job.
+self.addEventListener('push', (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (_) { d = { title: 'ObraBuilder', body: e.data ? e.data.text() : '' }; }
+  const icon = typeof d.icon === 'string' && d.icon.startsWith('/assets/') ? d.icon : '/assets/obrabuilder/icon-192.png?v=2';
+  e.waitUntil(self.registration.showNotification(d.title || 'ObraBuilder', {
+    body: d.body || '',
+    icon,
+    badge: '/assets/obrabuilder/icon-192.png?v=2',
+    tag: d.tag || 'obrabuilder',
+    renotify: true,
+    data: { url: typeof d.url === 'string' && d.url.startsWith('/partner') ? d.url : '/partner-portal.html#notifications' },
+  }));
+});
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || '/partner-portal.html#notifications';
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+    const open = list.find((c) => new URL(c.url).pathname.startsWith('/partner-portal'));
+    if (open) { open.focus(); return open.navigate(url).catch(() => open); }
+    return self.clients.openWindow(url);
+  }));
 });

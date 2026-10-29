@@ -38,6 +38,7 @@ import {
 import { can, permissionsFor, ROLE_LABELS, BUILDER_ROLES, type BuilderPermission } from "../../lib/builders/roles.js";
 import { deletePickup, listPickups, pickupForWorkOrder, savePickup } from "../../lib/builders/pickups.js";
 import { stairFromPhotos, voiceToActions } from "../../lib/builders/voice.js";
+import { listNotifications, markSeen, pushToAccount, removePushSubscription, savePushSubscription, sweepAccount, vapidPublicKey } from "../../lib/builders/notifications.js";
 import { askMate } from "../../lib/builders/mate.js";
 import { copyPrices, deletePrice, listPrices, savePrice } from "../../lib/builders/prices.js";
 import { parseTakeoffSettings, takeoffSettings } from "../../lib/builders/takeoff.js";
@@ -69,6 +70,7 @@ function accountView(a: {
 import {
   addPhoto,
   floorQuotePdf,
+  orderQuotePdf,
   addPlanFile,
   addPlanPreview,
   planFileStream,
@@ -355,6 +357,71 @@ builderAccountRouter.use("/api/partner-portal", async (req: Request, res: Respon
   }
 });
 
+/* ───────────────────────── notifications (bell + push) ───────────────────────── */
+
+const lastSweep = new Map<string, number>();
+builderAccountRouter.get("/api/builder/notifications", requireBuilder, async (req: BuilderReq, res, next) => {
+  try {
+    const m = req.builderMember!;
+    // a fresh look when someone opens the app (at most every 30 s per account)
+    const t = lastSweep.get(m.builderAccountId) || 0;
+    if (req.query.fresh === "1" && Date.now() - t > 30_000) {
+      lastSweep.set(m.builderAccountId, Date.now());
+      await sweepAccount(m.builderAccountId).catch(() => 0);
+    }
+    const fresh = await prisma.builderMember.findUnique({ where: { id: m.id }, select: { notificationsSeenAt: true } });
+    res.json({ success: true, ...(await listNotifications({ id: m.id, builderAccountId: m.builderAccountId, notificationsSeenAt: fresh?.notificationsSeenAt ?? null }, Number(req.query.limit) || 40)) });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
+builderAccountRouter.post("/api/builder/notifications/seen", requireBuilder, async (req: BuilderReq, res, next) => {
+  try {
+    await markSeen(req.builderMember!.id);
+    res.json({ success: true });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
+builderAccountRouter.get("/api/builder/push/key", requireBuilder, async (_req: BuilderReq, res, next) => {
+  try {
+    res.json({ success: true, data: { key: await vapidPublicKey() } });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
+builderAccountRouter.post("/api/builder/push/subscribe", requireBuilder, async (req: BuilderReq, res, next) => {
+  try {
+    const parsed = z.object({ endpoint: z.string().url().max(2000), keys: z.object({ p256dh: z.string().min(10).max(300), auth: z.string().min(4).max(100) }) }).safeParse(req.body?.subscription || req.body);
+    if (!parsed.success) { res.status(400).json({ success: false, error: "Invalid subscription." }); return; }
+    await savePushSubscription(req.builderMember!, parsed.data, req.get("user-agent") || undefined);
+    res.json({ success: true });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
+builderAccountRouter.post("/api/builder/push/unsubscribe", requireBuilder, async (req: BuilderReq, res, next) => {
+  try {
+    await removePushSubscription(req.builderMember!, String(req.body?.endpoint || ""));
+    res.json({ success: true });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
+builderAccountRouter.post("/api/builder/push/test", requireBuilder, async (req: BuilderReq, res, next) => {
+  try {
+    const sent = await pushToAccount(req.builderMember!.builderAccountId, { title: "Notifications are on", body: "You’ll get a heads-up when a company accepts, schedules or shares photos.", url: "#notifications", tag: "ob-test" });
+    res.json({ success: true, data: { sent } });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
 /* ───────────────────────── measurements (stairs & vents) ───────────────────────── */
 
 builderAccountRouter.get("/api/builder/measurements", requireBuilder, needs("measure"), async (req: BuilderReq, res, next) => {
@@ -568,6 +635,27 @@ builderAccountRouter.get("/api/builder/measurements/:id/photo", requireBuilder, 
 });
 
 /** The floor quote in ObraMate's quote layout (company branding, builder as client). */
+builderAccountRouter.post("/api/builder/quote-pdf", requireBuilder, needs("money.view"), async (req: BuilderReq, res, next) => {
+  try {
+    const parsed = z.object({
+      company: z.string().uuid(),
+      title: z.string().trim().max(160).optional().default(""),
+      address: z.string().trim().min(2).max(300),
+      ref: z.string().trim().max(60).optional().default(""),
+      measurement: z.string().trim().max(400).optional().default(""),
+      items: z.array(z.object({ name: z.string().trim().min(1).max(160), detail: z.string().max(300).optional().default(""), qty: z.number().min(0).max(1_000_000), uom: z.string().max(20).optional().default("EA"), rate: z.number().min(0).max(1_000_000).nullable() })).max(80),
+    }).safeParse(req.body || {});
+    if (!parsed.success) { res.status(400).json({ success: false, error: "Add the address and at least one service." }); return; }
+    const d = parsed.data;
+    const out = await orderQuotePdf(req.builderMember!, { linkId: d.company, title: d.title, address: d.address, ref: d.ref, items: d.items, measurement: d.measurement });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(out.name)}"`);
+    res.send(out.body);
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
 builderAccountRouter.get("/api/builder/measurements/:id/quote-pdf", requireBuilder, needs("money.view"), async (req: BuilderReq, res, next) => {
   try {
     const out = await floorQuotePdf(req.builderMember!, String(req.params.id), typeof req.query.company === "string" ? req.query.company : null);

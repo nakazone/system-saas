@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="partner-portal-v2.css?v=20261029-fl2" />
+  <link rel="stylesheet" href="partner-portal-v2.css?v=20261029-wf1" />
 </head>
 <body class="pp">
   <header class="pp-top">
@@ -39,6 +39,10 @@
         </a>
         <a class="pp-ibtn pp-plus-mobile" href="#send" aria-label="Send work">
           <svg viewBox="0 0 24 24" aria-hidden="true" style="width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round"><path d="M12 5v14M5 12h14"/></svg>
+        </a>
+        <a class="pp-ibtn pp-bell" id="ppBell" href="#notifications" aria-label="Notifications" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9"/><path d="M10 20a2.2 2.2 0 0 0 4 0"/></svg>
+          <span class="pp-bell-n" id="ppBellN" hidden></span>
         </a>
         <button type="button" class="pp-uchip" id="ppChip" aria-haspopup="true" aria-expanded="false" aria-controls="ppMenu"><span class="pp-avatar" id="ppAvatar">··</span><span class="pp-uchip-txt"><span id="ppChipName"></span><span id="ppChipRole"></span></span></button>
         <div class="pp-menu" id="ppMenu" hidden>
@@ -94,8 +98,8 @@
   <input type="file" id="ppFileInput" accept="image/jpeg,image/png,image/webp,application/pdf" multiple hidden />
   <input type="file" id="ppCameraInput" accept="image/*" capture="environment" hidden />
   <script src="crm-address-autocomplete.js?v=20261029-pp" defer></script>
-  <script src="partner-portal-takeoff.js?v=20261029-fl2" defer></script>
-  <script src="partner-portal-3d.js?v=20261029-fl2" defer></script>
-  <script src="partner-portal.js?v=20261029-fl2" defer></script>
+  <script src="partner-portal-takeoff.js?v=20261029-wf1" defer></script>
+  <script src="partner-portal-3d.js?v=20261029-wf1" defer></script>
+  <script src="partner-portal.js?v=20261029-wf1" defer></script>
 </body>
 </html>

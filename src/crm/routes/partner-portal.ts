@@ -20,6 +20,7 @@ import { parseChecklist } from "../lib/campo-shared.js";
 import { isJobChecklistEnabled } from "../../lib/settings/jobs.js";
 import { formatQuantityEn, formatTicketWhenEn, mapsChoiceUrls, parseLockbox, phoneDigits, stripLockbox, ticketStatusEn } from "../../modules/work-orders/public-ticket.js";
 import { applyPartnerRequest } from "../../lib/builders/jobs.js";
+import { watchRequest } from "../../lib/builders/notifications.js";
 import { activeLinkFor, ensureShadowPartnerUser, loadActiveMember, type ActiveMember } from "../../lib/builders/accounts.js";
 import { can, permissionsFor, type BuilderPermission, type PortalRole } from "../../lib/builders/roles.js";
 import { publishAppNotification } from "../../lib/notifications/publish.js";
@@ -875,6 +876,8 @@ partnerPortalRouter.post("/api/partner-portal/requests", requirePartnerAuth, req
       select: { partnerPortalSettings: true },
     });
     const createAutomatically = parsePartnerPortalSettings(organizationSettings?.partnerPortalSettings).request_mode === "automatic";
+    // the builder is told when the company accepts it (with the date) or declines it
+    if (req.builderMember && !createAutomatically) await watchRequest(req.builderMember.builderAccountId, row.id);
     // One tenant policy controls both old partner logins and new Builder accounts.
     if (createAutomatically) {
       const applied = await withTenantTransaction(user.organizationId, (tx) => applyPartnerRequest(tx, user.organizationId, row.id, null));
@@ -1381,13 +1384,21 @@ partnerPortalRouter.get("/api/partner-requests/:id/files/:index", requireCrmAuth
 
 partnerPortalRouter.post("/api/partner-requests/:id/accept", requireCrmAuth, requireCrmPermission("work_orders.manage"), async (req: AuthedRequest, res, next) => {
   try {
-    const parsed = z.object({ review_note: z.string().trim().max(2000).optional().default("") }).safeParse(req.body || {});
+    const parsed = z.object({
+      review_note: z.string().trim().max(2000).optional().default(""),
+      schedule: z.object({
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        start: z.string().regex(/^\d{1,2}:\d{2}$/).or(z.literal("")).optional(),
+        end: z.string().regex(/^\d{1,2}:\d{2}$/).or(z.literal("")).optional(),
+        all_day: z.boolean().optional(),
+      }).nullable().optional(),
+    }).safeParse(req.body || {});
     if (!parsed.success) {
-      res.status(400).json({ success: false, error: "Invalid note." });
+      res.status(400).json({ success: false, error: "Escolha uma data válida." });
       return;
     }
     const result = await withTenantTransaction(req.organizationId!, (tx) =>
-      applyPartnerRequest(tx, req.organizationId!, String(req.params.id), parsed.data.review_note),
+      applyPartnerRequest(tx, req.organizationId!, String(req.params.id), parsed.data.review_note, parsed.data.schedule || null),
     );
     if (result.kind === "missing") {
       res.status(404).json({ success: false, error: "Request not found." });

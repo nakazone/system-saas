@@ -3599,6 +3599,9 @@ model BuilderAccount {
   measurements BuilderMeasurement[]
   pickupLocations BuilderPickupLocation[]
   priceItems  BuilderPriceItem[]
+  notifications BuilderNotification[]
+  jobWatches  BuilderJobWatch[]
+  pushSubscriptions BuilderPushSubscription[]
 }
 
 model BuilderMember {
@@ -3621,6 +3624,61 @@ model BuilderMember {
   tokenExpiresAt   DateTime?
   invitedById      String?   @db.Uuid
   lastLoginAt      DateTime?
+  /// Notifications up to this moment count as seen (bell badge).
+  notificationsSeenAt DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([builderAccountId])
+}
+
+/// What happened to the builder's work at a company: accepted & scheduled, photos, on site, done.
+model BuilderNotification {
+  id               String    @id @default(uuid()) @db.Uuid
+  builderAccountId String    @db.Uuid
+  account          BuilderAccount @relation(fields: [builderAccountId], references: [id], onDelete: Cascade)
+  /// accepted | declined | scheduled | rescheduled | started | photos | completed | report
+  kind             String
+  title            String
+  body             String?
+  /// Hash route in the portal, e.g. "#jobs/<id>"
+  url              String?
+  companyName      String?
+  organizationId   String?   @db.Uuid
+  workOrderId      String?   @db.Uuid
+  requestId        String?   @db.Uuid
+  createdAt        DateTime  @default(now())
+
+  @@index([builderAccountId, createdAt])
+}
+
+/// Last state the watcher saw for a job or request, to tell what changed.
+model BuilderJobWatch {
+  id               String    @id @default(uuid()) @db.Uuid
+  builderAccountId String    @db.Uuid
+  account          BuilderAccount @relation(fields: [builderAccountId], references: [id], onDelete: Cascade)
+  /// "job:<workOrderId>" or "req:<requestId>"
+  key              String
+  status           String?
+  scheduledStart   DateTime?
+  photos           Int       @default(0)
+  reports          Int       @default(0)
+  updatedAt        DateTime  @updatedAt
+  createdAt        DateTime  @default(now())
+
+  @@unique([builderAccountId, key])
+}
+
+/// Web Push devices of builder team members (ObraBuilder app).
+model BuilderPushSubscription {
+  id               String    @id @default(uuid()) @db.Uuid
+  builderAccountId String    @db.Uuid
+  account          BuilderAccount @relation(fields: [builderAccountId], references: [id], onDelete: Cascade)
+  memberId         String    @db.Uuid
+  endpoint         String    @unique
+  p256dh           String
+  auth             String
+  userAgent        String?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
