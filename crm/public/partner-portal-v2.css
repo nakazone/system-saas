@@ -2428,3 +2428,12 @@ button.tk-fact:hover { border-color: #E7792C; }
 .pac-item-query { font-size: 14px; color: var(--pp-ink); }
 .pac-matched { color: #B4561A; }
 .pac-icon { display: none; }
+/* how the upper flight leaves the landing */
+.pp-turn { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 0 0 10px; }
+.pp-turn > span { font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--pp-muted); margin-right: 4px; }
+.pp-turn button { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--pp-border); background: #FFFFFF; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--pp-ink); cursor: pointer; transition: background 140ms ease, border-color 140ms ease, color 140ms ease; }
+.pp-turn button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.pp-turn button:hover:not(:disabled) { border-color: #E7792C; }
+.pp-turn button[aria-pressed="true"] { background: #221E1A; border-color: #221E1A; color: #FFFFFF; }
+.pp-turn button:active { transform: scale(.97); }
+@media (max-width: 767px) { .pp-turn button span { display: none; } .pp-turn button { padding: 0 10px; } }
