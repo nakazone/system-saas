@@ -7302,6 +7302,15 @@
     toast: (m, t) => qbToast(m, t),
     save: () => saveQuote(),
     offerDescriptionChange: (opts) => maybeOfferDescPersist(opts || {}),
+    offerRateChange: (opts) =>
+      maybeOfferRatePersist({
+        itemIdx: opts && opts.itemIdx,
+        newRate: opts && opts.newRate,
+        pricingItemId: opts && opts.pricingItemId,
+        tableRate: opts && opts.tableRate,
+        row: opts && opts.row,
+        src: catalogPricingSource(),
+      }),
   };
 
   /** Links vindos da lista: ?services=1 abre o documento editável, ?send=1 abre o envio. */
