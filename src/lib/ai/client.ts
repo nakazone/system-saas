@@ -9,7 +9,7 @@ export type AiChatMessage = {
     | string
     | Array<
         | { type: "text"; text: string }
-        | { type: "image_url"; image_url: { url: string } }
+        | { type: "image_url"; image_url: { url: string; detail?: "high" | "low" | "auto" } }
         | { type: "file"; file: { filename: string; file_data: string } }
       >;
 };
@@ -253,6 +253,10 @@ export async function aiChatJson(params: {
   timeoutMs?: number;
   /** Overrides the default chat model for this call. */
   model?: string;
+  /** "high" reads small print on documents (no downscaling of the images). */
+  imageDetail?: "high" | "low" | "auto";
+  /** 0 for extraction that must give the same answer every time. */
+  temperature?: number;
 }): Promise<AiChatResult | AiErrorResult> {
   const key = aiApiKey();
   if (!key) {
@@ -278,7 +282,7 @@ export async function aiChatJson(params: {
           { type: "text", text: params.user },
           ...images.map((url) => ({
             type: "image_url" as const,
-            image_url: { url },
+            image_url: params.imageDetail ? { url, detail: params.imageDetail } : { url },
           })),
           ...files.map((f) => ({
             type: "file" as const,
@@ -298,7 +302,7 @@ export async function aiChatJson(params: {
         { role: "user", content: userContent },
       ],
     };
-    if (modelAcceptsTemperature(model)) body.temperature = 0.2;
+    if (modelAcceptsTemperature(model)) body.temperature = params.temperature ?? 0.2;
     const send = () =>
       fetch(`${aiBaseUrl()}/chat/completions`, {
         method: "POST",
