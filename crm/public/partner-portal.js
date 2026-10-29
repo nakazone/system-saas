@@ -3472,23 +3472,8 @@
 
   function stairVizHtml(m, s, si) {
     const sel = Math.min(Math.max(0, (m.vizSel && m.vizSel[si]) || 0), Math.max(0, (s.steps || []).length - 1));
-    const st = (s.steps || [])[sel];
     const mirror = Boolean(m.vizMirror && m.vizMirror[si]);
-    const locked = m.status === 'used';
-    const treadIndex = st ? treadSteps(s).findIndex((step) => step.id === st.id) : -1;
-    const componentLabel = st && st.kind === 'riser'
-      ? 'Riser only · ' + (sel + 1) + ' of ' + s.steps.length
-      : 'Tread ' + (treadIndex >= 0 ? treadIndex + 1 : sel + 1) + ' · ' + (sel + 1) + ' of ' + s.steps.length;
     const mirrorButton = s.layout === 'round' ? '' : '<button type="button" class="pp-link" data-viz-mirror="' + si + '">' + (mirror ? 'View from the right' : 'View from the left') + '</button>';
-    const returnChips = RET_OPTS.map(([v, l]) => '<button type="button" data-viz-ret="' + v + '" aria-pressed="' + (st && st.ret === v) + '"' + (st && st.open === 'none' ? ' disabled' : '') + '>' + esc(l) + '</button>').join('');
-    let detail = '<p class="pp-muted pp-viz-empty">Add a tread or riser to see its details.</p>';
-    if (st && st.kind === 'riser') {
-      detail = '<div class="pp-viz-box" data-viz-box="riser"><span class="pp-viz-cap">Riser only · front view</span>' + riserSvg(s, st, sel) + '</div>';
-    } else if (st) {
-      detail = '<div class="pp-viz-box" data-viz-box="tread"><span class="pp-viz-cap">' + (s.layout === 'round' ? 'Tread piece · top view' : 'Tread · top view') + '</span>' + treadSvg(s, st, sel, !locked) + '</div>'
-        + (locked || s.layout === 'round' ? '' : '<div class="pp-viz-chips" role="group" aria-label="Return">' + returnChips + '</div>')
-        + '<div class="pp-viz-box" data-viz-box="riser"><span class="pp-viz-cap">Riser · front view</span>' + riserSvg(s, st, sel) + '</div>';
-    }
     const chain = stairChainFor(m.data, s.id);
     const connected = chain.length > 1;
     const mixedLayout = connected && chain.some((flight) => flight.layout === 'round');
@@ -3496,51 +3481,50 @@
     const drawing = mixedLayout
       ? stairSequenceSvg(chain, s.id)
       : stairSvg(connected ? chain : s, sel, mirror, connected ? flightIndexes : [si], m.vizSel, si);
-    const drawingTitle = connected ? 'Complete stair · ' + chain.length + ' flights' : s.layout === 'round' ? 'Round stair plan' : 'Assembled stair';
+    const drawingTitle = connected ? 'Complete stair · ' + chain.length + ' flights' : s.layout === 'round' ? 'Round stair plan' : 'Full stair drawing';
     const drawingHint = connected
-      ? 'Both flights and the connecting landing appear together. Select a flight to edit its measurements.'
-      : s.layout === 'round' ? 'Each measured tread is placed around the selected stair sweep.' : 'Tap a tread or riser to select its measurements.';
-    const flightLinks = connected ? '<div class="pp-viz-flight-links" aria-label="Connected flights">'
-      + chain.map((flight, index) => {
-        const counts = measCounts({ stairs: [flight], vents: [] });
-        const active = flight.id === s.id;
-        return '<button type="button" class="pp-viz-flight-link' + (active ? ' is-active' : '') + '" data-stair-focus="' + esc(flight.id) + '"' + (active ? ' aria-current="step"' : '') + '>'
-          + esc(flight.name || 'Flight ' + (index + 1)) + ' · ' + counts.treads + ' treads / ' + counts.risers + ' risers</button>';
-      }).join('')
-      + '</div>' : '';
+      ? 'Both flights and the connecting landing stay visible. Select a tread or riser to edit it.'
+      : s.layout === 'round' ? 'The plan places each tread around the selected stair sweep.' : 'Select any tread or riser to edit its measurements.';
     return `<div class="pp-viz" data-viz-stair="${si}">
       <div class="pp-viz-3d">
         <div class="pp-viz-bar"><span class="pp-step-lbl pp-viz-lbl">${drawingTitle}</span>${mixedLayout ? '' : mirrorButton}</div>
         <div class="pp-viz-box" data-viz-box="3d">${drawing}</div>
         <p class="pp-viz-hint">${drawingHint}</p>
-        ${flightLinks}
-      </div>
-      <div class="pp-viz-step">
-        ${st ? '<div class="pp-viz-bar"><span class="pp-step-lbl pp-viz-lbl">' + componentLabel + '</span><span class="pp-viz-nav"><button type="button" class="pp-q-ic" data-viz-prev="' + si + '" aria-label="Previous component"' + (sel === 0 ? ' disabled' : '') + '>‹</button><button type="button" class="pp-q-ic" data-viz-next="' + si + '" aria-label="Next component"' + (sel >= s.steps.length - 1 ? ' disabled' : '') + '>›</button></span></div>' + detail : detail}
       </div>
     </div>`;
   }
 
-  function stairSelectionSummaryHtml(m, s, si) {
-    const steps = s.steps || [];
-    const index = Math.min(Math.max(0, (m.vizSel && m.vizSel[si]) || 0), Math.max(0, steps.length - 1));
-    const step = steps[index];
-    if (!step) return `<span class="pp-stair-current-icon" aria-hidden="true">⌖</span><span class="pp-stair-current-main"><small>Selected in drawing</small><strong>No component selected</strong><span>Choose a tread or riser in the drawing.</span></span>`;
-    const riserOnly = step.kind === 'riser';
-    const treadIndex = treadSteps(s).findIndex((item) => item.id === step.id);
-    const component = riserOnly ? `Riser only ${index + 1}` : `Tread ${treadIndex >= 0 ? treadIndex + 1 : index + 1}`;
-    const width = fmtIn(riserOnly ? step.riser_w : step.tread_w);
-    const depth = fmtIn(riserOnly ? step.riser_h : step.tread_d);
-    const size = width && depth ? `${width} × ${depth} in` : width || depth ? `${width || depth} in` : 'Sizes not entered';
-    const returnText = !riserOnly && step.open !== 'none' ? ` · ${openText(step.open, step.ret)}` : '';
-    return `<span class="pp-stair-current-icon" aria-hidden="true">⌖</span><span class="pp-stair-current-main"><small>Selected in drawing</small><strong>${esc(s.name || 'Stair')} · ${esc(component)}</strong><span>${esc(size + returnText)}</span></span>`;
+  function stairsWorkbenchHtml(m) {
+    const stairs = m.data.stairs || [];
+    if (!stairs.length) return '<div class="pp-card pp-empty">' + mate('head-thinking', 56) + '<strong>No stairs yet</strong>Add a stair and measure it step by step.</div>';
+    let activeId = m.activeStairId;
+    let activeIndex = stairs.findIndex((stair) => stair.id === activeId);
+    if (activeIndex < 0) { activeIndex = 0; activeId = stairs[0].id; m.activeStairId = activeId; }
+    const tabs = stairs.map((stair, index) => {
+      const counts = measCounts({ stairs: [stair], vents: [] });
+      const linked = Boolean(stair.starts_on_landing_of || stairs.some((flight) => flight.starts_on_landing_of === stair.id));
+      const chain = stairChainFor(m.data, stair.id);
+      const flightIndex = chain.findIndex((flight) => flight.id === stair.id);
+      const title = chain.length > 1 ? 'Flight ' + (flightIndex + 1) : stair.name || 'Stair ' + (index + 1);
+      const upperFlight = stairs.find((flight) => flight.starts_on_landing_of === stair.id);
+      const landing = stair.landing && stair.landing.enabled
+        ? '<span class="pp-flight-landing-chip"><small>LANDING</small><strong>' + esc(fmtIn(stair.landing.width) || '—') + ' × ' + esc(fmtIn(stair.landing.depth) || '—') + ' in</strong></span>'
+        : '';
+      return '<button type="button" class="pp-flight-tab' + (stair.id === activeId ? ' is-active' : '') + '" data-stair-activate="' + esc(stair.id) + '" role="tab" aria-selected="' + (stair.id === activeId) + '">'
+        + '<span class="pp-flight-tab-index">' + String(index + 1).padStart(2, '0') + '</span><span class="pp-flight-tab-copy"><strong>' + esc(title) + '</strong><small>' + counts.treads + ' treads · ' + counts.risers + ' risers</small></span>'
+        + (linked ? '<span class="pp-flight-tab-link" aria-label="Connected by landing">⌁</span>' : '') + '</button>' + (upperFlight ? landing : '');
+    }).join('');
+    return '<div class="pp-flight-switcher" role="tablist" aria-label="Stairs and flights">' + tabs + '</div>' + stairHtml(m, stairs[activeIndex], activeIndex);
   }
 
   function stairHtml(m, s, si) {
     const locked = m.status === 'used';
     const p = 'stairs.' + si;
-    const selStep = (m.vizSel && m.vizSel[si]) || 0;
-    const steps = (s.steps || []).map((st, i) => {
+    const selStep = Math.min(Math.max(0, (m.vizSel && m.vizSel[si]) || 0), Math.max(0, (s.steps || []).length - 1));
+    const selectedStep = (s.steps || [])[selStep];
+    const selectedTreadNo = selectedStep ? treadSteps(s).findIndex((step) => step.id === selectedStep.id) + 1 : 0;
+    const selectedLabel = !selectedStep ? 'No components' : selectedStep.kind === 'riser' ? 'Riser only ' + (selStep + 1) : 'Tread ' + selectedTreadNo;
+    const stepRows = (s.steps || []).map((st, i) => {
       const riserOnly = st.kind === 'riser';
       const treadIndex = treadSteps(s).findIndex((step) => step.id === st.id);
       const treadNo = treadIndex >= 0 ? treadIndex + 1 : i + 1;
@@ -3561,9 +3545,23 @@
       const actions = locked ? '' : '<div class="pp-step-act">'
         + (riserOnly ? '' : '<button type="button" class="pp-q-ic" data-step-down="' + si + ':' + i + '" title="Copy to the steps below" aria-label="Copy tread ' + treadNo + ' to the steps below">⇣</button>')
         + '<button type="button" class="pp-q-ic pp-q-ic--del" data-step-rm="' + si + ':' + i + '" aria-label="Remove ' + (riserOnly ? 'riser' : 'tread ' + treadNo) + '">×</button></div>';
-      return `<div class="pp-step ${st.open !== 'none' ? 'is-open' : ''} ${i === selStep ? 'is-sel' : ''}" role="listitem" data-kind="${riserOnly ? 'riser' : 'step'}" data-step-row="${si}:${i}">
+      return `<div class="pp-step ${st.open !== 'none' ? 'is-open' : ''} ${i === selStep ? 'is-sel' : ''}" role="group" aria-label="${riserOnly ? 'Riser only ' + (i + 1) : 'Tread ' + treadNo}" data-kind="${riserOnly ? 'riser' : 'step'}" data-step-row="${si}:${i}">
         <span class="pp-step-n">${i + 1}</span>${tread}${riser}${sides}${actions}
       </div>`;
+    });
+    const selectedRow = stepRows[selStep] || '';
+    const stepOptions = (s.steps || []).map((st, i) => {
+      const riserOnly = st.kind === 'riser';
+      const treadIndex = treadSteps(s).findIndex((step) => step.id === st.id);
+      const treadNo = treadIndex >= 0 ? treadIndex + 1 : i + 1;
+      const label = riserOnly ? 'Riser only ' + (i + 1) : 'Tread ' + treadNo;
+      const w = fmtIn(riserOnly ? st.riser_w : st.tread_w);
+      const d = fmtIn(riserOnly ? st.riser_h : st.tread_d);
+      const dims = w && d ? w + ' × ' + d + ' in' : w || d ? (w || d) + ' in' : 'No dimensions yet';
+      const returns = !riserOnly && st.open !== 'none' ? ' · ' + openText(st.open, st.ret) : '';
+      return '<button type="button" class="pp-step-option' + (i === selStep ? ' is-selected' : '') + '" data-step-select="' + si + ':' + i + '" aria-pressed="' + (i === selStep) + '">'
+        + '<span class="pp-step-option-number">' + String(i + 1).padStart(2, '0') + '</span><span class="pp-step-option-copy"><strong>' + esc(label) + '</strong><small>' + esc(dims + returns) + '</small></span>'
+        + (i === selStep ? '<span class="pp-step-option-dot" aria-hidden="true">✓</span>' : '') + '</button>';
     }).join('');
     const nosingOptions = [
       ...treadSteps(s).map((step, i) => [step.id, 'Tread ' + (i + 1)]),
@@ -3583,9 +3581,7 @@
       </div>`;
     }).join('');
     const counts = measCounts({ stairs: [s], vents: [] });
-    const expandedMeasurements = m.stairMeasurementsExpanded && m.stairMeasurementsExpanded[s.id] !== undefined
-      ? Boolean(m.stairMeasurementsExpanded[s.id])
-      : (s.steps || []).length <= 3;
+    const expandedMeasurements = Boolean(m.stairMeasurementsExpanded && m.stairMeasurementsExpanded[s.id]);
     const upperFlight = m.data.stairs.find((flight) => flight.starts_on_landing_of === s.id);
     const lowerFlight = s.starts_on_landing_of ? m.data.stairs.find((flight) => flight.id === s.starts_on_landing_of) : null;
     const layoutOptions = [
@@ -3617,50 +3613,51 @@
         : '<button type="button" class="pp-btn pp-btn--sec pp-btn--sm pp-stair-add-upper" data-stair-above="' + si + '"' + (locked ? ' disabled' : '') + '>+ Add upper flight on this landing</button>'
       : '';
     const landingLocked = locked || Boolean(upperFlight);
+    const setupSummary = (s.layout === 'round' ? 'Round stair' : 'Straight flight')
+      + ' · ' + (s.species || 'Wood not selected')
+      + (s.landing && s.landing.enabled ? ' · Landing enabled' : '');
     return `<section class="pp-card pp-stair" aria-label="${esc(s.name || 'Stair')}">
       <div class="pp-stair-head">
-        <input class="pp-stair-name" data-txt="${p}.name" value="${esc(s.name)}" maxlength="80" aria-label="Stair name" ${locked ? 'disabled' : ''} />
-        <span class="pp-muted">${counts.treads} treads · ${counts.risers} risers</span>
+        <div class="pp-stair-title-group"><input class="pp-stair-name" data-txt="${p}.name" value="${esc(s.name)}" maxlength="80" aria-label="Stair name" ${locked ? 'disabled' : ''} />
+        <span class="pp-muted">${counts.treads} treads · ${counts.risers} risers${lowerFlight ? ' · Starts at landing' : ''}</span></div>
         ${locked ? '' : '<button type="button" class="pp-q-ic pp-q-ic--del" data-stair-rm="' + si + '" aria-label="Remove ' + esc(s.name || 'stair') + '">×</button>'}
       </div>
-      <div class="pp-stair-spec">
-        <label><span>Wood</span>${selFree(SPECIES, s.species, 'data-free="' + p + '.species"' + (locked ? ' disabled' : ''))}${SPECIES.includes(s.species) || !s.species ? '' : '<input data-txt="' + p + '.species" value="' + esc(s.species) + '" maxlength="60"' + (locked ? ' disabled' : '') + ' />'}</label>
-        <label><span>Finish</span>${selFree(FINISHES, s.finish, 'data-free="' + p + '.finish"' + (locked ? ' disabled' : ''))}${FINISHES.includes(s.finish) || !s.finish ? '' : '<input data-txt="' + p + '.finish" value="' + esc(s.finish) + '" maxlength="60"' + (locked ? ' disabled' : '') + ' />'}</label>
-        <label><span>Color / stain</span><input data-txt="${p}.color" value="${esc(s.color)}" maxlength="80" placeholder="e.g. Natural, Jacobean" ${locked ? 'disabled' : ''} /></label>
-        <label><span>Risers</span>${sel(RISER_OPTS, s.riser_material, 'data-set="' + p + '.riser_material"' + (locked ? ' disabled' : ''))}</label>
-      </div>
-      <div class="pp-stair-options">${layoutButtons}${roundFields}
+      <details class="pp-stair-setup" data-stair-setup="${esc(s.id)}" ${m.stairSetupExpanded && m.stairSetupExpanded[s.id] ? 'open' : ''}>
+        <summary><span>Stair setup</span><small>${esc(setupSummary)}</small><i aria-hidden="true"></i></summary>
+        <div class="pp-stair-setup-body"><div class="pp-stair-spec">
+          <label><span>Wood</span>${selFree(SPECIES, s.species, 'data-free="' + p + '.species"' + (locked ? ' disabled' : ''))}${SPECIES.includes(s.species) || !s.species ? '' : '<input data-txt="' + p + '.species" value="' + esc(s.species) + '" maxlength="60"' + (locked ? ' disabled' : '') + ' />'}</label>
+          <label><span>Finish</span>${selFree(FINISHES, s.finish, 'data-free="' + p + '.finish"' + (locked ? ' disabled' : ''))}${FINISHES.includes(s.finish) || !s.finish ? '' : '<input data-txt="' + p + '.finish" value="' + esc(s.finish) + '" maxlength="60"' + (locked ? ' disabled' : '') + ' />'}</label>
+          <label><span>Color / stain</span><input data-txt="${p}.color" value="${esc(s.color)}" maxlength="80" placeholder="e.g. Natural, Jacobean" ${locked ? 'disabled' : ''} /></label>
+          <label><span>Risers</span>${sel(RISER_OPTS, s.riser_material, 'data-set="' + p + '.riser_material"' + (locked ? ' disabled' : ''))}</label>
+        </div>
+        <div class="pp-stair-options">${layoutButtons}${roundFields}
         <div class="pp-stair-landing">
           <label class="pp-stair-toggle"><input type="checkbox" data-bool="${p}.landing.enabled" ${s.landing && s.landing.enabled ? 'checked' : ''} ${landingLocked ? 'disabled' : ''} /><span><strong>Add a landing after the stair</strong><small>${upperFlight ? 'Remove the upper flight before removing this landing.' : 'The landing can connect to another flight above it.'}</small></span></label>
           ${landingFields}
           ${landingAction}
         </div>
         ${lowerFlight ? '<p class="pp-stair-from-landing">Starts from the landing on <strong>' + esc(lowerFlight.name || 'Stair') + '</strong>.</p>' : ''}
-      </div>
+        </div></div>
+      </details>
       <div class="pp-stair-workspace" role="group" aria-label="Stair drawing and measurements">
         <div class="pp-stair-workspace-visual">${stairVizHtml(m, s, si)}</div>
         <div class="pp-stair-workspace-measures">
           <div class="pp-stair-measure-card">
-          <details class="pp-stair-measurements" data-stair-measures="${esc(s.id)}" aria-label="${esc(s.name || 'Stair')} measurements" ${expandedMeasurements ? 'open' : ''}>
-            <summary class="pp-stair-measures-head">
-              <span class="pp-stair-measures-title"><small>MEASUREMENT LIST</small><strong>Step measurements</strong><span>${(s.steps || []).length} components</span></span>
-              <span class="pp-stair-measures-stats"><span><b>${counts.treads}</b><small>Treads</small></span><span><b>${counts.risers}</b><small>Risers</small></span></span>
-              <span class="pp-stair-measures-action"><span class="is-collapsed">Show all ${(s.steps || []).length} measurements</span><span class="is-expanded">Hide list</span><i aria-hidden="true"></i></span>
-            </summary>
-            <div class="pp-stair-measures-content">
-              <div class="pp-stair-list-toolbar"><strong>All components</strong><span>Sizes in inches</span></div>
-              <div class="pp-stair-steps-scroll"><div class="pp-stair-steps" role="list">${steps || '<p class="pp-q-empty">Add the first tread and riser. Enter sizes in inches, such as 48 or 11 1/4.</p>'}</div></div>
-              ${locked ? '' : '<div class="pp-stair-add"><button type="button" class="pp-q-add" data-step-add="' + si + '">+ Step (tread + riser)</button><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-riser-add="' + si + '"' + (s.riser_material === 'none' ? ' disabled' : '') + '>+ Riser only</button>'
+            <div class="pp-component-editor-head"><div><small>COMPONENT ${selectedStep ? String(selStep + 1).padStart(2, '0') : '—'} OF ${(s.steps || []).length}</small><strong>${esc(selectedLabel)}</strong><span>${esc(s.name || 'Stair')} · ${esc(s.species || 'Wood not selected')}${s.finish ? ' · ' + esc(s.finish) : ''}</span></div>
+              <div class="pp-component-nav"><button type="button" class="pp-q-ic" data-viz-prev="${si}" aria-label="Previous component" ${(s.steps || []).length < 2 || selStep <= 0 ? 'disabled' : ''}>‹</button><button type="button" class="pp-q-ic" data-viz-next="${si}" aria-label="Next component" ${selStep >= (s.steps || []).length - 1 ? 'disabled' : ''}>›</button></div></div>
+            <div class="pp-selected-editor">${selectedRow || '<p class="pp-q-empty">Add a tread or riser to start measuring this flight.</p>'}</div>
+            ${locked ? '' : '<div class="pp-stair-add"><button type="button" class="pp-q-add" data-step-add="' + si + '">+ Step (tread + riser)</button><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-riser-add="' + si + '"' + (s.riser_material === 'none' ? ' disabled' : '') + '>+ Riser only</button>'
             + ((s.steps || []).length ? '<span class="pp-stair-many"><label for="ppMany-' + si + '">Add</label><input id="ppMany-' + si + '" type="number" min="1" max="40" value="5" /><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-step-many="' + si + '">equal steps</button></span>' : '') + '</div>'}
-            </div>
-          </details>
-          <div class="pp-stair-current" data-stair-current="${esc(s.id)}">${stairSelectionSummaryHtml(m, s, si)}</div>
+            <details class="pp-stair-measurements" data-stair-measures="${esc(s.id)}" aria-label="${esc(s.name || 'Stair')} components" ${expandedMeasurements ? 'open' : ''}>
+              <summary class="pp-stair-measures-head"><span>All measurements · ${(s.steps || []).length} components</span><i aria-hidden="true"></i></summary>
+              <div class="pp-stair-step-index" role="group" aria-label="Select a stair component">${stepOptions || '<p class="pp-q-empty">No components yet.</p>'}</div>
+            </details>
           </div>
         </div>
       </div>
-      <div class="pp-stair-sub"><h4>Nosings</h4>${nos || '<p class="pp-muted" style="margin:0;font-size:13px">Add a nosing and choose the tread or landing edge it belongs to.</p>'}${locked ? '' : '<button type="button" class="pp-link" data-nos-add="' + si + '">+ Nosing</button>'}</div>
-      <div class="pp-stair-sub"><h4>Photos</h4>${photoStrip(m, s.photos, p + '.photos')}</div>
-      <div class="pp-stair-sub"><h4>Notes</h4><textarea data-txt="${p}.note" aria-label="Notes for this stair" maxlength="500" placeholder="e.g. right wall out of square, existing skirt board" ${locked ? 'disabled' : ''}>${esc(s.note)}</textarea></div>
+      <details class="pp-stair-secondary" data-stair-panel="${esc(s.id)}:nosings" ${m.stairPanelExpanded && m.stairPanelExpanded[s.id + ':nosings'] ? 'open' : ''}><summary><span>Nosings</span><small>${(s.nosings || []).length}</small><i aria-hidden="true"></i></summary><div class="pp-stair-secondary-body">${nos || '<p class="pp-muted" style="margin:0;font-size:13px">Add a nosing and choose the tread or landing edge it belongs to.</p>'}${locked ? '' : '<button type="button" class="pp-link" data-nos-add="' + si + '">+ Nosing</button>'}</div></details>
+      <details class="pp-stair-secondary" data-stair-panel="${esc(s.id)}:photos" ${m.stairPanelExpanded && m.stairPanelExpanded[s.id + ':photos'] ? 'open' : ''}><summary><span>Photos</span><small>${(s.photos || []).length}</small><i aria-hidden="true"></i></summary><div class="pp-stair-secondary-body">${photoStrip(m, s.photos, p + '.photos')}</div></details>
+      <details class="pp-stair-secondary" data-stair-panel="${esc(s.id)}:notes" ${m.stairPanelExpanded && m.stairPanelExpanded[s.id + ':notes'] ? 'open' : ''}><summary><span>Flight notes</span><small>${s.note ? 'Added' : 'Optional'}</small><i aria-hidden="true"></i></summary><div class="pp-stair-secondary-body"><textarea data-txt="${p}.note" maxlength="500" placeholder="e.g. right wall out of square, existing skirt board" ${locked ? 'disabled' : ''}>${esc(s.note)}</textarea></div></details>
     </section>`;
   }
 
@@ -3717,17 +3714,22 @@
             <button type="button" role="tab" data-mtab="vents" aria-selected="${m.tab === 'vents'}" aria-pressed="${m.tab === 'vents'}">Vents · ${c.vents}</button>
           </div>
           ${m.tab === 'stairs'
-            ? `${(m.data.stairs || []).map((s, i) => stairHtml(m, s, i)).join('') || '<div class="pp-card pp-empty">' + mate('head-thinking', 56) + '<strong>No stairs yet</strong>Add a stair and measure it step by step.</div>'}${locked ? '' : '<button type="button" class="pp-q-add pp-q-add--block" id="ppStairAdd">+ Stair</button>'}`
+            ? `${stairsWorkbenchHtml(m)}${locked ? '' : '<button type="button" class="pp-q-add pp-q-add--block" id="ppStairAdd">+ Stair</button>'}`
             : ventsHtml(m)}
+          ${m.tab === 'stairs' ? `<div class="pp-stair-page-details">
+            <details class="pp-stair-secondary pp-stair-summary-detail"><summary><span>Order summary</span><small>${c.treads} treads · ${c.risers} risers</small><i aria-hidden="true"></i></summary><div class="pp-stair-secondary-body" id="ppMeasSum">${measSummaryHtml(m)}</div></details>
+            <details class="pp-stair-secondary"><summary><span>Measured by</span><small>${log.length ? log.length + ' recent updates' : 'No updates'}</small><i aria-hidden="true"></i></summary><div class="pp-stair-secondary-body"><ul class="pp-meas-log">${log.map((l) => `<li><b>${esc(l.name || '')}</b> ${esc(LOG_EN[l.action] || l.action || '')}<small>${esc(fmtDayEn(l.at, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }))}</small></li>`).join('') || '<li class="pp-muted">—</li>'}</ul></div></details>
+            ${locked ? '' : '<button type="button" class="pp-link pp-late" id="ppMeasDel">Delete measurement</button>'}
+          </div>` : ''}
         </div>
-        <aside class="pp-meas-side">
+        ${m.tab === 'vents' ? `<aside class="pp-meas-side">
           <div class="pp-card pp-block" id="ppMeasSum">${measSummaryHtml(m)}</div>
           <div class="pp-card pp-block">
             <h3>Measured by</h3>
             <ul class="pp-meas-log">${log.map((l) => `<li><b>${esc(l.name || '')}</b> ${esc(LOG_EN[l.action] || l.action || '')}<small>${esc(fmtDayEn(l.at, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }))}</small></li>`).join('') || '<li class="pp-muted">—</li>'}</ul>
           </div>
           ${locked ? '' : '<button type="button" class="pp-link pp-late" id="ppMeasDel" style="justify-self:start">Delete measurement</button>'}
-        </aside>
+        </aside>` : ''}
       </div>
       ${locked || !state.builder.ai_reader ? '' : voiceFabHtml()}`;
     paintMeasSaved();
@@ -3762,10 +3764,6 @@
       box.innerHTML = tmp.firstElementChild.innerHTML;
       const selected = (m.vizSel && m.vizSel[targetSi]) || 0;
       view.querySelectorAll(`[data-step-row^="${targetSi}:"]`).forEach((row) => row.classList.toggle('is-sel', row.getAttribute('data-step-row') === `${targetSi}:${selected}`));
-      const current = view.querySelectorAll('[data-stair-current]');
-      current.forEach((summary) => {
-        if (summary.getAttribute('data-stair-current') === targetStair.id) summary.innerHTML = stairSelectionSummaryHtml(m, targetStair, targetSi);
-      });
     });
   }
   function repaintVent(i) {
@@ -3781,17 +3779,23 @@
     m.vizSel = m.vizSel || {};
     m.vizMirror = m.vizMirror || {};
     m.stairMeasurementsExpanded = m.stairMeasurementsExpanded || {};
+    m.stairSetupExpanded = m.stairSetupExpanded || {};
+    m.stairPanelExpanded = m.stairPanelExpanded || {};
+    view.querySelectorAll('[data-stair-setup]').forEach((details) => details.addEventListener('toggle', () => {
+      m.stairSetupExpanded[details.getAttribute('data-stair-setup')] = details.open;
+    }));
+    view.querySelectorAll('[data-stair-panel]').forEach((details) => details.addEventListener('toggle', () => {
+      m.stairPanelExpanded[details.getAttribute('data-stair-panel')] = details.open;
+    }));
     view.querySelectorAll('[data-stair-measures]').forEach((details) => details.addEventListener('toggle', () => {
       const stairId = details.getAttribute('data-stair-measures');
       m.stairMeasurementsExpanded[stairId] = details.open;
-      if (details.open) {
-        const card = details.closest('.pp-stair');
-        const rows = card && card.querySelectorAll('[data-step-row]');
-        const stairIndex = m.data.stairs.findIndex((stair) => stair.id === stairId);
-        const selectedIndex = Math.max(0, (m.vizSel && m.vizSel[stairIndex]) || 0);
-        const selectedRow = rows && [...rows].find((row) => row.getAttribute('data-step-row') === `${stairIndex}:${selectedIndex}`);
-        if (selectedRow) selectedRow.scrollIntoView({ block: 'nearest' });
-      }
+    }));
+    view.querySelectorAll('[data-step-select]').forEach((button) => button.addEventListener('click', () => {
+      const [si, i] = button.getAttribute('data-step-select').split(':').map(Number);
+      m.vizSel[si] = i;
+      m.activeStairId = m.data.stairs[si] && m.data.stairs[si].id;
+      redraw();
     }));
     view.querySelectorAll('[data-step-row]').forEach((row) => row.addEventListener('focusin', () => {
       const [si, i] = row.getAttribute('data-step-row').split(':').map(Number);
@@ -3811,22 +3815,12 @@
         const targetIndex = Number(t.getAttribute('data-viz-step'));
         const targetFlight = Number.isInteger(targetSi) ? targetSi : si;
         m.vizSel[targetFlight] = targetIndex;
-        repaintViz(si);
-        const targetCard = view.querySelectorAll('.pp-stair')[targetFlight];
-        const targetDetails = targetCard && targetCard.querySelector('[data-stair-measures]');
-        if (targetDetails && !targetDetails.open) {
-          targetDetails.open = true;
-          m.stairMeasurementsExpanded[m.data.stairs[targetFlight].id] = true;
-        }
-        const targetRow = targetCard && targetCard.querySelector(`[data-step-row="${targetFlight}:${targetIndex}"]`);
-        if (targetRow) {
-          targetRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-          targetRow.querySelector('input,select,button')?.focus({ preventScroll: true });
-        }
+        m.activeStairId = m.data.stairs[targetFlight] && m.data.stairs[targetFlight].id;
+        redraw();
         return;
       }
-      if (t.hasAttribute('data-viz-prev')) { m.vizSel[si] = Math.max(0, sel - 1); repaintViz(si); return; }
-      if (t.hasAttribute('data-viz-next')) { m.vizSel[si] = Math.min(s.steps.length - 1, sel + 1); repaintViz(si); return; }
+      if (t.hasAttribute('data-viz-prev')) { m.vizSel[si] = Math.max(0, sel - 1); redraw(); return; }
+      if (t.hasAttribute('data-viz-next')) { m.vizSel[si] = Math.min(s.steps.length - 1, sel + 1); redraw(); return; }
       if (t.hasAttribute('data-viz-mirror')) { m.vizMirror[si] = !m.vizMirror[si]; repaintViz(si); return; }
       if (!st || m.status === 'used') return;
       if (t.hasAttribute('data-viz-side')) {
@@ -3840,6 +3834,18 @@
         st.ret = t.getAttribute('data-viz-ret');
       }
       measSaveSoon();
+      redraw();
+    }));
+    view.querySelectorAll('[data-viz-prev],[data-viz-next]').forEach((button) => button.addEventListener('click', () => {
+      const si = Number(button.getAttribute('data-viz-prev') || button.getAttribute('data-viz-next'));
+      const s = m.data.stairs[si];
+      if (!s) return;
+      const current = Math.max(0, (m.vizSel && m.vizSel[si]) || 0);
+      m.vizSel[si] = button.hasAttribute('data-viz-prev') ? Math.max(0, current - 1) : Math.min((s.steps || []).length - 1, current + 1);
+      redraw();
+    }));
+    view.querySelectorAll('[data-stair-activate]').forEach((button) => button.addEventListener('click', () => {
+      m.activeStairId = button.getAttribute('data-stair-activate');
       redraw();
     }));
     view.querySelectorAll('[data-mtab]').forEach((b) => b.addEventListener('click', () => { m.tab = b.getAttribute('data-mtab'); redraw(); }));
@@ -3918,6 +3924,7 @@
       if (prev) Object.assign(s, { species: prev.species, finish: prev.finish, color: prev.color, riser_material: prev.riser_material });
       s.steps.push(newStep());
       m.data.stairs.push(s);
+      m.activeStairId = s.id;
       measSaveSoon();
       redraw();
       const ins = view.querySelectorAll(`[data-in^="stairs.${m.data.stairs.length - 1}.steps.0"]`);
@@ -3937,6 +3944,7 @@
       upper.riser_material = parent.riser_material;
       upper.steps.push(newStep());
       m.data.stairs.splice(parentIndex + 1, 0, upper);
+      m.activeStairId = upper.id;
       m.vizSel[m.data.stairs.indexOf(upper)] = 0;
       measSaveSoon();
       redraw();
@@ -3946,9 +3954,9 @@
     }));
     view.querySelectorAll('[data-stair-focus]').forEach((button) => button.addEventListener('click', () => {
       const targetId = button.getAttribute('data-stair-focus');
-      const index = m.data.stairs.findIndex((flight) => flight.id === targetId);
-      const card = index >= 0 ? view.querySelectorAll('.pp-stair')[index] : null;
-      if (card) { card.scrollIntoView({ behavior: 'smooth', block: 'start' }); card.querySelector('.pp-stair-name')?.focus({ preventScroll: true }); }
+      if (!m.data.stairs.some((flight) => flight.id === targetId)) return;
+      m.activeStairId = targetId;
+      redraw();
     }));
     view.querySelectorAll('[data-stair-rm]').forEach((b) => b.addEventListener('click', () => {
       if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Remove?'; b.classList.add('is-armed'); return; }
@@ -3963,9 +3971,10 @@
       const s = m.data.stairs[Number(b.getAttribute('data-step-add'))];
       const previousTread = [...s.steps].reverse().find((step) => step.kind !== 'riser') || null;
       s.steps.push(newStep(previousTread, 'step'));
+      const si = Number(b.getAttribute('data-step-add'));
+      m.vizSel[si] = s.steps.length - 1;
       measSaveSoon();
       redraw();
-      const si = Number(b.getAttribute('data-step-add'));
       const el = view.querySelector(`[data-in="stairs.${si}.steps.${s.steps.length - 1}.tread_w"]`);
       if (el) el.focus();
     }));
@@ -3974,6 +3983,7 @@
       const s = m.data.stairs[si];
       const previous = [...s.steps].reverse().find((step) => step.kind === 'riser' || step.riser_h != null) || s.steps[s.steps.length - 1] || null;
       s.steps.push(newStep(previous, 'riser'));
+      m.vizSel[si] = s.steps.length - 1;
       measSaveSoon();
       redraw();
     }));
@@ -3985,6 +3995,7 @@
         const previousTread = [...s.steps].reverse().find((step) => step.kind !== 'riser') || null;
         s.steps.push(newStep(previousTread, 'step'));
       }
+      m.vizSel[si] = Math.max(0, s.steps.length - 1);
       measSaveSoon();
       redraw();
     }));
@@ -4002,6 +4013,7 @@
     view.querySelectorAll('[data-step-rm]').forEach((b) => b.addEventListener('click', () => {
       const [si, i] = b.getAttribute('data-step-rm').split(':').map(Number);
       m.data.stairs[si].steps.splice(i, 1);
+      m.vizSel[si] = Math.max(0, Math.min(i, m.data.stairs[si].steps.length - 1));
       measSaveSoon();
       redraw();
     }));
