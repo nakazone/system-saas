@@ -951,8 +951,10 @@ export async function measurementPdf(m: PdfInput): Promise<Buffer> {
     if (plan.snapshot) {
       const img = await readBuffer(plan.snapshot).catch(() => null);
       if (img) {
-        ensure(214);
-        const y = doc.y; const h = 200;
+        const room = BOTTOM - doc.y - 16;
+        const h = room >= 150 ? Math.min(220, room) : 220;
+        ensure(h + 14);
+        const y = doc.y;
         doc.save();
         doc.roundedRect(L, y, W, h, 10).clip();
         doc.rect(L, y, W, h).fill("#F3F1EE");
