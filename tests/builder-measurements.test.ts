@@ -38,7 +38,7 @@ describe("measurement summary", () => {
     expect(s.find((l) => l.kind === "tread" && l.text.includes("48 × 11¼"))?.qty).toBe(2);
     expect(s.find((l) => l.kind === "tread" && l.text.includes("42 × 11¼"))?.text).toContain("left side open · flat return");
     expect(s.find((l) => l.kind === "vent")?.qty).toBe(10);
-    expect(counts(data)).toEqual({ stairs: 1, treads: 3, risers: 3, nosings: 1, vents: 10 });
+    expect(counts(data)).toEqual({ stairs: 1, treads: 3, risers: 3, nosings: 1, landings: 0, vents: 10 });
   });
   it("puts measured sizes on the matching order line", () => {
     const lines = summarize(data);
