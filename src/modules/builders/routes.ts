@@ -5,7 +5,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { Router, type NextFunction, type Request, type Response } from "express";
+import express, { Router, type NextFunction, type Request, type Response } from "express";
 import { z } from "zod";
 import { env } from "../../config/env.js";
 import { prisma } from "../../lib/prisma.js";
@@ -40,13 +40,14 @@ import { deletePickup, listPickups, pickupForWorkOrder, savePickup } from "../..
 import { voiceToActions } from "../../lib/builders/voice.js";
 import { askMate } from "../../lib/builders/mate.js";
 import { copyPrices, deletePrice, listPrices, savePrice } from "../../lib/builders/prices.js";
+import { parseTakeoffSettings, takeoffSettings } from "../../lib/builders/takeoff.js";
 import { storage } from "../../lib/storage/index.js";
 import { reverseGeocode } from "../../lib/payroll/geocode.js";
 
 function accountView(a: {
   id: string; name: string; phone: string | null; website?: string | null; email?: string | null; billingEmail?: string | null;
   addressLine1?: string | null; addressLine2?: string | null; city?: string | null; state?: string | null; postalCode?: string | null;
-  licenseNumber?: string | null; logoUrl?: string | null;
+  licenseNumber?: string | null; logoUrl?: string | null; takeoffSettings?: unknown;
 }) {
   return {
     id: a.id,
@@ -62,10 +63,15 @@ function accountView(a: {
     postal_code: a.postalCode ?? null,
     license_number: a.licenseNumber ?? null,
     logo_url: a.logoUrl ?? null,
+    takeoff: takeoffSettings(a.takeoffSettings),
   };
 }
 import {
   addPhoto,
+  addPlanFile,
+  addPlanPreview,
+  planFileStream,
+  PLAN_MAX_BYTES,
   completeMeasurement,
   createMeasurement,
   deleteMeasurement,
@@ -498,6 +504,42 @@ builderAccountRouter.post("/api/builder/measurements/:id/voice", requireBuilder,
   }
 });
 
+/** The house plans for a floor takeoff (PDF or photo), sent as the raw file body. */
+builderAccountRouter.post(
+  "/api/builder/measurements/:id/plan-file",
+  requireBuilder,
+  needs("measure"),
+  express.raw({ type: ["application/pdf", "image/jpeg", "image/png", "image/webp"], limit: PLAN_MAX_BYTES }),
+  async (req: BuilderReq, res, next) => {
+    try {
+      const body = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+      const name = decodeURIComponent(String(req.headers["x-file-name"] || "")).slice(0, 200);
+      res.status(201).json({ success: true, data: await addPlanFile(req.builderMember!, String(req.params.id), body, String(req.headers["content-type"] || ""), name) });
+    } catch (error) {
+      sendError(res, error, next);
+    }
+  },
+);
+
+builderAccountRouter.post("/api/builder/measurements/:id/plan-preview", requireBuilder, needs("measure"), async (req: BuilderReq, res, next) => {
+  try {
+    res.status(201).json({ success: true, data: await addPlanPreview(req.builderMember!, String(req.params.id), String(req.body?.data_url || "")) });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
+builderAccountRouter.get("/api/builder/measurements/:id/plan-file", requireBuilder, async (req: BuilderReq, res, next) => {
+  try {
+    const { stream, contentType } = await planFileStream(req.builderMember!, String(req.params.id), String(req.query.key || ""));
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Cache-Control", "private, max-age=3600");
+    stream.pipe(res);
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
 builderAccountRouter.get("/api/builder/measurements/:id/photo", requireBuilder, async (req: BuilderReq, res, next) => {
   try {
     const { stream, contentType } = await photoStream(req.builderMember!, String(req.params.id), String(req.query.key || ""));
@@ -801,6 +843,18 @@ builderAccountRouter.patch("/api/builder/account", requireBuilder, needs("team.m
       },
     });
     res.json({ success: true });
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
+/** Takeoff settings: waste % per floor type (and box coverage). */
+builderAccountRouter.patch("/api/builder/account/takeoff", requireBuilder, needs("team.manage"), async (req: BuilderReq, res, next) => {
+  try {
+    const settings = parseTakeoffSettings(req.body || {});
+    if (!settings) throw new BuilderError(400, "Waste must be between 0% and 50%.");
+    await prisma.builderAccount.update({ where: { id: req.builderMember!.builderAccountId }, data: { takeoffSettings: settings } });
+    res.json({ success: true, data: settings });
   } catch (error) {
     sendError(res, error, next);
   }

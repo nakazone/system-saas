@@ -3587,6 +3587,8 @@ model BuilderAccount {
   postalCode   String?
   licenseNumber String?
   logoUrl      String?
+  /// Floor plan takeoff settings: { waste: { hardwood: 10, lvp: 10, … }, box_sf: { … } }
+  takeoffSettings Json @default("{}")
   /// active | suspended
   status      String   @default("active")
   createdAt   DateTime @default(now())

@@ -11,6 +11,7 @@ import { storage } from "../storage/index.js";
 import { addressKey } from "../partner-intake/extract.js";
 import type { ActiveMember } from "./accounts.js";
 import { BuilderError } from "./accounts.js";
+import { fmtSf, planSchema, planTotals, type Plan } from "./takeoff.js";
 
 type MeasurementPdfDocument = InstanceType<typeof PDFDocument>;
 
@@ -91,6 +92,8 @@ const ventSchema = z.object({
 export const measurementDataSchema = z.object({
   stairs: z.array(stairSchema).max(20).optional().default([]),
   vents: z.array(ventSchema).max(80).optional().default([]),
+  /** Floor plan takeoff (see takeoff.ts). */
+  plan: planSchema.nullable().optional().default(null),
 });
 export type MeasurementData = z.infer<typeof measurementDataSchema>;
 export type Stair = z.infer<typeof stairSchema>;
@@ -98,7 +101,7 @@ export type Vent = z.infer<typeof ventSchema>;
 
 export function parseData(raw: unknown): MeasurementData {
   const parsed = measurementDataSchema.safeParse(raw ?? {});
-  if (!parsed.success) return { stairs: [], vents: [] };
+  if (!parsed.success) return { stairs: [], vents: [], plan: null };
   const data = parsed.data;
   const byId = new Map(data.stairs.map((stair) => [stair.id, stair]));
   for (const stair of data.stairs) {
@@ -156,7 +159,7 @@ export function openLabel(open: string, ret: string): string {
   return `${OPEN_LABEL[open] || open} · ${RET_LABEL[ret] || ret}`;
 }
 
-export type SummaryLine = { kind: "tread" | "riser" | "nosing" | "landing" | "vent"; text: string; qty: number; uom: "EA" | "LF" };
+export type SummaryLine = { kind: "tread" | "riser" | "nosing" | "landing" | "vent" | "floor"; text: string; qty: number; uom: "EA" | "LF" | "SF" };
 
 function treadSteps(stair: Stair) {
   return stair.steps.filter((step) => step.kind !== "riser" && (step.tread_w || step.tread_d));
@@ -209,6 +212,11 @@ export function summarize(data: MeasurementData): SummaryLine[] {
     vents.set(k, (vents.get(k) || 0) + (v.qty || 1));
   }
   for (const [k, n] of vents) out.push({ kind: "vent", qty: n, uom: "EA", text: k });
+  for (const t of planTotals(data.plan)) {
+    if (!t.include) continue;
+    const where = t.levels.map((l) => `${l.name} ${fmtSf(l.area_sf)}`).join(" · ");
+    out.push({ kind: "floor", qty: Math.round(t.area_sf), uom: "SF", text: `Floor ${t.label}${t.sand_finish ? " · sand & finish on site" : ""}${where ? ` · ${where}` : ""}` });
+  }
   return out;
 }
 
@@ -226,7 +234,10 @@ export function counts(data: MeasurementData) {
     if (s.landing.enabled) landings += 1;
   }
   const vents = data.vents.reduce((a, v) => a + (v.qty || 1), 0);
-  return { stairs: data.stairs.length, treads, risers, nosings, landings, vents };
+  const floors = planTotals(data.plan).filter((t) => t.include);
+  const floor_sf = Math.round(floors.reduce((a, t) => a + t.area_sf, 0));
+  const floor_text = floors.map((t) => `${t.label} ${fmtSf(t.area_sf)}`).join(" · ");
+  return { stairs: data.stairs.length, treads, risers, nosings, landings, vents, floor_sf, floor_text, plan: Boolean(data.plan && data.plan.file) };
 }
 
 /** Text for the job notes, in the words a work order uses (e.g. "48" – double returns – 8 EA"). */
@@ -377,6 +388,7 @@ export async function saveMeasurement(member: ActiveMember, measurementId: strin
   const prefix = photoPrefix(row.builderAccountId, row.id);
   for (const s of data.data.stairs) s.photos = s.photos.filter((k) => k.startsWith(prefix));
   for (const v of data.data.vents) v.photos = v.photos.filter((k) => k.startsWith(prefix));
+  if (data.data.plan) sanitizePlan(data.data.plan, prefix);
   const h = head.data;
   await prisma.builderMeasurement.update({
     where: { id: row.id },
@@ -406,7 +418,7 @@ export async function completeMeasurement(member: ActiveMember, measurementId: s
   const row = await own(member, measurementId);
   if (row.status === "used") throw new BuilderError(409, "This measurement was already sent with a job.");
   const data = parseData(row.data);
-  if (done && !data.stairs.length && !data.vents.length) throw new BuilderError(400, "Measure at least one stair or vent.");
+  if (done && !data.stairs.length && !data.vents.length && !planTotals(data.plan).some((t) => t.include)) throw new BuilderError(400, "Measure at least one stair, vent or floor.");
   await prisma.builderMeasurement.update({
     where: { id: row.id },
     data: done
@@ -456,6 +468,63 @@ export async function photoStream(member: ActiveMember, measurementId: string, k
   if (!stream) throw new BuilderError(404, "Photo not found.");
   const ext = key.split(".").pop();
   return { stream, contentType: ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg" };
+}
+
+/* ───────────────────────────── floor plan file ───────────────────────────── */
+
+const PLAN_TYPES: Record<string, string> = { "application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
+export const PLAN_MAX_BYTES = 40 * 1024 * 1024;
+
+function sanitizePlan(plan: Plan, prefix: string) {
+  if (plan.file && !plan.file.key.startsWith(prefix)) plan.file = null;
+  for (const level of plan.levels) if (level.preview && !level.preview.startsWith(prefix)) level.preview = null;
+  const keys = new Set(plan.materials.map((m) => m.key));
+  for (const level of plan.levels) level.rooms = level.rooms.filter((r) => keys.has(r.material));
+}
+
+/** Stores the plans (PDF or photo) for this measurement; returns the stored file reference. */
+export async function addPlanFile(member: ActiveMember, measurementId: string, body: Buffer, contentType: string, name: string) {
+  const row = await own(member, measurementId);
+  if (row.status === "used") throw new BuilderError(409, "This measurement was already sent with a job.");
+  const type = contentType.toLowerCase().split(";")[0]!.trim();
+  const ext = PLAN_TYPES[type];
+  if (!ext) throw new BuilderError(400, "Upload the plans as a PDF, JPG or PNG.");
+  if (!body.length) throw new BuilderError(400, "The file is empty.");
+  if (body.length > PLAN_MAX_BYTES) throw new BuilderError(400, "The plans must be under 40 MB.");
+  const sig = body.subarray(0, 4).toString("hex");
+  const ok = type === "application/pdf" ? body.subarray(0, 5).toString() === "%PDF-"
+    : type === "image/png" ? sig === "89504e47"
+      : type === "image/jpeg" ? sig.startsWith("ffd8ff")
+        : body.subarray(8, 12).toString() === "WEBP";
+  if (!ok) throw new BuilderError(400, "That file doesn’t look like a PDF or image.");
+  const key = `${photoPrefix(row.builderAccountId, row.id)}plan-${Date.now()}-${randomBytes(4).toString("hex")}.${ext}`;
+  await storage.upload({ key, body, contentType: type });
+  const clean = String(name || "").replace(/[^\w .,()&-]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 200) || `plans.${ext}`;
+  return { key, name: clean, type, size: body.length };
+}
+
+/** Small preview of a plan sheet (drawn in the browser while reading the plans). */
+export async function addPlanPreview(member: ActiveMember, measurementId: string, dataUrl: string) {
+  const row = await own(member, measurementId);
+  if (row.status === "used") throw new BuilderError(409, "This measurement was already sent with a job.");
+  const m = /^data:(image\/(?:png|jpeg|webp));base64,(.+)$/.exec(String(dataUrl || ""));
+  if (!m) throw new BuilderError(400, "Invalid preview.");
+  const body = Buffer.from(m[2]!, "base64");
+  if (body.length > 4 * 1024 * 1024) throw new BuilderError(400, "Preview is too large.");
+  const ext = m[1] === "image/png" ? "png" : m[1] === "image/webp" ? "webp" : "jpg";
+  const key = `${photoPrefix(row.builderAccountId, row.id)}plan-sheet-${Date.now()}-${randomBytes(4).toString("hex")}.${ext}`;
+  await storage.upload({ key, body, contentType: m[1]! });
+  return { key };
+}
+
+export async function planFileStream(member: ActiveMember, measurementId: string, key: string) {
+  const row = await own(member, measurementId);
+  if (!key.startsWith(photoPrefix(row.builderAccountId, row.id)) || key.includes("..") || !/\/plan-/.test(key)) throw new BuilderError(404, "File not found.");
+  const stream = await storage.getStream(key);
+  if (!stream) throw new BuilderError(404, "File not found.");
+  const ext = key.split(".").pop() || "";
+  const contentType = Object.entries(PLAN_TYPES).find(([, e]) => e === ext)?.[0] || "application/octet-stream";
+  return { stream, contentType };
 }
 
 /* ───────────────────────────── work order link ───────────────────────────── */
@@ -511,6 +580,11 @@ export async function measurementPack(accountId: string, measurementId: string):
   };
   for (const s of data.stairs) for (const k of s.photos) await photo(k, `Photo ${s.name || "stair"}`);
   for (const v of data.vents) for (const k of v.photos) await photo(k, `Photo vent ${v.room || v.size}`);
+  if (data.plan?.file) {
+    const body = await readBuffer(data.plan.file.key).catch(() => null);
+    const ext = data.plan.file.key.split(".").pop() || "pdf";
+    if (body) files.push({ name: `Plans - ${row.address}.${ext}`.replace(/[\\/:*?"<>|]+/g, " ").slice(0, 150), contentType: data.plan.file.type, body });
+  }
   return { text: summaryText({ address: row.address, data, measuredBy, measuredAt: row.completedAt || row.updatedAt }), summary: summarize(data), files };
 }
 

@@ -46,6 +46,12 @@ export function intakeMeasurement(intake: unknown): { text: string; lines: Measu
 export function measuredFor(line: { description: string; detail: string; service_name?: string }, lines: MeasuredLine[]): string {
   const t = `${line.description} ${line.detail} ${line.service_name || ""}`.toLowerCase();
   const kind = /\briser/.test(t) ? "riser" : /\blanding/.test(t) ? "landing" : /\btread|\bstair/.test(t) ? "tread" : /nos(e|ing)/.test(t) ? "nosing" : /\bvent/.test(t) ? "vent" : "";
+  const floor = /hardwood|\blvp\b|vinyl plank|laminate|carpet|rubber floor|sand|refinish/.exec(t)?.[0] || "";
+  if (!kind && floor) {
+    const want = /sand|refinish/.test(floor) ? "hardwood" : floor === "vinyl plank" ? "lvp" : floor.replace(" floor", "");
+    const hit = lines.filter((l) => l.kind === "floor" && l.text.toLowerCase().includes(want));
+    return hit.length ? `Measured: ${hit.map((l) => `${l.text.replace(/^Floor /, "")} (${l.qty} ${l.uom})`).join("; ")}` : "";
+  }
   if (!kind) return "";
   let pick = lines.filter((l) => l.kind === kind);
   // A line that names its width ("48\" tread") only gets the pieces of that width.

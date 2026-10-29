@@ -2320,6 +2320,7 @@
     { key: 'company', label: 'Company', sub: 'Logo, contacts, address and license', ic: 'shield', perm: 'team.manage' },
     { key: 'pickups', label: 'Pickup locations', sub: 'Supplier yards linked to work orders', ic: 'pin', perm: 'team.manage' },
     { key: 'prices', label: 'Price lists', sub: 'Agreed prices for each company', ic: 'tag', perm: 'money.view' },
+    { key: 'takeoff', label: 'Takeoff & waste', sub: 'Waste % for floors measured from plans', ic: 'ruler', perm: 'team.manage' },
     { key: 'team', label: 'Team', sub: 'People, roles and invites', ic: 'user', perm: null, href: '#team' },
     { key: 'app', label: 'App', sub: 'Install ObraBuilder on your phone', ic: 'download', perm: null },
   ];
@@ -2358,6 +2359,7 @@
     if (sec.key === 'company') return settingsCompany(head, acc);
     if (sec.key === 'pickups') return settingsPickups(head, token);
     if (sec.key === 'prices') return settingsPrices(head, token);
+    if (sec.key === 'takeoff') return settingsTakeoff(head);
     if (sec.key === 'app') return settingsApp(head);
   }
 
@@ -2492,6 +2494,36 @@
         const n = all.filter((p) => p.company_id === c.id).length;
         return `<a class="pp-set-row" href="#companies/${esc(c.id)}">${coLogo(c, 40)}<span><strong>${esc(c.company_name)}</strong><small>${n ? plural(n, 'price', 'prices') : 'No prices yet'}</small></span>${icon('chev')}</a>`;
       }).join('')}</div>` : `<div class="pp-card pp-empty">${mate('wave')}<strong>Connect a company first</strong><a class="pp-link" href="#companies">Companies</a></div>`}`;
+  }
+
+  function settingsTakeoff(head) {
+    const t = state.builder.account.takeoff || { waste: {}, box_sf: {} };
+    const kinds = [['hardwood', 'Hardwood'], ['lvp', 'LVP'], ['laminate', 'Laminate'], ['carpet', 'Carpet'], ['rubber', 'Rubber floor']];
+    setOut.innerHTML = `${head('Takeoff & waste', true)}
+      <p class="pp-muted pp-meas-intro">When you measure floors from the house plans, the material to order is the measured area plus this waste. Box coverage is optional — with it, the takeoff also shows how many boxes to order.</p>
+      <form class="pp-card pp-block pp-set-form" id="ppTkForm" novalidate>
+        <div class="pp-tk-grid" role="table" aria-label="Waste per floor type">
+          <div class="pp-tk-row pp-tk-row--head" role="row"><span role="columnheader">Floor</span><span role="columnheader">Waste</span><span role="columnheader">Box coverage</span></div>
+          ${kinds.map(([k, l]) => `<div class="pp-tk-row" role="row"><strong>${l}</strong>
+            <label class="pp-tk-in"><input type="number" min="0" max="50" step="0.5" inputmode="decimal" data-tk-waste="${k}" value="${esc(t.waste && t.waste[k] != null ? t.waste[k] : 10)}" aria-label="${l} waste percent" /><span>%</span></label>
+            <label class="pp-tk-in"><input type="number" min="0" max="500" step="0.01" inputmode="decimal" data-tk-box="${k}" value="${esc(t.box_sf && t.box_sf[k] ? t.box_sf[k] : '')}" placeholder="—" aria-label="${l} square feet per box" /><span>sf/box</span></label></div>`).join('')}
+        </div>
+        <p class="pp-error" id="ppTkErr" role="alert" hidden></p>
+        <div class="pp-sheet-actions"><button type="submit" class="pp-btn pp-btn--pri" id="ppTkSave">Save</button></div>
+      </form>`;
+    $('ppTkForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const waste = {}; const box = {};
+      setOut.querySelectorAll('[data-tk-waste]').forEach((i) => { waste[i.getAttribute('data-tk-waste')] = Number(i.value) || 0; });
+      setOut.querySelectorAll('[data-tk-box]').forEach((i) => { if (Number(i.value) > 0) box[i.getAttribute('data-tk-box')] = Number(i.value); });
+      const btn = $('ppTkSave'); btn.disabled = true;
+      try {
+        const r = await api('/api/builder/account/takeoff', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ waste, box_sf: box }) });
+        state.builder.account.takeoff = r.data;
+        mateToast('measure', 'Waste saved', 'New takeoffs use these numbers.');
+      } catch (ex) { formError('ppTkErr', ex); }
+      btn.disabled = false;
+    });
   }
 
   function settingsApp(head) {
@@ -2864,6 +2896,7 @@
       vm.set(k, (vm.get(k) || 0) + (v.qty || 1));
     });
     vm.forEach((n, k) => out.push({ kind: 'Vent', group: 'Vents', text: k, qty: n }));
+    planTotals(data.plan).filter((t) => t.include).forEach((t) => out.push({ kind: 'Floor', group: t.levels.map((l) => `${l.name} ${fmtSf(l.area)}`).join(' · '), text: `${t.label}${t.kind === 'hardwood' && t.sand_finish ? ' · sand & finish' : ''}`, qty: Math.round(t.area), uom: 'SF' }));
     return out;
   }
   function measCounts(data) {
@@ -2881,7 +2914,7 @@
     return { stairs: (data.stairs || []).length, treads, risers, nosings, landings, vents };
   }
   function countsText(c) {
-    return [c.stairs ? `${c.stairs} ${c.stairs === 1 ? 'stair' : 'stairs'}` : '', c.treads ? `${c.treads} treads` : '', c.risers ? `${c.risers} risers` : '', c.nosings ? `${c.nosings} ${c.nosings === 1 ? 'nosing' : 'nosings'}` : '', c.landings ? `${c.landings} ${c.landings === 1 ? 'landing' : 'landings'}` : '', c.vents ? `${c.vents} ${c.vents === 1 ? 'vent' : 'vents'}` : ''].filter(Boolean).join(' · ') || 'Nothing measured yet';
+    return [c.stairs ? `${c.stairs} ${c.stairs === 1 ? 'stair' : 'stairs'}` : '', c.treads ? `${c.treads} treads` : '', c.risers ? `${c.risers} risers` : '', c.nosings ? `${c.nosings} ${c.nosings === 1 ? 'nosing' : 'nosings'}` : '', c.landings ? `${c.landings} ${c.landings === 1 ? 'landing' : 'landings'}` : '', c.vents ? `${c.vents} ${c.vents === 1 ? 'vent' : 'vents'}` : '', c.floor_text || ''].filter(Boolean).join(' · ') || 'Nothing measured yet';
   }
   function measStatusChip(m) {
     if (m.status === 'used') return '<span class="pp-chip pp-chip--dark">Sent with job</span>';
@@ -2916,7 +2949,7 @@
     const q = String(state.measQuery || '').trim().toLowerCase();
     const count = (k) => (k === 'all' ? rows.length : rows.filter((m) => m.status === k).length);
     const list = rows.filter((m) => (f === 'all' || m.status === f) && (!q || String(m.address || '').toLowerCase().includes(q)));
-    const pills = (c) => [c.treads ? `<span><b>${c.treads}</b> treads</span>` : '', c.risers ? `<span><b>${c.risers}</b> risers</span>` : '', c.nosings ? `<span><b>${c.nosings}</b> nosings</span>` : '', c.vents ? `<span><b>${c.vents}</b> vents</span>` : ''].filter(Boolean).join('') || '<span class="pp-muted">Nothing measured yet</span>';
+    const pills = (c) => [c.treads ? `<span><b>${c.treads}</b> treads</span>` : '', c.risers ? `<span><b>${c.risers}</b> risers</span>` : '', c.nosings ? `<span><b>${c.nosings}</b> nosings</span>` : '', c.vents ? `<span><b>${c.vents}</b> vents</span>` : '', c.floor_sf ? `<span><b>${Number(c.floor_sf).toLocaleString('en-US')}</b> sf floors</span>` : ''].filter(Boolean).join('') || '<span class="pp-muted">Nothing measured yet</span>';
     const card = (m) => `<a class="pp-card pp-mcard is-${esc(m.status)}" href="#measurements/${esc(m.id)}">
         <span class="pp-mcard-ic" aria-hidden="true">${icon('ruler')}</span>
         <span class="pp-mcard-main">
@@ -2927,14 +2960,15 @@
         ${m.status === 'draft' ? '<span class="pp-mcard-go">Continue</span>' : icon('chev')}
       </a>`;
     view.innerHTML = `
-      <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder.account.name)}</p><h1>Measurements</h1></div><div class="pp-head-actions"><button type="button" class="pp-btn pp-btn--pri" id="ppMeasNewBtn">${icon('locate')}New measurement</button></div></div>
+      <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder.account.name)}</p><h1>Measurements</h1></div><div class="pp-head-actions"><button type="button" class="pp-btn pp-btn--sec" id="ppMeasPlanBtn">${icon('upload')}From plans</button><button type="button" class="pp-btn pp-btn--pri" id="ppMeasNewBtn">${icon('locate')}New measurement</button></div></div>
       ${rows.length ? `<div class="pp-mlist-bar">
         <label class="pp-search pp-mlist-search" for="ppMeasQ">${icon('search')}<span class="pp-sr">Search measurements</span><input id="ppMeasQ" type="search" placeholder="Search by address" value="${esc(state.measQuery || '')}" autocomplete="off" /></label>
         <div class="pp-filter pp-side-filter" role="group" aria-label="Status">${MEAS_FILTERS.map(([k, l]) => `<button type="button" data-mfilter="${k}" aria-pressed="${f === k}">${l} · ${count(k)}</button>`).join('')}</div>
       </div>
       <div class="pp-mlist">${list.length ? list.map(card).join('') : `<div class="pp-card pp-empty">${mate('head-curious', 64)}<strong>No measurements match</strong>Change the search or the filter.</div>`}</div>`
-      : `<div class="pp-card pp-empty pp-mempty">${mate('measure', 150)}<strong>Measure stairs and vents on site</strong>Stand at the house and tap <b>New measurement</b> — Mate finds the address. Each measurement goes with the Work Order for that house.<div style="margin-top:14px"><button type="button" class="pp-btn pp-btn--pri" data-meas-new>${icon('locate')}New measurement</button></div></div>`}`;
+      : `<div class="pp-card pp-empty pp-mempty">${mate('measure', 150)}<strong>Measure stairs and vents on site</strong>Stand at the house and tap <b>New measurement</b> — Mate finds the address. Each measurement goes with the Work Order for that house.<div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center"><button type="button" class="pp-btn pp-btn--pri" data-meas-new>${icon('locate')}New measurement</button><button type="button" class="pp-btn pp-btn--sec" data-meas-plan>${icon('upload')}From plans</button></div></div>`}`;
     view.querySelectorAll('#ppMeasNewBtn, [data-meas-new]').forEach((b) => b.addEventListener('click', () => openNewMeasurement(false)));
+    view.querySelectorAll('#ppMeasPlanBtn, [data-meas-plan]').forEach((b) => b.addEventListener('click', () => openPlanUpload()));
     view.querySelectorAll('[data-mfilter]').forEach((b) => b.addEventListener('click', () => { state.measFilter = b.getAttribute('data-mfilter'); render(); }));
     const qi = $('ppMeasQ');
     if (qi) qi.addEventListener('input', () => { state.measQuery = qi.value; const pos = qi.selectionStart; render().then(() => { const x = $('ppMeasQ'); if (x) { x.focus(); x.setSelectionRange(pos, pos); } }); });
@@ -3041,7 +3075,8 @@
       if (state.meas && state.meas.dirty) await measSaveNow();
       const r = await api(`/api/builder/measurements/${encodeURIComponent(id)}`);
       if (token !== renderToken) return;
-      state.meas = { ...r.data, tab: 'stairs', dirty: false };
+      const hasPlan = r.data.data && r.data.data.plan && (r.data.data.plan.levels || []).length;
+      state.meas = { ...r.data, tab: hasPlan && !measCounts(r.data.data).treads && !measCounts(r.data.data).vents ? 'floors' : 'stairs', dirty: false };
     }
     paintMeasurement();
   }
@@ -3814,7 +3849,7 @@
 
   function measSummaryHtml(m) {
     const lines = measSummary(m.data);
-    return `<h3>Summary</h3>${lines.length ? `<ul class="pp-meas-sum">${lines.map((l) => `<li><span><b>${esc(l.kind)}</b> ${esc(l.text)}<small>${esc(l.group)}</small></span><em>${l.qty} EA</em></li>`).join('')}</ul>` : '<p class="pp-muted" style="margin:0">Pieces show up here grouped by size, like on the Work Order.</p>'}`;
+    return `<h3>Summary</h3>${lines.length ? `<ul class="pp-meas-sum">${lines.map((l) => `<li><span><b>${esc(l.kind)}</b> ${esc(l.text)}<small>${esc(l.group)}</small></span><em>${Number(l.qty).toLocaleString('en-US')} ${l.uom || 'EA'}</em></li>`).join('')}</ul>` : '<p class="pp-muted" style="margin:0">Pieces show up here grouped by size, like on the Work Order.</p>'}`;
   }
 
   function measLogHtml(m) {
@@ -3840,11 +3875,507 @@
       </div>`;
   }
 
+  /* ─────────────────────────── floors from the house plans (takeoff, 3D, quote) ─────────────────────────── */
+
+  const FLOOR_KIND_OPTS = [['hardwood', 'Hardwood'], ['lvp', 'LVP'], ['laminate', 'Laminate'], ['carpet', 'Carpet'], ['rubber', 'Rubber floor'], ['tile', 'Tile'], ['stone', 'Stone'], ['other', 'Not flooring']];
+  const FLOORING_KINDS = ['hardwood', 'lvp', 'laminate', 'carpet', 'rubber'];
+  const KIND_WORDS = { hardwood: /hard\s?wood|\bwood\b|engineered|oak/i, lvp: /\blvp\b|\blvt\b|vinyl/i, laminate: /laminate/i, carpet: /carpet/i, rubber: /rubber/i };
+  let plan3d = null;
+
+  function fmtSf(n) { return `${Math.round(Number(n) || 0).toLocaleString('en-US')} SF`; }
+  function wastePct(kind) {
+    const t = (state.builder && state.builder.account && state.builder.account.takeoff) || {};
+    const w = t.waste || {};
+    return Number.isFinite(Number(w[kind])) ? Number(w[kind]) : 10;
+  }
+  function boxSf(kind) {
+    const t = (state.builder && state.builder.account && state.builder.account.takeoff) || {};
+    return Number((t.box_sf || {})[kind]) || 0;
+  }
+  /** Square feet per material over the levels that count (rooms not left out). */
+  function planTotals(plan) {
+    if (!plan) return [];
+    const out = new Map();
+    (plan.materials || []).forEach((m) => out.set(m.key, { ...m, area: 0, levels: [] }));
+    (plan.levels || []).forEach((lv) => {
+      if (!lv.include) return;
+      (lv.rooms || []).forEach((r) => {
+        if (r.exclude) return;
+        const t = out.get(r.material);
+        if (!t) return;
+        t.area += r.area_sf;
+        const l = t.levels.find((x) => x.name === lv.name);
+        if (l) l.area += r.area_sf; else t.levels.push({ name: lv.name, area: r.area_sf });
+      });
+    });
+    return [...out.values()].filter((t) => t.area > 0).sort((a, b) => Number(b.include) - Number(a.include) || b.area - a.area);
+  }
+  function orderQty(t) {
+    const w = wastePct(t.kind);
+    const sf = Math.ceil(t.area * (1 + w / 100));
+    const box = boxSf(t.kind);
+    return { waste: w, sf, boxes: box ? Math.ceil(sf / box) : 0 };
+  }
+  function guessAddress(opened) {
+    const rx = /^\d{2,6}\s+[A-Z0-9][A-Z0-9 .'-]{2,40}?\s(ST|STREET|AVE|AVENUE|RD|ROAD|DR|DRIVE|CT|COURT|LN|LANE|WAY|POINT|PT|CIR|CIRCLE|BLVD|TRL|TRAIL|PL|PLACE|PKWY|LOOP|RUN|PASS|RIDGE|VIEW|TER|TERRACE|HWY)\.?$/i;
+    const seen = new Map();
+    opened.sheets.forEach((sh) => sh.lines.forEach((l) => {
+      const t = l.text.replace(/\s+/g, ' ').trim();
+      if (rx.test(t)) seen.set(t, (seen.get(t) || 0) + 1);
+    }));
+    const best = [...seen.entries()].sort((a, b) => b[1] - a[1])[0];
+    return best ? best[0].toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase()) : '';
+  }
+
+  async function uploadPlanFile(id, file) {
+    const r = await fetch(`/api/builder/measurements/${encodeURIComponent(id)}/plan-file`, {
+      method: 'POST', credentials: 'include', headers: { 'Content-Type': file.type || 'application/pdf', 'X-File-Name': encodeURIComponent(file.name || 'plans') }, body: file,
+    });
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(body.error || 'Could not upload the plans.');
+    return body.data;
+  }
+
+  /** Progress shown while Mate reads the plans. */
+  function planProgress(root, text, pct) {
+    const box = root && root.querySelector('[data-plan-progress]');
+    if (!box) return;
+    box.hidden = false;
+    box.querySelector('span').textContent = text;
+    box.querySelector('i').style.width = `${Math.max(4, Math.min(100, pct || 0))}%`;
+  }
+
+  /**
+   * Reads the plans into the measurement: legend colors, scale, floors per level and room,
+   * previews. Asks the person for colors / scale only when the file has none to read.
+   */
+  async function readPlans(m, file, root, existing) {
+    if (!window.ObTakeoff) throw new Error('The plan reader did not load. Refresh the page and try again.');
+    planProgress(root, 'Opening the plans…', 4);
+    const upload = existing ? Promise.resolve(existing) : uploadPlanFile(m.id, file);
+    const opened = await window.ObTakeoff.open(file, (p) => planProgress(root, `Reading sheet ${p.page} of ${p.pages}…`, 4 + (p.page / p.pages) * 16));
+    planProgress(root, 'Finding the floor legend…', 22);
+    let mats = await window.ObTakeoff.legend(opened);
+    if (!mats.length) {
+      mats = await pickColors(opened);
+      if (!mats || !mats.length) throw new Error('No floor colors were marked, so nothing was measured.');
+    }
+    mats.forEach((x) => { if (x.kind === 'hardwood') x.sand_finish = true; });
+    const levels = []; const previews = [];
+    const sheets = opened.sheets;
+    for (let i = 0; i < sheets.length; i++) {
+      const sh = sheets[i];
+      let ppf = sh.ppf && sh.scaleConf >= 0.2 ? sh.ppf : null;
+      if (!ppf) {
+        ppf = await calibrate(sh, `Scale for ${sh.name}`);
+        if (!ppf) continue;
+      }
+      const base = 25 + (i / sheets.length) * 65;
+      const res = await window.ObTakeoff.readSheet(sh, mats, ppf, (p) => planProgress(root, `${sh.name}: ${p.step === 'floors' ? 'finding the floors' : p.step === 'rooms' ? 'splitting into rooms' : 'drawing the sheet'}…`, base + (p.f || 0) * (55 / sheets.length)));
+      if (!res.level.rooms.length) continue;
+      levels.push(res.level); previews.push(res.preview);
+    }
+    if (!levels.length) throw new Error('No colored floors were found on these plans. Check that the floors are marked with the legend colors.');
+    planProgress(root, 'Saving…', 94);
+    const fileRef = await upload;
+    for (let i = 0; i < levels.length; i++) {
+      try { const r = await postJson(`/api/builder/measurements/${encodeURIComponent(m.id)}/plan-preview`, { data_url: previews[i] }); levels[i].preview = r.data.key; } catch (_) { /* preview is optional */ }
+    }
+    const prev = (m.data && m.data.plan) || {};
+    const companies = (state.builder.companies || []).filter((c) => c.status !== 'archived');
+    m.data.plan = {
+      file: { key: fileRef.key, name: fileRef.name || file.name, type: fileRef.type || file.type, pages: opened.pages || 1, size: fileRef.size || file.size || 0 },
+      materials: mats,
+      levels,
+      analyzed_at: new Date().toISOString(),
+      quote_link_id: prev.quote_link_id || (companies[0] && companies[0].id) || null,
+      quote_prices: prev.quote_prices || {},
+    };
+    m.tab = 'floors';
+    m.floorView = 'takeoff';
+    m.dirty = true;
+    await measSaveNow();
+    planProgress(root, 'Done', 100);
+  }
+
+  /** Scans/photos: the person taps each floor color and says what it is. */
+  function pickColors(opened) {
+    return new Promise(async (resolve) => {
+      const sh = opened.sheets[0];
+      const Z = Math.min(2, 1400 / sh.ptW);
+      const r = await window.ObTakeoff.render(sh, Z);
+      const mats = [];
+      const root = openSheet('Mark the floor colors', `<p class="pp-muted" style="margin:0 0 10px">These plans have no legend Mate can read. Tap a colored floor, then say what it is. Repeat for each floor color.</p>
+        <div class="pp-plan-pick"><img alt="Plan sheet" src="${r.canvas.toDataURL('image/jpeg', 0.85)}" /></div>
+        <div class="pp-plan-picked" data-picked></div>
+        <div class="pp-sheet-actions"><button type="button" class="pp-btn pp-btn--pri" data-picked-done>Measure these floors</button></div>`, { wide: true, noFocus: true });
+      const paint = () => { root.querySelector('[data-picked]').innerHTML = mats.map((x, i) => `<div class="pp-plan-pickrow"><span class="pp-swatch" style="background:${esc(x.color)}"></span>${sel(FLOOR_KIND_OPTS, x.kind, `data-pick-kind="${i}" aria-label="Floor type"`)}<button type="button" class="pp-link pp-late" data-pick-rm="${i}">Remove</button></div>`).join('') || '<p class="pp-muted" style="margin:6px 0">No colors yet.</p>';
+        root.querySelectorAll('[data-pick-kind]').forEach((s) => s.addEventListener('change', () => { const x = mats[+s.getAttribute('data-pick-kind')]; x.kind = s.value; x.label = FLOOR_KIND_OPTS.find((o) => o[0] === s.value)[1]; x.include = FLOORING_KINDS.includes(s.value); }));
+        root.querySelectorAll('[data-pick-rm]').forEach((b) => b.addEventListener('click', () => { mats.splice(+b.getAttribute('data-pick-rm'), 1); paint(); }));
+      };
+      paint();
+      root.querySelector('.pp-plan-pick img').addEventListener('click', (e) => {
+        const img = e.currentTarget; const rect = img.getBoundingClientRect();
+        const x = Math.round(((e.clientX - rect.left) / rect.width) * r.W); const y = Math.round(((e.clientY - rect.top) / rect.height) * r.H);
+        const color = window.ObTakeoff.colorAt(r.canvas, x, y);
+        if (!color) { mateToast('head-curious', 'That spot has no color', 'Tap inside a colored floor.'); return; }
+        mats.push({ key: `floor-${mats.length + 1}`, label: 'Hardwood', color, kind: 'hardwood', include: true, sand_finish: true });
+        paint();
+      });
+      let done = false;
+      root.querySelector('[data-picked-done]').addEventListener('click', () => { done = true; closeSheet(); resolve(mats.map((x, i) => ({ ...x, key: `${x.kind}-${i + 1}` }))); });
+      new MutationObserver((_, obs) => { if (!root.isConnected) { obs.disconnect(); if (!done) resolve(null); } }).observe(document.body, { childList: true });
+    });
+  }
+
+  /** Scale from two taps on a known length (sheets without dimension text, or to fix the scale). */
+  function calibrate(sh, title) {
+    return new Promise(async (resolve) => {
+      const Z = Math.min(2.5, 1600 / sh.ptW);
+      const r = await window.ObTakeoff.render(sh, Z);
+      const pts = [];
+      const root = openSheet(title || 'Set the scale', `<p class="pp-muted" style="margin:0 0 10px">Tap both ends of a dimension you know (like the outside wall), then type its length.</p>
+        <div class="pp-plan-pick" data-cal-box><img alt="Plan sheet" src="${r.canvas.toDataURL('image/jpeg', 0.85)}" /><svg class="pp-plan-cal" viewBox="0 0 ${r.W} ${r.H}" preserveAspectRatio="none" aria-hidden="true"></svg></div>
+        <div class="pp-fields" style="margin-top:12px"><div class="pp-field"><label for="ppCalFt">Real length (feet and inches)</label><input id="ppCalFt" inputmode="text" placeholder="e.g. 46'-8&quot; or 46.5" /></div></div>
+        <p class="pp-error" id="ppCalErr" role="alert" hidden></p>
+        <div class="pp-sheet-actions"><button type="button" class="pp-btn pp-btn--pri" data-cal-ok>Use this scale</button></div>`, { wide: true, noFocus: true });
+      const svg = root.querySelector('.pp-plan-cal');
+      const draw = () => { svg.innerHTML = pts.map((p) => `<circle cx="${p.x}" cy="${p.y}" r="${8 * Z}" fill="#E7792C"/>`).join('') + (pts.length === 2 ? `<line x1="${pts[0].x}" y1="${pts[0].y}" x2="${pts[1].x}" y2="${pts[1].y}" stroke="#E7792C" stroke-width="${3 * Z}"/>` : ''); };
+      root.querySelector('[data-cal-box] img').addEventListener('click', (e) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const p = { x: ((e.clientX - rect.left) / rect.width) * r.W, y: ((e.clientY - rect.top) / rect.height) * r.H };
+        if (pts.length === 2) pts.length = 0;
+        pts.push(p); draw();
+      });
+      let done = false;
+      root.querySelector('[data-cal-ok]').addEventListener('click', () => {
+        const raw = $('ppCalFt').value.trim();
+        const ft = window.ObTakeoff.parseDim(raw.replace(/^(\d+)$/, "$1'-0\"")) || (Number(raw) > 0 ? Number(raw) : null);
+        if (pts.length !== 2) { formError('ppCalErr', { message: 'Tap both ends of the dimension first.' }); return; }
+        if (!ft) { formError('ppCalErr', { message: "Type the length, like 46'-8\" or 46.5." }); return; }
+        const px = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+        done = true; closeSheet(); resolve(px / Z / ft);
+      });
+      new MutationObserver((_, obs) => { if (!root.isConnected) { obs.disconnect(); if (!done) resolve(null); } }).observe(document.body, { childList: true });
+    });
+  }
+
+  /** Opens the stored plans again (to re-read them or fix the scale of a sheet). */
+  async function storedPlanFile(m) {
+    const f = m.data.plan && m.data.plan.file;
+    if (!f) return null;
+    const r = await fetch(`/api/builder/measurements/${encodeURIComponent(m.id)}/plan-file?key=${encodeURIComponent(f.key)}`, { credentials: 'include' });
+    if (!r.ok) throw new Error('Could not open the plans.');
+    const blob = await r.blob();
+    return new File([blob], f.name || 'plans', { type: f.type });
+  }
+
+  /** "From plans": pick the file, confirm the address Mate read from it, then measure. */
+  function openPlanUpload() {
+    const root = openSheet('Measure from plans', `
+      <form id="ppPlanNew" novalidate>
+        <label class="pp-plan-drop">${mate('measure', 96)}<span><strong>Choose the house plans</strong><small>PDF from the architect or a photo. Floors marked with legend colors (hardwood, LVP, carpet…) are measured room by room.</small></span><input type="file" id="ppPlanFile" accept="application/pdf,image/jpeg,image/png,image/webp" hidden /><span class="pp-btn pp-btn--sec pp-btn--sm">${icon('upload')}Choose file</span></label>
+        <p class="pp-muted" id="ppPlanName" hidden></p>
+        <div class="pp-field" style="margin-top:12px"><label for="ppPlanAddr">Job address *</label><input id="ppPlanAddr" maxlength="300" data-om-address-autocomplete required placeholder="e.g. 1083 Golf Estates Point" /></div>
+        <div class="pp-plan-progress" data-plan-progress hidden><span>…</span><b><i></i></b></div>
+        <p class="pp-error" id="ppPlanErr" role="alert" hidden></p>
+        <div class="pp-sheet-actions"><button type="submit" class="pp-btn pp-btn--pri" id="ppPlanGo" disabled>Measure the floors</button></div>
+      </form>`, { noFocus: true });
+    let file = null;
+    root.querySelector('#ppPlanFile').addEventListener('change', async (e) => {
+      file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const nm = $('ppPlanName'); nm.hidden = false; nm.textContent = `${file.name} · ${(file.size / 1048576).toFixed(1)} MB`;
+      $('ppPlanGo').disabled = false;
+      if (file.size > 40 * 1048576) { formError('ppPlanErr', { message: 'The plans must be under 40 MB.' }); $('ppPlanGo').disabled = true; return; }
+      try {
+        if (!$('ppPlanAddr').value.trim() && window.ObTakeoff && /pdf/.test(file.type)) {
+          const op = await window.ObTakeoff.open(file);
+          const a = guessAddress(op);
+          if (a && $('ppPlanAddr') && !$('ppPlanAddr').value.trim()) $('ppPlanAddr').value = a;
+        }
+      } catch (_) { /* address stays empty */ }
+    });
+    root.querySelector('#ppPlanNew').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      $('ppPlanErr').hidden = true;
+      if (!file) { formError('ppPlanErr', { message: 'Choose the plans first.' }); return; }
+      if ($('ppPlanAddr').value.trim().length < 4) { formError('ppPlanErr', { message: 'Enter the job address.' }); return; }
+      const btn = $('ppPlanGo'); btn.disabled = true;
+      let created = null;
+      try {
+        const res = await postJson('/api/builder/measurements', { address: $('ppPlanAddr').value.trim() });
+        created = res.data;
+        state.meas = { ...created, tab: 'floors', dirty: false };
+        await readPlans(state.meas, file, root);
+        closeSheet();
+        location.hash = `#measurements/${created.id}`;
+        render();
+        mateToast('measure', 'Floors measured', 'Check the rooms and the 3D view.');
+      } catch (ex) {
+        formError('ppPlanErr', ex);
+        btn.disabled = false;
+        if (created) { closeSheet(); location.hash = `#measurements/${created.id}`; }
+      }
+    });
+  }
+
+  function floorsEmptyHtml(m) {
+    const locked = m.status === 'used';
+    return `<section class="pp-card pp-empty pp-plan-empty">${mate('measure', 140)}<strong>Floors from the house plans</strong>
+      <span>Upload the plans (PDF or photo) with the floors marked in color. Mate reads the legend and the scale, measures each room, builds the house in 3D and prices the work with your company’s price list.</span>
+      ${locked ? '' : `<label class="pp-btn pp-btn--pri" style="margin-top:14px">${icon('upload')}Upload plans<input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" data-plan-file hidden /></label>
+      <div class="pp-plan-progress" data-plan-progress hidden><span>…</span><b><i></i></b></div>`}
+    </section>`;
+  }
+
+  function floorKpisHtml(totals) {
+    const inc = totals.filter((t) => t.include);
+    if (!inc.length) return '';
+    return `<div class="pp-plan-kpis">${inc.map((t) => { const o = orderQty(t); return `<div class="pp-plan-kpi"><span class="pp-swatch" style="background:${esc(t.color)}"></span><div><small>${esc(t.label)}</small><b>${fmtSf(t.area)}</b><span>Order ${fmtSf(o.sf)}${o.boxes ? ` · ${o.boxes} boxes` : ''} · ${o.waste}% waste</span></div></div>`; }).join('')}</div>`;
+  }
+
+  function floorsTakeoffHtml(m) {
+    const plan = m.data.plan; const locked = m.status === 'used';
+    const totals = planTotals(plan);
+    const matOpts = plan.materials.map((x) => [x.key, x.label]);
+    const dis = locked ? 'disabled' : '';
+    const mats = `<section class="pp-card pp-block pp-plan-mats"><div class="pp-block-head"><h3>Floors on the plans</h3><span class="pp-muted">From the legend</span></div>
+      ${plan.materials.map((x, i) => { const t = totals.find((y) => y.key === x.key); return `<div class="pp-plan-mat ${x.include ? '' : 'is-off'}">
+        <span class="pp-swatch" style="background:${esc(x.color)}"></span>
+        <div class="pp-plan-mat-main"><strong>${esc(x.label)}</strong><small>${t ? fmtSf(t.area) : 'Not found on the plans'}</small></div>
+        ${sel(FLOOR_KIND_OPTS, x.kind, `data-pmat-kind="${i}" aria-label="Floor type for ${esc(x.label)}" ${dis}`)}
+        ${x.kind === 'hardwood' ? `<label class="pp-check pp-plan-sand"><input type="checkbox" data-pmat-sand="${i}" ${x.sand_finish ? 'checked' : ''} ${dis} />Sand &amp; finish</label>` : '<span class="pp-plan-sand"></span>'}
+        <label class="pp-switch" title="Count this floor"><input type="checkbox" data-pmat-inc="${i}" ${x.include ? 'checked' : ''} ${dis} /><span>${x.include ? 'In the takeoff' : 'Left out'}</span></label>
+      </div>`; }).join('')}
+      <p class="pp-muted pp-plan-note">Tile, shower pans and countertops stay out for now. Waste per floor type is in <a class="pp-link" href="#settings/takeoff">Settings › Takeoff</a>.</p>
+    </section>`;
+    const levels = plan.levels.map((lv, li) => {
+      const lvTotal = lv.rooms.filter((r) => !r.exclude && (plan.materials.find((x) => x.key === r.material) || {}).include).reduce((a, r) => a + r.area_sf, 0);
+      return `<section class="pp-card pp-plan-level ${lv.include ? '' : 'is-off'}">
+        <div class="pp-plan-level-head">
+          <div><h3>${esc(lv.name)}</h3><small>${fmtSf(lvTotal)} counted · ${lv.scale_auto ? 'Scale read from the plan dimensions' : 'Scale set by hand'}</small></div>
+          <div class="pp-plan-level-acts">${locked ? '' : `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-plv-scale="${li}">Fix scale</button>`}<label class="pp-switch"><input type="checkbox" data-plv-inc="${li}" ${lv.include ? 'checked' : ''} ${dis} /><span>${lv.include ? 'Counted' : 'Left out'}</span></label></div>
+        </div>
+        <div class="pp-plan-level-body">
+          <div class="pp-plan-sheet" data-plv-sheet="${li}">${lv.preview ? `<img src="/api/builder/measurements/${encodeURIComponent(m.id)}/plan-file?key=${encodeURIComponent(lv.preview)}" alt="${esc(lv.name)} plan" loading="lazy" /><canvas aria-hidden="true"></canvas>` : '<p class="pp-muted">No preview</p>'}</div>
+          <div class="pp-plan-rooms" role="table" aria-label="Rooms on ${esc(lv.name)}">
+            <div class="pp-plan-room pp-plan-room--head" role="row"><span role="columnheader">Room</span><span role="columnheader">Floor</span><span role="columnheader">Area</span><span role="columnheader"><span class="pp-sr">Count</span></span></div>
+            ${lv.rooms.map((r, ri) => ({ r, ri, on: !r.exclude && (plan.materials.find((x) => x.key === r.material) || {}).include })).sort((a, b) => Number(b.on) - Number(a.on)).map(({ r, ri, on }) => `<div class="pp-plan-room ${on ? '' : 'is-off'}" role="row">
+              <input class="pp-in" value="${esc(r.name)}" maxlength="60" data-proom-name="${li}:${ri}" aria-label="Room name" ${dis} />
+              ${sel(matOpts, r.material, `data-proom-mat="${li}:${ri}" aria-label="Floor in ${esc(r.name)}" ${dis}`)}
+              <span class="pp-plan-area">${fmtSf(r.area_sf)}</span>
+              <label class="pp-check" title="Count this room"><input type="checkbox" data-proom-inc="${li}:${ri}" ${r.exclude ? '' : 'checked'} ${dis} /><span class="pp-sr">Count ${esc(r.name)}</span></label>
+            </div>`).join('')}
+          </div>
+        </div>
+      </section>`;
+    }).join('');
+    return `${mats}${levels}
+      <div class="pp-plan-foot"><span class="pp-muted">${esc(plan.file ? plan.file.name : '')}${plan.analyzed_at ? ` · read ${esc(fmtDayEn(plan.analyzed_at))}` : ''}</span>
+        ${plan.file ? `<a class="pp-link" href="/api/builder/measurements/${encodeURIComponent(m.id)}/plan-file?key=${encodeURIComponent(plan.file.key)}" target="_blank" rel="noopener">Open the plans</a>` : ''}
+        ${locked ? '' : `<button type="button" class="pp-link" data-plan-reread>Read the plans again</button><label class="pp-link">Upload new plans<input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" data-plan-file hidden /></label>`}
+      </div>
+      <div class="pp-plan-progress" data-plan-progress hidden><span>…</span><b><i></i></b></div>`;
+  }
+
+  function floors3dHtml(m) {
+    const lv = (m.data.plan.levels || []).filter((l) => l.include && l.rooms.length).sort((a, b) => a.floor - b.floor);
+    const on = m.plan3dLevel || 'all';
+    return `<section class="pp-card pp-plan-3d">
+      <div class="pp-plan-3d-bar">
+        <div class="pp-filter" role="group" aria-label="Levels"><button type="button" data-p3-level="all" aria-pressed="${on === 'all'}">All levels</button>${lv.map((l) => `<button type="button" data-p3-level="${esc(l.id)}" aria-pressed="${on === l.id}">${esc(l.name)}</button>`).join('')}</div>
+        <div class="pp-plan-3d-acts"><label class="pp-check"><input type="checkbox" data-p3-labels ${m.plan3dLabels === false ? '' : 'checked'} />Room names</label><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-p3-reset>Reset view</button></div>
+      </div>
+      <div class="pp-plan-3d-stage" id="ppPlan3d"><div class="pp-plan-3d-wait">${mate('measure', 80)}<span>Building the house…</span></div></div>
+      <p class="pp-muted pp-plan-note">Drag to turn · pinch or scroll to zoom · two fingers or right-drag to move. Floors are drawn from the plans; walls are only the outline of each floor.</p>
+    </section>`;
+  }
+
+  function quoteLines(m, prices) {
+    const plan = m.data.plan; const lines = [];
+    const pick = (key, test) => {
+      const chosen = plan.quote_prices && plan.quote_prices[key];
+      const byId = chosen && prices.find((p) => p.id === chosen);
+      if (byId) return byId;
+      const sq = prices.filter((p) => p.unit === 'sq_ft');
+      return sq.find(test) || null;
+    };
+    planTotals(plan).filter((t) => t.include).forEach((t) => {
+      const words = KIND_WORDS[t.kind] || /$^/;
+      const qty = Math.ceil(t.area);
+      const ins = pick(`${t.key}:install`, (p) => words.test(p.name) && /install/i.test(p.name)) || pick(`${t.key}:install`, (p) => words.test(p.name) && !/sand|refinish|finish|demo|remov/i.test(p.name));
+      lines.push({ key: `${t.key}:install`, name: `${t.label} install`, qty, price: ins, color: t.color });
+      if (t.kind === 'hardwood' && t.sand_finish) {
+        const sf = pick(`${t.key}:sand`, (p) => /sand|refinish|finish/i.test(p.name));
+        lines.push({ key: `${t.key}:sand`, name: 'Sand & finish', qty, price: sf, color: t.color });
+      }
+    });
+    return lines;
+  }
+
+  function floorsQuoteHtml(m, prices) {
+    const plan = m.data.plan; const locked = m.status === 'used';
+    const companies = state.builder.companies || [];
+    const money_ = canDo('money.view');
+    const lines = quoteLines(m, prices);
+    const sq = prices.filter((p) => p.unit === 'sq_ft');
+    const total = lines.reduce((a, l) => a + (l.price ? l.price.price * l.qty : 0), 0);
+    const missing = lines.filter((l) => !l.price).length;
+    const totals = planTotals(plan).filter((t) => t.include);
+    const co = companies.find((c) => c.id === plan.quote_link_id);
+    return `<div class="pp-plan-quote">
+      <section class="pp-card pp-block">
+        <div class="pp-block-head"><h3>Quote for the floors</h3>
+          ${companies.length ? `<label class="pp-plan-co"><span class="pp-sr">Company</span>${sel(companies.map((c) => [c.id, c.company_name]), plan.quote_link_id || '', `data-pq-co aria-label="Price list of" ${locked ? 'disabled' : ''}`)}</label>` : ''}</div>
+        ${!companies.length ? `<p class="pp-muted">Connect a flooring company to price the work with the prices you agreed. <a class="pp-link" href="#companies">Companies</a></p>` : ''}
+        <div class="pp-plan-qtable" role="table" aria-label="Services">
+          <div class="pp-plan-qrow pp-plan-qrow--head" role="row"><span role="columnheader">Service</span><span role="columnheader">Qty</span>${money_ ? '<span role="columnheader">Price</span><span role="columnheader">Total</span>' : ''}</div>
+          ${lines.map((l) => `<div class="pp-plan-qrow" role="row">
+            <span class="pp-plan-qname"><span class="pp-swatch" style="background:${esc(l.color)}"></span>${esc(l.name)}</span>
+            <span>${fmtSf(l.qty)}</span>
+            ${money_ ? `<span>${sel([['', sq.length ? 'Choose a price…' : 'No sq ft prices'], ...sq.map((p) => [p.id, `${p.name} · ${money(p.price)}/sq ft`])], l.price ? l.price.id : '', `data-pq-price="${esc(l.key)}" aria-label="Price for ${esc(l.name)}" ${locked ? 'disabled' : ''}`)}</span>
+            <span class="pp-plan-qtotal">${l.price ? money(l.price.price * l.qty) : '—'}</span>` : ''}
+          </div>`).join('')}
+          ${money_ ? `<div class="pp-plan-qrow pp-plan-qrow--sum" role="row"><span>Total labor</span><span></span><span>${missing ? `<small class="pp-late">${missing} without a price</small>` : ''}</span><span class="pp-plan-qtotal">${money(total)}</span></div>` : ''}
+        </div>
+        ${money_ && co ? `<p class="pp-muted pp-plan-note">Prices from your <a class="pp-link" href="#companies/${esc(co.id)}">${esc(co.company_name)} price list</a>. Missing a service? Add it there with the unit “sq ft”.</p>` : ''}
+      </section>
+      <section class="pp-card pp-block">
+        <div class="pp-block-head"><h3>Material to order</h3><a class="pp-link" href="#settings/takeoff">Waste settings</a></div>
+        <div class="pp-plan-qtable" role="table" aria-label="Material">
+          <div class="pp-plan-qrow pp-plan-qrow--head pp-plan-qrow--mat" role="row"><span role="columnheader">Floor</span><span role="columnheader">Measured</span><span role="columnheader">Waste</span><span role="columnheader">To order</span></div>
+          ${totals.map((t) => { const o = orderQty(t); return `<div class="pp-plan-qrow pp-plan-qrow--mat" role="row"><span class="pp-plan-qname"><span class="pp-swatch" style="background:${esc(t.color)}"></span>${esc(t.label)}<small>${t.levels.map((l) => `${esc(l.name)} ${fmtSf(l.area)}`).join(' · ')}</small></span><span>${fmtSf(t.area)}</span><span>${o.waste}%</span><b>${fmtSf(o.sf)}${o.boxes ? `<small>${o.boxes} boxes</small>` : ''}</b></div>`; }).join('')}
+        </div>
+      </section>
+      <div class="pp-plan-foot"><a class="pp-btn pp-btn--pri" href="#send">${icon('send')}Send work order</a><span class="pp-muted">This measurement goes with the work order for ${esc(m.address)} — the floor totals, the PDF and the plans.</span></div>
+    </div>`;
+  }
+
+  function floorsHtml(m) {
+    const plan = m.data.plan;
+    if (!plan || !plan.levels || !plan.levels.length) return floorsEmptyHtml(m);
+    const v = m.floorView || 'takeoff';
+    const seg = (k, l) => `<button type="button" data-fview="${k}" aria-pressed="${v === k}">${l}</button>`;
+    return `${floorKpisHtml(planTotals(plan))}
+      <div class="pp-filter pp-plan-seg" role="group" aria-label="Floors view">${seg('takeoff', 'Rooms')}${seg('3d', '3D')}${seg('quote', 'Quote')}</div>
+      <div class="pp-plan-view" data-plan-view>${v === '3d' ? floors3dHtml(m) : v === 'quote' ? '<div class="pp-card pp-empty"><span class="pp-muted">Loading prices…</span></div>' : floorsTakeoffHtml(m)}</div>`;
+  }
+
+  async function bindFloors() {
+    const m = state.meas;
+    const plan = m.data.plan;
+    const save = () => measSaveSoon();
+    const redraw = () => { const y = window.scrollY; paintMeasurement(); window.scrollTo(0, y); };
+    view.querySelectorAll('[data-plan-file]').forEach((inp) => inp.addEventListener('change', async () => {
+      const file = inp.files && inp.files[0];
+      if (!file) return;
+      const box = inp.closest('.pp-mpanel');
+      try { await readPlans(m, file, box); redraw(); mateToast('measure', 'Floors measured', 'Check the rooms and the 3D view.'); } catch (ex) { mateToast('head-curious', 'Could not read the plans', ex.message); redraw(); }
+    }));
+    if (!plan || !plan.levels || !plan.levels.length) return;
+    view.querySelectorAll('[data-fview]').forEach((b) => b.addEventListener('click', () => { m.floorView = b.getAttribute('data-fview'); redraw(); }));
+    const reread = view.querySelector('[data-plan-reread]');
+    if (reread) reread.addEventListener('click', async () => {
+      const box = view.querySelector('.pp-mpanel');
+      try {
+        const file = await storedPlanFile(m);
+        await readPlans(m, file, box, plan.file);
+        redraw();
+        mateToast('measure', 'Plans read again', '');
+      } catch (ex) { mateToast('head-curious', 'Could not read the plans', ex.message); }
+    });
+    // materials
+    view.querySelectorAll('[data-pmat-kind]').forEach((s) => s.addEventListener('change', () => { const x = plan.materials[+s.getAttribute('data-pmat-kind')]; x.kind = s.value; x.include = FLOORING_KINDS.includes(s.value); if (s.value === 'hardwood') x.sand_finish = true; save(); redraw(); }));
+    view.querySelectorAll('[data-pmat-sand]').forEach((c) => c.addEventListener('change', () => { plan.materials[+c.getAttribute('data-pmat-sand')].sand_finish = c.checked; save(); redraw(); }));
+    view.querySelectorAll('[data-pmat-inc]').forEach((c) => c.addEventListener('change', () => { plan.materials[+c.getAttribute('data-pmat-inc')].include = c.checked; save(); redraw(); }));
+    // levels and rooms
+    view.querySelectorAll('[data-plv-inc]').forEach((c) => c.addEventListener('change', () => { plan.levels[+c.getAttribute('data-plv-inc')].include = c.checked; save(); redraw(); }));
+    const room = (attr, el) => { const [li, ri] = el.getAttribute(attr).split(':').map(Number); return plan.levels[li].rooms[ri]; };
+    view.querySelectorAll('[data-proom-name]').forEach((i) => i.addEventListener('input', () => { room('data-proom-name', i).name = i.value; save(); }));
+    view.querySelectorAll('[data-proom-mat]').forEach((s) => s.addEventListener('change', () => { room('data-proom-mat', s).material = s.value; save(); redraw(); }));
+    view.querySelectorAll('[data-proom-inc]').forEach((c) => c.addEventListener('change', () => { room('data-proom-inc', c).exclude = !c.checked; save(); redraw(); }));
+    view.querySelectorAll('[data-plv-scale]').forEach((b) => b.addEventListener('click', async () => {
+      const lv = plan.levels[+b.getAttribute('data-plv-scale')];
+      try {
+        const file = await storedPlanFile(m);
+        const op = await window.ObTakeoff.open(file);
+        const sh = op.sheets.find((s) => s.page === lv.page) || op.sheets[0];
+        await window.ObTakeoff.legend(op);
+        const ppf = await calibrate(sh, `Scale for ${lv.name}`);
+        if (!ppf) return;
+        const res = await window.ObTakeoff.readSheet(sh, plan.materials, ppf);
+        res.level.id = lv.id; res.level.name = lv.name; res.level.floor = lv.floor; res.level.preview = lv.preview; res.level.scale_auto = false;
+        plan.levels[plan.levels.indexOf(lv)] = res.level;
+        save(); redraw();
+        mateToast('measure', 'Scale updated', `${lv.name} measured again.`);
+      } catch (ex) { mateToast('head-curious', 'Could not change the scale', ex.message); }
+    }));
+    // colored overlay on each sheet preview
+    view.querySelectorAll('[data-plv-sheet]').forEach((box) => {
+      const lv = plan.levels[+box.getAttribute('data-plv-sheet')];
+      const img = box.querySelector('img'); const cv = box.querySelector('canvas');
+      if (!img || !cv || !lv.grid) return;
+      const draw = () => {
+        const w = img.naturalWidth; const h = img.naturalHeight; if (!w) return;
+        cv.width = lv.grid.w; cv.height = lv.grid.h;
+        const g = cv.getContext('2d'); const cells = window.ObTakeoff.decodeGrid(lv.grid);
+        const id = g.createImageData(lv.grid.w, lv.grid.h);
+        const cols = plan.materials.map((x) => [1, 3, 5].map((k) => parseInt(x.color.slice(k, k + 2), 16)));
+        for (let i = 0; i < cells.length; i++) {
+          const v = cells[i]; if (!v) continue;
+          const x = plan.materials[v - 1]; if (!x || !x.include) continue;
+          const c = cols[v - 1]; id.data[i * 4] = c[0]; id.data[i * 4 + 1] = c[1]; id.data[i * 4 + 2] = c[2]; id.data[i * 4 + 3] = 150;
+        }
+        g.putImageData(id, 0, 0);
+      };
+      if (img.complete) draw(); else img.addEventListener('load', draw);
+    });
+    // 3D
+    const stage = $('ppPlan3d');
+    if (plan3d) { try { plan3d.destroy(); } catch (_) { /* gone */ } plan3d = null; }
+    if (stage && window.ObPlan3D) {
+      try {
+        const v3 = await window.ObPlan3D.mount(stage, plan, {});
+        if (!stage.isConnected) { v3.destroy(); return; }
+        plan3d = v3;
+        const wait = stage.querySelector('.pp-plan-3d-wait'); if (wait) wait.remove();
+        if (m.plan3dLevel && m.plan3dLevel !== 'all') v3.only(m.plan3dLevel);
+        if (m.plan3dLabels === false) v3.showLabels(false);
+        view.querySelectorAll('[data-p3-level]').forEach((b) => b.addEventListener('click', () => {
+          m.plan3dLevel = b.getAttribute('data-p3-level');
+          view.querySelectorAll('[data-p3-level]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+          v3.only(m.plan3dLevel === 'all' ? null : m.plan3dLevel);
+        }));
+        const lab = view.querySelector('[data-p3-labels]'); if (lab) lab.addEventListener('change', () => { m.plan3dLabels = lab.checked; v3.showLabels(lab.checked); });
+        const rs = view.querySelector('[data-p3-reset]'); if (rs) rs.addEventListener('click', () => v3.reset());
+      } catch (ex) {
+        stage.innerHTML = `<div class="pp-plan-3d-wait"><span>${esc(ex.message || '3D is not available on this device.')}</span></div>`;
+      }
+    }
+    // quote
+    const qbox = view.querySelector('[data-plan-view]');
+    if (m.floorView === 'quote' && qbox) {
+      const prices = canDo('money.view') && plan.quote_link_id ? await api(`/api/builder/prices?company=${encodeURIComponent(plan.quote_link_id)}`).then((r) => (r.data || []).filter((p) => p.company_id === plan.quote_link_id)).catch(() => []) : [];
+      if (!qbox.isConnected || m !== state.meas || m.floorView !== 'quote') return;
+      qbox.innerHTML = floorsQuoteHtml(m, prices);
+      const co = qbox.querySelector('[data-pq-co]');
+      if (co) co.addEventListener('change', () => { plan.quote_link_id = co.value || null; plan.quote_prices = {}; save(); redraw(); });
+      qbox.querySelectorAll('[data-pq-price]').forEach((s) => s.addEventListener('change', () => {
+        const k = s.getAttribute('data-pq-price');
+        plan.quote_prices = plan.quote_prices || {};
+        if (s.value) plan.quote_prices[k] = s.value; else delete plan.quote_prices[k];
+        save(); redraw();
+      }));
+    }
+  }
+
   function paintMeasurement() {
     const m = state.meas;
     const locked = m.status === 'used';
     const c = measCounts(m.data);
-    if (!['stairs', 'vents', 'summary'].includes(m.tab)) m.tab = 'stairs';
+    if (!['stairs', 'vents', 'floors', 'summary'].includes(m.tab)) m.tab = 'stairs';
+    const ft = planTotals(m.data.plan).filter((t) => t.include).reduce((a, t) => a + t.area, 0);
     const tab = (k, label, n) => `<button type="button" role="tab" data-mtab="${k}" aria-selected="${m.tab === k}" aria-pressed="${m.tab === k}">${label}${n != null ? `<span class="pp-mtab-n">${n}</span>` : ''}</button>`;
     view.innerHTML = `
       <div class="pp-mhead">
@@ -3860,17 +4391,19 @@
       </div>
       ${locked ? `<div class="pp-match"><strong>This measurement was already sent with the Work Order</strong><span class="pp-muted" style="font-size:14px">${m.work_order_id ? `<a class="pp-link" href="#jobs/${encodeURIComponent(m.work_order_id)}">Open the job</a> · ` : ''}To measure again, start a new measurement for this address.</span></div>` : ''}
       <div class="pp-mtabs" role="tablist" aria-label="Measurement sections">
-        ${tab('stairs', 'Stairs', c.treads + c.risers ? `${c.treads}·${c.risers}` : null)}${tab('vents', 'Vents', c.vents || null)}${tab('summary', 'Summary', null)}
+        ${tab('stairs', 'Stairs', c.treads + c.risers ? `${c.treads}·${c.risers}` : null)}${tab('vents', 'Vents', c.vents || null)}${tab('floors', 'Floors', ft ? (ft >= 1000 ? `${(Math.round(ft / 100) / 10).toLocaleString('en-US')}k sf` : `${Math.round(ft)} sf`) : null)}${tab('summary', 'Summary', null)}
       </div>
       <div class="pp-mpanel" role="tabpanel">
         ${m.tab === 'stairs'
           ? `<div class="pp-meas-layout pp-meas-layout--stairs"><div class="pp-meas-main">${stairsWorkbenchHtml(m)}${locked ? '' : '<button type="button" class="pp-q-add pp-q-add--block" id="ppStairAdd">+ Stair</button>'}</div></div>`
-          : m.tab === 'vents' ? ventsHtml(m) : measSummaryTabHtml(m)}
+          : m.tab === 'vents' ? ventsHtml(m) : m.tab === 'floors' ? floorsHtml(m) : measSummaryTabHtml(m)}
       </div>
       ${locked || !state.builder.ai_reader ? '' : voiceFabHtml()}`;
     paintMeasSaved();
     bindMeasurement();
     bindVoice();
+    if (m.tab === 'floors') bindFloors();
+    else if (plan3d) { try { plan3d.destroy(); } catch (_) { /* gone */ } plan3d = null; }
   }
 
   function measAt(path) {
