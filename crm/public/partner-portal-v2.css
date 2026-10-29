@@ -2419,3 +2419,12 @@ button.tk-fact:hover { border-color: #E7792C; }
 .pp-msum-side, .pp-msum-side > * { min-width: 0; } .pp-mby-add input { width: 100%; } .pp-mby-on input { width: 100%; box-sizing: border-box; }
 .pp-mtabs button { white-space: nowrap; }
 @media (max-width: 767px) { .pp-mtabs { overflow-x: auto; scrollbar-width: none; } .pp-mtabs::-webkit-scrollbar { display: none; } .pp-mtabs button { flex: 1 0 auto; padding: 0 10px; gap: 5px; font-size: 13.5px; } .pp-mtab-n { font-size: 11px; } }
+/* address suggestions (Google Places dropdown) */
+.pac-container { z-index: 2000 !important; margin-top: 4px; border: 1px solid var(--pp-border); border-radius: 12px; box-shadow: 0 16px 40px rgba(16, 24, 40, .16); font-family: inherit; overflow: hidden; }
+.pac-container:after { margin: 4px 8px; }
+.pac-item { padding: 8px 12px; font-size: 14px; line-height: 1.4; cursor: pointer; border-top: 1px solid #F1F3F5; }
+.pac-item:first-child { border-top: 0; }
+.pac-item:hover, .pac-item-selected { background: #FFF4EB; }
+.pac-item-query { font-size: 14px; color: var(--pp-ink); }
+.pac-matched { color: #B4561A; }
+.pac-icon { display: none; }

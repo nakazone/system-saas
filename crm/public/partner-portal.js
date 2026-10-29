@@ -1394,7 +1394,7 @@
       const req = o.required ? ' *' : '';
       const input = o.area
         ? `<textarea id="ppF-${key}" data-field="${key}" maxlength="${o.max || 5000}">${esc(f[key])}</textarea>`
-        : `<input id="ppF-${key}" data-field="${key}" type="${o.type || 'text'}" ${o.required ? 'required' : ''} maxlength="${o.max || 200}" value="${esc(f[key])}" ${o.auto ? `autocomplete="${o.auto}"` : ''} ${o.ph ? `placeholder="${esc(o.ph)}"` : ''} />`;
+        : `<input id="ppF-${key}" data-field="${key}" type="${o.type || 'text'}" ${key === 'address' ? 'data-om-address-autocomplete data-crm-address-autocomplete="1"' : ''} ${o.required ? 'required' : ''} maxlength="${o.max || 200}" value="${esc(f[key])}" ${o.auto ? `autocomplete="${o.auto}"` : ''} ${o.ph ? `placeholder="${esc(o.ph)}"` : ''} />`;
       return `<div class="pp-field ${o.wide ? 'pp-field--wide' : ''} ${isCheck ? 'is-check' : ''}"><label for="ppF-${key}">${esc(FIELD_LABELS[key])}${req} ${tag}</label>${input}</div>`;
     };
     const match = s.match;
@@ -2550,7 +2550,7 @@
           ${f('ppAcLic', 'Builder license #', acc.license_number, { extra: 'maxlength="80"' })}
         </div></section>
         <section class="pp-card pp-block"><h3>Office address</h3><div class="pp-fields">
-          ${f('ppAcA1', 'Street', acc.address_line1, { wide: true, extra: 'maxlength="200" autocomplete="address-line1" data-om-address-autocomplete' })}
+          ${f('ppAcA1', 'Street', acc.address_line1, { wide: true, extra: 'maxlength="200" placeholder="Start typing the address" autocomplete="address-line1" data-om-address-autocomplete data-crm-address-autocomplete="1"' })}
           ${f('ppAcA2', 'Suite / unit', acc.address_line2, { extra: 'maxlength="120" autocomplete="address-line2"' })}
           ${f('ppAcCity', 'City', acc.city, { extra: 'maxlength="80" autocomplete="address-level2"' })}
           ${f('ppAcState', 'State', acc.state, { extra: 'maxlength="40" autocomplete="address-level1"' })}
@@ -2755,7 +2755,7 @@
       const root = openSheet(loc ? 'Edit pickup location' : 'New pickup location', `<form class="pp-fields" id="ppPickForm" novalidate>
           <div class="pp-field pp-field--wide"><label for="ppPkName">Name *</label><input id="ppPkName" maxlength="80" required value="${esc(l.name)}" placeholder="e.g. TriWest Henderson" /></div>
           <div class="pp-field pp-field--wide"><label for="ppPkAliases">Name on work orders <span>(comma separated)</span></label><input id="ppPkAliases" maxlength="300" value="${esc(aliases)}" placeholder="e.g. TRIWEST, TW Henderson" /></div>
-          <div class="pp-field pp-field--wide"><label for="ppPkAddr">Address *</label><input id="ppPkAddr" maxlength="300" required value="${esc(l.address)}" data-om-address-autocomplete /></div>
+          <div class="pp-field pp-field--wide"><label for="ppPkAddr">Address *</label><input id="ppPkAddr" maxlength="300" required placeholder="Start typing the address" value="${esc(l.address)}" data-om-address-autocomplete data-crm-address-autocomplete="1" /></div>
           <div class="pp-field"><label for="ppPkPhone">Phone</label><input id="ppPkPhone" type="tel" inputmode="tel" maxlength="40" value="${esc(l.phone || '')}" /></div>
           <div class="pp-field pp-field--wide"><span class="pp-flabel">Pickup hours</span>${hoursEditorHtml(parseHours(l.hours), l.hours || '')}</div>
           <div class="pp-field pp-field--wide"><label for="ppPkNotes">Notes for the crew</label><input id="ppPkNotes" maxlength="500" value="${esc(l.notes || '')}" placeholder="e.g. Will-call door on the north side" /></div>
@@ -2914,7 +2914,7 @@
           </section>
           <section class="tk-sec pp-fields" style="grid-template-columns:1fr 1fr">
             <div class="pp-field pp-field--wide"><label for="ppEdTitle">Title</label><input id="ppEdTitle" maxlength="160" value="${esc(job.title || '')}" /></div>
-            <div class="pp-field pp-field--wide"><label for="ppEdAddr">Address</label><input id="ppEdAddr" maxlength="300" value="${esc(job.address || '')}" data-om-address-autocomplete /></div>
+            <div class="pp-field pp-field--wide"><label for="ppEdAddr">Address</label><input id="ppEdAddr" maxlength="300" placeholder="Start typing the address" value="${esc(job.address || '')}" data-om-address-autocomplete data-crm-address-autocomplete="1" /></div>
             <div class="pp-field"><label for="ppEdDate">Date</label><input id="ppEdDate" type="date" value="${esc(start.date)}" /></div>
             <div class="pp-field"><label for="ppEdTime">Time <span>(empty = all day)</span></label><input id="ppEdTime" type="time" value="${job.all_day ? '' : esc(start.time)}" /></div>
             <div class="pp-field"><label for="ppEdEnd">Ends on</label><input id="ppEdEnd" type="date" value="${esc(end.date)}" /></div>
@@ -3220,7 +3220,7 @@
       <form id="ppMeasNew" novalidate>
         <button type="button" class="pp-geo-btn" id="ppMnGeo">${icon('locate')}<span><strong>Use my location</strong><small>Find the address of the house you’re at</small></span></button>
         <div id="ppMnNear"></div>
-        <div class="pp-field" style="margin-top:12px"><label for="ppMnAddr">Job address *</label><input id="ppMnAddr" maxlength="300" autocomplete="street-address" data-om-address-autocomplete required placeholder="e.g. 322 Lower Ranch View Rd, Granby, CO" /></div>
+        <div class="pp-field" style="margin-top:12px"><label for="ppMnAddr">Job address *</label><input id="ppMnAddr" maxlength="300" autocomplete="street-address" data-om-address-autocomplete data-crm-address-autocomplete="1" required placeholder="e.g. 322 Lower Ranch View Rd, Granby, CO" /></div>
         <p class="pp-error" id="ppMnErr" role="alert" hidden></p>
         <div class="pp-sheet-actions"><button type="submit" class="pp-btn pp-btn--pri" id="ppMnSave">Start measuring</button></div>
       </form>`, { noFocus: true });
@@ -4606,7 +4606,7 @@
       <form id="ppPlanNew" novalidate>
         <label class="pp-plan-drop">${mate('measure', 96)}<span><strong>Choose the house plans</strong><small>PDF from the architect or a photo. Floors marked with legend colors (hardwood, LVP, carpet…) are measured room by room.</small></span><input type="file" id="ppPlanFile" accept="application/pdf,image/jpeg,image/png,image/webp" hidden /><span class="pp-btn pp-btn--sec pp-btn--sm">${icon('upload')}Choose file</span></label>
         <p class="pp-muted" id="ppPlanName" hidden></p>
-        <div class="pp-field" style="margin-top:12px"><label for="ppPlanAddr">Job address *</label><input id="ppPlanAddr" maxlength="300" data-om-address-autocomplete required placeholder="e.g. 1083 Golf Estates Point" /></div>
+        <div class="pp-field" style="margin-top:12px"><label for="ppPlanAddr">Job address *</label><input id="ppPlanAddr" maxlength="300" data-om-address-autocomplete data-crm-address-autocomplete="1" required placeholder="e.g. 1083 Golf Estates Point" /></div>
         <div class="pp-plan-progress" data-plan-progress hidden><span>…</span><b><i></i></b></div>
         <p class="pp-error" id="ppPlanErr" role="alert" hidden></p>
         <div class="pp-sheet-actions"><button type="submit" class="pp-btn pp-btn--pri" id="ppPlanGo" disabled>Measure the floors</button></div>
