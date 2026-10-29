@@ -2,7 +2,8 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import PDFDocument from "pdfkit";
-import { getLocalFileStorage, storage } from "../storage/index.js";
+import { getLocalFileStorage } from "../storage/index.js";
+import { readStoredObject, storageKeyFromAnyUrl } from "../storage/resolve.js";
 import {
   DEFAULT_QUOTE_INCLUSIONS,
   resolveQuoteTermsItems,
@@ -112,50 +113,11 @@ async function fetchLogoUrl(url: string): Promise<Buffer | null> {
   }
 }
 
-/** Pull `orgs/…` or `users/…` out of a stored file URL so private buckets still load. */
-function storageKeyFromUrl(src: string): string | null {
-  let pathname = src;
-  if (src.startsWith("http://") || src.startsWith("https://")) {
-    try {
-      pathname = new URL(src).pathname;
-    } catch {
-      return null;
-    }
-  }
-  const decoded = pathname
-    .split("/")
-    .map((part) => {
-      try {
-        return decodeURIComponent(part);
-      } catch {
-        return part;
-      }
-    })
-    .join("/");
-  const orgs = decoded.indexOf("orgs/");
-  const users = decoded.indexOf("users/");
-  const at = [orgs, users].filter((i) => i >= 0).sort((a, b) => a - b)[0];
-  if (at == null || at < 0) return null;
-  const key = decoded.slice(at);
-  if (!key || key.includes("..")) return null;
-  return key;
-}
-
+/** Read a stored file by its key (any top-level folder), so private buckets and local files still load. */
 async function readStorageObject(src: string): Promise<Buffer | null> {
-  const key = storageKeyFromUrl(src);
+  const key = storageKeyFromAnyUrl(src);
   if (!key) return null;
-  try {
-    const stream = await storage.getStream(key);
-    if (!stream) return null;
-    const chunks: Buffer[] = [];
-    for await (const chunk of stream) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-    }
-    const buf = Buffer.concat(chunks);
-    return buf.length ? buf : null;
-  } catch {
-    return null;
-  }
+  return readStoredObject(key);
 }
 
 export function imageContentType(buf: Buffer): string {

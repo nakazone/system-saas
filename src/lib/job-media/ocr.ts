@@ -2,6 +2,7 @@
  * Field OCR for labels / serial plates (OpenAI vision).
  */
 import { aiChatJson, isAiConfigured } from "../ai/client.js";
+import { resolveImagesForAi } from "../storage/resolve.js";
 
 export type LabelOcrResult = {
   serial_number: string | null;
@@ -20,6 +21,8 @@ export async function extractLabelFromImageUrl(imageUrl: string): Promise<
     return { ok: false, error: "OCR needs OPENAI_API_KEY" };
   }
   if (!imageUrl) return { ok: false, error: "Image URL required" };
+  const [image] = await resolveImagesForAi([imageUrl]);
+  if (!image) return { ok: false, error: "Foto não disponível para leitura" };
 
   const result = await aiChatJson({
     system: `You read equipment labels, serial plates, and stickers from job site photos.
@@ -27,7 +30,7 @@ Return ONLY JSON:
 { "serial_number": string|null, "label_text": string|null, "brand": string|null, "model": string|null, "notes": string|null, "confidence": number }
 Use null when unreadable. confidence 0..1.`,
     user: "Extract any serial / model / brand text visible on this photo.",
-    imageUrls: [imageUrl],
+    imageUrls: [image],
     timeoutMs: 45_000,
   });
   if (!result.ok) return { ok: false, error: result.error };

@@ -21,6 +21,7 @@ import { requireCrmAuth } from "../http.js";
 import { withTenantTransaction, type TenantPrisma } from "../../lib/tenant/prisma-tenant.js";
 import { orgScoped } from "../../lib/tenant/org-scoped.js";
 import { storage } from "../../lib/storage/index.js";
+import { resolveImagesForAi } from "../../lib/storage/resolve.js";
 import { formatPersonName } from "../../lib/name.js";
 import { aiChatJson, aiListElevenLabsVoices, aiTextToSpeech, isAiConfigured } from "../../lib/ai/client.js";
 import { buildFieldQuoteTour, tourDeposit } from "../../lib/field-quote/tour.js";
@@ -562,7 +563,11 @@ fieldQuotesRouter.post("/api/field-quotes/:id/ai/photos", requireCrmAuth, async 
       res.status(400).json({ success: false, error: "Uma ou mais fotos não pertencem a esta visita." });
       return;
     }
-    const imageUrls = photos.map((photo) => String(photo.url || "")).filter((url) => url.startsWith("https://") || url.startsWith("http://") || url.startsWith("data:image/"));
+    // Read each photo from storage (works with a private bucket and local files); only this company's folder.
+    const imageUrls = await resolveImagesForAi(
+      photos.map((photo) => String(photo.url || "")),
+      { onlyKeyPrefix: `orgs/${req.organizationId}/` },
+    );
     if (!imageUrls.length) {
       res.status(400).json({ success: false, error: "As fotos selecionadas não estão disponíveis para análise." });
       return;

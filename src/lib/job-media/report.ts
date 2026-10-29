@@ -6,6 +6,7 @@ import {
   estimateCostUsd,
   isAiConfigured,
 } from "../ai/client.js";
+import { resolveImagesForAi } from "../storage/resolve.js";
 
 export const JOB_REPORT_TEMPLATES = [
   "site_visit",
@@ -201,10 +202,7 @@ export async function generateJobReportDraft(input: {
     return { ok: false, error: "Add at least one photo before generating a report" };
   }
 
-  const imageUrls = input.photos
-    .map((p) => p.url)
-    .filter((u) => u.startsWith("http") || u.startsWith("data:image/"))
-    .slice(0, 6);
+  const imageUrls = await resolveImagesForAi(input.photos.slice(0, 6).map((p) => p.url));
 
   const result = await aiChatJson({
     system: SYSTEM,

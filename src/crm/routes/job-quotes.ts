@@ -17,6 +17,7 @@ import { aiChatJson, isAiConfigured } from "../../lib/ai/client.js";
 import { recordActivity } from "../../lib/activity/record.js";
 import { syncLeadForQuoteStatus } from "../../lib/pipeline/move.js";
 import { prisma } from "../../lib/prisma.js";
+import { resolveImagesForAi } from "../../lib/storage/resolve.js";
 
 export const jobQuotesRouter = Router();
 
@@ -175,10 +176,10 @@ Use realistic USD unit prices. Prefer sqft. Max 8 items.`,
               .map((p) => `${p.stage || "general"}: ${p.caption || "no caption"}`)
               .join("; ") || "none"}`,
           ].join("\n"),
-          imageUrls: photos
-            .map((p) => p.url)
-            .filter((u) => u.startsWith("http") || u.startsWith("data:image/"))
-            .slice(0, 4),
+          imageUrls: await resolveImagesForAi(
+            photos.slice(0, 4).map((p) => p.url),
+            { onlyKeyPrefix: `orgs/${req.organizationId}/` },
+          ),
           timeoutMs: 60_000,
         });
         if (ai.ok) {
