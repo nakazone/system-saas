@@ -530,8 +530,7 @@
           ${state.builder ? '' : '<div class="pp-head-actions"><a class="pp-btn pp-btn--sec" href="#calendar">Calendar</a><a class="pp-btn pp-btn--sec" href="#documents">Photos & docs</a><a class="pp-btn pp-btn--pri" href="#send">Send work</a></div>'}
         </div>
         ${installBannerHtml() ? `<div style="grid-column: span 12">${installBannerHtml()}</div>` : ''}
-        ${state.builder ? setupCardHtml() : ''}
-        ${state.builder ? homeQuickHtml(now) : ''}
+        ${state.builder ? homeQuickHtml(now, setupCardHtml()) : ''}
 
         <section class="pp-tile pp-tile--orange" style="grid-column: span 4; grid-row: span 3" aria-label="Active jobs">
           <div style="font-size:14px;font-weight:500">Active jobs</div>
@@ -586,14 +585,14 @@
     view.querySelectorAll('[data-qa-camera]').forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); $('ppCameraInput').click(); }));
     view.querySelectorAll('[data-setup-hide]').forEach((b) => b.addEventListener('click', () => {
       try { localStorage.setItem(`ob_setup_hidden_${state.builder.account.id}`, '1'); } catch (_) { /* private mode */ }
-      const card = b.closest('.pp-setup');
+      const card = b.closest('.pp-setup2');
       if (card) card.remove();
     }));
     $('ppHomeDrop').addEventListener('click', () => { location.hash = '#send'; });
   }
 
   /** Builder home: big actions for the phone, today's jobs and measurements in progress. */
-  function homeQuickHtml(now) {
+  function homeQuickHtml(now, setupHtml) {
     const today = jobsInDay(dateKey(now)).sort((a, b) => toDate(a.scheduledStart) - toDate(b.scheduledStart));
     const act = (href, ic, label, sub, attrs) => `<a class="pp-qa" href="${href}" ${attrs || ''}><span class="pp-qa-ic">${icon(ic)}</span><span><strong>${esc(label)}</strong><small>${esc(sub)}</small></span></a>`;
     const meas = (state.homeMeas || []).filter((m) => m.status === 'draft').slice(0, 3);
@@ -603,6 +602,7 @@
         ${canDo('jobs.send') ? act('#send', 'camera', 'Snap a work order', 'Use the camera', 'data-qa-camera') : ''}
         ${act('#calendar', 'cal', 'Calendar', today.length ? `${plural(today.length, 'job', 'jobs')} today` : 'Nothing today')}
       </section>
+      ${setupHtml || ''}
       ${today.length ? `<section class="pp-tile pp-today" style="grid-column: span 12" aria-labelledby="ppToday"><div class="pp-tile-head"><h2 id="ppToday">Today on site</h2><span class="pp-lbl">${today.length}</span></div>
         <div class="pp-today-list">${today.map((j) => `<a class="pp-today-item" href="#jobs/${encodeURIComponent(j.id)}"><span class="pp-today-time">${j.allDay ? 'All day' : esc(fmtTime(j.scheduledStart))}</span><span class="pp-today-main"><strong>${esc(j.title || 'Job')}</strong><small>${esc(j.address || '')}</small></span>${jobChip(j)}</a>`).join('')}</div></section>` : ''}
       ${meas.length ? `<section class="pp-tile" style="grid-column: span 12" aria-labelledby="ppMeasHome"><div class="pp-tile-head"><h2 id="ppMeasHome">Measurements in progress</h2><a class="pp-link" href="#measurements" style="font-size:13px">All</a></div>
@@ -2324,23 +2324,35 @@
     { key: 'app', label: 'App', sub: 'Install ObraBuilder on your phone', ic: 'download', perm: null },
   ];
 
+  let setOut = null;
   async function renderSettings(section, token) {
     await loadMe();
     if (token !== renderToken) return;
     const sections = SETTINGS_SECTIONS.filter((x) => !x.perm || canDo(x.perm));
     const acc = state.builder.account;
-    const head = (title, back) => `<div class="pp-head"><div>${back ? `<a class="pp-back" href="#settings" style="display:inline-flex">${icon('back')}Settings</a>` : `<p class="pp-eyebrow">${esc(acc.name)}</p>`}<h1>${esc(title)}</h1></div></div>`;
-    const sec = sections.find((x) => x.key === section);
-    if (!sec) {
-      const me = state.builder.member;
-      view.innerHTML = `${head('Settings')}
-        <div class="pp-set-hub">
-          <a class="pp-card pp-set-me" href="#settings/profile">${acc.logo_url ? `<img class="pp-set-logo" src="${esc(acc.logo_url)}" alt="" />` : `<span class="pp-avatar-sm pp-avatar-lg" aria-hidden="true">${esc(initials(me.name))}</span>`}<span><strong>${esc(me.name)}</strong><small>${esc([me.role_label, acc.name].join(' · '))}</small><small>${esc(me.email)}</small></span>${icon('chev')}</a>
-          <div class="pp-card pp-set-list">${sections.map((x) => `<a class="pp-set-row" href="${x.href || `#settings/${x.key}`}"><span class="pp-set-ic">${icon(x.ic)}</span><span><strong>${esc(x.label)}</strong><small>${esc(x.sub)}</small></span>${icon('chev')}</a>`).join('')}</div>
-          <button type="button" class="pp-card pp-set-row pp-set-out" id="ppSetLogout"><span class="pp-set-ic">${icon('back')}</span><span><strong class="pp-late">Sign out</strong></span></button>
-        </div>`;
+    const me = state.builder.member;
+    const wide = window.matchMedia('(min-width: 900px)').matches;
+    let sec = sections.find((x) => x.key === section && !x.href);
+    // Desktop and tablet: list on the left, the open section on the right (no extra page hop).
+    if (wide && !sec) sec = sections[0];
+    const head = wide
+      ? (title) => `<div class="pp-set2-title"><h2>${esc(title)}</h2></div>`
+      : (title, back) => `<div class="pp-head"><div>${back ? `<a class="pp-back" href="#settings" style="display:inline-flex">${icon('back')}Settings</a>` : `<p class="pp-eyebrow">${esc(acc.name)}</p>`}<h1>${esc(title)}</h1></div></div>`;
+    const meCard = `<a class="pp-card pp-set-me" href="#settings/profile">${acc.logo_url ? `<img class="pp-set-logo" src="${esc(acc.logo_url)}" alt="" />` : `<span class="pp-avatar-sm pp-avatar-lg" aria-hidden="true">${esc(initials(me.name))}</span>`}<span><strong>${esc(me.name)}</strong><small>${esc([me.role_label, acc.name].join(' · '))}</small><small>${esc(me.email)}</small></span>${icon('chev')}</a>`;
+    const rows = `<div class="pp-card pp-set-list">${sections.map((x) => `<a class="pp-set-row" href="${x.href || `#settings/${x.key}`}" ${sec && sec.key === x.key ? 'aria-current="page"' : ''}><span class="pp-set-ic">${icon(x.ic)}</span><span><strong>${esc(x.label)}</strong><small>${esc(x.sub)}</small></span>${icon('chev')}</a>`).join('')}</div>`;
+    const out = `<button type="button" class="pp-set-out" id="ppSetLogout">${icon('back')}Sign out</button>`;
+    if (wide) {
+      view.innerHTML = `<div class="pp-head"><div><p class="pp-eyebrow">${esc(acc.name)}</p><h1>Settings</h1></div></div>
+        <div class="pp-set2"><nav class="pp-set2-nav" aria-label="Settings sections">${meCard}${rows}${out}</nav><div class="pp-set2-body" id="ppSetBody"></div></div>`;
+      setOut = $('ppSetBody');
       $('ppSetLogout').addEventListener('click', logout);
-      return;
+    } else {
+      setOut = view;
+      if (!sec) {
+        view.innerHTML = `${head('Settings')}<div class="pp-set-hub">${meCard}${rows}${out}</div>`;
+        $('ppSetLogout').addEventListener('click', logout);
+        return;
+      }
     }
     if (sec.key === 'profile') return settingsProfile(head);
     if (sec.key === 'company') return settingsCompany(head, acc);
@@ -2364,7 +2376,7 @@
   function settingsProfile(head) {
     const me = state.builder.member;
     const p = state.builder.member_profile || {};
-    view.innerHTML = `${head('Your profile', true)}
+    setOut.innerHTML = `${head('Your profile', true)}
       <form class="pp-card pp-block pp-set-form" id="ppMeForm" novalidate>
         <div class="pp-fields">
           <div class="pp-field pp-field--wide"><label for="ppMeName">Name *</label><input id="ppMeName" maxlength="120" required value="${esc(me.name)}" autocomplete="name" /></div>
@@ -2391,7 +2403,7 @@
 
   function settingsCompany(head, acc) {
     const f = (id, label, val, attrs) => `<div class="pp-field ${attrs && attrs.wide ? 'pp-field--wide' : ''}"><label for="${id}">${label}</label><input id="${id}" value="${esc(val || '')}" ${attrs && attrs.extra ? attrs.extra : ''} /></div>`;
-    view.innerHTML = `${head('Company', true)}
+    setOut.innerHTML = `${head('Company', true)}
       <form class="pp-set-form" id="ppAccForm" novalidate>
         <section class="pp-card pp-block pp-logo-box">
           <div class="pp-logo-prev">${acc.logo_url ? `<img src="${esc(acc.logo_url)}" alt="${esc(acc.name)} logo" />` : `<b>${esc(initials(acc.name))}</b>`}</div>
@@ -2474,7 +2486,7 @@
     const all = await api('/api/builder/prices').then((r) => r.data || []).catch(() => []);
     if (token !== renderToken) return;
     const companies = state.builder.companies || [];
-    view.innerHTML = `${head('Price lists', true)}
+    setOut.innerHTML = `${head('Price lists', true)}
       <p class="pp-muted pp-meas-intro">The prices you agreed with each flooring company. When you send them a work order, lines without a price get yours, and different prices are flagged before you send.</p>
       ${companies.length ? `<div class="pp-card pp-set-list">${companies.map((c) => {
         const n = all.filter((p) => p.company_id === c.id).length;
@@ -2483,7 +2495,7 @@
   }
 
   function settingsApp(head) {
-    view.innerHTML = `${head('App', true)}
+    setOut.innerHTML = `${head('App', true)}
       <section class="pp-card pp-block pp-app-card">
         <img src="/assets/obrabuilder/icon-192.png?v=1" alt="" width="56" height="56" />
         <div><h3>ObraBuilder on your phone</h3><p class="pp-muted">Install the app to send work orders and measure on site from your home screen.</p></div>
@@ -2535,7 +2547,7 @@
         try { await api(`/api/builder/pickups/${encodeURIComponent(loc.id)}`, { method: 'DELETE' }); closeSheet(); render(); } catch (ex) { formError('ppPkError', ex); }
       });
     };
-    view.innerHTML = `${head('Pickup locations', true)}
+    setOut.innerHTML = `${head('Pickup locations', true)}
       <p class="pp-muted pp-meas-intro">Supplier yards where your crews pick up delivered material. When a work order names one (like <code>TRIWEST 9176215</code>), the job gets the full address and the order number automatically.</p>
       <div class="pp-sheet-actions" style="justify-content:flex-start;max-width:880px;margin-bottom:12px"><button type="button" class="pp-btn pp-btn--pri" data-pk-new>+ Add location</button></div>
       ${list.length ? `<div class="pp-card pp-set-list">${list.map((l) => `<button type="button" class="pp-set-row" data-pk="${esc(l.id)}"><span class="pp-set-ic">${icon('pin')}</span><span><strong>${esc(l.name)}${l.is_default ? ' <span class="pp-chip pp-chip--ok">Default</span>' : ''}</strong><small>${esc(l.address)}</small>${[l.hours, l.phone].filter(Boolean).length ? `<small>${esc([l.hours, l.phone].filter(Boolean).join(' · '))}</small>` : ''}<small class="pp-pick-alias">Matches: ${(l.aliases || []).map((a) => `<code>${esc(a)}</code>`).join(' ')}</small></span>${icon('chev')}</button>`).join('')}</div>` : `<div class="pp-card pp-empty">${mate('delivery', 110)}<strong>No pickup locations yet</strong>Add the yards and warehouses your suppliers use.</div>`}`;
@@ -2602,7 +2614,7 @@
     let dismissed = 0;
     try { dismissed = Number(localStorage.getItem('ob_install_dismissed') || 0); } catch (_) { dismissed = 0; }
     if (dismissed && Date.now() - dismissed < 30 * 86400000) return '';
-    return `<div class="pp-card pp-install-banner"><img src="/assets/obrabuilder/icon-192.png?v=1" alt="" width="44" height="44" /><div><strong>Get the ObraBuilder app</strong><span>Faster on site — right from your home screen.</span></div><button type="button" class="pp-btn pp-btn--pri pp-btn--sm" data-install-app>Install</button><button type="button" class="pp-ibtn pp-install-x" data-install-dismiss aria-label="Not now">×</button></div>`;
+    return `<div class="pp-card pp-install-banner"><img src="/assets/obrabuilder/icon-192.png?v=1" alt="" width="44" height="44" /><div><strong>Get the app</strong><span>ObraBuilder on your home screen — faster on site.</span></div><button type="button" class="pp-btn pp-btn--pri pp-btn--sm" data-install-app>Install</button><button type="button" class="pp-ibtn pp-install-x" data-install-dismiss aria-label="Not now">×</button></div>`;
   }
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => { navigator.serviceWorker.register('/obrabuilder-sw.js', { scope: '/partner' }).catch(() => {}); });
@@ -4615,40 +4627,47 @@
     if (hidden || !left.length) return '';
     const next = left[0];
     const done = steps.length - left.length;
-    return `<section class="pp-tile pp-setup" style="grid-column: span 12" aria-labelledby="ppSetupT">
-        <img class="pp-setup-art" src="${mateSrc(next.pose)}" alt="" />
-        <div class="pp-setup-main">
-          <div class="pp-tile-head"><h2 id="ppSetupT">Get set up with Mate</h2><button type="button" class="pp-link" data-setup-hide>Hide</button></div>
-          <div class="pp-setup-meter" aria-label="${done} of ${steps.length} done"><i style="width:${Math.round((done / steps.length) * 100)}%"></i></div>
-          <ol class="pp-setup-list">${steps.map((s) => `<li class="${s.done ? 'is-done' : s === next ? 'is-next' : ''}"><a href="${s.href}"><span class="pp-setup-dot">${s.done ? '✓' : ''}</span><span><strong>${esc(s.label)}</strong>${s === next ? `<small>${esc(s.sub)}</small>` : ''}</span></a></li>`).join('')}</ol>
+    // One clear next step, the rest as small check chips (the long list pushed the page down).
+    return `<section class="pp-card pp-setup2" style="grid-column: 1 / -1" aria-labelledby="ppSetupT">
+        <img class="pp-setup2-art" src="${mateSrc(next.pose)}" alt="" />
+        <div class="pp-setup2-main">
+          <div class="pp-setup2-top">
+            <h2 id="ppSetupT">Get set up <span>${done} of ${steps.length} done</span></h2>
+            <button type="button" class="pp-link" data-setup-hide>Hide</button>
+          </div>
+          <div class="pp-setup2-meter" role="progressbar" aria-valuemin="0" aria-valuemax="${steps.length}" aria-valuenow="${done}" aria-label="Setup progress"><i style="width:${Math.round((done / steps.length) * 100)}%"></i></div>
+          <a class="pp-setup2-next" href="${next.href}"><span><small>Next</small><strong>${esc(next.label)}</strong><em>${esc(next.sub)}</em></span><b>Start ${icon('chev')}</b></a>
+          <ul class="pp-setup2-chips">${steps.map((st) => `<li class="${st.done ? 'is-done' : st === next ? 'is-next' : ''}"><a href="${st.href}">${st.done ? '✓ ' : ''}${esc(st.label.replace(/^(Connect your|Send your|Save your|Invite your|Install the app on your) /, (m) => ({ 'Connect your ': 'Connect ', 'Send your ': 'Send ', 'Save your ': 'Save ', 'Invite your ': 'Invite ', 'Install the app on your ': 'App on ' })[m] || m))}</a></li>`).join('')}</ul>
         </div>
       </section>`;
   }
+
 
   /* ─────────────────────────── more (phone) ─────────────────────────── */
 
   function renderMore() {
     const declined = state.requests.filter((r) => r.status === 'declined').length;
-    const item = (href, label, sub, extra) => `<a class="pp-row" href="${href}" style="text-decoration:none;align-items:center"><span class="pp-row-main"><strong style="font-size:15px">${esc(label)}</strong>${sub ? `<span class="pp-row-sub">${esc(sub)}</span>` : ''}</span>${extra || ''}${icon('chev').replace('<svg', '<svg style="width:16px;height:16px;fill:none;stroke:#98A2B3;stroke-width:2.2"')}</a>`;
+    const waiting = state.requests.filter((r) => r.status === 'pending').length;
+    const row = (href, ic, label, sub, extra) => `<a class="pp-set-row" href="${href}"><span class="pp-set-ic">${icon(ic)}</span><span><strong>${esc(label)}</strong>${sub ? `<small>${esc(sub)}</small>` : ''}</span>${extra || ''}${icon('chev')}</a>`;
+    const btn = (id, ic, label, sub, attr) => `<button type="button" class="pp-set-row" ${id ? `id="${id}"` : ''} ${attr || ''}><span class="pp-set-ic">${icon(ic)}</span><span><strong>${esc(label)}</strong>${sub ? `<small>${esc(sub)}</small>` : ''}</span>${icon('chev')}</button>`;
+    const group = (title, inner) => inner.trim() ? `<p class="pp-more-label">${esc(title)}</p><div class="pp-card pp-set-list">${inner}</div>` : '';
+    const b = state.builder;
     view.innerHTML = `
-      <div class="pp-head"><h1>More</h1></div>
-      <div class="pp-card" style="overflow:hidden">
-        ${item('#send', 'Send work', 'PDF, photo or text')}
-        ${state.builder && canDo('measure') ? item('#calendar', 'Calendar', 'Every job by day') : ''}
-        ${item('#send', 'Your requests', `${state.requests.filter((r) => r.status === 'pending').length} waiting for the company`, declined ? `<span class="pp-badge">${declined}</span>` : '')}
-        ${item('#documents', 'Photos & docs', 'Shared by the company')}
-      </div>
-      ${state.builder ? `<div class="pp-card" style="overflow:hidden">
-        ${item('#companies', 'Companies', activeCompanies().length ? `${activeCompanies().length} connected` : 'Connect or invite flooring companies')}
-        ${canDo('measure') ? item('#measurements', 'Measurements', 'Stairs and vents measured on site') : ''}
-        ${item('#team', 'Team', `${state.builder.account.name} · ${state.builder.member.role_label}`)}
-        ${item('#settings', 'Settings', canDo('team.manage') ? 'Profile, company, pickups and prices' : 'Your profile and the app')}
-      </div>` : ''}
-      <div class="pp-card" style="overflow:hidden">
-        <div style="padding:14px 16px"><strong>${esc(state.user.name || '')}</strong><div class="pp-muted" style="font-size:13px">${esc(state.user.email || '')}${state.user.company_name ? ` · ${esc(state.user.company_name)}` : ''}</div></div>
-        ${!state.builder && state.providers.length > 1 ? `<button type="button" class="pp-row" id="ppMoreSwitch"><span class="pp-row-main"><strong style="font-size:15px">Switch company</strong><span class="pp-row-sub">Now: ${esc(providerName())}</span></span></button>` : ''}
-        ${canInstallApp() ? '<button type="button" class="pp-row" data-install-app><span class="pp-row-main"><strong style="font-size:15px">Install the ObraBuilder app</strong><span class="pp-row-sub">Open it from your home screen</span></span></button>' : ''}
-        <button type="button" class="pp-row" id="ppMoreLogout"><span class="pp-row-main"><strong style="font-size:15px" class="pp-late">Sign out</strong></span></button>
+      <div class="pp-head"><div>${b ? `<p class="pp-eyebrow">${esc(b.account.name)}</p>` : ''}<h1>More</h1></div></div>
+      <div class="pp-set-hub pp-more">
+        ${group('Work', `
+          ${row('#send', 'send', 'Send work', waiting ? `${waiting} waiting for the company` : 'PDF, photo or text', declined ? `<span class="pp-badge">${declined}</span>` : '')}
+          ${row('#calendar', 'cal', 'Calendar', 'Every job by day')}
+          ${row('#documents', 'camera', 'Photos & docs', 'Shared by the company')}`)}
+        ${b ? group('Account', `
+          ${row('#companies', 'globe', 'Companies', activeCompanies().length ? `${activeCompanies().length} connected` : 'Connect or invite flooring companies')}
+          ${row('#team', 'user', 'Team', b.member.role_label)}
+          ${row('#settings', 'gear', 'Settings', canDo('team.manage') ? 'Profile, company, pickups and prices' : 'Your profile and the app')}`) : ''}
+        ${group(state.user.name || 'You', `
+          <div class="pp-more-me"><small>${esc(state.user.email || '')}${state.user.company_name ? ` · ${esc(state.user.company_name)}` : ''}</small></div>
+          ${!b && state.providers.length > 1 ? btn('ppMoreSwitch', 'globe', 'Switch company', `Now: ${providerName()}`) : ''}
+          ${canInstallApp() ? btn('', 'download', 'Install the ObraBuilder app', 'Open it from your home screen', 'data-install-app') : ''}`)}
+        <button type="button" class="pp-set-out" id="ppMoreLogout">${icon('back')}Sign out</button>
       </div>`;
     const sw = $('ppMoreSwitch');
     if (sw) sw.addEventListener('click', () => { openMenu(true); });
@@ -4671,6 +4690,8 @@
   function renderPassword() {
     $('ppDock').hidden = true;
     $('ppTabs').hidden = true;
+    $('ppSideNav').hidden = true;
+    document.body.classList.remove('pp-has-side');
     $('ppSearchFab').hidden = true;
     view.innerHTML = `
       <div class="pp-head"><div><p class="pp-eyebrow">First sign-in</p><h1>Create your password</h1></div></div>
@@ -4780,6 +4801,8 @@
       if (typeof window.sfBootCrmAddressAutocomplete === 'function') window.sfBootCrmAddressAutocomplete();
       $('ppDock').hidden = false;
       $('ppTabs').hidden = false;
+      $('ppSideNav').hidden = false;
+      document.body.classList.add('pp-has-side');
       $('ppSearchFab').hidden = false;
       if (!location.hash && !activeCompanies().length) location.hash = '#companies';
       await refreshOverview().catch(() => {});
@@ -4808,6 +4831,8 @@
     if (typeof window.sfBootCrmAddressAutocomplete === 'function') window.sfBootCrmAddressAutocomplete();
     $('ppDock').hidden = false;
     $('ppTabs').hidden = false;
+    $('ppSideNav').hidden = false;
+    document.body.classList.add('pp-has-side');
     $('ppSearchFab').hidden = false;
     const overview = await api('/api/partner-portal/overview');
     const data = overview.data || {};

@@ -14,7 +14,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/assets/obrabuilder/favicon-32.png?v=1" />
   <link rel="icon" type="image/svg+xml" href="/assets/obrabuilder/icon.svg?v=1" />
   <link rel="apple-touch-icon" href="/assets/obrabuilder/apple-touch-icon.png?v=1" />
-  <link rel="stylesheet" href="partner-portal-v2.css?v=20261029-mx1" />
+  <link rel="stylesheet" href="partner-portal-v2.css?v=20261029-ux1" />
 </head>
 <body class="pp">
   <header class="pp-top">
@@ -51,6 +51,23 @@
       </div>
     </div>
   </header>
+
+  <aside class="pp-sidenav" id="ppSideNav" aria-label="Navigation" hidden>
+    <nav>
+      <a class="pp-sn" href="#home" data-nav="inicio" ><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9H4z"/></svg><span>Home</span></a>
+      <a class="pp-sn" href="#jobs" data-nav="jobs" ><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16v12H4z"/><path d="M9 8V5h6v3"/></svg><span>Jobs</span></a>
+      <a class="pp-sn" href="#calendar" data-nav="calendario" ><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v14H4z"/><path d="M8 3v5M16 3v5M4 11h16"/></svg><span>Calendar</span></a>
+      <a class="pp-sn" href="#measurements" data-nav="measurements" data-builder-only hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17 17 3l4 4L7 21H3z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/></svg><span>Measurements</span></a>
+      <a class="pp-sn" href="#send" data-nav="enviar" ><span class="pp-count" data-count="pedidos" hidden></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg><span>Send work</span></a>
+      <span class="pp-sn-group">Money &amp; files</span>
+      <a class="pp-sn" href="#invoices" data-nav="invoices" ><span class="pp-count" data-count="invoices" hidden></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg><span>Invoices</span></a>
+      <a class="pp-sn" href="#documents" data-nav="documentos" ><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg><span>Photos &amp; docs</span></a>
+      <span class="pp-sn-group" data-builder-only hidden>Account</span>
+      <a class="pp-sn" href="#companies" data-nav="empresas" data-builder-only hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V8l6-4v16M10 20V10h10v10M3 20h18"/><path d="M14 14h2M14 17h2"/></svg><span>Companies</span></a>
+      <a class="pp-sn" href="#team" data-nav="equipe" data-builder-only hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/></svg><span>Team</span></a>
+      <a class="pp-sn" href="#settings" data-nav="settings" data-builder-only hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg><span>Settings</span></a>
+    </nav>
+  </aside>
 
   <main class="pp-wrap" id="ppView" aria-live="polite">
     <div class="pp-empty"><strong>Loading ObraBuilder…</strong></div>
@@ -92,6 +109,6 @@
   <input type="file" id="ppFileInput" accept="image/jpeg,image/png,image/webp,application/pdf" multiple hidden />
   <input type="file" id="ppCameraInput" accept="image/*" capture="environment" hidden />
   <script src="crm-address-autocomplete.js?v=20261028-pac" defer></script>
-  <script src="partner-portal.js?v=20261029-mx1" defer></script>
+  <script src="partner-portal.js?v=20261029-ux1" defer></script>
 </body>
 </html>
