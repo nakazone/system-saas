@@ -2892,37 +2892,55 @@
     return prev ? { ...prev, id: uid(), room: '', photos: [], note: '' } : { id: uid(), room: '', size: '4x10', type: 'flush', species: 'White Oak', finish: FINISHES[0], color: '', qty: 1, photos: [], note: '' };
   }
 
+  const MEAS_FILTERS = [['all', 'All'], ['draft', 'In progress'], ['done', 'Complete'], ['used', 'Sent with job']];
+
   async function renderMeasurements(id, token) {
     if (id && id !== 'new') return renderMeasurement(id, token);
     const r = await api('/api/builder/measurements');
     if (token !== renderToken) return;
     const rows = r.data || [];
+    state.homeMeas = rows;
+    const f = state.measFilter || 'all';
+    const q = String(state.measQuery || '').trim().toLowerCase();
+    const count = (k) => (k === 'all' ? rows.length : rows.filter((m) => m.status === k).length);
+    const list = rows.filter((m) => (f === 'all' || m.status === f) && (!q || String(m.address || '').toLowerCase().includes(q)));
+    const pills = (c) => [c.treads ? `<span><b>${c.treads}</b> treads</span>` : '', c.risers ? `<span><b>${c.risers}</b> risers</span>` : '', c.nosings ? `<span><b>${c.nosings}</b> nosings</span>` : '', c.vents ? `<span><b>${c.vents}</b> vents</span>` : ''].filter(Boolean).join('') || '<span class="pp-muted">Nothing measured yet</span>';
+    const card = (m) => `<a class="pp-card pp-mcard is-${esc(m.status)}" href="#measurements/${esc(m.id)}">
+        <span class="pp-mcard-ic" aria-hidden="true">${icon('ruler')}</span>
+        <span class="pp-mcard-main">
+          <span class="pp-mcard-top"><strong>${esc(m.address)}</strong>${measStatusChip(m)}</span>
+          <span class="pp-mcard-pills">${pills(m.counts || {})}</span>
+          <small>${esc(m.completed_by || m.updated_by || m.created_by || '')} · ${esc(fmtDayEn(m.completed_at || m.updated_at))}</small>
+        </span>
+        ${m.status === 'draft' ? '<span class="pp-mcard-go">Continue</span>' : icon('chev')}
+      </a>`;
     view.innerHTML = `
-      <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder.account.name)}</p><h1>Measurements</h1></div><div class="pp-head-actions"><button type="button" class="pp-btn pp-btn--pri" id="ppMeasNewBtn">New measurement</button></div></div>
-      <p class="pp-muted pp-meas-intro">Measure straight or round stairs, separate risers, landings, nosings and vents on site. Each measurement is saved by address and goes with the Work Order for that house.</p>
-      <form class="pp-card pp-block pp-meas-new" id="ppMeasNew" ${rows.length && id !== 'new' ? 'hidden' : ''} novalidate>
-        <h3>New measurement</h3>
+      <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder.account.name)}</p><h1>Measurements</h1></div><div class="pp-head-actions"><button type="button" class="pp-btn pp-btn--pri" id="ppMeasNewBtn">${icon('locate')}New measurement</button></div></div>
+      ${rows.length ? `<div class="pp-mlist-bar">
+        <label class="pp-search pp-mlist-search" for="ppMeasQ">${icon('search')}<span class="pp-sr">Search measurements</span><input id="ppMeasQ" type="search" placeholder="Search by address" value="${esc(state.measQuery || '')}" autocomplete="off" /></label>
+        <div class="pp-filter pp-side-filter" role="group" aria-label="Status">${MEAS_FILTERS.map(([k, l]) => `<button type="button" data-mfilter="${k}" aria-pressed="${f === k}">${l} · ${count(k)}</button>`).join('')}</div>
+      </div>
+      <div class="pp-mlist">${list.length ? list.map(card).join('') : `<div class="pp-card pp-empty">${mate('head-curious', 64)}<strong>No measurements match</strong>Change the search or the filter.</div>`}</div>`
+      : `<div class="pp-card pp-empty pp-mempty">${mate('measure', 150)}<strong>Measure stairs and vents on site</strong>Stand at the house and tap <b>New measurement</b> — Mate finds the address. Each measurement goes with the Work Order for that house.<div style="margin-top:14px"><button type="button" class="pp-btn pp-btn--pri" data-meas-new>${icon('locate')}New measurement</button></div></div>`}`;
+    view.querySelectorAll('#ppMeasNewBtn, [data-meas-new]').forEach((b) => b.addEventListener('click', () => openNewMeasurement(false)));
+    view.querySelectorAll('[data-mfilter]').forEach((b) => b.addEventListener('click', () => { state.measFilter = b.getAttribute('data-mfilter'); render(); }));
+    const qi = $('ppMeasQ');
+    if (qi) qi.addEventListener('input', () => { state.measQuery = qi.value; const pos = qi.selectionStart; render().then(() => { const x = $('ppMeasQ'); if (x) { x.focus(); x.setSelectionRange(pos, pos); } }); });
+    if (id === 'new') { history.replaceState(null, '', '#measurements'); openNewMeasurement(window.matchMedia('(max-width: 1023px)').matches); }
+  }
+
+  /** New measurement: address by phone location (or typed), and earlier measurements at the same house. */
+  function openNewMeasurement(autoLocate) {
+    const root = openSheet('New measurement', `
+      <form id="ppMeasNew" novalidate>
         <button type="button" class="pp-geo-btn" id="ppMnGeo">${icon('locate')}<span><strong>Use my location</strong><small>Find the address of the house you’re at</small></span></button>
         <div id="ppMnNear"></div>
-        <div class="pp-fields">
-          <div class="pp-field pp-field--wide"><label for="ppMnAddr">Job address *</label><input id="ppMnAddr" maxlength="300" autocomplete="street-address" data-om-address-autocomplete required placeholder="e.g. 322 Lower Ranch View Rd, Granby, CO" /></div>
-        </div>
+        <div class="pp-field" style="margin-top:12px"><label for="ppMnAddr">Job address *</label><input id="ppMnAddr" maxlength="300" autocomplete="street-address" data-om-address-autocomplete required placeholder="e.g. 322 Lower Ranch View Rd, Granby, CO" /></div>
         <p class="pp-error" id="ppMnErr" role="alert" hidden></p>
-        <div><button type="submit" class="pp-btn pp-btn--pri" id="ppMnSave">Start measuring</button></div>
-      </form>
-      <div class="pp-card" style="overflow:hidden">
-        ${rows.length ? rows.map((m) => `<a class="pp-row pp-meas-row" href="#measurements/${esc(m.id)}" style="text-decoration:none">
-            <span class="pp-row-main">
-              <span class="pp-row-top"><strong>${esc(m.address)}</strong>${measStatusChip(m)}</span>
-              <span class="pp-row-sub">${esc(countsText(m.counts))}</span>
-              <span class="pp-row-next">${esc(m.completed_by || m.updated_by || m.created_by || '')} · ${esc(fmtDayEn(m.completed_at || m.updated_at))}</span>
-            </span>
-          </a>`).join('') : '<div class="pp-empty">' + mate('measure', 120) + '<strong>No measurements yet</strong>Tap <b>New measurement</b> at the house — Mate finds the address for you.</div>'}
-      </div>`;
-    if (typeof window.sfBootCrmAddressAutocomplete === 'function') window.sfBootCrmAddressAutocomplete();
-    $('ppMeasNewBtn').addEventListener('click', () => { const f = $('ppMeasNew'); f.hidden = false; f.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+        <div class="pp-sheet-actions"><button type="submit" class="pp-btn pp-btn--pri" id="ppMnSave">Start measuring</button></div>
+      </form>`, { noFocus: true });
     let geo = null;
-    const geoBtn = $('ppMnGeo');
+    const geoBtn = root.querySelector('#ppMnGeo');
     const locate = () => {
       if (!navigator.geolocation) { formError('ppMnErr', { message: 'This phone can’t share its location. Type the address.' }); return; }
       geoBtn.disabled = true;
@@ -2932,12 +2950,13 @@
         try {
           const r = await postJson('/api/builder/geo', geo);
           const place = r.data.place;
-          if (place && place.address) $('ppMnAddr').value = place.address;
+          if (place && place.address && $('ppMnAddr')) $('ppMnAddr').value = place.address;
           geoBtn.querySelector('strong').textContent = place ? 'Address found' : 'Location found';
           geoBtn.querySelector('small').textContent = place ? 'Check it and start measuring' : 'Type the street address';
           geoBtn.classList.add('is-done');
           const near = r.data.nearby || [];
-          $('ppMnNear').innerHTML = near.length ? `<div class="pp-match"><strong>Already measured here</strong>${near.map((m) => `<a class="pp-today-item" href="#measurements/${esc(m.id)}"><span class="pp-today-time">${icon('ruler')}</span><span class="pp-today-main"><strong>${esc(m.address)}</strong><small>${esc(countsText(m.counts))} · ${esc(fmtDayEn(m.updated_at))}</small></span>${measStatusChip(m)}</a>`).join('')}</div>` : '';
+          const box = $('ppMnNear');
+          if (box) box.innerHTML = near.length ? `<div class="pp-match"><strong>Already measured here</strong>${near.map((m) => `<a class="pp-today-item" href="#measurements/${esc(m.id)}"><span class="pp-today-time">${icon('ruler')}</span><span class="pp-today-main"><strong>${esc(m.address)}</strong><small>${esc(countsText(m.counts))} · ${esc(fmtDayEn(m.updated_at))}</small></span>${measStatusChip(m)}</a>`).join('')}</div>` : '';
         } catch (ex) {
           formError('ppMnErr', ex);
           geoBtn.querySelector('strong').textContent = 'Use my location';
@@ -2950,19 +2969,19 @@
       }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
     };
     geoBtn.addEventListener('click', locate);
-    if (id === 'new' && navigator.geolocation && window.matchMedia('(max-width: 1023px)').matches) locate();
-    $('ppMeasNew').addEventListener('submit', async (e) => {
+    if (autoLocate && navigator.geolocation) locate();
+    root.querySelector('#ppMeasNew').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const err = $('ppMnErr');
-      err.hidden = true;
+      $('ppMnErr').hidden = true;
       const btn = $('ppMnSave');
+      if ($('ppMnAddr').value.trim().length < 4) { formError('ppMnErr', { message: 'Enter the job address.' }); return; }
       btn.disabled = true;
       try {
         const res = await postJson('/api/builder/measurements', { address: $('ppMnAddr').value.trim(), ...(geo || {}) });
+        closeSheet();
         location.hash = `#measurements/${res.data.id}`;
       } catch (ex) {
-        err.textContent = ex.message || 'Could not create it.';
-        err.hidden = false;
+        formError('ppMnErr', ex);
         btn.disabled = false;
       }
     });
@@ -3661,27 +3680,124 @@
     </section>`;
   }
 
+  const VENT_TYPE_LABEL = Object.fromEntries(VENT_TYPES);
   function ventsHtml(m) {
     const locked = m.status === 'used';
-    const rows = (m.data.vents || []).map((v, i) => {
-      const p = `vents.${i}`;
-      const knownSize = VENT_SIZES.includes(v.size);
-      return `<section class="pp-card pp-vent" aria-label="Vent ${i + 1}">
-        <div class="pp-vent-viz">${ventSvg(v)}</div>
-        <div class="pp-vent-grid">
-          <label><span>Room</span><input data-txt="${p}.room" value="${esc(v.room)}" maxlength="80" placeholder="e.g. Master bedroom" ${locked ? 'disabled' : ''} /></label>
-          <label><span>Size</span><select data-vsize="${p}" ${locked ? 'disabled' : ''}>${VENT_SIZES.map((sz) => `<option ${sz === v.size ? 'selected' : ''}>${sz}</option>`).join('')}<option value="__other" ${knownSize ? '' : 'selected'}>Other…</option></select>${knownSize ? '' : `<input data-txt="${p}.size" value="${esc(v.size)}" maxlength="20" placeholder="e.g. 4x16" ${locked ? 'disabled' : ''} />`}</label>
-          <label><span>Type</span>${sel(VENT_TYPES, v.type, `data-set="${p}.type" ${locked ? 'disabled' : ''}`)}</label>
-          <label><span>Qty</span><input type="number" min="1" max="500" data-num="${p}.qty" value="${esc(v.qty || 1)}" ${locked ? 'disabled' : ''} /></label>
-          <label><span>Wood</span>${selFree(SPECIES, v.species, `data-free="${p}.species" ${locked ? 'disabled' : ''}`)}${SPECIES.includes(v.species) || !v.species ? '' : `<input data-txt="${p}.species" value="${esc(v.species)}" maxlength="60" ${locked ? 'disabled' : ''} />`}</label>
-          <label><span>Finish</span>${selFree(FINISHES, v.finish, `data-free="${p}.finish" ${locked ? 'disabled' : ''}`)}${FINISHES.includes(v.finish) || !v.finish ? '' : `<input data-txt="${p}.finish" value="${esc(v.finish)}" maxlength="60" ${locked ? 'disabled' : ''} />`}</label>
-          <label><span>Color / stain</span><input data-txt="${p}.color" value="${esc(v.color)}" maxlength="80" ${locked ? 'disabled' : ''} /></label>
-          <label class="pp-vent-note"><span>Note</span><input data-txt="${p}.note" value="${esc(v.note)}" maxlength="300" ${locked ? 'disabled' : ''} /></label>
-        </div>
-        <div class="pp-vent-foot">${photoStrip(m, v.photos, `${p}.photos`)}${locked ? '' : `<button type="button" class="pp-q-ic pp-q-ic--del" data-vent-rm="${i}" aria-label="Remove vent ${i + 1}">×</button>`}</div>
+    const vents = m.data.vents || [];
+    const total = vents.reduce((n, v) => n + (Number(v.qty) || 1), 0);
+    const rooms = new Set(vents.map((v) => (v.room || '').trim().toLowerCase()).filter(Boolean)).size;
+    const rows = vents.map((v, i) => `<div class="pp-vrow" role="listitem">
+        <button type="button" class="pp-vrow-main" data-vent-open="${i}" aria-label="Edit vent ${i + 1}${v.room ? `, ${esc(v.room)}` : ''}">
+          <span class="pp-vrow-thumb" aria-hidden="true">${ventSvg(v)}</span>
+          <span class="pp-vrow-text"><strong>${esc(v.room || `Vent ${i + 1}`)}</strong><small>${esc([String(v.size || '').replace('x', '×'), VENT_TYPE_LABEL[v.type] || '', [v.species, v.finish].filter((x) => x && x.trim()).join(' · ')].filter(Boolean).join(' · '))}${(v.photos || []).length ? ` · ${(v.photos || []).length} photo${(v.photos || []).length > 1 ? 's' : ''}` : ''}</small></span>
+        </button>
+        <span class="pp-stepper" role="group" aria-label="Quantity">
+          ${locked ? '' : `<button type="button" data-vent-qty="${i}:-1" aria-label="One less" ${(Number(v.qty) || 1) <= 1 ? 'disabled' : ''}>−</button>`}
+          <b aria-live="polite">${Number(v.qty) || 1}</b>
+          ${locked ? '' : `<button type="button" data-vent-qty="${i}:1" aria-label="One more">+</button>`}
+        </span>
+      </div>`).join('');
+    return `<section class="pp-card pp-vents" aria-labelledby="ppVentsT">
+        <div class="pp-vents-head"><div><h3 id="ppVentsT">Vents</h3><small>${vents.length ? `${total} vent${total === 1 ? '' : 's'}${rooms ? ` in ${rooms} room${rooms === 1 ? '' : 's'}` : ''}` : 'Each size and room once — use the count for repeats'}</small></div>${locked ? '' : '<button type="button" class="pp-btn pp-btn--pri pp-btn--sm" id="ppVentAdd">+ Vent</button>'}</div>
+        ${vents.length ? `<div class="pp-vlist" role="list">${rows}</div>` : `<div class="pp-empty" style="padding:22px 8px">${mate('head-thinking', 56)}<strong>No vents measured</strong>Add each vent with its size, type and finish.</div>`}
       </section>`;
-    }).join('');
-    return `${rows || '<div class="pp-card pp-empty">' + mate('head-thinking', 56) + '<strong>No vents measured</strong>Add each vent with its size, type and finish.</div>'}${locked ? '' : '<button type="button" class="pp-q-add pp-q-add--block" id="ppVentAdd">+ Vent (same as last)</button>'}`;
+  }
+
+  /** Vent editor in a sheet: drawing on top, fields below; the list updates when it closes. */
+  function openVentSheet(i, isNew) {
+    const m = state.meas;
+    const v = m.data.vents[i];
+    if (!v) return;
+    const locked = m.status === 'used';
+    const p = `vents.${i}`;
+    const dis = locked ? 'disabled' : '';
+    const knownSize = VENT_SIZES.includes(v.size);
+    const root = openSheet(isNew ? 'New vent' : (v.room || `Vent ${i + 1}`), `
+      <div class="pp-vsheet">
+        <div class="pp-vent-viz" id="ppVentViz">${ventSvg(v)}</div>
+        <div class="pp-fields pp-vsheet-fields">
+          <div class="pp-field pp-field--wide"><label for="ppVRoom">Room</label><input id="ppVRoom" data-txt="${p}.room" value="${esc(v.room)}" maxlength="80" placeholder="e.g. Master bedroom" ${dis} /></div>
+          <div class="pp-field"><label for="ppVSize">Size</label><select id="ppVSize" data-vsize="${p}" ${dis}>${VENT_SIZES.map((sz) => `<option ${sz === v.size ? 'selected' : ''}>${sz}</option>`).join('')}<option value="__other" ${knownSize ? '' : 'selected'}>Other…</option></select>${knownSize ? '' : `<input data-txt="${p}.size" value="${esc(String(v.size || '').trim())}" maxlength="20" placeholder="e.g. 4x16" aria-label="Other size" ${dis} />`}</div>
+          <div class="pp-field"><label for="ppVQty">How many</label><input id="ppVQty" type="number" inputmode="numeric" min="1" max="500" data-num="${p}.qty" value="${esc(v.qty || 1)}" ${dis} /></div>
+          <div class="pp-field pp-field--wide"><span class="pp-flabel">Type</span><div class="pp-seg pp-seg--wrap" role="group" aria-label="Vent type">${VENT_TYPES.map(([k, l]) => `<button type="button" data-vtype="${k}" aria-pressed="${v.type === k}" ${dis}>${esc(l)}</button>`).join('')}</div></div>
+          <div class="pp-field"><label for="ppVWood">Wood</label>${selFree(SPECIES, v.species, `id="ppVWood" data-free="${p}.species" ${dis}`)}${SPECIES.includes(v.species) || !v.species ? '' : `<input data-txt="${p}.species" value="${esc(v.species.trim())}" maxlength="60" aria-label="Other wood" ${dis} />`}</div>
+          <div class="pp-field"><label for="ppVFinish">Finish</label>${selFree(FINISHES, v.finish, `id="ppVFinish" data-free="${p}.finish" ${dis}`)}${FINISHES.includes(v.finish) || !v.finish ? '' : `<input data-txt="${p}.finish" value="${esc(v.finish.trim())}" maxlength="60" aria-label="Other finish" ${dis} />`}</div>
+          <div class="pp-field"><label for="ppVColor">Color / stain</label><input id="ppVColor" data-txt="${p}.color" value="${esc(v.color)}" maxlength="80" ${dis} /></div>
+          <div class="pp-field"><label for="ppVNote">Note</label><input id="ppVNote" data-txt="${p}.note" value="${esc(v.note)}" maxlength="300" ${dis} /></div>
+          <div class="pp-field pp-field--wide"><span class="pp-flabel">Photos</span>${photoStrip(m, v.photos, `${p}.photos`)}</div>
+        </div>
+        <div class="pp-sheet-actions">
+          ${locked ? '' : `<button type="button" class="pp-btn pp-btn--sec pp-late" data-vs-rm>Remove</button><button type="button" class="pp-btn pp-btn--sec" data-vs-dup>Duplicate</button>`}
+          <button type="button" class="pp-btn pp-btn--pri" data-sheet-close>Done</button>
+        </div>
+      </div>`, { noFocus: !isNew });
+    const repaint = () => { const box = root.querySelector('#ppVentViz'); if (box) box.innerHTML = ventSvg(m.data.vents[i]); };
+    const reopen = () => { closeSheet(); openVentSheet(i, isNew); };
+    root.querySelectorAll('[data-txt]').forEach((el) => el.addEventListener('input', () => { const { obj, key } = measAt(el.getAttribute('data-txt')); obj[key] = el.value; measSaveSoon(); repaint(); }));
+    root.querySelectorAll('[data-num]').forEach((el) => el.addEventListener('input', () => { const { obj, key } = measAt(el.getAttribute('data-num')); obj[key] = Math.max(1, Math.round(Number(el.value) || 1)); measSaveSoon(); }));
+    root.querySelectorAll('[data-free]').forEach((el) => el.addEventListener('change', () => {
+      const { obj, key } = measAt(el.getAttribute('data-free'));
+      obj[key] = el.value === '__other' ? ' ' : el.value;
+      measSaveSoon();
+      reopen();
+      if (el.value === '__other') { const inp = $('ppSheet') && $('ppSheet').querySelector(`[data-txt="${el.getAttribute('data-free')}"]`); if (inp) { inp.value = ''; inp.focus(); } }
+    }));
+    root.querySelectorAll('[data-vsize]').forEach((el) => el.addEventListener('change', () => {
+      m.data.vents[i].size = el.value === '__other' ? ' ' : el.value;
+      measSaveSoon();
+      reopen();
+      if (el.value === '__other') { const inp = $('ppSheet') && $('ppSheet').querySelector(`[data-txt="${p}.size"]`); if (inp) { inp.value = ''; inp.focus(); } }
+    }));
+    root.querySelectorAll('[data-vtype]').forEach((b) => b.addEventListener('click', () => {
+      m.data.vents[i].type = b.getAttribute('data-vtype');
+      root.querySelectorAll('[data-vtype]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      measSaveSoon();
+      repaint();
+    }));
+    root.querySelectorAll('[data-ph-add]').forEach((inp) => inp.addEventListener('change', async () => {
+      const file = inp.files && inp.files[0];
+      if (!file) return;
+      const label = inp.closest('.pp-meas-addph');
+      if (label) label.classList.add('is-busy');
+      try {
+        const dataUrl = (await compressImage(file)) || (await readAsDataUrl(file));
+        const r = await postJson(`/api/builder/measurements/${encodeURIComponent(m.id)}/photos`, { data_url: dataUrl });
+        m.data.vents[i].photos = (m.data.vents[i].photos || []).concat(r.data.key);
+        measSaveSoon();
+        await measSaveNow();
+        reopen();
+      } catch (e) {
+        window.alert(e.message || 'Could not upload the photo.');
+        if (label) label.classList.remove('is-busy');
+      }
+    }));
+    root.querySelectorAll('[data-ph-rm]').forEach((b) => b.addEventListener('click', () => {
+      m.data.vents[i].photos.splice(Number(b.getAttribute('data-ph-i')), 1);
+      measSaveSoon();
+      reopen();
+    }));
+    const rm = root.querySelector('[data-vs-rm]');
+    if (rm) rm.addEventListener('click', () => {
+      if (rm.dataset.armed !== '1') { rm.dataset.armed = '1'; rm.textContent = 'Tap again to remove'; return; }
+      m.data.vents.splice(i, 1);
+      measSaveSoon();
+      closeSheet();
+    });
+    const dup = root.querySelector('[data-vs-dup]');
+    if (dup) dup.addEventListener('click', () => {
+      m.data.vents.splice(i + 1, 0, { ...m.data.vents[i], id: uid(), photos: [], note: '' });
+      measSaveSoon();
+      closeSheet();
+      openVentSheet(i + 1, true);
+    });
+    // The list behind the sheet shows the new values once it closes.
+    const obs = new MutationObserver(() => {
+      if (!document.body.contains(root)) {
+        obs.disconnect();
+        if (state.meas === m && route().name === 'measurements') { const y = window.scrollY; paintMeasurement(); window.scrollTo(0, y); }
+      }
+    });
+    obs.observe(document.body, { childList: true });
   }
 
   function measSummaryHtml(m) {
@@ -3689,47 +3805,55 @@
     return `<h3>Summary</h3>${lines.length ? `<ul class="pp-meas-sum">${lines.map((l) => `<li><span><b>${esc(l.kind)}</b> ${esc(l.text)}<small>${esc(l.group)}</small></span><em>${l.qty} EA</em></li>`).join('')}</ul>` : '<p class="pp-muted" style="margin:0">Pieces show up here grouped by size, like on the Work Order.</p>'}`;
   }
 
+  function measLogHtml(m) {
+    const log = (m.log || []).slice(-8).reverse();
+    return `<ul class="pp-meas-log">${log.map((l) => `<li><b>${esc(l.name || '')}</b> ${esc(LOG_EN[l.action] || l.action || '')}<small>${esc(fmtDayEn(l.at, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }))}</small></li>`).join('') || '<li class="pp-muted">—</li>'}</ul>`;
+  }
+
+  /** Summary tab: what goes on the Work Order, general notes, who measured, PDF and delete. */
+  function measSummaryTabHtml(m) {
+    const locked = m.status === 'used';
+    const c = measCounts(m.data);
+    const tile = (n, label) => `<div class="pp-mkpi"><b>${n}</b><span>${label}</span></div>`;
+    return `<div class="pp-msum">
+        <div class="pp-mkpis">${tile(c.treads, 'Treads')}${tile(c.risers, 'Risers')}${tile(c.nosings, 'Nosings')}${tile(c.landings, 'Landings')}${tile(c.vents, 'Vents')}</div>
+        <div class="pp-msum-grid">
+          <section class="pp-card pp-block" id="ppMeasSum">${measSummaryHtml(m)}</section>
+          <div class="pp-msum-side">
+            <section class="pp-card pp-block"><h3>General notes</h3><textarea class="pp-mnotes" data-head="notes" maxlength="2000" rows="4" placeholder="e.g. access through the garage, concrete slab, client wants Jacobean on the treads" aria-label="General notes" ${locked ? 'disabled' : ''}>${esc(m.notes || '')}</textarea></section>
+            <section class="pp-card pp-block"><h3>Measured by</h3>${measLogHtml(m)}</section>
+            <div class="pp-msum-acts"><a class="pp-btn pp-btn--sec" href="/api/builder/measurements/${encodeURIComponent(m.id)}/pdf" target="_blank" rel="noopener">${icon('download')}Download PDF</a>${locked ? '' : '<button type="button" class="pp-link pp-late" id="ppMeasDel">Delete measurement</button>'}</div>
+          </div>
+        </div>
+      </div>`;
+  }
+
   function paintMeasurement() {
     const m = state.meas;
     const locked = m.status === 'used';
     const c = measCounts(m.data);
-    const log = (m.log || []).slice(-6).reverse();
+    if (!['stairs', 'vents', 'summary'].includes(m.tab)) m.tab = 'stairs';
+    const tab = (k, label, n) => `<button type="button" role="tab" data-mtab="${k}" aria-selected="${m.tab === k}" aria-pressed="${m.tab === k}">${label}${n != null ? `<span class="pp-mtab-n">${n}</span>` : ''}</button>`;
     view.innerHTML = `
-      <div class="pp-head">
-        <div><a class="pp-back" href="#measurements" style="display:inline-flex">${icon('back')}Measurements</a><h1 class="pp-meas-title">${esc(m.address)}</h1>
-          <p class="pp-muted" style="margin:4px 0 0">${measStatusChip(m)} <span id="ppMeasSaved" class="pp-meas-saved">Saved</span></p></div>
-        <div class="pp-head-actions">
-          <a class="pp-btn pp-btn--sec" href="/api/builder/measurements/${encodeURIComponent(m.id)}/pdf" target="_blank" rel="noopener">PDF</a>
-          ${locked ? '' : m.status === 'done' ? '<button type="button" class="pp-btn pp-btn--sec" id="ppMeasReopen">Reopen</button>' : '<button type="button" class="pp-btn pp-btn--pri" id="ppMeasDone">Complete measurement</button>'}
+      <div class="pp-mhead">
+        <a class="pp-back" href="#measurements" style="display:inline-flex">${icon('back')}Measurements</a>
+        <div class="pp-mhead-row">
+          <div class="pp-mhead-title"><h1 class="pp-meas-title">${esc(m.address)}</h1>
+            <p>${measStatusChip(m)} <span id="ppMeasSaved" class="pp-meas-saved">Saved</span>${m.notes ? ` · <button type="button" class="pp-link" data-mtab-go="summary">Notes</button>` : ''}</p></div>
+          <div class="pp-head-actions">
+            <a class="pp-btn pp-btn--sec pp-hide-phone" href="/api/builder/measurements/${encodeURIComponent(m.id)}/pdf" target="_blank" rel="noopener">PDF</a>
+            ${locked ? '' : m.status === 'done' ? '<button type="button" class="pp-btn pp-btn--sec" id="ppMeasReopen">Reopen</button>' : '<button type="button" class="pp-btn pp-btn--pri" id="ppMeasDone">Complete</button>'}
+          </div>
         </div>
       </div>
       ${locked ? `<div class="pp-match"><strong>This measurement was already sent with the Work Order</strong><span class="pp-muted" style="font-size:14px">${m.work_order_id ? `<a class="pp-link" href="#jobs/${encodeURIComponent(m.work_order_id)}">Open the job</a> · ` : ''}To measure again, start a new measurement for this address.</span></div>` : ''}
-      <div class="pp-meas-layout ${m.tab === 'stairs' ? 'pp-meas-layout--stairs' : ''}">
-        <div class="pp-meas-main">
-          <div class="pp-card pp-meas-info">
-            <label class="pp-meas-info-wide"><span>General notes</span><input data-head="notes" value="${esc(m.notes || '')}" maxlength="2000" placeholder="e.g. access through the garage, concrete slab" ${locked ? 'disabled' : ''} /></label>
-          </div>
-          <div class="pp-seg pp-meas-tabs" role="tablist">
-            <button type="button" role="tab" data-mtab="stairs" aria-selected="${m.tab === 'stairs'}" aria-pressed="${m.tab === 'stairs'}">Stairs · ${c.treads} treads · ${c.risers} risers</button>
-            <button type="button" role="tab" data-mtab="vents" aria-selected="${m.tab === 'vents'}" aria-pressed="${m.tab === 'vents'}">Vents · ${c.vents}</button>
-          </div>
-          ${m.tab === 'stairs'
-            ? `${stairsWorkbenchHtml(m)}${locked ? '' : '<button type="button" class="pp-q-add pp-q-add--block" id="ppStairAdd">+ Stair</button>'}`
-            : ventsHtml(m)}
-          ${m.tab === 'stairs' ? `<div class="pp-stair-page-details">
-            <details class="pp-stair-secondary pp-stair-summary-detail"><summary><span>Order summary</span><small>${c.treads} treads · ${c.risers} risers</small><i aria-hidden="true"></i></summary><div class="pp-stair-secondary-body" id="ppMeasSum">${measSummaryHtml(m)}</div></details>
-            <details class="pp-stair-secondary"><summary><span>Measured by</span><small>${log.length ? log.length + ' recent updates' : 'No updates'}</small><i aria-hidden="true"></i></summary><div class="pp-stair-secondary-body"><ul class="pp-meas-log">${log.map((l) => `<li><b>${esc(l.name || '')}</b> ${esc(LOG_EN[l.action] || l.action || '')}<small>${esc(fmtDayEn(l.at, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }))}</small></li>`).join('') || '<li class="pp-muted">—</li>'}</ul></div></details>
-            ${locked ? '' : '<button type="button" class="pp-link pp-late" id="ppMeasDel">Delete measurement</button>'}
-          </div>` : ''}
-        </div>
-        ${m.tab === 'vents' ? `<aside class="pp-meas-side">
-          <div class="pp-card pp-block" id="ppMeasSum">${measSummaryHtml(m)}</div>
-          <div class="pp-card pp-block">
-            <h3>Measured by</h3>
-            <ul class="pp-meas-log">${log.map((l) => `<li><b>${esc(l.name || '')}</b> ${esc(LOG_EN[l.action] || l.action || '')}<small>${esc(fmtDayEn(l.at, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }))}</small></li>`).join('') || '<li class="pp-muted">—</li>'}</ul>
-          </div>
-          ${locked ? '' : '<button type="button" class="pp-link pp-late" id="ppMeasDel" style="justify-self:start">Delete measurement</button>'}
-        </aside>` : ''}
+      <div class="pp-mtabs" role="tablist" aria-label="Measurement sections">
+        ${tab('stairs', 'Stairs', c.treads + c.risers ? `${c.treads}·${c.risers}` : null)}${tab('vents', 'Vents', c.vents || null)}${tab('summary', 'Summary', null)}
+      </div>
+      <div class="pp-mpanel" role="tabpanel">
+        ${m.tab === 'stairs'
+          ? `<div class="pp-meas-layout pp-meas-layout--stairs"><div class="pp-meas-main">${stairsWorkbenchHtml(m)}${locked ? '' : '<button type="button" class="pp-q-add pp-q-add--block" id="ppStairAdd">+ Stair</button>'}</div></div>`
+          : m.tab === 'vents' ? ventsHtml(m) : measSummaryTabHtml(m)}
       </div>
       ${locked || !state.builder.ai_reader ? '' : voiceFabHtml()}`;
     paintMeasSaved();
@@ -3848,7 +3972,13 @@
       m.activeStairId = button.getAttribute('data-stair-activate');
       redraw();
     }));
-    view.querySelectorAll('[data-mtab]').forEach((b) => b.addEventListener('click', () => { m.tab = b.getAttribute('data-mtab'); redraw(); }));
+    view.querySelectorAll('[data-mtab]').forEach((b) => b.addEventListener('click', () => {
+      m.tab = b.getAttribute('data-mtab');
+      redraw();
+      // A new tab starts at its top, under the sticky tab bar.
+      const bar = view.querySelector('.pp-mtabs');
+      if (bar && bar.getBoundingClientRect().top < 0) window.scrollTo({ top: window.scrollY + bar.getBoundingClientRect().top - 72 });
+    }));
     view.querySelectorAll('[data-head]').forEach((el) => el.addEventListener('input', () => { m[el.getAttribute('data-head')] = el.value; measSaveSoon(); }));
     view.querySelectorAll('[data-in]').forEach((el) => {
       el.addEventListener('input', () => {
@@ -4037,9 +4167,18 @@
       m.data.vents.push(newVent(m.data.vents[m.data.vents.length - 1]));
       measSaveSoon();
       redraw();
-      const inp = view.querySelector(`[data-txt="vents.${m.data.vents.length - 1}.room"]`);
-      if (inp) inp.focus();
+      openVentSheet(m.data.vents.length - 1, true);
     });
+    view.querySelectorAll('[data-vent-open]').forEach((b) => b.addEventListener('click', () => openVentSheet(Number(b.getAttribute('data-vent-open')), false)));
+    view.querySelectorAll('[data-vent-qty]').forEach((b) => b.addEventListener('click', () => {
+      const [i, d] = b.getAttribute('data-vent-qty').split(':').map(Number);
+      const v = m.data.vents[i];
+      if (!v) return;
+      v.qty = Math.max(1, (Number(v.qty) || 1) + d);
+      measSaveSoon();
+      redraw();
+    }));
+    view.querySelectorAll('[data-mtab-go]').forEach((b) => b.addEventListener('click', () => { m.tab = b.getAttribute('data-mtab-go'); redraw(); }));
     view.querySelectorAll('[data-vent-rm]').forEach((b) => b.addEventListener('click', () => {
       m.data.vents.splice(Number(b.getAttribute('data-vent-rm')), 1);
       measSaveSoon();
