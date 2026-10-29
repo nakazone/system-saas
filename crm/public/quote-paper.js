@@ -12,6 +12,7 @@
     { key: 'supply', label: 'SUPPLY', name: 'Supply', st: 'Supply' },
     { key: 'installation', label: 'INSTALLATION', name: 'Installation', st: 'Installation' },
     { key: 'sand_finish', label: 'SAND & FINISH', name: 'Sand & Finish', st: 'Sand & Finishing' },
+    { key: 'add_on', label: 'ADD ON', name: 'Add On', st: 'Add On' },
   ];
   const DEFAULT_TAGLINE = 'Hardwood · LVP · Refinishing';
 
@@ -54,8 +55,17 @@
   /** Mesmo agrupamento do PDF: produto → Supply; sem tipo → Installation. */
   function sectionOf(itemType, serviceType, name) {
     if (String(itemType || '').toLowerCase() === 'product') return 'supply';
-    const st = String(serviceType || '').trim().toLowerCase();
+    const st = String(serviceType || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[_-]+/g, ' ')
+      .replace(/\s+/g, ' ');
     const nm = String(name || '').trim().toLowerCase();
+    const addOnType =
+      st === 'add on' || st === 'add ons' || st === 'addon' || st.startsWith('add on ') || st.includes('adicional');
+    const addOnNamed = /^\s*add[\s-]*ons?\b/i.test(nm);
+    const sand = st.includes('sand') || st.includes('finish') || st.includes('lix') || st.includes('acab');
+    if (addOnType || (addOnNamed && (sand || !st))) return 'add_on';
     if (
       st.includes('supply') ||
       st.includes('fornec') ||
@@ -69,7 +79,7 @@
       return 'supply';
     }
     if (!st) return 'installation';
-    if (st.includes('sand') || st.includes('finish') || st.includes('lix') || st.includes('acab')) return 'sand_finish';
+    if (sand) return 'sand_finish';
     return 'installation';
   }
   function stripMarks(t) {
@@ -198,7 +208,7 @@
   }
 
   function group(lines) {
-    const by = { supply: [], installation: [], sand_finish: [] };
+    const by = { supply: [], installation: [], sand_finish: [], add_on: [] };
     for (const l of lines) (by[l.section] || by.installation).push(l);
     return SECTIONS.map((s) => ({
       ...s,

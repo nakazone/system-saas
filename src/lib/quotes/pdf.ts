@@ -262,12 +262,30 @@ function resolvePalette(input: { brandPrimary?: string | null; brandAccent?: str
   };
 }
 
-/** Fixed customer-facing order: Supply → Installation → Sand & Finish. Products roll into Supply. */
+/** Fixed customer-facing order: Supply → Installation → Sand & Finish → Add On. Products roll into Supply. */
 const SECTION_DEFS = [
   { key: "supply", label: "SUPPLY" },
   { key: "installation", label: "INSTALLATION" },
   { key: "sand_finish", label: "SAND & FINISH" },
+  { key: "add_on", label: "ADD ON" },
 ] as const;
+
+function isAddOnType(serviceType: string): boolean {
+  const st = serviceType.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+  return (
+    st === "add on" ||
+    st === "add ons" ||
+    st === "addon" ||
+    st === "addons" ||
+    st.startsWith("add on ") ||
+    st.startsWith("addon ") ||
+    st.includes("adicional")
+  );
+}
+
+function isAddOnName(name: string | null | undefined): boolean {
+  return /^\s*add[\s-]*ons?\b/i.test(String(name || ""));
+}
 
 export type QuotePdfLine = {
   name?: string | null;
@@ -396,6 +414,10 @@ function lineSection(it: QuotePdfLine): (typeof SECTION_DEFS)[number]["key"] {
   // Catalog products belong with Supply on the customer PDF.
   if (String(it.itemType || "").toLowerCase() === "product") return "supply";
   const st = String(it.serviceType || "").trim().toLowerCase();
+  if (isAddOnType(st)) return "add_on";
+  if (isAddOnName(it.name) && (st.includes("sand") || st.includes("finish") || st.includes("lix") || st.includes("acab"))) {
+    return "add_on";
+  }
   if (!st) return "installation";
   if (
     st.includes("supply") ||
@@ -422,6 +444,7 @@ export function groupItemsForPdf(items: QuotePdfLine[]) {
     supply: [],
     installation: [],
     sand_finish: [],
+    add_on: [],
   };
   for (const it of list) {
     const k = lineSection(it);

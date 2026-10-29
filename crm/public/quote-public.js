@@ -22,6 +22,7 @@
     { key: 'supply', label: 'SUPPLY' },
     { key: 'installation', label: 'INSTALLATION' },
     { key: 'sand_finish', label: 'SAND & FINISH' },
+    { key: 'add_on', label: 'ADD ON' },
   ];
 
   const money = (n) =>
@@ -76,21 +77,23 @@
     );
   }
 
-  /** Same section logic / order as quotePdf.js (Supply → Installation → Sand & Finish). */
+  /** Same section logic / order as the PDF (Supply → Installation → Sand & Finish → Add On). */
   function lineSection(it) {
     if (String(it.item_type || '').toLowerCase() === 'product') return 'supply';
-    const st = String(it.service_type || '').trim();
+    const st = String(it.service_type || '').trim().toLowerCase().replace(/[_-]+/g, ' ');
+    const addOnType =
+      st === 'add on' || st === 'add ons' || st === 'addon' || st.startsWith('add on ') || st.includes('adicional');
+    const addOnNamed = /^\s*add[\s-]*ons?\b/i.test(String(it.name || ''));
+    const sand = st.includes('sand') || st.includes('finish') || st.includes('lix') || st.includes('acab');
+    if (addOnType || (addOnNamed && sand)) return 'add_on';
     if (!st) return 'installation';
-    const lower = st.toLowerCase();
-    if (lower.includes('supply') || lower.includes('fornec') || lower.includes('material')) return 'supply';
-    if (lower.includes('sand') || lower.includes('finishing') || lower.includes('finish') || lower.includes('lix')) {
-      return 'sand_finish';
-    }
+    if (st.includes('supply') || st.includes('fornec') || st.includes('material')) return 'supply';
+    if (sand) return 'sand_finish';
     return 'installation';
   }
 
   function groupItems(items) {
-    const buckets = { supply: [], installation: [], sand_finish: [] };
+    const buckets = { supply: [], installation: [], sand_finish: [], add_on: [] };
     for (const it of items || []) {
       const k = lineSection(it);
       if (buckets[k]) buckets[k].push(it);

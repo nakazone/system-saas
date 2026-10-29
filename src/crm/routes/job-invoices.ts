@@ -77,7 +77,7 @@ jobInvoicesRouter.get(
             due_date: inv.dueDate,
             days_overdue: m.daysOverdue,
             created_at: inv.createdAt,
-            url: `invoice.html?id=${encodeURIComponent(inv.id)}`,
+            url: `invoices.html?id=${encodeURIComponent(inv.id)}`,
           };
         }),
         billing: { ...billing, billing_status_label: jobBillingLabel(billing.billing_status) },

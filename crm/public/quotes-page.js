@@ -263,15 +263,60 @@
   function archLink() {
     return `<button type="button" class="qs-arch" data-arch>${st.archived ? '‹ Voltar aos quotes' : 'Ver arquivados'}</button>`;
   }
+  const PIN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>';
+  function addressOf(q) {
+    const addr = String(q.job_address || q.property_label || '').trim();
+    if (!addr || addr === clientOf(q)) return '';
+    return addr;
+  }
+  function listDate(q) {
+    const g = groupOf(q);
+    const exp = q.expiration_date ? dayDiff(q.expiration_date) : null;
+    let iso = q.created_at;
+    if (g === 'approved' && q.signed_at) iso = q.signed_at;
+    else if (q.expiration_date) iso = q.expiration_date;
+    else if (q.email_sent_at) iso = q.email_sent_at;
+    const hot = g === 'expired' || (g !== 'approved' && g !== 'archived' && exp != null && exp <= 7);
+    return { text: dm(iso), hot };
+  }
+  function listStatus(q) {
+    const s = shortStatus(q);
+    return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+  }
+  /** Five stages, same bar as Jobs: done orange, current black. */
+  function progHtml(q) {
+    const g = groupOf(q);
+    const label = listStatus(q);
+    if (g === 'expired' || g === 'archived') return `<span class="qs-prog qs-prog--x" aria-label="${esc(label)}"></span>`;
+    let s = 0;
+    if (g === 'approved' && q.work_order_id) s = 5;
+    else if (g === 'approved') s = 3;
+    else if (g === 'changes' || isViewed(q)) s = 2;
+    else if (g !== 'draft') s = 1;
+    let h = '';
+    for (let i = 0; i < 5; i += 1) {
+      const c = i < s ? 'd' : i === s ? 'n' : '';
+      h += `<i class="${c}"></i>`;
+    }
+    return `<span class="qs-prog" aria-label="${esc(label)}">${h}</span>`;
+  }
   function rowHtml(q) {
-    const nx = rowNext(q);
-    const qn = q.quote_number || '';
     const on = String(st.sel) === String(q.id);
-    const idBit = q.client_ref ? `ID ${q.client_ref}` : '';
-    const jobBit = q.job_number != null ? `Job #${q.job_number}` : '';
+    const when = listDate(q);
+    const status = listStatus(q);
+    const hot = groupOf(q) === 'changes' || groupOf(q) === 'expired';
+    const addr = addressOf(q);
     return `<a class="qs-row${on ? ' is-on' : ''}" role="listitem" href="quotes.html?id=${encodeURIComponent(q.id)}" data-id="${esc(q.id)}">
-      <span class="qs-row__b"><b>${esc(clientOf(q))}</b><small${nx.hot ? ' class="is-hot"' : ''}>${esc([qn, idBit, jobBit, nx.text].filter(Boolean).join(' · '))}</small></span>
-      <span class="qs-row__v">${money(q.total_amount ?? q.total)}<small>${esc(shortStatus(q))}</small></span>
+      <span class="qs-row__b">
+        <span class="qs-row__l1"><b>${esc(clientOf(q))}</b></span>
+        ${addr ? `<span class="qs-row__addr">${PIN}<span>${esc(addr)}</span></span>` : ''}
+        <span class="qs-row__l3">${progHtml(q)}</span>
+      </span>
+      <span class="qs-row__side">
+        <span class="qs-row__amt">${money(q.total_amount ?? q.total)}</span>
+        ${when.text ? `<span class="qs-row__when${when.hot ? ' is-hot' : ''}">${esc(when.text)}</span>` : ''}
+        ${status ? `<span class="qs-row__st${hot ? ' is-hot' : ''}">${esc(status)}</span>` : ''}
+      </span>
     </a>`;
   }
 

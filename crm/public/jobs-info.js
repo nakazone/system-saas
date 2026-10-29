@@ -254,14 +254,29 @@
     return main;
   }
 
+  /** Installation is done and the job is waiting on the sand date. */
+  function awaitingSand(wo) {
+    if (!wo || wo.sector !== "both") return false;
+    if (wo.status === "completed" || wo.status === "canceled") return false;
+    return Boolean(wo.installation_done_at) && !wo.sand_done_at;
+  }
+
+  /**
+   * Date that places the job on the list. After installation is finished, that is the sand date.
+   */
+  function listAnchorIso(wo) {
+    if (!wo) return null;
+    if (awaitingSand(wo) && wo.sand_scheduled_start) return wo.sand_scheduled_start;
+    return wo.scheduled_start || (wo.sector === "both" ? wo.sand_scheduled_start : null) || null;
+  }
+
   /**
    * List row: one date, no sector labels. A finished job never reads as "sem data"
    * just because installation or sand was left blank.
    */
   function listWhen(wo) {
-    const start = dayLabel(wo.scheduled_start);
-    const sand = wo.sector === "both" ? dayLabel(wo.sand_scheduled_start) : "";
-    let date = start || sand || "";
+    const anchor = listAnchorIso(wo);
+    let date = anchor ? dayLabel(anchor) : "";
     const finished = wo.status === "completed" || wo.status === "canceled";
     if (!date && wo.status === "completed") date = dayShort(wo.updated_at || wo.scheduled_end) || "";
     if (!date && !finished) date = "Sem data";
@@ -272,7 +287,7 @@
   }
 
   function startMs(wo) {
-    const iso = wo.scheduled_start || (wo.sector === "both" ? wo.sand_scheduled_start : null);
+    const iso = listAnchorIso(wo);
     if (!iso) return null;
     const t = new Date(iso).getTime();
     return Number.isNaN(t) ? null : t;
@@ -332,6 +347,6 @@
 
   window.JobsInfo = {
     esc, money, money0, client, builderName, findLine, searchText, displayName, isActive, late, step, STEP_NAMES, STATUS_BY_STEP, STATUS_STEP_MSG,
-    statusForStep, atStatus, stageLabel, progHtml, sectorProgress, nextFinish, fieldHalves, bill, dateRange, listWhen, dayShort, completeLabel, compareNearest, startMs, isToday, initials, team,
+    statusForStep, atStatus, stageLabel, progHtml, sectorProgress, nextFinish, fieldHalves, bill, dateRange, listWhen, listAnchorIso, awaitingSand, dayShort, completeLabel, compareNearest, startMs, isToday, initials, team,
   };
 })();

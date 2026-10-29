@@ -39,7 +39,13 @@
     { value: 'Supply', label: 'Supply' },
     { value: 'Installation', label: 'Installation' },
     { value: 'Sand & Finishing', label: 'Sand & Finish' },
+    { value: 'Add On', label: 'Add On' },
   ];
+
+  /** Catalog lines named "Add On:" / "Add-On:" belong in the Add On section. */
+  function addOnName(name) {
+    return /^\s*add[\s-]*ons?\b/i.test(String(name || ''));
+  }
 
   /** Map Tabela de Valores keys/labels (and quote service_type) → QB category values. */
   function normalizeServiceType(st) {
@@ -50,6 +56,17 @@
       .replace(/[_-]+/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
+    if (
+      lower === 'add on' ||
+      lower === 'add ons' ||
+      lower === 'addon' ||
+      lower === 'addons' ||
+      lower.startsWith('add on ') ||
+      lower.startsWith('addon ') ||
+      lower.includes('adicional')
+    ) {
+      return 'Add On';
+    }
     if (
       lower === 'supply' ||
       lower.includes('supply') ||
@@ -76,10 +93,13 @@
     return 'Installation';
   }
 
-  /** Classify a line into Supply / Installation / Sand using type + name (Delivery Fee → Supply). */
+  /** Classify a line into Supply / Installation / Sand / Add On (Delivery Fee → Supply). */
   function resolveItemSection(it) {
     if (!it || it.item_type === 'product') return 'Supply';
     const fromType = normalizeServiceType(it.service_type);
+    if (fromType === 'Add On') return 'Add On';
+    // Tabela de Valores keeps these under sand; the name is what makes them Add On.
+    if (addOnName(it.name) && fromType === 'Sand & Finishing') return 'Add On';
     if (fromType === 'Supply' || fromType === 'Sand & Finishing') return fromType;
     const hay = `${it.name || ''} ${it.description || ''}`.toLowerCase();
     if (/delivery|entrega|frete|shipping|\bsupply\b|fornec|material/.test(hay)) return 'Supply';
@@ -4188,7 +4208,8 @@
     const descRaw = catalogDescriptionForRow(row);
     $('modalServiceDesc').value = descriptionBodyWithoutTitle(name, descRaw);
     let st = serviceTypeFromCatalogCategory(row.category);
-    if (
+    if (addOnName(row.name)) st = 'Add On';
+    else if (
       isSupplyPinnedItem({
         name: row.name,
         service_type: row.category,
@@ -4835,15 +4856,15 @@
     list.innerHTML = '';
     updateItemsCountLabel();
 
-    const buckets = { Supply: [], Installation: [], 'Sand & Finishing': [], products: [] };
+    const buckets = { Supply: [], Installation: [], 'Sand & Finishing': [], 'Add On': [], products: [] };
     items.forEach((it, idx) => {
       if (it.item_type === 'product') buckets.products.push(idx);
       else {
         const sec = resolveItemSection(it);
         (buckets[sec] || buckets.Installation).push(idx);
         // Keep stored type aligned so PDF/public match the Supply tab.
-        if (sec === 'Supply' && normalizeServiceType(it.service_type) !== 'Supply') {
-          it.service_type = 'Supply';
+        if ((sec === 'Supply' || sec === 'Add On') && normalizeServiceType(it.service_type) !== sec) {
+          it.service_type = sec;
         }
       }
     });
@@ -4857,8 +4878,8 @@
       list.appendChild(headRow);
     }
     QB_CATEGORIES.forEach(({ value, label }) => {
-      const indices = buckets[value];
-      if (!indices.length) return;
+      const indices = buckets[value] || [];
+      if (!indices.length && value !== 'Add On') return;
       const section = document.createElement('div');
       section.className = 'qb-cat-section';
       section.setAttribute('data-category-value', value);
@@ -7281,6 +7302,15 @@
     toast: (m, t) => qbToast(m, t),
     save: () => saveQuote(),
     offerDescriptionChange: (opts) => maybeOfferDescPersist(opts || {}),
+    offerRateChange: (opts) =>
+      maybeOfferRatePersist({
+        itemIdx: opts && opts.itemIdx,
+        newRate: opts && opts.newRate,
+        pricingItemId: opts && opts.pricingItemId,
+        tableRate: opts && opts.tableRate,
+        row: opts && opts.row,
+        src: catalogPricingSource(),
+      }),
   };
 
   /** Links vindos da lista: ?services=1 abre o documento editável, ?send=1 abre o envio. */

@@ -150,12 +150,9 @@
     // Receive payment only after the invoice left draft — sending ≠ paid.
     const canPay = inv.can.record_payment && open && !isDraft;
     const canSend = inv.can.manage && inv.status !== 'void';
-    if ($('btnReceive')) $('btnReceive').hidden = true;
     $('btnReceiveMobile').hidden = !canPay;
     $('btnAddPayment').hidden = !canPay;
-    if ($('btnSend')) $('btnSend').hidden = true;
     $('btnSendMobile').hidden = !canSend;
-    if ($('btnSendLabel')) $('btnSendLabel').textContent = emailSent ? 'Reenviar' : 'Enviar';
     $('btnSendMobile').textContent = emailSent ? 'Reenviar' : 'Enviar';
     const sendPrimary = canSend && !emailSent;
     $('btnSendMobile').className = sendPrimary ? 'inv-btn inv-btn--primary' : 'inv-btn inv-btn--secondary';
@@ -168,9 +165,8 @@
     if ($('btnDeleteInvoice')) {
       $('btnDeleteInvoice').hidden = !canDelete && !canCancel;
       $('btnDeleteInvoice').dataset.mode = canDelete ? 'delete' : 'cancel';
-      const delLabel = canDelete ? 'Excluir' : 'Cancel Invoice';
-      $('btnDeleteInvoice').title = delLabel;
-      $('btnDeleteInvoice').setAttribute('aria-label', delLabel);
+      $('btnDeleteInvoice').title = 'Excluir';
+      $('btnDeleteInvoice').setAttribute('aria-label', 'Excluir');
     }
 
     renderSteps();
@@ -609,16 +605,22 @@
     const r = document.querySelector('input[name="payMode"]:checked');
     return r ? r.value : 'full';
   }
+  function payCents(n) {
+    const x = Number(n);
+    return Number.isFinite(x) ? Math.round(x * 100) : 0;
+  }
   function payAmount() {
-    const bal = Math.round((Number(inv && inv.remaining_amount) || 0) * 100) / 100;
+    const bal = payCents(inv && inv.remaining_amount) / 100;
     const mode = payMode();
     if (mode === 'full') return bal;
     if (mode === 'partial') {
       const pct = Number($('payPct') && $('payPct').value) || 0;
-      if (!(pct > 0)) return 0;
-      return Math.round(bal * pct) / 100;
+      if (!(pct > 0) || pct > 100) return 0;
+      const totalC = payCents(inv && inv.amount);
+      const raw = Math.round((totalC * pct) / 100);
+      return Math.min(bal, raw / 100);
     }
-    return Math.round((parseFloat($('payAmount').value) || 0) * 100) / 100;
+    return payCents(parseFloat($('payAmount').value) || 0) / 100;
   }
   function payApiMode() {
     const bal = Number(inv && inv.remaining_amount) || 0;
@@ -628,22 +630,39 @@
   function syncPay() {
     const mode = payMode();
     const amt = payAmount();
-    const bal = inv.remaining_amount;
+    const total = Number(inv.amount) || 0;
+    const paid = Number(inv.paid_amount) || 0;
+    const bal = Number(inv.remaining_amount) || 0;
     const after = Math.max(0, Math.round((bal - amt) * 100) / 100);
     const settles = amt > 0 && Math.abs(bal - amt) < 0.005;
     const over = amt > bal + 0.004;
+    const partialPreview = (() => {
+      const pct = Number($('payPct') && $('payPct').value) || 0;
+      if (!(pct > 0) || pct > 100) return 0;
+      return Math.min(bal, Math.round((payCents(total) * pct) / 100) / 100);
+    })();
     if ($('payFullAmount')) $('payFullAmount').textContent = money(bal);
-    $('payAfter').className = 'inv-after' + (over ? ' is-error' : settles ? ' is-settle' : '');
-    $('payAfter').textContent =
-      mode === 'full'
-        ? `Recebe ${money(bal)} e quita a fatura.`
-        : !amt
-          ? `Saldo atual ${money(bal)}.`
-          : over
-            ? `Valor acima do saldo em aberto (${money(bal)}).`
-            : settles
-              ? 'Este valor quita a fatura — ela será marcada como paga.'
-              : `Recebe ${money(amt)}. Saldo depois: ${money(after)}.`;
+    if ($('payPartialAmount')) $('payPartialAmount').textContent = money(partialPreview);
+    if ($('payAmountHint')) $('payAmountHint').textContent = `Parcela livre, até ${money(bal)}`;
+    if ($('payMathTotal')) $('payMathTotal').textContent = money(total);
+    if ($('payMathPaid')) $('payMathPaid').textContent = money(paid);
+    if ($('payMathNow')) $('payMathNow').textContent = money(amt);
+    if ($('payMathAfter')) $('payMathAfter').textContent = money(over ? bal : after);
+    const note = $('payMathNote');
+    if (note) {
+      note.className = 'inv-pay-math__note' + (over ? ' is-error' : '');
+      note.textContent =
+        mode === 'full'
+          ? `Recebe ${money(bal)} e quita a fatura.`
+          : !amt
+            ? 'Escolha parcial, outro valor ou o pagamento total.'
+            : over
+              ? `Valor acima do saldo em aberto (${money(bal)}).`
+              : settles
+                ? 'Este valor quita a fatura — ela será marcada como paga.'
+                : `Depois deste pagamento ainda ficam ${money(after)}.`;
+    }
+    if ($('payAfter')) $('payAfter').hidden = true;
     $('paySubmit').textContent = !amt
       ? 'Registrar pagamento'
       : settles || mode === 'full'
@@ -690,9 +709,9 @@
       return;
     }
     showErr('payError', '');
-    $('payMeta').textContent = `${inv.invoice_number} · total ${money(inv.amount)} · pago ${money(inv.paid_amount)} · saldo ${money(inv.remaining_amount)}`;
+    $('payMeta').textContent = inv.invoice_number || '';
     $('payFullAmount').textContent = money(inv.remaining_amount);
-    const picked = mode === 'partial' ? 'amount' : mode === 'amount' ? 'amount' : 'full';
+    const picked = mode === 'partial' ? 'partial' : mode === 'amount' ? 'amount' : 'full';
     const pickedEl = document.querySelector(`input[name="payMode"][value="${picked}"]`);
     if (pickedEl) pickedEl.checked = true;
     $('payAmount').value = '';
@@ -981,24 +1000,65 @@
     const r = await api(`/api/quote-invoices/${invoiceId}/public-link`, { method: 'POST', body: '{}' });
     return r.public_url;
   }
+  const INV_EMAIL_DEFAULTS = {
+    partial:
+      'Here is invoice [invoice_number] for a partial payment of [balance].\n\nDue: [due_date]\n\nView and pay:\n[link]',
+    balance:
+      'Here is invoice [invoice_number] for the remaining balance of [balance].\n\nDue: [due_date]\n\nView and pay:\n[link]',
+    full: 'Here is invoice [invoice_number] for [amount].\n\nBalance due: [balance]\nDue: [due_date]\n\nView and pay:\n[link]',
+  };
+
+  function sendTemplateRaw() {
+    const saved = (inv && inv.share_email) || {};
+    const t = String((inv && inv.invoice_type) || '').toLowerCase();
+    if (t === 'final') return saved.balance || INV_EMAIL_DEFAULTS.balance;
+    if (t === 'deposit' || t === 'progress' || t === 'custom' || t === 'other') return saved.partial || INV_EMAIL_DEFAULTS.partial;
+    return saved.full || INV_EMAIL_DEFAULTS.full;
+  }
+
+  function fillSendMessage(link) {
+    const org = (inv && inv.organization) || {};
+    $('sendMsg').value = applyInvoiceShareTemplate(sendTemplateRaw(), {
+      name: clientFirstName(),
+      company: org.name || '',
+      invoice_number: inv.invoice_number || '',
+      amount: money(inv.amount),
+      balance: money(inv.remaining_amount),
+      paid: money(inv.paid_amount),
+      due_date: fdate(inv.due_date) === '—' ? '' : fdate(inv.due_date),
+      link: link || '',
+    });
+  }
+
+  function setSendLinkStatus(text) {
+    const el = $('sendLinkStatus');
+    if (el) el.textContent = text;
+  }
+
   function openSend() {
     showErr('sendError', '');
     $('sendTo').value = (inv.client && inv.client.email) || inv.sent_to || '';
-    $('sendMsg').value = '';
     $('sendLink').value = inv.public_url || '';
+    $('sendLink').placeholder = inv.public_url ? '' : 'Gerando link…';
+    setSendLinkStatus(inv.public_url ? 'Link pronto.' : 'Gerando link…');
+    fillSendMessage(inv.public_url || '');
     $('btnMarkSent').hidden = inv.status !== 'draft';
     $('sendSubmit').textContent = inv.sent_to || inv.email_sent_at ? 'Reenviar e-mail' : 'Enviar e-mail';
     updateSms();
     openModal('sendModal');
-    if (!$('sendLink').value) {
-      ensureLink()
-        .then((url) => {
-          $('sendLink').value = url;
-          if (inv) inv.public_url = url;
-          updateSms();
-        })
-        .catch((err) => showErr('sendError', err.message || 'Não foi possível gerar o link.'));
-    }
+    ensureLink()
+      .then((url) => {
+        $('sendLink').value = url;
+        $('sendLink').placeholder = '';
+        if (inv) inv.public_url = url;
+        setSendLinkStatus('Link pronto.');
+        fillSendMessage(url);
+        updateSms();
+      })
+      .catch((err) => {
+        setSendLinkStatus('Não foi possível gerar o link.');
+        showErr('sendError', err.message || 'Não foi possível gerar o link.');
+      });
   }
   const INV_SMS_DEFAULT =
     'Hi [name], your invoice [invoice_number] is ready.\n\nBalance due: [balance]\nDue: [due_date]\n\nView & pay here:\n[link]\n\nThank you!';
@@ -1011,6 +1071,7 @@
       invoice_number: String(vars.invoice_number || '').trim(),
       amount: String(vars.amount || '').trim(),
       balance: String(vars.balance || '').trim(),
+      paid: String(vars.paid || '').trim(),
       due_date: String(vars.due_date || '').trim(),
       link: String(vars.link || '').trim(),
     };
@@ -1019,6 +1080,7 @@
     out = out.replace(/\[invoice_number\]/gi, map.invoice_number);
     out = out.replace(/\[amount\]/gi, map.amount);
     out = out.replace(/\[balance\]/gi, map.balance);
+    out = out.replace(/\[paid\]/gi, map.paid);
     out = out.replace(/\[due_date\]/gi, map.due_date);
     out = out.replace(/\[link\]/gi, map.link);
     out = out.replace(/\(\s*\)/g, '');
@@ -1228,10 +1290,8 @@
   $('btnPdf').addEventListener('click', () =>
     openPdf(`/api/quote-invoices/${invoiceId}/pdf`, inv ? `Fatura ${inv.invoice_number}` : 'Fatura', `${(inv && inv.invoice_number) || 'invoice'}.pdf`),
   );
-  $('btnReceive').addEventListener('click', () => openPay('full'));
   $('btnReceiveMobile').addEventListener('click', () => openPay('full'));
   $('btnAddPayment').addEventListener('click', () => openPay('partial'));
-  $('btnSend').addEventListener('click', openSend);
   $('btnSendMobile').addEventListener('click', openSend);
 
   // ---------------------------------------------------------------- boot

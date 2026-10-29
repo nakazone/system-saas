@@ -426,12 +426,11 @@
     const partnerStatus = partner.status === "active" ? "Ativo" : partner.status === "suspended" ? "Suspenso" : "Sem acesso";
     const partnerAccessBox = isPartnerCustomer(c.customer_type)
       ? `<section class="cx-box"><h3>Portal do parceiro</h3>
-          <dl class="cx-kv"><dt>Acesso</dt><dd>${partnerStatus}</dd><dt>Login</dt><dd>${esc(partner.email || c.email || "—")}</dd>${partner.last_login_at ? `<dt>Último acesso</dt><dd>${esc(ago(partner.last_login_at) || new Date(partner.last_login_at).toLocaleDateString("pt-BR"))}</dd>` : ""}</dl>
-          <p class="cx-hint">O parceiro verá as obras vinculadas a este cliente e apenas os documentos liberados pela equipe.</p>
+          <dl class="cx-kv"><dt>Acesso</dt><dd>${partnerStatus}${partner.builder_account ? " · ObraBuilder" : ""}</dd><dt>Login</dt><dd>${esc(partner.email || c.email || "—")}</dd>${partner.last_login_at ? `<dt>Último acesso</dt><dd>${esc(ago(partner.last_login_at) || new Date(partner.last_login_at).toLocaleDateString("pt-BR"))}</dd>` : ""}</dl>
+          <p class="cx-hint">${partner.builder_account ? "Este cadastro reúne os jobs e o histórico do Builder. A conta, a equipe e as empresas conectadas são gerenciadas no ObraBuilder." : "O parceiro verá as obras vinculadas a este cliente e apenas os documentos liberados pela equipe."}</p>
           ${canEdit ? `<div class="cx-acts" style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-top:0.65rem">
-            <a class="cx-btn" href="${esc(partner.login_url || "/partner-login.html")}" target="_blank" rel="noopener">Abrir login</a>
-            <button type="button" class="cx-btn cx-btn--pri" data-partner-access="${partner.enabled ? "disable" : "enable"}" ${!c.email ? "disabled title=\"Adicione um e-mail ao cadastro para liberar o portal\"" : ""}>${partner.enabled ? "Suspender acesso" : partner.status === "suspended" ? "Reativar acesso" : "Liberar acesso"}</button>
-            ${partner.enabled ? `<button type="button" class="cx-btn" data-partner-access="reset">Redefinir senha</button>` : ""}
+            <a class="cx-btn" href="${esc(partner.login_url || "/partner-login.html")}" target="_blank" rel="noopener">${partner.builder_account ? "Abrir ObraBuilder" : "Abrir login"}</a>
+            ${!partner.builder_account ? `<button type="button" class="cx-btn cx-btn--pri" data-partner-access="${partner.enabled ? "disable" : "enable"}" ${!c.email ? "disabled title=\"Adicione um e-mail ao cadastro para liberar o portal\"" : ""}>${partner.enabled ? "Suspender acesso" : partner.status === "suspended" ? "Reativar acesso" : "Liberar acesso"}</button>${partner.enabled ? `<button type="button" class="cx-btn" data-partner-access="reset">Redefinir senha</button>` : ""}` : ""}
           </div>` : ""}
         </section>`
       : "";

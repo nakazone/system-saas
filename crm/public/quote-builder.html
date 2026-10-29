@@ -1184,7 +1184,7 @@
       background: #fafbfc;
     }
     .qb-item-card__grip {
-      color: #64748b;
+      color: #221E1A;
       font-size: 1.125rem;
       letter-spacing: -1px;
       line-height: 1;
@@ -1213,6 +1213,10 @@
     }
     .qb-cat-items:empty {
       display: none;
+    }
+    .qb-cat-items[data-category-value="Add On"]:empty {
+      display: block;
+      min-height: 2.25rem;
     }
     .qb-item-card__body {
       flex: 1;
@@ -1943,8 +1947,8 @@
   </style>
   <link rel="stylesheet" href="crm-toast.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-pdf-viewer.css?v=20261027-pdf1" />
-  <link rel="stylesheet" href="quote-builder-v2.css?v=20261015-leads4" />
-  <link rel="stylesheet" href="quote-builder-v3.css?v=20261013-clear2" />
+  <link rel="stylesheet" href="quote-builder-v2.css?v=20261028-addon" />
+  <link rel="stylesheet" href="quote-builder-v3.css?v=20261028-addon" />
   <link rel="stylesheet" href="crm-job-modal.css?v=20261028-pac" />
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
   <link rel="stylesheet" href="quote-paper.css?v=20261027-om1" />
@@ -2286,6 +2290,7 @@
                       <option value="Supply">Supply</option>
                       <option value="Installation">Installation</option>
                       <option value="Sand & Finishing">Sand &amp; Finish</option>
+                      <option value="Add On">Add On</option>
                     </select>
                   </div>
                   <div class="qb-item-editor__field">
@@ -2791,16 +2796,16 @@
   <script src="crm-address-autocomplete.js?v=20261028-pac"></script>
   <script src="crm-rich-text.js?v=20261002-rich2"></script>
   <link rel="stylesheet" href="crm-rich-text.css?v=20261002-rich2" />
-  <script src="crm-shell.js?v=20261027-m2"></script>
+  <script src="crm-shell.js?v=20261028-ptrhome"></script>
   <script src="crm-shared-nav.js?v=20261015-refnav1"></script>
   <script src="crm-toast.js"></script>
   <script src="crm-pdf-viewer.js?v=20261027-pdf1"></script>
   <script src="lead-contact-links.js?v=20261015-disc1"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="quote-paper.js?v=20261027-om1"></script>
-  <script src="crm-job-modal.js?v=20261027-jobsui"></script>
-  <script src="quote-builder.js?v=20261028-nick"></script>
-  <script src="quote-services-popup.js?v=20261023-sig1"></script>
+  <script src="quote-paper.js?v=20261028-addon"></script>
+  <script src="crm-job-modal.js?v=20261028-jobrate"></script>
+  <script src="quote-builder.js?v=20261028-jobrate"></script>
+  <script src="quote-services-popup.js?v=20261028-jobrate"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

@@ -16,6 +16,7 @@ import {
   DEFAULT_INVOICE_SHARE_MESSAGES,
   invoiceSettingsPatchSchema,
   parseInvoiceSettings,
+  parseInvoiceShareMessages,
 } from "../../lib/settings/invoices.js";
 
 export const settingsInvoicesRouter = Router();
@@ -40,7 +41,7 @@ async function loadInvoiceConfig(organizationId: string) {
       payment_date_default: settings.payment_date_default,
       default_due_days: settings.default_due_days,
       company_name: org.name || null,
-      tokens: ["[name]", "[company]", "[invoice_number]", "[amount]", "[balance]", "[due_date]", "[link]"],
+      tokens: ["[name]", "[company]", "[invoice_number]", "[amount]", "[balance]", "[paid]", "[due_date]", "[link]"],
       defaults: DEFAULT_INVOICE_SHARE_MESSAGES,
     },
   };
@@ -87,7 +88,14 @@ settingsInvoicesRouter.patch(
 
       const nextSettings = {
         ...before.settings,
-        ...(p.share_messages !== undefined ? { share_messages: p.share_messages } : {}),
+        ...(p.share_messages !== undefined
+          ? {
+              share_messages: parseInvoiceShareMessages({
+                ...before.settings.share_messages,
+                ...p.share_messages,
+              }),
+            }
+          : {}),
         ...(p.payment_date_default !== undefined
           ? { payment_date_default: p.payment_date_default }
           : {}),

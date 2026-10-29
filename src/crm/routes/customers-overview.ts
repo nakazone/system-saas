@@ -371,7 +371,7 @@ customersOverviewRouter.get("/api/customers/:id/overview", requireCrmAuth, async
           ? tx.partnerUser.findFirst({
               where: { customerId: id },
               orderBy: { createdAt: "asc" },
-              select: { status: true, email: true, lastLoginAt: true },
+              select: { status: true, email: true, lastLoginAt: true, builderMemberId: true },
             })
           : null,
       ]);
@@ -513,6 +513,7 @@ customersOverviewRouter.get("/api/customers/:id/overview", requireCrmAuth, async
                 enabled: partnerUser?.status === "active",
                 email: partnerUser?.email || c.email,
                 last_login_at: partnerUser?.lastLoginAt || null,
+                builder_account: Boolean(partnerUser?.builderMemberId),
                 login_url: `${publicBaseUrl(req).replace(/\/$/, "")}/partner-login.html${org?.slug ? `?workspace=${encodeURIComponent(org.slug)}` : ""}`,
               }
             : null,

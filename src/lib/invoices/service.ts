@@ -437,17 +437,24 @@ export async function removeInvoicePayment(
   return updated;
 }
 
-/** Sum of non-void invoices for a quote. */
+/** Sum of non-void invoices for a quote, including job invoices not yet tied to the quote. */
 export async function invoicedTotalForQuote(tx: TenantPrisma, quoteId: string, excludeInvoiceId?: string) {
-  const agg = await tx.quoteInvoice.aggregate({
+  const quote = await tx.quote.findFirst({
+    where: { id: quoteId },
+    select: { workOrderId: true },
+  });
+  const rows = await tx.quoteInvoice.findMany({
     where: {
-      quoteId,
       status: { not: "void" },
       ...(excludeInvoiceId ? { id: { not: excludeInvoiceId } } : {}),
+      OR: [
+        { quoteId },
+        ...(quote?.workOrderId ? [{ workOrderId: quote.workOrderId, quoteId: null }] : []),
+      ],
     },
-    _sum: { amount: true },
+    select: { amount: true },
   });
-  return Number(agg._sum.amount ?? 0);
+  return rows.reduce((sum, row) => sum + Number(row.amount), 0);
 }
 
 export function isApprovedQuoteStatus(status: string | null | undefined): boolean {

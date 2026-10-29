@@ -9,359 +9,275 @@
       <img src="/assets/obramateLogoSmallTransp.png" alt="" width="28" height="28" />
       <span><%= productName %></span>
     </a>
-    <nav class="nav-links" id="links">
-      <a href="#funcionalidades">Funcionalidades</a>
+    <nav class="nav-links" id="links" aria-label="Navegação principal">
+      <a href="#funcionalidades">Recursos</a>
+      <a href="#como-funciona">Como funciona</a>
       <a href="#planos">Planos</a>
-      <a href="#depoimentos">Depoimentos</a>
-      <a href="#recursos">Recursos</a>
-      <a href="#contato">Contato</a>
+      <a href="#faq">Perguntas</a>
       <a href="/login.html" class="nav-signin">Entrar</a>
-      <a href="/signup" class="btn btn-primary">Começar agora</a>
+      <a href="/signup" class="btn btn-primary">Começar grátis</a>
     </nav>
-    <button type="button" class="burger" id="burger" aria-label="Menu" aria-expanded="false" aria-controls="links">
+    <button type="button" class="burger" id="burger" aria-label="Abrir menu" aria-expanded="false" aria-controls="links">
       <span></span><span></span><span></span>
     </button>
   </div>
 </header>
 
 <main>
-  <!-- Hero -->
   <section class="hero" id="topo">
-    <div class="hero-bg" aria-hidden="true"></div>
     <div class="wrap hero-grid">
       <div class="hero-copy">
-        <h1 class="reveal">Mais controle para a sua empresa de <em>flooring</em>.</h1>
-        <p class="lead reveal d1">Leads, orçamentos, obras, equipe e financeiro — tudo num só lugar, feito para quem instala piso de verdade.</p>
-        <div class="cta-row reveal d2">
-          <a href="/signup" class="btn btn-primary">Começar agora</a>
-          <a href="#como-funciona" class="btn btn-ghost-light">Ver como funciona</a>
+        <p class="eyebrow">Feito para empresas de flooring</p>
+        <h1>Da primeira oportunidade à fatura final, <em>sua operação em ordem.</em></h1>
+        <p class="lead">Leads, orçamentos, obras, equipe e financeiro em um sistema feito para instaladores de piso.</p>
+        <div class="cta-row">
+          <a href="/signup" class="btn btn-primary">Começar teste grátis</a>
+          <a href="#funcionalidades" class="text-link">Explorar recursos</a>
         </div>
+        <p class="trial-note"><%= days %> dias para testar · Sem cartão de crédito</p>
       </div>
 
-      <div class="hero-visual reveal d1" aria-hidden="true">
-        <img class="hero-mate" src="/assets/img/mascot/mate-hero.png" alt="" width="140" height="347" decoding="async" />
-        <div class="dash">
-          <aside class="dash-rail">
-            <i></i><i></i><i></i><i></i><i></i>
+      <div class="hero-visual">
+        <div class="dashboard-preview" role="img" aria-label="Prévia do painel ObraMate com leads, orçamentos, obras e recebimentos">
+          <aside class="dashboard-rail" aria-hidden="true">
+            <strong class="rail-mark">O</strong>
+            <span class="rail-active">Visão geral</span>
+            <span>Leads</span>
+            <span>Orçamentos</span>
+            <span>Obras</span>
+            <span>Financeiro</span>
           </aside>
-          <div class="dash-body">
-            <header class="dash-head">
-              <strong>Boa tarde!</strong>
-              <span>Visão geral</span>
-            </header>
-            <div class="dash-kpis">
-              <div><small>Leads</small><b>24</b></div>
-              <div><small>Orçamentos</small><b>12</b></div>
-              <div><small>Obras</small><b>8</b></div>
-              <div><small>Faturamento</small><b>$48k</b></div>
+          <div class="dashboard-body">
+            <div class="dashboard-heading">
+              <div><small>Visão geral</small><strong>Boa tarde, Carlos</strong></div>
+              <span class="demo-period">Últimos 30 dias</span>
             </div>
-            <div class="dash-list">
-              <p>Projetos recentes</p>
-              <div class="dash-row"><span>Rivera · LVP</span><em class="tag-on">Em andamento</em></div>
-              <div class="dash-row"><span>Chen · Hardwood</span><em class="tag-sent">Orçamento enviado</em></div>
-              <div class="dash-row"><span>Park · Stairs</span><em class="tag-on">Em andamento</em></div>
+            <div class="dashboard-kpis">
+              <div><small>Leads</small><strong>12</strong><span>3 novos</span></div>
+              <div><small>Orçamentos</small><strong>8</strong><span>5 enviados</span></div>
+              <div><small>Obras ativas</small><strong>5</strong><span>2 esta semana</span></div>
+              <div><small>A receber</small><strong>US$ 12.480</strong><span>4 faturas</span></div>
             </div>
+            <div class="dashboard-list-head"><strong>Obras em andamento</strong><a href="#funcionalidades">Explorar sistema</a></div>
+            <div class="dashboard-row"><span>Rivera · Piso vinílico</span><span class="status status-progress">Em andamento</span></div>
+            <div class="dashboard-row"><span>Chen · Madeira</span><span class="status status-sent">Orçamento enviado</span></div>
+            <div class="dashboard-row"><span>Park · Escadas</span><span class="status status-progress">Em andamento</span></div>
           </div>
         </div>
+        <img class="hero-mate" src="/assets/img/mascot/mate-hero.webp" alt="" width="268" height="480" fetchpriority="high" />
       </div>
     </div>
-
-    <div class="wrap hero-benefits reveal d3">
-      <div class="hb"><span class="hb-ico" aria-hidden="true">◎</span>Organize seus leads</div>
-      <div class="hb"><span class="hb-ico" aria-hidden="true">▣</span>Crie orçamentos profissionais</div>
-      <div class="hb"><span class="hb-ico" aria-hidden="true">⌂</span>Acompanhe as obras</div>
-      <div class="hb"><span class="hb-ico" aria-hidden="true">↗</span>Aumente seu lucro</div>
+    <div class="wrap hero-proof" aria-label="Benefícios">
+      <span>Sem cartão de crédito</span>
+      <span><%= days %> dias de teste</span>
+      <span>Feito para equipes de flooring</span>
     </div>
   </section>
 
-  <!-- Social proof -->
-  <section class="proof" aria-label="Empresas que usam ObraMate">
-    <div class="wrap proof-in">
-      <p>Mais de <strong>500+</strong> empresas de flooring já confiam no <%= productName %>.</p>
-      <div class="proof-logos">
-        <span>Denver Floors</span>
-        <span>Summit Flooring</span>
-        <span>Premier Floors</span>
-        <span>Alpine Hardwood</span>
-        <span>Metro LVP</span>
-      </div>
-    </div>
-  </section>
-
-  <!-- Features -->
-  <section class="block features" id="funcionalidades">
+  <section class="explorer" id="funcionalidades" aria-labelledby="explorer-title">
     <div class="wrap">
-      <div class="feat-head">
-        <div class="reveal">
-          <h2>Tudo que sua empresa precisa em <em>um só sistema</em>.</h2>
-          <p class="sub">Do primeiro lead ao pagamento final — vendas, campo e financeiro no mesmo fluxo.</p>
-          <a href="#recursos" class="btn btn-primary">Conheça todas as funcionalidades</a>
-        </div>
-        <div class="feat-mate reveal d1" aria-hidden="true">
-          <img src="/assets/img/mascot/mate-run.png" alt="" width="182" height="208" decoding="async" />
-        </div>
+      <div class="section-heading">
+        <h2 id="explorer-title">Explore o ObraMate por dentro</h2>
+        <p>Selecione um recurso e veja como as informações do escritório e do campo se conectam.</p>
       </div>
 
-      <div class="feat-grid" id="recursos">
-        <article class="feat reveal">
-          <span class="feat-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></span>
-          <h3>Leads e Clientes</h3>
-          <p>Pipeline claro, follow-ups e cadastro de particulares e builders.</p>
-        </article>
-        <article class="feat reveal d1">
-          <span class="feat-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16l3-1.5 3 1.5 3-1.5 3 1.5V4a2 2 0 00-2-2z"/><path d="M8 7h6M8 11h6"/></svg></span>
-          <h3>Orçamentos profissionais</h3>
-          <p>Tabela de Valores, PDF e link seguro para o cliente assinar.</p>
-        </article>
-        <article class="feat reveal d2">
-          <span class="feat-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 21h18M5 21V7l7-4 7 4v14"/><path d="M9 21V12h6v9"/></svg></span>
-          <h3>Projetos e obras</h3>
-          <p>Jobs, status, Campo e fotos ObraCam em cada obra.</p>
-        </article>
-        <article class="feat reveal d3">
-          <span class="feat-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></span>
-          <h3>Financeiro</h3>
-          <p>Fature depósito, saldo ou total e registre o recebimento.</p>
-        </article>
-        <article class="feat reveal">
-          <span class="feat-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg></span>
-          <h3>Equipe</h3>
-          <p>Cargos, convites e Folha para escritório e campo.</p>
-        </article>
-        <article class="feat reveal d1">
-          <span class="feat-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></span>
-          <h3>Relatórios</h3>
-          <p>Veja o que vender, o que falta faturar e o que entra.</p>
-        </article>
-        <article class="feat reveal d2">
-          <span class="feat-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
-          <h3>Agenda</h3>
-          <p>Visitas, jobs e compromissos no mesmo calendário.</p>
-        </article>
-        <article class="feat reveal d3">
-          <span class="feat-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
-          <h3>E muito mais…</h3>
-          <p>Builders, indicações, chat interno e app de campo.</p>
-        </article>
+      <div class="feature-explorer" data-feature-explorer>
+        <div class="feature-tabs" role="tablist" aria-label="Recursos do ObraMate">
+          <button type="button" class="feature-tab" id="tab-leads" role="tab" aria-selected="false" aria-controls="panel-leads" tabindex="-1" data-feature-tab="leads">Leads</button>
+          <button type="button" class="feature-tab is-active" id="tab-quotes" role="tab" aria-selected="true" aria-controls="panel-quotes" tabindex="0" data-feature-tab="quotes">Orçamentos</button>
+          <button type="button" class="feature-tab" id="tab-jobs" role="tab" aria-selected="false" aria-controls="panel-jobs" tabindex="-1" data-feature-tab="jobs">Obras</button>
+          <button type="button" class="feature-tab" id="tab-finance" role="tab" aria-selected="false" aria-controls="panel-finance" tabindex="-1" data-feature-tab="finance">Financeiro</button>
+          <button type="button" class="feature-tab" id="tab-team" role="tab" aria-selected="false" aria-controls="panel-team" tabindex="-1" data-feature-tab="team">Equipe e agenda</button>
+        </div>
+        <p class="demo-hint">Use as abas e os controles da prévia para explorar os recursos.</p>
+
+        <section class="feature-panel" id="panel-leads" role="tabpanel" aria-labelledby="tab-leads" tabindex="0" data-feature-panel="leads" hidden>
+          <div class="panel-copy">
+            <p class="eyebrow">Leads e clientes</p>
+            <h3>Saiba quem precisa de retorno.</h3>
+            <p>Organize novos contatos, acompanhe cada etapa e mantenha o próximo passo visível para a equipe.</p>
+            <ul class="benefit-list"><li>Pipeline por etapa</li><li>Próximo contato em destaque</li><li>Cadastro de clientes e builders</li></ul>
+          </div>
+          <div class="product-window" aria-label="Demonstração de leads">
+            <div class="window-topbar"><div><small>VENDAS</small><strong>Pipeline de leads</strong></div><button type="button" class="btn btn-small btn-primary" data-demo-action="new-lead">Novo lead</button></div>
+            <div class="lead-table-head"><span>Cliente</span><span>Projeto</span><span>Etapa</span><span>Próxima ação</span></div>
+            <div class="lead-row"><div><strong>Amanda Silva</strong><small>Denver, CO</small></div><span>Piso vinílico · 120 ft²</span><span class="status status-new">Novo lead</span><button type="button" class="row-action" data-demo-action="follow-up">Marcar retorno</button></div>
+            <div class="lead-row"><div><strong>Marco Rivera</strong><small>Aurora, CO</small></div><span>Madeira · 860 ft²</span><span class="status status-sent">Em contato</span><span class="row-muted">Hoje, 14h</span></div>
+            <div class="lead-row"><div><strong>Chen Family</strong><small>Lakewood, CO</small></div><span>Escadas · 14 degraus</span><span class="status status-progress">Visita marcada</span><span class="row-muted">Amanhã</span></div>
+          </div>
+        </section>
+
+        <section class="feature-panel" id="panel-quotes" role="tabpanel" aria-labelledby="tab-quotes" tabindex="0" data-feature-panel="quotes">
+          <div class="panel-copy">
+            <p class="eyebrow">Orçamentos</p>
+            <h3>Crie propostas profissionais em minutos.</h3>
+            <p>Monte o orçamento com materiais, mão de obra e medidas. Revise o total e envie um link para o cliente.</p>
+            <ul class="benefit-list"><li>Itens e quantidades organizados</li><li>Materiais e mão de obra no mesmo orçamento</li><li>Total em USD antes do envio</li></ul>
+            <p class="panel-footnote">Prévia demonstrativa com valores de exemplo.</p>
+          </div>
+          <div class="product-window quote-window" aria-label="Demonstração interativa de orçamento">
+            <div class="window-topbar quote-topbar">
+              <div><small>ORÇAMENTO #1024</small><strong>Residência Rivera</strong></div>
+              <span class="status status-draft" data-quote-status>Rascunho</span>
+              <div class="window-actions"><button type="button" class="btn btn-small btn-outline" data-demo-action="save-draft">Salvar rascunho</button><button type="button" class="btn btn-small btn-primary" data-demo-action="send-quote">Enviar ao cliente</button></div>
+            </div>
+            <div class="quote-meta">
+              <label>Cliente<input value="Marco Rivera" readonly /></label>
+              <label>Tipo de piso<select aria-label="Tipo de piso"><option>Piso vinílico</option><option>Madeira</option><option>Laminado</option></select></label>
+              <label>Área (ft²)<input id="quote-area" type="number" min="1" step="1" value="120" inputmode="numeric" /></label>
+            </div>
+            <div class="quote-table-wrap">
+              <table class="quote-table">
+                <thead><tr><th>Item</th><th>Tipo</th><th>Quantidade</th><th>Preço unitário</th><th>Total</th></tr></thead>
+                <tbody>
+                  <tr><td>Piso vinílico</td><td>Material</td><td data-quote-quantity>120 ft²</td><td>US$ 3,20</td><td data-quote-line="3.2">US$ 384,00</td></tr>
+                  <tr><td>Instalação</td><td>Mão de obra</td><td data-quote-quantity>120 ft²</td><td>US$ 4,50</td><td data-quote-line="4.5">US$ 540,00</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="quote-total"><span>Total da proposta</span><strong id="quote-total" aria-live="polite">US$ 924,00</strong></div>
+          </div>
+        </section>
+
+        <section class="feature-panel" id="panel-jobs" role="tabpanel" aria-labelledby="tab-jobs" tabindex="0" data-feature-panel="jobs" hidden>
+          <div class="panel-copy">
+            <p class="eyebrow">Obras e campo</p>
+            <h3>Acompanhe o que está acontecendo na obra.</h3>
+            <p>Organize o trabalho do dia, registre o andamento e mantenha o escritório informado sobre cada etapa.</p>
+            <ul class="benefit-list"><li>Etapas da instalação em um só lugar</li><li>Fotos e atualizações do Campo</li><li>Progresso visível para o escritório</li></ul>
+          </div>
+          <div class="product-window" aria-label="Demonstração de acompanhamento de obra">
+            <div class="window-topbar"><div><small>OBRA #1024</small><strong>Residência Rivera · Denver, CO</strong></div><span class="status status-progress">Em andamento</span></div>
+            <div class="job-summary"><div><small>Equipe</small><strong>Equipe Norte</strong></div><div><small>Início</small><strong>Hoje, 8h</strong></div><div><small>Progresso</small><strong data-job-progress-label>2 de 4 etapas</strong></div></div>
+            <div class="progress-track" role="progressbar" aria-label="Progresso da instalação" aria-valuemin="0" aria-valuemax="4" aria-valuenow="2" data-job-progress><span style="width:50%"></span></div>
+            <div class="job-checklist">
+              <label><input type="checkbox" checked data-job-step /><span><strong>Preparação do ambiente</strong><small>Concluída · 8:15</small></span></label>
+              <label><input type="checkbox" checked data-job-step /><span><strong>Remoção do piso antigo</strong><small>Concluída · 9:40</small></span></label>
+              <label><input type="checkbox" data-job-step /><span><strong>Instalação do piso</strong><small>Marque quando finalizar</small></span></label>
+              <label><input type="checkbox" data-job-step /><span><strong>Revisão e limpeza</strong><small>Pendente</small></span></label>
+            </div>
+          </div>
+        </section>
+
+        <section class="feature-panel" id="panel-finance" role="tabpanel" aria-labelledby="tab-finance" tabindex="0" data-feature-panel="finance" hidden>
+          <div class="panel-copy">
+            <p class="eyebrow">Faturas e recebimentos</p>
+            <h3>Tenha clareza sobre o que entrou e o que falta.</h3>
+            <p>Emita faturas ligadas à obra e acompanhe depósitos, saldos e pagamentos sem perder o histórico.</p>
+            <ul class="benefit-list"><li>Faturas conectadas aos jobs</li><li>Status de pagamento visível</li><li>Valores a receber organizados</li></ul>
+          </div>
+          <div class="product-window" aria-label="Demonstração de faturas e recebimentos">
+            <div class="window-topbar"><div><small>FINANCEIRO</small><strong>Faturas recentes</strong></div><span class="demo-period">Este mês</span></div>
+            <div class="finance-summary"><span><small>A receber</small><strong>US$ 4.820,00</strong></span><span><small>Recebido no mês</small><strong>US$ 8.640,00</strong></span></div>
+            <div class="invoice-row"><div><strong>Fatura #1024</strong><small>Residência Rivera · Saldo final</small></div><strong>US$ 924,00</strong><span class="status status-pending" data-invoice-status>Em aberto</span><button type="button" class="row-action" data-demo-action="record-payment">Registrar recebimento</button></div>
+            <div class="invoice-row"><div><strong>Fatura #1021</strong><small>Chen Family · Depósito</small></div><strong>US$ 1.500,00</strong><span class="status status-paid">Recebida</span><span class="row-muted">18 out</span></div>
+            <div class="invoice-row"><div><strong>Fatura #1018</strong><small>Park Home · Pagamento final</small></div><strong>US$ 2.396,00</strong><span class="status status-paid">Recebida</span><span class="row-muted">16 out</span></div>
+          </div>
+        </section>
+
+        <section class="feature-panel" id="panel-team" role="tabpanel" aria-labelledby="tab-team" tabindex="0" data-feature-panel="team" hidden>
+          <div class="panel-copy">
+            <p class="eyebrow">Equipe e agenda</p>
+            <h3>Todo mundo sabe onde precisa estar.</h3>
+            <p>Distribua visitas e obras no calendário e mantenha escritório e equipe de campo alinhados.</p>
+            <ul class="benefit-list"><li>Visitas e obras na mesma agenda</li><li>Responsáveis definidos por atividade</li><li>Atualizações acessíveis pelo celular</li></ul>
+          </div>
+          <div class="product-window" aria-label="Demonstração de agenda da equipe">
+            <div class="window-topbar"><div><small>AGENDA DA EQUIPE</small><strong>Hoje · Terça-feira</strong></div><span class="demo-period">Denver, CO</span></div>
+            <div class="schedule-row"><time>8:00</time><div><strong>Instalação · Rivera</strong><small>Piso vinílico · 120 ft²</small></div><span class="schedule-person" data-assigned-person>Equipe Norte</span></div>
+            <div class="schedule-row"><time>11:30</time><div><strong>Visita · Chen Family</strong><small>Medidas para novo orçamento</small></div><span class="schedule-person">Carlos</span></div>
+            <div class="schedule-row"><time>14:00</time><div><strong>Instalação · Park Home</strong><small>Revisão final</small></div><span class="schedule-person">Equipe Sul</span></div>
+            <div class="assign-demo"><label for="team-assignee">Reatribuir a obra Rivera</label><select id="team-assignee"><option>Equipe Norte</option><option>Equipe Sul</option><option>Carlos</option></select><button type="button" class="btn btn-small btn-primary" data-demo-action="assign-team">Atualizar equipe</button></div>
+          </div>
+        </section>
       </div>
+      <p class="explorer-cta"><a class="btn btn-primary" href="/signup">Começar teste grátis</a></p>
     </div>
   </section>
 
-  <!-- Story / video -->
-  <section class="story-block" id="historia">
-    <div class="wrap story-grid">
-      <div class="story-mate reveal" aria-hidden="true">
-        <img src="/assets/img/mascot/mate-laptop.png" alt="" width="132" height="192" decoding="async" />
-      </div>
-      <div class="story-copy reveal d1">
-        <h2>Um sistema feito por quem entende de <em>flooring</em>.</h2>
-        <p>Nascido no dia a dia de instalação — leads, equipes, fotos e recebimento — aberto para outras empresas de piso.</p>
-        <a href="#como-funciona" class="btn btn-primary">Nossa história</a>
-      </div>
-      <div class="story-video reveal d2">
-        <button type="button" class="video-card" id="videoPlay" aria-label="Ver como o ObraMate funciona">
-          <span class="video-badge">Veja como o <%= productName %> funciona na prática</span>
-          <span class="video-play" aria-hidden="true"></span>
-        </button>
-      </div>
-    </div>
-  </section>
-
-  <!-- How it works -->
-  <section class="block how" id="como-funciona">
+  <section class="workflow" id="como-funciona" aria-labelledby="workflow-title">
     <div class="wrap">
-      <div class="head center reveal">
-        <h2>Como funciona?</h2>
-        <p class="sub">Em poucos passos, sua empresa já está mais organizada e produtiva.</p>
+      <div class="section-heading">
+        <p class="eyebrow">Um fluxo simples</p>
+        <h2 id="workflow-title">Do lead ao pagamento, sem perder o fio da obra.</h2>
+        <p>As informações acompanham o serviço do primeiro contato até o recebimento.</p>
       </div>
-      <ol class="steps">
-        <li class="reveal"><span class="n">1</span><h3>Crie sua conta</h3><p>Empresa, subdomínio e você como admin — sem cartão.</p></li>
-        <li class="reveal d1"><span class="n">2</span><h3>Configure sua empresa</h3><p>Tabela de Valores, equipe e preferências do documento.</p></li>
-        <li class="reveal d2"><span class="n">3</span><h3>Comece a usar</h3><p>Lead → orçamento → obra → fatura, no mesmo fluxo.</p></li>
-        <li class="reveal d3"><span class="n">4</span><h3>Cresça com o <%= productName %></h3><p>Mais jobs sob controle, menos planilha e WhatsApp solto.</p></li>
+      <ol class="workflow-steps">
+        <li><span class="step-number">01</span><h3>Organize o lead</h3><p>Registre o cliente e acompanhe o próximo contato.</p></li>
+        <li><span class="step-number">02</span><h3>Envie o orçamento</h3><p>Monte materiais e mão de obra em uma proposta clara.</p></li>
+        <li><span class="step-number">03</span><h3>Acompanhe a obra</h3><p>Compartilhe etapas, equipe e atualizações do campo.</p></li>
+        <li><span class="step-number">04</span><h3>Registre o pagamento</h3><p>Conecte faturas e recebimentos ao trabalho concluído.</p></li>
       </ol>
-      <div class="center reveal"><a href="/signup" class="btn btn-outline">Ver passo a passo completo</a></div>
     </div>
   </section>
 
-  <!-- Testimonials -->
-  <section class="testimonials" id="depoimentos">
+  <section class="pricing" id="planos" aria-labelledby="pricing-title">
     <div class="wrap">
-      <div class="testi-head reveal">
-        <h2>O que nossos clientes dizem.</h2>
-        <a href="#depoimentos" class="link-more">Ver mais depoimentos</a>
-      </div>
-      <div class="testi-grid">
-        <article class="testi reveal">
-          <p>“Antes eu perdia orçamento no WhatsApp. Agora o cliente abre o link, assina e a obra já nasce no sistema.”</p>
-          <footer>
-            <span class="avatar" aria-hidden="true">MR</span>
-            <div><strong>Marcos Ribeiro</strong><small>Denver, CO</small></div>
-            <span class="stars" aria-label="5 de 5">★★★★★</span>
-          </footer>
-        </article>
-        <article class="testi reveal d1">
-          <p>“A equipe de campo vê o job no celular, manda foto e o escritório fatura no mesmo dia. Mudou o ritmo.”</p>
-          <footer>
-            <span class="avatar" aria-hidden="true">AL</span>
-            <div><strong>Ana Lopes</strong><small>Aurora, CO</small></div>
-            <span class="stars" aria-label="5 de 5">★★★★★</span>
-          </footer>
-        </article>
-        <article class="testi reveal d2">
-          <p>“Tabela de Valores nos orçamentos acabou com o ‘eu acho que cobramos X’. Preço certo, margem certa.”</p>
-          <footer>
-            <span class="avatar" aria-hidden="true">JS</span>
-            <div><strong>James Soto</strong><small>Lakewood, CO</small></div>
-            <span class="stars" aria-label="5 de 5">★★★★★</span>
-          </footer>
-        </article>
-      </div>
-    </div>
-  </section>
-
-  <!-- Pricing -->
-  <section class="block pricing" id="planos">
-    <div class="wrap">
-      <div class="head center reveal">
-        <h2>Planos que acompanham o seu crescimento.</h2>
-        <div class="bill-toggle" role="group" aria-label="Periodicidade">
-          <button type="button" class="is-on" data-bill="month" id="billMonth">Mensal</button>
-          <button type="button" data-bill="year" id="billYear">Anual <em>Economize 2 meses</em></button>
+      <div class="section-heading">
+        <p class="eyebrow">Planos</p>
+        <h2 id="pricing-title">Escolha o plano para o tamanho da sua equipe.</h2>
+        <p>Todos incluem <%= days %> dias de teste grátis. Sem cartão para começar.</p>
+        <div class="bill-toggle" role="group" aria-label="Periodicidade de cobrança">
+          <button type="button" class="is-on" data-bill="month" aria-pressed="true">Mensal</button>
+          <button type="button" data-bill="year" aria-pressed="false">Anual <em>Economize 2 meses</em></button>
         </div>
       </div>
       <div class="price-grid">
-        <article class="price-card reveal">
-          <h3>Essencial</h3>
+        <article class="price-card">
+          <h3>Essencial</h3><p class="plan-for">Para começar organizado</p>
           <p class="amt" data-month="$49" data-year="$39"><b>$49</b><small>/mês</small></p>
-          <ul>
-            <li>Até 3 usuários</li>
-            <li>Leads, orçamentos e jobs</li>
-            <li>Faturas e agenda</li>
-            <li>App de campo</li>
-          </ul>
-          <a href="/signup" class="btn btn-outline btn-block">Começar agora</a>
+          <ul><li>Até 3 usuários</li><li>Leads, orçamentos e obras</li><li>Faturas e agenda</li><li>App de campo</li></ul>
+          <a href="/signup" class="btn btn-outline btn-block">Começar teste grátis</a>
         </article>
-        <article class="price-card is-featured reveal d1">
-          <span class="badge">Mais escolhido</span>
-          <h3>Profissional</h3>
+        <article class="price-card is-featured">
+          <span class="badge">Mais escolhido</span><h3>Profissional</h3><p class="plan-for">Para equipes em crescimento</p>
           <p class="amt" data-month="$99" data-year="$82"><b>$99</b><small>/mês</small></p>
-          <ul>
-            <li>Até 10 usuários</li>
-            <li>Tudo do Essencial</li>
-            <li>Folha, builders e ObraCam</li>
-            <li>Relatórios e indicações</li>
-          </ul>
-          <a href="/signup" class="btn btn-primary btn-block">Começar agora</a>
+          <ul><li>Até 10 usuários</li><li>Tudo do Essencial</li><li>Folha, builders e ObraCam</li><li>Relatórios e indicações</li></ul>
+          <a href="/signup" class="btn btn-primary btn-block">Começar teste grátis</a>
         </article>
-        <article class="price-card reveal d2">
-          <h3>Empresarial</h3>
+        <article class="price-card">
+          <h3>Empresarial</h3><p class="plan-for">Para operações maiores</p>
           <p class="amt" data-month="$149" data-year="$124"><b>$149</b><small>/mês</small></p>
-          <ul>
-            <li>Usuários ilimitados*</li>
-            <li>Tudo do Profissional</li>
-            <li>Onboarding guiado</li>
-            <li>Suporte prioritário</li>
-          </ul>
+          <ul><li>Usuários ilimitados*</li><li>Tudo do Profissional</li><li>Onboarding guiado</li><li>Suporte prioritário</li></ul>
           <a href="mailto:hello@obramate.com" class="btn btn-outline btn-block">Falar com um especialista</a>
         </article>
       </div>
-      <p class="price-note reveal"><%= days %> dias de teste grátis em qualquer plano. Sem cartão para começar.</p>
+      <p class="price-note">Os valores anuais são apresentados por mês, com cobrança anual.</p>
     </div>
   </section>
 
-  <!-- FAQ -->
-  <section class="block faq" id="faq">
+  <section class="faq" id="faq" aria-labelledby="faq-title">
     <div class="wrap faq-grid">
-      <div class="reveal">
-        <h2>Perguntas frequentes</h2>
-        <a href="#faq" class="btn btn-outline">Ver todas as perguntas</a>
-      </div>
-      <div class="faq-list reveal d1" id="faqs">
-        <details open>
-          <summary>O que é o <%= productName %>?</summary>
-          <p>É o sistema operacional para empresas de flooring: leads, orçamentos, obras, campo, faturas e equipe num só lugar.</p>
-        </details>
-        <details>
-          <summary>Preciso pagar alguma taxa de instalação?</summary>
-          <p>Não. Você cria a conta, configura a empresa e começa. O teste de <%= days %> dias não pede cartão.</p>
-        </details>
-        <details>
-          <summary>Funciona no celular da equipe de campo?</summary>
-          <p>Sim. O Campo abre o job do dia, fotos ObraCam e horas — sincronizado com o escritório.</p>
-        </details>
-        <details>
-          <summary>Posso usar minha Tabela de Valores?</summary>
-          <p>Sim. Os preços da tabela alimentam orçamentos e serviços do job, com margem e desperdício configuráveis.</p>
-        </details>
-        <details>
-          <summary>Meus dados ficam isolados?</summary>
-          <p>Cada empresa tem o próprio workspace e subdomínio. Os dados não se misturam com outras empresas.</p>
-        </details>
+      <div class="faq-intro"><p class="eyebrow">Dúvidas comuns</p><h2 id="faq-title">Perguntas frequentes</h2><a href="mailto:hello@obramate.com" class="text-link">Fale com a equipe</a></div>
+      <div class="faq-list">
+        <details open><summary>O que é o <%= productName %>?</summary><p>É o sistema operacional para empresas de flooring: leads, orçamentos, obras, campo, faturas e equipe num só lugar.</p></details>
+        <details><summary>Preciso pagar alguma taxa de instalação?</summary><p>Não. Você cria a conta, configura a empresa e começa. O teste de <%= days %> dias não pede cartão.</p></details>
+        <details><summary>Funciona no celular da equipe de campo?</summary><p>Sim. O Campo abre o job do dia, fotos ObraCam e horas, sincronizados com o escritório.</p></details>
+        <details><summary>Posso usar minha Tabela de Valores?</summary><p>Sim. Os preços da tabela alimentam orçamentos e serviços do job, com margem e desperdício configuráveis.</p></details>
+        <details><summary>Meus dados ficam isolados?</summary><p>Cada empresa tem o próprio workspace e subdomínio. Os dados não se misturam com outras empresas.</p></details>
       </div>
     </div>
   </section>
 
-  <!-- Final CTA -->
   <section class="final" id="contato">
-    <div class="wrap final-in reveal">
-      <div class="final-mate" aria-hidden="true">
-        <img src="/assets/img/mascot/mate-thumbs.png" alt="" width="144" height="134" decoding="async" />
-      </div>
-      <div class="final-copy">
-        <h2>Pronto para levar sua empresa de flooring para o <em>próximo nível</em>?</h2>
-        <a href="/signup" class="btn btn-primary">Começar agora</a>
-        <p class="final-note">Sem cartão de crédito · Configuração em minutos</p>
-      </div>
+    <div class="wrap final-in">
+      <div class="final-copy"><p class="eyebrow">Comece hoje</p><h2>Leve mais organização para o seu próximo trabalho.</h2><p>Teste o ObraMate e acompanhe leads, obras e recebimentos em um só lugar.</p><a href="/signup" class="btn btn-primary">Começar teste grátis</a><small><%= days %> dias para testar · Sem cartão de crédito</small></div>
+      <img class="final-mate" src="/assets/img/mascot/mate-thumbs.webp" alt="" width="144" height="134" loading="lazy" decoding="async" />
     </div>
   </section>
 
   <footer class="site-foot">
     <div class="wrap foot-grid">
-      <div class="foot-brand">
-        <span class="foot-logo">
-          <img src="/assets/obramateLogoSmallTransp.png" alt="" width="24" height="24" />
-          <%= productName %>
-        </span>
-        <p>O sistema para empresas de flooring.</p>
-      </div>
-      <div>
-        <h4>Produto</h4>
-        <a href="#funcionalidades">Funcionalidades</a>
-        <a href="#planos">Planos</a>
-        <a href="/signup">Começar agora</a>
-      </div>
-      <div>
-        <h4>Recursos</h4>
-        <a href="#como-funciona">Como funciona</a>
-        <a href="#faq">FAQ</a>
-        <a href="/pricing">Preços</a>
-      </div>
-      <div>
-        <h4>Empresa</h4>
-        <a href="/login.html">Entrar</a>
-        <a href="/terms">Termos</a>
-        <a href="/privacy">Privacidade</a>
-      </div>
-      <div>
-        <h4>Siga o <%= productName %></h4>
-        <div class="social">
-          <a href="#" aria-label="Instagram">IG</a>
-          <a href="#" aria-label="YouTube">YT</a>
-          <a href="#" aria-label="LinkedIn">in</a>
-          <a href="#" aria-label="Facebook">f</a>
-        </div>
-      </div>
+      <div class="foot-brand"><a class="foot-logo" href="/" aria-label="<%= productName %>"><img src="/assets/obramateLogoSmallTransp.png" alt="" width="24" height="24" /><strong><%= productName %></strong></a><p>Gestão para empresas de flooring.</p></div>
+      <div><h3>Produto</h3><a href="#funcionalidades">Recursos</a><a href="#como-funciona">Como funciona</a><a href="#planos">Planos</a></div>
+      <div><h3>Ajuda</h3><a href="#faq">Perguntas frequentes</a><a href="mailto:hello@obramate.com">Contato</a></div>
+      <div><h3>Conta</h3><a href="/signup">Começar teste grátis</a><a href="/login.html">Entrar</a><a href="/terms">Termos</a><a href="/privacy">Privacidade</a></div>
     </div>
-    <div class="wrap foot-bottom">
-      <span>© <%= new Date().getFullYear() %> <%= productName %></span>
-      <span class="lang">Português · English</span>
-    </div>
+    <div class="wrap foot-bottom"><span>© <%= new Date().getFullYear() %> <%= productName %></span><span>Feito para quem instala piso.</span></div>
   </footer>
 </main>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-
-<script src="/assets/js/landing.js?v=20261016-mate2" defer></script>
+<script src="/assets/js/landing.js?v=20261027-explorer1" defer></script>
 
 <%- include('partials/footer') %>

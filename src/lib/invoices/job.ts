@@ -74,6 +74,8 @@ export type JobBilling = {
 };
 
 type BillingInvoice = {
+  id?: string;
+  invoiceNumber?: string | null;
   amount: unknown;
   status: string;
   receipts?: { amount: unknown }[];
@@ -293,7 +295,6 @@ export async function createJobInvoice(tx: TenantPrisma, input: CreateJobInvoice
     },
   });
   if (!job) return { ok: false, status: 404, error: "Job não encontrado" };
-  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.workOrderId}))`;
   if (job.status === "canceled") return { ok: false, status: 409, error: "Job cancelado não pode ser faturado." };
   if (!job.customerId && !job.builderId) {
     return { ok: false, status: 422, error: "Escolha o cliente ou o builder do job antes de faturar." };
@@ -306,6 +307,11 @@ export async function createJobInvoice(tx: TenantPrisma, input: CreateJobInvoice
     select: { id: true },
     orderBy: { updatedAt: "desc" },
   });
+  // Same lock order as quote approval (quote, then job) so the two paths cannot both insert.
+  if (linkedQuote) {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${linkedQuote.id}))`;
+  }
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.workOrderId}))`;
   if (linkedQuote) await linkQuoteInvoicesToWorkOrder(tx, linkedQuote.id, job.id);
   const freshLines = await tx.workOrderLineItem.findMany({
     where: { workOrderId: job.id },
@@ -314,7 +320,10 @@ export async function createJobInvoice(tx: TenantPrisma, input: CreateJobInvoice
   job.lineItems = freshLines;
   const servicesTotal = job.lineItems.reduce((s, li) => s + Number(li.lineTotal), 0);
   const already = await tx.quoteInvoice.findMany({
-    where: { workOrderId: job.id, status: { not: "void" } },
+    where: {
+      status: { not: "void" },
+      OR: [{ workOrderId: job.id }, ...(linkedQuote ? [{ quoteId: linkedQuote.id }] : [])],
+    },
     select: { amount: true, status: true, receipts: { select: { amount: true } } },
   });
   const before = jobBilling(servicesTotal, already);
@@ -338,7 +347,7 @@ export async function createJobInvoice(tx: TenantPrisma, input: CreateJobInvoice
   const inv = await tx.quoteInvoice.create({
     data: {
       organizationId: input.organizationId,
-      quoteId: null,
+      quoteId: linkedQuote?.id || null,
       workOrderId: job.id,
       customerId: job.customerId,
       invoiceNumber,
@@ -423,6 +432,8 @@ export async function foldUnlinkedQuoteInvoices<T extends { id: string; invoices
       quote: { workOrderId: { in: ids } },
     },
     select: {
+      id: true,
+      invoiceNumber: true,
       amount: true,
       status: true,
       quote: { select: { workOrderId: true } },
@@ -434,7 +445,7 @@ export async function foldUnlinkedQuoteInvoices<T extends { id: string; invoices
     const jobId = inv.quote?.workOrderId;
     if (!jobId) continue;
     const list = byJob.get(jobId) || [];
-    list.push({ amount: inv.amount, status: inv.status, receipts: inv.receipts });
+    list.push({ id: inv.id, invoiceNumber: inv.invoiceNumber, amount: inv.amount, status: inv.status, receipts: inv.receipts });
     byJob.set(jobId, list);
   }
   for (const row of rows) {

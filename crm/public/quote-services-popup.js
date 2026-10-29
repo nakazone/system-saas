@@ -100,7 +100,7 @@
       quantity: Number(it.quantity) || 0,
       unit: it.unit_type || 'sq_ft',
       rate: Number(it.rate) || 0,
-      section: P.sectionOf(it.item_type, it.service_type),
+      section: P.sectionOf(it.item_type, it.service_type, it.name),
     };
   }
 
@@ -279,7 +279,7 @@
   function refreshDraftRow() {
     const old = E.qpePaper.querySelector('.qp-tr.is-new');
     const m = buildModel(true);
-    const sec = P.sectionOf('service', draftItem().service_type);
+    const sec = P.sectionOf('service', draftItem().service_type, draftItem().name);
     const oldSec = old && old.closest('.qp-block') && old.closest('.qp-block').querySelector('.qp-sec');
     if (!old || !oldSec || oldSec.getAttribute('data-sec') !== sec) {
       renderPaper(true);
@@ -389,6 +389,8 @@
   }
 
   const descAck = new Set();
+  const rateAck = new Set();
+  let rateFocus = null;
   function normDesc(s) {
     return String(s == null ? '' : s).trim().replace(/\s+/g, ' ');
   }
@@ -434,6 +436,32 @@
       tableDesc,
       pricingItemId: String(pid),
       row,
+    });
+  }
+  /** Same prompt as the quote list: keep the price here, on this customer, or on the price table. */
+  function offerRate(it, idx) {
+    if (!it) return;
+    const newRate = Number(it.rate);
+    if (!Number.isFinite(newRate) || newRate < 0) return;
+    if (idx != null && idx >= 0) sync(true);
+    if (B().onRateCommitted) B().onRateCommitted({ itemIdx: idx, newRate });
+    if (!B().offerRateChange) return;
+    const row = rowForItem(it);
+    const ids = row && B().catalogIds ? B().catalogIds(row) : {};
+    const pricingItemId = ids.pricing_item_id || it.pricing_item_id || null;
+    const tableRate = row && B().rateFor ? Number(B().rateFor(row)) : null;
+    if (!pricingItemId) return;
+    if (tableRate != null && Math.abs(newRate - tableRate) < 0.009) return;
+    const key = `${pricingItemId || it.name}|${newRate.toFixed(2)}`;
+    if (rateAck.has(key)) return;
+    rateAck.add(key);
+    B().offerRateChange({
+      itemIdx: idx != null ? idx : -1,
+      newRate,
+      pricingItemId: pricingItemId ? String(pricingItemId) : null,
+      tableRate,
+      row,
+      serviceName: it.name || (row && row.name) || '',
     });
   }
 
@@ -681,6 +709,7 @@
     added += 1;
     flashKey = W.length - 1;
     sync(true);
+    offerRate(it, flashKey);
     draft = newDraft(draft.sectionSet ? draft.service_type : null);
     step = 1;
     renderSteps();
@@ -872,6 +901,11 @@
         const row = e.target.closest('.qp-tr');
         if (e.target.value.trim().length < 2) openDD(e.target, Number(row.getAttribute('data-k')));
       }
+      if (e.target.matches('[data-f="rate"]')) {
+        const row = e.target.closest('.qp-tr');
+        const k = Number(row && row.getAttribute('data-k'));
+        rateFocus = { k, v: W[k] ? Number(W[k].rate) || 0 : 0 };
+      }
     });
     E.qpePaper.addEventListener('focusout', (e) => {
       if (e.target.matches('[data-f="name"]')) {
@@ -882,6 +916,13 @@
       if (e.target.matches('[data-f="quantity"],[data-f="rate"]')) {
         const v = num(e.target.value);
         e.target.value = e.target.matches('[data-f="rate"]') ? v.toFixed(2) : String(Math.round(v * 100) / 100);
+        if (e.target.matches('[data-f="rate"]')) {
+          const row = e.target.closest('.qp-tr');
+          const k = Number(row && row.getAttribute('data-k'));
+          const before = rateFocus && rateFocus.k === k ? rateFocus.v : null;
+          rateFocus = null;
+          if (W[k] && before != null && Math.abs(v - before) >= 0.009) offerRate(W[k], k);
+        }
       }
       if (e.target.matches('[data-f="description"]')) {
         const row = e.target.closest('.qp-tr');

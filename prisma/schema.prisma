@@ -697,6 +697,8 @@ model Organization {
   quoteSettings    Json?
   /// { share_messages: { sms_body } } — SMS template when sharing an invoice
   invoiceSettings  Json?
+  /// { request_mode: "review" | "automatic" } — partner portal job intake policy
+  partnerPortalSettings Json?
   /// Automation toggles/delays: quoteFollowUpEnabled, quoteFollowUpDays, visitReminderEnabled, visitReminderHours
   automationSettings Json?
   /// Default lead email/SMS templates per pipeline stage (Configurações › Mensagens por fase)
@@ -1111,7 +1113,7 @@ model PartnerUser {
 }
 
 /// Service requests submitted by Builders through their tenant-scoped partner portal.
-/// A request becomes a native WorkOrder only after the tenant team accepts it.
+/// The tenant can require review or add new submissions as Jobs automatically.
 model PartnerJobRequest {
   id             String    @id @default(uuid()) @db.Uuid
   organizationId String    @db.Uuid
@@ -1279,6 +1281,7 @@ model Customer {
   workOrders WorkOrder[]
   partnerUsers PartnerUser[]
   meetings   Meeting[]
+  builders   Builder[]
   mateVoiceConversations MateVoiceConversation[]
   referralRewardsAsReferrer ReferralReward[] @relation("ReferralRewardReferrer")
   referralRewardsAsReferred ReferralReward[] @relation("ReferralRewardReferred")
@@ -1678,6 +1681,8 @@ model Builder {
   firstName      String
   lastName       String   @default("")
   email          String?
+  customerId     String?  @db.Uuid
+  customer       Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
   phone          String?
   company        String?
   /// Short label shown on the calendar (e.g. CFC for Colorado Floor Company).
@@ -1696,6 +1701,7 @@ model Builder {
 
   @@index([organizationId])
   @@index([organizationId, status])
+  @@index([organizationId, customerId])
 }
 
 model PricingItem {

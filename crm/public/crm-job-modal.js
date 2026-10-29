@@ -12,9 +12,9 @@
 
   const CSS_HREF = "crm-job-modal.css?v=20261027-jobsui";
   const QPE_CSS = "quote-services-popup.css?v=20261012-qp3";
-  const QPE_JS = "quote-services-popup.js?v=20261023-sig1";
+  const QPE_JS = "quote-services-popup.js?v=20261028-jobrate";
   const PAPER_CSS = "quote-paper.css?v=20261027-om1";
-  const PAPER_JS = "quote-paper.js?v=20261027-om1";
+  const PAPER_JS = "quote-paper.js?v=20261028-addon";
   let prevQBBridge = null;
   let qpeAssetsPromise = null;
   const SECTIONS = ["details", "schedule", "services", "team", "campo", "notes"];
@@ -105,6 +105,8 @@
       busy: false,
       /** Job acabou de nascer do Quote (mensagem de setup). */
       fromQuote: false,
+      /** Quote ligado a este job, quando existe. */
+      quoteNumber: null,
       /** Painel Adicionar/Editar serviço (igual ao Quote): null | { i, name, note, qty, price, pricingId, unit, query, open } */
       svcPanel: null,
     };
@@ -434,6 +436,40 @@
     return Math.abs((Number(a) || 0) - (Number(b) || 0)) < 0.009;
   }
 
+  function pricingItemForLine(line) {
+    if (!line) return null;
+    if (line.pricingId) {
+      const hit = pricing.find((p) => String(p.id) === String(line.pricingId));
+      if (hit) return hit;
+    }
+    const name = String(line.name || "").trim().toLowerCase();
+    if (!name) return null;
+    return pricing.find((p) => String(p.name || "").trim().toLowerCase() === name) || null;
+  }
+
+  let quoteSyncTimer = null;
+  let quoteSyncGen = 0;
+  /** Job price is the source of truth: the linked quote must show the same unit price. */
+  function scheduleQuotePriceSync() {
+    if (!st || !st.id || !st.quoteNumber) return;
+    clearTimeout(quoteSyncTimer);
+    quoteSyncTimer = setTimeout(() => void pushJobPricesToQuote(), 450);
+  }
+  async function pushJobPricesToQuote() {
+    if (!st || !st.id || !st.quoteNumber || st.busy) return;
+    const gen = ++quoteSyncGen;
+    const lineItems = payload().line_items;
+    try {
+      await api(`/api/work-orders/${st.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ line_items: lineItems }),
+      });
+    } catch (e) {
+      if (gen !== quoteSyncGen) return;
+      notify(e.message || "Não foi possível atualizar o quote com este preço.", "error");
+    }
+  }
+
   function pricingTypeLabel() {
     return (
       { builder: "Builder", contractor: "Builder", loja: "Builder", internal: "Builder" }[st && st.sourceType] || "Particular"
@@ -442,6 +478,8 @@
 
   let rateSavePending = null;
   let priceEditCtx = null;
+  /** Ignore the tap that opened the dialog. On a tablet that same touch hits the backdrop and closes it. */
+  let rateBackdropIgnoreUntil = 0;
 
   function closeSaveRateModal() {
     const root = $("jmSaveRateModal");
@@ -478,15 +516,29 @@
         ? `Só para este ${partyLabel}`
         : `Só para ${customerName || `este ${partyLabel}`}`;
     }
-    if (tableBtn) tableBtn.textContent = `Atualizar Tabela · ${typeLabel}`;
+    if (tableBtn) {
+      tableBtn.hidden = !payload.pricingItemId;
+      tableBtn.textContent = `Atualizar Tabela · ${typeLabel}`;
+    }
+    if (clientBtn) clientBtn.hidden = !payload.pricingItemId;
+    const jobOnlyBtn = $("jmSaveRateJobOnly");
+    if (jobOnlyBtn) jobOnlyBtn.textContent = payload.quoteNumber ? "Neste job e no quote" : "Só neste job";
+    const quoteNote = $("jmSaveRateQuoteNote");
+    if (quoteNote) {
+      quoteNote.classList.toggle("hidden", !payload.quoteNumber);
+      quoteNote.textContent = payload.quoteNumber
+        ? `O quote ${payload.quoteNumber} fica com este mesmo preço.`
+        : "";
+    }
     if (clientHint) {
-      clientHint.classList.toggle("hidden", !noCustomer);
+      clientHint.classList.toggle("hidden", !payload.pricingItemId || !noCustomer);
       if (noCustomer) {
         clientHint.textContent = hasBuilderOnly
           ? "Este builder ainda não tem cadastro CRM ligado. Atualize o builder no módulo Builders ou escolha Atualizar Tabela."
           : "Para gravar no cadastro, selecione um cliente ou builder neste job.";
       }
     }
+    rateBackdropIgnoreUntil = Date.now() + 700;
     root.classList.remove("hidden");
   }
 
@@ -495,23 +547,28 @@
     const root = $("jmSaveRateModal");
     if (root && !root.classList.contains("hidden")) return;
     const line = st && st.lines[lineIdx];
-    if (!line || !line.pricingId || line.manual) return;
-    const item = pricing.find((p) => String(p.id) === String(line.pricingId));
-    if (!item) return;
+    if (!line) return;
+    const item = pricingItemForLine(line);
+    if (item && !line.pricingId) {
+      line.pricingId = item.id;
+      line.manual = false;
+    }
     const newRate = Number(line.price);
     if (!Number.isFinite(newRate) || newRate < 0) return;
-    const tableRate = systemRateFor(item);
-    if (ratesNearlyEqual(newRate, tableRate)) return;
+    const tableRate = item ? systemRateFor(item) : newRate;
+    const differsFromTable = Boolean(item) && !ratesNearlyEqual(newRate, tableRate);
+    if (!differsFromTable) return;
     const customer = (await ensurePricingCustomer()) || pricingCustomer();
     const b = currentBuilder();
     const partyLabel = b && !currentCustomer() ? "builder" : "cliente";
     openSaveRateModal({
       lineIdx,
-      serviceName: String(line.name || item.name || "Serviço").trim() || "Serviço",
+      serviceName: String(line.name || (item && item.name) || "Serviço").trim() || "Serviço",
       newRate,
       tableRate,
       typeLabel: pricingTypeLabel(),
-      pricingItemId: String(item.id),
+      pricingItemId: item ? String(item.id) : null,
+      quoteNumber: st.quoteNumber || null,
       customer,
       partyLabel,
     });
@@ -747,13 +804,14 @@
       <div><span>Na tabela (<b id="jmSaveRateTypeLabel">—</b>)</span><strong id="jmSaveRateOld">—</strong></div>
       <div><span>Neste job</span><strong id="jmSaveRateNew">—</strong></div>
     </div>
-    <p id="jmSaveRateClientHint" class="jm-rate__hint hidden">
+      <p id="jmSaveRateQuoteNote" class="jm-rate__hint hidden">Este preço também fica no quote ligado a este job.</p>
+      <p id="jmSaveRateClientHint" class="jm-rate__hint hidden">
       Para gravar no cadastro, selecione um cliente ou builder neste job.
     </p>
     <div class="jm-rate__acts">
       <button type="button" id="jmSaveRateClient" class="jm-btn jm-btn--dark">Só para este cliente</button>
       <button type="button" id="jmSaveRateTable" class="jm-btn jm-btn--pri">Atualizar Tabela de Valores</button>
-      <button type="button" id="jmSaveRateJobOnly" class="jm-btn">Só neste job</button>
+      <button type="button" id="jmSaveRateJobOnly" class="jm-btn">Neste job e no quote</button>
       <button type="button" id="jmSaveRateCancel" class="jm-btn jm-btn--ghost">Cancelar</button>
     </div>
   </div>
@@ -779,9 +837,19 @@
     $("jmSaveRateJobOnly")?.addEventListener("click", () => closeSaveRateModal());
     $("jmSaveRateCancel")?.addEventListener("click", () => closeSaveRateModal());
     $("jmSaveRateClose")?.addEventListener("click", () => closeSaveRateModal());
-    root?.addEventListener("click", (e) => {
-      if (e.target === root) closeSaveRateModal();
-    });
+    root?.addEventListener(
+      "click",
+      (e) => {
+        if (e.target !== root) return;
+        if (Date.now() < rateBackdropIgnoreUntil) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        closeSaveRateModal();
+      },
+      true,
+    );
   }
 
   // ---------------------------------------------------------------- render
@@ -1162,6 +1230,16 @@
       },
       toast: (m, t) => notify(m, t || "info"),
       save: async () => true,
+      hasLinkedQuote: () => Boolean(st && st.quoteNumber),
+      onRateCommitted() {
+        scheduleQuotePriceSync();
+      },
+      offerRateChange(opts) {
+        const idx = opts && opts.itemIdx;
+        scheduleQuotePriceSync();
+        if (idx == null || idx < 0) return;
+        void maybeOfferRatePersist(idx);
+      },
       onClose() {
         if (prevQBBridge) window.QBBridge = prevQBBridge;
         else if (window.QBBridge && window.QBBridge.__job) delete window.QBBridge;
@@ -1956,6 +2034,7 @@
     st.relatedWorkOrderId = wo.related_work_order_id || null;
     st.relatedWorkOrder = wo.related_work_order || null;
     st.relatedChildren = Array.isArray(wo.related_children) ? wo.related_children : [];
+    st.quoteNumber = wo.quote_number || null;
     st.pickerOpen = !(st.customerId || st.builderId);
     if (st.builderId && !st.customerId) await ensurePricingCustomer();
     // Coming from Quote→Job: keep Para quem / endereço / serviços; user fills Start, Setor, Equipe, Campo, Notas.
@@ -2845,7 +2924,9 @@
       const newRate = Number(line.price);
       if (!Number.isFinite(newRate)) return;
       if (ratesNearlyEqual(newRate, ctx.baseline)) return;
-      setTimeout(() => void maybeOfferRatePersist(i), 0);
+      scheduleQuotePriceSync();
+      // Wait out the tablet tap that blurred the field, so it does not land on the new backdrop.
+      setTimeout(() => void maybeOfferRatePersist(i), 280);
     });
     modal.addEventListener("keydown", onKey);
     ensureRateModal();

@@ -4,7 +4,13 @@
  * The invoice has its own module (invoices.html / invoice.html). Quotes only issue invoices;
  * everything after that (payments, receipts, sending, PDF with PAID stamp) happens here.
  */
-import { defaultDueDate } from "../../lib/settings/invoices.js";
+import {
+  applyInvoiceShareTemplate,
+  defaultDueDate,
+  invoiceEmailBodyForType,
+  parseInvoiceSettings,
+  receiptEmailBody,
+} from "../../lib/settings/invoices.js";
 import { Router, type Response } from "express";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -54,7 +60,6 @@ import {
 import { quoteContractTotal } from "../../lib/quotes/discount.js";
 import { ensureQuoteDiscountOnJob, ensureQuoteDiscountsOnJobs } from "../../lib/work-orders/from-quote.js";
 import { invoiceEmail, receiptEmail } from "../../lib/invoices/email.js";
-import { parseInvoiceSettings } from "../../lib/settings/invoices.js";
 
 export const invoicesCrmRouter = Router();
 
@@ -97,6 +102,7 @@ const listInclude = {
       id: true,
       number: true,
       title: true,
+      address: true,
       builder: { select: { company: true, firstName: true, lastName: true, email: true } },
     },
   },
@@ -174,6 +180,10 @@ function listItem(inv: ListRow, now: Date) {
     customer_name: customerName,
     client_code: clientCode || null,
     customer_email: inv.customer?.email || inv.quote?.builder?.email || inv.workOrder?.builder?.email || null,
+    address:
+      (inv.workOrder?.address && String(inv.workOrder.address).trim()) ||
+      (payload?.job_address != null && String(payload.job_address).trim()) ||
+      null,
   };
 }
 
@@ -272,6 +282,13 @@ async function detailPayload(tx: TenantPrisma, inv: InvoiceDetail, req: AuthedRe
       ? { name: docOrg.name, logo_url: docOrg.logoUrl, contact: docOrg.contact, address: docOrg.address, license: docOrg.license }
       : null,
     share_sms_body: invoiceShare.sms_body,
+    share_email: {
+      partial: invoiceShare.email_partial,
+      balance: invoiceShare.email_balance,
+      full: invoiceShare.email_full,
+      receipt_partial: invoiceShare.receipt_partial,
+      receipt_full: invoiceShare.receipt_full,
+    },
     customer_id: inv.customerId,
     quote: inv.quote
       ? {
@@ -718,6 +735,10 @@ invoicesCrmRouter.post(
           },
         });
         if (!quote) return { error: "Orçamento não encontrado", status: 404 } as const;
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${quote.id}))`;
+        if (quote.workOrderId) {
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${quote.workOrderId}))`;
+        }
         const quoteStatus = String(quote.status || "").toLowerCase();
         const blockedQuote = ["archived", "rejected", "expired"].includes(quoteStatus);
         if (blockedQuote) {
@@ -1042,18 +1063,33 @@ invoicesCrmRouter.post(
       if (!markOnly) {
         const org = await prisma.organization.findUniqueOrThrow({ where: { id: req.organizationId! } });
         const m = computeInvoiceMoney(prep.inv);
+        const settings = parseInvoiceSettings(org.invoiceSettings);
+        const typed = (parsed.data.message || "").trim();
+        const client = clientOf(prep.inv);
+        const message =
+          typed ||
+          filledShareMessage(invoiceEmailBodyForType(settings.share_messages, prep.inv.invoiceType), {
+            clientName: client.name,
+            company: org.name,
+            invoiceNumber: prep.inv.invoiceNumber,
+            amount: m.amount,
+            balance: m.balance,
+            paid: m.paid,
+            dueDate: prep.inv.dueDate,
+            link: publicUrl,
+          });
         const msg = invoiceEmail({
           companyName: org.name,
           phone: org.contactPhone,
           accentColor: org.accentColor,
           primaryColor: org.primaryColor,
-          clientName: clientOf(prep.inv).name,
+          clientName: client.name,
           invoiceNumber: prep.inv.invoiceNumber || "Invoice",
           amount: m.amount,
           balance: m.balance,
           dueDate: prep.inv.dueDate,
           publicUrl,
-          message: parsed.data.message,
+          message,
           paymentInstructions: prep.inv.paymentInstructions || org.paymentInstructions,
         });
         const pdf = await renderInvoicePdf(prep.inv, org);
@@ -1185,6 +1221,35 @@ const paymentSchema = z.object({
   processor: z.string().max(40).optional().nullable(),
 });
 
+function filledShareMessage(
+  template: string,
+  input: {
+    clientName?: string | null;
+    company?: string | null;
+    invoiceNumber?: string | null;
+    amount: number;
+    balance: number;
+    paid?: number | null;
+    dueDate?: Date | null;
+    link?: string | null;
+  },
+) {
+  const name = String(input.clientName || "").trim().split(/\s+/)[0] || "";
+  const due = input.dueDate
+    ? input.dueDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })
+    : "";
+  return applyInvoiceShareTemplate(template, {
+    name,
+    company: input.company,
+    invoice_number: input.invoiceNumber,
+    amount: usd(input.amount),
+    balance: usd(input.balance),
+    paid: input.paid != null ? usd(input.paid) : "",
+    due_date: due,
+    link: input.link,
+  });
+}
+
 async function emailReceipt(
   req: AuthedRequest,
   invoiceId: string,
@@ -1204,6 +1269,8 @@ async function emailReceipt(
   const input = receiptPdfInput(prep.inv, receiptId, org);
   if (!input) return { ok: false, error: "Recibo não encontrado" };
   const pdf = await buildReceiptPdf(input);
+  const settings = parseInvoiceSettings(org.invoiceSettings);
+  const publicUrl = publicInvoiceUrl(baseUrl(req), prep.token);
   const msg = receiptEmail({
     companyName: org.name,
     phone: org.contactPhone,
@@ -1216,7 +1283,17 @@ async function emailReceipt(
     paidAt: input.paidAt,
     methodLabel: input.method ? paymentMethodLabel(input.method) : null,
     balance: input.balance,
-    publicUrl: publicInvoiceUrl(baseUrl(req), prep.token),
+    publicUrl,
+    message: filledShareMessage(receiptEmailBody(settings.share_messages, input.balance <= 0.004), {
+      clientName: input.client.name,
+      company: org.name,
+      invoiceNumber: input.invoiceNumber,
+      amount: input.amount,
+      balance: input.balance,
+      paid: input.amount,
+      dueDate: prep.inv.dueDate,
+      link: publicUrl,
+    }),
   });
   const sent = await sendCustomerEmail({
     to,
@@ -1297,6 +1374,8 @@ invoicesCrmRouter.post(
         Math.round((prep.money.balance - prep.amount) * 100) / 100,
       );
       const receiptNumber = "RCT-PREVIEW";
+      const settings = parseInvoiceSettings(org.invoiceSettings);
+      const publicUrl = publicInvoiceUrl(baseUrl(req), prep.token);
       const msg = receiptEmail({
         companyName: org.name,
         phone: org.contactPhone,
@@ -1309,7 +1388,17 @@ invoicesCrmRouter.post(
         paidAt,
         methodLabel: method ? paymentMethodLabel(method) : null,
         balance: balanceAfter,
-        publicUrl: publicInvoiceUrl(baseUrl(req), prep.token),
+        publicUrl,
+        message: filledShareMessage(receiptEmailBody(settings.share_messages, balanceAfter <= 0.004), {
+          clientName: client.name,
+          company: org.name,
+          invoiceNumber: prep.inv.invoiceNumber,
+          amount: prep.amount,
+          balance: balanceAfter,
+          paid: prep.amount,
+          dueDate: prep.inv.dueDate,
+          link: publicUrl,
+        }),
       });
 
       res.json({

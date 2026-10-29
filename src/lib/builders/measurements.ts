@@ -12,6 +12,8 @@ import { addressKey } from "../partner-intake/extract.js";
 import type { ActiveMember } from "./accounts.js";
 import { BuilderError } from "./accounts.js";
 
+type MeasurementPdfDocument = InstanceType<typeof PDFDocument>;
+
 /* ───────────────────────────── shape ───────────────────────────── */
 
 const inches = z.number().min(0).max(2000).nullable().optional().default(null);
@@ -25,6 +27,8 @@ export const VENT_TYPES = ["flush", "self_rimming", "return_air"] as const;
 
 const stepSchema = z.object({
   id,
+  /** A stair can finish with an extra riser before the upper floor/landing. */
+  kind: z.enum(["step", "riser"]).optional().default("step"),
   tread_w: inches,
   tread_d: inches,
   riser_w: inches,
@@ -40,12 +44,27 @@ const nosingSchema = z.object({
   length: inches,
   qty: z.number().int().min(0).max(500).optional().default(1),
   type: z.enum(["flush", "overlap", "stair_nose"]).optional().default("flush"),
+  /** Step ID or "landing"; empty/legacy values are drawn on the last tread. */
+  position: z.string().trim().max(40).optional().default(""),
   note: text(200),
+});
+
+const landingSchema = z.object({
+  enabled: z.boolean().optional().default(false),
+  width: inches,
+  depth: inches,
 });
 
 const stairSchema = z.object({
   id,
   name: text(80),
+  layout: z.enum(["straight", "round"]).optional().default("straight"),
+  round_diameter: inches,
+  round_center_diameter: inches,
+  round_sweep: z.enum(["180", "270", "360"]).optional().default("270"),
+  /** ID of the lower flight whose landing this flight starts from. */
+  starts_on_landing_of: z.string().trim().max(40).nullable().optional().default(null),
+  landing: landingSchema.optional().default({ enabled: false, width: null, depth: null }),
   species: text(60),
   finish: text(60),
   color: text(80),
@@ -79,7 +98,14 @@ export type Vent = z.infer<typeof ventSchema>;
 
 export function parseData(raw: unknown): MeasurementData {
   const parsed = measurementDataSchema.safeParse(raw ?? {});
-  return parsed.success ? parsed.data : { stairs: [], vents: [] };
+  if (!parsed.success) return { stairs: [], vents: [] };
+  const data = parsed.data;
+  const byId = new Map(data.stairs.map((stair) => [stair.id, stair]));
+  for (const stair of data.stairs) {
+    const parent = stair.starts_on_landing_of ? byId.get(stair.starts_on_landing_of) : null;
+    if (!parent || parent.id === stair.id || !parent.landing.enabled) stair.starts_on_landing_of = null;
+  }
+  return data;
 }
 
 /* ───────────────────────────── inches ───────────────────────────── */
@@ -130,7 +156,19 @@ export function openLabel(open: string, ret: string): string {
   return `${OPEN_LABEL[open] || open} · ${RET_LABEL[ret] || ret}`;
 }
 
-export type SummaryLine = { kind: "tread" | "riser" | "nosing" | "vent"; text: string; qty: number; uom: "EA" | "LF" };
+export type SummaryLine = { kind: "tread" | "riser" | "nosing" | "landing" | "vent"; text: string; qty: number; uom: "EA" | "LF" };
+
+function treadSteps(stair: Stair) {
+  return stair.steps.filter((step) => step.kind !== "riser" && (step.tread_w || step.tread_d));
+}
+
+function nosingPosition(stair: Stair, nosing: z.infer<typeof nosingSchema>): string {
+  if (nosing.position === "landing" && stair.landing.enabled) return "landing";
+  const treads = treadSteps(stair);
+  const index = treads.findIndex((step) => step.id === nosing.position);
+  if (index >= 0) return `tread ${index + 1}`;
+  return treads.length ? `tread ${treads.length}` : "top of stair";
+}
 
 /** Groups equal pieces: "Tread White Oak 48 × 11¼ · both sides open · 45° return — 8 EA". */
 export function summarize(data: MeasurementData): SummaryLine[] {
@@ -141,12 +179,15 @@ export function summarize(data: MeasurementData): SummaryLine[] {
     const treads = new Map<string, number>();
     const risers = new Map<string, number>();
     for (const st of stair.steps) {
-      if (st.tread_w || st.tread_d) {
+      if (st.kind !== "riser" && (st.tread_w || st.tread_d)) {
         const k = `${fmtInches(st.tread_w)} × ${fmtInches(st.tread_d)} · ${openLabel(st.open, st.ret)}`;
         treads.set(k, (treads.get(k) || 0) + 1);
       }
-      if (!st.no_riser && stair.riser_material !== "none" && (st.riser_w || st.riser_h)) {
+      if (st.kind !== "riser" && !st.no_riser && stair.riser_material !== "none" && (st.riser_w || st.riser_h)) {
         const k = `${fmtInches(st.riser_w)} × ${fmtInches(st.riser_h)}${st.open !== "none" ? ` · ${OPEN_LABEL[st.open]}` : ""}`;
+        risers.set(k, (risers.get(k) || 0) + 1);
+      } else if (st.kind === "riser" && stair.riser_material !== "none" && (st.riser_w || st.riser_h)) {
+        const k = `${fmtInches(st.riser_w)} × ${fmtInches(st.riser_h)}`;
         risers.set(k, (risers.get(k) || 0) + 1);
       }
     }
@@ -156,7 +197,10 @@ export function summarize(data: MeasurementData): SummaryLine[] {
     for (const ns of stair.nosings) {
       if (!ns.length) continue;
       const type = ns.type === "overlap" ? "overlap" : ns.type === "stair_nose" ? "stair nose" : "flush";
-      out.push({ kind: "nosing", qty: ns.qty || 1, uom: "EA", text: `${label} · Nosing ${type}${wood ? ` ${wood}` : ""} ${fmtInches(ns.length)}"${ns.note ? ` · ${ns.note}` : ""}` });
+      out.push({ kind: "nosing", qty: ns.qty || 1, uom: "EA", text: `${label} · Nosing ${type}${wood ? ` ${wood}` : ""} ${fmtInches(ns.length)}" · ${nosingPosition(stair, ns)}${ns.note ? ` · ${ns.note}` : ""}` });
+    }
+    if (stair.landing.enabled) {
+      out.push({ kind: "landing", qty: 1, uom: "EA", text: `${label} · Landing ${wood ? `${wood} ` : ""}${fmtInches(stair.landing.width)} × ${fmtInches(stair.landing.depth)}"` });
     }
   }
   const vents = new Map<string, number>();
@@ -172,20 +216,24 @@ export function counts(data: MeasurementData) {
   let treads = 0;
   let risers = 0;
   let nosings = 0;
+  let landings = 0;
   for (const s of data.stairs) {
     for (const st of s.steps) {
-      if (st.tread_w || st.tread_d) treads += 1;
-      if (!st.no_riser && s.riser_material !== "none" && (st.riser_w || st.riser_h)) risers += 1;
+      if (st.kind !== "riser" && (st.tread_w || st.tread_d)) treads += 1;
+      if (st.kind === "riser" ? s.riser_material !== "none" && (st.riser_w || st.riser_h) : !st.no_riser && s.riser_material !== "none" && (st.riser_w || st.riser_h)) risers += 1;
     }
     for (const n of s.nosings) if (n.length) nosings += n.qty || 1;
+    if (s.landing.enabled) landings += 1;
   }
   const vents = data.vents.reduce((a, v) => a + (v.qty || 1), 0);
-  return { stairs: data.stairs.length, treads, risers, nosings, vents };
+  return { stairs: data.stairs.length, treads, risers, nosings, landings, vents };
 }
 
 /** Text for the job notes, in the words a work order uses (e.g. "48" – double returns – 8 EA"). */
 export function summaryText(m: { address: string; data: MeasurementData; measuredBy: string; measuredAt: Date | null }): string {
-  const lines = summarize(m.data).map((l) => `- ${l.text} — ${l.qty} ${l.uom}`);
+  const shapes = m.data.stairs.filter((stair) => stair.layout === "round").map((stair) =>
+    `- ${stair.name || "Stair"} · Round stair · Ø ${fmtInches(stair.round_diameter)}" outside · Ø ${fmtInches(stair.round_center_diameter)}" center · ${stair.round_sweep}° sweep`);
+  const lines = [...shapes, ...summarize(m.data).map((l) => `- ${l.text} — ${l.qty} ${l.uom}`)];
   const who = `${m.measuredBy}${m.measuredAt ? ` on ${m.measuredAt.toISOString().slice(0, 10)}` : ""}`;
   return [`Builder measurement (${who}):`, ...lines].join("\n");
 }
@@ -489,6 +537,140 @@ function ascii(text: string): string {
   return text.replace(/(\d)?([¼½¾⅛⅜⅝⅞⅓⅔])/g, (_m, d: string | undefined, f: string) => `${d ? `${d}-` : ""}${map[f]}`);
 }
 
+function connectedStairChain(data: MeasurementData, start: Stair): Stair[] {
+  let root = start;
+  const ancestors = new Set([root.id]);
+  while (root.starts_on_landing_of) {
+    const parent = data.stairs.find((stair) => stair.id === root.starts_on_landing_of);
+    if (!parent || !parent.landing.enabled || ancestors.has(parent.id)) break;
+    ancestors.add(parent.id);
+    root = parent;
+  }
+  const chain: Stair[] = [];
+  const seen = new Set<string>();
+  let current: Stair | undefined = root;
+  while (current && !seen.has(current.id)) {
+    chain.push(current);
+    seen.add(current.id);
+    current = data.stairs.find((stair) => stair.starts_on_landing_of === chain[chain.length - 1]!.id);
+  }
+  return chain;
+}
+
+function drawRoundPlan(doc: MeasurementPdfDocument, stair: Stair, x: number, y: number, width: number, height: number) {
+  const cx = x + 58;
+  const cy = y + height / 2;
+  const outer = Math.min(42, height / 2 - 10);
+  const diameter = Number(stair.round_diameter) || 60;
+  const centerDiameter = Number(stair.round_center_diameter) || 6;
+  const inner = Math.max(6, Math.min(outer - 6, outer * centerDiameter / diameter));
+  const sweep = Number(stair.round_sweep) || 270;
+  const treads = stair.steps.filter((step) => step.kind !== "riser");
+  const start = -90 - sweep / 2;
+  doc.roundedRect(x, y, width, height, 8).fillAndStroke("#FAFBFC", "#E5E7EB");
+  doc.circle(cx, cy, outer).lineWidth(1).strokeColor("#5B4632").stroke();
+  doc.circle(cx, cy, inner).lineWidth(1).strokeColor("#667085").stroke();
+  const polar = (radius: number, degrees: number) => [cx + radius * Math.cos(degrees * Math.PI / 180), cy + radius * Math.sin(degrees * Math.PI / 180)];
+  const divisions = Math.max(1, treads.length);
+  for (let i = 0; i <= divisions; i += 1) {
+    const pointA = polar(inner, start + sweep * i / divisions);
+    const pointB = polar(outer, start + sweep * i / divisions);
+    doc.moveTo(pointA[0]!, pointA[1]!).lineTo(pointB[0]!, pointB[1]!).lineWidth(0.65).strokeColor("#98A2B3").stroke();
+  }
+  treads.forEach((_step, i) => {
+    const p = polar((inner + outer) / 2, start + sweep * (i + 0.5) / divisions);
+    doc.font("Helvetica-Bold").fontSize(7).fillColor("#344054").text(String(i + 1), p[0]! - 3, p[1]! - 4, { width: 8, align: "center" });
+  });
+  doc.font("Helvetica-Bold").fontSize(8).fillColor("#221E1A").text("ROUND / SPIRAL PLAN", x + 112, y + 13, { width: width - 124 });
+  doc.font("Helvetica").fontSize(8.5).fillColor("#667085")
+    .text(`Outside diameter: ${fmtInches(stair.round_diameter)} in`, x + 112, y + 31, { width: width - 124 })
+    .text(`Center opening: ${fmtInches(stair.round_center_diameter)} in`, x + 112, y + 45, { width: width - 124 })
+    .text(`Sweep: ${sweep} degrees · ${treads.length} treads`, x + 112, y + 59, { width: width - 124 });
+  if (stair.landing.enabled) {
+    doc.font("Helvetica-Bold").fontSize(8).fillColor("#B4561A")
+      .text(`Landing: ${fmtInches(stair.landing.width)} × ${fmtInches(stair.landing.depth)} in`, x + 112, y + 75, { width: width - 124 });
+  }
+}
+
+/** Draw each flight in order, keeping the upper flight at the landing elevation. */
+function drawStairElevation(doc: MeasurementPdfDocument, flights: Stair[], x: number, y: number, width: number, height: number) {
+  const stepsByFlight = flights.map((flight) => flight.steps.filter((step) => step.kind === "riser"
+    ? step.riser_w || step.riser_h
+    : step.tread_w || step.tread_d || step.riser_h));
+  const run = flights.reduce((sum, flight, i) => sum
+    + stepsByFlight[i]!.reduce((n, step) => n + (step.kind === "riser" ? 0 : Number(step.tread_d) || 11.25), 0)
+    + (flight.landing.enabled ? Number(flight.landing.depth) || 18 : 0), 0);
+  const rise = flights.reduce((sum, _flight, i) => sum + stepsByFlight[i]!.reduce((n, step) => n + (Number(step.riser_h) || 7.5), 0), 0);
+  const scale = Math.min(2.1, (width - 28) / Math.max(run, 1), (height - 34) / Math.max(rise, 1));
+  const bottom = y + height - 14;
+  let cursorX = x + 12;
+  let surfaceY = bottom;
+  doc.roundedRect(x, y, width, height, 8).fillAndStroke("#FAFBFC", "#E5E7EB");
+  doc.moveTo(x + 8, bottom).lineTo(x + width - 8, bottom).lineWidth(0.6).strokeColor("#D0D5DD").stroke();
+  flights.forEach((flight, flightIndex) => {
+    const color = flight.riser_material === "primed" || flight.riser_material === "paint_grade" ? "#F3F1EC" : "#D6B488";
+    doc.font("Helvetica-Bold").fontSize(7).fillColor("#344054")
+      .text(ascii(`${flight.name || `Stair ${flightIndex + 1}`} · ${flight.layout === "round" ? "round/spiral (schematic elevation)" : "straight flight"}`), cursorX, y + 6, { width: Math.min(160, width / 2) });
+    stepsByFlight[flightIndex]!.forEach((step, index) => {
+      const stepRise = (Number(step.riser_h) || 7.5) * scale;
+      const topY = surfaceY - stepRise;
+      if (step.kind === "riser") {
+        doc.rect(cursorX, topY, 3, stepRise).fillAndStroke("#E4E7EC", "#98A2B3");
+      } else {
+        const stepRun = (Number(step.tread_d) || 11.25) * scale;
+        doc.rect(cursorX, topY, stepRun, 3.5).fillAndStroke(color, "#5B4632");
+        doc.rect(cursorX, topY, 3, stepRise).fillAndStroke("#E4E7EC", "#98A2B3");
+        doc.font("Helvetica").fontSize(6).fillColor("#667085").text(String(index + 1), cursorX + Math.max(2, stepRun / 2 - 2), topY - 8, { width: 8, align: "center" });
+        const hasNosing = flight.nosings.some((nosing) => nosing.length && nosingPosition(flight, nosing) === step.id);
+        if (hasNosing) doc.moveTo(cursorX, topY).lineTo(cursorX + stepRun, topY).lineWidth(1.5).strokeColor("#E7792C").stroke();
+        cursorX += stepRun;
+      }
+      surfaceY = topY;
+    });
+    if (flight.landing.enabled) {
+      const landingRun = (Number(flight.landing.depth) || 18) * scale;
+      doc.rect(cursorX, surfaceY - 4, landingRun, 4).fillAndStroke(color, "#5B4632");
+      doc.font("Helvetica-Bold").fontSize(5.8).fillColor("#344054")
+        .text(ascii(`LANDING ${fmtInches(flight.landing.width)} × ${fmtInches(flight.landing.depth)} in`), cursorX, surfaceY - 13, { width: Math.max(landingRun, 36), align: "center" });
+      cursorX += landingRun;
+    }
+  });
+  doc.font("Helvetica").fontSize(7).fillColor("#667085")
+    .text("Schematic elevation · dimensions in inches · tread depth determines run", x + 10, y + height - 11, { width: width - 20 });
+}
+
+function drawIllustratedSpecs(doc: MeasurementPdfDocument, stair: Stair, x: number, y: number, width: number, height: number) {
+  const tread = stair.steps.find((step) => step.kind !== "riser" && (step.tread_w || step.tread_d));
+  const riser = stair.steps.find((step) => step.riser_w || step.riser_h);
+  const nosing = stair.nosings.find((item) => item.length);
+  const gap = 8;
+  const cardWidth = (width - gap * 2) / 3;
+  const cards = [
+    { title: "TREAD · TOP VIEW", detail: tread ? `${fmtInches(tread.tread_w)} × ${fmtInches(tread.tread_d)} in` : "Add tread dimensions", kind: "tread" as const },
+    { title: "RISER · FRONT VIEW", detail: riser ? `${fmtInches(riser.riser_w)} × ${fmtInches(riser.riser_h)} in` : "Add riser dimensions", kind: "riser" as const },
+    { title: "NOSING · EDGE DETAIL", detail: nosing ? `${fmtInches(nosing.length)} in · ${nosing.type.replace("_", " ")}` : "No nosing selected", kind: "nosing" as const },
+  ];
+  cards.forEach((card, index) => {
+    const cardX = x + index * (cardWidth + gap);
+    doc.roundedRect(cardX, y, cardWidth, height, 7).fillAndStroke("#FFFFFF", "#E5E7EB");
+    doc.font("Helvetica-Bold").fontSize(6.5).fillColor("#667085").text(card.title, cardX + 8, y + 8, { width: cardWidth - 16 });
+    if (card.kind === "tread" && tread) {
+      doc.rect(cardX + 19, y + 27, cardWidth - 42, 24).fillAndStroke("#D6B488", "#5B4632");
+      doc.moveTo(cardX + 19, y + 28).lineTo(cardX + cardWidth - 23, y + 28).lineWidth(1.8).strokeColor("#E7792C").stroke();
+      doc.font("Helvetica").fontSize(6).fillColor("#344054").text("NOSE", cardX + 21, y + 53, { width: cardWidth - 46, align: "center" });
+    } else if (card.kind === "riser" && riser) {
+      doc.rect(cardX + 20, y + 30, cardWidth - 44, 20).fillAndStroke(stair.riser_material === "same" ? "#D6B488" : "#F3F1EC", "#5B4632");
+      doc.moveTo(cardX + 20, y + 54).lineTo(cardX + cardWidth - 24, y + 54).lineWidth(0.6).strokeColor("#667085").stroke();
+      doc.font("Helvetica").fontSize(5.8).fillColor("#667085").text("WIDTH", cardX + 20, y + 56, { width: cardWidth - 44, align: "center" });
+    } else if (card.kind === "nosing" && nosing) {
+      doc.moveTo(cardX + 19, y + 48).lineTo(cardX + cardWidth - 22, y + 48).lineWidth(6).strokeColor("#D6B488").stroke();
+      doc.moveTo(cardX + 22, y + 43).lineTo(cardX + cardWidth - 22, y + 43).lineWidth(1.7).strokeColor("#E7792C").stroke();
+      doc.font("Helvetica").fontSize(5.8).fillColor("#667085").text(nosing.type === "overlap" ? "OVERLAP" : nosing.type === "stair_nose" ? "STAIR NOSE" : "FLUSH", cardX + 18, y + 54, { width: cardWidth - 36, align: "center" });
+    }
+    doc.font("Helvetica-Bold").fontSize(7).fillColor("#221E1A").text(ascii(card.detail), cardX + 7, y + height - 16, { width: cardWidth - 14, align: "center" });
+  });
+}
+
 export async function measurementPdf(m: { builder: string; address: string; community: string | null; lot: string | null; notes: string | null; data: MeasurementData; measuredBy: string; measuredAt: Date | null }): Promise<Buffer> {
   const doc = new PDFDocument({ size: "LETTER", margin: 40 });
   const chunks: Buffer[] = [];
@@ -529,11 +711,40 @@ export async function measurementPdf(m: { builder: string; address: string; comm
     rule();
     doc.moveDown(0.4);
     doc.font("Helvetica-Bold").fontSize(12).fillColor(ink).text(s.name || "Stair", 40);
-    doc.font("Helvetica").fontSize(9).fillColor(muted).text([s.species, s.finish, s.color, s.riser_material === "primed" ? "risers primed" : s.riser_material === "paint_grade" ? "risers paint grade" : s.riser_material === "none" ? "no risers" : ""].filter(Boolean).join(" · ") || "—");
+    const lowerFlight = s.starts_on_landing_of ? m.data.stairs.find((flight) => flight.id === s.starts_on_landing_of) : null;
+    const upperFlight = m.data.stairs.find((flight) => flight.starts_on_landing_of === s.id);
+    const shape = s.layout === "round"
+      ? "Round stair · Ø " + fmtInches(s.round_diameter) + "\" outside · Ø " + fmtInches(s.round_center_diameter) + "\" center · " + s.round_sweep + "° sweep"
+      : "Straight stair";
+    doc.font("Helvetica").fontSize(9).fillColor(muted).text([shape, s.species, s.finish, s.color, s.riser_material === "primed" ? "risers primed" : s.riser_material === "paint_grade" ? "risers paint grade" : s.riser_material === "none" ? "no risers" : ""].filter(Boolean).join(" · ") || "—");
+    if (s.landing.enabled) doc.fillColor(muted).text("Landing after final component · " + fmtInches(s.landing.width) + "\" × " + fmtInches(s.landing.depth) + "\"");
+    if (upperFlight) doc.fillColor(muted).text(`Upper flight starts from this landing: ${upperFlight.name || "Stair"}.`);
+    if (lowerFlight) doc.fillColor(muted).text(`Starts on the landing of ${lowerFlight.name || "Stair"}.`);
     if (s.note) doc.fillColor(ink).text(s.note, { width: W });
     doc.moveDown(0.3);
-    const cols = [40, 66, 170, 274, 470];
-    const head = ["#", "Tread (W x D)", "Riser (W x H)", "Sides", "Notes"];
+
+    const drawPanel = (title: string, height: number, draw: (x: number, y: number, width: number, height: number) => void) => {
+      ensure(height + 25);
+      doc.font("Helvetica-Bold").fontSize(9).fillColor(ink).text(title, 40, doc.y, { width: W });
+      const panelY = doc.y + 5;
+      draw(40, panelY, W, height);
+      doc.y = panelY + height + 9;
+    };
+
+    if (s.layout === "round") {
+      drawPanel("Stair plan", 112, (x, y, width, height) => drawRoundPlan(doc, s, x, y, width, height));
+    }
+    const chain = connectedStairChain(m.data, s);
+    const isChainRoot = chain.length > 1 && chain[0]!.id === s.id;
+    if (isChainRoot) {
+      drawPanel("Connected stair sequence", 132, (x, y, width, height) => drawStairElevation(doc, chain, x, y, width, height));
+    } else if (chain.length === 1) {
+      drawPanel("Stair elevation", 120, (x, y, width, height) => drawStairElevation(doc, [s], x, y, width, height));
+    }
+    drawPanel("Illustrated specifications", 80, (x, y, width, height) => drawIllustratedSpecs(doc, s, x, y, width, height));
+
+    const cols = [40, 116, 220, 324, 454, 572];
+    const head = ["Part", "Tread (W x D)", "Riser (W x H)", "Sides", "Notes"];
     ensure(14);
     let y = doc.y;
     doc.font("Helvetica-Bold").fontSize(8).fillColor(muted);
@@ -549,6 +760,11 @@ export async function measurementPdf(m: { builder: string; address: string; comm
         openLabel(st.open, st.ret),
         st.note || "",
       ];
+      if (st.kind === "riser") {
+        raw[0] = "Riser only " + (i + 1);
+        raw[1] = "—";
+        raw[3] = "—";
+      }
       const cells = raw.map(ascii);
       const h = Math.max(12, ...cells.map((c, j) => doc.heightOfString(c || " ", { width: (cols[j + 1] ?? 40 + W) - cols[j]! - 4 })));
       if (y + h > doc.page.height - 50) { doc.addPage(); y = doc.y; }
@@ -559,7 +775,8 @@ export async function measurementPdf(m: { builder: string; address: string; comm
       doc.moveDown(0.3);
       doc.font("Helvetica-Bold").fontSize(9).fillColor(ink).text("Nosings", 40);
       for (const n of s.nosings) {
-        ensure(12);
+        ensure(28);
+        doc.font("Helvetica").fontSize(8).fillColor(muted).text(ascii("Position: " + nosingPosition(s, n)), 50);
         doc.font("Helvetica").fontSize(9).text(ascii(`${n.qty || 1} × ${fmtInches(n.length)}" · ${n.type === "overlap" ? "overlap" : n.type === "stair_nose" ? "stair nose" : "flush"}${n.note ? ` · ${n.note}` : ""}`), 50);
       }
     }

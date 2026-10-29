@@ -7,7 +7,22 @@
 (function (global) {
   "use strict";
 
-  const VER = "20261013-rl6";
+  const VER = "20261028-ptrhome";
+
+  /** Pull-to-refresh only on the office home (desktop dashboard and mobile home). */
+  function isAppHome() {
+    try {
+      const path = String(location.pathname || "/").replace(/\/+$/, "") || "/";
+      const base = path.split("/").pop() || "";
+      if (base === "home.html" || base === "pipeline-lab.html") return true;
+      if (path === "/dashboard" || base === "dashboard" || base === "dashboard.html") {
+        return !new URLSearchParams(location.search).get("page");
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
 
   function isTouchViewport() {
     // Phones + tablets (iPad landscape can exceed 900px).
@@ -103,7 +118,7 @@
     document.addEventListener(
       "touchstart",
       (e) => {
-        if (!isTouchViewport()) return;
+        if (!isAppHome() || !isTouchViewport()) return;
         const hit = activeOpts();
         if (!hit || !e.touches || !e.touches.length) return;
         const root = findScrollRoot(e.target);
@@ -441,6 +456,7 @@
 
   global.OmGestures = {
     VER,
+    isAppHome,
     isTouchViewport,
     initPullToRefresh,
     bindSwipeRow,
