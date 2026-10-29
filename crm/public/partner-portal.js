@@ -3544,6 +3544,9 @@
       </div>`;
     }).join('');
     const counts = measCounts({ stairs: [s], vents: [] });
+    const expandedMeasurements = m.stairMeasurementsExpanded && m.stairMeasurementsExpanded[s.id] !== undefined
+      ? Boolean(m.stairMeasurementsExpanded[s.id])
+      : (s.steps || []).length <= 3;
     const upperFlight = m.data.stairs.find((flight) => flight.starts_on_landing_of === s.id);
     const lowerFlight = s.starts_on_landing_of ? m.data.stairs.find((flight) => flight.id === s.starts_on_landing_of) : null;
     const layoutOptions = [
@@ -3598,10 +3601,14 @@
       <div class="pp-stair-workspace" role="group" aria-label="Stair drawing and measurements">
         <div class="pp-stair-workspace-visual">${stairVizHtml(m, s, si)}</div>
         <div class="pp-stair-workspace-measures">
-          <div class="pp-stair-measures-head"><div><h3>Measurements</h3><span>${counts.treads} treads · ${counts.risers} risers</span></div></div>
-          <div class="pp-stair-steps" role="list">${steps || '<p class="pp-q-empty">Add the first tread and riser. Enter sizes in inches, such as 48 or 11 1/4.</p>'}</div>
-          ${locked ? '' : '<div class="pp-stair-add"><button type="button" class="pp-q-add" data-step-add="' + si + '">+ Step (tread + riser)</button><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-riser-add="' + si + '"' + (s.riser_material === 'none' ? ' disabled' : '') + '>+ Riser only</button>'
-        + ((s.steps || []).length ? '<span class="pp-stair-many"><label for="ppMany-' + si + '">Add</label><input id="ppMany-' + si + '" type="number" min="1" max="40" value="5" /><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-step-many="' + si + '">equal steps</button></span>' : '') + '</div>'}
+          <details class="pp-stair-measurements" data-stair-measures="${esc(s.id)}" ${expandedMeasurements ? 'open' : ''}>
+            <summary class="pp-stair-measures-head"><span><strong>Step measurements</strong><small>${counts.treads} treads · ${counts.risers} risers · ${(s.steps || []).length} components</small></span><span class="pp-stair-measures-toggle" aria-hidden="true"></span></summary>
+            <div class="pp-stair-measures-content">
+              <div class="pp-stair-steps" role="list">${steps || '<p class="pp-q-empty">Add the first tread and riser. Enter sizes in inches, such as 48 or 11 1/4.</p>'}</div>
+              ${locked ? '' : '<div class="pp-stair-add"><button type="button" class="pp-q-add" data-step-add="' + si + '">+ Step (tread + riser)</button><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-riser-add="' + si + '"' + (s.riser_material === 'none' ? ' disabled' : '') + '>+ Riser only</button>'
+            + ((s.steps || []).length ? '<span class="pp-stair-many"><label for="ppMany-' + si + '">Add</label><input id="ppMany-' + si + '" type="number" min="1" max="40" value="5" /><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-step-many="' + si + '">equal steps</button></span>' : '') + '</div>'}
+            </div>
+          </details>
         </div>
       </div>
       <div class="pp-stair-sub"><h4>Nosings</h4>${nos || '<p class="pp-muted" style="margin:0;font-size:13px">Add a nosing and choose the tread or landing edge it belongs to.</p>'}${locked ? '' : '<button type="button" class="pp-link" data-nos-add="' + si + '">+ Nosing</button>'}</div>
@@ -3722,6 +3729,10 @@
     const redraw = () => { const y = window.scrollY; paintMeasurement(); window.scrollTo(0, y); };
     m.vizSel = m.vizSel || {};
     m.vizMirror = m.vizMirror || {};
+    m.stairMeasurementsExpanded = m.stairMeasurementsExpanded || {};
+    view.querySelectorAll('[data-stair-measures]').forEach((details) => details.addEventListener('toggle', () => {
+      m.stairMeasurementsExpanded[details.getAttribute('data-stair-measures')] = details.open;
+    }));
     view.querySelectorAll('[data-step-row]').forEach((row) => row.addEventListener('focusin', () => {
       const [si, i] = row.getAttribute('data-step-row').split(':').map(Number);
       if (m.vizSel[si] === i) return;

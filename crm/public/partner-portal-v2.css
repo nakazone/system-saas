@@ -750,10 +750,19 @@ body.pp {
 .pp-stair-workspace { display: grid; grid-template-columns: minmax(300px, .92fr) minmax(0, 1.08fr); align-items: stretch; border-top: 1px solid var(--pp-border); }
 .pp-stair-workspace-visual, .pp-stair-workspace-measures { min-width: 0; }
 .pp-stair-workspace-measures { border-left: 1px solid var(--pp-border); background: #FFFFFF; }
-.pp-stair-measures-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 14px 10px; }
-.pp-stair-measures-head > div { display: grid; gap: 3px; }
-.pp-stair-measures-head h3 { margin: 0; font-size: 14px; color: var(--pp-ink); }
-.pp-stair-measures-head span { color: var(--pp-muted); font-size: 12px; }
+.pp-stair-measures-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 70px; padding: 12px 14px; list-style: none; cursor: pointer; }
+.pp-stair-measures-head::-webkit-details-marker { display: none; }
+.pp-stair-measures-head::marker { content: ""; }
+.pp-stair-measures-head:hover { background: #FAFBFC; }
+.pp-stair-measures-head:focus-visible { outline: 3px solid rgba(231, 121, 44, .32); outline-offset: -3px; }
+.pp-stair-measures-head > span:first-child { display: grid; gap: 3px; }
+.pp-stair-measures-head strong { color: var(--pp-ink); font-size: 14px; }
+.pp-stair-measures-head small { color: var(--pp-muted); font-size: 12px; }
+.pp-stair-measurements[open] > .pp-stair-measures-head { border-bottom: 1px solid var(--pp-border); }
+.pp-stair-measures-toggle { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--pp-border); border-radius: 50%; color: var(--pp-ink); font-size: 18px; line-height: 1; flex: none; }
+.pp-stair-measures-toggle::before { content: "+"; }
+.pp-stair-measurements[open] .pp-stair-measures-toggle::before { content: "−"; }
+.pp-stair-measures-content { padding-bottom: 4px; }
 .pp-stair-workspace .pp-stair-cols { display: none; }
 .pp-stair-workspace .pp-step { position: relative; grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr) 32px; grid-template-areas: "n tread riser act" "n side ret act"; gap: 8px; padding: 10px 12px; }
 .pp-stair-workspace .pp-step-n { grid-area: n; align-self: start; }
