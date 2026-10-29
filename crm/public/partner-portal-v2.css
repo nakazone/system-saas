@@ -1976,3 +1976,28 @@ button.pp-set-out:hover { background: var(--pp-bg); }
   .pp-mtab-n { white-space: nowrap; }
 }
 .pp-plan-room.is-off select { opacity: .6; }
+
+/* 3D: legend + tooltips (hover a floor type or a room) */
+.ob3d-tip { position: absolute; z-index: 3; pointer-events: none; display: grid; gap: 2px; min-width: 150px; max-width: 240px; padding: 9px 12px; border-radius: 12px; background: rgba(34, 30, 26, .92); color: #FFFFFF; font-size: 12.5px; box-shadow: 0 10px 24px rgba(16, 24, 40, .25); }
+.ob3d-tip strong { font-size: 14px; }
+.ob3d-tip span { display: flex; align-items: center; gap: 6px; color: rgba(255, 255, 255, .86); }
+.ob3d-tip i { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.ob3d-tip small { color: rgba(255, 255, 255, .6); }
+.ob3d-legend { position: absolute; left: 12px; top: 12px; z-index: 2; display: grid; gap: 2px; padding: 8px; border-radius: 14px; background: rgba(255, 255, 255, .92); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: 0 0 0 1px var(--pp-border), 0 10px 24px -12px rgba(16, 24, 40, .3); min-width: 190px; }
+.ob3d-legend p { margin: 2px 6px 4px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--pp-muted); }
+.ob3d-legend button { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 8px; align-items: center; min-height: 36px; padding: 0 8px; border: 0; border-radius: 10px; background: transparent; font: inherit; font-size: 13.5px; color: var(--pp-ink); cursor: pointer; text-align: left; transition: background 140ms ease; }
+.ob3d-legend button:hover, .ob3d-legend button:focus-visible { background: var(--pp-surface); }
+.ob3d-legend button[aria-pressed="true"] { background: var(--pp-ink); color: #FFFFFF; }
+.ob3d-legend button i { width: 14px; height: 14px; border-radius: 4px; box-shadow: inset 0 0 0 1px rgba(34, 30, 26, .18); }
+.ob3d-legend button b { font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.ob3d-legend small { margin: 4px 6px 2px; font-size: 11.5px; color: var(--pp-muted); }
+.pp-plan-sheet .ob3d-tip { min-width: 0; }
+.pp-plan-room.is-hot { background: var(--pp-orange-soft); border-radius: 10px; }
+.pp-plan-room { transition: background 120ms ease; padding-left: 4px; padding-right: 4px; }
+@media (hover: none) { .ob3d-legend small { display: none; } }
+@media (max-width: 767px) {
+  .ob3d-legend { left: 8px; top: 8px; min-width: 0; padding: 6px; }
+  .ob3d-legend p { display: none; }
+  .ob3d-legend button { min-height: 32px; font-size: 12.5px; }
+  .pp-plan-3d-acts { flex-wrap: wrap; gap: 10px; }
+}

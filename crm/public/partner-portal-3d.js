@@ -204,6 +204,64 @@
 
   /* ───────────── viewer ───────────── */
 
+  /** Edges between cells that need a wall: [{x0,y0,x1,y1,kind,out}] (cells, kind 'ext'|'int', out = side of the outside). */
+  function wallEdges(floor, house, room, W, H) {
+    const segs = [];
+    const at = (a, x, y) => (x < 0 || y < 0 || x >= W || y >= H ? 0 : a[y * W + x]);
+    const kindOf = (ax, ay, bx, by) => {
+      const ha = at(house, ax, ay); const hb = at(house, bx, by);
+      if (ha !== hb) return { k: 'ext', out: ha ? 1 : -1 };
+      if (!ha) return null;
+      const fa = at(floor, ax, ay); const fb = at(floor, bx, by);
+      if (Boolean(fa) !== Boolean(fb)) return { k: 'int', out: 0 };
+      if (fa && fa !== fb) return { k: 'int', out: 0 };
+      return null;
+    };
+    for (let y = 0; y <= H; y++) {
+      let run = -1; let cur = null;
+      for (let x = 0; x <= W; x++) {
+        const e = x < W ? kindOf(x, y - 1, x, y) : null;
+        const same = e && cur && e.k === cur.k && e.out === cur.out;
+        if (!same) {
+          if (cur) segs.push({ x0: run, y0: y, x1: x, y1: y, kind: cur.k, out: cur.out, horiz: true });
+          cur = e; run = x;
+        }
+      }
+    }
+    for (let x = 0; x <= W; x++) {
+      let run = -1; let cur = null;
+      for (let y = 0; y <= H; y++) {
+        const e = y < H ? kindOf(x - 1, y, x, y) : null;
+        const same = e && cur && e.k === cur.k && e.out === cur.out;
+        if (!same) {
+          if (cur) segs.push({ x0: x, y0: run, x1: x, y1: y, kind: cur.k, out: cur.out, horiz: false });
+          cur = e; run = y;
+        }
+      }
+    }
+    return segs;
+  }
+
+  /** Floor cells plus the closed holes inside them (rooms without flooring, stairs) = the house. */
+  function houseOf(floor, W, H) {
+    const out = new Uint8Array(W * H);
+    const seen = new Uint8Array(W * H); const stack = [];
+    for (let x = 0; x < W; x++) { stack.push(x, (H - 1) * W + x); }
+    for (let y = 0; y < H; y++) { stack.push(y * W, y * W + W - 1); }
+    while (stack.length) {
+      const p = stack.pop();
+      if (seen[p] || floor[p]) continue;
+      seen[p] = 1;
+      const x = p % W; const y = (p - x) / W;
+      if (x > 0) stack.push(p - 1); if (x < W - 1) stack.push(p + 1);
+      if (y > 0) stack.push(p - W); if (y < H - 1) stack.push(p + W);
+    }
+    for (let i = 0; i < out.length; i++) out[i] = floor[i] || !seen[i] ? 1 : 0;
+    return out;
+  }
+
+  const STORY = 10; const SLAB = 0.9; const FLOOR_T = 0.12; const WALL_H = 8.2; const EXT_T = 0.55; const INT_T = 0.35; const GAP = 9;
+
   async function mount(el, plan, opts) {
     const THREE = await loadThree();
     opts = opts || {};
@@ -216,14 +274,16 @@
     if ('outputEncoding' in renderer) renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.setClearColor(0xf3f1ee, 1);
     el.appendChild(renderer.domElement);
-    renderer.domElement.style.touchAction = 'none';
-    renderer.domElement.setAttribute('aria-label', '3D view of the floors');
-    renderer.domElement.setAttribute('role', 'img');
+    const cv = renderer.domElement;
+    cv.style.touchAction = 'none';
+    cv.setAttribute('aria-label', '3D model of the house with the floors');
+    cv.setAttribute('role', 'img');
 
     const scene = new THREE.Scene();
-    scene.add(new THREE.HemisphereLight(0xffffff, 0xd9d2c7, 0.95));
-    const sun = new THREE.DirectionalLight(0xffffff, 0.55); sun.position.set(60, 120, 40); scene.add(sun);
-    const camera = new THREE.PerspectiveCamera(40, W / H, 0.5, 4000);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0xd6cfc4, 0.85));
+    const sun = new THREE.DirectionalLight(0xffffff, 0.6); sun.position.set(70, 140, 50); scene.add(sun);
+    const fill = new THREE.DirectionalLight(0xffffff, 0.25); fill.position.set(-60, 40, -80); scene.add(fill);
+    const camera = new THREE.PerspectiveCamera(38, W / H, 0.5, 5000);
 
     // bounds of all floors (ft) to center the house
     let minX = Infinity; let minY = Infinity; let maxX = -Infinity; let maxY = -Infinity;
@@ -237,80 +297,225 @@
     const span = Math.max(maxX - minX, maxY - minY, 20);
 
     const finishes = mats.map((m, i) => finishFor(THREE, m, i));
-    const wallMat = new THREE.MeshLambertMaterial({ color: 0xece8e2 });
+    const matIndex = new Map(mats.map((m, i) => [m.key, i]));
+    const wallMat = new THREE.MeshLambertMaterial({ color: 0xf4f1ec });
+    const intMat = new THREE.MeshLambertMaterial({ color: 0xebe6df });
+    const slabMat = new THREE.MeshLambertMaterial({ color: 0xcfc8be });
+    const offMat = () => new THREE.MeshLambertMaterial({ color: 0xdedad3 });
+    const lineMat = new THREE.LineBasicMaterial({ color: 0xbdb5aa });
     const groups = [];
-    const LEVEL_H = 10; const FLOOR_T = 0.35; const WALL_H = 2.4; const WALL_T = 0.4;
+    const pickables = [];
 
     levels.forEach((lv, li) => {
       const cells = decoded[li]; const gw = lv.grid.w; const gh = lv.grid.h; const c = lv.grid.cell;
-      const group = new THREE.Group(); group.userData = { id: lv.id, name: lv.name, base: li };
-      // rooms the person excluded: drop their cells? (keep the floor, the total already leaves them out)
-      const byMat = new Map();
-      for (const r of rects(cells, gw, gh)) {
-        if (!byMat.has(r.v)) byMat.set(r.v, { pos: [], nor: [], uv: [] });
-        const f = finishes[r.v - 1];
-        boxInto(byMat.get(r.v), r.x * c - cx, 0, r.y * c - cz, (r.x + r.w) * c - cx, FLOOR_T, (r.y + r.h) * c - cz, f ? f.repeatFt : 4);
+      const roomGrid = lv.grid.rooms ? decodeRooms(lv.grid.rooms, gw * gh) : null;
+      const group = new THREE.Group(); group.userData = { id: lv.id, name: lv.name, index: li };
+      const X = (v) => v * c - cx; const Z = (v) => v * c - cz;
+
+      // floors: one mesh per room (so a room can be picked and lit up), else per floor type
+      const buckets = new Map();
+      const keyOf = (i) => {
+        const rm = roomGrid ? roomGrid[i] : 0;
+        return rm && lv.rooms[rm - 1] ? `r${rm}` : `m${cells[i]}`;
+      };
+      const tagged = new Int32Array(gw * gh);
+      const ids = new Map(); let nid = 0;
+      for (let i = 0; i < cells.length; i++) {
+        if (!cells[i]) continue;
+        const k = keyOf(i);
+        if (!ids.has(k)) ids.set(k, ++nid);
+        tagged[i] = ids.get(k);
       }
-      for (const [v, arr] of byMat) {
-        const f = finishes[v - 1];
-        const mat = new THREE.MeshLambertMaterial({ map: f ? f.tex : null, color: f ? 0xffffff : 0xcccccc });
-        group.add(new THREE.Mesh(geomOf(THREE, arr), mat));
+      const byId = new Map([...ids.entries()].map(([k, v]) => [v, k]));
+      for (const r of rects(tagged, gw, gh)) {
+        const k = byId.get(r.v);
+        if (!buckets.has(k)) buckets.set(k, { pos: [], nor: [], uv: [] });
+        boxInto(buckets.get(k), X(r.x), 0, Z(r.y), X(r.x + r.w), FLOOR_T, Z(r.y + r.h), 4);
       }
-      const walls = { pos: [], nor: [], uv: [] };
-      for (const s of outline(cells, gw, gh)) {
-        const x0 = s.x0 * c - cx; const z0 = s.y0 * c - cz; const x1 = s.x1 * c - cx; const z1 = s.y1 * c - cz;
-        if (s.y0 === s.y1) { const zz = s.n > 0 ? z0 : z0 - WALL_T; boxInto(walls, x0 - (s.n ? 0 : 0), 0, zz, x1, WALL_H, zz + WALL_T, 4); } else { const xx = s.n > 0 ? x0 : x0 - WALL_T; boxInto(walls, xx, 0, z0, xx + WALL_T, WALL_H, z1, 4); }
+      for (const [k, arr] of buckets) {
+        let room = null; let mi = -1;
+        if (k[0] === 'r') { room = lv.rooms[Number(k.slice(1)) - 1]; mi = matIndex.has(room.material) ? matIndex.get(room.material) : -1; } else mi = Number(k.slice(1)) - 1;
+        const m = mats[mi]; const f = finishes[mi];
+        const counted = m && m.include && !(room && room.exclude);
+        // rescale UVs to this finish (boxInto used 4 ft)
+        if (f && f.repeatFt !== 4) for (let i = 0; i < arr.uv.length; i++) arr.uv[i] *= 4 / f.repeatFt;
+        const material = counted && f ? new THREE.MeshLambertMaterial({ map: f.tex, color: 0xffffff }) : (m && f && !counted ? new THREE.MeshLambertMaterial({ map: f.tex, color: 0xb9b5ae }) : offMat());
+        const mesh = new THREE.Mesh(geomOf(THREE, arr), material);
+        mesh.userData = { pick: true, level: lv, room, mat: m || null, counted };
+        group.add(mesh); pickables.push(mesh);
       }
-      if (walls.pos.length) group.add(new THREE.Mesh(geomOf(THREE, walls), wallMat));
+
+      // slab under the whole house of this level
+      const house = houseOf(cells, gw, gh);
+      const slab = { pos: [], nor: [], uv: [] };
+      for (const r of rects(house, gw, gh)) boxInto(slab, X(r.x), -SLAB, Z(r.y), X(r.x + r.w), 0, Z(r.y + r.h), 4);
+      if (slab.pos.length) group.add(new THREE.Mesh(geomOf(THREE, slab), slabMat));
+
+      // walls: outside of the house, around rooms without flooring, between different floors
+      const ext = { pos: [], nor: [], uv: [] }; const int = { pos: [], nor: [], uv: [] };
+      for (const s of wallEdges(cells, house, roomGrid, gw, gh)) {
+        const T = s.kind === 'ext' ? EXT_T : INT_T;
+        const arr = s.kind === 'ext' ? ext : int;
+        const h = s.kind === 'ext' ? WALL_H : WALL_H - 0.4;
+        if (s.horiz) {
+          const z = Z(s.y0); const z0 = s.kind === 'ext' ? (s.out > 0 ? z : z - T) : z - T / 2;
+          boxInto(arr, X(s.x0) - (s.kind === 'ext' ? T : 0), FLOOR_T, z0, X(s.x1) + (s.kind === 'ext' ? T : 0), FLOOR_T + h, z0 + T, 4);
+        } else {
+          const x = X(s.x0); const x0 = s.kind === 'ext' ? (s.out > 0 ? x : x - T) : x - T / 2;
+          boxInto(arr, x0, FLOOR_T, Z(s.y0), x0 + T, FLOOR_T + h, Z(s.y1), 4);
+        }
+      }
+      const wallGroup = new THREE.Group();
+      for (const [arr, mat] of [[ext, wallMat], [int, intMat]]) {
+        if (!arr.pos.length) continue;
+        const g = geomOf(THREE, arr);
+        wallGroup.add(new THREE.Mesh(g, mat));
+        wallGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(g, 30), lineMat));
+      }
+      group.add(wallGroup);
+      group.userData.walls = wallGroup;
+
       const labels = new THREE.Group();
-      for (const r of lv.rooms) {
-        if (r.exclude || r.area_sf < 55 || !r.name) continue;
+      lv.rooms.forEach((r) => {
+        if (r.exclude || r.area_sf < 55 || !r.name) return;
         const sp = labelSprite(THREE, r.name);
-        sp.position.set(r.x - cx, FLOOR_T + 1.6, r.y - cz);
+        sp.position.set(r.x - cx, FLOOR_T + 1.4, r.y - cz);
         labels.add(sp);
-      }
+      });
       group.add(labels);
       group.userData.labels = labels;
       scene.add(group);
       groups.push(group);
     });
 
-    let explode = opts.explode != null ? opts.explode : 1.5;
-    function layout() { groups.forEach((g, i) => { g.position.y = i * LEVEL_H * explode; }); }
-    layout();
+    // soft shadow under the house
+    const shCv = document.createElement('canvas'); shCv.width = shCv.height = 128;
+    const shG = shCv.getContext('2d'); const grd = shG.createRadialGradient(64, 64, 10, 64, 64, 64);
+    grd.addColorStop(0, 'rgba(60,50,40,.28)'); grd.addColorStop(1, 'rgba(60,50,40,0)'); shG.fillStyle = grd; shG.fillRect(0, 0, 128, 128);
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry((maxX - minX) * 1.5, (maxY - minY) * 1.6), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(shCv), transparent: true, depthWrite: false }));
+    ground.rotation.x = -Math.PI / 2; ground.position.y = -SLAB - 0.05; scene.add(ground);
 
-    // orbit (drag to turn, pinch/wheel to zoom, two fingers or right drag to move)
-    const target = new THREE.Vector3(0, ((groups.length - 1) * LEVEL_H * explode) / 2, 0);
-    const fitDist = () => (focus ? span * 0.95 : Math.max(span * 1.05, (groups.length - 1) * LEVEL_H * explode * 2.4));
+    let explode = opts.separate ? 1 : 0; let explodeTo = explode;
+    function layout() { groups.forEach((g, i) => { g.position.y = i * (STORY + GAP * explode); }); }
+    layout();
+    const stackH = () => (groups.length - 1) * (STORY + GAP * explode) + WALL_H;
+
+    // camera orbit (drag to turn, pinch/wheel to zoom, two fingers or right-drag to move)
     let focus = null;
-    let theta = -0.6; let phi = 0.92; let dist = fitDist();
+    const fitDist = () => (focus ? span * 1.0 : Math.max(span * 1.25, stackH() * 2.6));
+    const midY = () => (focus ? focus.position.y + 2 : stackH() / 2 - 1);
+    const target = new THREE.Vector3(0, midY(), 0);
+    let theta = -0.65; let phi = 0.8; let dist = fitDist();
     let auto = !opts.still;
     function place() {
-      phi = Math.max(0.12, Math.min(1.45, phi)); dist = Math.max(span * 0.25, Math.min(span * 4, dist));
+      phi = Math.max(0.12, Math.min(1.48, phi)); dist = Math.max(span * 0.2, Math.min(span * 5, dist));
       camera.position.set(target.x + dist * Math.sin(phi) * Math.sin(theta), target.y + dist * Math.cos(phi), target.z + dist * Math.sin(phi) * Math.cos(theta));
       camera.lookAt(target);
     }
     place();
-    const ptrs = new Map(); let last = null; let pinch = null;
-    const cv = renderer.domElement;
-    cv.addEventListener('pointerdown', (e) => { auto = false; cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); last = { x: e.clientX, y: e.clientY, pan: e.button === 2 || e.shiftKey }; pinch = null; });
+
+    // ── picking, tooltip and legend ──
+    el.style.position = el.style.position || 'relative';
+    const tip = document.createElement('div'); tip.className = 'ob3d-tip'; tip.hidden = true; el.appendChild(tip);
+    const ray = new THREE.Raycaster(); const ndc = new THREE.Vector2();
+    let hover = null; let pinned = null; let legendKey = null; let legendPinned = null;
+    function paintMeshes() {
+      const lk = legendPinned || legendKey;
+      for (const m of pickables) {
+        const on = m === hover || m === pinned;
+        const dim = lk && !(m.userData.mat && m.userData.mat.key === lk && m.userData.counted);
+        const lit = lk && !dim;
+        m.material.emissive && m.material.emissive.setHex(on ? 0x5a3412 : lit ? 0x3a220c : 0x000000);
+        m.material.transparent = Boolean(dim);
+        m.material.opacity = dim ? 0.28 : 1;
+        m.material.needsUpdate = true;
+      }
+      need();
+    }
+    function tipFor(mesh, x, y) {
+      if (!mesh) { tip.hidden = true; return; }
+      const d = mesh.userData; const r = d.room;
+      const area = r ? r.area_sf : null;
+      tip.innerHTML = `<strong>${escHtml(r ? r.name : (d.mat ? d.mat.label : 'Floor'))}</strong><span><i style="background:${d.mat ? escHtml(d.mat.color) : '#ccc'}"></i>${escHtml(d.mat ? d.mat.label : 'Not flooring')}${area != null ? ` \u00b7 ${Math.round(area).toLocaleString('en-US')} SF` : ''}</span><small>${escHtml(d.level.name)}${d.counted ? '' : ' \u00b7 not counted'}</small>`;
+      tip.hidden = false;
+      const bw = el.clientWidth; const tw = tip.offsetWidth || 180;
+      tip.style.left = `${Math.min(bw - tw - 8, Math.max(8, x + 14))}px`;
+      tip.style.top = `${Math.max(8, y - 64)}px`;
+    }
+    function pickAt(clientX, clientY) {
+      const rect = cv.getBoundingClientRect();
+      ndc.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+      ray.setFromCamera(ndc, camera);
+      const vis = pickables.filter((m) => m.parent && m.parent.visible);
+      const hit = ray.intersectObjects(vis, false)[0];
+      return { mesh: hit ? hit.object : null, x: clientX - rect.left, y: clientY - rect.top };
+    }
+
+    let legend = null;
+    if (opts.legend !== false) {
+      const totals = new Map();
+      for (const m of pickables) {
+        const d = m.userData; if (!d.mat || !d.room || !d.counted) continue;
+        totals.set(d.mat.key, (totals.get(d.mat.key) || 0) + d.room.area_sf);
+      }
+      const rows = mats.filter((m) => m.include && totals.get(m.key));
+      legend = document.createElement('div'); legend.className = 'ob3d-legend';
+      legend.innerHTML = `<p>Floors</p>${rows.map((m) => `<button type="button" data-ob3d-mat="${escHtml(m.key)}" aria-pressed="false"><i style="background:${escHtml(m.color)}"></i><span>${escHtml(m.label)}</span><b>${Math.round(totals.get(m.key)).toLocaleString('en-US')} SF</b></button>`).join('')}<small>Hover or tap a floor to see it</small>`;
+      el.appendChild(legend);
+      legend.querySelectorAll('[data-ob3d-mat]').forEach((b) => {
+        const k = b.getAttribute('data-ob3d-mat');
+        b.addEventListener('mouseenter', () => { legendKey = k; paintMeshes(); });
+        b.addEventListener('mouseleave', () => { legendKey = null; paintMeshes(); });
+        b.addEventListener('focus', () => { legendKey = k; paintMeshes(); });
+        b.addEventListener('blur', () => { legendKey = null; paintMeshes(); });
+        b.addEventListener('click', () => {
+          legendPinned = legendPinned === k ? null : k;
+          legend.querySelectorAll('[data-ob3d-mat]').forEach((x) => x.setAttribute('aria-pressed', String(x.getAttribute('data-ob3d-mat') === legendPinned)));
+          paintMeshes();
+        });
+      });
+    }
+
+    const ptrs = new Map(); let last = null; let pinch = null; let moved = 0;
+    cv.addEventListener('pointerdown', (e) => { auto = false; cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); last = { x: e.clientX, y: e.clientY, pan: e.button === 2 || e.shiftKey }; pinch = null; moved = 0; });
     cv.addEventListener('pointermove', (e) => {
-      if (!ptrs.has(e.pointerId)) return;
+      if (!ptrs.has(e.pointerId)) {
+        if (e.pointerType === 'mouse') {
+          const p = pickAt(e.clientX, e.clientY);
+          if (p.mesh !== hover) { hover = p.mesh; paintMeshes(); }
+          tipFor(hover || pinned, p.x, p.y);
+          cv.style.cursor = hover ? 'pointer' : 'grab';
+        }
+        return;
+      }
       ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (ptrs.size === 2) {
         const [a, b] = [...ptrs.values()];
         const d = Math.hypot(a.x - b.x, a.y - b.y); const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
         if (pinch) { dist *= pinch.d / d; pan(mid.x - pinch.mid.x, mid.y - pinch.mid.y); }
-        pinch = { d, mid };
+        pinch = { d, mid }; moved += 10;
       } else if (last) {
         const dx = e.clientX - last.x; const dy = e.clientY - last.y;
+        moved += Math.abs(dx) + Math.abs(dy);
         if (last.pan) pan(dx, dy); else { theta -= dx * 0.008; phi -= dy * 0.006; }
         last.x = e.clientX; last.y = e.clientY;
+        tip.hidden = true;
       }
       place(); need();
     });
-    const up = (e) => { ptrs.delete(e.pointerId); if (!ptrs.size) last = null; pinch = null; };
+    const up = (e) => {
+      const was = ptrs.has(e.pointerId);
+      ptrs.delete(e.pointerId); if (!ptrs.size) last = null; pinch = null;
+      if (was && moved < 6 && e.type === 'pointerup') {
+        // a tap/click picks a room (tap again elsewhere to clear)
+        const p = pickAt(e.clientX, e.clientY);
+        pinned = p.mesh && p.mesh !== pinned ? p.mesh : null;
+        paintMeshes(); tipFor(pinned, p.x, p.y);
+        if (opts.onPick) opts.onPick(pinned ? { level: pinned.userData.level.id, room: pinned.userData.room } : null);
+      }
+    };
     cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+    cv.addEventListener('pointerleave', () => { if (hover) { hover = null; paintMeshes(); } if (!pinned) tip.hidden = true; });
     cv.addEventListener('contextmenu', (e) => e.preventDefault());
     cv.addEventListener('wheel', (e) => { e.preventDefault(); auto = false; dist *= Math.exp(e.deltaY * 0.0012); place(); need(); }, { passive: false });
     cv.addEventListener('dblclick', () => reset());
@@ -320,11 +525,12 @@
       const fwd = new THREE.Vector3(Math.sin(theta), 0, Math.cos(theta));
       target.addScaledVector(right, -dx * k).addScaledVector(fwd, -dy * k);
     }
-    function reset() { theta = -0.6; phi = 0.92; dist = fitDist(); target.set(0, focus ? focus.position.y : ((groups.length - 1) * LEVEL_H * explode) / 2, 0); place(); need(); }
+    function reset() { theta = -0.65; phi = focus ? 0.68 : 0.8; dist = fitDist(); target.set(0, midY(), 0); place(); need(); }
     /** Shows one level alone (or all when id is null) and frames it. */
     function only(id) {
       focus = id ? groups.find((g) => g.userData.id === id) || null : null;
       groups.forEach((g) => { g.visible = !focus || g === focus; });
+      pinned = null; tip.hidden = true; paintMeshes();
       reset();
     }
 
@@ -334,9 +540,11 @@
       raf = 0;
       if (!alive) return;
       if (!el.isConnected) { destroy(); return; }
-      if (auto) { theta += 0.0025; place(); dirty = true; }
+      let anim = false;
+      if (Math.abs(explode - explodeTo) > 0.002) { explode += (explodeTo - explode) * 0.18; layout(); target.y = midY(); dist = Math.max(dist, fitDist() * 0.7); place(); anim = true; dirty = true; } else if (explode !== explodeTo) { explode = explodeTo; layout(); dirty = true; }
+      if (auto) { theta += 0.0022; place(); dirty = true; }
       if (dirty) { renderer.render(scene, camera); dirty = false; }
-      if (auto) raf = requestAnimationFrame(frame);
+      if (auto || anim) raf = requestAnimationFrame(frame);
     }
     need();
     const ro = new ResizeObserver(() => {
@@ -349,20 +557,38 @@
     function destroy() {
       alive = false; ro.disconnect(); if (raf) cancelAnimationFrame(raf);
       scene.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } });
-      renderer.dispose(); if (cv.parentNode) cv.parentNode.removeChild(cv);
+      renderer.dispose();
+      [cv, tip, legend].forEach((n) => { if (n && n.parentNode) n.parentNode.removeChild(n); });
     }
     return {
       destroy,
       reset,
-      setExplode(v) { explode = v; layout(); target.y = ((groups.length - 1) * LEVEL_H * explode) / 2; place(); need(); },
-      showLevel(id, on) { const g = groups.find((x) => x.userData.id === id); if (g) { g.visible = on; need(); } },
       only,
+      separate(on) { explodeTo = on ? 1 : 0; auto = false; need(); },
+      walls(on) { groups.forEach((g) => { g.userData.walls.visible = on; }); need(); },
+      showLevel(id, on) { const g = groups.find((x) => x.userData.id === id); if (g) { g.visible = on; need(); } },
       showLabels(on) { groups.forEach((g) => { g.userData.labels.visible = on; }); need(); },
       spin(on) { auto = on; need(); },
+      highlight(levelId, roomIndex) {
+        pinned = pickables.find((m) => m.userData.level.id === levelId && m.userData.room === (m.userData.level.rooms || [])[roomIndex]) || null;
+        paintMeshes();
+      },
       levels: groups.map((g) => ({ id: g.userData.id, name: g.userData.name })),
       snapshot() { renderer.render(scene, camera); return cv.toDataURL('image/png'); },
     };
   }
+
+  function decodeRooms(rle, n) {
+    const out = new Int32Array(n); let i = 0;
+    for (const part of String(rle || '').split(',')) {
+      if (!part) continue;
+      const [v, k] = part.split('x').map(Number);
+      if (v) out.fill(v, i, i + k);
+      i += k;
+    }
+    return out;
+  }
+  function escHtml(v) { return String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
   window.ObPlan3D = { mount, load: loadThree };
 })();

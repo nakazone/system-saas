@@ -393,6 +393,7 @@
     const rooms = [];
     const roomIndex = new Map();
     const cellRoom = new Map();
+    const roomPx = new Int32Array(W * H);
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
         const rg = regionOf[y * W + x];
@@ -424,10 +425,12 @@
           }
         }
         const r = rooms[room]; r.px++; r.sx += x; r.sy += y;
+        roomPx[y * W + x] = room + 1;
       }
     }
     const minPx = 2 / sfPerPx;
-    const list = rooms.filter((r) => r.px >= minPx).map((r) => ({
+    const list = rooms.map((r, i) => ({ r, i })).filter(({ r }) => r.px >= minPx).map(({ r, i }) => ({
+      orig: i + 1,
       name: r.name,
       mat: r.mat,
       area_sf: r.px * sfPerPx,
@@ -441,7 +444,12 @@
       count[base] = (count[base] || 0) + 1;
       r.name = count[base] > 1 || !r.name ? `${base} ${count[base]}` : base;
     }
-    return list.sort((a, b) => b.area_sf - a.area_sf);
+    list.sort((a, b) => b.area_sf - a.area_sf);
+    // pixel → final room number (1-based in the sorted list, 0 = dropped)
+    const remap = new Int32Array(rooms.length + 1);
+    list.forEach((r, i) => { remap[r.orig] = i + 1; });
+    for (let i = 0; i < roomPx.length; i++) if (roomPx[i]) roomPx[i] = remap[roomPx[i]];
+    return { list, roomPx };
   }
 
   function cleanRoom(t) {
@@ -450,7 +458,7 @@
   }
 
   /** A coarse grid (cell ft) of the floors for the 3D view, run-length encoded. */
-  function gridOf(labels, W, H, pxPerFt, nmat) {
+  function gridOf(labels, W, H, pxPerFt, nmat, roomPx) {
     const pageFt = Math.max(W, H) / pxPerFt;
     const cellFt = Math.max(0.5, Math.ceil((pageFt / 1000) * 10) / 10);
     const c = cellFt * pxPerFt;
@@ -471,9 +479,40 @@
       if (best === prev) run++; else { if (run) parts.push(prev + 'x' + run); prev = best; run = 1; }
     }
     if (run) parts.push(prev + 'x' + run);
-    return { w: gw, h: gh, cell: cellFt, rle: parts.join(',') };
+    // room of each cell (majority vote over its pixels), so the 3D can pick and highlight rooms
+    let roomsRle = '';
+    if (roomPx) {
+      const cand = new Int32Array(gw * gh); const cnt = new Int32Array(gw * gh);
+      for (let y = 0; y < H; y++) {
+        const gy = Math.floor(y / c);
+        for (let x = 0; x < W; x++) {
+          const rm = roomPx[y * W + x]; if (!rm) continue;
+          const ci = gy * gw + Math.floor(x / c);
+          if (cand[ci] === rm) cnt[ci]++; else if (cnt[ci] === 0) { cand[ci] = rm; cnt[ci] = 1; } else cnt[ci]--;
+        }
+      }
+      const rp = []; let pv = -1; let rn = 0;
+      const mats = decodeRle(parts.join(','), gw * gh);
+      for (let i = 0; i < gw * gh; i++) {
+        const v = mats[i] ? cand[i] : 0;
+        if (v === pv) rn++; else { if (rn) rp.push(pv + 'x' + rn); pv = v; rn = 1; }
+      }
+      if (rn) rp.push(pv + 'x' + rn);
+      roomsRle = rp.join(',');
+    }
+    return { w: gw, h: gh, cell: cellFt, rle: parts.join(','), ...(roomsRle ? { rooms: roomsRle } : {}) };
   }
 
+  function decodeRle(rle, n) {
+    const out = new Int32Array(n); let i = 0;
+    for (const part of String(rle || '').split(',')) {
+      if (!part) continue;
+      const [v, k] = part.split('x').map(Number);
+      if (v) out.fill(v, i, i + k);
+      i += k;
+    }
+    return out;
+  }
   function decodeGrid(grid) {
     const out = new Uint8Array(grid.w * grid.h); let i = 0;
     for (const part of String(grid.rle || '').split(',')) {
@@ -568,8 +607,9 @@
     const fl = await floorsOf(img, r.W, r.H, mats, ppf, Z, exclude, (f) => onProgress && onProgress({ step: 'floors', page: sheet.page, f }));
     await tick();
     onProgress && onProgress({ step: 'rooms', page: sheet.page });
-    const rooms = roomsOf(fl.labels, r.W, r.H, mats, sheet.lines, Z, fl.pxPerFt);
-    const grid = gridOf(fl.labels, r.W, r.H, fl.pxPerFt, mats.length);
+    const ro = roomsOf(fl.labels, r.W, r.H, mats, sheet.lines, Z, fl.pxPerFt);
+    const rooms = ro.list;
+    const grid = gridOf(fl.labels, r.W, r.H, fl.pxPerFt, mats.length, ro.roomPx);
     // preview: the sheet itself, max 1600 px wide
     const ps = Math.min(1, 1600 / r.W);
     const pv = document.createElement('canvas'); pv.width = Math.round(r.W * ps); pv.height = Math.round(r.H * ps);
@@ -603,5 +643,5 @@
     return hexOf([0, 1, 2].map((k) => median(px.map((p) => p[k]))));
   }
 
-  window.ObTakeoff = { open, legend, readSheet, render, zoomFor, colorAt, decodeGrid, parseDim, FLOORING, _test: { scaleFromDims, legendKind, cleanRoom } };
+  window.ObTakeoff = { open, legend, readSheet, render, zoomFor, colorAt, decodeGrid, decodeRle, parseDim, FLOORING, _test: { scaleFromDims, legendKind, cleanRoom } };
 })();

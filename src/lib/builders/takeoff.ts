@@ -55,6 +55,8 @@ const gridSchema = z.object({
   cell: z.number().min(0.1).max(5),
   /** Run-length encoded material index per cell, row by row: "0x120,2x35,..." (0 = no floor). */
   rle: z.string().max(400000),
+  /** Run-length encoded room number per cell (1-based into the level's rooms), for picking rooms in 3D. */
+  rooms: z.string().max(400000).optional(),
 });
 
 const levelSchema = z.object({

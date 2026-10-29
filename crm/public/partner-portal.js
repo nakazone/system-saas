@@ -4161,7 +4161,7 @@
           <div class="pp-plan-sheet" data-plv-sheet="${li}">${lv.preview ? `<img src="/api/builder/measurements/${encodeURIComponent(m.id)}/plan-file?key=${encodeURIComponent(lv.preview)}" alt="${esc(lv.name)} plan" loading="lazy" /><canvas aria-hidden="true"></canvas>` : '<p class="pp-muted">No preview</p>'}</div>
           <div class="pp-plan-rooms" role="table" aria-label="Rooms on ${esc(lv.name)}">
             <div class="pp-plan-room pp-plan-room--head" role="row"><span role="columnheader">Room</span><span role="columnheader">Floor</span><span role="columnheader">Area</span><span role="columnheader"><span class="pp-sr">Count</span></span></div>
-            ${lv.rooms.map((r, ri) => ({ r, ri, on: !r.exclude && (plan.materials.find((x) => x.key === r.material) || {}).include })).sort((a, b) => Number(b.on) - Number(a.on)).map(({ r, ri, on }) => `<div class="pp-plan-room ${on ? '' : 'is-off'}" role="row">
+            ${lv.rooms.map((r, ri) => ({ r, ri, on: !r.exclude && (plan.materials.find((x) => x.key === r.material) || {}).include })).sort((a, b) => Number(b.on) - Number(a.on)).map(({ r, ri, on }) => `<div class="pp-plan-room ${on ? '' : 'is-off'}" role="row" data-proom-hover="${li}:${ri}">
               <input class="pp-in" value="${esc(r.name)}" maxlength="60" data-proom-name="${li}:${ri}" aria-label="Room name" ${dis} />
               ${sel(matOpts, r.material, `data-proom-mat="${li}:${ri}" aria-label="Floor in ${esc(r.name)}" ${dis}`)}
               <span class="pp-plan-area">${fmtSf(r.area_sf)}</span>
@@ -4185,10 +4185,15 @@
     return `<section class="pp-card pp-plan-3d">
       <div class="pp-plan-3d-bar">
         <div class="pp-filter" role="group" aria-label="Levels"><button type="button" data-p3-level="all" aria-pressed="${on === 'all'}">All levels</button>${lv.map((l) => `<button type="button" data-p3-level="${esc(l.id)}" aria-pressed="${on === l.id}">${esc(l.name)}</button>`).join('')}</div>
-        <div class="pp-plan-3d-acts"><label class="pp-check"><input type="checkbox" data-p3-labels ${m.plan3dLabels === false ? '' : 'checked'} />Room names</label><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-p3-reset>Reset view</button></div>
+        <div class="pp-plan-3d-acts">
+          ${lv.length > 1 ? `<label class="pp-switch" data-p3-sep-wrap ${on === 'all' ? '' : 'hidden'}><input type="checkbox" data-p3-sep ${m.plan3dSeparate ? 'checked' : ''} /><span>Separate floors</span></label>` : ''}
+          <label class="pp-switch"><input type="checkbox" data-p3-walls ${m.plan3dWalls === false ? '' : 'checked'} /><span>Walls</span></label>
+          <label class="pp-switch"><input type="checkbox" data-p3-labels ${m.plan3dLabels === false ? '' : 'checked'} /><span>Names</span></label>
+          <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-p3-reset>Reset view</button>
+        </div>
       </div>
       <div class="pp-plan-3d-stage" id="ppPlan3d"><div class="pp-plan-3d-wait">${mate('measure', 80)}<span>Building the house…</span></div></div>
-      <p class="pp-muted pp-plan-note">Drag to turn · pinch or scroll to zoom · two fingers or right-drag to move. Floors are drawn from the plans; walls are only the outline of each floor.</p>
+      <p class="pp-muted pp-plan-note">Drag to turn · pinch or scroll to zoom · two fingers or right-drag to move · tap a room to see its floor. Walls are drawn where the floors end or change — doors and windows are not on the model.</p>
     </section>`;
   }
 
@@ -4316,8 +4321,9 @@
       const lv = plan.levels[+box.getAttribute('data-plv-sheet')];
       const img = box.querySelector('img'); const cv = box.querySelector('canvas');
       if (!img || !cv || !lv.grid) return;
-      const draw = () => {
-        const w = img.naturalWidth; const h = img.naturalHeight; if (!w) return;
+      const roomCells = lv.grid.rooms ? window.ObTakeoff.decodeRle(lv.grid.rooms, lv.grid.w * lv.grid.h) : null;
+      const draw = (focusRoom) => {
+        const w = img.naturalWidth; if (!w) return;
         cv.width = lv.grid.w; cv.height = lv.grid.h;
         const g = cv.getContext('2d'); const cells = window.ObTakeoff.decodeGrid(lv.grid);
         const id = g.createImageData(lv.grid.w, lv.grid.h);
@@ -4325,27 +4331,64 @@
         for (let i = 0; i < cells.length; i++) {
           const v = cells[i]; if (!v) continue;
           const x = plan.materials[v - 1]; if (!x || !x.include) continue;
-          const c = cols[v - 1]; id.data[i * 4] = c[0]; id.data[i * 4 + 1] = c[1]; id.data[i * 4 + 2] = c[2]; id.data[i * 4 + 3] = 150;
+          const c = cols[v - 1];
+          const inFocus = focusRoom != null && roomCells && roomCells[i] === focusRoom + 1;
+          const dim = focusRoom != null && !inFocus;
+          id.data[i * 4] = inFocus ? 231 : c[0]; id.data[i * 4 + 1] = inFocus ? 121 : c[1]; id.data[i * 4 + 2] = inFocus ? 44 : c[2]; id.data[i * 4 + 3] = inFocus ? 230 : dim ? 70 : 150;
         }
         g.putImageData(id, 0, 0);
       };
-      if (img.complete) draw(); else img.addEventListener('load', draw);
+      if (img.complete) draw(); else img.addEventListener('load', () => draw());
+      const li = box.getAttribute('data-plv-sheet');
+      view.querySelectorAll(`[data-proom-hover^="${li}:"]`).forEach((row) => {
+        const ri = Number(row.getAttribute('data-proom-hover').split(':')[1]);
+        const on = () => { if (roomCells) { draw(ri); row.classList.add('is-hot'); } };
+        const off = () => { draw(); row.classList.remove('is-hot'); };
+        row.addEventListener('mouseenter', on); row.addEventListener('mouseleave', off);
+        row.addEventListener('focusin', on); row.addEventListener('focusout', off);
+      });
+      // hover on the sheet → the room under the pointer lights up in the list
+      if (roomCells) {
+        box.addEventListener('mousemove', (e) => {
+          const rect = box.getBoundingClientRect();
+          const gx = Math.floor(((e.clientX - rect.left) / rect.width) * lv.grid.w); const gy = Math.floor(((e.clientY - rect.top) / rect.height) * lv.grid.h);
+          const rm = roomCells[gy * lv.grid.w + gx] || 0;
+          if (rm === box._hot) return;
+          box._hot = rm;
+          view.querySelectorAll(`[data-proom-hover^="${li}:"]`).forEach((row) => row.classList.toggle('is-hot', rm > 0 && row.getAttribute('data-proom-hover') === `${li}:${rm - 1}`));
+          draw(rm ? rm - 1 : undefined);
+          const r = rm ? lv.rooms[rm - 1] : null;
+          let t = box.querySelector('.ob3d-tip');
+          if (!t) { t = document.createElement('div'); t.className = 'ob3d-tip'; box.appendChild(t); }
+          t.hidden = !r;
+          if (r) {
+            const mt = plan.materials.find((x) => x.key === r.material) || {};
+            t.innerHTML = `<strong>${esc(r.name)}</strong><span><i style="background:${esc(mt.color || '#ccc')}"></i>${esc(mt.label || '')} · ${fmtSf(r.area_sf)}</span>`;
+            t.style.left = `${Math.min(rect.width - 190, e.clientX - rect.left + 14)}px`; t.style.top = `${Math.max(6, e.clientY - rect.top - 56)}px`;
+          }
+        });
+        box.addEventListener('mouseleave', () => { box._hot = 0; draw(); const t = box.querySelector('.ob3d-tip'); if (t) t.hidden = true; view.querySelectorAll('.pp-plan-room.is-hot').forEach((x) => x.classList.remove('is-hot')); });
+      }
     });
     // 3D
     const stage = $('ppPlan3d');
     if (plan3d) { try { plan3d.destroy(); } catch (_) { /* gone */ } plan3d = null; }
     if (stage && window.ObPlan3D) {
       try {
-        const v3 = await window.ObPlan3D.mount(stage, plan, {});
+        const v3 = await window.ObPlan3D.mount(stage, plan, { separate: Boolean(m.plan3dSeparate) });
         if (!stage.isConnected) { v3.destroy(); return; }
         plan3d = v3;
         const wait = stage.querySelector('.pp-plan-3d-wait'); if (wait) wait.remove();
         if (m.plan3dLevel && m.plan3dLevel !== 'all') v3.only(m.plan3dLevel);
         if (m.plan3dLabels === false) v3.showLabels(false);
+        if (m.plan3dWalls === false) v3.walls(false);
+        const sep = view.querySelector('[data-p3-sep]'); if (sep) sep.addEventListener('change', () => { m.plan3dSeparate = sep.checked; v3.separate(sep.checked); });
+        const wl = view.querySelector('[data-p3-walls]'); if (wl) wl.addEventListener('change', () => { m.plan3dWalls = wl.checked; v3.walls(wl.checked); });
         view.querySelectorAll('[data-p3-level]').forEach((b) => b.addEventListener('click', () => {
           m.plan3dLevel = b.getAttribute('data-p3-level');
           view.querySelectorAll('[data-p3-level]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
           v3.only(m.plan3dLevel === 'all' ? null : m.plan3dLevel);
+          const sw = view.querySelector('[data-p3-sep-wrap]'); if (sw) sw.hidden = m.plan3dLevel !== 'all';
         }));
         const lab = view.querySelector('[data-p3-labels]'); if (lab) lab.addEventListener('change', () => { m.plan3dLabels = lab.checked; v3.showLabels(lab.checked); });
         const rs = view.querySelector('[data-p3-reset]'); if (rs) rs.addEventListener('click', () => v3.reset());
