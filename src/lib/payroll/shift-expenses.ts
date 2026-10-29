@@ -20,7 +20,15 @@ export function num(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-export function money(n: number): number {
+export function sentenceCase(raw: string | null | undefined): string | null {
+  const t = String(raw ?? "").trim();
+  if (!t) return null;
+  const i = t.search(/\S/);
+  const ch = t.charAt(i);
+  return t.slice(0, i) + ch.toLocaleUpperCase("pt-BR") + t.slice(i + 1);
+}
+
+function money(n: number): number {
   return Math.round((Number(n) || 0) * 100) / 100;
 }
 
@@ -174,7 +182,7 @@ export async function attachExpensesToShift(
         employeeId: input.employeeId,
         kind: it.kind,
         amount: new Prisma.Decimal(amount),
-        description: it.description?.trim() || null,
+        description: sentenceCase(it.description),
         receiptUrl: it.receipt_url || null,
         receiptKey: it.receipt_key || null,
         status: input.status || "pending",
@@ -210,7 +218,7 @@ export async function updateShiftExpense(
   const nextKind = (patch.kind || e.kind) as ExpenseKind;
   const nextAmount = patch.amount != null ? money(patch.amount) : money(num(e.amount));
   if (!(nextAmount > 0)) throw Object.assign(new Error("Informe o valor."), { status: 400 });
-  const nextDesc = patch.description !== undefined ? patch.description?.trim() || null : e.description;
+  const nextDesc = patch.description !== undefined ? sentenceCase(patch.description) : e.description;
   const wasApplied = Boolean(e.appliedAt);
   const period = wasApplied ? await periodFor(tx, e.organizationId, e.shift.workDate) : null;
 
@@ -309,7 +317,7 @@ export async function addPeriodAdjustmentAmount(
   const isReimb = input.kind === "reimbursement";
   const reimbursement = money(num(adj?.reimbursement) + (isReimb ? amount : 0));
   const discount = money(num(adj?.discount) + (!isReimb ? amount : 0));
-  const noteBit = input.description?.trim();
+  const noteBit = sentenceCase(input.description) || "";
   const notes = noteBit
     ? [adj?.notes, `${isReimb ? "Reembolso" : "Desconto"} ${amount.toFixed(2)}: ${noteBit}`].filter(Boolean).join(" · ").slice(0, 500)
     : adj?.notes || null;

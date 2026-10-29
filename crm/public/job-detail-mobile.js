@@ -479,11 +479,25 @@
     const mw = $("jobMobMoneyWrap");
     if (mw) {
       mw.hidden = !(canBill && b);
+      mw.classList.toggle("jmx-cash", Boolean(canBill && b));
       if (canBill && b) {
-        const rows = [["Total do job", moneyFmt(b.services_total)]];
+        const invoiced = Number(b.invoiced_total) || 0;
+        const received = Number(b.paid_total) || 0;
+        const openBal = Number(b.open_balance) || 0;
+        const invoicedOk = invoiced > 0.004;
+        const receivedOk = received > 0.004 && openBal <= 0.004;
+        mw.classList.toggle("is-paid", receivedOk);
+        const check = invoicedOk
+          ? `<svg class="jmx-cash__check" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>`
+          : "";
+        const rows = [
+          ["Total", moneyFmt(b.services_total)],
+          [`Invoiced${check}`, moneyFmt(invoiced)],
+          ["Recebido", moneyFmt(received)],
+        ];
         if (b.remaining_to_invoice > 0.004) rows.push(["A faturar", moneyFmt(b.remaining_to_invoice)]);
-        if (b.open_balance > 0.004) rows.push(["A receber", moneyFmt(b.open_balance)]);
-        rows.push(["Recebido", moneyFmt(b.paid_total)]);
+        if (openBal > 0.004) rows.push(["A receber", moneyFmt(openBal)]);
+        const stamp = receivedOk ? `<span class="jmx-cash__stamp">Recebido</span>` : "";
         const views = (Array.isArray(wo.invoices) ? wo.invoices : [])
           .filter((inv) => inv && inv.id && inv.status !== "void")
           .map(
@@ -495,7 +509,8 @@
           canInvoice && wo.status !== "canceled" && b.remaining_to_invoice > 0.004 && b.billing_status !== "no_value"
             ? `<button type="button" class="jmx-li jmx-li--btn jmx-li--invoice" data-mob-invoice><span>Emitir Invoice</span></button>`
             : "";
-        $("jobMobMoney").innerHTML = rows.map(([k, v]) => `<div class="jmx-li"><span>${k}</span><b>${v}</b></div>`).join("") + views + emit;
+        $("jobMobMoney").innerHTML =
+          stamp + rows.map(([k, v]) => `<div class="jmx-li"><span>${k}</span><b>${v}</b></div>`).join("") + views + emit;
       }
     }
     const billQ = $("jobMobBillQuick");

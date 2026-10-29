@@ -356,10 +356,8 @@
   function renderList() {
     renderWeekCal();
     let rows = visibleRows();
-    const pin = !q ? selId || focusId : selId;
     if (weekFilter) {
       rows = rows.filter((wo) => {
-        if (pin && String(wo.id) === String(pin)) return true;
         const d = jobAnchor(wo);
         if (!d) return true;
         return sameWeek(d, weekFilter);
@@ -623,11 +621,19 @@
       .join("");
     const emitBtn = canFaturar(wo) ? `<button type="button" class="jx-btn jx-btn--pri" data-jx-act="invoice">Emitir Invoice</button>` : "";
     const invoiceBtn = viewBtns || emitBtn ? `<div class="jx-money-act">${viewBtns}${emitBtn}</div>` : "";
+    const invoiced = Number(wo.billing && wo.billing.invoiced_total) || 0;
+    const received = Number(wo.billing && wo.billing.paid_total) || 0;
+    const openBal = Number(wo.billing && wo.billing.open_balance) || 0;
+    const invoicedOk = invoiced > 0.004;
+    const receivedOk = received > 0.004 && openBal <= 0.004;
+    const check = `<svg class="jx-cash__check" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>`;
     const money = canBill && wo.billing
-      ? `<div class="jx-box"><h3>Dinheiro</h3><dl class="jx-kv">
+      ? `<div class="jx-box jx-cash${receivedOk ? " is-paid" : ""}">
+          ${receivedOk ? `<span class="jx-cash__stamp">Recebido</span>` : ""}
+          <h3>Cash</h3><dl class="jx-kv">
           <dt>Total</dt><dd>${J.money(wo.billing.services_total)}</dd>
-          <dt>Faturado</dt><dd>${J.money(wo.billing.invoiced_total)}</dd>
-          <dt>Recebido</dt><dd>${J.money(wo.billing.paid_total)}</dd>
+          <dt class="jx-cash__row">Invoiced${invoicedOk ? check : ""}</dt><dd>${J.money(invoiced)}</dd>
+          <dt>Recebido</dt><dd>${J.money(received)}</dd>
           <dt>A faturar</dt><dd>${J.money(wo.billing.remaining_to_invoice)}</dd>
         </dl>${invoiceBtn}</div>`
       : "";
@@ -1207,6 +1213,7 @@
   }
 
   async function setStatus(id, status, msg) {
+    scrollSel = true;
     const j = await api(`/api/work-orders/${id}`, { method: "PUT", body: JSON.stringify({ status }) });
     const next = j.data || null;
     detailFetchSeq += 1;

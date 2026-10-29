@@ -38,6 +38,7 @@ import {
   sha256Buffer,
 } from "../../lib/job-media/index.js";
 import { isJobChecklistEnabled } from "../../lib/settings/jobs.js";
+import { sectorFinishPatch } from "../../lib/work-orders/sector-finish.js";
 import {
   JOB_REPORT_TEMPLATES,
   generateJobReportDraft,
@@ -428,7 +429,12 @@ campoJobsRouter.post(
           throw Object.assign(new Error("field_status or advance required"), { status: 400 });
         }
 
-        const officePatch: { status?: string; fieldStatus: string } = {
+        const officePatch: {
+          status?: string;
+          fieldStatus: string;
+          installationDoneAt?: Date | null;
+          sandDoneAt?: Date | null;
+        } = {
           fieldStatus: next,
         };
         if (next === "en_route" || next === "on_site") {
@@ -437,7 +443,11 @@ campoJobsRouter.post(
           }
         }
         if (next === "completed") {
-          officePatch.status = "completed";
+          const finish = sectorFinishPatch(wo, "completed");
+          officePatch.status = finish.status;
+          if ("installationDoneAt" in finish) officePatch.installationDoneAt = finish.installationDoneAt ?? null;
+          if ("sandDoneAt" in finish) officePatch.sandDoneAt = finish.sandDoneAt ?? null;
+          if (finish.status !== "completed") officePatch.fieldStatus = "scheduled";
         }
 
         const updated = await tx.workOrder.update({

@@ -308,7 +308,7 @@
     if (!isMobile() || !$("jobsMobile")) return;
     const base = roleFiltered(allJobs);
     const todayN = base.filter(
-      (wo) => isToday(wo.scheduled_start) && wo.status !== "canceled" && wo.status !== "completed",
+      (wo) => isToday(window.JobsInfo?.listAnchorIso?.(wo) || wo.scheduled_start) && wo.status !== "canceled" && wo.status !== "completed",
     ).length;
     const activeN = base.filter((wo) => isActive(wo) && wo.status !== "canceled").length;
     const doneN = base.filter((wo) => wo.status === "completed" && !isPaidJob(wo)).length;

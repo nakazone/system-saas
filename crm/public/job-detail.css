@@ -119,6 +119,23 @@
 .jd-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .jd-money-acts { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .jd-money-acts .jd-btn--block { width: 100%; }
+.jd-card--cash { position: relative; overflow: hidden; background: #221E1A; color: #fff; box-shadow: none; border-color: transparent; }
+.jd-card--cash .jd-ch h2,
+.jd-card--cash .jd-big small,
+.jd-card--cash .jd-kv dt { color: rgba(255, 255, 255, .62); }
+.jd-card--cash .jd-big strong,
+.jd-card--cash .jd-kv dd { color: #fff; }
+.jd-card--cash .jd-link { color: #E7792C; }
+.jd-card--cash .jd-btn:not(.jd-btn--pri) { background: transparent; color: #fff; border-color: rgba(255, 255, 255, .28); }
+.jd-card--cash .jd-btn--pri { background: #E7792C; border-color: #E7792C; color: #fff; }
+.jd-cash__row { display: flex; align-items: center; gap: 6px; }
+.jd-cash__check { width: 14px; height: 14px; color: #E7792C; }
+.jd-cash__stamp {
+  position: absolute; top: 18px; right: 16px; z-index: 1; transform: rotate(-14deg);
+  border: 2px solid #E7792C; color: #E7792C; font-size: 11px; font-weight: 800;
+  letter-spacing: .14em; text-transform: uppercase; padding: 3px 7px; border-radius: 4px;
+  pointer-events: none;
+}
 
 /* facts */
 .jd-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 14px 18px; }

@@ -391,6 +391,7 @@
   const descAck = new Set();
   const rateAck = new Set();
   let rateFocus = null;
+  let rateOfferTimer = 0;
   function normDesc(s) {
     return String(s == null ? '' : s).trim().replace(/\s+/g, ' ');
   }
@@ -445,6 +446,7 @@
     if (!Number.isFinite(newRate) || newRate < 0) return;
     if (idx != null && idx >= 0) sync(true);
     if (B().onRateCommitted) B().onRateCommitted({ itemIdx: idx, newRate });
+    clearTimeout(rateOfferTimer);
     if (!B().offerRateChange) return;
     const row = rowForItem(it);
     const ids = row && B().catalogIds ? B().catalogIds(row) : {};
@@ -454,15 +456,22 @@
     if (tableRate != null && Math.abs(newRate - tableRate) < 0.009) return;
     const key = `${pricingItemId || it.name}|${newRate.toFixed(2)}`;
     if (rateAck.has(key)) return;
-    rateAck.add(key);
-    B().offerRateChange({
+    const payload = {
       itemIdx: idx != null ? idx : -1,
       newRate,
       pricingItemId: pricingItemId ? String(pricingItemId) : null,
       tableRate,
       row,
       serviceName: it.name || (row && row.name) || '',
-    });
+    };
+    // The tap that leaves the price field arrives after focusout. Opening now puts that tap on the dialog and closes it.
+    rateOfferTimer = setTimeout(() => {
+      if (rateAck.has(key)) return;
+      const bridge = B();
+      if (!bridge.offerRateChange) return;
+      rateAck.add(key);
+      bridge.offerRateChange(payload);
+    }, 520);
   }
 
   function onPaperKey(e) {

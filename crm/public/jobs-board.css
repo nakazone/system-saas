@@ -270,6 +270,26 @@
 .jx-fact--split b { white-space: normal; }
 .jx-money-act { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
 .jx-money-act .jx-btn { width: 100%; }
+.jx-box.jx-cash {
+  position: relative; overflow: hidden; background: #221E1A; box-shadow: none; color: #fff;
+}
+.jx-box.jx-cash h3 { color: rgba(255, 255, 255, .62); }
+.jx-box.jx-cash .jx-kv dt { color: rgba(255, 255, 255, .62); }
+.jx-box.jx-cash .jx-kv dd { color: #fff; }
+.jx-box.jx-cash .jx-cash__row { display: flex; align-items: center; gap: 6px; }
+.jx-box.jx-cash .jx-cash__check { width: 14px; height: 14px; color: #E7792C; flex: none; }
+.jx-box.jx-cash .jx-cash__check path { fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.jx-box.jx-cash .jx-btn:not(.jx-btn--pri) {
+  background: transparent; color: #fff !important; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .28);
+}
+.jx-box.jx-cash .jx-btn:not(.jx-btn--pri):hover { background: rgba(255, 255, 255, .08); }
+.jx-box.jx-cash .jx-btn--pri { background: #E7792C !important; color: #fff !important; }
+.jx-cash__stamp {
+  position: absolute; top: 16px; right: 12px; transform: rotate(-14deg);
+  border: 2px solid #E7792C; color: #E7792C; font-size: 11px; font-weight: 800;
+  letter-spacing: .14em; text-transform: uppercase; padding: 3px 7px; border-radius: 4px;
+  pointer-events: none;
+}
 .jx-box--alert { background: #FBF1EA; box-shadow: 0 0 0 1px #F2D9C6; }
 .jx-box--alert b { display: block; font-size: 13.5px; color: #7A3A12; }
 .jx-box--alert p { margin: 4px 0 0; font-size: 13px; color: #8A4A22; overflow-wrap: anywhere; }

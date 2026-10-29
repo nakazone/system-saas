@@ -8,7 +8,7 @@ import { findScheduleConflicts } from "../../lib/schedule/conflicts.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { publicBaseUrl } from "../../lib/http/public-url.js";
 import { ensureTempShareToken } from "../../lib/work-orders/temp-share.js";
-import { ensureQuoteDiscountOnJob, ensureQuoteDiscountsOnJobs, syncLinkedJobFromQuote, syncLinkedQuoteFromJob } from "../../lib/work-orders/from-quote.js";
+import { alignLinkedJobAndQuote, ensureQuoteDiscountOnJob, ensureQuoteDiscountsOnJobs, syncLinkedJobFromQuote, syncLinkedQuoteFromJob } from "../../lib/work-orders/from-quote.js";
 import { sectorFinishPatch } from "../../lib/work-orders/sector-finish.js";
 import { notifyJobTeamPush } from "../../lib/push/notify.js";
 import { param } from "../../lib/http/params.js";
@@ -932,9 +932,9 @@ scheduleJobsRouter.get(
             orderBy: { updatedAt: "desc" },
           });
           if (quote) {
-            await syncLinkedJobFromQuote(tx, {
+            await alignLinkedJobAndQuote(tx, {
               organizationId: req.organizationId!,
-              quoteId: quote.id,
+              workOrderId: jobId,
             });
             const { linkQuoteInvoicesToWorkOrder } = await import("../../lib/work-orders/from-quote.js");
             await linkQuoteInvoicesToWorkOrder(tx, quote.id, jobId);
@@ -1302,6 +1302,7 @@ scheduleJobsRouter.put(
             ? { assignedUserId: d.assigned_user_id || null }
             : {}),
           ...(d.crew_id !== undefined ? { crewId: d.crew_id || null } : {}),
+          ...(d.line_items !== undefined && d.title === undefined ? { title: existing.title } : {}),
           ...(d.sector !== undefined ? { sector: normalizeWoSector(d.sector) } : {}),
           ...(relatedResolved !== undefined ? { relatedWorkOrderId: relatedResolved } : {}),
           ...(d.scheduled_start !== undefined || d.scheduled_end !== undefined
@@ -2113,7 +2114,9 @@ scheduleJobsRouter.get(
       const originByLead = new Map(originLeads.map((lead) => [lead.id, lead]));
       const jobEvents = workOrders.flatMap((wo) => {
         const slots: Array<{ at: Date; sand: boolean }> = [];
-        if (wo.scheduledStart) slots.push({ at: wo.scheduledStart, sand: false });
+        const awaitingSand =
+          wo.sector === "both" && Boolean(wo.installationDoneAt) && !wo.sandDoneAt && wo.status !== "canceled";
+        if (wo.scheduledStart && !awaitingSand) slots.push({ at: wo.scheduledStart, sand: false });
         if (wo.sector === "both" && wo.sandScheduledStart) slots.push({ at: wo.sandScheduledStart, sand: true });
         return slots.map(({ at, sand }) => {
           const sector = sand ? "sand_finish" : wo.sector === "both" ? "installation" : wo.sector;

@@ -10,9 +10,9 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261027-jobsui";
+  const CSS_HREF = "crm-job-modal.css?v=20261028-jobs4";
   const QPE_CSS = "quote-services-popup.css?v=20261012-qp3";
-  const QPE_JS = "quote-services-popup.js?v=20261028-jobrate";
+  const QPE_JS = "quote-services-popup.js?v=20261028-jobs4";
   const PAPER_CSS = "quote-paper.css?v=20261027-om1";
   const PAPER_JS = "quote-paper.js?v=20261028-addon";
   let prevQBBridge = null;
@@ -449,14 +449,14 @@
 
   let quoteSyncTimer = null;
   let quoteSyncGen = 0;
-  /** Job price is the source of truth: the linked quote must show the same unit price. */
+  /** Job services are linked to the quote. Any line change is written through, even before Salvar. */
   function scheduleQuotePriceSync() {
-    if (!st || !st.id || !st.quoteNumber) return;
+    if (!st || !st.id) return;
     clearTimeout(quoteSyncTimer);
     quoteSyncTimer = setTimeout(() => void pushJobPricesToQuote(), 450);
   }
   async function pushJobPricesToQuote() {
-    if (!st || !st.id || !st.quoteNumber || st.busy) return;
+    if (!st || !st.id || st.busy) return;
     const gen = ++quoteSyncGen;
     const lineItems = payload().line_items;
     try {
@@ -466,8 +466,12 @@
       });
     } catch (e) {
       if (gen !== quoteSyncGen) return;
-      notify(e.message || "Não foi possível atualizar o quote com este preço.", "error");
+      notify(e.message || "Não foi possível atualizar o quote com estes serviços.", "error");
     }
+  }
+  async function flushQuoteLink() {
+    clearTimeout(quoteSyncTimer);
+    await pushJobPricesToQuote();
   }
 
   function pricingTypeLabel() {
@@ -538,7 +542,7 @@
           : "Para gravar no cadastro, selecione um cliente ou builder neste job.";
       }
     }
-    rateBackdropIgnoreUntil = Date.now() + 700;
+    rateBackdropIgnoreUntil = Date.now() + 800;
     root.classList.remove("hidden");
   }
 
@@ -841,15 +845,20 @@
       "click",
       (e) => {
         if (e.target !== root) return;
-        if (Date.now() < rateBackdropIgnoreUntil) {
-          e.preventDefault();
-          e.stopPropagation();
-          return;
-        }
+        if (Date.now() < rateBackdropIgnoreUntil) return;
         closeSaveRateModal();
       },
       true,
     );
+    const swallowOpeningTap = (e) => {
+      const modal = $("jmSaveRateModal");
+      if (!modal || modal.classList.contains("hidden") || Date.now() >= rateBackdropIgnoreUntil) return;
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    document.addEventListener("pointerdown", swallowOpeningTap, true);
+    document.addEventListener("pointerup", swallowOpeningTap, true);
+    document.addEventListener("click", swallowOpeningTap, true);
   }
 
   // ---------------------------------------------------------------- render
@@ -1186,6 +1195,7 @@
         st.svcPanel = null;
         renderServices();
         refreshNumbers();
+        scheduleQuotePriceSync();
       },
       catalog: () => pricingAsCatalog(),
       filterCatalog(q) {
@@ -1229,7 +1239,7 @@
         return { sub, disc: 0, tax: 0, total: Math.max(0, Math.round(sub * 100) / 100) };
       },
       toast: (m, t) => notify(m, t || "info"),
-      save: async () => true,
+      save: () => flushQuoteLink(),
       hasLinkedQuote: () => Boolean(st && st.quoteNumber),
       onRateCommitted() {
         scheduleQuotePriceSync();
@@ -1812,6 +1822,16 @@
   }
 
   function close() {
+    if (quoteSyncTimer && st && st.id) {
+      clearTimeout(quoteSyncTimer);
+      quoteSyncTimer = null;
+      const id = st.id;
+      const lineItems = payload().line_items;
+      void api(`/api/work-orders/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({ line_items: lineItems }),
+      }).catch(() => {});
+    }
     closeSaveRateModal();
     $("jobModal")?.classList.remove("is-open");
     $("jobModalBackdrop")?.classList.remove("is-open");
@@ -2437,6 +2457,7 @@
         st.svcPanel = null;
         renderServices();
         refreshNumbers();
+        scheduleQuotePriceSync();
         break;
       }
       case "panel-pick": {
@@ -2478,6 +2499,7 @@
         }
         renderServices();
         refreshNumbers();
+        scheduleQuotePriceSync();
         break;
       }
       case "user": {
@@ -2633,6 +2655,7 @@
       const tot = row.querySelector("[data-tot]");
       if (tot) tot.textContent = money(lineTotal(line));
       refreshNumbers();
+      scheduleQuotePriceSync();
     }
   }
 
@@ -2926,7 +2949,7 @@
       if (ratesNearlyEqual(newRate, ctx.baseline)) return;
       scheduleQuotePriceSync();
       // Wait out the tablet tap that blurred the field, so it does not land on the new backdrop.
-      setTimeout(() => void maybeOfferRatePersist(i), 280);
+      setTimeout(() => void maybeOfferRatePersist(i), 520);
     });
     modal.addEventListener("keydown", onKey);
     ensureRateModal();

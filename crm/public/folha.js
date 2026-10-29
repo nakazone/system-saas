@@ -98,6 +98,23 @@
   }
   const money = (n) => (Number(n) || 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
   const money0 = (n) => (Number(n) || 0).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+  function capFirst(s) {
+    const t = String(s || "");
+    const i = t.search(/\S/);
+    if (i < 0) return t;
+    const ch = t.charAt(i);
+    const up = ch.toLocaleUpperCase("pt-BR");
+    return ch === up ? t : t.slice(0, i) + up + t.slice(i + 1);
+  }
+  function cents(n) {
+    const v = Number(n);
+    return Number.isFinite(v) ? v.toFixed(2) : "";
+  }
+  function readAmount(id) {
+    const raw = String($(id)?.value || "").trim().replace(/,/g, ".");
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : 0;
+  }
   const qty = (n) => (Number(n) || 0).toLocaleString("en-US", { maximumFractionDigits: 2 });
   function hm(min) {
     min = Math.round(Number(min) || 0);
@@ -717,6 +734,9 @@
       : paid && st.manage
         ? `<button type="button" class="fo-btn fw-btn--ghost-dk" data-receipt="${esc(r.id)}">Ver recibo</button>`
         : "";
+    const reportBtn = st.manage && !paid
+      ? `<button type="button" class="fo-btn fw-btn--ghost-dk" data-conf="${esc(r.id)}">Send Report</button>`
+      : "";
     const pend = t.pending_days
       ? `<div class="fw-note is-hot"><b>${t.pending_days} dia${t.pending_days > 1 ? "s" : ""} a conferir</b> · ${money(t.pending_amount)} entram depois de aprovados. Toque no dia para conferir.</div>`
       : "";
@@ -739,6 +759,7 @@
             <div class="fw-pay__ln"><span>Reembolso</span><span>+${money(t.reimbursement)}</span></div>
             <div class="fw-pay__ln"><span>Desconto</span><span>−${money(t.discount)}</span></div>
             ${payBtn}
+            ${reportBtn}
           </div>
           ${r.adjustment && r.adjustment.notes ? `<div class="fo-card fw-card"><h3>Observação</h3><p class="fo-muted" style="margin:0;font-size:13px">${esc(r.adjustment.notes)}</p></div>` : ""}
         </div>
@@ -753,9 +774,16 @@
       return;
     }
     const t = r.totals;
-    let h = "";
-    if (st.manage && !r.payment && Number(t.net) > 0) h = `<button type="button" class="fo-btn" data-adjust="${esc(r.id)}">Ajustes</button><button type="button" class="fo-btn fo-btn--pri" data-pay="${esc(r.id)}">Pagar ${money(t.net)}</button>`;
-    else if (r.payment && st.manage) h = `<button type="button" class="fo-btn fo-btn--pri" data-receipt="${esc(r.id)}">Ver recibo</button>`;
+    const send = st.manage && !r.payment
+      ? `<button type="button" class="fo-btn fw-mbar__send" data-conf="${esc(r.id)}">Send Report</button>`
+      : "";
+    let row = "";
+    if (st.manage && !r.payment && Number(t.net) > 0) {
+      row = `<div class="fw-mbar__row"><button type="button" class="fo-btn" data-adjust="${esc(r.id)}">Ajustes</button><button type="button" class="fo-btn fo-btn--pri" data-pay="${esc(r.id)}">Pagar ${money(t.net)}</button></div>`;
+    } else if (r.payment && st.manage) {
+      row = `<div class="fw-mbar__row"><button type="button" class="fo-btn fo-btn--pri" data-receipt="${esc(r.id)}">Ver recibo</button></div>`;
+    }
+    const h = `${row}${send}`;
     bar.innerHTML = h;
     bar.hidden = !h;
   }
@@ -835,9 +863,6 @@
     // Always available during the cycle (before or after pay day), as long as not paid.
     parts.push(
       `<button type="button" class="fo-btn fo-btn--sm fo-btn--ghost" data-adjust="${esc(r.id)}" title="Reembolso ou desconto">Ajustes</button>`,
-    );
-    parts.push(
-      `<button type="button" class="fo-btn fo-btn--sm fo-btn--ghost" data-conf="${esc(r.id)}" title="Enviar relatório para o funcionário conferir">Relatório</button>`,
     );
     if (!r.payment && (canPay(r) || Number(r.totals.gross) > 0 || Number(r.totals.reimbursement) > 0 || Number(r.totals.net) > 0)) {
       parts.push(`<button type="button" class="fo-btn fo-btn--sm${compact || priPay ? " fo-btn--pri" : ""}" data-pay="${esc(r.id)}">Pagar</button>`);
@@ -987,7 +1012,7 @@
               }
               return `<li>
               ${x.receipt_url ? `<a class="fo-exp__img" href="${esc(x.receipt_url)}" target="_blank" rel="noopener"><img src="${esc(x.receipt_url)}" alt="" /></a>` : `<span class="fo-exp__ph">Sem recibo</span>`}
-              <div><b>${x.kind === "discount" ? "−" : "+"}${money(x.amount)}</b><small>${esc(x.kind_label)} · ${esc(x.status_label)}${x.description ? ` · ${esc(x.description)}` : ""}</small></div>
+              <div><b>${x.kind === "discount" ? "−" : "+"}${money(x.amount)}</b><small>${esc(x.kind_label)} · ${esc(x.status_label)}${x.description ? ` · ${esc(capFirst(x.description))}` : ""}</small></div>
               ${acts.length ? `<span class="fo-exp__act">${acts.join("")}</span>` : ""}
             </li>`;
             })
@@ -1716,8 +1741,8 @@
           </div>
           <input type="hidden" id="foAdjKind" value="reimbursement" />
           <div class="fo-grid2" style="margin-top:12px">
-            <label class="fo-field">Valor ($)<input type="number" class="fo-in" id="foAdjAddAmt" min="0" step="0.01" autofocus placeholder="0.00" /></label>
-            <label class="fo-field">Descrição<input type="text" class="fo-in" id="foAdjAddDesc" maxlength="300" placeholder="Ex.: gasolina, material…" /></label>
+            <label class="fo-field">Valor ($)<input type="text" class="fo-in" id="foAdjAddAmt" inputmode="decimal" autocomplete="off" autofocus placeholder="0.00" /></label>
+            <label class="fo-field">Descrição<input type="text" class="fo-in" id="foAdjAddDesc" maxlength="300" placeholder="Ex.: Gasolina, material…" /></label>
           </div>
           ${
             dayOpts
@@ -1734,7 +1759,7 @@
                 .map(
                   (x) => `<li>
                   ${x.receipt_url ? `<a class="fo-exp__img" href="${esc(x.receipt_url)}" target="_blank" rel="noopener"><img src="${esc(x.receipt_url)}" alt="" /></a>` : `<span class="fo-exp__ph">—</span>`}
-                  <div><b>${x.kind === "discount" ? "−" : "+"}${money(x.amount)}</b><small>${esc(x.date_label)} · ${esc(x.status_label)}${x.description ? ` · ${esc(x.description)}` : ""}</small></div>
+                  <div><b>${x.kind === "discount" ? "−" : "+"}${money(x.amount)}</b><small>${esc(x.date_label)} · ${esc(x.status_label)}${x.description ? ` · ${esc(capFirst(x.description))}` : ""}</small></div>
                   ${
                     canEdit && x.status !== "rejected"
                       ? `<span class="fo-exp__act"><button type="button" class="fo-btn fo-btn--sm" data-exp-edit="${esc(x.id)}">Editar</button><button type="button" class="fo-btn fo-btn--sm fo-btn--ghost fo-btn--danger" data-exp-del="${esc(x.id)}" data-exp-emp="${esc(r.id)}">Excluir</button></span>`
@@ -1746,8 +1771,8 @@
             : ""
         }
         <div class="fo-box"><h3>Totais da semana</h3>
-        <div class="fo-grid2"><label class="fo-field">Reembolso total<input type="number" class="fo-in" id="foAdjR" min="0" step="0.01" value="${reimb || ""}" placeholder="0.00" ${canEdit ? "" : "disabled"} /><small>Total no líquido (pode editar)</small></label>
-        <label class="fo-field">Desconto total<input type="number" class="fo-in" id="foAdjD" min="0" step="0.01" value="${disc || ""}" placeholder="0.00" ${canEdit ? "" : "disabled"} /><small>Total no líquido (pode editar)</small></label></div>
+        <div class="fo-grid2"><label class="fo-field">Reembolso total<input type="text" class="fo-in" id="foAdjR" inputmode="decimal" autocomplete="off" value="${reimb ? cents(reimb) : ""}" placeholder="0.00" ${canEdit ? "" : "disabled"} /><small>Total no líquido (pode editar)</small></label>
+        <label class="fo-field">Desconto total<input type="text" class="fo-in" id="foAdjD" inputmode="decimal" autocomplete="off" value="${disc ? cents(disc) : ""}" placeholder="0.00" ${canEdit ? "" : "disabled"} /><small>Total no líquido (pode editar)</small></label></div>
         <label class="fo-field" style="margin-top:10px">Motivo / notas<input type="text" class="fo-in" id="foAdjN" maxlength="500" value="${esc(r.adjustment.notes || "")}" ${canEdit ? "" : "disabled"} /></label>
       </div></div>
       <footer class="fo-sheet__ft"><button type="button" class="fo-btn fo-btn--ghost" data-close>Fechar</button>${canEdit ? `<button type="button" class="fo-btn fo-btn--pri" data-adj-go="${esc(r.id)}">Salvar totais</button>` : ""}</footer>`,
@@ -1770,8 +1795,8 @@
           <button type="button" class="fo-chip" data-exp-kind="discount" aria-pressed="false">Desconto</button>
         </div>
         <input type="hidden" id="foExpKind" value="reimbursement" />
-        <div class="fo-grid2" style="margin-top:12px"><label class="fo-field">Valor ($)<input type="number" class="fo-in" id="foExpAmt" min="0" step="0.01" autofocus placeholder="0.00" /></label>
-        <label class="fo-field">Descrição<input type="text" class="fo-in" id="foExpDesc" maxlength="300" placeholder="Ex.: gasolina, adiantamento…" /></label></div>
+        <div class="fo-grid2" style="margin-top:12px"><label class="fo-field">Valor ($)<input type="text" class="fo-in" id="foExpAmt" inputmode="decimal" autocomplete="off" autofocus placeholder="0.00" /></label>
+        <label class="fo-field">Descrição<input type="text" class="fo-in" id="foExpDesc" maxlength="300" placeholder="Ex.: Gasolina, adiantamento…" /></label></div>
         <label class="fo-field" style="margin-top:10px">Recibo (opcional)<input type="file" class="fo-in" id="foExpFile" accept="image/*,application/pdf" /></label>
         <label class="fo-check" style="margin-top:12px"><input type="checkbox" id="foExpApprove" checked /> Aprovar e incluir no pagamento agora</label>
       </div></div>
@@ -1790,8 +1815,8 @@
           <button type="button" class="fo-chip" data-exp-kind="discount" aria-pressed="${kind === "discount"}">Desconto</button>
         </div>
         <input type="hidden" id="foExpKind" value="${esc(kind)}" />
-        <div class="fo-grid2" style="margin-top:12px"><label class="fo-field">Valor ($)<input type="number" class="fo-in" id="foExpAmt" min="0" step="0.01" autofocus value="${x.amount || ""}" placeholder="0.00" /></label>
-        <label class="fo-field">Descrição<input type="text" class="fo-in" id="foExpDesc" maxlength="300" value="${esc(x.description || "")}" placeholder="Ex.: gasolina, adiantamento…" /></label></div>
+        <div class="fo-grid2" style="margin-top:12px"><label class="fo-field">Valor ($)<input type="text" class="fo-in" id="foExpAmt" inputmode="decimal" autocomplete="off" autofocus value="${esc(cents(x.amount))}" placeholder="0.00" /></label>
+        <label class="fo-field">Descrição<input type="text" class="fo-in" id="foExpDesc" maxlength="300" value="${esc(capFirst(x.description || ""))}" placeholder="Ex.: Gasolina, adiantamento…" /></label></div>
         ${x.receipt_url ? `<p class="fo-muted" style="margin:10px 0 0;font-size:12.5px;font-weight:600">Recibo já anexado — <a href="${esc(x.receipt_url)}" target="_blank" rel="noopener">abrir</a>.</p>` : ""}
         <p class="fo-muted" style="margin:10px 0 0;font-size:12.5px;font-weight:600">O líquido da semana atualiza automaticamente ao salvar.</p>
       </div></div>
@@ -1807,7 +1832,7 @@
     });
   }
   async function expGo(dayId, btn) {
-    const amount = Number($("foExpAmt")?.value || 0);
+    const amount = readAmount("foExpAmt");
     if (!(amount > 0)) {
       notify("Informe o valor.", "error");
       return;
@@ -1815,7 +1840,7 @@
     const body = {
       kind: $("foExpKind")?.value || "reimbursement",
       amount,
-      description: ($("foExpDesc")?.value || "").trim() || null,
+      description: capFirst($("foExpDesc")?.value).trim() || null,
       approve: Boolean($("foExpApprove")?.checked),
     };
     const file = $("foExpFile")?.files?.[0];
@@ -1833,7 +1858,7 @@
     }
   }
   async function expSave(expId, dayId, btn) {
-    const amount = Number($("foExpAmt")?.value || 0);
+    const amount = readAmount("foExpAmt");
     if (!(amount > 0)) {
       notify("Informe o valor.", "error");
       return;
@@ -1845,7 +1870,7 @@
         body: JSON.stringify({
           kind: $("foExpKind")?.value || "reimbursement",
           amount,
-          description: ($("foExpDesc")?.value || "").trim() || null,
+          description: capFirst($("foExpDesc")?.value).trim() || null,
         }),
       });
       notify("Lançamento atualizado. Líquido recalculado.", "success");
@@ -1871,13 +1896,13 @@
     }
   }
   async function adjustAdd(id, btn) {
-    const amount = Number($("foAdjAddAmt")?.value || 0);
+    const amount = readAmount("foAdjAddAmt");
     if (!(amount > 0)) return notify("Informe o valor.", "error");
     if (!st.week?.period) return notify("Sem período nesta semana.", "error");
     const body = {
       kind: $("foAdjKind")?.value || "reimbursement",
       amount,
-      description: ($("foAdjAddDesc")?.value || "").trim() || null,
+      description: capFirst($("foAdjAddDesc")?.value).trim() || null,
       day_id: ($("foAdjAddDay")?.value || "").trim() || null,
     };
     btn.disabled = true;
@@ -1898,7 +1923,7 @@
     try {
       await api(`/api/folha/semana/${st.week.period.id}/ajustes/${id}`, {
         method: "PUT",
-        body: JSON.stringify({ reimbursement: Number($("foAdjR").value) || 0, discount: Number($("foAdjD").value) || 0, notes: $("foAdjN").value.trim() || null }),
+        body: JSON.stringify({ reimbursement: readAmount("foAdjR"), discount: readAmount("foAdjD"), notes: $("foAdjN").value.trim() || null }),
       });
       notify("Totais salvos. Líquido atualizado.", "success");
       closeSheet();
@@ -2613,6 +2638,19 @@
         st.quick.disc = t.value;
         return;
       }
+      if (t.id === "foExpDesc" || t.id === "foAdjAddDesc") {
+        const next = capFirst(t.value);
+        if (next !== t.value) {
+          const pos = t.selectionStart;
+          t.value = next;
+          try {
+            t.setSelectionRange(pos, pos);
+          } catch (_) {
+            /* ignore */
+          }
+        }
+        return;
+      }
       if (t.id === "foAdjR" || t.id === "foAdjD") return refreshAdjPreview();
       if (t.id === "foWeekQ") {
         st.q = t.value || "";
@@ -2628,6 +2666,16 @@
           }
         }
       }
+    });
+    document.addEventListener("focusout", (e) => {
+      const t = e.target;
+      if (!t || !["foExpAmt", "foAdjAddAmt", "foAdjR", "foAdjD"].includes(t.id)) return;
+      const raw = String(t.value || "").trim().replace(/,/g, ".");
+      if (!raw) return;
+      const n = Number(raw);
+      if (!Number.isFinite(n) || n < 0) return;
+      t.value = n.toFixed(2);
+      if (t.id === "foAdjR" || t.id === "foAdjD") refreshAdjPreview();
     });
     document.addEventListener("keydown", onKey);
     window.addEventListener("resize", () => {

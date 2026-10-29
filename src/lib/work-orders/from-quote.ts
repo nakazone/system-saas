@@ -224,11 +224,12 @@ function quoteJobLineData(organizationId: string, quote: QuoteForJob) {
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(pricingRaw))
         ? String(pricingRaw)
         : null;
+    const noteRaw = meta.notes != null ? String(meta.notes).trim() : "";
     return {
       organizationId,
       pricingItemId,
       serviceName: String(li.name || li.description || "Serviço").slice(0, 200),
-      notes: null as string | null,
+      notes: noteRaw ? noteRaw.slice(0, 2000) : (null as string | null),
       quantitySqft: new Prisma.Decimal(qty),
       unitPrice: new Prisma.Decimal(unitPrice),
       lineTotal: new Prisma.Decimal(amount),
@@ -251,22 +252,28 @@ function quoteJobLineData(organizationId: string, quote: QuoteForJob) {
 }
 
 function jobLineFingerprint(
-  rows: { serviceName: string; quantitySqft: { toString(): string }; unitPrice: { toString(): string } }[],
+  rows: { serviceName: string; quantitySqft: { toString(): string }; unitPrice: { toString(): string }; notes?: string | null }[],
 ) {
   return rows
     .map(
       (li) =>
-        `${li.serviceName}|${Math.round(Number(li.quantitySqft) * 1000)}|${Math.round(Number(li.unitPrice) * 100)}`,
+        `${li.serviceName.trim().toLowerCase()}|${Math.round(Number(li.quantitySqft) * 1000)}|${Math.round(Number(li.unitPrice) * 100)}|${String(li.notes || "").trim()}`,
     )
     .join("\n");
 }
 
+function invoicedFloorError(invoiced: number) {
+  const err = new Error(
+    `Já foram faturados $${invoiced.toFixed(2)} neste job — o total dos serviços não pode ficar abaixo disso.`,
+  ) as Error & { statusCode?: number };
+  err.statusCode = 409;
+  return err;
+}
+
 /**
  * Keep the linked job findable and aligned with the current quote.
- * A later edit must not leave the job under the first client or the first total,
- * and must not cancel it. Lines are refreshed only while the job has not started
- * and nothing has been invoiced — including a canceled job, so reopening it
- * comes back with the quote as it is now.
+ * Services and prices always follow the quote, including after the job has started.
+ * The only stop is an already-invoiced total: the job cannot drop below what was billed.
  */
 export async function syncLinkedJobFromQuote(
   tx: TenantPrisma,
@@ -305,15 +312,18 @@ export async function syncLinkedJobFromQuote(
       },
     });
   }
-  const invoiced = await tx.quoteInvoice.count({
+  const invoicedAgg = await tx.quoteInvoice.aggregate({
     where: { workOrderId: job.id, status: { not: "void" } },
+    _sum: { amount: true },
   });
-  const canReplaceLines =
-    invoiced === 0 &&
-    (job.status === "draft" || job.status === "scheduled" || job.status === "canceled");
-  if (canReplaceLines) {
-    const next = quoteJobLineData(params.organizationId, quote);
-    if (jobLineFingerprint(job.lineItems) !== jobLineFingerprint(next)) {
+  const invoiced = Number(invoicedAgg._sum.amount ?? 0);
+  const next = quoteJobLineData(params.organizationId, quote);
+  const servicesTotal = next
+    .filter((row) => row.notes !== QUOTE_DISCOUNT_NOTE && !/^discount\b/i.test(row.serviceName))
+    .reduce((sum, row) => sum + Math.round(Number(row.lineTotal) * 100) / 100, 0);
+  if (invoiced > 0.004 && servicesTotal + 0.004 < invoiced) throw invoicedFloorError(invoiced);
+  const linesDiffer = jobLineFingerprint(job.lineItems) !== jobLineFingerprint(next);
+  if (linesDiffer) {
       const pricingIds = [...new Set(next.map((row) => row.pricingItemId).filter((id): id is string => Boolean(id)))];
       if (pricingIds.length) {
         const live = await tx.pricingItem.findMany({
@@ -331,9 +341,6 @@ export async function syncLinkedJobFromQuote(
           data: next.map((row) => ({ ...row, workOrderId: job.id })),
         });
       }
-    }
-  } else {
-    await syncQuoteDiscountOntoJob(tx, params.organizationId, job.id, quote);
   }
   return { id: job.id, status: job.status };
 }
@@ -482,6 +489,26 @@ export async function syncLinkedQuoteFromJob(
   const services = jobLines.filter((li) => !isJobDiscountLine(li));
   const discountLine = jobLines.find((li) => isJobDiscountLine(li));
   const discount = discountLine ? discountFromJobLine(discountLine) : null;
+  const quoteDiscount = readQuoteDiscount(quote);
+  const sig = (name: string, qty: number, price: number, notes: string) =>
+    `${name.trim().toLowerCase()}|${Math.round(qty * 1000)}|${Math.round(price * 100)}|${notes.trim()}`;
+  const jobSig = services
+    .map((li) => sig(li.serviceName, Number(li.quantitySqft) || 0, Number(li.unitPrice) || 0, li.notes || ""))
+    .join("\n");
+  const quoteSig = quote.lineItems
+    .map((li) => {
+      const meta =
+        li.meta && typeof li.meta === "object" && !Array.isArray(li.meta)
+          ? (li.meta as Record<string, unknown>)
+          : {};
+      const notes = meta.notes != null ? String(meta.notes) : "";
+      return sig(String(li.name || li.description || ""), Number(li.quantity) || 0, Number(li.unitPrice) || 0, notes);
+    })
+    .join("\n");
+  const sameDiscount =
+    (discount?.type ?? null) === (quoteDiscount.amount > 0 ? quoteDiscount.type : null) &&
+    Math.round((discount?.value ?? 0) * 100) === Math.round((quoteDiscount.amount > 0 ? quoteDiscount.value : 0) * 100);
+  if (jobSig === quoteSig && sameDiscount) return;
 
   const byName = new Map<string, (typeof quote.lineItems)[number][]>();
   for (const li of quote.lineItems) {
@@ -512,6 +539,7 @@ export async function syncLinkedQuoteFromJob(
     if (li.pricingItemId) meta.pricing_item_id = li.pricingItemId;
     const note = li.notes && li.notes !== QUOTE_DISCOUNT_NOTE ? li.notes : "";
     if (note) meta.notes = note;
+    else delete meta.notes;
     const qty = Number(li.quantitySqft) || 0;
     const unitPrice = Number(li.unitPrice) || 0;
     const amount = Math.round((Number(li.lineTotal) || qty * unitPrice) * 100) / 100;
@@ -581,6 +609,37 @@ export async function syncLinkedQuoteFromJob(
       payload: payload as Prisma.InputJsonValue,
     },
   });
+}
+
+/**
+ * One linked pair. The side edited last wins, so opening the job or the quote
+ * shows the same services and prices.
+ */
+export async function alignLinkedJobAndQuote(
+  tx: TenantPrisma,
+  params: { organizationId: string; workOrderId: string },
+): Promise<void> {
+  const quote = await tx.quote.findFirst({
+    where: { workOrderId: params.workOrderId },
+    orderBy: { updatedAt: "desc" },
+    select: { id: true, updatedAt: true },
+  });
+  if (!quote) return;
+  const job = await tx.workOrder.findFirst({
+    where: { id: params.workOrderId },
+    select: { updatedAt: true },
+  });
+  if (!job) return;
+  try {
+    if (quote.updatedAt.getTime() >= job.updatedAt.getTime()) {
+      await syncLinkedJobFromQuote(tx, { organizationId: params.organizationId, quoteId: quote.id });
+    } else {
+      await syncLinkedQuoteFromJob(tx, params);
+    }
+  } catch (err) {
+    if ((err as { statusCode?: number }).statusCode === 409) return;
+    throw err;
+  }
 }
 
 /** Quote approval invoices the quote before the job exists. Attach those invoices to the job so Faturar does not issue a second one. */

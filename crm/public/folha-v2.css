@@ -166,14 +166,16 @@ body.dashboard-app-body .fo-stat__go:hover { background: #E7792C !important; bor
   .fw-back { display: inline-flex; }
   body.fw-detail-open .fo-hd, body.fw-detail-open .fo-tabs { display: none; }
   body.fw-detail-open .fw-mbar:not([hidden]) {
-    display: flex; gap: 8px; position: fixed; left: 12px; right: 12px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); z-index: 60;
+    display: flex; flex-direction: column; gap: 8px; position: fixed; left: 12px; right: 12px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); z-index: 60;
     padding: 8px; border-radius: 20px; background: rgba(255, 255, 255, .94); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
     box-shadow: 0 0 0 1px #E5E7EB, 0 14px 30px -14px rgba(16, 24, 40, .35);
     font-family: Geist, "Plus Jakarta Sans", system-ui, sans-serif;
   }
+  .fw-mbar__row { display: flex; gap: 8px; width: 100%; }
   .fw-mbar .fo-btn { flex: 1; height: 46px; font-size: 15px; border-radius: 13px; justify-content: center; }
-  .fw-mbar .fo-btn:first-child:not(:last-child) { flex: .6; }
-  body.fw-detail-open .fw-main { padding-bottom: 90px; }
+  .fw-mbar .fw-mbar__row .fo-btn:first-child:not(:last-child) { flex: .6; }
+  .fw-mbar .fw-mbar__send { flex: 0 0 auto; width: 100%; }
+  body.fw-detail-open .fw-main { padding-bottom: 148px; }
   body.fw-detail-open .fw-emp__acts .fo-btn[data-pay] { display: none; }
   .fo-bar { z-index: 61; }
 }

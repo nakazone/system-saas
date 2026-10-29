@@ -153,6 +153,21 @@ body.om-device-mobile.job-detail-app .jcm-jd__type { margin-top: 4px; font-size:
 .jmx-circ svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .jmx-sech { margin: 18px 4px 6px; font-size: 12px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: #667085; }
 #jobMobMoneyWrap[hidden] { display: none; }
+#jobMobMoneyWrap.jmx-cash { position: relative; }
+#jobMobMoneyWrap.jmx-cash .jmx-gl { background: #221E1A; box-shadow: none; }
+#jobMobMoneyWrap.jmx-cash .jmx-li { border-bottom-color: rgba(255, 255, 255, .12); }
+#jobMobMoneyWrap.jmx-cash .jmx-li span { color: rgba(255, 255, 255, .62); display: inline-flex; align-items: center; gap: 6px; }
+#jobMobMoneyWrap.jmx-cash .jmx-li b { color: #fff; }
+#jobMobMoneyWrap.jmx-cash .jmx-li--btn { border-top-color: rgba(255, 255, 255, .12); color: #fff; }
+#jobMobMoneyWrap.jmx-cash .jmx-li--invoice { background: #E7792C; }
+.jmx-cash__check { width: 14px; height: 14px; color: #E7792C; }
+.jmx-cash__check path { fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+.jmx-cash__stamp {
+  position: absolute; top: 28px; right: 12px; z-index: 1; transform: rotate(-14deg);
+  border: 2px solid #E7792C; color: #E7792C; font-size: 11px; font-weight: 800;
+  letter-spacing: .14em; text-transform: uppercase; padding: 3px 7px; border-radius: 4px;
+  pointer-events: none;
+}
 .jmx-gl { background: #fff; border-radius: 18px; box-shadow: 0 0 0 1px #E5E7EB; overflow: hidden; }
 .jmx-li { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 12px 14px; border-bottom: 1px solid #E5E7EB; font-size: 14px; width: 100%; }
 .jmx-li:last-child { border-bottom: 0; }

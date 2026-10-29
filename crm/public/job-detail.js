@@ -497,8 +497,17 @@
     card.hidden = !canBill || !b;
     if (card.hidden) return;
     const total = Number(b.services_total) || 0;
-    const paidPct = total > 0 ? Math.min(100, (b.paid_total / total) * 100) : 0;
-    const openPct = total > 0 ? Math.min(100 - paidPct, (b.open_balance / total) * 100) : 0;
+    const invoiced = Number(b.invoiced_total) || 0;
+    const received = Number(b.paid_total) || 0;
+    const openBal = Number(b.open_balance) || 0;
+    const invoicedOk = invoiced > 0.004;
+    const receivedOk = received > 0.004 && openBal <= 0.004;
+    card.classList.toggle("is-paid", receivedOk);
+    const check = invoicedOk
+      ? `<svg class="jd-cash__check" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>`
+      : "";
+    const paidPct = total > 0 ? Math.min(100, (received / total) * 100) : 0;
+    const openPct = total > 0 ? Math.min(100 - paidPct, (openBal / total) * 100) : 0;
     const headline =
       b.billing_status === "paid"
         ? { k: "Recebido", v: b.paid_total }
@@ -507,11 +516,13 @@
           : { k: "A faturar", v: b.remaining_to_invoice };
     const invs = (billing.data || []).slice(-3).reverse();
     $("jdMoney").innerHTML = `
+      ${receivedOk ? `<span class="jd-cash__stamp">Recebido</span>` : ""}
       <div class="jd-big"><small>${headline.k}</small><strong>${money(headline.v)}</strong></div>
       ${total > 0 ? `<div class="jd-bar"><i class="p" style="width:${paidPct.toFixed(1)}%"></i><i class="o" style="width:${openPct.toFixed(1)}%"></i></div>` : ""}
       <dl class="jd-kv">
-        <div><dt><i class="jd-dot jd-dot--paid"></i>Recebido</dt><dd>${money(b.paid_total)}</dd></div>
-        <div><dt><i class="jd-dot jd-dot--open"></i>Faturado em aberto</dt><dd>${money(b.open_balance)}</dd></div>
+        <div><dt class="jd-cash__row">Invoiced${check}</dt><dd>${money(invoiced)}</dd></div>
+        <div><dt><i class="jd-dot jd-dot--paid"></i>Recebido</dt><dd>${money(received)}</dd></div>
+        <div><dt><i class="jd-dot jd-dot--open"></i>Faturado em aberto</dt><dd>${money(openBal)}</dd></div>
         <div><dt>A faturar</dt><dd>${money(b.remaining_to_invoice)}</dd></div>
         <div class="jd-kv__total"><dt>Total do job</dt><dd>${money(total)}</dd></div>
       </dl>

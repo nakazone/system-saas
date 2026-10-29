@@ -96,16 +96,17 @@
 
   /** { days, label, kind } quando o job passou da data e ainda não foi concluído; senão null. */
   function late(wo, now) {
-    if (!isActive(wo) || !wo.scheduled_start) return null;
+    const anchor = awaitingSand(wo) ? wo.sand_scheduled_start : wo.scheduled_start;
+    if (!isActive(wo) || !anchor) return null;
     const t = now || Date.now();
     if (wo.status === "in_progress") {
-      const end = new Date(wo.scheduled_end || wo.scheduled_start).getTime();
+      const end = new Date(awaitingSand(wo) ? anchor : wo.scheduled_end || anchor).getTime();
       if (end >= t) return null;
       const d = Math.max(1, Math.floor((t - end) / DAY));
       return { days: d, kind: "late", label: `atrasado ${d} dia${d > 1 ? "s" : ""}`, short: `Atrasado ${d} dia${d > 1 ? "s" : ""}` };
     }
-    const start = new Date(wo.scheduled_start).getTime();
-    const end = new Date(wo.scheduled_end || wo.scheduled_start).getTime();
+    const start = new Date(anchor).getTime();
+    const end = new Date(wo.scheduled_end || anchor).getTime();
     if (start >= t - DAY / 2 && end >= t) return null;
     if (end < t) {
       const d = Math.max(1, Math.floor((t - end) / DAY));
@@ -256,9 +257,9 @@
 
   /** Installation is done and the job is waiting on the sand date. */
   function awaitingSand(wo) {
-    if (!wo || wo.sector !== "both") return false;
-    if (wo.status === "completed" || wo.status === "canceled") return false;
-    return Boolean(wo.installation_done_at) && !wo.sand_done_at;
+    if (!wo || wo.sector !== "both" || wo.status === "canceled") return false;
+    if (wo.sand_done_at) return false;
+    return Boolean(wo.installation_done_at);
   }
 
   /**

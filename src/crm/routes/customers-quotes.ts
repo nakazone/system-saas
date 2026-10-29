@@ -1843,10 +1843,10 @@ customersQuotesRouter.get("/api/quotes/:id", requireCrmAuth, async (req: AuthedR
       try {
         await withTenantTransaction(req.organizationId!, async (tx) => {
           if (linkedJobId) {
-            const { syncLinkedJobFromQuote } = await import("../../lib/work-orders/from-quote.js");
-            return syncLinkedJobFromQuote(tx, {
+            const { alignLinkedJobAndQuote } = await import("../../lib/work-orders/from-quote.js");
+            return alignLinkedJobAndQuote(tx, {
               organizationId: req.organizationId!,
-              quoteId,
+              workOrderId: linkedJobId,
             });
           }
           const { ensureWorkOrderOnApprove } = await import("../../lib/work-orders/from-quote.js");
@@ -2101,6 +2101,13 @@ customersQuotesRouter.patch(
           where: { id: quote.id },
           data: { subtotal: new Prisma.Decimal(subtotal), total: new Prisma.Decimal(total), payload: payload as Prisma.InputJsonValue },
         });
+        if (quote.workOrderId) {
+          const { syncLinkedJobFromQuote } = await import("../../lib/work-orders/from-quote.js");
+          await syncLinkedJobFromQuote(tx, {
+            organizationId: req.organizationId!,
+            quoteId: quote.id,
+          });
+        }
         await recordActivity(tx, {
           organizationId: req.organizationId!,
           entityType: "quote",
@@ -3087,12 +3094,6 @@ customersQuotesRouter.post(
             actorId: req.user?.id ?? null,
           });
           if (job?.created) createdJobId = job.id;
-        } else if (updated.workOrderId) {
-          const { syncLinkedJobFromQuote } = await import("../../lib/work-orders/from-quote.js");
-          await syncLinkedJobFromQuote(tx, {
-            organizationId: req.organizationId!,
-            quoteId: id,
-          });
         }
         const fresh = await tx.quote.findFirst({
           where: { id },
