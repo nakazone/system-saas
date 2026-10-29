@@ -946,6 +946,113 @@ body.pp {
 .pp-pick-chip svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; }
 .pp-pick-row select { min-height: 38px; border: 1px solid var(--pp-border); border-radius: 10px; padding: 0 10px; background: #fff; max-width: 100%; }
 
+/* ── Stair measurement workspace: keep the drawing and selected dimensions in view ── */
+.pp-meas-layout--stairs { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.pp-meas-layout--stairs .pp-meas-side {
+  position: static;
+  grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr) auto;
+  align-items: start;
+}
+.pp-meas-layout--stairs .pp-stair-workspace {
+  grid-template-columns: minmax(0, 1.12fr) minmax(410px, .88fr);
+  align-items: start;
+  gap: 16px;
+  border: 0;
+}
+.pp-meas-layout--stairs .pp-stair-workspace-visual,
+.pp-meas-layout--stairs .pp-stair-measure-card {
+  min-width: 0;
+  border: 1px solid var(--pp-border);
+  border-radius: 16px;
+  background: #FFFFFF;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .04);
+  overflow: hidden;
+}
+.pp-meas-layout--stairs .pp-stair-workspace-visual { padding: 10px; }
+.pp-meas-layout--stairs .pp-viz { border-radius: 12px; }
+.pp-meas-layout--stairs .pp-stair-workspace-measures { border: 0; background: transparent; }
+.pp-stair-measurements { min-width: 0; }
+.pp-stair-measures-head {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) auto;
+  align-items: center;
+  gap: 12px 16px;
+  min-height: 0;
+  padding: 18px 18px 14px;
+  background: #FFFFFF;
+}
+.pp-stair-measures-head:hover { background: #FFFFFF; }
+.pp-stair-measures-title { display: grid; gap: 3px; min-width: 0; }
+.pp-stair-measures-title small { color: var(--pp-muted); font-size: 10px; font-weight: 700; letter-spacing: .09em; }
+.pp-stair-measures-title strong { color: var(--pp-ink); font-size: 17px; line-height: 1.25; }
+.pp-stair-measures-title > span { color: var(--pp-muted); font-size: 12px; }
+.pp-stair-measures-stats { display: flex; align-items: stretch; gap: 8px; }
+.pp-stair-measures-stats > span { display: grid; justify-items: center; align-content: center; min-width: 66px; min-height: 52px; padding: 5px 9px; border: 1px solid var(--pp-border); border-radius: 12px; background: #F9FAFB; }
+.pp-stair-measures-stats b { color: var(--pp-ink); font-size: 17px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.pp-stair-measures-stats small { color: var(--pp-muted); font-size: 11px; }
+.pp-stair-measures-action {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid #F2C9AA;
+  border-radius: 12px;
+  background: #FFF8F3;
+  color: #A84D16;
+  font-size: 13px;
+  font-weight: 650;
+}
+.pp-stair-measures-action i { width: 9px; height: 9px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg) translateY(-2px); transition: transform .16s ease; }
+.pp-stair-measurements[open] .pp-stair-measures-action i { transform: rotate(225deg) translate(-1px, -1px); }
+.pp-stair-measures-action .is-expanded { display: none; }
+.pp-stair-measurements[open] .pp-stair-measures-action .is-collapsed { display: none; }
+.pp-stair-measurements[open] .pp-stair-measures-action .is-expanded { display: inline; }
+.pp-stair-measurements[open] > .pp-stair-measures-head { border-bottom: 1px solid var(--pp-border); }
+.pp-stair-measures-content { padding: 0 12px 12px; }
+.pp-stair-list-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 12px 4px 8px; color: var(--pp-muted); font-size: 12px; }
+.pp-stair-list-toolbar strong { color: var(--pp-ink); font-size: 13px; }
+.pp-stair-steps-scroll { max-height: 360px; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--pp-border); border-radius: 12px; scrollbar-gutter: stable; }
+.pp-stair-workspace .pp-step { border-top: 0; border-bottom: 1px solid #F1F3F5; }
+.pp-stair-workspace .pp-step:last-child { border-bottom: 0; }
+.pp-stair-workspace .pp-step.is-sel { box-shadow: inset 3px 0 0 var(--pp-orange); }
+.pp-stair-current {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid #F2C9AA;
+  border-radius: 14px;
+  background: #FFF8F3;
+}
+.pp-stair-current-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 11px; background: #FBEADF; color: #A84D16; font-size: 20px; }
+.pp-stair-current-main { display: grid; gap: 2px; min-width: 0; }
+.pp-stair-current-main small { color: #A84D16; font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.pp-stair-current-main strong { overflow: hidden; color: var(--pp-ink); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.pp-stair-current-main > span { color: var(--pp-muted); font-size: 12px; }
+
+@media (max-width: 1080px) {
+  .pp-meas-layout--stairs .pp-stair-workspace { grid-template-columns: minmax(0, 1fr); }
+  .pp-meas-layout--stairs .pp-meas-side { grid-template-columns: minmax(0, 1fr) minmax(220px, 1fr); }
+  .pp-meas-layout--stairs .pp-meas-side > #ppMeasDel { grid-column: 1 / -1; }
+}
+@media (max-width: 760px) {
+  .pp-meas-layout--stairs .pp-meas-side { grid-template-columns: minmax(0, 1fr); }
+  .pp-meas-layout--stairs .pp-meas-side > #ppMeasDel { grid-column: auto; }
+  .pp-stair-measures-head { grid-template-columns: minmax(0, 1fr) auto; gap: 10px; padding: 14px; }
+  .pp-stair-measures-title strong { font-size: 16px; }
+  .pp-stair-measures-stats { grid-column: 1 / -1; grid-row: 2; }
+  .pp-stair-measures-stats > span { min-height: 44px; min-width: 70px; }
+  .pp-stair-measures-action { grid-column: 1 / -1; grid-row: 3; }
+  .pp-stair-measures-content { padding: 0 8px 8px; }
+  .pp-stair-steps-scroll { max-height: 46vh; }
+  .pp-stair-current { padding: 10px 12px; }
+}
+
 /* ── Mate in empty states ───────────────────────────── */
 .pp-mate { display: block; width: auto; margin: 0 auto 10px; }
 .pp-mate-card { position: relative; }

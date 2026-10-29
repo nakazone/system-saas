@@ -3497,6 +3497,21 @@
     </div>`;
   }
 
+  function stairSelectionSummaryHtml(m, s, si) {
+    const steps = s.steps || [];
+    const index = Math.min(Math.max(0, (m.vizSel && m.vizSel[si]) || 0), Math.max(0, steps.length - 1));
+    const step = steps[index];
+    if (!step) return `<span class="pp-stair-current-icon" aria-hidden="true">⌖</span><span class="pp-stair-current-main"><small>Selected in drawing</small><strong>No component selected</strong><span>Choose a tread or riser in the drawing.</span></span>`;
+    const riserOnly = step.kind === 'riser';
+    const treadIndex = treadSteps(s).findIndex((item) => item.id === step.id);
+    const component = riserOnly ? `Riser only ${index + 1}` : `Tread ${treadIndex >= 0 ? treadIndex + 1 : index + 1}`;
+    const width = fmtIn(riserOnly ? step.riser_w : step.tread_w);
+    const depth = fmtIn(riserOnly ? step.riser_h : step.tread_d);
+    const size = width && depth ? `${width} × ${depth} in` : width || depth ? `${width || depth} in` : 'Sizes not entered';
+    const returnText = !riserOnly && step.open !== 'none' ? ` · ${openText(step.open, step.ret)}` : '';
+    return `<span class="pp-stair-current-icon" aria-hidden="true">⌖</span><span class="pp-stair-current-main"><small>Selected in drawing</small><strong>${esc(s.name || 'Stair')} · ${esc(component)}</strong><span>${esc(size + returnText)}</span></span>`;
+  }
+
   function stairHtml(m, s, si) {
     const locked = m.status === 'used';
     const p = 'stairs.' + si;
@@ -3601,14 +3616,22 @@
       <div class="pp-stair-workspace" role="group" aria-label="Stair drawing and measurements">
         <div class="pp-stair-workspace-visual">${stairVizHtml(m, s, si)}</div>
         <div class="pp-stair-workspace-measures">
-          <details class="pp-stair-measurements" data-stair-measures="${esc(s.id)}" ${expandedMeasurements ? 'open' : ''}>
-            <summary class="pp-stair-measures-head"><span><strong>Step measurements</strong><small>${counts.treads} treads · ${counts.risers} risers · ${(s.steps || []).length} components</small></span><span class="pp-stair-measures-toggle" aria-hidden="true"></span></summary>
+          <div class="pp-stair-measure-card">
+          <details class="pp-stair-measurements" data-stair-measures="${esc(s.id)}" aria-label="${esc(s.name || 'Stair')} measurements" ${expandedMeasurements ? 'open' : ''}>
+            <summary class="pp-stair-measures-head">
+              <span class="pp-stair-measures-title"><small>MEASUREMENT LIST</small><strong>Step measurements</strong><span>${(s.steps || []).length} components</span></span>
+              <span class="pp-stair-measures-stats"><span><b>${counts.treads}</b><small>Treads</small></span><span><b>${counts.risers}</b><small>Risers</small></span></span>
+              <span class="pp-stair-measures-action"><span class="is-collapsed">Show all ${(s.steps || []).length} measurements</span><span class="is-expanded">Hide list</span><i aria-hidden="true"></i></span>
+            </summary>
             <div class="pp-stair-measures-content">
-              <div class="pp-stair-steps" role="list">${steps || '<p class="pp-q-empty">Add the first tread and riser. Enter sizes in inches, such as 48 or 11 1/4.</p>'}</div>
+              <div class="pp-stair-list-toolbar"><strong>All components</strong><span>Sizes in inches</span></div>
+              <div class="pp-stair-steps-scroll"><div class="pp-stair-steps" role="list">${steps || '<p class="pp-q-empty">Add the first tread and riser. Enter sizes in inches, such as 48 or 11 1/4.</p>'}</div></div>
               ${locked ? '' : '<div class="pp-stair-add"><button type="button" class="pp-q-add" data-step-add="' + si + '">+ Step (tread + riser)</button><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-riser-add="' + si + '"' + (s.riser_material === 'none' ? ' disabled' : '') + '>+ Riser only</button>'
             + ((s.steps || []).length ? '<span class="pp-stair-many"><label for="ppMany-' + si + '">Add</label><input id="ppMany-' + si + '" type="number" min="1" max="40" value="5" /><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-step-many="' + si + '">equal steps</button></span>' : '') + '</div>'}
             </div>
           </details>
+          <div class="pp-stair-current" data-stair-current="${esc(s.id)}">${stairSelectionSummaryHtml(m, s, si)}</div>
+          </div>
         </div>
       </div>
       <div class="pp-stair-sub"><h4>Nosings</h4>${nos || '<p class="pp-muted" style="margin:0;font-size:13px">Add a nosing and choose the tread or landing edge it belongs to.</p>'}${locked ? '' : '<button type="button" class="pp-link" data-nos-add="' + si + '">+ Nosing</button>'}</div>
@@ -3660,7 +3683,7 @@
         </div>
       </div>
       ${locked ? `<div class="pp-match"><strong>This measurement was already sent with the Work Order</strong><span class="pp-muted" style="font-size:14px">${m.work_order_id ? `<a class="pp-link" href="#jobs/${encodeURIComponent(m.work_order_id)}">Open the job</a> · ` : ''}To measure again, start a new measurement for this address.</span></div>` : ''}
-      <div class="pp-meas-layout">
+      <div class="pp-meas-layout ${m.tab === 'stairs' ? 'pp-meas-layout--stairs' : ''}">
         <div class="pp-meas-main">
           <div class="pp-card pp-meas-info">
             <label class="pp-meas-info-wide"><span>General notes</span><input data-head="notes" value="${esc(m.notes || '')}" maxlength="2000" placeholder="e.g. access through the garage, concrete slab" ${locked ? 'disabled' : ''} /></label>
@@ -3715,6 +3738,10 @@
       box.innerHTML = tmp.firstElementChild.innerHTML;
       const selected = (m.vizSel && m.vizSel[targetSi]) || 0;
       view.querySelectorAll(`[data-step-row^="${targetSi}:"]`).forEach((row) => row.classList.toggle('is-sel', row.getAttribute('data-step-row') === `${targetSi}:${selected}`));
+      const current = view.querySelectorAll('[data-stair-current]');
+      current.forEach((summary) => {
+        if (summary.getAttribute('data-stair-current') === targetStair.id) summary.innerHTML = stairSelectionSummaryHtml(m, targetStair, targetSi);
+      });
     });
   }
   function repaintVent(i) {
@@ -3731,7 +3758,16 @@
     m.vizMirror = m.vizMirror || {};
     m.stairMeasurementsExpanded = m.stairMeasurementsExpanded || {};
     view.querySelectorAll('[data-stair-measures]').forEach((details) => details.addEventListener('toggle', () => {
-      m.stairMeasurementsExpanded[details.getAttribute('data-stair-measures')] = details.open;
+      const stairId = details.getAttribute('data-stair-measures');
+      m.stairMeasurementsExpanded[stairId] = details.open;
+      if (details.open) {
+        const card = details.closest('.pp-stair');
+        const rows = card && card.querySelectorAll('[data-step-row]');
+        const stairIndex = m.data.stairs.findIndex((stair) => stair.id === stairId);
+        const selectedIndex = Math.max(0, (m.vizSel && m.vizSel[stairIndex]) || 0);
+        const selectedRow = rows && [...rows].find((row) => row.getAttribute('data-step-row') === `${stairIndex}:${selectedIndex}`);
+        if (selectedRow) selectedRow.scrollIntoView({ block: 'nearest' });
+      }
     }));
     view.querySelectorAll('[data-step-row]').forEach((row) => row.addEventListener('focusin', () => {
       const [si, i] = row.getAttribute('data-step-row').split(':').map(Number);
@@ -3752,13 +3788,16 @@
         const targetFlight = Number.isInteger(targetSi) ? targetSi : si;
         m.vizSel[targetFlight] = targetIndex;
         repaintViz(si);
-        if (targetFlight !== si) {
-          const targetCard = view.querySelectorAll('.pp-stair')[targetFlight];
-          const targetRow = targetCard && targetCard.querySelector(`[data-step-row="${targetFlight}:${targetIndex}"]`);
-          if (targetRow) {
-            targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            targetRow.querySelector('input,select,button')?.focus({ preventScroll: true });
-          }
+        const targetCard = view.querySelectorAll('.pp-stair')[targetFlight];
+        const targetDetails = targetCard && targetCard.querySelector('[data-stair-measures]');
+        if (targetDetails && !targetDetails.open) {
+          targetDetails.open = true;
+          m.stairMeasurementsExpanded[m.data.stairs[targetFlight].id] = true;
+        }
+        const targetRow = targetCard && targetCard.querySelector(`[data-step-row="${targetFlight}:${targetIndex}"]`);
+        if (targetRow) {
+          targetRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          targetRow.querySelector('input,select,button')?.focus({ preventScroll: true });
         }
         return;
       }
