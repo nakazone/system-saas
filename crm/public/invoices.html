@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="obramate-app.css?v=20261019-logout2" />
   <link rel="stylesheet" href="crm-pdf-viewer.css?v=20261027-pdf1" />
   <link rel="stylesheet" href="invoices-module.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="invoices-v2.css?v=20261028-listrow" />
+  <link rel="stylesheet" href="invoices-v2.css?v=20261029-inv1" />
   <link rel="stylesheet" href="om-gestures.css?v=20261013-rl4" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
@@ -281,6 +281,7 @@
           <input type="checkbox" id="paySendReceipt" checked />
           <span>Enviar recibo por e-mail <b id="payReceiptTo"></b></span>
         </label>
+        <p class="inv-send-kind">O recibo usa o texto de pagamento parcial ou total salvo em <a href="configuracoes.html#mensagens-faturas">Configurações</a>.</p>
         <button type="button" class="inv-btn inv-btn--secondary" id="btnPayPreviewEmail" hidden>Pré-visualizar e-mail</button>
         <p class="inv-form-error" id="payError" role="alert" hidden></p>
       </div>
@@ -327,7 +328,8 @@
       </header>
       <div class="inv-modal__body">
         <label class="inv-field"><span>Para</span><input type="email" id="sendTo" required placeholder="cliente@email.com" /></label>
-        <label class="inv-field"><span>Mensagem <em>opcional</em></span><textarea id="sendMsg" rows="4" maxlength="4000" placeholder="Here is your invoice…"></textarea></label>
+        <p class="inv-send-kind" id="sendKind"></p>
+        <label class="inv-field"><span>Mensagem</span><textarea id="sendMsg" rows="6" maxlength="4000" placeholder="Here is your invoice…"></textarea></label>
         <div class="inv-share">
           <span>Link da fatura</span>
           <p class="inv-share__status" id="sendLinkStatus">Gerando link…</p>
@@ -391,7 +393,7 @@
   <script src="crm-shell.js?v=20261028-ptrhome"></script>
   <script src="om-gestures.js?v=20261028-ptrhome"></script>
   <script src="crm-pdf-viewer.js?v=20261027-pdf1"></script>
-  <script src="invoice-page.js?v=20261028-invpay"></script>
-  <script src="invoices-page.js?v=20261028-listrow"></script>
+  <script src="invoice-page.js?v=20261029-inv1"></script>
+  <script src="invoices-page.js?v=20261029-inv1"></script>
 </body>
 </html>

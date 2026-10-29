@@ -256,7 +256,7 @@
     if (!i.due_date) return { text: 'Sem vencimento', hot: false };
     return { text: dshort(i.due_date), hot: i.display_status === 'overdue' };
   }
-  /** Four stages, same bar as Jobs: done orange, current black. */
+  /** Four stages. Done is black, current is orange — inverted from Jobs. */
   function progHtml(i) {
     const [label] = STATUS[i.display_status] || STATUS.sent;
     if (i.display_status === 'void') return `<span class="ix-prog ix-prog--x" aria-label="${esc(label)}"></span>`;
@@ -320,16 +320,19 @@
     }
     const byDate = (a, b) => new Date(b.created_at) - new Date(a.created_at);
     // Abas específicas: lista plana; Todos: agrupa por status.
+    const band = (label, em, items, i) =>
+      `<section class="ix-band ix-band--${i % 2 ? 'b' : 'a'}"><p class="ix-grp"><span>${label}</span><em>${em}</em></p>${items.map(rowHtml).join('')}</section>`;
     if (tab !== 'all') {
       const sorted = rows.slice().sort(tab === 'overdue' ? (a, b) => (b.days_overdue || 0) - (a.days_overdue || 0) : byDate);
       const tot = sorted.reduce((a, i) => a + Number(tab === 'paid' ? i.amount : i.remaining_amount) || 0, 0);
-      $('invRows').innerHTML = `<p class="ix-grp"><span>${TILES.find((x) => x[0] === tab)?.[1] || ''}</span><em>${sorted.length} · ${money(tot)}</em></p>${sorted.map(rowHtml).join('')}`;
+      $('invRows').innerHTML = band(TILES.find((x) => x[0] === tab)?.[1] || '', `${sorted.length} · ${money(tot)}`, sorted, 0);
     } else {
+      let n = 0;
       $('invRows').innerHTML = GROUPS.map(([label, fn]) => {
         const g = rows.filter(fn).sort(label === 'Vencidos' ? (a, b) => (b.days_overdue || 0) - (a.days_overdue || 0) : byDate);
         if (!g.length) return '';
         const tot = g.reduce((a, i) => a + Number(label === 'Pagos' || label === 'Canceladas' ? i.amount : i.remaining_amount) || 0, 0);
-        return `<p class="ix-grp"><span>${label}</span><em>${g.length} · ${money(tot)}</em></p>${g.map(rowHtml).join('')}`;
+        return band(label, `${g.length} · ${money(tot)}`, g, n++);
       }).join('');
     }
     if (window.OmGestures && !isWide()) window.OmGestures.bindSwipeRow?.($('invRows'));

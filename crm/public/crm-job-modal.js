@@ -11,8 +11,8 @@
   if (window.__crmJobModal) return;
 
   const CSS_HREF = "crm-job-modal.css?v=20261028-jobs4";
-  const QPE_CSS = "quote-services-popup.css?v=20261012-qp3";
-  const QPE_JS = "quote-services-popup.js?v=20261028-jobs4";
+  const QPE_CSS = "quote-services-popup.css?v=20261029-tbl1";
+  const QPE_JS = "quote-services-popup.js?v=20261029-tbl1";
   const PAPER_CSS = "quote-paper.css?v=20261027-om1";
   const PAPER_JS = "quote-paper.js?v=20261028-addon";
   let prevQBBridge = null;

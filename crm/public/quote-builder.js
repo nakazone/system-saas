@@ -563,22 +563,41 @@
     const root = $('qbSaveRateModal');
     if (!root) return;
     rateSavePending = payload;
-    const nameEl = $('qbSaveRateServiceName');
-    const oldEl = $('qbSaveRateOld');
-    const newEl = $('qbSaveRateNew');
-    const typeEl = $('qbSaveRateTypeLabel');
+    const creating = Boolean(payload.create);
+    const title = $('qbSaveRateTitle');
+    const updateCopy = $('qbSaveRateUpdateCopy');
+    const createCopy = $('qbSaveRateCreateCopy');
+    const tableBtn = $('qbSaveRateTable');
     const clientBtn = $('qbSaveRateClient');
     const clientHint = $('qbSaveRateClientHint');
-    if (nameEl) nameEl.textContent = payload.serviceName || 'Serviço';
-    if (oldEl) oldEl.textContent = money(payload.tableRate);
-    if (newEl) newEl.textContent = money(payload.newRate);
-    if (typeEl) typeEl.textContent = pricingTypeLabel(payload.src);
-    const noCustomer = !payload.customer || payload.customer.id == null;
-    if (clientBtn) {
-      clientBtn.disabled = noCustomer;
-      clientBtn.classList.toggle('opacity-50', noCustomer);
+    if (title) title.textContent = creating ? 'Adicionar à Tabela de Valor?' : 'Gravar novo preço?';
+    if (updateCopy) updateCopy.classList.toggle('hidden', creating);
+    if (createCopy) createCopy.classList.toggle('hidden', !creating);
+    if (tableBtn) tableBtn.textContent = creating ? 'Adicionar à Tabela de Valor' : 'Atualizar Tabela de Valores';
+    if (creating) {
+      const nameEl = $('qbSaveRateCreateName');
+      const newEl = $('qbSaveRateCreateNew');
+      if (nameEl) nameEl.textContent = payload.serviceName || 'Serviço';
+      if (newEl) newEl.textContent = money(payload.newRate);
+      if (clientBtn) clientBtn.classList.add('hidden');
+      if (clientHint) clientHint.classList.add('hidden');
+    } else {
+      const nameEl = $('qbSaveRateServiceName');
+      const oldEl = $('qbSaveRateOld');
+      const newEl = $('qbSaveRateNew');
+      const typeEl = $('qbSaveRateTypeLabel');
+      if (nameEl) nameEl.textContent = payload.serviceName || 'Serviço';
+      if (oldEl) oldEl.textContent = money(payload.tableRate);
+      if (newEl) newEl.textContent = money(payload.newRate);
+      if (typeEl) typeEl.textContent = pricingTypeLabel(payload.src);
+      if (clientBtn) clientBtn.classList.remove('hidden');
+      const noCustomer = !payload.customer || payload.customer.id == null;
+      if (clientBtn) {
+        clientBtn.disabled = noCustomer;
+        clientBtn.classList.toggle('opacity-50', noCustomer);
+      }
+      if (clientHint) clientHint.classList.toggle('hidden', !noCustomer);
     }
-    if (clientHint) clientHint.classList.toggle('hidden', !noCustomer);
     root.classList.remove('hidden');
   }
 
@@ -589,7 +608,24 @@
     if (!it) return;
     const row = opts.row || catalogRowForItem(it);
     const pricingItemId = opts.pricingItemId || catalogPricingItemId(row);
-    if (!pricingItemId) return;
+    if (!pricingItemId) {
+      if (!opts.create) return;
+      const serviceName = String(it.name || '').trim();
+      const newRate = Number(opts.baseRate != null ? opts.baseRate : opts.newRate);
+      if (!serviceName || !(newRate > 0)) return;
+      if (catalogRowByName(serviceName)) return;
+      openSaveRateModal({
+        create: true,
+        itemIdx: opts.itemIdx,
+        serviceName,
+        newRate,
+        serviceType: it.service_type || opts.serviceType || 'Installation',
+        unitType: it.unit_type || opts.unitType || 'sq_ft',
+        description: it.description || opts.description || '',
+        src: opts.src || catalogPricingSource(),
+      });
+      return;
+    }
     const src = opts.src || catalogPricingSource();
     const tableRate = opts.tableRate != null ? Number(opts.tableRate) : systemRateForCatalogRow(row, src);
     const newRate = Number(opts.newRate);
@@ -794,7 +830,29 @@
 
   async function persistRateToPricingTable() {
     const p = rateSavePending;
-    if (!p || !p.pricingItemId) return;
+    if (!p) return;
+    if (p.create) {
+      const btn = $('qbSaveRateTable');
+      if (btn) btn.disabled = true;
+      try {
+        const row = await createPricingItemFromQuote({
+          name: p.serviceName,
+          rate: p.newRate,
+          service_type: p.serviceType,
+          unit_type: p.unitType,
+          description: p.description,
+        });
+        if (row) linkQuoteItemToPricing(p.itemIdx, row);
+        qbToast('Serviço adicionado à Tabela de Valor.', 'success');
+        closeSaveRateModal();
+      } catch (e) {
+        qbToast(e.message || 'Erro ao adicionar à Tabela de Valor.', 'error');
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+      return;
+    }
+    if (!p.pricingItemId) return;
     const field = pricingFieldKeyForSource(p.src);
     const label = pricingTypeLabel(p.src);
     const ok = confirm(
@@ -935,6 +993,62 @@
     if (src === 'contractor') return 'price_contractor';
     if (src === 'loja') return 'price_loja';
     return 'price_particular';
+  }
+
+  function pricingCategoryKey(serviceType) {
+    const st = normalizeServiceType(serviceType);
+    if (st === 'Supply') return 'supply';
+    if (st === 'Sand & Finishing') return 'sand_finish';
+    if (st === 'Add On') return 'custom';
+    return 'installation';
+  }
+
+  function catalogRowByName(name) {
+    const key = String(name || '').trim().toLowerCase();
+    if (!key) return null;
+    return catalog.find((r) => catalogPricingItemId(r) && String(r.name || '').trim().toLowerCase() === key) || null;
+  }
+
+  async function createPricingItemFromQuote(opts) {
+    const name = String((opts && opts.name) || '').trim();
+    const rate = Number(opts && opts.rate);
+    if (!name) throw new Error('Informe o nome do serviço.');
+    if (!Number.isFinite(rate) || rate < 0) throw new Error('Informe o preço do serviço.');
+    const existing = catalogRowByName(name);
+    if (existing) return existing;
+    const body = {
+      name,
+      category: pricingCategoryKey(opts.service_type),
+      unit: String(opts.unit_type || 'sq_ft'),
+      notes: String(opts.description || '').trim() || null,
+      price_particular: rate,
+      price_builder: rate,
+      price_contractor: rate,
+      price_loja: rate,
+    };
+    const r = await fetch('/api/pricing', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(body),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.success || !j.data) throw new Error(j.error || 'Não foi possível adicionar o serviço à Tabela de Valor.');
+    const mapped = mapPricingRowsToCatalog([j.data])[0];
+    if (mapped) catalog.push(mapped);
+    return mapped || null;
+  }
+
+  function linkQuoteItemToPricing(itemIdx, row) {
+    const it = items[itemIdx];
+    const pid = row ? catalogPricingItemId(row) : null;
+    if (it && pid) {
+      it.pricing_item_id = pid;
+      it.service_catalog_id = row.id;
+    }
+    if (window.OmQuoteServices && typeof window.OmQuoteServices.linkPricing === 'function') {
+      window.OmQuoteServices.linkPricing(itemIdx, row);
+    }
   }
 
   function ratesNearlyEqual(a, b) {
@@ -7306,11 +7420,17 @@
       maybeOfferRatePersist({
         itemIdx: opts && opts.itemIdx,
         newRate: opts && opts.newRate,
+        baseRate: opts && opts.baseRate,
         pricingItemId: opts && opts.pricingItemId,
         tableRate: opts && opts.tableRate,
         row: opts && opts.row,
+        create: Boolean(opts && opts.create),
+        serviceType: opts && opts.serviceType,
+        unitType: opts && opts.unitType,
+        description: opts && opts.description,
         src: catalogPricingSource(),
       }),
+    createPricingItem: (opts) => createPricingItemFromQuote(opts || {}),
   };
 
   /** Links vindos da lista: ?services=1 abre o documento editável, ?send=1 abre o envio. */

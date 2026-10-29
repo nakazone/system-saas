@@ -408,19 +408,12 @@
       dueTxt = days < 0 ? `Venceu há ${-days} ${days === -1 ? 'dia' : 'dias'}` : days === 0 ? 'Vence hoje' : `Vence em ${days} ${days === 1 ? 'dia' : 'dias'} · ${fdate(inv.due_date)}`;
     }
     $('invSummary').innerHTML = `
-      <div class="inv-summary__balance">
-        <span>${inv.display_status === 'paid' ? 'Recebido' : 'Saldo em aberto'}</span>
-        <strong>${money(inv.display_status === 'paid' ? inv.paid_amount : inv.remaining_amount)}</strong>
-        <small class="${inv.display_status === 'overdue' ? 'is-overdue' : ''}">${esc(dueTxt)}</small>
+      <div class="inv-pay-math" aria-live="polite">
+        <div><span>Total</span><b>${money(inv.amount)}</b></div>
+        <div><span>Pago</span><b>${money(inv.paid_amount)}</b></div>
+        <div class="is-bal"><span>Saldo</span><b>${money(inv.remaining_amount)}</b></div>
+        <p class="inv-pay-math__note${inv.display_status === 'overdue' ? ' is-error' : ''}">${esc([dueTxt, inv.display_status === 'paid' ? '' : `${inv.percent_paid}% pago`].filter(Boolean).join(' · '))}</p>
       </div>
-      <div class="inv-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${inv.percent_paid}" aria-label="Percentual pago">
-        <span style="width:${inv.percent_paid}%"></span>
-      </div>
-      <dl class="inv-summary__rows">
-        <div><dt>Total da fatura</dt><dd>${money(inv.amount)}</dd></div>
-        <div><dt>Pago</dt><dd>${money(inv.paid_amount)} <small>(${inv.percent_paid}%)</small></dd></div>
-        <div><dt>Saldo</dt><dd><b>${money(inv.remaining_amount)}</b></dd></div>
-      </dl>
       ${false ? `
         <div class="inv-summary__quick">
           <button type="button" class="inv-btn inv-btn--primary inv-btn--block" data-pay="full">Pagamento integral · ${money(inv.remaining_amount)}</button>
@@ -1008,12 +1001,17 @@
     full: 'Here is invoice [invoice_number] for [amount].\n\nBalance due: [balance]\nDue: [due_date]\n\nView and pay:\n[link]',
   };
 
+  function sendKind() {
+    const t = String((inv && inv.invoice_type) || '').toLowerCase();
+    if (t === 'final') return { key: 'balance', label: 'saldo restante' };
+    if (t === 'deposit' || t === 'progress' || t === 'custom' || t === 'other') return { key: 'partial', label: 'pagamento parcial' };
+    return { key: 'full', label: 'pagamento total' };
+  }
+
   function sendTemplateRaw() {
     const saved = (inv && inv.share_email) || {};
-    const t = String((inv && inv.invoice_type) || '').toLowerCase();
-    if (t === 'final') return saved.balance || INV_EMAIL_DEFAULTS.balance;
-    if (t === 'deposit' || t === 'progress' || t === 'custom' || t === 'other') return saved.partial || INV_EMAIL_DEFAULTS.partial;
-    return saved.full || INV_EMAIL_DEFAULTS.full;
+    const kind = sendKind();
+    return saved[kind.key] || INV_EMAIL_DEFAULTS[kind.key];
   }
 
   function fillSendMessage(link) {
@@ -1037,6 +1035,8 @@
 
   function openSend() {
     showErr('sendError', '');
+    const kindEl = $('sendKind');
+    if (kindEl) kindEl.innerHTML = `Texto padrão de <b>${esc(sendKind().label)}</b>. <a href="configuracoes.html#mensagens-faturas">Editar em Configurações</a>`;
     $('sendTo').value = (inv.client && inv.client.email) || inv.sent_to || '';
     $('sendLink').value = inv.public_url || '';
     $('sendLink').placeholder = inv.public_url ? '' : 'Gerando link…';

@@ -452,7 +452,34 @@
     const ids = row && B().catalogIds ? B().catalogIds(row) : {};
     const pricingItemId = ids.pricing_item_id || it.pricing_item_id || null;
     const tableRate = row && B().rateFor ? Number(B().rateFor(row)) : null;
-    if (!pricingItemId) return;
+    if (!pricingItemId) {
+      const name = String(it.name || '').trim();
+      const base = it.cost_price != null && Number(it.cost_price) > 0 ? Number(it.cost_price) : newRate;
+      if (!name || !(base > 0) || !B().createPricingItem) return;
+      const key = `new|${name.toLowerCase()}|${base.toFixed(2)}`;
+      if (rateAck.has(key)) return;
+      const payload = {
+        create: true,
+        itemIdx: idx != null ? idx : -1,
+        newRate: base,
+        baseRate: base,
+        pricingItemId: null,
+        tableRate: null,
+        row: null,
+        serviceName: name,
+        serviceType: it.service_type,
+        unitType: it.unit_type,
+        description: it.description || '',
+      };
+      rateOfferTimer = setTimeout(() => {
+        if (rateAck.has(key)) return;
+        const bridge = B();
+        if (!bridge.offerRateChange) return;
+        rateAck.add(key);
+        bridge.offerRateChange(payload);
+      }, 520);
+      return;
+    }
     if (tableRate != null && Math.abs(newRate - tableRate) < 0.009) return;
     const key = `${pricingItemId || it.name}|${newRate.toFixed(2)}`;
     if (rateAck.has(key)) return;
@@ -582,7 +609,7 @@
         )
         .join('') || '<p class="qpe-empty">Nada na Tabela de Valor com esse nome.</p>') +
       (String(q || '').trim() && !exact
-        ? `<button type="button" class="qpe-opt qpe-opt--new" data-pick-new><b>+ “${esc(String(q).trim())}”</b><span>usar como serviço novo</span></button>`
+        ? `<button type="button" class="qpe-opt qpe-opt--new" data-pick-new><b>+ “${esc(String(q).trim())}”</b><span>serviço novo · pode entrar na tabela</span></button>`
         : '')
     );
   }
@@ -613,11 +640,13 @@
           <label class="qpe-f"><span>Margem %</span><input class="qpe-in" id="qpeMk" inputmode="decimal" value="${esc(draft.markup)}" placeholder="opcional" /></label>
         </div>
         <p class="qpe-note">${table > 0 ? `Tabela de Valor (${esc(B().pricingLabel())}): ${money(table)} / ${esc(P.unitText(draft.row.unit_type || draft.unit_type))}` : 'Serviço fora da Tabela de Valor — digite o preço.'}</p>
+        ${!draft.row && B().createPricingItem ? `<button type="button" class="qpe-btn qpe-btn--ghost qpe-btn--full" data-add-table${hasName() && num(draft.base) > 0 ? '' : ' disabled'}>Adicionar à Tabela de Valor</button>` : ''}
         <p class="qpe-calc" id="qpeCalc">${calcHtml()}</p>`;
     }
     if (id === 4) {
       return `<label class="qpe-f"><span>Descrição</span><textarea class="qpe-in" id="qpeDesc" rows="3" data-crm-rich="off" placeholder="Enter segue · Shift+Enter quebra a linha">${esc(draft.description)}</textarea></label>
-        <label class="qpe-f"><span>Observação <em>opcional · aparece como “Note:”</em></span><input class="qpe-in" id="qpeNotes" value="${esc(draft.notes)}" /></label>`;
+        <label class="qpe-f"><span>Observação <em>opcional · aparece como “Note:”</em></span><input class="qpe-in" id="qpeNotes" value="${esc(draft.notes)}" /></label>
+        ${!draft.row && B().createPricingItem ? `<button type="button" class="qpe-btn qpe-btn--ghost qpe-btn--full" data-add-table${hasName() && num(draft.base) > 0 ? '' : ' disabled'}>Adicionar à Tabela de Valor</button>` : ''}`;
     }
     const cur = B().normalizeServiceType(draft.service_type);
     const sug = draft.row ? B().normalizeServiceType(draft.row.category) : null;
@@ -704,6 +733,31 @@
     renderSteps();
     renderPaper(true);
     focusStep();
+  }
+
+  async function addDraftToTable() {
+    if (draft.row || !hasName() || !(num(draft.base) > 0) || !B().createPricingItem) return;
+    const btn = E.qpeSteps.querySelector('[data-add-table]');
+    if (btn) btn.disabled = true;
+    try {
+      const row = await B().createPricingItem({
+        name: String(draft.name || '').trim(),
+        rate: num(draft.base),
+        service_type: draft.service_type,
+        unit_type: draft.unit_type,
+        description: String(draft.description || '').trim(),
+      });
+      if (!row) throw new Error('Não foi possível adicionar o serviço.');
+      draft.row = row;
+      draft.query = null;
+      draft.name = row.name || draft.name;
+      B().toast('Serviço adicionado à Tabela de Valor.', 'success');
+      renderSteps();
+      refreshDraftRow();
+    } catch (err) {
+      B().toast((err && err.message) || 'Não foi possível adicionar à tabela.', 'error');
+      if (btn) btn.disabled = false;
+    }
   }
 
   /** Adiciona a linha à folha e já prepara o próximo serviço (a tela não fecha). */
@@ -796,6 +850,8 @@
     if (t.id === 'qpeRate' || t.id === 'qpeMk') {
       const c = document.getElementById('qpeCalc');
       if (c) c.innerHTML = calcHtml();
+      const addTable = document.querySelector('[data-add-table]');
+      if (addTable) addTable.disabled = !(hasName() && num(draft.base) > 0);
     }
     const sm = E.qpeSteps.querySelector(`.qpe-st[data-st="${step}"] .qpe-st__t small`);
     if (sm && step !== 1) sm.textContent = stepSummary(step) || STEPS[step - 1].hint;
@@ -893,6 +949,10 @@
       }
       if (t.closest('[data-step-back]')) {
         goStep(step - 1);
+        return;
+      }
+      if (t.closest('[data-add-table]')) {
+        void addDraftToTable();
         return;
       }
       if (t.closest('[data-add]')) addDraft();
@@ -1007,5 +1067,12 @@
   window.OmQuoteServices = {
     openDoc: () => openWork({ focusPaper: true }),
     openStep: (opts) => openWork(opts),
+    linkPricing(idx, row) {
+      if (!W[idx] || !row || !B().catalogIds) return;
+      const ids = B().catalogIds(row);
+      W[idx].pricing_item_id = ids.pricing_item_id;
+      W[idx].service_catalog_id = ids.service_catalog_id;
+      sync(true);
+    },
   };
 })();

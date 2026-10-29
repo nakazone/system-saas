@@ -41,6 +41,7 @@ html.qpe-open .om-tabbar, html.qpe-open #qbActionBar { visibility: hidden !impor
 .qpe-card { background: #fff; border: 1px solid #E5E7EB; border-radius: 16px; padding: 16px 18px; }
 .qpe-card h3 { margin: 0 0 10px; font-size: 15px; font-weight: 700; }
 .qpe-note { margin: 8px 0 0; font-size: 12.5px; color: #667085; line-height: 1.45; }
+.qpe-st__b [data-add-table] { margin-top: 10px; }
 .qpe-sum { margin: 0; }
 .qpe-sum > div { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #F1F3F5; font-size: 14px; }
 .qpe-sum dt { color: #667085; }

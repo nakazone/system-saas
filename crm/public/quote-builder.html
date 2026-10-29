@@ -1952,7 +1952,7 @@
   <link rel="stylesheet" href="crm-job-modal.css?v=20261028-jobs4" />
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
   <link rel="stylesheet" href="quote-paper.css?v=20261027-om1" />
-  <link rel="stylesheet" href="quote-services-popup.css?v=20261012-qp3" />
+  <link rel="stylesheet" href="quote-services-popup.css?v=20261029-tbl1" />
 </head>
 <body class="qb-dashboard-inner dashboard-app-body om-app sidebar-collapsed qb-v3">
   <script src="/om-reload.js?v=20261013-rl8"></script>
@@ -2713,10 +2713,14 @@
   <div id="qbSaveRateModal" class="qb-modal hidden" role="dialog" aria-modal="true" aria-labelledby="qbSaveRateTitle">
     <div class="qb-modal__panel">
       <h2 id="qbSaveRateTitle" class="qb-modal__title">Gravar novo preço?</h2>
-      <p class="qb-modal__sub text-sm text-slate-600">
+      <p class="qb-modal__sub text-sm text-slate-600" id="qbSaveRateUpdateCopy">
         O serviço <strong id="qbSaveRateServiceName"></strong> está ligado à Tabela de Valores.
         Valor na tabela (<span id="qbSaveRateTypeLabel"></span>): <strong id="qbSaveRateOld"></strong>.
         Novo valor nesta linha: <strong id="qbSaveRateNew"></strong>.
+      </p>
+      <p class="qb-modal__sub text-sm text-slate-600 hidden" id="qbSaveRateCreateCopy">
+        <strong id="qbSaveRateCreateName"></strong> não está na Tabela de Valor.
+        O preço <strong id="qbSaveRateCreateNew"></strong> entra em Particular, Builder, Contractor e Loja.
       </p>
       <p id="qbSaveRateClientHint" class="text-sm text-amber-700 hidden mb-2">
         Para gravar só para o cliente, selecione ou crie um registo de cliente CRM neste orçamento.
@@ -2803,9 +2807,9 @@
   <script src="lead-contact-links.js?v=20261015-disc1"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
   <script src="quote-paper.js?v=20261028-addon"></script>
-  <script src="crm-job-modal.js?v=20261029-link"></script>
-  <script src="quote-builder.js?v=20261028-jobrate"></script>
-  <script src="quote-services-popup.js?v=20261028-jobs4"></script>
+  <script src="crm-job-modal.js?v=20261029-tbl1"></script>
+  <script src="quote-builder.js?v=20261029-tbl1"></script>
+  <script src="quote-services-popup.js?v=20261029-tbl1"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

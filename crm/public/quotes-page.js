@@ -256,7 +256,8 @@
     box.innerHTML =
       GROUPS.filter(([k]) => by[k])
         .map(
-          ([k, label]) => `<div class="qs-grp"><span>${label}</span><em>${by[k].length}</em></div>${by[k].map(rowHtml).join('')}`,
+          ([k, label], i) =>
+            `<section class="qs-band qs-band--${i % 2 ? 'b' : 'a'}"><div class="qs-grp"><span>${label}</span><em>${by[k].length}</em></div>${by[k].map(rowHtml).join('')}</section>`,
         )
         .join('') + archLink();
   }
