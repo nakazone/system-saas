@@ -125,6 +125,7 @@
       mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
       gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',
       download: '<path d="M12 4v12M7 11l5 5 5-5"/><path d="M4 20h16"/>',
+      home: '<path d="M4 11l8-7 8 7"/><path d="M6 10v10h12V10"/>',
       chat: '<path d="M4 5h16v11H9l-5 4z"/>',
       send: '<path d="M4 12l16-8-6 16-2-6z"/>',
       ruler: '<path d="M3 17 17 3l4 4L7 21H3z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/>',
@@ -1180,7 +1181,9 @@
     const canPick = state.builder && allCos.length > 1 && !state.send.presetJob && state.send.phase === 'pick';
     const coCards = state.builder && target ? `<div class="pp-send-to" role="${canPick ? 'radiogroup' : 'group'}" aria-label="Send to">
         <span class="pp-send-to-lbl">Send to</span>
-        ${(canPick ? allCos : [target]).map((c) => `<button type="button" class="pp-send-co" role="${canPick ? 'radio' : 'presentation'}" aria-checked="${target.id === c.id}" data-send-co="${esc(c.id)}" ${canPick ? '' : 'tabindex="-1"'}>${coLogo(c, 32)}<span><strong>${esc(c.company_name)}</strong><small>${c.status === 'invited' ? 'Invited — held until they join' : 'On ObraMate'}</small></span>${target.id === c.id ? `<i aria-hidden="true">${icon('check')}</i>` : ''}</button>`).join('')}
+        ${canPick && allCos.length > 2 ? `<label class="pp-send-search">${icon('search')}<input type="search" id="ppSendCoQ" placeholder="Search your companies" autocomplete="off" aria-label="Search companies" value="${esc(state.send.coQuery || '')}" /></label>` : ''}
+        ${(canPick ? allCos : [target]).map((c) => `<button type="button" class="pp-send-co" role="${canPick ? 'radio' : 'presentation'}" aria-checked="${target.id === c.id}" data-send-co="${esc(c.id)}" data-co-name="${esc(String(c.company_name || '').toLowerCase())}" ${canPick ? '' : 'tabindex="-1"'}>${coLogo(c, 32)}<span><strong>${esc(c.company_name)}</strong><small>${c.status === 'invited' ? 'Invited — held until they join' : 'On ObraMate'}</small></span>${target.id === c.id ? `<i aria-hidden="true">${icon('check')}</i>` : ''}</button>`).join('')}
+        ${canPick && allCos.length > 2 ? '<p class="pp-send-none" id="ppSendCoNone" hidden>No company matches. <button type="button" class="pp-link" id="ppSendCoClr">Clear search</button></p>' : ''}
       </div>` : `<p class="pp-eyebrow">${state.builder ? 'To ' : ''}${esc(providerName())}</p>`;
     view.innerHTML = `
       <div class="pp-head pp-send-head">
@@ -1199,6 +1202,31 @@
       postJson('/api/builder/select', { company_id: id }).catch(() => {});
       renderSend(renderToken);
     }));
+    const coQ = $('ppSendCoQ');
+    if (coQ) {
+      const filter = () => {
+        const q = coQ.value.trim().toLowerCase();
+        state.send.coQuery = coQ.value;
+        let shown = 0;
+        view.querySelectorAll('[data-send-co]').forEach((b) => {
+          const hit = !q || b.getAttribute('data-co-name').includes(q) || b.getAttribute('aria-checked') === 'true';
+          b.hidden = !hit;
+          if (hit && b.getAttribute('aria-checked') !== 'true') shown += 1;
+        });
+        const none = $('ppSendCoNone');
+        if (none) none.hidden = !q || shown > 0;
+      };
+      coQ.addEventListener('input', filter);
+      coQ.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const first = [...view.querySelectorAll('[data-send-co]')].find((b) => !b.hidden && b.getAttribute('aria-checked') !== 'true');
+        if (first) first.click();
+      });
+      const clr = $('ppSendCoClr');
+      if (clr) clr.addEventListener('click', () => { coQ.value = ''; filter(); coQ.focus(); });
+      filter();
+    }
     renderSendBody();
     renderRequestsList();
   }
@@ -3789,26 +3817,77 @@
   }
 
   const VENT_TYPE_LABEL = Object.fromEntries(VENT_TYPES);
+  const VENT_ROOM_IDEAS = ['Kitchen', 'Living room', 'Family room', 'Dining room', 'Primary bedroom', 'Bedroom 2', 'Bedroom 3', 'Office', 'Hallway', 'Foyer', 'Mudroom', 'Laundry', 'Bonus room', 'Basement'];
+  /** Room names for vents: the plan's rooms first, then common names, without the ones already used. */
+  function ventRoomIdeas(m) {
+    const used = new Set((m.data.vents || []).map((v) => (v.room || '').trim().toLowerCase()).filter(Boolean));
+    const plan = m.data.plan;
+    const fromPlan = [];
+    if (plan && plan.levels) plan.levels.forEach((lv) => (lv.rooms || []).forEach((r) => { if (r.name && !r.exclude) fromPlan.push(r.name.trim()); }));
+    const out = [];
+    const seen = new Set();
+    fromPlan.concat(VENT_ROOM_IDEAS).forEach((n) => { const k = n.toLowerCase(); if (!n || seen.has(k) || used.has(k)) return; seen.add(k); out.push(n); });
+    return { fromPlan: out.filter((n) => fromPlan.some((p) => p.toLowerCase() === n.toLowerCase())), common: out.filter((n) => !fromPlan.some((p) => p.toLowerCase() === n.toLowerCase())) };
+  }
+  /** Vents grouped by room, in the order the rooms were first measured; vents without a room last. */
+  function ventGroups(vents) {
+    const groups = [];
+    const byKey = new Map();
+    vents.forEach((v, i) => {
+      const name = (v.room || '').trim();
+      const k = name.toLowerCase();
+      if (!byKey.has(k)) { const g = { key: k, name, items: [] }; byKey.set(k, g); groups.push(g); }
+      byKey.get(k).items.push(i);
+    });
+    return groups.sort((a, b) => (a.key ? 0 : 1) - (b.key ? 0 : 1));
+  }
   function ventsHtml(m) {
     const locked = m.status === 'used';
     const vents = m.data.vents || [];
     const total = vents.reduce((n, v) => n + (Number(v.qty) || 1), 0);
-    const rooms = new Set(vents.map((v) => (v.room || '').trim().toLowerCase()).filter(Boolean)).size;
-    const rows = vents.map((v, i) => `<div class="pp-vrow" role="listitem">
-        <button type="button" class="pp-vrow-main" data-vent-open="${i}" aria-label="Edit vent ${i + 1}${v.room ? `, ${esc(v.room)}` : ''}">
+    const groups = ventGroups(vents);
+    const rooms = groups.filter((g) => g.key).length;
+    const row = (i) => { const v = vents[i]; return `<div class="pp-vrow" role="listitem">
+        <button type="button" class="pp-vrow-main" data-vent-open="${i}" aria-label="Edit ${esc(String(v.size || 'vent').replace('x', '×'))} vent${v.room ? ` in ${esc(v.room)}` : ''}">
           <span class="pp-vrow-thumb" aria-hidden="true">${ventSvg(v)}</span>
-          <span class="pp-vrow-text"><strong>${esc(v.room || `Vent ${i + 1}`)}</strong><small>${esc([String(v.size || '').replace('x', '×'), VENT_TYPE_LABEL[v.type] || '', [v.species, v.finish].filter((x) => x && x.trim()).join(' · ')].filter(Boolean).join(' · '))}${(v.photos || []).length ? ` · ${(v.photos || []).length} photo${(v.photos || []).length > 1 ? 's' : ''}` : ''}</small></span>
+          <span class="pp-vrow-text"><strong>${esc(String(v.size || '').trim().replace('x', '×') || 'Vent')} ${esc(VENT_TYPE_LABEL[v.type] || '')}</strong><small>${esc([v.species, v.finish, v.color].filter((x) => x && x.trim()).join(' · ') || 'No wood or finish yet')}${(v.photos || []).length ? ` · ${(v.photos || []).length} photo${(v.photos || []).length > 1 ? 's' : ''}` : ''}</small></span>
         </button>
         <span class="pp-stepper" role="group" aria-label="Quantity">
           ${locked ? '' : `<button type="button" data-vent-qty="${i}:-1" aria-label="One less" ${(Number(v.qty) || 1) <= 1 ? 'disabled' : ''}>−</button>`}
           <b aria-live="polite">${Number(v.qty) || 1}</b>
           ${locked ? '' : `<button type="button" data-vent-qty="${i}:1" aria-label="One more">+</button>`}
         </span>
-      </div>`).join('');
+      </div>`; };
+    const groupHtml = (g) => {
+      const n = g.items.reduce((a, i) => a + (Number(vents[i].qty) || 1), 0);
+      return `<div class="pp-vroom ${g.key ? '' : 'is-none'}">
+        <div class="pp-vroom-head"><span class="pp-vroom-ic" aria-hidden="true">${icon('home')}</span><div><strong>${esc(g.name || 'No room yet')}</strong><small>${n} vent${n === 1 ? '' : 's'}</small></div>${locked ? '' : `${g.key ? `<button type="button" class="pp-link pp-vroom-ren" data-vroom-ren="${esc(g.key)}">Rename</button>` : ''}<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-vroom-add="${esc(g.name)}" aria-label="Add a vent${g.name ? ` in ${esc(g.name)}` : ''}">+ Vent</button>`}</div>
+        <div class="pp-vlist" role="list">${g.items.map(row).join('')}</div>
+      </div>`;
+    };
     return `<section class="pp-card pp-vents" aria-labelledby="ppVentsT">
-        <div class="pp-vents-head"><div><h3 id="ppVentsT">Vents</h3><small>${vents.length ? `${total} vent${total === 1 ? '' : 's'}${rooms ? ` in ${rooms} room${rooms === 1 ? '' : 's'}` : ''}` : 'Each size and room once — use the count for repeats'}</small></div>${locked ? '' : '<button type="button" class="pp-btn pp-btn--pri pp-btn--sm" id="ppVentAdd">+ Vent</button>'}</div>
-        ${vents.length ? `<div class="pp-vlist" role="list">${rows}</div>` : `<div class="pp-empty" style="padding:22px 8px">${mate('head-thinking', 56)}<strong>No vents measured</strong>Add each vent with its size, type and finish.</div>`}
+        <div class="pp-vents-head"><div><h3 id="ppVentsT">Vents</h3><small>${vents.length ? `${total} vent${total === 1 ? '' : 's'}${rooms ? ` in ${rooms} room${rooms === 1 ? '' : 's'}` : ''}` : 'Room by room — use the count for repeats'}</small></div>${locked ? '' : '<button type="button" class="pp-btn pp-btn--pri pp-btn--sm" id="ppVentRoom">+ Room</button>'}</div>
+        ${vents.length ? `<div class="pp-vrooms">${groups.map(groupHtml).join('')}</div>` : `<div class="pp-empty" style="padding:22px 8px">${mate('head-thinking', 56)}<strong>No vents measured</strong>Add a room, then each vent in it with its size, type and finish.</div>`}
       </section>`;
+  }
+
+  /** Picks or types a room, then opens a new vent there. */
+  function openVentRoomSheet(m, onPick, opts) {
+    const o = opts || {};
+    const ideas = ventRoomIdeas(m);
+    const chips = (list) => list.map((n) => `<button type="button" class="pp-chipbtn" data-vroom-pick="${esc(n)}">${esc(n)}</button>`).join('');
+    const root = openSheet(o.title || 'Which room?', `
+      <form class="pp-vroom-sheet" id="ppVRoomForm">
+        <div class="pp-field pp-field--wide"><label for="ppVRoomNew">Room name</label><input id="ppVRoomNew" value="${esc(o.value || '')}" maxlength="80" placeholder="e.g. Primary bedroom" autocomplete="off" /></div>
+        ${ideas.fromPlan.length && !o.value ? `<div class="pp-vroom-ideas"><span class="pp-flabel">From the plans</span><div>${chips(ideas.fromPlan.slice(0, 24))}</div></div>` : ''}
+        ${o.value ? '' : `<div class="pp-vroom-ideas"><span class="pp-flabel">Common rooms</span><div>${chips(ideas.common.slice(0, 14))}</div></div>`}
+        <div class="pp-sheet-actions"><button type="button" class="pp-btn pp-btn--sec" data-sheet-close>Cancel</button><button type="submit" class="pp-btn pp-btn--pri">${esc(o.cta || 'Add vent')}</button></div>
+      </form>`);
+    const inp = root.querySelector('#ppVRoomNew');
+    if (o.value) { inp.focus(); inp.select(); }
+    const done = (name) => { const v = String(name || '').trim(); if (!v) { inp.focus(); return; } closeSheet(); onPick(v.slice(0, 80)); };
+    root.querySelectorAll('[data-vroom-pick]').forEach((b) => b.addEventListener('click', () => done(b.getAttribute('data-vroom-pick'))));
+    root.querySelector('#ppVRoomForm').addEventListener('submit', (e) => { e.preventDefault(); done(inp.value); });
   }
 
   /** Vent editor in a sheet: drawing on top, fields below; the list updates when it closes. */
@@ -3918,19 +3997,84 @@
     return `<ul class="pp-meas-log">${log.map((l) => `<li><b>${esc(l.name || '')}</b> ${esc(LOG_EN[l.action] || l.action || '')}<small>${esc(fmtDayEn(l.at, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }))}</small></li>`).join('') || '<li class="pp-muted">—</li>'}</ul>`;
   }
 
-  /** Summary tab: what goes on the Work Order, general notes, who measured, PDF and delete. */
+  /** Work Order sections on the Summary tab: floors, stairs and vents room by room, each with a way back to edit. */
+  function measSummarySectionsHtml(m) {
+    const locked = m.status === 'used';
+    const d = m.data;
+    const totals = planTotals(d.plan).filter((t) => t.include);
+    const lines = measSummary(d);
+    const sec = (tab, title, sub, body, empty) => `<section class="pp-card pp-ssec" aria-label="${esc(title)}">
+        <div class="pp-ssec-head"><div><h3>${esc(title)}</h3>${sub ? `<small>${sub}</small>` : ''}</div><button type="button" class="pp-link" data-mtab-go="${tab}">${body ? (locked ? 'View' : 'Edit') : (locked ? 'View' : 'Add')}</button></div>
+        ${body || `<p class="pp-ssec-empty">${empty}</p>`}
+      </section>`;
+    const row = (lead, main, sub, qty) => `<li>${lead}<span class="pp-srow-t"><b>${main}</b>${sub ? `<small>${sub}</small>` : ''}</span><em>${qty}</em></li>`;
+    // floors
+    const ft = totals.reduce((a, t) => a + t.area, 0);
+    const floors = totals.length ? `<ul class="pp-srows">${totals.map((t) => {
+      const o = orderQty(t);
+      return row(`<i class="pp-swatch pp-swatch--lg" style="background:${esc(t.color || '#C9B79C')}" aria-hidden="true"></i>`, esc(t.label), esc([specText(t), t.kind === 'hardwood' && t.sand_finish ? 'sand & finish' : '', t.levels.map((l) => `${l.name} ${fmtSf(l.area)}`).join(' · ')].filter(Boolean).join(' · ')), `${fmtSf(t.area)}<small>${o.waste ? `${o.sf.toLocaleString('en-US')} SF w/ ${o.waste}% waste` : ''}</small>`);
+    }).join('')}</ul>` : '';
+    // stairs
+    const stairs = (d.stairs || []).map((st) => {
+      const ls = lines.filter((l) => l.group === (st.name || 'Stair') && l.kind !== 'Vent' && l.kind !== 'Floor');
+      if (!ls.length) return '';
+      const wood = [st.species, st.finish, st.color].filter(Boolean).join(' · ');
+      return `<div class="pp-sgroup"><div class="pp-sgroup-h">${esc(st.name || 'Stair')}<small>${esc(wood)}</small></div><ul class="pp-srows">${ls.map((l) => row(`<span class="pp-skind">${esc(l.kind)}</span>`, esc(wood && l.text.startsWith(`${wood} · `) ? l.text.slice(wood.length + 3) : l.text), '', `${l.qty}<small>EA</small>`)).join('')}</ul></div>`;
+    }).join('');
+    // vents by room
+    const vents = d.vents || [];
+    const vg = ventGroups(vents);
+    const ventBody = vents.length ? vg.map((g) => {
+      const n = g.items.reduce((a, i) => a + (Number(vents[i].qty) || 1), 0);
+      return `<div class="pp-sgroup"><div class="pp-sgroup-h">${esc(g.name || 'No room yet')}<small>${n} vent${n === 1 ? '' : 's'}</small></div><ul class="pp-srows">${g.items.map((i) => { const v = vents[i]; return row(`<span class="pp-sthumb" aria-hidden="true">${ventSvg(v)}</span>`, `${esc(String(v.size || '?').trim().replace('x', '×'))} ${esc(VENT_TYPE_LABEL[v.type] || '')}`, esc([v.species, v.finish, v.color].filter((x) => x && x.trim()).join(' · ')), `${Number(v.qty) || 1}<small>EA</small>`); }).join('')}</ul></div>`;
+    }).join('') : '';
+    const c = measCounts(d);
+    return `${sec('floors', 'Floors', ft ? `${fmtSf(ft)} · ${totals.length} type${totals.length === 1 ? '' : 's'}` : '', floors, 'No floors yet — upload the house plans in Floors to measure every room.')}
+      ${sec('stairs', 'Stairs', c.stairs ? `${c.stairs} stair${c.stairs === 1 ? '' : 's'} · ${c.treads} treads · ${c.risers} risers${c.nosings ? ` · ${c.nosings} nosings` : ''}` : '', stairs, 'No stairs measured.')}
+      ${sec('vents', 'Vents', c.vents ? `${c.vents} vent${c.vents === 1 ? '' : 's'}${vg.filter((g) => g.key).length ? ` in ${vg.filter((g) => g.key).length} room${vg.filter((g) => g.key).length === 1 ? '' : 's'}` : ''}` : '', ventBody, 'No vents measured.')}`;
+  }
+  function measSummaryHtml(m) { return measSummarySectionsHtml(m); }
+
+  function measLogHtml(m) {
+    const log = (m.log || []).slice(-8).reverse();
+    return `<ol class="pp-mtl">${log.map((l) => `<li><span class="pp-mtl-dot" aria-hidden="true"></span><div><b>${esc(l.name || 'Someone')}</b> ${esc(LOG_EN[l.action] || l.action || '')}<small>${esc(fmtDayEn(l.at, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }))}</small></div></li>`).join('') || '<li class="pp-muted">No activity yet.</li>'}</ol>`;
+  }
+
+  /** Summary tab: status and actions on top, what goes on the Work Order, notes, photos, who measured. */
   function measSummaryTabHtml(m) {
     const locked = m.status === 'used';
-    const c = measCounts(m.data);
-    const tile = (n, label) => `<div class="pp-mkpi"><b>${n}</b><span>${label}</span></div>`;
+    const d = m.data;
+    const c = measCounts(d);
+    const ft = planTotals(d.plan).filter((t) => t.include).reduce((a, t) => a + t.area, 0);
+    const plan = d.plan;
+    const tile = (n, label, tab) => `<button type="button" class="pp-mkpi ${n ? '' : 'is-zero'}" data-mtab-go="${tab}"><b>${n}</b><span>${label}</span></button>`;
+    const photos = [];
+    (d.stairs || []).forEach((st) => (st.photos || []).forEach((k) => photos.push({ k, label: st.name || 'Stair', tab: 'stairs' })));
+    (d.vents || []).forEach((v) => (v.photos || []).forEach((k) => photos.push({ k, label: v.room ? `Vent · ${v.room}` : 'Vent', tab: 'vents' })));
+    const empty = !ft && !c.treads && !c.risers && !c.vents;
+    const status = m.status === 'used' ? ['Sent with the Work Order', 'It’s part of the job now.']
+      : m.status === 'done' ? ['Complete — ready to send', 'Send it with a Work Order, or reopen it to change something.']
+      : empty ? ['Nothing measured yet', 'Start with Floors, Stairs or Vents — it all comes together here.']
+      : ['In progress', 'Check what goes on the Work Order, then complete it.'];
+    const quotePdf = plan && plan.quote_link_id && canDo('money.view') ? `/api/builder/measurements/${encodeURIComponent(m.id)}/quote-pdf?company=${encodeURIComponent(plan.quote_link_id)}` : '';
     return `<div class="pp-msum">
-        <div class="pp-mkpis">${tile(c.treads, 'Treads')}${tile(c.risers, 'Risers')}${tile(c.nosings, 'Nosings')}${tile(c.landings, 'Landings')}${tile(c.vents, 'Vents')}</div>
+        <section class="pp-shero is-${esc(m.status)}${empty ? ' is-empty' : ''}">
+          <div class="pp-shero-t">${mate(m.status === 'draft' ? (empty ? 'head-thinking' : 'head-happy') : 'head-talking', 52)}<div><h2>${esc(status[0])}</h2><p>${esc(status[1])}</p></div></div>
+          <div class="pp-shero-acts">
+            <a class="pp-btn pp-btn--sec" href="/api/builder/measurements/${encodeURIComponent(m.id)}/pdf" target="_blank" rel="noopener">${icon('download')}Measurement PDF</a>
+            ${quotePdf ? `<a class="pp-btn pp-btn--sec" href="${quotePdf}" target="_blank" rel="noopener">${icon('download')}Quote PDF</a>` : ''}
+            ${locked || !canDo('jobs.send') || empty ? '' : `<button type="button" class="pp-btn ${m.status === 'done' ? 'pp-btn--pri' : 'pp-btn--sec'}" data-send-wo>${icon('send')}Send work order</button>`}
+            ${locked || m.status === 'done' || empty ? '' : '<button type="button" class="pp-btn pp-btn--pri" data-sum-done>Complete</button>'}
+          </div>
+        </section>
+        <div class="pp-mkpis pp-mkpis--6">${tile(ft ? fmtSf(ft) : 0, 'Floors', 'floors')}${tile(c.treads, 'Treads', 'stairs')}${tile(c.risers, 'Risers', 'stairs')}${tile(c.nosings, 'Nosings', 'stairs')}${tile(c.landings, 'Landings', 'stairs')}${tile(c.vents, 'Vents', 'vents')}</div>
         <div class="pp-msum-grid">
-          <section class="pp-card pp-block" id="ppMeasSum">${measSummaryHtml(m)}</section>
+          <div class="pp-msum-main" id="ppMeasSum">${measSummarySectionsHtml(m)}</div>
           <div class="pp-msum-side">
-            <section class="pp-card pp-block"><h3>General notes</h3><textarea class="pp-mnotes" data-head="notes" maxlength="2000" rows="4" placeholder="e.g. access through the garage, concrete slab, client wants Jacobean on the treads" aria-label="General notes" ${locked ? 'disabled' : ''}>${esc(m.notes || '')}</textarea></section>
-            <section class="pp-card pp-block"><h3>Measured by</h3>${measLogHtml(m)}</section>
-            <div class="pp-msum-acts"><a class="pp-btn pp-btn--sec" href="/api/builder/measurements/${encodeURIComponent(m.id)}/pdf" target="_blank" rel="noopener">${icon('download')}Download PDF</a>${locked ? '' : '<button type="button" class="pp-link pp-late" id="ppMeasDel">Delete measurement</button>'}</div>
+            <section class="pp-card pp-block"><h3>General notes</h3><textarea class="pp-mnotes" data-head="notes" maxlength="2000" rows="4" placeholder="e.g. access through the garage, concrete slab, client wants Jacobean on the treads" aria-label="General notes" ${locked ? 'disabled' : ''}>${esc(m.notes || '')}</textarea><small class="pp-muted pp-mnotes-hint">Goes on the PDF and the Work Order.</small></section>
+            ${photos.length ? `<section class="pp-card pp-block"><h3>Photos <small class="pp-muted">${photos.length}</small></h3><div class="pp-sphotos">${photos.slice(0, 12).map((p) => `<a href="/api/builder/measurements/${encodeURIComponent(m.id)}/photo?key=${encodeURIComponent(p.k)}" target="_blank" rel="noopener" title="${esc(p.label)}"><img src="/api/builder/measurements/${encodeURIComponent(m.id)}/photo?key=${encodeURIComponent(p.k)}" alt="${esc(p.label)}" loading="lazy" /><span>${esc(p.label)}</span></a>`).join('')}</div></section>` : ''}
+            <section class="pp-card pp-block"><h3>Activity</h3>${measLogHtml(m)}</section>
+            ${locked ? '' : '<div class="pp-msum-acts"><button type="button" class="pp-link pp-late" id="ppMeasDel">Delete measurement</button></div>'}
           </div>
         </div>
       </div>`;
@@ -4239,12 +4383,12 @@
     if (canDo('money.view') && s.co) prices = await api(`/api/builder/prices?company=${encodeURIComponent(s.co)}`).then((r) => (r.data || []).filter((p) => p.company_id === s.co)).catch(() => []);
     s.agreed = prices;
     if (plan) {
-      const planForQuote = { ...m, data: { ...m.data, plan: { ...plan, quote_prices: plan.quote_link_id === s.co ? plan.quote_prices : {} } } };
+      const planForQuote = { ...m, data: { ...m.data, plan: { ...plan, quote_prices: plan.quote_link_id === s.co ? plan.quote_prices : {}, quote_rates: plan.quote_link_id === s.co ? plan.quote_rates || {} : {} } } };
       s.items = quoteLines(planForQuote, prices).map((l) => ({
         area: '', description: l.name, detail: l.spec || '', quantity: l.qty, uom: 'SF',
         rate: l.price ? l.price.price : null, total: null,
         pricing_item_id: l.price && l.price.pricing_item_id ? l.price.pricing_item_id : null,
-        service_name: l.price ? l.price.name : l.name, create_service: true, remove: false,
+        service_name: l.price && !l.price.typed ? l.price.name : l.name, create_service: true, remove: false,
       }));
     }
     s.measurement = {
@@ -4390,6 +4534,8 @@
   function quoteLines(m, prices) {
     const plan = m.data.plan; const lines = [];
     const pick = (key, test) => {
+      const typed = plan.quote_rates && plan.quote_rates[key];
+      if (typed != null && typed !== '') return { id: '', name: 'Typed on the quote', price: Number(typed), typed: true };
       const chosen = plan.quote_prices && plan.quote_prices[key];
       const byId = chosen && prices.find((p) => p.id === chosen);
       if (byId) return byId;
@@ -4421,7 +4567,7 @@
     const totals = planTotals(plan).filter((t) => t.include);
     const co = companies.find((c) => c.id === plan.quote_link_id);
     const prof = (co && co.profile) || {};
-    const primary = /^#[0-9a-f]{6}$/i.test(prof.color || '') ? prof.color : '#1F4E79';
+    const primary = '#221E1A'; // ObraMate palette: ink + orange
     const acc = state.builder.account;
     const num = `M-${String(m.id).slice(0, 6).toUpperCase()}`;
     const today = new Date();
@@ -4432,7 +4578,7 @@
     const controls = `<section class="pp-card pp-block pp-qp-ctl">
         <h3>Prices</h3>
         ${companies.length ? `<label class="pp-field"><span>Company</span>${sel(companies.map((c) => [c.id, c.company_name]), plan.quote_link_id || '', `data-pq-co aria-label="Quote from" ${locked ? 'disabled' : ''}`)}</label>` : `<p class="pp-muted">Connect a flooring company to price the work. <a class="pp-link" href="#companies">Companies</a></p>`}
-        ${money_ ? lines.map((l) => `<label class="pp-field"><span><i class="pp-swatch" style="background:${esc(l.color)}"></i> ${esc(l.name)} · ${fmtSf(l.qty)}</span>${sel([['', sq.length ? 'Choose a price…' : 'No sq ft prices yet'], ...sq.map((p) => [p.id, `${p.name} · ${money(p.price)}/sq ft`])], l.price ? l.price.id : '', `data-pq-price="${esc(l.key)}" aria-label="Price for ${esc(l.name)}" ${locked ? 'disabled' : ''}`)}</label>`).join('') : '<p class="pp-muted">Your role can’t see prices.</p>'}
+        ${money_ ? lines.map((l) => `<label class="pp-field"><span><i class="pp-swatch" style="background:${esc(l.color)}"></i> ${esc(l.name)} · ${fmtSf(l.qty)}</span>${sel([['', l.price && l.price.typed ? `Typed on the quote · ${money(l.price.price)}/sq ft` : sq.length ? 'Choose a price…' : 'No sq ft prices yet'], ...sq.map((p) => [p.id, `${p.name} · ${money(p.price)}/sq ft`])], l.price && !l.price.typed ? l.price.id : '', `data-pq-price="${esc(l.key)}" aria-label="Price for ${esc(l.name)}" ${locked ? 'disabled' : ''}`)}</label>`).join('') + '<p class="pp-muted pp-plan-note">Or type the price right on the quote.</p>' : '<p class="pp-muted">Your role can’t see prices.</p>'}
         ${money_ && co ? `<p class="pp-muted pp-plan-note">From your <a class="pp-link" href="#companies/${esc(co.id)}">${esc(co.company_name)} price list</a>. Missing a service? Add it there in “sq ft”.</p>` : ''}
         <div class="pp-qp-acts">
           ${pdfUrl && money_ ? `<a class="pp-btn pp-btn--sec" href="${pdfUrl}" target="_blank" rel="noopener">${icon('download')}Quote PDF</a>` : ''}
@@ -4453,7 +4599,7 @@
         ${secs.map(([title, ls]) => { const st = ls.reduce((a, l) => a + (l.price ? l.price.price * l.qty : 0), 0); return `<section class="pp-qp-sec">
           <div class="pp-qp-sechead"><span>${esc(title.toUpperCase())}</span>${money_ ? `<small>Section total ${esc(money(st))}</small>` : ''}</div>
           <div class="pp-qp-row pp-qp-row--head"><span>DESCRIPTION</span><span>QTY</span>${money_ ? '<span>RATE</span><span>AMOUNT</span>' : ''}</div>
-          ${ls.map((l) => `<div class="pp-qp-row"><span><strong>${esc(l.name)}</strong>${l.spec ? `<small>${esc(l.spec)}</small>` : ''}</span><span>${Math.round(l.qty).toLocaleString('en-US')} sq ft</span>${money_ ? `<span>${l.price ? money(l.price.price) : '<em class="pp-late">no price</em>'}</span><span><b>${l.price ? money(l.price.price * l.qty) : '—'}</b></span>` : ''}</div>`).join('')}
+          ${ls.map((l) => `<div class="pp-qp-row ${l.price && l.price.typed ? 'is-typed' : ''}"><span><strong>${esc(l.name)}</strong>${l.spec ? `<small>${esc(l.spec)}</small>` : ''}${l.price && l.price.typed ? `<small class="pp-qp-typed">Price typed on the quote${locked ? '' : ` · <button type="button" class="pp-link" data-pq-reset="${esc(l.key)}">use the price list</button>`}</small>` : ''}</span><span>${Math.round(l.qty).toLocaleString('en-US')} sq ft</span>${money_ ? `<span>${locked ? (l.price ? money(l.price.price) : '—') : `<label class="pp-qp-rate"><span>$</span><input inputmode="decimal" data-pq-rate="${esc(l.key)}" value="${l.price ? esc(String(Math.round(l.price.price * 100) / 100)) : ''}" placeholder="0.00" aria-label="Price per sq ft for ${esc(l.name)}" /></label>`}</span><span><b data-pq-amt="${esc(l.key)}">${l.price ? money(l.price.price * l.qty) : '—'}</b></span>` : ''}</div>`).join('')}
         </section>`; }).join('')}
         ${money_ ? `<div class="pp-qp-foot">
           <div class="pp-qp-incl"><small>WHAT’S INCLUDED</small>${lines.map((l) => `<span>${icon('check')}${esc(l.name)}${l.spec ? ` — ${esc(l.spec)}` : ''}</span>`).join('')}<span>${icon('check')}Quantities from the house plans: ${esc(totals.map((t) => `${t.label} ${fmtSf(t.area)}`).join(', '))}</span></div>
@@ -4624,13 +4770,35 @@
       qbox.innerHTML = floorsQuoteHtml(m, prices);
       qbox.querySelectorAll('[data-send-wo]').forEach((b) => b.addEventListener('click', () => sendFromMeasurement(m)));
       const co = qbox.querySelector('[data-pq-co]');
-      if (co) co.addEventListener('change', () => { plan.quote_link_id = co.value || null; plan.quote_prices = {}; save(); redraw(); });
+      if (co) co.addEventListener('change', () => { plan.quote_link_id = co.value || null; plan.quote_prices = {}; plan.quote_rates = {}; save(); redraw(); });
       qbox.querySelectorAll('[data-pq-price]').forEach((s) => s.addEventListener('change', () => {
         const k = s.getAttribute('data-pq-price');
         plan.quote_prices = plan.quote_prices || {};
+        plan.quote_rates = plan.quote_rates || {};
         if (s.value) plan.quote_prices[k] = s.value; else delete plan.quote_prices[k];
+        delete plan.quote_rates[k];
         save(); redraw();
       }));
+      // prices typed straight on the quote
+      qbox.querySelectorAll('[data-pq-rate]').forEach((inp) => {
+        const k = inp.getAttribute('data-pq-rate');
+        const line = quoteLines(m, prices).find((l) => l.key === k);
+        inp.addEventListener('focus', () => inp.select());
+        inp.addEventListener('input', () => {
+          const v = Number(String(inp.value).replace(/[$,\s]/g, ''));
+          const amt = qbox.querySelector(`[data-pq-amt="${k}"]`);
+          if (amt && line) amt.textContent = inp.value.trim() && Number.isFinite(v) ? money(v * line.qty) : '—';
+        });
+        inp.addEventListener('change', () => {
+          const raw = String(inp.value).replace(/[$,\s]/g, '');
+          plan.quote_rates = plan.quote_rates || {};
+          if (raw === '') delete plan.quote_rates[k];
+          else if (Number.isFinite(Number(raw)) && Number(raw) >= 0) plan.quote_rates[k] = Math.round(Number(raw) * 100) / 100;
+          save(); redraw();
+        });
+        inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') inp.blur(); });
+      });
+      qbox.querySelectorAll('[data-pq-reset]').forEach((b) => b.addEventListener('click', () => { if (plan.quote_rates) delete plan.quote_rates[b.getAttribute('data-pq-reset')]; save(); redraw(); }));
     }
   }
 
@@ -4642,7 +4810,7 @@
     const ft = planTotals(m.data.plan).filter((t) => t.include).reduce((a, t) => a + t.area, 0);
     const tab = (k, label, n) => `<button type="button" role="tab" data-mtab="${k}" aria-selected="${m.tab === k}" aria-pressed="${m.tab === k}">${label}${n != null ? `<span class="pp-mtab-n">${n}</span>` : ''}</button>`;
     view.innerHTML = `
-      <div class="pp-mhead">
+      <div class="pp-mhead ${m.tab === 'summary' ? 'is-summary' : ''}">
         <a class="pp-back" href="#measurements" style="display:inline-flex">${icon('back')}Measurements</a>
         <div class="pp-mhead-row">
           <div class="pp-mhead-title"><h1 class="pp-meas-title">${esc(m.address)}</h1>
@@ -4667,7 +4835,7 @@
     paintMeasSaved();
     bindMeasurement();
     bindVoice();
-    view.querySelectorAll('.pp-mhead [data-send-wo]').forEach((b) => b.addEventListener('click', () => sendFromMeasurement(m)));
+    view.querySelectorAll('.pp-mhead [data-send-wo], .pp-msum [data-send-wo]').forEach((b) => b.addEventListener('click', () => sendFromMeasurement(m)));
     if (m.tab === 'floors') bindFloors();
     else if (plan3d) { try { plan3d.destroy(); } catch (_) { /* gone */ } plan3d = null; }
   }
@@ -4975,13 +5143,34 @@
       measSaveSoon();
       redraw();
     }));
-    const ventAdd = $('ppVentAdd');
-    if (ventAdd) ventAdd.addEventListener('click', () => {
-      m.data.vents.push(newVent(m.data.vents[m.data.vents.length - 1]));
+    const addVentIn = (room) => {
+      const same = m.data.vents.filter((v) => (v.room || '').trim().toLowerCase() === room.trim().toLowerCase());
+      const v = newVent(same[same.length - 1] || m.data.vents[m.data.vents.length - 1]);
+      v.room = room;
+      // keep the room's vents together in the list and on the Work Order
+      let at = -1;
+      m.data.vents.forEach((x, k) => { if ((x.room || '').trim().toLowerCase() === room.trim().toLowerCase()) at = k; });
+      const idx = at >= 0 ? at + 1 : m.data.vents.length;
+      m.data.vents.splice(idx, 0, v);
       measSaveSoon();
       redraw();
-      openVentSheet(m.data.vents.length - 1, true);
-    });
+      openVentSheet(idx, true);
+    };
+    const ventRoom = $('ppVentRoom');
+    if (ventRoom) ventRoom.addEventListener('click', () => openVentRoomSheet(m, addVentIn));
+    view.querySelectorAll('[data-vroom-add]').forEach((b) => b.addEventListener('click', () => {
+      const room = b.getAttribute('data-vroom-add');
+      if (room) addVentIn(room); else openVentRoomSheet(m, addVentIn);
+    }));
+    view.querySelectorAll('[data-vroom-ren]').forEach((b) => b.addEventListener('click', () => {
+      const k = b.getAttribute('data-vroom-ren');
+      const cur = (m.data.vents.find((v) => (v.room || '').trim().toLowerCase() === k) || {}).room || '';
+      openVentRoomSheet(m, (name) => {
+        m.data.vents.forEach((v) => { if ((v.room || '').trim().toLowerCase() === k) v.room = name; });
+        measSaveSoon();
+        redraw();
+      }, { title: 'Rename room', value: cur.trim(), cta: 'Rename' });
+    }));
     view.querySelectorAll('[data-vent-open]').forEach((b) => b.addEventListener('click', () => openVentSheet(Number(b.getAttribute('data-vent-open')), false)));
     view.querySelectorAll('[data-vent-qty]').forEach((b) => b.addEventListener('click', () => {
       const [i, d] = b.getAttribute('data-vent-qty').split(':').map(Number);
@@ -5021,6 +5210,7 @@
       measSaveSoon();
       redraw();
     }));
+    view.querySelectorAll('[data-sum-done]').forEach((b) => b.addEventListener('click', () => { const top = $('ppMeasDone'); if (top) top.click(); }));
     const done = $('ppMeasDone');
     if (done) done.addEventListener('click', async () => {
       done.disabled = true;

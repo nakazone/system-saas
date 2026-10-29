@@ -94,6 +94,8 @@ export const planSchema = z.object({
   quote_link_id: z.string().uuid().nullable().optional().default(null),
   /** Chosen price item per service line: { "hardwood:install": "<price item id>" }. */
   quote_prices: z.record(z.string().max(60), z.string().uuid()).optional().default({}),
+  /** Prices typed on the quote itself (per line key), over the price list. */
+  quote_rates: z.record(z.string().max(60), z.number().min(0).max(100000)).optional().default({}),
 });
 export type Plan = z.infer<typeof planSchema>;
 

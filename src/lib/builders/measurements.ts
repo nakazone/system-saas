@@ -826,10 +826,12 @@ export async function planQuote(accountId: string | undefined, plan: NonNullable
     prisma.builderLink.findFirst({ where: { id: plan.quote_link_id, builderAccountId: accountId }, select: { companyName: true } }),
     prisma.builderPriceItem.findMany({ where: { builderAccountId: accountId, builderLinkId: plan.quote_link_id } }),
   ]);
-  if (!link || !prices.length) return null;
+  if (!link || (!prices.length && !Object.keys(plan.quote_rates || {}).length)) return null;
   const list = prices.map((p) => ({ id: p.id, name: p.name, unit: p.unit, price: Number(p.price) }));
   const sq = list.filter((p) => p.unit === "sq_ft");
+  const typed = (key: string) => (plan.quote_rates && plan.quote_rates[key] != null ? { id: "typed", name: "", unit: "sq_ft", price: Number(plan.quote_rates[key]) } : null);
   const pick = (key: string, test: (p: { name: string }) => boolean) => {
+    const t = typed(key); if (t) return t;
     const chosen = plan.quote_prices[key];
     return (chosen && list.find((p) => p.id === chosen)) || sq.find(test) || null;
   };
@@ -1182,7 +1184,7 @@ export async function floorQuotePdf(member: ActiveMember, measurementId: string,
   const data = parseData(row.data);
   const plan = data.plan;
   if (!plan || !plan.levels.length) throw new BuilderError(400, "Measure the floors from the plans first.");
-  const usePlan = linkId ? { ...plan, quote_link_id: linkId, quote_prices: linkId === plan.quote_link_id ? plan.quote_prices : {} } : plan;
+  const usePlan = linkId && linkId !== plan.quote_link_id ? { ...plan, quote_link_id: linkId, quote_prices: {}, quote_rates: {} } : plan;
   const quote = await planQuote(member.builderAccountId, usePlan);
   const [account, link] = await Promise.all([
     prisma.builderAccount.findUnique({ where: { id: member.builderAccountId } }),
@@ -1221,8 +1223,9 @@ export async function floorQuotePdf(member: ActiveMember, measurementId: string,
     organizationName: org?.name || link?.companyName || "Flooring company",
     organizationContact: [org?.contactPhone || link?.contactPhone, org?.contactEmail || link?.contactEmail].filter(Boolean).join(" · ") || null,
     organizationLogoUrl: org?.logoUrl || null,
-    brandPrimary: org?.primaryColor || null,
-    brandAccent: org?.accentColor || null,
+    // ObraMate palette (ink + orange) on every builder quote
+    brandPrimary: "#221E1A",
+    brandAccent: "#E7792C",
     title: `Flooring · ${row.address}`,
     number: `M-${row.id.slice(0, 6).toUpperCase()}`,
     status: "draft",
