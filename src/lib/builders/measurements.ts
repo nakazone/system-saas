@@ -11,7 +11,7 @@ import { storage } from "../storage/index.js";
 import { addressKey } from "../partner-intake/extract.js";
 import type { ActiveMember } from "./accounts.js";
 import { BuilderError } from "./accounts.js";
-import { fmtSf, planSchema, planTotals, type Plan } from "./takeoff.js";
+import { fmtSf, planSchema, planTotals, takeoffSettings, withWaste, type Plan } from "./takeoff.js";
 
 type MeasurementPdfDocument = InstanceType<typeof PDFDocument>;
 
@@ -215,7 +215,7 @@ export function summarize(data: MeasurementData): SummaryLine[] {
   for (const t of planTotals(data.plan)) {
     if (!t.include) continue;
     const where = t.levels.map((l) => `${l.name} ${fmtSf(l.area_sf)}`).join(" · ");
-    out.push({ kind: "floor", qty: Math.round(t.area_sf), uom: "SF", text: `Floor ${t.label}${t.sand_finish ? " · sand & finish on site" : ""}${where ? ` · ${where}` : ""}` });
+    out.push({ kind: "floor", qty: Math.round(t.area_sf), uom: "SF", text: `Floor ${t.label}${t.spec ? ` · ${t.spec}` : ""}${t.sand_finish ? " · sand & finish on site" : ""}${where ? ` · ${where}` : ""}` });
   }
   return out;
 }
@@ -478,6 +478,7 @@ export const PLAN_MAX_BYTES = 40 * 1024 * 1024;
 function sanitizePlan(plan: Plan, prefix: string) {
   if (plan.file && !plan.file.key.startsWith(prefix)) plan.file = null;
   for (const level of plan.levels) if (level.preview && !level.preview.startsWith(prefix)) level.preview = null;
+  if (plan.snapshot && !plan.snapshot.startsWith(prefix)) plan.snapshot = null;
   const keys = new Set(plan.materials.map((m) => m.key));
   for (const level of plan.levels) level.rooms = level.rooms.filter((r) => keys.has(r.material));
 }
@@ -567,7 +568,7 @@ export async function measurementPack(accountId: string, measurementId: string):
   const names = await memberNames([row.createdByMemberId, row.updatedByMemberId, row.completedByMemberId]);
   const measuredBy = (row.completedByMemberId && names.get(row.completedByMemberId)) || (row.updatedByMemberId && names.get(row.updatedByMemberId)) || names.get(row.createdByMemberId) || "Builder";
   const account = await prisma.builderAccount.findUnique({ where: { id: accountId }, select: { name: true } });
-  const pdf = await measurementPdf({ builder: account?.name || "Builder", address: row.address, community: row.community, lot: row.lot, notes: row.notes, data, measuredBy, measuredAt: row.completedAt || row.updatedAt });
+  const pdf = await measurementPdf({ accountId, builder: account?.name || "Builder", address: row.address, community: row.community, lot: row.lot, notes: row.notes, data, measuredBy, measuredAt: row.completedAt || row.updatedAt });
   const files: MeasurementPack["files"] = [{ name: `Measurement - ${row.address}.pdf`.replace(/[\\/:*?"<>|]+/g, " ").slice(0, 150), contentType: "application/pdf", body: pdf }];
   let n = 0;
   const photo = async (key: string, label: string) => {
@@ -745,129 +746,362 @@ function drawIllustratedSpecs(doc: MeasurementPdfDocument, stair: Stair, x: numb
   });
 }
 
-export async function measurementPdf(m: { builder: string; address: string; community: string | null; lot: string | null; notes: string | null; data: MeasurementData; measuredBy: string; measuredAt: Date | null }): Promise<Buffer> {
-  const doc = new PDFDocument({ size: "LETTER", margin: 40 });
+type PdfInput = { accountId?: string; builder: string; address: string; community: string | null; lot: string | null; notes: string | null; data: MeasurementData; measuredBy: string; measuredAt: Date | null; status?: string };
+
+const C = { ink: "#221E1A", muted: "#667085", line: "#E5E7EB", soft: "#F7F8FA", orange: "#E7792C", orangeSoft: "#FBEADF", olive: "#536249", white: "#FFFFFF" };
+
+function fmtDate(d: Date | null): string {
+  return d ? d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/Denver" }) : "";
+}
+function sf(n: number): string {
+  return `${Math.round(n).toLocaleString("en-US")} SF`;
+}
+function usd(n: number): string {
+  return n.toLocaleString("en-US", { style: "currency", currency: "USD" });
+}
+
+/** Greedy rectangles of equal non-zero cells (for drawing the floors over the plan). */
+function gridRects(cells: Int32Array, w: number, _h: number, x0: number, y0: number, x1: number, y1: number) {
+  const done = new Uint8Array(cells.length); const out: Array<{ x: number; y: number; w: number; h: number; v: number }> = [];
+  for (let y = y0; y < y1; y++) {
+    for (let x = x0; x < x1; x++) {
+      const v = cells[y * w + x]!;
+      if (!v || done[y * w + x]) continue;
+      let rw = 1;
+      while (x + rw < x1 && cells[y * w + x + rw] === v && !done[y * w + x + rw]) rw++;
+      let rh = 1;
+      outer: while (y + rh < y1) {
+        for (let k = 0; k < rw; k++) if (cells[(y + rh) * w + x + k] !== v || done[(y + rh) * w + x + k]) break outer;
+        rh++;
+      }
+      for (let yy = y; yy < y + rh; yy++) done.fill(1, yy * w + x, yy * w + x + rw);
+      out.push({ x, y, w: rw, h: rh, v });
+    }
+  }
+  return out;
+}
+function decodeRle(rle: string, n: number): Int32Array {
+  const out = new Int32Array(n); let i = 0;
+  for (const part of String(rle || "").split(",")) {
+    if (!part) continue;
+    const [v, k] = part.split("x").map(Number);
+    if (v) out.fill(v, i, i + k!);
+    i += k!;
+  }
+  return out;
+}
+
+const KIND_WORDS: Partial<Record<string, RegExp>> = { hardwood: /hard\s?wood|\bwood\b|engineered|oak/i, lvp: /\blvp\b|\blvt\b|vinyl/i, laminate: /laminate/i, carpet: /carpet/i, rubber: /rubber/i };
+
+/** Same pricing the app shows on the Quote tab: chosen price, else matched by name (sq ft items). */
+async function planQuote(accountId: string | undefined, plan: NonNullable<MeasurementData["plan"]>) {
+  if (!accountId || !plan.quote_link_id) return null;
+  const [link, prices] = await Promise.all([
+    prisma.builderLink.findFirst({ where: { id: plan.quote_link_id, builderAccountId: accountId }, select: { companyName: true } }),
+    prisma.builderPriceItem.findMany({ where: { builderAccountId: accountId, builderLinkId: plan.quote_link_id } }),
+  ]);
+  if (!link || !prices.length) return null;
+  const list = prices.map((p) => ({ id: p.id, name: p.name, unit: p.unit, price: Number(p.price) }));
+  const sq = list.filter((p) => p.unit === "sq_ft");
+  const pick = (key: string, test: (p: { name: string }) => boolean) => {
+    const chosen = plan.quote_prices[key];
+    return (chosen && list.find((p) => p.id === chosen)) || sq.find(test) || null;
+  };
+  const lines: Array<{ name: string; spec: string; qty: number; rate: number | null }> = [];
+  for (const t of planTotals(plan).filter((x) => x.include)) {
+    const words = KIND_WORDS[t.kind] || /$^/;
+    const qty = Math.ceil(t.area_sf);
+    const ins = pick(`${t.key}:install`, (p) => words.test(p.name) && /install/i.test(p.name)) || pick(`${t.key}:install`, (p) => words.test(p.name) && !/sand|refinish|finish|demo|remov/i.test(p.name));
+    lines.push({ name: `${t.label} install`, spec: t.spec, qty, rate: ins ? ins.price : null });
+    if (t.kind === "hardwood" && t.sand_finish) {
+      const s = pick(`${t.key}:sand`, (p) => /sand|refinish|finish/i.test(p.name));
+      lines.push({ name: "Sand & finish", spec: t.label, qty, rate: s ? s.price : null });
+    }
+  }
+  return { company: link.companyName, lines };
+}
+
+export async function measurementPdf(m: PdfInput): Promise<Buffer> {
+  const doc = new PDFDocument({ size: "LETTER", margins: { top: 40, bottom: 56, left: 40, right: 40 }, bufferPages: true, info: { Title: `Measurement · ${m.address}`, Author: m.builder } });
   const chunks: Buffer[] = [];
   doc.on("data", (c: Buffer) => chunks.push(c));
   const done = new Promise<Buffer>((resolve) => doc.on("end", () => resolve(Buffer.concat(chunks))));
-  const ink = "#221E1A";
-  const muted = "#667085";
-  const line = "#E5E7EB";
-  const W = doc.page.width - 80;
+  const L = 40; const W = doc.page.width - 80; const BOTTOM = doc.page.height - 60;
+  const plan = m.data.plan && m.data.plan.levels.length ? m.data.plan : null;
+  const settings = m.accountId ? takeoffSettings((await prisma.builderAccount.findUnique({ where: { id: m.accountId }, select: { takeoffSettings: true } }))?.takeoffSettings) : takeoffSettings({});
+  const totals = plan ? planTotals(plan).filter((t) => t.include) : [];
+  const cnt = counts(m.data);
 
-  doc.fillColor(muted).fontSize(9).text(`STAIR & VENT MEASUREMENT · ${m.builder}`, 40, 40);
-  doc.fillColor(ink).fontSize(18).font("Helvetica-Bold").text(m.address, 40, 54, { width: W });
-  doc.font("Helvetica").fontSize(10).fillColor(muted)
-    .text([m.community, m.lot ? `Lot ${m.lot}` : "", `Measured by ${m.measuredBy}${m.measuredAt ? ` on ${m.measuredAt.toISOString().slice(0, 10)}` : ""}`].filter(Boolean).join(" · "), { width: W });
-  if (m.notes) doc.moveDown(0.3).fillColor(ink).text(m.notes, { width: W });
-  doc.moveDown(0.8);
-
-  const ensure = (h: number) => { if (doc.y + h > doc.page.height - 50) doc.addPage(); };
-  const rule = () => { doc.strokeColor(line).lineWidth(0.6).moveTo(40, doc.y).lineTo(40 + W, doc.y).stroke(); };
-
-  // Summary first: what the crew must bring.
-  doc.font("Helvetica-Bold").fontSize(11).fillColor(ink).text("Summary");
-  doc.moveDown(0.2);
-  for (const l of summarize(m.data)) {
-    const t = ascii(l.text);
-    doc.font("Helvetica").fontSize(9.5);
-    const h = doc.heightOfString(t, { width: W - 70 });
-    ensure(h + 6);
-    const y = doc.y;
-    doc.fillColor(ink).text(t, 40, y, { width: W - 70 });
-    doc.font("Helvetica-Bold").text(`${l.qty} ${l.uom}`, 40 + W - 60, y, { width: 60, align: "right" });
-    doc.y = y + h + 5;
-  }
-  doc.moveDown(0.6);
-
-  for (const s of m.data.stairs) {
+  const ensure = (h: number) => { if (doc.y + h > BOTTOM) { doc.addPage(); doc.y = 40; } };
+  const section = (title: string, sub?: string) => {
     ensure(60);
-    rule();
-    doc.moveDown(0.4);
-    doc.font("Helvetica-Bold").fontSize(12).fillColor(ink).text(s.name || "Stair", 40);
+    const y = doc.y + 6;
+    doc.rect(L, y + 2, 3, 14).fill(C.orange);
+    doc.font("Helvetica-Bold").fontSize(13).fillColor(C.ink).text(title, L + 11, y, { width: W - 11 });
+    if (sub) doc.font("Helvetica").fontSize(9).fillColor(C.muted).text(sub, L + 11, doc.y + 1, { width: W - 11 });
+    doc.y += 8;
+  };
+  /** Table with a shaded header and zebra rows; cols are widths that add up to W. */
+  const table = (cols: Array<{ w: number; label: string; align?: "left" | "right" }>, rows: string[][], opts?: { bold?: number[]; total?: string[] }) => {
+    const pad = 6;
+    const headH = 18;
+    const drawHead = () => {
+      const y = doc.y;
+      doc.rect(L, y, W, headH).fill(C.soft);
+      let x = L;
+      doc.font("Helvetica-Bold").fontSize(7.5).fillColor(C.muted);
+      for (const c of cols) { doc.text(c.label.toUpperCase(), x + pad, y + 6, { width: c.w - pad * 2, align: c.align || "left", characterSpacing: 0.4 }); x += c.w; }
+      doc.y = y + headH;
+    };
+    ensure(headH + 20);
+    drawHead();
+    rows.forEach((r, ri) => {
+      doc.font("Helvetica").fontSize(9);
+      const h = Math.max(18, ...r.map((cell, j) => doc.heightOfString(ascii(cell || " "), { width: cols[j]!.w - pad * 2 }) + 9));
+      if (doc.y + h > BOTTOM) { doc.addPage(); doc.y = 40; drawHead(); }
+      const y = doc.y;
+      if (ri % 2 === 1) doc.rect(L, y, W, h).fill("#FBFBFC");
+      let x = L;
+      r.forEach((cell, j) => {
+        doc.font(opts?.bold?.includes(j) ? "Helvetica-Bold" : "Helvetica").fontSize(9).fillColor(j === 0 ? C.ink : C.ink);
+        doc.text(ascii(cell || ""), x + pad, y + 5, { width: cols[j]!.w - pad * 2, align: cols[j]!.align || "left" });
+        x += cols[j]!.w;
+      });
+      doc.moveTo(L, y + h).lineTo(L + W, y + h).lineWidth(0.5).strokeColor(C.line).stroke();
+      doc.y = y + h;
+    });
+    if (opts?.total) {
+      const y = doc.y; const h = 22;
+      ensure(h);
+      doc.rect(L, y, W, h).fill(C.ink);
+      let x = L;
+      opts.total.forEach((cell, j) => { doc.font("Helvetica-Bold").fontSize(9.5).fillColor(C.white).text(cell, x + pad, y + 7, { width: cols[j]!.w - pad * 2, align: cols[j]!.align || "left" }); x += cols[j]!.w; });
+      doc.y = y + h;
+    }
+    doc.y += 10;
+  };
+
+  /* ── header band ── */
+  doc.rect(0, 0, doc.page.width, 118).fill(C.ink);
+  doc.rect(0, 118, doc.page.width, 3).fill(C.orange);
+  doc.font("Helvetica-Bold").fontSize(8).fillColor(C.orange).text(plan ? "FLOOR TAKEOFF & FIELD MEASUREMENT" : "FIELD MEASUREMENT", L, 30, { characterSpacing: 1.2 });
+  doc.font("Helvetica-Bold").fontSize(21).fillColor(C.white).text(ascii(m.address), L, 44, { width: W - 170 });
+  const sub = [m.community, m.lot ? `Lot ${m.lot}` : ""].filter(Boolean).join(" · ");
+  if (sub) doc.font("Helvetica").fontSize(10).fillColor("#D0D5DD").text(sub, L, doc.y + 2, { width: W - 170 });
+  doc.font("Helvetica-Bold").fontSize(10).fillColor(C.white).text(m.builder, L + W - 160, 32, { width: 160, align: "right" });
+  doc.font("Helvetica").fontSize(8.5).fillColor("#D0D5DD").text(`Measured by ${m.measuredBy}`, L + W - 160, 48, { width: 160, align: "right" });
+  if (m.measuredAt) doc.text(fmtDate(m.measuredAt), L + W - 160, 60, { width: 160, align: "right" });
+  doc.font("Helvetica").fontSize(7.5).fillColor("#98A2B3").text("ObraBuilder", L + W - 160, 92, { width: 160, align: "right" });
+  doc.y = 138;
+
+  /* ── key numbers ── */
+  const tiles: Array<{ label: string; big: string; small: string; color?: string }> = [];
+  for (const t of totals) {
+    const w = settings.waste[t.kind] ?? 10;
+    tiles.push({ label: t.label, big: sf(t.area_sf), small: `Order ${sf(withWaste(t.area_sf, w))} (+${w}%)`, color: t.color });
+  }
+  if (cnt.treads || cnt.risers) tiles.push({ label: "Stairs", big: `${cnt.treads} treads`, small: `${cnt.risers} risers · ${cnt.nosings} nosings` });
+  if (cnt.vents) tiles.push({ label: "Vents", big: `${cnt.vents}`, small: "registers" });
+  if (tiles.length) {
+    const per = Math.min(4, Math.max(3, tiles.length)); const gap = 10; const tw = (W - gap * (per - 1)) / per; const th = 58;
+    const top = doc.y;
+    tiles.forEach((t, i) => {
+      const x = L + (i % per) * (tw + gap); const y = top + Math.floor(i / per) * (th + gap);
+      doc.roundedRect(x, y, tw, th, 8).fillAndStroke(C.soft, C.line);
+      if (t.color) doc.roundedRect(x + 10, y + 11, 8, 8, 2).fill(t.color);
+      doc.font("Helvetica-Bold").fontSize(8).fillColor(C.muted).text(ascii(t.label).toUpperCase(), x + (t.color ? 23 : 10), y + 11, { width: tw - 30, characterSpacing: 0.4, lineBreak: false, ellipsis: true });
+      doc.font("Helvetica-Bold").fontSize(16).fillColor(C.ink).text(t.big, x + 10, y + 24, { width: tw - 20, lineBreak: false });
+      doc.font("Helvetica").fontSize(8).fillColor(C.muted).text(t.small, x + 10, y + 43, { width: tw - 20, lineBreak: false, ellipsis: true });
+    });
+    doc.y = top + Math.ceil(tiles.length / per) * (th + gap) + 4;
+  }
+  if (m.notes) {
+    const h = doc.font("Helvetica").fontSize(9.5).heightOfString(ascii(m.notes), { width: W - 24 }) + 26;
+    ensure(h);
+    const y = doc.y;
+    doc.roundedRect(L, y, W, h, 8).fill(C.orangeSoft);
+    doc.font("Helvetica-Bold").fontSize(8).fillColor("#9A4A16").text("NOTES", L + 12, y + 8, { characterSpacing: 0.6 });
+    doc.font("Helvetica").fontSize(9.5).fillColor(C.ink).text(ascii(m.notes), L + 12, y + 19, { width: W - 24 });
+    doc.y = y + h + 12;
+  }
+
+  /* ── floors ── */
+  if (plan) {
+    section("Floors", "Measured from the house plans · areas exclude walls · material to order includes the waste set in ObraBuilder");
+    table(
+      [{ w: 98, label: "Floor" }, { w: 196, label: "Product" }, { w: 72, label: "Measured", align: "right" }, { w: 50, label: "Waste", align: "right" }, { w: 116, label: "To order", align: "right" }],
+      totals.map((t) => {
+        const w = settings.waste[t.kind] ?? 10; const order = withWaste(t.area_sf, w); const box = settings.box_sf[t.kind];
+        return [t.label, [t.spec, t.sand_finish ? "sand & finish on site" : ""].filter(Boolean).join(" · ") || "—", sf(t.area_sf), `${w}%`, `${sf(order)}${box ? ` · ${Math.ceil(order / box)} boxes` : ""}`];
+      }),
+      { bold: [0, 4], total: ["Total", "", sf(totals.reduce((a, t) => a + t.area_sf, 0)), "", sf(totals.reduce((a, t) => a + withWaste(t.area_sf, settings.waste[t.kind] ?? 10), 0))] },
+    );
+
+    const quote = await planQuote(m.accountId, plan).catch(() => null);
+    if (quote && quote.lines.some((l) => l.rate != null)) {
+      section("Quote", `Labor at the prices agreed with ${quote.company}`);
+      const total = quote.lines.reduce((a, l) => a + (l.rate != null ? l.rate * l.qty : 0), 0);
+      table(
+        [{ w: 250, label: "Service" }, { w: 90, label: "Qty", align: "right" }, { w: 90, label: "Price", align: "right" }, { w: 102, label: "Total", align: "right" }],
+        quote.lines.map((l) => [`${l.name}${l.spec ? `\n${l.spec}` : ""}`, sf(l.qty), l.rate != null ? `${usd(l.rate)}/sq ft` : "no price", l.rate != null ? usd(l.rate * l.qty) : "—"]),
+        { bold: [3], total: ["Total labor", "", "", usd(total)] },
+      );
+    }
+
+    if (plan.snapshot) {
+      const img = await readBuffer(plan.snapshot).catch(() => null);
+      if (img) {
+        ensure(214);
+        const y = doc.y; const h = 200;
+        doc.save();
+        doc.roundedRect(L, y, W, h, 10).clip();
+        doc.rect(L, y, W, h).fill("#F3F1EE");
+        try { doc.image(img, L, y, { fit: [W, h], align: "center", valign: "center" }); } catch { /* bad image */ }
+        doc.restore();
+        doc.font("Helvetica").fontSize(8).fillColor(C.muted).text("3D model built from the plans — floors colored by type", L, y + h + 4, { width: W });
+        doc.y = y + h + 18;
+      }
+    }
+
+    for (const lv of plan.levels.filter((l) => l.include)) {
+      const rooms = lv.rooms.filter((r) => !r.exclude && plan.materials.find((x) => x.key === r.material)?.include);
+      if (!rooms.length) continue;
+      doc.addPage(); doc.y = 40;
+      section(lv.name, `${sf(rooms.reduce((a, r) => a + r.area_sf, 0))} counted · ${rooms.length} rooms${lv.scale_auto ? " · scale read from the plan dimensions" : " · scale set by hand"}`);
+      // the plan sheet, cropped to the floors, with the counted floors colored on top
+      const img = lv.preview ? await readBuffer(lv.preview).catch(() => null) : null;
+      if (img && lv.grid) {
+        try {
+          const opened = (doc as unknown as { openImage: (b: Buffer) => { width: number; height: number } }).openImage(img);
+          const g = lv.grid; const cells = decodeRle(g.rle, g.w * g.h);
+          let bx0 = g.w; let by0 = g.h; let bx1 = 0; let by1 = 0;
+          for (let y = 0; y < g.h; y++) for (let x = 0; x < g.w; x++) if (cells[y * g.w + x]) { bx0 = Math.min(bx0, x); by0 = Math.min(by0, y); bx1 = Math.max(bx1, x + 1); by1 = Math.max(by1, y + 1); }
+          const m6 = Math.round(6 / g.cell);
+          bx0 = Math.max(0, bx0 - m6); by0 = Math.max(0, by0 - m6); bx1 = Math.min(g.w, bx1 + m6); by1 = Math.min(g.h, by1 + m6);
+          const pxX = opened.width / g.w; const pxY = opened.height / g.h;
+          const cw = (bx1 - bx0) * pxX; const ch = (by1 - by0) * pxY;
+          const maxH = 380; const scale = Math.min(W / cw, maxH / ch);
+          const dw = cw * scale; const dh = ch * scale; const x0 = L + (W - dw) / 2; const y0 = doc.y;
+          doc.save();
+          doc.rect(x0, y0, dw, dh).clip();
+          doc.image(opened as never, x0 - bx0 * pxX * scale, y0 - by0 * pxY * scale, { width: opened.width * scale });
+          for (const r of gridRects(cells, g.w, g.h, bx0, by0, bx1, by1)) {
+            const mat = plan.materials[r.v - 1];
+            if (!mat || !mat.include) continue;
+            doc.rect(x0 + (r.x - bx0) * pxX * scale, y0 + (r.y - by0) * pxY * scale, r.w * pxX * scale, r.h * pxY * scale).fillOpacity(0.38).fill(mat.color);
+          }
+          doc.fillOpacity(1);
+          doc.restore();
+          doc.rect(x0, y0, dw, dh).lineWidth(0.6).strokeColor(C.line).stroke();
+          doc.y = y0 + dh + 8;
+          // legend
+          let lx = L;
+          for (const t of totals) {
+            const lvArea = t.levels.find((l) => l.name === lv.name)?.area_sf;
+            if (!lvArea) continue;
+            const label = `${t.label} ${sf(lvArea)}`;
+            doc.roundedRect(lx, doc.y + 1, 8, 8, 2).fill(t.color);
+            doc.font("Helvetica").fontSize(8.5).fillColor(C.ink).text(label, lx + 12, doc.y, { lineBreak: false });
+            lx += 24 + doc.widthOfString(label);
+          }
+          doc.y += 18;
+        } catch { /* plan picture is optional */ }
+      }
+      const half = rooms.length > 12;
+      const cols = [{ w: half ? 130 : 270, label: "Room" }, { w: half ? 80 : 160, label: "Floor" }, { w: half ? 56 : 102, label: "Area", align: "right" as const }];
+      if (!half) {
+        table(cols, rooms.map((r) => [r.name, plan.materials.find((x) => x.key === r.material)?.label || "", sf(r.area_sf)]));
+      } else {
+        // two columns of rooms side by side
+        const rowsA = rooms.slice(0, Math.ceil(rooms.length / 2)); const rowsB = rooms.slice(rowsA.length);
+        const y = doc.y; const colW = (W - 14) / 2;
+        const one = (list: typeof rooms, x: number) => {
+          let yy = y;
+          doc.rect(x, yy, colW, 16).fill(C.soft);
+          doc.font("Helvetica-Bold").fontSize(7.5).fillColor(C.muted).text("ROOM", x + 6, yy + 5).text("FLOOR", x + 136, yy + 5).text("AREA", x + colW - 60, yy + 5, { width: 54, align: "right" });
+          yy += 16;
+          list.forEach((r, i) => {
+            if (i % 2) doc.rect(x, yy, colW, 16).fill("#FBFBFC");
+            doc.font("Helvetica").fontSize(8.5).fillColor(C.ink).text(ascii(r.name), x + 6, yy + 4, { width: 126, lineBreak: false, ellipsis: true })
+              .text(plan.materials.find((xm) => xm.key === r.material)?.label || "", x + 136, yy + 4, { width: colW - 200, lineBreak: false, ellipsis: true })
+              .font("Helvetica-Bold").text(sf(r.area_sf), x + colW - 60, yy + 4, { width: 54, align: "right" });
+            yy += 16;
+          });
+          return yy;
+        };
+        const ya = one(rowsA, L); const yb = one(rowsB, L + colW + 14);
+        doc.y = Math.max(ya, yb) + 12;
+      }
+    }
+  }
+
+  /* ── work order lines ── */
+  const lines = summarize(m.data);
+  if (lines.length) {
+    if (plan) { doc.addPage(); doc.y = 40; }
+    section("For the work order", "Grouped like the order lines — what the crew needs to bring");
+    table([{ w: 452, label: "Item" }, { w: 80, label: "Qty", align: "right" }], lines.map((l) => [l.text, `${l.qty.toLocaleString("en-US")} ${l.uom}`]), { bold: [1] });
+  }
+
+  /* ── stairs ── */
+  for (const s of m.data.stairs) {
+    ensure(120);
     const lowerFlight = s.starts_on_landing_of ? m.data.stairs.find((flight) => flight.id === s.starts_on_landing_of) : null;
     const upperFlight = m.data.stairs.find((flight) => flight.starts_on_landing_of === s.id);
     const shape = s.layout === "round"
       ? "Round stair · Ø " + fmtInches(s.round_diameter) + "\" outside · Ø " + fmtInches(s.round_center_diameter) + "\" center · " + s.round_sweep + "° sweep"
       : "Straight stair";
-    doc.font("Helvetica").fontSize(9).fillColor(muted).text([shape, s.species, s.finish, s.color, s.riser_material === "primed" ? "risers primed" : s.riser_material === "paint_grade" ? "risers paint grade" : s.riser_material === "none" ? "no risers" : ""].filter(Boolean).join(" · ") || "—");
-    if (s.landing.enabled) doc.fillColor(muted).text("Landing after final component · " + fmtInches(s.landing.width) + "\" × " + fmtInches(s.landing.depth) + "\"");
-    if (upperFlight) doc.fillColor(muted).text(`Upper flight starts from this landing: ${upperFlight.name || "Stair"}.`);
-    if (lowerFlight) doc.fillColor(muted).text(`Starts on the landing of ${lowerFlight.name || "Stair"}.`);
-    if (s.note) doc.fillColor(ink).text(s.note, { width: W });
-    doc.moveDown(0.3);
-
+    section(s.name || "Stair", ascii([shape, s.species, s.finish, s.color, s.riser_material === "primed" ? "risers primed" : s.riser_material === "paint_grade" ? "risers paint grade" : s.riser_material === "none" ? "no risers" : ""].filter(Boolean).join(" · ")));
+    if (s.landing.enabled) doc.font("Helvetica").fontSize(9).fillColor(C.muted).text("Landing after final component · " + fmtInches(s.landing.width) + "\" × " + fmtInches(s.landing.depth) + "\"", L);
+    if (upperFlight) doc.fillColor(C.muted).text(`Upper flight starts from this landing: ${upperFlight.name || "Stair"}.`, L);
+    if (lowerFlight) doc.fillColor(C.muted).text(`Starts on the landing of ${lowerFlight.name || "Stair"}.`, L);
+    if (s.note) doc.fillColor(C.ink).text(ascii(s.note), L, doc.y, { width: W });
+    doc.y += 4;
     const drawPanel = (title: string, height: number, draw: (x: number, y: number, width: number, height: number) => void) => {
       ensure(height + 25);
-      doc.font("Helvetica-Bold").fontSize(9).fillColor(ink).text(title, 40, doc.y, { width: W });
+      doc.font("Helvetica-Bold").fontSize(8).fillColor(C.muted).text(title.toUpperCase(), L, doc.y, { width: W, characterSpacing: 0.5 });
       const panelY = doc.y + 5;
-      draw(40, panelY, W, height);
-      doc.y = panelY + height + 9;
+      draw(L, panelY, W, height);
+      doc.y = panelY + height + 10;
     };
-
-    if (s.layout === "round") {
-      drawPanel("Stair plan", 112, (x, y, width, height) => drawRoundPlan(doc, s, x, y, width, height));
-    }
+    if (s.layout === "round") drawPanel("Stair plan", 112, (x, y, width, height) => drawRoundPlan(doc, s, x, y, width, height));
     const chain = connectedStairChain(m.data, s);
     const isChainRoot = chain.length > 1 && chain[0]!.id === s.id;
-    if (isChainRoot) {
-      drawPanel("Connected stair sequence", 132, (x, y, width, height) => drawStairElevation(doc, chain, x, y, width, height));
-    } else if (chain.length === 1) {
-      drawPanel("Stair elevation", 120, (x, y, width, height) => drawStairElevation(doc, [s], x, y, width, height));
-    }
+    if (isChainRoot) drawPanel("Connected stair sequence", 132, (x, y, width, height) => drawStairElevation(doc, chain, x, y, width, height));
+    else if (chain.length === 1) drawPanel("Stair elevation", 120, (x, y, width, height) => drawStairElevation(doc, [s], x, y, width, height));
     drawPanel("Illustrated specifications", 80, (x, y, width, height) => drawIllustratedSpecs(doc, s, x, y, width, height));
-
-    const cols = [40, 116, 220, 324, 454, 572];
-    const head = ["Part", "Tread (W x D)", "Riser (W x H)", "Sides", "Notes"];
-    ensure(14);
-    let y = doc.y;
-    doc.font("Helvetica-Bold").fontSize(8).fillColor(muted);
-    head.forEach((h, i) => doc.text(h, cols[i]!, y, { width: (cols[i + 1] ?? 40 + W) - cols[i]! - 4 }));
-    doc.y = y + 14;
-    s.steps.forEach((st, i) => {
-      y = doc.y;
-      doc.font("Helvetica").fontSize(9).fillColor(ink);
-      const raw = [
-        String(i + 1),
-        st.tread_w || st.tread_d ? `${fmtInches(st.tread_w)}" × ${fmtInches(st.tread_d)}"` : "—",
-        st.no_riser || s.riser_material === "none" ? "no riser" : st.riser_w || st.riser_h ? `${fmtInches(st.riser_w)}" × ${fmtInches(st.riser_h)}"` : "—",
-        openLabel(st.open, st.ret),
-        st.note || "",
-      ];
-      if (st.kind === "riser") {
-        raw[0] = "Riser only " + (i + 1);
-        raw[1] = "—";
-        raw[3] = "—";
-      }
-      const cells = raw.map(ascii);
-      const h = Math.max(12, ...cells.map((c, j) => doc.heightOfString(c || " ", { width: (cols[j + 1] ?? 40 + W) - cols[j]! - 4 })));
-      if (y + h > doc.page.height - 50) { doc.addPage(); y = doc.y; }
-      cells.forEach((c, j) => { if (c) doc.text(c, cols[j]!, y, { width: (cols[j + 1] ?? 40 + W) - cols[j]! - 4 }); });
-      doc.y = y + h + 3;
-    });
+    table(
+      [{ w: 70, label: "Part" }, { w: 104, label: "Tread (W × D)" }, { w: 104, label: "Riser (W × H)" }, { w: 140, label: "Sides" }, { w: 114, label: "Notes" }],
+      s.steps.map((st, i) => st.kind === "riser"
+        ? [`Riser only ${i + 1}`, "—", st.riser_w || st.riser_h ? `${fmtInches(st.riser_w)}" × ${fmtInches(st.riser_h)}"` : "—", "—", st.note || ""]
+        : [String(i + 1), st.tread_w || st.tread_d ? `${fmtInches(st.tread_w)}" × ${fmtInches(st.tread_d)}"` : "—", st.no_riser || s.riser_material === "none" ? "no riser" : st.riser_w || st.riser_h ? `${fmtInches(st.riser_w)}" × ${fmtInches(st.riser_h)}"` : "—", openLabel(st.open, st.ret), st.note || ""]),
+    );
     if (s.nosings.length) {
-      doc.moveDown(0.3);
-      doc.font("Helvetica-Bold").fontSize(9).fillColor(ink).text("Nosings", 40);
-      for (const n of s.nosings) {
-        ensure(28);
-        doc.font("Helvetica").fontSize(8).fillColor(muted).text(ascii("Position: " + nosingPosition(s, n)), 50);
-        doc.font("Helvetica").fontSize(9).text(ascii(`${n.qty || 1} × ${fmtInches(n.length)}" · ${n.type === "overlap" ? "overlap" : n.type === "stair_nose" ? "stair nose" : "flush"}${n.note ? ` · ${n.note}` : ""}`), 50);
-      }
+      table(
+        [{ w: 60, label: "Qty", align: "right" }, { w: 90, label: "Length" }, { w: 110, label: "Type" }, { w: 272, label: "Position / notes" }],
+        s.nosings.map((n) => [String(n.qty || 1), `${fmtInches(n.length)}"`, n.type === "overlap" ? "overlap" : n.type === "stair_nose" ? "stair nose" : "flush", [nosingPosition(s, n), n.note].filter(Boolean).join(" · ")]),
+      );
     }
-    doc.moveDown(0.6);
   }
 
+  /* ── vents ── */
   if (m.data.vents.length) {
-    ensure(50);
-    rule();
-    doc.moveDown(0.4);
-    doc.font("Helvetica-Bold").fontSize(12).fillColor(ink).text("Vents", 40);
-    doc.moveDown(0.2);
-    for (const v of m.data.vents) {
-      ensure(14);
-      doc.font("Helvetica").fontSize(9.5).fillColor(ink)
-        .text(`${v.qty || 1} × ${v.size || "?"} · ${VENT_LABEL[v.type] || v.type}${[v.species, v.finish, v.color].filter(Boolean).length ? ` · ${[v.species, v.finish, v.color].filter(Boolean).join(" · ")}` : ""}${v.room ? ` · ${v.room}` : ""}${v.note ? ` · ${v.note}` : ""}`, 40, doc.y, { width: W });
-    }
+    section("Vents");
+    table(
+      [{ w: 50, label: "Qty", align: "right" }, { w: 70, label: "Size" }, { w: 130, label: "Type" }, { w: 152, label: "Wood" }, { w: 130, label: "Room / notes" }],
+      m.data.vents.map((v) => [String(v.qty || 1), v.size || "?", VENT_LABEL[v.type] || v.type, [v.species, v.finish, v.color].filter(Boolean).join(" · ") || "—", [v.room, v.note].filter(Boolean).join(" · ")]),
+    );
+  }
+
+  /* ── footer on every page ── */
+  const range = doc.bufferedPageRange();
+  for (let i = range.start; i < range.start + range.count; i++) {
+    doc.switchToPage(i);
+    doc.page.margins.bottom = 0;
+    const y = doc.page.height - 34;
+    doc.moveTo(L, y - 6).lineTo(L + W, y - 6).lineWidth(0.5).strokeColor(C.line).stroke();
+    doc.font("Helvetica").fontSize(7.5).fillColor(C.muted).text(ascii(`${m.address} · ${m.builder}`), L, y, { width: W - 80, lineBreak: false, ellipsis: true, height: 10 });
+    doc.text(`Page ${i - range.start + 1} of ${range.count}`, L + W - 80, y, { width: 80, align: "right", lineBreak: false, height: 10 });
   }
   doc.end();
   return done;

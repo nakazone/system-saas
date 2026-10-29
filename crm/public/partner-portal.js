@@ -135,6 +135,7 @@
       locate: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7"/>',
       user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
       tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/>',
+      check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
       shield: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/>',
     };
     return `<svg viewBox="0 0 24 24" aria-hidden="true">${paths[name] || ''}</svg>`;
@@ -1079,10 +1080,35 @@
     if (!state.send.error) readWithAi();
   }
 
-  async function readWithAi() {
+  async function readWithAi(opts) {
     const s = state.send;
     if (!s.files.length && !s.text.trim()) { s.error = 'Pick a file or paste the text of the order.'; return renderSendBody(); }
     if (s.files.reduce((sum, f) => sum + f.size, 0) > MAX_BYTES) return renderSendBody();
+    if (opts && opts.merge && s.fromMeas) {
+      // keep the measurement's address, floor lines and prices; take what the paper adds (PO #, date, pickup, contact…)
+      const btn = $('ppMergeRead'); if (btn) { btn.disabled = true; btn.textContent = 'Mate is reading…'; }
+      try {
+        const r = await postJson(companyInvited() ? '/api/builder/read' : '/api/partner-portal/requests/read', { text: s.text, files: s.files.map((f) => ({ name: f.name, data_url: f.dataUrl })) }, state.builder && !companyInvited() ? sendCo().id : undefined);
+        const data = r.data || {};
+        const got = data.fields || {};
+        let n = 0;
+        FIELD_ORDER.forEach((k) => {
+          const v = String(got[k] || '').trim();
+          if (!v || k === 'address' && s.fields.address) return;
+          if (!String(s.fields[k] || '').trim() || k === 'external_ref' || k === 'preferred_date' || k === 'pickup' || k === 'title') { s.fields[k] = v; n++; }
+        });
+        if (data.pickup_match && data.pickup_match.text) { s.pickupMatch = data.pickup_match; s.fields.pickup = data.pickup_match.text; }
+        if (!s.items.length && Array.isArray(data.items)) s.items = data.items.map((it) => ({ ...it, create_service: true, remove: false }));
+        if (Array.isArray(data.catalog) && data.catalog.length) s.catalog = data.catalog;
+        if (data.match && !s.match) { s.match = data.match; s.mode = 'update'; }
+        s.mergedRead = true;
+        s.warnings = n ? [] : ['Mate didn’t find more details in that file. It still goes with the job.'];
+        mateToast('reading', n ? `Mate filled in ${plural(n, 'field', 'fields')}` : 'Nothing new in that file', n ? 'Your floor lines and prices stay as they were.' : '');
+      } catch (err) {
+        s.warnings = [`${err.message || 'Could not read the file.'} It still goes with the job.`];
+      }
+      return renderSendBody();
+    }
     s.phase = 'reading';
     s.error = '';
     renderSendBody();
@@ -1151,24 +1177,28 @@
     const target = sendCo();
     state.ctx = target;
     const allCos = (state.builder && state.builder.companies) || [];
-    const picker = state.builder && allCos.length > 1 && !state.send.presetJob
-      ? `<label class="pp-sendto"><span>Send to</span><select id="ppSendCo">${allCos.map((c) => `<option value="${esc(c.id)}" ${target && target.id === c.id ? 'selected' : ''}>${esc(c.company_name)}${c.status === 'invited' ? ' (invited)' : ''}</option>`).join('')}</select></label>`
-      : `<p class="pp-eyebrow">${state.builder ? 'To ' : ''}${esc(providerName())}</p>`;
+    const canPick = state.builder && allCos.length > 1 && !state.send.presetJob && state.send.phase === 'pick';
+    const coCards = state.builder && target ? `<div class="pp-send-to" role="${canPick ? 'radiogroup' : 'group'}" aria-label="Send to">
+        <span class="pp-send-to-lbl">Send to</span>
+        ${(canPick ? allCos : [target]).map((c) => `<button type="button" class="pp-send-co" role="${canPick ? 'radio' : 'presentation'}" aria-checked="${target.id === c.id}" data-send-co="${esc(c.id)}" ${canPick ? '' : 'tabindex="-1"'}>${coLogo(c, 32)}<span><strong>${esc(c.company_name)}</strong><small>${c.status === 'invited' ? 'Invited — held until they join' : 'On ObraMate'}</small></span>${target.id === c.id ? `<i aria-hidden="true">${icon('check')}</i>` : ''}</button>`).join('')}
+      </div>` : `<p class="pp-eyebrow">${state.builder ? 'To ' : ''}${esc(providerName())}</p>`;
     view.innerHTML = `
-      <div class="pp-head">
-        <div>${picker}<h1>Send work</h1></div>
+      <div class="pp-head pp-send-head">
+        <div><h1>Send work</h1><p class="pp-muted pp-send-sub">A work order, a measurement or the plans — ${esc(providerName())} gets it as a job.</p></div>
         <ol class="pp-steps" id="ppSteps" aria-label="Steps"></ol>
       </div>
+      ${coCards}
       <div class="pp-split pp-split--stack">
         <section class="pp-main" id="ppSendBody"></section>
         <aside class="pp-card pp-side" aria-labelledby="ppReqTitle" id="ppReqs"></aside>
       </div>`;
-    const pick = $('ppSendCo');
-    if (pick) pick.addEventListener('change', () => {
-      state.send.co = pick.value;
-      postJson('/api/builder/select', { company_id: pick.value }).catch(() => {});
+    if (canPick) view.querySelectorAll('[data-send-co]').forEach((b) => b.addEventListener('click', () => {
+      const id = b.getAttribute('data-send-co');
+      if (state.send.co === id) return;
+      state.send.co = id;
+      postJson('/api/builder/select', { company_id: id }).catch(() => {});
       renderSend(renderToken);
-    });
+    }));
     renderSendBody();
     renderRequestsList();
   }
@@ -1197,7 +1227,7 @@
 
   function stepsHtml(phase) {
     const idx = phase === 'pick' ? 0 : phase === 'done' ? 2 : 1;
-    return ['1 · File', '2 · Check', '3 · Sent'].map((label, i) => `<li class="${i === idx ? 'on' : ''}">${label}</li>`).join('');
+    return ['1 · Choose', '2 · Check', '3 · Sent'].map((label, i) => `<li class="${i === idx ? 'on' : i < idx ? 'done' : ''}">${label}</li>`).join('');
   }
 
   function renderSendBody() {
@@ -1252,24 +1282,44 @@
       box.innerHTML = '<div class="pp-card pp-empty"><strong>Your role can’t send jobs</strong>Ask someone in the office or your team admin.</div>';
       return;
     }
+    const ready = state.builder && canDo('measure') ? (state.homeMeas || []).filter((m) => m.status !== 'used' && ((m.counts || {}).floor_sf || (m.counts || {}).treads || (m.counts || {}).vents)).slice(0, 4) : [];
     box.innerHTML = `
       ${companyInvited() ? `<div class="pp-match"><strong>${esc(providerName())} isn’t on ObraMate yet</strong><span class="pp-muted" style="font-size:14px">The job is held and goes into their system as soon as they create their account from your invite.</span></div>` : ''}
       ${s.presetJob ? `<div class="pp-match"><strong>Update to ${esc(s.presetJob.title || 'job')}</strong><span class="pp-muted" style="font-size:14px">${esc(s.presetJob.address || '')} · send the new order, photo or text. It goes with this job.</span></div>` : ''}
-      ${state.builder && state.builder.ai_reader ? `<div class="pp-mate-tip">${mate('snap', 96)}<div><strong>Snap it, Mate reads it</strong><span>Take a photo of the work order or upload the PDF. Mate fills in the address, date, pickup and services — you check before sending.</span></div></div>` : ''}
-      <button type="button" class="pp-bigdrop" id="ppBigDrop">
-        ${icon('upload')}
-        <strong><span class="pp-hide-phone">Drop files here or tap to choose</span><span class="pp-only-phone">Choose a file</span></strong>
-        <span>Work order, PO, schedule, plan · PDF, JPG, PNG or WebP · up to 5 files, 10 MB</span>
-      </button>
-      ${files ? `<div class="pp-files">${files}</div>` : ''}
-      ${s.showPaste ? `<div class="pp-paste pp-field"><label for="ppPaste">Paste the text of the e-mail or your system</label><textarea id="ppPaste" maxlength="20000" placeholder="e.g. Job# 172369 · 109 Evergreen Dr · Install - Hardwood · Monday, October 26th…">${esc(s.text)}</textarea></div>` : ''}
-      ${s.error ? `<p class="pp-error" role="alert">${esc(s.error)}</p>` : ''}
-      ${s.files.length || (s.showPaste && s.text.trim()) ? `<div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end"><button type="button" class="pp-btn pp-btn--sec" id="ppManual2">Fill in by hand</button><button type="button" class="pp-btn pp-btn--pri" id="ppRead">Read and fill in</button></div>` : ''}
-      <div class="pp-sources">
-        <button type="button" class="pp-source" id="ppCam">${icon('camera')}<span>Take a photo<small>Paper or your system’s screen</small></span></button>
-        <button type="button" class="pp-source" id="ppPasteBtn">${icon('text')}<span>Paste text<small>E-mail or system notice</small></span></button>
-        <button type="button" class="pp-source" id="ppManual">${icon('pen')}<span>Fill in by hand<small>With or without a file</small></span></button>
+      <div class="pp-send-ways">
+        <section class="pp-card pp-send-way pp-send-way--wo">
+          <div class="pp-send-way-head"><span class="pp-send-way-ic">${icon('upload')}</span><div><h2>Upload the work order</h2><p>PDF, photo or screenshot of your system. ${state.builder && state.builder.ai_reader ? 'Mate reads the address, date, pickup and services.' : 'You fill in the details next.'}</p></div></div>
+          <button type="button" class="pp-bigdrop" id="ppBigDrop">
+            ${state.builder && state.builder.ai_reader ? mate('snap', 72) : icon('upload')}
+            <strong><span class="pp-hide-phone">Drop files here or click to choose</span><span class="pp-only-phone">Choose a file</span></strong>
+            <span>Work order, PO, schedule, plans · up to 5 files, 10 MB</span>
+          </button>
+          ${files ? `<div class="pp-files">${files}</div>` : ''}
+          ${s.showPaste ? `<div class="pp-paste pp-field"><label for="ppPaste">Paste the text of the e-mail or your system</label><textarea id="ppPaste" maxlength="20000" placeholder="e.g. Job# 172369 · 109 Evergreen Dr · Install - Hardwood · Monday, October 26th…">${esc(s.text)}</textarea></div>` : ''}
+          ${s.error ? `<p class="pp-error" role="alert">${esc(s.error)}</p>` : ''}
+          ${s.files.length || (s.showPaste && s.text.trim()) ? `<div class="pp-send-go"><button type="button" class="pp-btn pp-btn--sec" id="ppManual2">Fill in by hand</button><button type="button" class="pp-btn pp-btn--pri" id="ppRead">${state.builder && state.builder.ai_reader ? 'Read and fill in' : 'Continue'}</button></div>` : ''}
+          <div class="pp-send-alt">
+            <button type="button" class="pp-source" id="ppCam">${icon('camera')}<span>Take a photo</span></button>
+            <button type="button" class="pp-source" id="ppPasteBtn">${icon('text')}<span>Paste text</span></button>
+            <button type="button" class="pp-source" id="ppManual">${icon('pen')}<span>Fill in by hand</span></button>
+          </div>
+        </section>
+        ${state.builder && canDo('measure') && !s.presetJob ? `<section class="pp-card pp-send-way pp-send-way--meas">
+          <div class="pp-send-way-head"><span class="pp-send-way-ic pp-send-way-ic--olive">${icon('ruler')}</span><div><h2>From a measurement</h2><p>Floors from the plans, stairs or vents you measured. The lines, totals, PDF and plans go with the job.</p></div></div>
+          ${ready.length ? `<div class="pp-send-meas">${ready.map((m) => `<button type="button" class="pp-send-mrow" data-send-meas="${esc(m.id)}"><span class="pp-mcard-ic" aria-hidden="true">${icon('ruler')}</span><span><strong>${esc(m.address)}</strong><small>${esc(countsText(m.counts || {}))}</small></span><span class="pp-send-mgo">Use ${icon('chev')}</span></button>`).join('')}</div>` : `<p class="pp-muted pp-send-none">No measurements ready to send.</p>`}
+          <div class="pp-send-alt"><a class="pp-source" href="#measurements">${icon('ruler')}<span>All measurements</span></a><button type="button" class="pp-source" data-send-plans>${icon('upload')}<span>Measure from plans</span></button></div>
+        </section>` : ''}
       </div>`;
+    box.querySelectorAll('[data-send-meas]').forEach((b) => b.addEventListener('click', async () => {
+      b.disabled = true;
+      try { const r = await api(`/api/builder/measurements/${encodeURIComponent(b.getAttribute('data-send-meas'))}`); await sendFromMeasurement({ ...r.data, dirty: false }, true); } catch (ex) { b.disabled = false; mateToast('head-curious', 'Could not open it', ex.message); }
+    }));
+    const plansBtn = box.querySelector('[data-send-plans]');
+    if (plansBtn) plansBtn.addEventListener('click', () => openPlanUpload());
+    if (state.builder && canDo('measure') && !state.homeMeas && !s._measLoaded) {
+      s._measLoaded = true;
+      api('/api/builder/measurements').then((r) => { state.homeMeas = r.data || []; if (state.send === s && s.phase === 'pick') renderSendBody(); }).catch(() => {});
+    }
     const drop = $('ppBigDrop');
     drop.addEventListener('click', () => $('ppFileInput').click());
     bindDrop(drop, async (fl) => { await addFiles(fl); renderSendBody(); });
@@ -1314,7 +1364,7 @@
       const req = o.required ? ' *' : '';
       const input = o.area
         ? `<textarea id="ppF-${key}" data-field="${key}" maxlength="${o.max || 5000}">${esc(f[key])}</textarea>`
-        : `<input id="ppF-${key}" data-field="${key}" type="${o.type || 'text'}" ${o.required ? 'required' : ''} maxlength="${o.max || 200}" value="${esc(f[key])}" ${o.auto ? `autocomplete="${o.auto}"` : ''} />`;
+        : `<input id="ppF-${key}" data-field="${key}" type="${o.type || 'text'}" ${o.required ? 'required' : ''} maxlength="${o.max || 200}" value="${esc(f[key])}" ${o.auto ? `autocomplete="${o.auto}"` : ''} ${o.ph ? `placeholder="${esc(o.ph)}"` : ''} />`;
       return `<div class="pp-field ${o.wide ? 'pp-field--wide' : ''} ${isCheck ? 'is-check' : ''}"><label for="ppF-${key}">${esc(FIELD_LABELS[key])}${req} ${tag}</label>${input}</div>`;
     };
     const match = s.match;
@@ -1328,7 +1378,7 @@
       </div>` : '';
     return `
       <div class="pp-card" style="padding:16px 20px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:center">
-        <div style="display:flex;gap:10px;align-items:center">${s.ai ? `<span class="pp-mateface" aria-hidden="true"><img src="/assets/img/mascot/mate-head-neutral.webp?v=20261027-m2" alt="" width="36" height="36"></span>` : ''}<div><strong style="font-size:17px">${s.ai ? 'Check what we read' : 'Request details'}</strong><div class="pp-muted" style="font-size:14px">${s.ai ? `${plural(filled, 'field filled', 'fields filled')}${checked ? ` · <span class="pp-late">${plural(checked, 'to check', 'to check')}</span>` : ''} · nothing is sent until you confirm` : 'Fill in what you know. Address and title are required.'}</div></div></div>
+        <div style="display:flex;gap:10px;align-items:center">${s.ai || s.fromMeas ? `<span class="pp-mateface" aria-hidden="true"><img src="/assets/img/mascot/mate-head-neutral.webp?v=20261027-m2" alt="" width="36" height="36"></span>` : ''}<div><strong style="font-size:17px">${s.fromMeas ? 'Work order from your measurement' : s.ai ? 'Check what we read' : 'Request details'}</strong><div class="pp-muted" style="font-size:14px">${s.fromMeas ? 'Address, floors and prices are filled in. Add your work order file or PO # if you have one.' : s.ai ? `${plural(filled, 'field filled', 'fields filled')}${checked ? ` · <span class="pp-late">${plural(checked, 'to check', 'to check')}</span>` : ''} · nothing is sent until you confirm` : 'Fill in what you know. Address and title are required.'}</div></div></div>
         <button type="button" class="pp-link" id="ppRestart">${s.files.length || s.ai ? 'Change file' : 'Start over'}</button>
       </div>
       <div class="pp-cols">
@@ -1337,24 +1387,30 @@
           ${matchHtml}
           ${s.warnings.map((w) => `<p class="pp-warn">${esc(w)}</p>`).join('')}
           ${filesEditor(s)}
-          <div class="pp-fields">
-            ${field('address', { required: true, wide: true, max: 300, auto: 'street-address' })}
-            ${field('title', { required: true, wide: true, max: 160 })}
-            ${field('service_type', { max: 100 })}
+          <fieldset class="pp-fset"><legend>Job</legend><div class="pp-fields">
+            ${field('address', { required: true, wide: true, max: 300, auto: 'street-address', ph: 'e.g. 109 Evergreen Dr, Denver, CO' })}
+            ${field('title', { required: true, wide: true, max: 160, ph: 'e.g. Hardwood install · Lot 10' })}
+            ${field('service_type', { max: 100, ph: 'e.g. Install – Hardwood' })}
             ${field('preferred_date', { type: 'date' })}
-            ${field('pickup', { wide: true, max: 200 })}
-            ${pickupRow(s)}
-            ${field('external_ref', { max: 60 })}
+            ${field('external_ref', { max: 60, ph: 'Your PO or job #' })}
+          </div></fieldset>
+          <fieldset class="pp-fset"><legend>Site &amp; material</legend><div class="pp-fields">
             ${field('community', { max: 120 })}
             ${field('lot', { max: 20 })}
             ${field('plan', { max: 80 })}
             ${field('square_feet', { type: 'number' })}
-            ${field('material', { max: 120 })}
+            ${field('material', { wide: true, max: 120 })}
+            ${field('pickup', { wide: true, max: 200 })}
+            ${pickupRow(s)}
+          </div></fieldset>
+          <fieldset class="pp-fset"><legend>On-site contact</legend><div class="pp-fields">
             ${field('contact_name', { max: 120, auto: 'name' })}
             ${field('contact_phone', { type: 'tel', max: 40, auto: 'tel' })}
-            ${field('contact_email', { type: 'email', max: 254, auto: 'email' })}
+            ${field('contact_email', { type: 'email', max: 254, auto: 'email', wide: true })}
+          </div></fieldset>
+          <fieldset class="pp-fset"><legend>Notes for the crew</legend><div class="pp-fields">
             ${field('notes', { wide: true, area: true, max: 4000 })}
-          </div>
+          </div></fieldset>
         </form>
       </div>
       ${measurementBanner(s)}
@@ -1640,12 +1696,15 @@
     const chips = s.files.length
       ? `<div class="pp-files">${s.files.map((f, i) => `<span class="pp-file">${esc(f.name)} · ${fileSize(f.size)}<button type="button" data-remove="${i}" aria-label="Remove ${esc(f.name)}">×</button></span>`).join('')}</div>`
       : '<span class="pp-muted" style="font-size:14px">No files yet. PDF, JPG, PNG or WebP.</span>';
-    return `<div class="pp-field pp-field--wide" id="ppFileBox">
-      <span style="font-size:13px;color:var(--pp-muted);font-weight:500">Files</span>
-      ${chips}
+    const canRead = s.fromMeas && s.files.length && state.builder && state.builder.ai_reader && !s.mergedRead;
+    return `<div class="pp-field pp-field--wide pp-attach ${s.fromMeas && !s.files.length ? 'is-invite' : ''}" id="ppFileBox">
+      <span class="pp-attach-lbl">${s.fromMeas ? 'Your work order (optional)' : 'Attachments'}</span>
+      ${s.fromMeas && !s.files.length ? '<span class="pp-muted" style="font-size:14px">Have the builder’s work order or PO? Add the PDF or a photo — it goes with the job, and Mate can read the PO #, date and pickup from it.</span>' : chips}
+      ${s.fromMeas ? '<span class="pp-attach-auto">' + icon('check') + 'The measurement PDF' + (s.fromMeas.hasPlans ? ' and the plans' : '') + ' are attached automatically.</span>' : ''}
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
-        <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" id="ppAddFiles">Add files</button>
-        <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" id="ppAddCamera">Take a photo</button>
+        <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" id="ppAddFiles">${icon('upload')}Add files</button>
+        <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" id="ppAddCamera">${icon('camera')}Take a photo</button>
+        ${canRead ? `<button type="button" class="pp-btn pp-btn--pri pp-btn--sm" id="ppMergeRead">${icon('text')}Read it with Mate</button>` : ''}
       </div>
     </div>`;
   }
@@ -1695,6 +1754,8 @@
     if (addFilesBtn) addFilesBtn.addEventListener('click', () => $('ppFileInput').click());
     const addCam = $('ppAddCamera');
     if (addCam) addCam.addEventListener('click', () => $('ppCameraInput').click());
+    const mergeRead = $('ppMergeRead');
+    if (mergeRead) mergeRead.addEventListener('click', () => readWithAi({ merge: true }));
     bindDrop($('ppFileBox'), async (fl) => { await addFiles(fl); renderSendBody(); });
     view.querySelectorAll('#ppFileBox [data-remove]').forEach((b) => b.addEventListener('click', () => {
       const f = s.files.splice(Number(b.getAttribute('data-remove')), 1)[0];
@@ -2896,7 +2957,7 @@
       vm.set(k, (vm.get(k) || 0) + (v.qty || 1));
     });
     vm.forEach((n, k) => out.push({ kind: 'Vent', group: 'Vents', text: k, qty: n }));
-    planTotals(data.plan).filter((t) => t.include).forEach((t) => out.push({ kind: 'Floor', group: t.levels.map((l) => `${l.name} ${fmtSf(l.area)}`).join(' · '), text: `${t.label}${t.kind === 'hardwood' && t.sand_finish ? ' · sand & finish' : ''}`, qty: Math.round(t.area), uom: 'SF' }));
+    planTotals(data.plan).filter((t) => t.include).forEach((t) => out.push({ kind: 'Floor', group: t.levels.map((l) => `${l.name} ${fmtSf(l.area)}`).join(' · '), text: `${t.label}${specText(t) ? ` · ${specText(t)}` : ''}${t.kind === 'hardwood' && t.sand_finish ? ' · sand & finish' : ''}`, qty: Math.round(t.area), uom: 'SF' }));
     return out;
   }
   function measCounts(data) {
@@ -3882,6 +3943,82 @@
   const KIND_WORDS = { hardwood: /hard\s?wood|\bwood\b|engineered|oak/i, lvp: /\blvp\b|\blvt\b|vinyl/i, laminate: /laminate/i, carpet: /carpet/i, rubber: /rubber/i };
   let plan3d = null;
 
+  /** Product details each floor type asks for; values are suggestions, anything can be typed. */
+  const SPEC_FIELDS = {
+    hardwood: ['species', 'construction', 'width', 'thickness', 'grade', 'finish', 'color', 'sheen', 'install', 'pattern', 'brand'],
+    lvp: ['brand', 'color', 'size', 'thickness', 'wear', 'install', 'underlayment'],
+    laminate: ['brand', 'color', 'size', 'thickness', 'install', 'underlayment'],
+    carpet: ['brand', 'color', 'pad'],
+    rubber: ['brand', 'color', 'thickness'],
+    tile: ['brand', 'color', 'size'], stone: ['brand', 'color', 'size'], other: ['brand', 'color'],
+  };
+  const SPEC_LABEL = { species: 'Species', construction: 'Construction', width: 'Width', thickness: 'Thickness', grade: 'Grade', finish: 'Finish', color: 'Color / stain', sheen: 'Sheen', install: 'Install', pattern: 'Pattern', brand: 'Brand / product', size: 'Plank size', wear: 'Wear layer', underlayment: 'Underlayment', pad: 'Pad' };
+  const SPEC_OPTS = {
+    species: ['White Oak', 'Red Oak', 'Hickory', 'Maple', 'Walnut', 'Ash', 'Birch', 'Brazilian Cherry', 'Acacia'],
+    construction: ['Engineered', 'Solid'],
+    width: ['2-1/4"', '3-1/4"', '4"', '5"', '6"', '6-1/2"', '7"', '7-1/2"', '8"', '9"', '10"', 'Mixed widths'],
+    'thickness:hardwood': ['3/4"', '5/8"', '9/16"', '1/2"', '3/8"'],
+    'thickness:lvp': ['4 mm', '5 mm', '6 mm', '8 mm'],
+    'thickness:laminate': ['7 mm', '8 mm', '10 mm', '12 mm'],
+    'thickness:rubber': ['1/4"', '3/8"', '8 mm'],
+    grade: ['Clear', 'Select', '#1 Common', '#2 Common', 'Character', 'Rustic'],
+    finish: ['Unfinished — sand & finish on site', 'Prefinished'],
+    color: ['Natural', 'Jacobean', 'Special Walnut', 'Provincial', 'Ebony', 'Classic Gray', 'Weathered Oak', 'Driftwood', 'Coffee', 'Dark Walnut'],
+    sheen: ['Matte', 'Satin', 'Semi-gloss', 'Gloss'],
+    install: ['Nail down', 'Glue down', 'Nail & glue', 'Floating (click)'],
+    pattern: ['Straight', 'Herringbone', 'Chevron', 'Diagonal'],
+    size: ['7" × 48"', '7" × 60"', '9" × 60"', '9" × 72"', '12" × 24" tile', '18" × 36" tile'],
+    wear: ['12 mil', '20 mil', '22 mil', '28 mil'],
+    underlayment: ['Attached pad', 'Separate underlayment', 'None'],
+    pad: ['6 lb 7/16"', '8 lb 7/16"', '8 lb 1/2"', '10 lb'],
+  };
+  function specText(m) {
+    const sp = (m && m.spec) || {};
+    const out = [];
+    (SPEC_FIELDS[m.kind] || []).forEach((k) => {
+      const v = String(sp[k] || '').trim();
+      if (!v) return;
+      if (k === 'thickness' && sp.width && out.length) { out[out.length - 1] = `${out[out.length - 1]} × ${v}`; return; }
+      out.push(k === 'wear' ? `${v} wear layer` : k === 'pad' ? `${v} pad` : k === 'finish' ? v.replace(/ — .*/, '') : v);
+    });
+    return out.join(' · ');
+  }
+
+  /** Product details of one floor type (species, width, finish…), and variants of it. */
+  function openSpecSheet(i) {
+    const m = state.meas; const plan = m.data.plan; const x = plan.materials[i];
+    if (!x) return;
+    x.spec = x.spec || {};
+    const fields = SPEC_FIELDS[x.kind] || SPEC_FIELDS.other;
+    const used = plan.levels.some((lv) => lv.rooms.some((r) => r.material === x.key));
+    const root = openSheet(`${x.label} · product`, `<form id="ppSpecForm" class="pp-fields" novalidate>
+        <div class="pp-field pp-field--wide"><label for="ppSpecLabel">Name on the takeoff</label><input id="ppSpecLabel" maxlength="60" value="${esc(x.label)}" /></div>
+        ${fields.map((k) => { const opts = SPEC_OPTS[`${k}:${x.kind}`] || SPEC_OPTS[k] || []; return `<div class="pp-field ${k === 'brand' || k === 'finish' ? 'pp-field--wide' : ''}"><label for="ppSp-${k}">${esc(SPEC_LABEL[k] || k)}</label><input id="ppSp-${k}" data-spec="${k}" maxlength="80" list="ppSpL-${k}" value="${esc(x.spec[k] || '')}" placeholder="${esc(opts[0] ? `e.g. ${opts[0]}` : '')}" autocomplete="off" /><datalist id="ppSpL-${k}">${opts.map((o) => `<option value="${esc(o)}"></option>`).join('')}</datalist></div>`; }).join('')}
+        <p class="pp-muted pp-field--wide" style="margin:0;font-size:13px">Pick from the list or type anything. These details go on the quote, the PDF and the work order lines.</p>
+        <div class="pp-sheet-actions pp-field--wide">
+          <button type="button" class="pp-btn pp-btn--sec" data-spec-variant>${icon('pen')}Add a variant</button>
+          ${!used && plan.materials.filter((y) => y.kind === x.kind).length > 1 ? '<button type="button" class="pp-btn pp-btn--sec pp-late" data-spec-rm>Remove</button>' : ''}
+          <button type="submit" class="pp-btn pp-btn--pri">Save</button>
+        </div>
+      </form>`, { noFocus: true });
+    const collect = () => {
+      x.label = $('ppSpecLabel').value.trim() || x.label;
+      root.querySelectorAll('[data-spec]').forEach((inp) => { const v = inp.value.trim(); if (v) x.spec[inp.getAttribute('data-spec')] = v; else delete x.spec[inp.getAttribute('data-spec')]; });
+      if (x.kind === 'hardwood' && x.spec.finish) x.sand_finish = /^unfinished/i.test(x.spec.finish);
+    };
+    root.querySelector('#ppSpecForm').addEventListener('submit', (e) => { e.preventDefault(); collect(); closeSheet(); measSaveSoon(); const y = window.scrollY; paintMeasurement(); window.scrollTo(0, y); });
+    root.querySelector('[data-spec-variant]').addEventListener('click', () => {
+      collect();
+      const n = plan.materials.filter((y) => y.kind === x.kind).length + 1;
+      const copy = { ...x, key: `${x.kind}-v${Date.now().toString(36)}`, label: `${x.label.replace(/ \d+$/, '')} ${n}`, spec: { ...x.spec } };
+      plan.materials.splice(i + 1, 0, copy);
+      closeSheet(); measSaveSoon(); paintMeasurement();
+      mateToast('measure', 'Variant added', 'Pick it in the Floor column of the rooms that use it.');
+    });
+    const rm = root.querySelector('[data-spec-rm]');
+    if (rm) rm.addEventListener('click', () => { plan.materials.splice(i, 1); closeSheet(); measSaveSoon(); paintMeasurement(); });
+  }
+
   function fmtSf(n) { return `${Math.round(Number(n) || 0).toLocaleString('en-US')} SF`; }
   function wastePct(kind) {
     const t = (state.builder && state.builder.account && state.builder.account.takeoff) || {};
@@ -3961,6 +4098,12 @@
       if (!mats || !mats.length) throw new Error('No floor colors were marked, so nothing was measured.');
     }
     mats.forEach((x) => { if (x.kind === 'hardwood') x.sand_finish = true; });
+    // reading again keeps what the person already chose for each floor (product, counted or not)
+    const before = (m.data && m.data.plan && m.data.plan.materials) || [];
+    mats.forEach((x) => {
+      const old = before.find((o) => o.label === x.label && o.kind === x.kind) || before.find((o) => o.color === x.color);
+      if (old) { x.spec = { ...(old.spec || {}) }; x.include = old.include; x.sand_finish = old.sand_finish; x.kind = old.kind; x.label = old.label; }
+    });
     const levels = []; const previews = [];
     const sheets = opened.sheets;
     for (let i = 0; i < sheets.length; i++) {
@@ -4070,6 +4213,53 @@
     return new File([blob], f.name || 'plans', { type: f.type });
   }
 
+  /** Send work order prefilled from a measurement: address, floor lines with agreed prices, the measurement attached. */
+  async function sendFromMeasurement(m, fromSendPage) {
+    if (m.dirty) await measSaveNow();
+    const plan = m.data && m.data.plan;
+    const s = newSend();
+    const companies = (state.builder.companies || []);
+    s.co = (plan && plan.quote_link_id && companies.some((c) => c.id === plan.quote_link_id) ? plan.quote_link_id : null) || (state.send && state.send.co) || (sendCo() && sendCo().id) || null;
+    const totals = planTotals(plan).filter((t) => t.include);
+    const c = measCounts(m.data);
+    const f = emptyFields();
+    f.address = m.address || '';
+    f.community = m.community || '';
+    f.lot = m.lot || '';
+    const kinds = [...new Set(totals.map((t) => (t.kind === 'hardwood' ? 'Hardwood' : t.kind === 'lvp' ? 'LVP' : t.label)))];
+    const parts = [...kinds, c.treads ? 'stairs' : '', c.vents ? 'vents' : ''].filter(Boolean);
+    f.service_type = (parts.length ? `Install – ${parts.join(', ')}` : 'Flooring').slice(0, 100);
+    f.title = `${kinds.length ? `${kinds.join(' + ')} floors` : parts.length ? parts.join(' & ') : 'Work'} · ${m.address}`.slice(0, 160);
+    if (totals.length) f.square_feet = String(Math.round(totals.reduce((a, t) => a + t.area, 0)));
+    f.material = totals.map((t) => `${t.label}${specText(t) ? `: ${specText(t)}` : ''}`).join('; ').slice(0, 120);
+    f.notes = [m.notes || '', totals.length ? `Floors measured from the plans: ${totals.map((t) => `${t.label} ${fmtSf(t.area)} (order ${fmtSf(orderQty(t).sf)} with ${orderQty(t).waste}% waste)`).join('; ')}.` : ''].filter(Boolean).join('\n').slice(0, 4000);
+    s.fields = f;
+    // floor lines with the company's agreed prices
+    let prices = [];
+    if (canDo('money.view') && s.co) prices = await api(`/api/builder/prices?company=${encodeURIComponent(s.co)}`).then((r) => (r.data || []).filter((p) => p.company_id === s.co)).catch(() => []);
+    s.agreed = prices;
+    if (plan) {
+      const planForQuote = { ...m, data: { ...m.data, plan: { ...plan, quote_prices: plan.quote_link_id === s.co ? plan.quote_prices : {} } } };
+      s.items = quoteLines(planForQuote, prices).map((l) => ({
+        area: '', description: l.name, detail: l.spec || '', quantity: l.qty, uom: 'SF',
+        rate: l.price ? l.price.price : null, total: null,
+        pricing_item_id: l.price && l.price.pricing_item_id ? l.price.pricing_item_id : null,
+        service_name: l.price ? l.price.name : l.name, create_service: true, remove: false,
+      }));
+    }
+    s.measurement = {
+      id: m.id, address: m.address, status: m.status, counts: { ...c, floor_text: totals.map((t) => `${t.label} ${fmtSf(t.area)}`).join(' · ') },
+      summary: measSummary(m.data).map((l) => ({ text: `${l.kind} · ${l.text}`, qty: Number(l.qty).toLocaleString('en-US'), uom: l.uom || 'EA' })),
+      measured_by: m.completed_by || m.updated_by || m.created_by, measured_at: m.completed_at || m.updated_at,
+    };
+    s.useMeasurement = m.status !== 'used';
+    s.fromMeas = { id: m.id, hasPlans: Boolean(plan && plan.file) };
+    s.ai = false; s.mode = 'new'; s.phase = 'review';
+    state.send = s;
+    if (s.co) postJson('/api/builder/select', { company_id: s.co }).catch(() => {});
+    if (fromSendPage && location.hash === '#send') render(); else location.hash = '#send';
+  }
+
   /** "From plans": pick the file, confirm the address Mate read from it, then measure. */
   function openPlanUpload() {
     const root = openSheet('Measure from plans', `
@@ -4132,7 +4322,7 @@
   function floorKpisHtml(totals) {
     const inc = totals.filter((t) => t.include);
     if (!inc.length) return '';
-    return `<div class="pp-plan-kpis">${inc.map((t) => { const o = orderQty(t); return `<div class="pp-plan-kpi"><span class="pp-swatch" style="background:${esc(t.color)}"></span><div><small>${esc(t.label)}</small><b>${fmtSf(t.area)}</b><span>Order ${fmtSf(o.sf)}${o.boxes ? ` · ${o.boxes} boxes` : ''} · ${o.waste}% waste</span></div></div>`; }).join('')}</div>`;
+    return `<div class="pp-plan-kpis">${inc.map((t) => { const o = orderQty(t); return `<div class="pp-plan-kpi"><span class="pp-swatch" style="background:${esc(t.color)}"></span><div><small>${esc(t.label)}${specText(t) ? ` · ${esc(specText(t))}` : ''}</small><b>${fmtSf(t.area)}</b><span>Order ${fmtSf(o.sf)}${o.boxes ? ` · ${o.boxes} boxes` : ''} · ${o.waste}% waste</span></div></div>`; }).join('')}</div>`;
   }
 
   function floorsTakeoffHtml(m) {
@@ -4143,7 +4333,7 @@
     const mats = `<section class="pp-card pp-block pp-plan-mats"><div class="pp-block-head"><h3>Floors on the plans</h3><span class="pp-muted">From the legend</span></div>
       ${plan.materials.map((x, i) => { const t = totals.find((y) => y.key === x.key); return `<div class="pp-plan-mat ${x.include ? '' : 'is-off'}">
         <span class="pp-swatch" style="background:${esc(x.color)}"></span>
-        <div class="pp-plan-mat-main"><strong>${esc(x.label)}</strong><small>${t ? fmtSf(t.area) : 'Not found on the plans'}</small></div>
+        <div class="pp-plan-mat-main"><strong>${esc(x.label)}</strong><small>${t ? fmtSf(t.area) : 'Not found on the plans'}</small>${x.include && t && FLOORING_KINDS.includes(x.kind) ? (specText(x) ? `<button type="button" class="pp-plan-spec" data-pmat-spec="${i}" ${dis}>${esc(specText(x))}</button>` : (locked ? '' : `<button type="button" class="pp-link pp-plan-spec-add" data-pmat-spec="${i}">+ Product details</button>`)) : ''}</div>
         ${sel(FLOOR_KIND_OPTS, x.kind, `data-pmat-kind="${i}" aria-label="Floor type for ${esc(x.label)}" ${dis}`)}
         ${x.kind === 'hardwood' ? `<label class="pp-check pp-plan-sand"><input type="checkbox" data-pmat-sand="${i}" ${x.sand_finish ? 'checked' : ''} ${dis} />Sand &amp; finish</label>` : '<span class="pp-plan-sand"></span>'}
         <label class="pp-switch" title="Count this floor"><input type="checkbox" data-pmat-inc="${i}" ${x.include ? 'checked' : ''} ${dis} /><span>${x.include ? 'In the takeoff' : 'Left out'}</span></label>
@@ -4210,10 +4400,10 @@
       const words = KIND_WORDS[t.kind] || /$^/;
       const qty = Math.ceil(t.area);
       const ins = pick(`${t.key}:install`, (p) => words.test(p.name) && /install/i.test(p.name)) || pick(`${t.key}:install`, (p) => words.test(p.name) && !/sand|refinish|finish|demo|remov/i.test(p.name));
-      lines.push({ key: `${t.key}:install`, name: `${t.label} install`, qty, price: ins, color: t.color });
+      lines.push({ key: `${t.key}:install`, name: `${t.label} install`, spec: specText(t), qty, price: ins, color: t.color, kind: t.kind });
       if (t.kind === 'hardwood' && t.sand_finish) {
         const sf = pick(`${t.key}:sand`, (p) => /sand|refinish|finish/i.test(p.name));
-        lines.push({ key: `${t.key}:sand`, name: 'Sand & finish', qty, price: sf, color: t.color });
+        lines.push({ key: `${t.key}:sand`, name: plan.materials.filter((x) => x.kind === 'hardwood' && x.include).length > 1 ? `Sand & finish · ${t.label}` : 'Sand & finish', spec: [t.spec && t.spec.color, t.spec && t.spec.sheen].filter(Boolean).join(' · '), qty, price: sf, color: t.color, kind: 'sand' });
       }
     });
     return lines;
@@ -4237,7 +4427,7 @@
         <div class="pp-plan-qtable" role="table" aria-label="Services">
           <div class="pp-plan-qrow pp-plan-qrow--head" role="row"><span role="columnheader">Service</span><span role="columnheader">Qty</span>${money_ ? '<span role="columnheader">Price</span><span role="columnheader">Total</span>' : ''}</div>
           ${lines.map((l) => `<div class="pp-plan-qrow" role="row">
-            <span class="pp-plan-qname"><span class="pp-swatch" style="background:${esc(l.color)}"></span>${esc(l.name)}</span>
+            <span class="pp-plan-qname"><span class="pp-swatch" style="background:${esc(l.color)}"></span>${esc(l.name)}${l.spec ? `<small>${esc(l.spec)}</small>` : ''}</span>
             <span>${fmtSf(l.qty)}</span>
             ${money_ ? `<span>${sel([['', sq.length ? 'Choose a price…' : 'No sq ft prices'], ...sq.map((p) => [p.id, `${p.name} · ${money(p.price)}/sq ft`])], l.price ? l.price.id : '', `data-pq-price="${esc(l.key)}" aria-label="Price for ${esc(l.name)}" ${locked ? 'disabled' : ''}`)}</span>
             <span class="pp-plan-qtotal">${l.price ? money(l.price.price * l.qty) : '—'}</span>` : ''}
@@ -4250,10 +4440,10 @@
         <div class="pp-block-head"><h3>Material to order</h3><a class="pp-link" href="#settings/takeoff">Waste settings</a></div>
         <div class="pp-plan-qtable" role="table" aria-label="Material">
           <div class="pp-plan-qrow pp-plan-qrow--head pp-plan-qrow--mat" role="row"><span role="columnheader">Floor</span><span role="columnheader">Measured</span><span role="columnheader">Waste</span><span role="columnheader">To order</span></div>
-          ${totals.map((t) => { const o = orderQty(t); return `<div class="pp-plan-qrow pp-plan-qrow--mat" role="row"><span class="pp-plan-qname"><span class="pp-swatch" style="background:${esc(t.color)}"></span>${esc(t.label)}<small>${t.levels.map((l) => `${esc(l.name)} ${fmtSf(l.area)}`).join(' · ')}</small></span><span>${fmtSf(t.area)}</span><span>${o.waste}%</span><b>${fmtSf(o.sf)}${o.boxes ? `<small>${o.boxes} boxes</small>` : ''}</b></div>`; }).join('')}
+          ${totals.map((t) => { const o = orderQty(t); return `<div class="pp-plan-qrow pp-plan-qrow--mat" role="row"><span class="pp-plan-qname"><span class="pp-swatch" style="background:${esc(t.color)}"></span>${esc(t.label)}<small>${specText(t) ? `${esc(specText(t))}<br>` : ''}${t.levels.map((l) => `${esc(l.name)} ${fmtSf(l.area)}`).join(' · ')}</small></span><span>${fmtSf(t.area)}</span><span>${o.waste}%</span><b>${fmtSf(o.sf)}${o.boxes ? `<small>${o.boxes} boxes</small>` : ''}</b></div>`; }).join('')}
         </div>
       </section>
-      <div class="pp-plan-foot"><a class="pp-btn pp-btn--pri" href="#send">${icon('send')}Send work order</a><span class="pp-muted">This measurement goes with the work order for ${esc(m.address)} — the floor totals, the PDF and the plans.</span></div>
+      <div class="pp-plan-foot">${locked ? '' : `<button type="button" class="pp-btn pp-btn--pri" data-send-wo>${icon('send')}Send work order</button>`}<span class="pp-muted">Opens the work order already filled in: address, these lines and prices, the floor totals, the PDF and the plans. You can add your own work order file.</span></div>
     </div>`;
   }
 
@@ -4292,6 +4482,7 @@
     });
     // materials
     view.querySelectorAll('[data-pmat-kind]').forEach((s) => s.addEventListener('change', () => { const x = plan.materials[+s.getAttribute('data-pmat-kind')]; x.kind = s.value; x.include = FLOORING_KINDS.includes(s.value); if (s.value === 'hardwood') x.sand_finish = true; save(); redraw(); }));
+    view.querySelectorAll('[data-pmat-spec]').forEach((b) => b.addEventListener('click', () => openSpecSheet(+b.getAttribute('data-pmat-spec'))));
     view.querySelectorAll('[data-pmat-sand]').forEach((c) => c.addEventListener('change', () => { plan.materials[+c.getAttribute('data-pmat-sand')].sand_finish = c.checked; save(); redraw(); }));
     view.querySelectorAll('[data-pmat-inc]').forEach((c) => c.addEventListener('change', () => { plan.materials[+c.getAttribute('data-pmat-inc')].include = c.checked; save(); redraw(); }));
     // levels and rooms
@@ -4379,6 +4570,18 @@
         if (!stage.isConnected) { v3.destroy(); return; }
         plan3d = v3;
         const wait = stage.querySelector('.pp-plan-3d-wait'); if (wait) wait.remove();
+        // a picture of the house for the PDF (once per reading of the plans)
+        if (!plan.snapshot && m.status !== 'used' && !m.snapBusy) {
+          m.snapBusy = true;
+          setTimeout(async () => {
+            try {
+              const url = v3.snapshot();
+              const r = await postJson(`/api/builder/measurements/${encodeURIComponent(m.id)}/plan-preview`, { data_url: url });
+              if (state.meas === m && m.data.plan === plan) { plan.snapshot = r.data.key; measSaveSoon(); }
+            } catch (_) { /* the PDF goes without the picture */ }
+            m.snapBusy = false;
+          }, 700);
+        }
         if (m.plan3dLevel && m.plan3dLevel !== 'all') v3.only(m.plan3dLevel);
         if (m.plan3dLabels === false) v3.showLabels(false);
         if (m.plan3dWalls === false) v3.walls(false);
@@ -4402,6 +4605,7 @@
       const prices = canDo('money.view') && plan.quote_link_id ? await api(`/api/builder/prices?company=${encodeURIComponent(plan.quote_link_id)}`).then((r) => (r.data || []).filter((p) => p.company_id === plan.quote_link_id)).catch(() => []) : [];
       if (!qbox.isConnected || m !== state.meas || m.floorView !== 'quote') return;
       qbox.innerHTML = floorsQuoteHtml(m, prices);
+      qbox.querySelectorAll('[data-send-wo]').forEach((b) => b.addEventListener('click', () => sendFromMeasurement(m)));
       const co = qbox.querySelector('[data-pq-co]');
       if (co) co.addEventListener('change', () => { plan.quote_link_id = co.value || null; plan.quote_prices = {}; save(); redraw(); });
       qbox.querySelectorAll('[data-pq-price]').forEach((s) => s.addEventListener('change', () => {
@@ -4427,7 +4631,8 @@
           <div class="pp-mhead-title"><h1 class="pp-meas-title">${esc(m.address)}</h1>
             <p>${measStatusChip(m)} <span id="ppMeasSaved" class="pp-meas-saved">Saved</span>${m.notes ? ` · <button type="button" class="pp-link" data-mtab-go="summary">Notes</button>` : ''}</p></div>
           <div class="pp-head-actions">
-            <a class="pp-btn pp-btn--sec pp-hide-phone" href="/api/builder/measurements/${encodeURIComponent(m.id)}/pdf" target="_blank" rel="noopener">PDF</a>
+            <a class="pp-btn pp-btn--sec pp-hide-phone" href="/api/builder/measurements/${encodeURIComponent(m.id)}/pdf" target="_blank" rel="noopener">${icon('download')}PDF</a>
+            ${locked || !canDo('jobs.send') ? '' : `<button type="button" class="pp-btn pp-btn--sec" data-send-wo>${icon('send')}<span>Send<span class="pp-hide-phone"> work order</span></span></button>`}
             ${locked ? '' : m.status === 'done' ? '<button type="button" class="pp-btn pp-btn--sec" id="ppMeasReopen">Reopen</button>' : '<button type="button" class="pp-btn pp-btn--pri" id="ppMeasDone">Complete</button>'}
           </div>
         </div>
@@ -4445,6 +4650,7 @@
     paintMeasSaved();
     bindMeasurement();
     bindVoice();
+    view.querySelectorAll('.pp-mhead [data-send-wo]').forEach((b) => b.addEventListener('click', () => sendFromMeasurement(m)));
     if (m.tab === 'floors') bindFloors();
     else if (plan3d) { try { plan3d.destroy(); } catch (_) { /* gone */ } plan3d = null; }
   }

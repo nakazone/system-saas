@@ -574,7 +574,16 @@
         paintMeshes();
       },
       levels: groups.map((g) => ({ id: g.userData.id, name: g.userData.name })),
-      snapshot() { renderer.render(scene, camera); return cv.toDataURL('image/png'); },
+      snapshot() {
+        const wasLabels = groups.map((g) => g.userData.labels.visible);
+        const savedTip = tip.hidden; tip.hidden = true;
+        const keep = dist; dist = fitDist() * 0.62; place();
+        renderer.render(scene, camera);
+        const url = cv.toDataURL('image/jpeg', 0.86);
+        dist = keep; place(); need();
+        groups.forEach((g, i) => { g.userData.labels.visible = wasLabels[i]; }); tip.hidden = savedTip;
+        return url;
+      },
     };
   }
 

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { parseData, summarize, counts } from "../src/lib/builders/measurements.js";
 import { measuredFor } from "../src/lib/builders/jobs.js";
-import { planTotals, takeoffSettings, parseTakeoffSettings, withWaste } from "../src/lib/builders/takeoff.js";
+import { planTotals, takeoffSettings, parseTakeoffSettings, withWaste, specText } from "../src/lib/builders/takeoff.js";
 
 const plan = {
   file: { key: "builders/a/measurements/m/plan-1.pdf", name: "plans.pdf", type: "application/pdf", pages: 3, size: 1000 },
@@ -55,6 +55,13 @@ describe("floor plan takeoff", () => {
     expect(takeoffSettings({ waste: { lvp: 7, bogus: 3 } }).waste).toMatchObject({ lvp: 7, hardwood: 10 });
     expect(parseTakeoffSettings({ waste: { lvp: 80 } })).toBeNull();
     expect(withWaste(1000, 10)).toBe(1100);
+  });
+  it("prints the product the builder picked", () => {
+    expect(specText({ kind: "hardwood", spec: { species: "White Oak", construction: "Engineered", width: '7"', thickness: '5/8"', finish: "Unfinished — sand & finish on site", color: "Natural" } }))
+      .toBe('White Oak · Engineered · 7" × 5/8" · Unfinished · Natural');
+    expect(specText({ kind: "lvp", spec: { brand: "Coretec", wear: "20 mil" } })).toBe("Coretec · 20 mil wear layer");
+    const d = parseData({ plan: { ...plan, materials: plan.materials.map((m) => (m.key === "lvp-2" ? { ...m, spec: { brand: "Coretec" } } : m)) } });
+    expect(summarize(d).find((l) => l.text.includes("LVP"))?.text).toContain("Coretec");
   });
   it("drops a broken plan instead of failing the measurement", () => {
     expect(parseData({ plan: { levels: "nope" } }).plan).toBeNull();

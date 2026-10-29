@@ -35,6 +35,8 @@ const materialSchema = z.object({
   include: z.boolean().optional().default(false),
   /** Hardwood: also sand & finish on site (unfinished boards). */
   sand_finish: z.boolean().optional().default(false),
+  /** Product the builder picked: species, width, thickness, finish, brand, color… (see SPEC_FIELDS). */
+  spec: z.record(z.string().max(24), z.string().trim().max(80)).optional().default({}),
 });
 
 const roomSchema = z.object({
@@ -86,12 +88,46 @@ export const planSchema = z.object({
   materials: z.array(materialSchema).max(24).optional().default([]),
   levels: z.array(levelSchema).max(12).optional().default([]),
   analyzed_at: z.string().max(40).nullable().optional().default(null),
+  /** Picture of the 3D model (stored file key), used on the PDF. */
+  snapshot: z.string().trim().max(300).nullable().optional().default(null),
   /** Price list company the quote uses (builder link id). */
   quote_link_id: z.string().uuid().nullable().optional().default(null),
   /** Chosen price item per service line: { "hardwood:install": "<price item id>" }. */
   quote_prices: z.record(z.string().max(60), z.string().uuid()).optional().default({}),
 });
 export type Plan = z.infer<typeof planSchema>;
+
+/* ───────────────────────────── product specs ───────────────────────────── */
+
+/** Which product details each kind of floor asks for, in print order. */
+export const SPEC_FIELDS: Record<FloorKind, string[]> = {
+  hardwood: ["species", "construction", "width", "thickness", "grade", "finish", "color", "sheen", "install", "pattern", "brand"],
+  lvp: ["brand", "color", "size", "thickness", "wear", "install", "underlayment"],
+  laminate: ["brand", "color", "size", "thickness", "install", "underlayment"],
+  carpet: ["brand", "color", "pad"],
+  rubber: ["brand", "color", "thickness"],
+  tile: ["brand", "color", "size"],
+  stone: ["brand", "color", "size"],
+  other: ["brand", "color"],
+};
+export const SPEC_LABEL: Record<string, string> = {
+  species: "Species", construction: "Construction", width: "Width", thickness: "Thickness", grade: "Grade", finish: "Finish", color: "Color / stain",
+  sheen: "Sheen", install: "Install", pattern: "Pattern", brand: "Brand / product", size: "Plank size", wear: "Wear layer", underlayment: "Underlayment", pad: "Pad",
+};
+
+/** "White Oak · Engineered · 7" × 3/4" · Select · Unfinished · Natural". */
+export function specText(m: { kind: FloorKind; spec?: Record<string, string> }): string {
+  const sp = m.spec || {};
+  const keys = SPEC_FIELDS[m.kind] || [];
+  const out: string[] = [];
+  for (const k of keys) {
+    const v = String(sp[k] || "").trim();
+    if (!v) continue;
+    if (k === "thickness" && sp.width) { out[out.length - 1] = `${out[out.length - 1]} × ${v}`; continue; }
+    out.push(k === "wear" ? `${v} wear layer` : k === "pad" ? `${v} pad` : k === "finish" ? v.replace(/ — .*/, "") : v);
+  }
+  return out.join(" · ");
+}
 
 /* ───────────────────────────── settings (waste) ───────────────────────────── */
 
@@ -119,12 +155,12 @@ export function parseTakeoffSettings(raw: unknown): TakeoffSettings | null {
 
 /* ───────────────────────────── totals ───────────────────────────── */
 
-export type PlanTotal = { key: string; label: string; kind: FloorKind; include: boolean; sand_finish: boolean; area_sf: number; levels: Array<{ name: string; area_sf: number }> };
+export type PlanTotal = { key: string; label: string; kind: FloorKind; include: boolean; sand_finish: boolean; color: string; spec: string; area_sf: number; levels: Array<{ name: string; area_sf: number }> };
 
 export function planTotals(plan: Plan | null | undefined): PlanTotal[] {
   if (!plan) return [];
   const out = new Map<string, PlanTotal>();
-  for (const m of plan.materials) out.set(m.key, { key: m.key, label: m.label || KIND_LABEL[m.kind], kind: m.kind, include: m.include, sand_finish: m.sand_finish, area_sf: 0, levels: [] });
+  for (const m of plan.materials) out.set(m.key, { key: m.key, label: m.label || KIND_LABEL[m.kind], kind: m.kind, include: m.include, sand_finish: m.sand_finish, color: m.color, spec: specText(m), area_sf: 0, levels: [] });
   for (const level of plan.levels) {
     if (!level.include) continue;
     for (const room of level.rooms) {
