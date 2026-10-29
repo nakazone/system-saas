@@ -989,6 +989,7 @@ partnerPortalRouter.post("/api/partner-portal/requests/read", requirePartnerAuth
         model: read.model,
         fields: read.result.fields,
         items: read.result.items,
+        stairs: read.result.stairs || [], stair_finish: read.result.stair_finish || "",
         labor_total: read.result.labor_total,
         pickup_match: req.builderMember ? await pickupForWorkOrder(req.builderMember.builderAccountId, read.result.fields.pickup).catch(() => null) : null,
         measurement: req.builderMember ? await findMeasurementForAddress(req.builderMember.builderAccountId, read.result.fields.address).catch(() => null) : null,

@@ -80,7 +80,13 @@ export type IntakeResult = {
   check: IntakeField[];
   /** Short notes for the builder (English), e.g. how an ambiguous value was read. */
   warnings: string[];
+  /** Stair pieces per tread width (one entry per flight), for building the measurement. */
+  stairs?: StairFlightSpec[];
+  /** "site" when the stair treads are sanded and finished on site, "prefinished", or "". */
+  stair_finish?: "site" | "prefinished" | "";
 };
+
+export type StairFlightSpec = { width: number; returns: "double" | "left" | "right" | "none"; treads: number; risers: number; species: string };
 
 const SYSTEM_PROMPT = `You read flooring work orders, purchase orders and schedule screens that home builders send to their flooring installer.
 The input may be a PDF, a screenshot of the builder's scheduling system, a photo of paper, or pasted e-mail text.
@@ -107,6 +113,8 @@ Return ONLY a JSON object with these keys (strings; use "" when absent):
   For a vent installation instruction, use the vent size from the table (for example 4x10) and the quantity from the install instruction/table to create one service such as "Wood vent installation — 4x10", uom EA. Do not mistake the vent product description for a second service.
   A line such as "SITE FINISHED SAND/2 COAT TREADS" with quantity 16 means "Sand & finish stair treads", quantity 16, uom STEP. Do not merge it into tread installation.
   Take service lines from the labor / work order table and scope notes. Material-only pages (purchase order, sales order, pick ticket) repeat products without labor: do not add those again. A line with "$ -" or no price still counts, with total null.
+- stairs: when the order has stair treads/risers, one object per tread width (each width is usually one flight of the same stair): {"width": inches as a number (48), "returns": "double" | "left" | "right" | "none", "treads": tread count, "risers": riser count (from the STAIR RISERS section or the riser rows), "species": wood species ("White Oak") or ""}. Example: "STAIR TREADS: SOLID WHITE OAK - 48\" - DOUBLE RETURNS - 8 EA / 42\" - LEFT RETURNS - 8 EA; STAIR RISERS: 48\" - 9 EA / 42\" - 9 EA" → [{"width":48,"returns":"double","treads":8,"risers":9,"species":"White Oak"},{"width":42,"returns":"left","treads":8,"risers":9,"species":"White Oak"}]. Two or more tread widths (or return types) on one order are usually the flights of ONE stair joined by a landing (e.g. a wider 48\" starter flight with double returns and a 42\" upper flight with a left return): list them in the order the work order lists them, lower flight first. Do not mix treads and risers of different widths. Widths are not always 48/42: read whatever is written (36\", 39\", 44\", 54\"…). Use [] when there are no stairs.
+- stair_finish: "site" when the stair treads are sanded / finished on site (e.g. "SITE FINISHED SAND/2 COAT TREADS", "sand & finish stairs", "stain and 3 coats"), "prefinished" when the treads are prefinished, or "".
 - labor_total: the printed labor total (e.g. "TOTAL WOOD LABOR $ 5,117.00" → 5117) as a number, or null
 Documents often come from a flooring dealer / distributor (e.g. "The Colorado Floor Company") sending labor to an installer. In that case the "BUILDER:" on the page is the home builder / end client: put it in notes ("Home builder: …"), not in contact_name. "AREA #" or "Area 9" is a sales area, not a lot. The INSTALL DATE wins over "DATE BUILT"; DATE BUILT is used only when INSTALL DATE is blank.
 "INSTALL DATE: TBD" (or "to be determined") means there is no date yet: leave preferred_date "" and do not use the order date.
@@ -225,6 +233,16 @@ export function normalizeIntake(raw: Record<string, unknown>, today = new Date()
     .filter(Boolean)
     .slice(0, 4);
   const items = normalizeInstallationItems(raw.items, raw);
+  const stairsEarly = mergeStairs(normalizeStairs(raw.stairs), stairFlightsFromText(intakeSourceText(raw)));
+  if (!items.some((it) => serviceKind(`${it.service_name} ${it.description} ${it.detail}`) === "stair_sand_finish")) {
+    const src = intakeSourceText(raw);
+    const line = /(site\s*finish(?:ed)?[^\n]{0,60}|sand\s*(?:\/|&|and)[^\n]{0,60}|refinish[^\n]{0,60})/i.exec(src);
+    if (line && /\b(?:treads?|stairs?|steps?)\b/i.test(line[0])) {
+      const treads = stairsEarly.reduce((a, f) => a + f.treads, 0);
+      const qty = Number((/(\d+(?:\.\d+)?)\s*(?:EA|STEPS?|PCS?)\b/i.exec(line[0]) || [])[1] || 0) || treads;
+      if (qty > 0) items.push({ area: "Stairs", description: line[0].trim().slice(0, 160), detail: "", quantity: qty, uom: "STEP", rate: null, total: null, pricing_item_id: null, service_name: "Sand & finish stair treads" });
+    }
+  }
   const laborTotal = toNumber(raw.labor_total);
   if (items.length && laborTotal != null) {
     const sum = Math.round(items.reduce((acc, it) => acc + (it.total ?? 0), 0) * 100) / 100;
@@ -232,7 +250,78 @@ export function normalizeIntake(raw: Record<string, unknown>, today = new Date()
       warnings.push(`A soma das linhas (${money(sum)}) não bate com o total da ordem (${money(laborTotal)}). Confira os serviços.`);
     }
   }
-  return { fields, items, labor_total: laborTotal, check: INTAKE_FIELDS.filter((k) => check.has(k)), warnings };
+  const stairs = stairsEarly;
+  const rf = String(raw.stair_finish || "").toLowerCase();
+  const stair_finish: IntakeResult["stair_finish"] = items.some((it) => serviceKind(`${it.service_name} ${it.description} ${it.detail}`) === "stair_sand_finish") || rf === "site" ? "site" : rf === "prefinished" ? "prefinished" : "";
+  return { fields, items, labor_total: laborTotal, check: INTAKE_FIELDS.filter((k) => check.has(k)), warnings, stairs, stair_finish };
+}
+
+function normalizeStairs(value: unknown): StairFlightSpec[] {
+  if (!Array.isArray(value)) return [];
+  const out: StairFlightSpec[] = [];
+  for (const v of value.slice(0, 8)) {
+    if (!v || typeof v !== "object") continue;
+    const r = v as Record<string, unknown>;
+    const width = Number(String(r.width ?? "").replace(/[^\d.]/g, ""));
+    const treads = Math.round(Number(r.treads) || 0);
+    const risers = Math.round(Number(r.risers) || 0);
+    if (!(width >= 18 && width <= 96) || (!treads && !risers) || treads > 60 || risers > 61) continue;
+    const ret = String(r.returns || "").toLowerCase();
+    out.push({ width, returns: /double|both/.test(ret) ? "double" : /left/.test(ret) ? "left" : /right/.test(ret) ? "right" : "none", treads, risers, species: clean(r.species, 40) });
+  }
+  return out;
+}
+
+/** "STAIR TREADS: … 48\" - DOUBLE RETURNS - 8 EA" and "STAIR RISERS: … 48\" - … - 9 EA" read straight from the text. */
+export function stairFlightsFromText(source: string): StairFlightSpec[] {
+  const block = (label: RegExp, stop: RegExp) => {
+    const m = label.exec(source);
+    if (!m) return "";
+    const rest = source.slice(m.index + m[0].length);
+    const st = stop.exec(rest);
+    return st ? rest.slice(0, st.index) : rest.slice(0, 600);
+  };
+  const stops = /\b(?:STAIR\s+(?:TREADS?|RISERS?)|INSTALL(?:ATION)?\s+(?:WOOD\s+)?VENTS?|SITE\s+FINISHED|SAND\s*(?:&|AND|\/)|\d{2}\/\d{2}\/\d{2})\b/i;
+  const treads = block(/\bSTAIR\s+TREADS?\s*:?/i, stops);
+  const risers = block(/\bSTAIR\s+RISERS?\s*:?/i, stops);
+  const lineRe = /(\d{2}(?:\.\d+)?)\s*(?:"|”|“|″|INCH(?:ES)?\b|IN\b)?\s*[-–—:]?\s*(?:(DOUBLE|LEFT|RIGHT|SINGLE|NO|OPEN)\s+(?:SIDE\s+)?RETURNS?\s*[-–—:]*)?\s*(\d{1,2})\s*(?:EA|EACH|PCS?)\b/gi;
+  const species = (source.match(/white oak|red oak|hickory|maple|walnut|ash|birch|acacia/i) || [""])[0].toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+  // one flight per tread width + return type, in the order the work order lists them
+  const flights: StairFlightSpec[] = [];
+  for (const m of treads.matchAll(lineRe)) {
+    const w = Number(m[1]); if (w < 18 || w > 96) continue;
+    const r = (m[2] || "").toLowerCase();
+    const returns: StairFlightSpec["returns"] = r === "double" ? "double" : r === "left" ? "left" : r === "right" ? "right" : "none";
+    const hit = flights.find((x) => x.width === w && x.returns === returns);
+    if (hit) hit.treads += Number(m[3]);
+    else flights.push({ width: w, returns, treads: Number(m[3]), risers: 0, species });
+  }
+  const riserBy = new Map<number, number>();
+  for (const m of risers.matchAll(lineRe)) {
+    const w = Number(m[1]); if (w < 18 || w > 96) continue;
+    riserBy.set(w, (riserBy.get(w) || 0) + Number(m[3]));
+  }
+  for (const [w, n] of riserBy) {
+    const same = flights.filter((x) => x.width === w);
+    if (!same.length) { flights.push({ width: w, returns: "none", treads: 0, risers: n, species }); continue; }
+    let left = n;
+    same.forEach((x, i) => { const give = i === same.length - 1 ? left : Math.min(left, x.treads + 1); x.risers += give; left -= give; });
+  }
+  return flights;
+}
+
+/** AI flights first; the text fills what the AI left out (risers, returns). */
+export function mergeStairs(ai: StairFlightSpec[], text: StairFlightSpec[]): StairFlightSpec[] {
+  const out = ai.map((x) => ({ ...x }));
+  for (const t of text) {
+    const hit = out.find((x) => x.width === t.width && (x.returns === t.returns || x.returns === "none" || t.returns === "none"));
+    if (!hit) { out.push(t); continue; }
+    if (!hit.treads && t.treads) hit.treads = t.treads;
+    if (!hit.risers && t.risers) hit.risers = t.risers;
+    if (hit.returns === "none" && t.returns !== "none") hit.returns = t.returns;
+    if (!hit.species && t.species) hit.species = t.species;
+  }
+  return out;
 }
 
 function money(n: number): string {
@@ -315,12 +404,15 @@ function stairTreadInstructions(source: string): StairTreadInstruction[] {
   const rest = source.slice(start.index + start[0].length);
   const stop = /\b(?:STAIR\s+RISERS?|INSTALL(?:ATION)?\s+(?:WOOD\s+)?VENTS?|SITE\s+FINISHED|SAND\s*(?:&|AND|\/))\b/i.exec(rest);
   const section = stop ? rest.slice(0, stop.index) : rest.slice(0, 1800);
-  const re = /\b(48|42)\s*(?:"|”|“|′|INCH(?:ES)?\b)?\s*[-–—:]?\s*(DOUBLE|LEFT|RIGHT|SINGLE)\s+RETURNS?\s*[-–—:]*(\d+(?:\.\d+)?)\s*(?:EA|EACH)\b/gi;
+  const re = /\b(\d{2}(?:\.\d+)?)\s*(?:"|”|“|″|′′|INCH(?:ES)?\b|IN\b)?\s*[-–—:]?\s*(?:(DOUBLE|LEFT|RIGHT|SINGLE|NO|OPEN)\s+(?:SIDE\s+)?RETURNS?|CLOSED|BOX(?:ED)?)\s*[-–—:]*\s*(\d+(?:\.\d+)?)\s*(?:EA|EACH|PCS?|STEPS?)\b/gi;
   const found: StairTreadInstruction[] = [];
   for (const match of section.matchAll(re)) {
     const quantity = Number(match[3]);
-    if (!Number.isFinite(quantity) || quantity < 1 || quantity > 10_000) continue;
-    const item = { size: match[1]!, returns: `${match[2]![0]!.toUpperCase()}${match[2]!.slice(1).toLowerCase()} Returns`, quantity };
+    const width = Number(match[1]);
+    if (!Number.isFinite(quantity) || quantity < 1 || quantity > 10_000 || width < 18 || width > 96) continue;
+    const kind = (match[2] || "").toLowerCase();
+    const returns = !kind || kind === "no" ? "No Returns" : `${kind[0]!.toUpperCase()}${kind.slice(1)} Returns`;
+    const item = { size: match[1]!, returns, quantity };
     if (!found.some((x) => x.size === item.size && x.returns === item.returns)) found.push(item);
   }
   return found;
@@ -383,12 +475,11 @@ function normalizeInstallationItems(rawItems: unknown, raw: Record<string, unkno
         service_name: `Wood vent installation${dimensions ? ` — ${dimensions}` : ""}`,
       };
     }
-    if (/\b(?:sand\s*(?:&|and|\/\s*2\s*coat)\s*(?:finish|coat)?|sand\s+finish(?:ing)?)\b/i.test(text)
-      && /\b(?:stair|steps?|treads?)\b/i.test(text)) {
+    if (serviceKind(text) === "stair_sand_finish") {
       return { ...item, uom: "STEP", service_name: "Sand & finish stair treads" };
     }
     if (/\b(?:treads?|steps?)\b/i.test(text) && !/\b(?:sand|finish)\b/i.test(text)) {
-      const dimension = /\b(48|42)\s*(?:"|”|“|inch(?:es)?\b)?/i.exec(text)?.[1];
+      const dimension = /\b(\d{2}(?:\.\d+)?)\s*(?:"|”|“|″|inch(?:es)?\b|in\b)/i.exec(text)?.[1];
       const returnType = /\b(double|left|right|single)\s+returns?\b/i.exec(text)?.[1];
       const label = [dimension ? `${dimension}\"` : "", returnType ? `${returnType[0]!.toUpperCase()}${returnType.slice(1).toLowerCase()} Returns` : ""].filter(Boolean).join(" ");
       return { ...item, uom: "STEP", service_name: `Stair tread installation${label ? ` — ${label}` : ""}` };
@@ -499,6 +590,23 @@ export function textLayerHints(layer: string): { pickup: string; date: string } 
 }
 
 /** Links each line to a catalog service: the model's choice when valid, else a name+unit match. */
+export type ServiceKind = "stair_sand_finish" | "stair_tread" | "stair_riser" | "nosing" | "vent" | "floor_sand_finish" | "other";
+/** What kind of work a line or a price-list service is, whatever the wording. */
+export function serviceKind(text: string): ServiceKind {
+  const t = String(text || "").toLowerCase();
+  const stair = /\b(?:stairs?|steps?|treads?|risers?|landing)\b/.test(t);
+  const finish = /\b(?:sand(?:ing)?|re-?finish(?:ing)?|site\s*finish(?:ed)?|finish(?:ing)?\s*(?:on\s*)?site|\d\s*coats?|stain(?:ing)?|poly(?:urethane)?|screen\s*(?:&|and)\s*coat)\b/.test(t)
+    || /\bsand\s*(?:&|and|\/)/.test(t);
+  if (/\bvents?\b|\bregisters?\b|\bgrill(?:e|s)?\b/.test(t)) return "vent";
+  if (stair && finish) return "stair_sand_finish";
+  if (/\bnos(?:ing|e)s?\b/.test(t)) return "nosing";
+  if (/\brisers?\b/.test(t) && !/\btreads?\b/.test(t)) return "stair_riser";
+  if (stair) return "stair_tread";
+  if (finish) return "floor_sand_finish";
+  return "other";
+}
+const widthOf = (t: string) => Number((/\b(\d{2}(?:\.\d+)?)\s*(?:"|”|“|″|inch(?:es)?\b|in\b)/i.exec(t) || [])[1] || 0);
+
 export function linkCatalog(items: IntakeItem[], rawItems: unknown, catalog: CatalogItem[]): IntakeItem[] {
   if (!catalog.length) return items;
   const ids = new Set(catalog.map((c) => c.id));
@@ -506,7 +614,13 @@ export function linkCatalog(items: IntakeItem[], rawItems: unknown, catalog: Cat
   return items.map((it) => {
     const src = raw.find((r) => clean(r?.description, 200) === it.description && clean(r?.detail, 200) === it.detail);
     const chosen = src ? String(src.catalog_id ?? "") : "";
-    if (chosen && ids.has(chosen)) return { ...it, pricing_item_id: chosen };
+    if (chosen && ids.has(chosen)) {
+      // the reader sometimes picks the stair finishing service for the tread install (or the other way round)
+      const c = catalog.find((x) => x.id === chosen)!;
+      const a = serviceKind(`${it.service_name} ${it.description} ${it.detail}`);
+      const b = serviceKind(`${c.name} ${c.category || ""}`);
+      if (a === "other" || b === "other" || a === b) return { ...it, pricing_item_id: chosen };
+    }
     const sameName = it.service_name && catalog.find((c) => c.name.trim().toLowerCase() === it.service_name.trim().toLowerCase());
     if (sameName) return { ...it, pricing_item_id: sameName.id };
     const hay = new Set(`${it.description} ${it.detail}`.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" ").filter((w) => w.length > 1));
@@ -515,6 +629,15 @@ export function linkCatalog(items: IntakeItem[], rawItems: unknown, catalog: Cat
     for (const c of catalog) {
       const w = c.name.toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" ").filter((x) => x.length > 1);
       if (w.length >= 2 && w.every((x) => hay.has(x)) && w.length > bestLen) { best = c; bestLen = w.length; }
+    }
+    if (!best) {
+      // same kind of work (stair sand & finish, tread install, vents…) even when worded differently
+      const kind = serviceKind(`${it.service_name} ${it.description} ${it.detail}`);
+      if (kind !== "other") {
+        const same = catalog.filter((c) => serviceKind(`${c.name} ${c.category || ""}`) === kind);
+        const w = widthOf(`${it.description} ${it.detail} ${it.service_name}`);
+        best = (w && same.find((c) => widthOf(c.name) === w)) || (same.length === 1 ? same[0]! : same.find((c) => !widthOf(c.name)) || null);
+      }
     }
     return { ...it, pricing_item_id: best ? best.id : null };
   });
@@ -545,6 +668,7 @@ export async function readWorkOrder(input: { files: IntakeFile[]; text?: string;
   if (!raw) return { ok: false, error: "Não consegui ler o arquivo. Confira se ele está legível." };
   const result = normalizeIntake(raw, today);
   result.items = linkCatalog(result.items, raw.items, catalog);
+  if (layers.length) result.stairs = mergeStairs(result.stairs || [], stairFlightsFromText(layers.join("\n")));
   const hints = textLayerHints(layers.join("\n"));
   if (!result.fields.pickup && hints.pickup) result.fields.pickup = hints.pickup;
   if (!result.fields.preferred_date && hints.date) {
