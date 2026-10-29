@@ -747,6 +747,35 @@ body.pp {
 .pp-stair-connection { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; color: var(--pp-muted); font-size: 13px; }
 .pp-stair-connection strong, .pp-stair-from-landing strong { color: var(--pp-ink); }
 .pp-stair-from-landing { margin: 0; color: var(--pp-muted); font-size: 13px; }
+.pp-stair-workspace { display: grid; grid-template-columns: minmax(300px, .92fr) minmax(0, 1.08fr); align-items: stretch; border-top: 1px solid var(--pp-border); }
+.pp-stair-workspace-visual, .pp-stair-workspace-measures { min-width: 0; }
+.pp-stair-workspace-measures { border-left: 1px solid var(--pp-border); background: #FFFFFF; }
+.pp-stair-measures-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 14px 10px; }
+.pp-stair-measures-head > div { display: grid; gap: 3px; }
+.pp-stair-measures-head h3 { margin: 0; font-size: 14px; color: var(--pp-ink); }
+.pp-stair-measures-head span { color: var(--pp-muted); font-size: 12px; }
+.pp-stair-workspace .pp-stair-cols { display: none; }
+.pp-stair-workspace .pp-step { position: relative; grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr) 32px; grid-template-areas: "n tread riser act" "n side ret act"; gap: 8px; padding: 10px 12px; }
+.pp-stair-workspace .pp-step-n { grid-area: n; align-self: start; }
+.pp-stair-workspace .pp-step-dim--tread { grid-area: tread; }
+.pp-stair-workspace .pp-step-dim--riser { grid-area: riser; }
+.pp-stair-workspace .pp-step-side { grid-area: side; }
+.pp-stair-workspace .pp-step-ret { grid-area: ret; }
+.pp-stair-workspace .pp-step-act { grid-area: act; align-self: start; }
+.pp-stair-workspace .pp-step-lbl { display: block; min-width: 0; font-size: 10px; line-height: 1.2; color: var(--pp-muted); font-weight: 600; }
+.pp-stair-workspace .pp-step-dim { flex-wrap: wrap; gap: 5px; }
+.pp-stair-workspace .pp-step-dim .pp-step-lbl { flex: 0 0 100%; }
+.pp-stair-workspace .pp-step-dim .pp-in { flex: 1 1 58px; }
+.pp-stair-workspace .pp-step-side, .pp-stair-workspace .pp-step-ret { display: grid; gap: 4px; min-width: 0; }
+.pp-stair-workspace .pp-step select { height: 40px; font-size: 13px; }
+.pp-stair-workspace .pp-step[data-kind="riser"] { grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr) 32px; grid-template-areas: "n tread riser act"; }
+.pp-stair-workspace .pp-step[data-kind="riser"] .pp-step-riser-only-label { grid-area: tread; grid-column: auto; }
+.pp-stair-workspace .pp-step[data-kind="riser"] .pp-step-dim--riser { grid-area: riser; grid-column: auto; }
+.pp-stair-workspace .pp-step[data-kind="riser"] .pp-step-act { grid-area: act; grid-column: auto; }
+.pp-stair-workspace .pp-stair-add { padding: 10px 12px 14px; }
+.pp-stair-workspace .pp-stair-add .pp-q-add { flex-basis: 100%; }
+.pp-stair-workspace .pp-stair-many { flex-wrap: wrap; }
+.pp-stair-sub { background: #FFFFFF; }
 .pp-step-riser-only-label { display: grid; gap: 3px; align-content: center; min-height: 40px; }
 .pp-step-riser-only-label strong { color: var(--pp-ink); font-size: 14px; }
 .pp-step-riser-only-label small { color: var(--pp-muted); font-size: 12px; }
@@ -836,8 +865,11 @@ body.pp {
 }
 
 /* measurement drawings */
-.pp-viz { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 12px; padding: 12px 16px 14px; border-bottom: 1px solid var(--pp-border); background: linear-gradient(180deg, #FBFBFC, #F6F7F9); }
+.pp-viz { display: grid; grid-template-columns: 1fr; gap: 10px; padding: 12px; min-width: 0; background: linear-gradient(180deg, #FBFBFC, #F6F7F9); }
 .pp-viz-3d, .pp-viz-step { display: grid; gap: 8px; align-content: start; min-width: 0; }
+.pp-viz-step { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.pp-viz-step > .pp-viz-bar, .pp-viz-step > .pp-viz-chips { grid-column: 1 / -1; }
+.pp-viz-step > .pp-viz-box:only-child { grid-column: 1 / -1; }
 .pp-viz-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 28px; }
 .pp-viz-lbl { display: block !important; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--pp-muted); }
 .pp-viz-nav { display: inline-flex; gap: 2px; }
@@ -871,6 +903,10 @@ body.pp {
 .pp-viz-chips button { min-height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--pp-border); background: #FFFFFF; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
 .pp-viz-chips button[aria-pressed="true"] { background: var(--pp-ink); color: #FFFFFF; border-color: var(--pp-ink); }
 .pp-viz-chips button:disabled { opacity: .4; cursor: default; }
+.pp-viz-flight-links { display: flex; flex-wrap: wrap; gap: 6px; }
+.pp-viz-flight-link { min-height: 44px; padding: 0 12px; border: 1px solid var(--pp-border); border-radius: 999px; color: var(--pp-ink); background: #FFFFFF; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.pp-viz-flight-link:hover { border-color: var(--pp-orange); background: #FFF8F3; }
+.pp-viz-flight-link.is-active { border-color: var(--pp-ink); color: #FFFFFF; background: var(--pp-ink); }
 .pp-step.is-sel { background: #FFF8F3; box-shadow: inset 3px 0 0 #E7792C; }
 .pp-vent-viz { padding: 12px 16px 0; max-width: 360px; }
 .pp-vent-viz .pp-viz-svg { max-height: 160px; }
@@ -878,6 +914,19 @@ body.pp {
 .pp-vent-viz .pp-viz-svg .pp-viz-note { font-size: .9px; }
 @media (max-width: 900px) {
   .pp-viz { grid-template-columns: 1fr; }
+}
+@media (max-width: 1280px) {
+  .pp-stair-workspace { grid-template-columns: 1fr; }
+  .pp-stair-workspace-measures { border-left: 0; border-top: 1px solid var(--pp-border); }
+}
+@media (max-width: 760px) {
+  .pp-stair-workspace .pp-step { grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "n tread tread" "n riser riser" "n side ret" ". act act"; padding: 10px 12px; }
+  .pp-stair-workspace .pp-step[data-kind="riser"] { grid-template-columns: 28px minmax(0, 1fr); grid-template-areas: "n tread" "n riser" ". act"; }
+  .pp-stair-workspace .pp-step[data-kind="riser"] .pp-step-riser-only-label { grid-area: tread; }
+  .pp-stair-workspace .pp-step[data-kind="riser"] .pp-step-dim--riser { grid-area: riser; }
+  .pp-stair-workspace .pp-step[data-kind="riser"] .pp-step-act { grid-area: act; }
+  .pp-viz-step { grid-template-columns: 1fr; }
+  .pp-viz-step > .pp-viz-bar, .pp-viz-step > .pp-viz-chips, .pp-viz-step > .pp-viz-box:only-child { grid-column: 1; }
 }
 .pp-viz-svg .pp-viz-note.is-open { fill: #B4561A; font-weight: 700; }
 .pp-vent-viz { max-width: 420px; }

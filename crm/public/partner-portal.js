@@ -3210,37 +3210,86 @@
   }
 
   /** Whole stair drawn from component rows, including riser-only endings and optional landings. */
-  function stairSvg(stair, sel, mirror) {
-    if (stair.layout === 'round') return roundStairSvg(stair, sel);
-    const components = (stair.steps || []).map((step, index) => ({ step, index })).filter(({ step }) => step.kind === 'riser' ? step.riser_w || step.riser_h : step.tread_w || step.tread_d || step.riser_h);
-    if (!components.length && !(stair.landing && stair.landing.enabled)) return '<p class="pp-muted pp-viz-empty">The stair builds itself here as you measure the steps.</p>';
+  function stairSvg(stairOrFlights, sel, mirror, flightIndexes, selectedByFlight, activeFlightIndex) {
+    const flights = Array.isArray(stairOrFlights) ? stairOrFlights : [stairOrFlights];
+    const stair = flights[0];
+    if (flights.length === 1 && stair.layout === 'round') return roundStairSvg(stair, sel);
+    if (flights.some((flight) => flight.layout === 'round')) return '<p class="pp-muted pp-viz-empty">Use the connected elevation below to review a stair with a round flight.</p>';
     const id = `pv${(vizSeq += 1)}`;
-    const tone = woodTone(stair.species, stair.color, false);
-    const paint = stair.riser_material === 'primed' || stair.riser_material === 'paint_grade';
-    const rTone = woodTone(stair.species, stair.color, paint);
+    const flightData = flights.map((flight, chainIndex) => {
+      const paint = flight.riser_material === 'primed' || flight.riser_material === 'paint_grade';
+      return {
+        flight,
+        flightIndex: flightIndexes && Number.isInteger(flightIndexes[chainIndex]) ? flightIndexes[chainIndex] : chainIndex,
+        vizId: `${id}f${chainIndex}`,
+        tone: woodTone(flight.species, flight.color, false),
+        riserTone: woodTone(flight.species, flight.color, paint),
+        paint,
+        components: (flight.steps || []).map((step, index) => ({ step, index })).filter(({ step }) => step.kind === 'riser' ? step.riser_w || step.riser_h : step.tread_w || step.tread_d || step.riser_h),
+      };
+    });
+    if (!flightData.some(({ components, flight }) => components.length || (flight.landing && flight.landing.enabled))) return '<p class="pp-muted pp-viz-empty">The stair builds itself here as you measure the steps.</p>';
     const cos = Math.cos(Math.PI / 6); const sin = Math.sin(Math.PI / 6);
     const P = (x, y, z) => { const xx = mirror ? -x : x; return [(xx + y) * cos, (xx - y) * sin - z]; };
     const pts = (arr) => arr.map((p) => P(...p).map((v) => v.toFixed(2)).join(',')).join(' ');
     const shapes = []; const all = [];
-    let z = 0; let y = 0; let lastW = 36; let lastD = 11.25;
+    let z = 0; let y = 0;
     const nose = 1.25; const thickness = 1;
-    const geo = components.map(({ step, index }) => {
-      const riserOnly = step.kind === 'riser';
-      const W = Number(riserOnly ? step.riser_w : step.tread_w) || Number(step.riser_w) || lastW;
-      const D = Number(step.tread_d) || lastD;
-      const H = Number(step.riser_h) || 7.5;
-      const row = { st: step, index, riserOnly, W, D, H, y0: y, z0: z };
-      if (!riserOnly) { y += D - nose; lastW = W; lastD = D; }
-      z += H;
-      return row;
+    const geoByFlight = flightData.map(({ flight, flightIndex, components }) => {
+      const flightRows = [];
+      let lastW = Number(flight.width) || 36; let lastD = Number(flight.depth) || 11.25;
+      for (const { step, index } of components) {
+        const riserOnly = step.kind === 'riser';
+        const W = Number(riserOnly ? step.riser_w : step.tread_w) || Number(step.riser_w) || lastW;
+        const D = Number(step.tread_d) || lastD;
+        const H = Number(step.riser_h) || 7.5;
+        flightRows.push({ flight, flightIndex, st: step, index, riserOnly, W, D, H, y0: y, z0: z });
+        if (!riserOnly) { y += D - nose; lastW = W; lastD = D; }
+        z += H;
+      }
+      const landing = flight.landing && flight.landing.enabled ? {
+        flight,
+        flightIndex,
+        width: Number(flight.landing.width) || lastW,
+        depth: Number(flight.landing.depth) || lastD,
+        y0: y,
+        z0: z,
+      } : null;
+      if (landing) y += landing.depth;
+      return { rows: flightRows, landing };
     });
-    for (let k = geo.length - 1; k >= 0; k -= 1) {
-      const g = geo[k];
+    for (let flightPosition = geoByFlight.length - 1; flightPosition >= 0; flightPosition -= 1) {
+      const { rows, landing } = geoByFlight[flightPosition];
+      const flightInfo = flightData[flightPosition];
+      const { flight, flightIndex, vizId: flightVizId, tone: flightTone } = flightInfo;
+      if (landing) {
+        const { width: landingWidth, depth: landingDepth, y0: landY, z0: landTop } = landing;
+        const sides = [
+          [[landingWidth, landY, landTop - thickness], [landingWidth, landY + landingDepth, landTop - thickness], [landingWidth, landY + landingDepth, landTop], [landingWidth, landY, landTop]],
+          [[0, landY + landingDepth, landTop - thickness], [landingWidth, landY + landingDepth, landTop - thickness], [landingWidth, landY + landingDepth, landTop], [0, landY + landingDepth, landTop]],
+        ];
+        sides.forEach((side) => shapes.push(`<polygon points="${pts(side)}" fill="${hexMix(flightTone.base, '#2A1C12', 0.22)}" stroke="#4A3726" stroke-width=".3"/>`));
+        sides.forEach((side) => side.forEach((point) => all.push(P(...point))));
+        const platform = [[0, landY, landTop], [landingWidth, landY, landTop], [landingWidth, landY + landingDepth, landTop], [0, landY + landingDepth, landTop]];
+        shapes.push(`<polygon points="${pts(platform)}" fill="url(#${flightVizId}t)" stroke="#4A3726" stroke-width=".35" class="pp-viz-landing"><title>Landing ${fmtIn(landingWidth)}" × ${fmtIn(landingDepth)}" before ${esc(flight.name || 'next flight')}</title></polygon>`);
+        platform.forEach((point) => all.push(P(...point)));
+        for (const nosing of landingNosings(flight)) {
+          const a = P(0, landY + landingDepth - 0.35, landTop + 0.08); const b = P(landingWidth, landY + landingDepth - 0.35, landTop + 0.08);
+          shapes.push(`<path d="M${a[0].toFixed(2)} ${a[1].toFixed(2)}L${b[0].toFixed(2)} ${b[1].toFixed(2)}" stroke="#B4561A" stroke-width="1.5" stroke-linecap="round" class="pp-viz-nosing"><title>${esc(`${nosing.qty || 1} ${nosing.type} nosing · landing edge`)}</title></path>`);
+        }
+        const label = P(landingWidth / 2, landY + landingDepth / 2, landTop + 0.1);
+        shapes.push(`<text class="pp-viz-landing-label" x="${label[0].toFixed(2)}" y="${label[1].toFixed(2)}" text-anchor="middle" dominant-baseline="central">LANDING</text>`);
+      }
+      for (let k = rows.length - 1; k >= 0; k -= 1) {
+      const g = rows[k];
       const { st, index, riserOnly, W, D, H, y0, z0 } = g;
-      const top = z0 + H; const isSelected = index === sel;
+      const selected = selectedByFlight && selectedByFlight[flightIndex] !== undefined
+        ? selectedByFlight[flightIndex]
+        : flightIndex === (activeFlightIndex !== undefined ? activeFlightIndex : flightIndexes && flightIndexes[0] !== undefined ? flightIndexes[0] : 0) ? sel : -1;
+      const top = z0 + H; const isSelected = index === selected;
       if (riserOnly) {
         const riser = [[0, y0, z0], [W, y0, z0], [W, y0, top], [0, y0, top]];
-        shapes.push(`<polygon points="${pts(riser)}" fill="url(#${id}r)" stroke="${isSelected ? '#E7792C' : '#5B4632'}" stroke-width="${isSelected ? '1' : '.35'}" data-viz-step="${index}" class="pp-viz-tread pp-viz-riser-only"><title>Riser only ${index + 1}: ${fmtIn(st.riser_w) || fmtIn(W)}" × ${fmtIn(H)}"</title></polygon>`);
+        shapes.push(`<polygon points="${pts(riser)}" fill="url(#${flightVizId}r)" stroke="${isSelected ? '#E7792C' : '#5B4632'}" stroke-width="${isSelected ? '1' : '.35'}" data-viz-flight="${flightIndex}" data-viz-step="${index}" class="pp-viz-tread pp-viz-riser-only"><title>${esc(flight.name || 'Stair')} · Riser only ${index + 1}: ${fmtIn(st.riser_w) || fmtIn(W)}" × ${fmtIn(H)}"</title></polygon>`);
         riser.forEach((point) => all.push(P(...point)));
         continue;
       }
@@ -3250,17 +3299,17 @@
       const sideOpen = mirror ? leftOpen : rightOpen; const sideX = mirror ? 0 : W;
       const riserW = Number(st.riser_w) || W;
       const riser = [[0, y0, z0], [riserW, y0, z0], [riserW, y0, top - thickness], [0, y0, top - thickness]];
-      if (stair.riser_material !== 'none' && !st.no_riser) shapes.push(`<polygon points="${pts(riser)}" fill="url(#${id}r)" stroke="#5B4632" stroke-width=".25"/>`);
+      if (flight.riser_material !== 'none' && !st.no_riser) shapes.push(`<polygon points="${pts(riser)}" fill="url(#${flightVizId}r)" stroke="#5B4632" stroke-width=".25"/>`);
       const side = [[sideX, y0, z0], [sideX, y0 + D, z0], [sideX, y0 + D, top], [sideX, yf, top], [sideX, yf, top - thickness], [sideX, y0, top - thickness]];
       shapes.push(sideOpen
-        ? `<polygon points="${pts(side)}" fill="${hexMix(tone.base, '#2A1C12', 0.28)}" stroke="#4A3726" stroke-width=".25"/>`
+        ? `<polygon points="${pts(side)}" fill="${hexMix(flightTone.base, '#2A1C12', 0.28)}" stroke="#4A3726" stroke-width=".25"/>`
         : `<polygon points="${pts(side)}" fill="#E4E7EC" stroke="#C0C6CF" stroke-width=".25"/>`);
       const front = [[0, yf, top - thickness], [W, yf, top - thickness], [W, yf, top], [0, yf, top]];
-      shapes.push(`<polygon points="${pts(front)}" fill="${hexMix(tone.base, '#2A1C12', 0.18)}" stroke="#4A3726" stroke-width=".25"/>`);
+      shapes.push(`<polygon points="${pts(front)}" fill="${hexMix(flightTone.base, '#2A1C12', 0.18)}" stroke="#4A3726" stroke-width=".25"/>`);
       const tread = [[0, yf, top], [W, yf, top], [W, y0 + D, top], [0, y0 + D, top]];
-      shapes.push(`<polygon points="${pts(tread)}" fill="url(#${id}t)" stroke="${isSelected ? '#E7792C' : '#4A3726'}" stroke-width="${isSelected ? '.9' : '.25'}" data-viz-step="${index}" class="pp-viz-tread"><title>Tread ${index + 1}: ${fmtIn(W)}" × ${fmtIn(D)}" · ${openText(st.open, st.ret)}</title></polygon>`);
-      if (isGlossy(stair.finish)) shapes.push(`<polygon points="${pts(tread)}" fill="url(#${id}tg)" pointer-events="none"/>`);
-      for (const [nosingIndex, nosing] of nosingsForTread(stair, st).entries()) {
+      shapes.push(`<polygon points="${pts(tread)}" fill="url(#${flightVizId}t)" stroke="${isSelected ? '#E7792C' : '#4A3726'}" stroke-width="${isSelected ? '.9' : '.25'}" data-viz-flight="${flightIndex}" data-viz-step="${index}" class="pp-viz-tread"><title>${esc(flight.name || 'Stair')} · Tread ${index + 1}: ${fmtIn(W)}" × ${fmtIn(D)}" · ${openText(st.open, st.ret)}</title></polygon>`);
+      if (isGlossy(flight.finish)) shapes.push(`<polygon points="${pts(tread)}" fill="url(#${flightVizId}tg)" pointer-events="none"/>`);
+      for (const [nosingIndex, nosing] of nosingsForTread(flight, st).entries()) {
         const edgeY = yf + (nosing.type === 'flush' ? 0.08 : nosing.type === 'overlap' ? -0.4 : -0.2) + nosingIndex * 0.16;
         const a = P(0, edgeY, top + 0.08); const b = P(W, edgeY, top + 0.08);
         shapes.push(`<path d="M${a[0].toFixed(2)} ${a[1].toFixed(2)}L${b[0].toFixed(2)} ${b[1].toFixed(2)}" stroke="#B4561A" stroke-width="1.4" stroke-linecap="round" class="pp-viz-nosing"><title>${esc(`${nosing.qty || 1} ${nosing.type} nosing · ${fmtIn(nosing.length)} inches`)}</title></path>`);
@@ -3275,33 +3324,15 @@
         const c = P(W / 2, y0 + D / 2, top);
         shapes.push(`<g class="pp-viz-pin"><circle cx="${c[0].toFixed(2)}" cy="${c[1].toFixed(2)}" r="3.4"/><text x="${c[0].toFixed(2)}" y="${c[1].toFixed(2)}" text-anchor="middle" dominant-baseline="central">${index + 1}</text></g>`);
       }
-    }
-    if (stair.landing && stair.landing.enabled) {
-      const landingWidth = Number(stair.landing.width) || lastW;
-      const landingDepth = Number(stair.landing.depth) || lastD;
-      const landY = y; const landTop = z; const thickness = 1;
-      const sides = [
-        [[landingWidth, landY, landTop - thickness], [landingWidth, landY + landingDepth, landTop - thickness], [landingWidth, landY + landingDepth, landTop], [landingWidth, landY, landTop]],
-        [[0, landY + landingDepth, landTop - thickness], [landingWidth, landY + landingDepth, landTop - thickness], [landingWidth, landY + landingDepth, landTop], [0, landY + landingDepth, landTop]],
-      ];
-      sides.forEach((side) => shapes.push(`<polygon points="${pts(side)}" fill="${hexMix(tone.base, '#2A1C12', 0.22)}" stroke="#4A3726" stroke-width=".3"/>`));
-      sides.forEach((side) => side.forEach((point) => all.push(P(...point))));
-      const platform = [[0, landY, landTop], [landingWidth, landY, landTop], [landingWidth, landY + landingDepth, landTop], [0, landY + landingDepth, landTop]];
-      shapes.push(`<polygon points="${pts(platform)}" fill="url(#${id}t)" stroke="#4A3726" stroke-width=".35" class="pp-viz-landing"><title>Landing ${fmtIn(landingWidth)}" × ${fmtIn(landingDepth)}" after final riser</title></polygon>`);
-      platform.forEach((point) => all.push(P(...point)));
-      for (const nosing of landingNosings(stair)) {
-        const a = P(0, landY + landingDepth - 0.35, landTop + 0.08); const b = P(landingWidth, landY + landingDepth - 0.35, landTop + 0.08);
-        shapes.push(`<path d="M${a[0].toFixed(2)} ${a[1].toFixed(2)}L${b[0].toFixed(2)} ${b[1].toFixed(2)}" stroke="#B4561A" stroke-width="1.5" stroke-linecap="round" class="pp-viz-nosing"><title>${esc(`${nosing.qty || 1} ${nosing.type} nosing · landing edge`)}</title></path>`);
       }
-      const label = P(landingWidth / 2, landY + landingDepth / 2, landTop + 0.1);
-      shapes.push(`<text class="pp-viz-landing-label" x="${label[0].toFixed(2)}" y="${label[1].toFixed(2)}" text-anchor="middle" dominant-baseline="central">LANDING</text>`);
     }
     const xs = all.map((point) => point[0]); const ys = all.map((point) => point[1]);
     const pad = 8; const minX = Math.min(...xs) - pad; const minY = Math.min(...ys) - pad;
     const w = Math.max(...xs) - minX + pad; const h = Math.max(...ys) - minY + pad;
-    const counts = measCounts({ stairs: [stair], vents: [] });
-    return `<svg class="pp-viz-svg pp-viz-stair" viewBox="${minX.toFixed(1)} ${minY.toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}" role="img" aria-label="Assembled stair with ${counts.treads} treads and ${counts.risers} risers${stair.landing && stair.landing.enabled ? ', ending at a landing' : ''}">
-      <defs>${woodDefs(`${id}t`, tone, isGlossy(stair.finish))}${woodDefs(`${id}r`, rTone, !paint && isGlossy(stair.finish), true)}</defs>
+    const counts = measCounts({ stairs: flights, vents: [] });
+    const flightLabel = flights.length > 1 ? ` with ${flights.length} connected flights and ${flights.filter((flight) => flight.landing && flight.landing.enabled).length} landings` : '';
+    return `<svg class="pp-viz-svg pp-viz-stair" viewBox="${minX.toFixed(1)} ${minY.toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}" role="img" aria-label="Complete assembled stair${flightLabel}, with ${counts.treads} treads and ${counts.risers} risers">
+      <defs>${flightData.map(({ vizId, tone: flightTone, riserTone, paint: paintGrade, flight }) => woodDefs(`${vizId}t`, flightTone, isGlossy(flight.finish)) + woodDefs(`${vizId}r`, riserTone, !paintGrade && isGlossy(flight.finish), true)).join('')}</defs>
       ${shapes.join('')}
     </svg>`;
   }
@@ -3435,19 +3466,34 @@
         + '<div class="pp-viz-box" data-viz-box="riser"><span class="pp-viz-cap">Riser · front view</span>' + riserSvg(s, st, sel) + '</div>';
     }
     const chain = stairChainFor(m.data, s.id);
-    const sequence = chain.length > 1 && chain[0].id === s.id
-      ? '<div class="pp-viz-sequence"><div class="pp-viz-sequence-head"><strong>Connected stair sequence</strong><span>' + esc(chain.map((flight) => flight.name || 'Stair').join(' → ')) + '</span></div>' + stairSequenceSvg(chain, s.id) + '</div>'
-      : '';
+    const connected = chain.length > 1;
+    const mixedLayout = connected && chain.some((flight) => flight.layout === 'round');
+    const flightIndexes = chain.map((flight) => m.data.stairs.findIndex((item) => item.id === flight.id));
+    const drawing = mixedLayout
+      ? stairSequenceSvg(chain, s.id)
+      : stairSvg(connected ? chain : s, sel, mirror, connected ? flightIndexes : [si], m.vizSel, si);
+    const drawingTitle = connected ? 'Complete stair · ' + chain.length + ' flights' : s.layout === 'round' ? 'Round stair plan' : 'Assembled stair';
+    const drawingHint = connected
+      ? 'Both flights and the connecting landing appear together. Select a flight to edit its measurements.'
+      : s.layout === 'round' ? 'Each measured tread is placed around the selected stair sweep.' : 'Tap a tread or riser to select its measurements.';
+    const flightLinks = connected ? '<div class="pp-viz-flight-links" aria-label="Connected flights">'
+      + chain.map((flight, index) => {
+        const counts = measCounts({ stairs: [flight], vents: [] });
+        const active = flight.id === s.id;
+        return '<button type="button" class="pp-viz-flight-link' + (active ? ' is-active' : '') + '" data-stair-focus="' + esc(flight.id) + '"' + (active ? ' aria-current="step"' : '') + '>'
+          + esc(flight.name || 'Flight ' + (index + 1)) + ' · ' + counts.treads + ' treads / ' + counts.risers + ' risers</button>';
+      }).join('')
+      + '</div>' : '';
     return `<div class="pp-viz" data-viz-stair="${si}">
       <div class="pp-viz-3d">
-        <div class="pp-viz-bar"><span class="pp-step-lbl pp-viz-lbl">${s.layout === 'round' ? 'Round stair plan' : 'Assembled stair'}</span>${mirrorButton}</div>
-        <div class="pp-viz-box" data-viz-box="3d">${stairSvg(s, sel, mirror)}</div>
-        <p class="pp-viz-hint">${s.layout === 'round' ? 'Each measured tread is placed around the selected stair sweep.' : 'Tap a tread or riser to select its measurements.'}</p>
+        <div class="pp-viz-bar"><span class="pp-step-lbl pp-viz-lbl">${drawingTitle}</span>${mixedLayout ? '' : mirrorButton}</div>
+        <div class="pp-viz-box" data-viz-box="3d">${drawing}</div>
+        <p class="pp-viz-hint">${drawingHint}</p>
+        ${flightLinks}
       </div>
       <div class="pp-viz-step">
         ${st ? '<div class="pp-viz-bar"><span class="pp-step-lbl pp-viz-lbl">' + componentLabel + '</span><span class="pp-viz-nav"><button type="button" class="pp-q-ic" data-viz-prev="' + si + '" aria-label="Previous component"' + (sel === 0 ? ' disabled' : '') + '>‹</button><button type="button" class="pp-q-ic" data-viz-next="' + si + '" aria-label="Next component"' + (sel >= s.steps.length - 1 ? ' disabled' : '') + '>›</button></span></div>' + detail : detail}
       </div>
-      ${sequence}
     </div>`;
   }
 
@@ -3549,11 +3595,15 @@
         </div>
         ${lowerFlight ? '<p class="pp-stair-from-landing">Starts from the landing on <strong>' + esc(lowerFlight.name || 'Stair') + '</strong>.</p>' : ''}
       </div>
-      ${stairVizHtml(m, s, si)}
-      <div class="pp-stair-cols" aria-hidden="true"><span>#</span><span>Tread (width × depth)</span><span>Riser (width × height)</span><span>Open side</span><span>Return</span><span></span></div>
-      <div class="pp-stair-steps" role="list">${steps || '<p class="pp-q-empty">Add the first tread and riser. Enter sizes in inches, such as 48 or 11 1/4.</p>'}</div>
-      ${locked ? '' : '<div class="pp-stair-add"><button type="button" class="pp-q-add" data-step-add="' + si + '">+ Step (tread + riser)</button><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-riser-add="' + si + '"' + (s.riser_material === 'none' ? ' disabled' : '') + '>+ Riser only</button>'
+      <div class="pp-stair-workspace" role="group" aria-label="Stair drawing and measurements">
+        <div class="pp-stair-workspace-visual">${stairVizHtml(m, s, si)}</div>
+        <div class="pp-stair-workspace-measures">
+          <div class="pp-stair-measures-head"><div><h3>Measurements</h3><span>${counts.treads} treads · ${counts.risers} risers</span></div></div>
+          <div class="pp-stair-steps" role="list">${steps || '<p class="pp-q-empty">Add the first tread and riser. Enter sizes in inches, such as 48 or 11 1/4.</p>'}</div>
+          ${locked ? '' : '<div class="pp-stair-add"><button type="button" class="pp-q-add" data-step-add="' + si + '">+ Step (tread + riser)</button><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-riser-add="' + si + '"' + (s.riser_material === 'none' ? ' disabled' : '') + '>+ Riser only</button>'
         + ((s.steps || []).length ? '<span class="pp-stair-many"><label for="ppMany-' + si + '">Add</label><input id="ppMany-' + si + '" type="number" min="1" max="40" value="5" /><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-step-many="' + si + '">equal steps</button></span>' : '') + '</div>'}
+        </div>
+      </div>
       <div class="pp-stair-sub"><h4>Nosings</h4>${nos || '<p class="pp-muted" style="margin:0;font-size:13px">Add a nosing and choose the tread or landing edge it belongs to.</p>'}${locked ? '' : '<button type="button" class="pp-link" data-nos-add="' + si + '">+ Nosing</button>'}</div>
       <div class="pp-stair-sub"><h4>Photos</h4>${photoStrip(m, s.photos, p + '.photos')}</div>
       <div class="pp-stair-sub"><h4>Notes</h4><textarea data-txt="${p}.note" maxlength="500" placeholder="e.g. right wall out of square, existing skirt board" ${locked ? 'disabled' : ''}>${esc(s.note)}</textarea></div>
@@ -3645,14 +3695,20 @@
   /** Redraws only the drawings of one stair (keeps focus in the inputs). */
   function repaintViz(si) {
     const m = state.meas;
-    const box = view.querySelector(`[data-viz-stair="${si}"]`);
     const s = m && m.data.stairs[si];
-    if (!box || !s) return;
-    const tmp = document.createElement('div');
-    tmp.innerHTML = stairVizHtml(m, s, si);
-    box.innerHTML = tmp.firstElementChild.innerHTML;
-    const sel = (m.vizSel && m.vizSel[si]) || 0;
-    view.querySelectorAll(`[data-step-row^="${si}:"]`).forEach((row) => row.classList.toggle('is-sel', row.getAttribute('data-step-row') === `${si}:${sel}`));
+    if (!s) return;
+    const connectedIndexes = stairChainFor(m.data, s.id).map((flight) => m.data.stairs.findIndex((item) => item.id === flight.id));
+    const targets = new Set([...connectedIndexes, si]);
+    targets.forEach((targetSi) => {
+      const targetStair = m.data.stairs[targetSi];
+      const box = view.querySelector(`[data-viz-stair="${targetSi}"]`);
+      if (!box || !targetStair) return;
+      const tmp = document.createElement('div');
+      tmp.innerHTML = stairVizHtml(m, targetStair, targetSi);
+      box.innerHTML = tmp.firstElementChild.innerHTML;
+      const selected = (m.vizSel && m.vizSel[targetSi]) || 0;
+      view.querySelectorAll(`[data-step-row^="${targetSi}:"]`).forEach((row) => row.classList.toggle('is-sel', row.getAttribute('data-step-row') === `${targetSi}:${selected}`));
+    });
   }
   function repaintVent(i) {
     const m = state.meas;
@@ -3679,7 +3735,22 @@
       const st = s.steps[sel];
       const t = e.target.closest('[data-viz-step],[data-viz-side],[data-viz-ret],[data-viz-prev],[data-viz-next],[data-viz-mirror]');
       if (!t) return;
-      if (t.hasAttribute('data-viz-step')) { m.vizSel[si] = Number(t.getAttribute('data-viz-step')); repaintViz(si); return; }
+      if (t.hasAttribute('data-viz-step')) {
+        const targetSi = Number(t.getAttribute('data-viz-flight'));
+        const targetIndex = Number(t.getAttribute('data-viz-step'));
+        const targetFlight = Number.isInteger(targetSi) ? targetSi : si;
+        m.vizSel[targetFlight] = targetIndex;
+        repaintViz(si);
+        if (targetFlight !== si) {
+          const targetCard = view.querySelectorAll('.pp-stair')[targetFlight];
+          const targetRow = targetCard && targetCard.querySelector(`[data-step-row="${targetFlight}:${targetIndex}"]`);
+          if (targetRow) {
+            targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            targetRow.querySelector('input,select,button')?.focus({ preventScroll: true });
+          }
+        }
+        return;
+      }
       if (t.hasAttribute('data-viz-prev')) { m.vizSel[si] = Math.max(0, sel - 1); repaintViz(si); return; }
       if (t.hasAttribute('data-viz-next')) { m.vizSel[si] = Math.min(s.steps.length - 1, sel + 1); repaintViz(si); return; }
       if (t.hasAttribute('data-viz-mirror')) { m.vizMirror[si] = !m.vizMirror[si]; repaintViz(si); return; }
