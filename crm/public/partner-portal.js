@@ -126,6 +126,7 @@
       gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>',
       download: '<path d="M12 4v12M7 11l5 5 5-5"/><path d="M4 20h16"/>',
       home: '<path d="M4 11l8-7 8 7"/><path d="M6 10v10h12V10"/>',
+      trash: '<path d="M4 7h16M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13M9 7V4h6v3"/>',
       chat: '<path d="M4 5h16v11H9l-5 4z"/>',
       send: '<path d="M4 12l16-8-6 16-2-6z"/>',
       ruler: '<path d="M3 17 17 3l4 4L7 21H3z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/>',
@@ -643,16 +644,30 @@
     const openSum = state.invoices.filter((inv) => invoiceState(inv).key !== 'paid').reduce((s, inv) => s + Number(inv.balance || 0), 0);
     const done30 = all.filter((j) => !jobIsActive(j) && daysBetween(toDate(j.updatedAt) || now, now) <= 30).length;
 
-    const stage = (key, label) => `<button type="button" data-stage="${key}" aria-pressed="${state.jobStage === key}">${esc(label)} · ${counts[key]}</button>`;
-    const row = (j) => `<button type="button" class="pp-row" data-job="${esc(j.id)}" aria-current="${j.id === selectedId}">
+    const stage = (key, label) => `<button type="button" data-stage="${key}" aria-pressed="${state.jobStage === key}">${esc(label)}<span class="pp-jtab-n">${counts[key]}</span></button>`;
+    const STAT = [['Awaiting schedule', 'wait'], ['Scheduled', 'sched'], ['On site', 'site'], ['Completed', 'done']];
+    const shortTitle = (j) => {
+      // titles often end with the address, which the row already shows
+      const t = String(j.title || 'Job'); const a = String(j.address || '').trim();
+      const k = a ? t.toLowerCase().lastIndexOf(a.split(',')[0].toLowerCase()) : -1;
+      const cut = k > 0 ? t.slice(0, k).replace(/[\s·\-–,]+$/, '') : t;
+      return cut || t;
+    };
+    const row = (j) => {
+      const i = jobStepIndex(j);
+      const d = toDate(i === 3 ? j.updatedAt : j.scheduledStart);
+      const late = jobLate(j);
+      const today = d && daysBetween(new Date(), d) === 0 && i < 3;
+      const [stLabel, stKey] = late && i === 1 ? ['Past date', 'late'] : STAT[i];
+      return `<button type="button" class="pp-row pp-jrow" data-job="${esc(j.id)}" aria-current="${j.id === selectedId}">
+        <span class="pp-jdate ${late ? 'is-late' : today ? 'is-today' : i === 3 ? 'is-done' : ''} ${d ? '' : 'is-none'}" aria-hidden="true">${d ? `<small>${esc(d.toLocaleDateString('en-US', { month: 'short' }))}</small><b>${d.getDate()}</b><small>${esc(d.toLocaleDateString('en-US', { weekday: 'short' }))}</small>` : '<b>—</b><small>No date</small>'}</span>
         <span class="pp-row-main">
-          ${coLine(j)}
-          <span class="pp-row-top"><strong>${esc(j.title || 'Job')}</strong><span>${j.number ? `#${esc(j.number)}` : ''}</span></span>
-          <span class="pp-row-sub">${esc(j.address || 'No address')}</span>
-          <span class="pp-row-next pp-row-split"><span>${jobWhen(j)}</span>${j.total ? `<b>${moneyShort(j.total)}</b>` : ''}</span>
-          ${bars(jobStepIndex(j), JOB_STEPS, jobStepIndex(j) === 3)}
+          <span class="pp-row-top"><strong>${esc(shortTitle(j))}</strong><span>${j.number ? `#${esc(j.number)}` : ''}</span></span>
+          <span class="pp-row-sub">${esc(j.address || 'No address')}${state.builder && multiCo() && j._coName && !state.coFilter ? ` · ${esc(j._coName)}` : ''}</span>
+          <span class="pp-jmeta"><span class="pp-jstat pp-jstat--${stKey}">${stLabel}</span><span class="pp-jwhen">${jobWhen(j).replace(/^(On site · |Completed · )/, '')}</span>${j.total && canDo('money.view') ? `<b>${moneyShort(j.total)}</b>` : ''}</span>
         </span>
       </button>`;
+    };
 
     view.innerHTML = `
       <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder ? (state.coFilter && coById(state.coFilter) ? coById(state.coFilter).company_name : state.builder.account.name) : providerName())}</p><h1>Jobs</h1></div><div class="pp-head-actions"><a class="pp-btn pp-btn--pri" href="#send">Send work</a></div></div>
@@ -666,8 +681,8 @@
       <div class="pp-split pp-split--list ${id ? 'is-open' : ''}">
         <aside class="pp-card pp-side" aria-label="Job list">
           <div class="pp-side-search"><label>${icon('search')}<span class="pp-sr">Search jobs</span><input id="ppJobSearch" type="search" placeholder="Address, title or #" value="${esc(state.q)}" /></label></div>
-          <div class="pp-filter pp-side-filter" role="group" aria-label="Stage">${stage('all', 'All')}${stage('obra', 'On site')}${stage('agendado', 'Scheduled')}${stage('recebido', 'Awaiting schedule')}${stage('concluido', 'Completed')}</div>
-          ${groups.length ? groups.map(([label, rows]) => `<div class="pp-group">${esc(label)} · ${rows.length}</div>${rows.map(row).join('')}`).join('') : `<div class="pp-empty">${mate(q ? 'head-curious' : 'sleeping')}<strong>${q ? 'Nothing found' : 'No jobs yet'}</strong>${q ? 'Try another search.' : 'Send work and it shows up here once the company accepts it.'}</div>`}
+          <div class="pp-jtabs" role="group" aria-label="Stage">${stage('all', 'All')}${stage('obra', 'On site')}${stage('agendado', 'Scheduled')}${stage('recebido', 'To schedule')}${stage('concluido', 'Done')}</div>
+          ${groups.length ? groups.map(([label, rows]) => `<div class="pp-group pp-jgroup"><span>${esc(label)}</span><span>${rows.length}</span></div>${rows.map(row).join('')}`).join('') : `<div class="pp-empty">${mate(q ? 'head-curious' : 'sleeping')}<strong>${q ? 'Nothing found' : 'No jobs yet'}</strong>${q ? 'Try another search.' : 'Send work and it shows up here once the company accepts it.'}</div>`}
           ${state.projects.length ? `<div class="pp-group">Projects · ${state.projects.length}</div>${state.projects.map((p) => `<div class="pp-row" style="cursor:default"><span class="pp-row-main"><span class="pp-row-top"><strong>${esc(p.name || 'Project')}</strong><span>${p.number ? `#${esc(p.number)}` : ''}</span></span><span class="pp-row-sub">${esc(p.address || '')}</span></span></div>`).join('')}` : ''}
         </aside>
         <section class="pp-main" id="ppJobPane" aria-label="Job">${selectedId ? '<div class="pp-card pp-empty">Loading the job…</div>' : '<div class="pp-card pp-empty"><strong>Pick a job</strong>Its details show up here.</div>'}</section>
@@ -764,6 +779,15 @@
           ? `<div class="tk-when"><div><div class="tk-time">${t.all_day ? 'All day' : esc(when.start)}${!t.all_day && when.zone ? `<span>${esc(when.zone)}</span>` : ''}</div><div class="tk-day">${esc(when.day)}</div>${when.until ? `<div class="tk-until">${esc(when.until)}</div>` : ''}</div><span class="tk-rel">${esc(when.relative)}</span></div>`
           : '<div class="tk-when tk-when--none">No date yet. The company will schedule it.</div>'}
         <div class="tk-steps">${barsWithLabels(i, JOB_STEPS, i === 3)}</div>
+        <div class="tk-facts">
+          ${(() => { const openInv = invoices.filter((inv) => invoiceState(inv).key !== 'paid'); const due = openInv.reduce((a, inv) => a + Number(inv.balance || 0), 0); return [
+            t.total && canDo('money.view') ? `<div class="tk-fact"><small>Job value</small><b>${money(t.total)}</b></div>` : '',
+            canDo('money.view') ? `<button type="button" class="tk-fact" data-tk-go="tkInv"><small>Invoices</small><b class="${openInv.some((inv) => invoiceState(inv).key === 'overdue') ? 'pp-late' : ''}">${invoices.length ? (due ? `${money(due)} open` : 'Paid') : '—'}</b></button>` : '',
+            `<button type="button" class="tk-fact" data-tk-go="ppPhotos"><small>Photos</small><b>${photos.length || '—'}</b></button>`,
+            `<button type="button" class="tk-fact" data-tk-go="tkDocs"><small>Documents</small><b>${docs.length || '—'}</b></button>`,
+          ].join(''); })()}
+        </div>
+        ${canDo('jobs.send') && i < 3 ? `<div class="tk-hero-acts"><button type="button" class="pp-btn pp-btn--pri pp-btn--sm" data-update-job>${icon('send')}Send update</button>${office ? `<a class="pp-btn pp-btn--sec pp-btn--sm" href="tel:+${esc(office.digits)}">Call ${esc(office.name)}</a>` : ''}</div>` : ''}
       </section>
 
       ${t.attention ? `<section class="tk-attn" role="note"><span aria-hidden="true">!</span><div><b>Attention</b><p>${esc(t.attention)}</p></div></section>` : ''}
@@ -781,7 +805,7 @@
         <h3>Services${services.length ? ` <small>${services.length}</small>` : ''}</h3>
         ${services.length
           ? `<ul class="tk-list tk-svc">${services.map((sv) => `<li><span>${esc(sv.name)}${sv.notes ? `<small>${esc(sv.notes)}</small>` : ''}</span><span class="tk-amt">${sv.total ? `<b>${money(sv.total)}</b>` : ''}${sv.qty ? `<small>${esc(sv.qty)}${sv.unit_price ? ` × ${money(sv.unit_price)}` : ''}</small>` : ''}</span></li>`).join('')}${t.total ? `<li class="tk-total"><span>Total</span><b>${money(t.total)}</b></li>` : ''}</ul>`
-          : '<p class="tk-empty">The company hasn’t added services to this job yet.</p>'}
+          : `<p class="tk-empty">The company hasn’t added services to this job yet.${canDo('jobs.send') && i < 3 ? ' <button type="button" class="pp-link" data-update-job>Send the services</button>' : ''}</p>`}
       </section>
 
       ${checklist.length ? `<section class="tk-sec">
@@ -804,12 +828,12 @@
         ${photos.length > 9 ? '<a class="pp-link" href="#documents" style="font-size:14px">See all</a>' : ''}
       </section>
 
-      ${canDo('money.view') ? `<section class="tk-sec">
+      ${canDo('money.view') ? `<section class="tk-sec" id="tkInv">
         <h3>Invoices</h3>
         ${invoices.length ? `<ul class="tk-list">${invoices.map((inv) => { const st = invoiceState(inv); return `<li><a href="#invoices/${encodeURIComponent(inv.id)}" class="tk-row"><span>${esc(inv.number || 'Invoice')}<small class="${['overdue', 'soon'].includes(st.key) ? 'pp-late' : ''}">${esc(st.label)}</small></span><b>${money(st.key === 'paid' ? inv.amount : inv.balance)}</b></a></li>`; }).join('')}</ul>` : '<p class="tk-empty">No invoices for this job yet.</p>'}
       </section>` : ''}
 
-      ${docs.length ? `<section class="tk-sec"><h3>Documents</h3><ul class="tk-list">${docs.map((d) => `<li><a href="${esc(d.file_url)}" target="_blank" rel="noopener" class="tk-row"><span>${esc(d.title)}<small>${d.type === 'report' ? 'Report' : d.type === 'sent' ? 'You sent' : 'File'}</small></span><b>Open</b></a></li>`).join('')}</ul></section>` : ''}
+      ${docs.length ? `<section class="tk-sec" id="tkDocs"><h3>Documents</h3><ul class="tk-list">${docs.map((d) => `<li><a href="${esc(d.file_url)}" target="_blank" rel="noopener" class="tk-row"><span>${esc(d.title)}<small>${d.type === 'report' ? 'Report' : d.type === 'sent' ? 'You sent' : 'File'}</small></span><b>Open</b></a></li>`).join('')}</ul></section>` : ''}
 
       ${requests.length ? `<section class="tk-sec"><h3>Your requests</h3>${requests.map((r) => `<div class="pp-req" style="padding:8px 0"><div class="pp-req-top"><strong>${esc(r.title)}</strong>${requestStatus(r)}</div><p>${esc(fmtDay(r.created_at))}</p>${r.review_note ? `<p class="pp-reply">${esc(r.review_note)}</p>` : ''}</div>`).join('')}</section>` : ''}
 
@@ -832,6 +856,7 @@
       setTimeout(() => document.body.classList.remove('pp-printing'), 500);
     }));
     view.querySelectorAll('[data-edit-job]').forEach((b) => b.addEventListener('click', () => openJobEditor(data)));
+    view.querySelectorAll('[data-tk-go]').forEach((b) => b.addEventListener('click', () => { const el = document.getElementById(b.getAttribute('data-tk-go')); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); else b.disabled = true; }));
     view.querySelectorAll('[data-update-job]').forEach((b) => b.addEventListener('click', () => {
       state.send = newSend();
       state.send.presetJob = { id: data.job.id, number: data.job.number, title: data.job.title, address: data.job.address };
@@ -1178,12 +1203,10 @@
     const target = sendCo();
     state.ctx = target;
     const allCos = (state.builder && state.builder.companies) || [];
-    const canPick = state.builder && allCos.length > 1 && !state.send.presetJob && state.send.phase === 'pick';
-    const coCards = state.builder && target ? `<div class="pp-send-to" role="${canPick ? 'radiogroup' : 'group'}" aria-label="Send to">
+    const canPick = state.builder && allCos.length > 1 && !state.send.presetJob && (state.send.phase === 'pick' || state.send.phase === 'review');
+    const coCards = state.builder && target ? `<div class="pp-send-to">
         <span class="pp-send-to-lbl">Send to</span>
-        ${canPick && allCos.length > 2 ? `<label class="pp-send-search">${icon('search')}<input type="search" id="ppSendCoQ" placeholder="Search your companies" autocomplete="off" aria-label="Search companies" value="${esc(state.send.coQuery || '')}" /></label>` : ''}
-        ${(canPick ? allCos : [target]).map((c) => `<button type="button" class="pp-send-co" role="${canPick ? 'radio' : 'presentation'}" aria-checked="${target.id === c.id}" data-send-co="${esc(c.id)}" data-co-name="${esc(String(c.company_name || '').toLowerCase())}" ${canPick ? '' : 'tabindex="-1"'}>${coLogo(c, 32)}<span><strong>${esc(c.company_name)}</strong><small>${c.status === 'invited' ? 'Invited — held until they join' : 'On ObraMate'}</small></span>${target.id === c.id ? `<i aria-hidden="true">${icon('check')}</i>` : ''}</button>`).join('')}
-        ${canPick && allCos.length > 2 ? '<p class="pp-send-none" id="ppSendCoNone" hidden>No company matches. <button type="button" class="pp-link" id="ppSendCoClr">Clear search</button></p>' : ''}
+        ${coPickBtn(target, canPick ? 'data-send-copick aria-label="Send to: change company"' : 'disabled aria-disabled="true"')}
       </div>` : `<p class="pp-eyebrow">${state.builder ? 'To ' : ''}${esc(providerName())}</p>`;
     view.innerHTML = `
       <div class="pp-head pp-send-head">
@@ -1195,38 +1218,17 @@
         <section class="pp-main" id="ppSendBody"></section>
         <aside class="pp-card pp-side" aria-labelledby="ppReqTitle" id="ppReqs"></aside>
       </div>`;
-    if (canPick) view.querySelectorAll('[data-send-co]').forEach((b) => b.addEventListener('click', () => {
-      const id = b.getAttribute('data-send-co');
-      if (state.send.co === id) return;
-      state.send.co = id;
+    const cp = view.querySelector('[data-send-copick]');
+    if (cp) cp.addEventListener('click', () => openCoPicker('Send to', state.send.co || (target && target.id), async (id) => {
+      const snd = state.send;
+      snd.co = id;
       postJson('/api/builder/select', { company_id: id }).catch(() => {});
+      if (snd.phase === 'review' && snd.fromMeas) {
+        // the floor lines take the new company's prices
+        try { const r = await api(`/api/builder/measurements/${encodeURIComponent(snd.fromMeas.id)}`); await sendFromMeasurement({ ...r.data, dirty: false }, true, id); return; } catch (_) { /* keep what is there */ }
+      }
       renderSend(renderToken);
     }));
-    const coQ = $('ppSendCoQ');
-    if (coQ) {
-      const filter = () => {
-        const q = coQ.value.trim().toLowerCase();
-        state.send.coQuery = coQ.value;
-        let shown = 0;
-        view.querySelectorAll('[data-send-co]').forEach((b) => {
-          const hit = !q || b.getAttribute('data-co-name').includes(q) || b.getAttribute('aria-checked') === 'true';
-          b.hidden = !hit;
-          if (hit && b.getAttribute('aria-checked') !== 'true') shown += 1;
-        });
-        const none = $('ppSendCoNone');
-        if (none) none.hidden = !q || shown > 0;
-      };
-      coQ.addEventListener('input', filter);
-      coQ.addEventListener('keydown', (e) => {
-        if (e.key !== 'Enter') return;
-        e.preventDefault();
-        const first = [...view.querySelectorAll('[data-send-co]')].find((b) => !b.hidden && b.getAttribute('aria-checked') !== 'true');
-        if (first) first.click();
-      });
-      const clr = $('ppSendCoClr');
-      if (clr) clr.addEventListener('click', () => { coQ.value = ''; filter(); coQ.focus(); });
-      filter();
-    }
     renderSendBody();
     renderRequestsList();
   }
@@ -1529,18 +1531,20 @@
         ${open ? itemPanel(s, it, i) : ''}
       </article>`;
     };
-    return `<section class="pp-q pp-field--wide" aria-labelledby="ppItemsTitle">
+    return `<section class="pp-q pp-q--paper pp-field--wide" aria-labelledby="ppItemsTitle">
       <div class="pp-q-head">
         <h3 id="ppItemsTitle">Items · ${live.length}</h3>
         <span class="pp-muted">${live.length ? [counts.linked ? `${counts.linked} from price list` : '', counts.new ? `${counts.new} new` : '', counts.none ? `${counts.none} this job only` : ''].filter(Boolean).join(' · ') : 'Services become the job’s lines.'}</span>
       </div>
-      ${items.length ? `<div class="pp-q-cols" aria-hidden="true"><span>Service</span><span class="r">Qty</span><span>Unit</span><span class="r">Price</span><span class="r">Total</span><span></span></div>
+      ${items.length ? `<div class="pp-q-sechead"><span>Services</span><small id="ppItemsSec">Section total ${money(sum)}</small></div>
+      <div class="pp-q-cols" aria-hidden="true"><span>Description</span><span class="r">Qty</span><span>Unit</span><span class="r">Rate</span><span class="r">Amount</span><span></span></div>
       <div class="pp-q-list" role="list">${items.map(row).join('')}</div>` : '<p class="pp-q-empty">No services read from this order.</p>'}
       <button type="button" class="pp-q-add" id="ppItemAdd">+ Add service</button>
       ${s.pickCatalog ? catalogSheet(s) : ''}
       <div class="pp-q-sum">
         <div><span>Subtotal</span><b id="ppItemsSum">${money(sum)}</b></div>
         ${s.laborTotal != null ? `<div class="${off ? 'pp-late' : ''}" id="ppItemsCheckRow"><span>Total on the order</span><b id="ppItemsCheck">${money(s.laborTotal)} ${off ? '· check' : '✓'}</b></div>` : ''}
+        <div class="pp-q-grand"><span>Total</span><b id="ppItemsTotal">${money(sum)}</b></div>
       </div>
     </section>`;
   }
@@ -1615,6 +1619,7 @@
       const sum = Math.round(live.reduce((acc, it) => acc + (itemTotal(it) || 0), 0) * 100) / 100;
       const el = $('ppItemsSum');
       if (el) el.textContent = money(sum);
+      ['ppItemsSec', 'ppItemsTotal'].forEach((k) => { const x = $(k); if (x) x.textContent = k === 'ppItemsSec' ? `Section total ${money(sum)}` : money(sum); });
       const chk = $('ppItemsCheck');
       if (chk && s.laborTotal != null) {
         const off = Math.abs(sum - s.laborTotal) > 0.5;
@@ -2042,6 +2047,40 @@
   const UNIT_OPTS = [['sq_ft', 'sq ft'], ['linear_ft', 'linear ft'], ['step', 'step'], ['each', 'each'], ['hour', 'hour'], ['fixed', 'fixed']];
 
   /** Company logo: its ObraMate logo, else the icon of its website, else initials. */
+  /** Button that shows the chosen company and opens the company search. */
+  function coPickBtn(c, attrs, hint) {
+    return `<button type="button" class="pp-copick" ${attrs || ''}>${c ? coLogo(c, 32) : '<span class="pp-copick-none" aria-hidden="true">?</span>'}<span class="pp-copick-t"><strong>${c ? esc(c.company_name) : 'Choose a company'}</strong><small>${esc(hint != null ? hint : c ? (c.status === 'invited' ? 'Invited — held until they join' : 'On ObraMate') : 'Search your companies')}</small></span><span class="pp-copick-chg">${icon('search')}<span>Change</span></span></button>`;
+  }
+  /** Company search: type to filter, arrows + Enter to pick. */
+  function openCoPicker(title, currentId, onPick) {
+    const list = (state.builder && state.builder.companies) || [];
+    const root = openSheet(title || 'Choose a company', `<div class="pp-cosheet">
+        <label class="pp-send-search pp-cosheet-q">${icon('search')}<input type="search" data-co-q placeholder="Search by company name" autocomplete="off" aria-label="Search companies" /></label>
+        <div class="pp-cosheet-list" role="listbox" aria-label="Companies">${list.map((c) => `<button type="button" role="option" class="pp-cosheet-row" data-co-pick="${esc(c.id)}" data-co-name="${esc(String(c.company_name || '').toLowerCase())}" aria-selected="${c.id === currentId}">${coLogo(c, 36)}<span><strong>${esc(c.company_name)}</strong><small>${c.status === 'invited' ? 'Invited — held until they join' : 'On ObraMate'}</small></span>${c.id === currentId ? `<i aria-hidden="true">${icon('check')}</i>` : ''}</button>`).join('')}</div>
+        <p class="pp-muted pp-cosheet-none" data-co-none hidden>No company matches. <a class="pp-link" href="#companies">Add a company</a></p>
+      </div>`);
+    const q = root.querySelector('[data-co-q]');
+    const rows = [...root.querySelectorAll('[data-co-pick]')];
+    let hot = -1;
+    const vis = () => rows.filter((r) => !r.hidden);
+    const mark = () => { rows.forEach((r) => r.classList.remove('is-hot')); const v = vis(); if (v[hot]) { v[hot].classList.add('is-hot'); v[hot].scrollIntoView({ block: 'nearest' }); } };
+    const filter = () => {
+      const t = q.value.trim().toLowerCase();
+      rows.forEach((r) => { r.hidden = Boolean(t) && !r.getAttribute('data-co-name').includes(t); });
+      root.querySelector('[data-co-none]').hidden = vis().length > 0;
+      hot = t && vis().length ? 0 : -1;
+      mark();
+    };
+    q.addEventListener('input', filter);
+    q.addEventListener('keydown', (e) => {
+      const v = vis();
+      if (e.key === 'ArrowDown') { e.preventDefault(); hot = Math.min(v.length - 1, hot + 1); mark(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); hot = Math.max(0, hot - 1); mark(); }
+      else if (e.key === 'Enter') { e.preventDefault(); const r = v[hot >= 0 ? hot : 0]; if (r) r.click(); }
+    });
+    rows.forEach((r) => r.addEventListener('click', () => { const id = r.getAttribute('data-co-pick'); closeSheet(); if (id !== currentId) onPick(id); }));
+    setTimeout(() => q.focus(), 30);
+  }
   function coLogo(c, size) {
     const p = (c && c.profile) || {};
     const s = size || 48;
@@ -2627,6 +2666,86 @@
     paintInstall();
   }
 
+  /* pickup hours: day chips + open/close times, saved as text like "Mon–Fri 6:30 AM – 3 PM · Sat 7 AM – 12 PM" */
+  const WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const HOUR_OPTS = (() => { const out = []; for (let m = 4 * 60; m <= 22 * 60; m += 30) out.push(m); return out; })();
+  function fmtMin(min) { const h = Math.floor(min / 60); const mm = min % 60; const ap = h >= 12 ? 'PM' : 'AM'; const h12 = h % 12 || 12; return `${h12}${mm ? `:${String(mm).padStart(2, '0')}` : ''} ${ap}`; }
+  function parseMin(t) { const x = String(t).trim().match(/^(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m?\.?$/i); if (!x) return null; let h = Number(x[1]) % 12; if (/p/i.test(x[3])) h += 12; return h * 60 + Number(x[2] || 0); }
+  function daysText(days) {
+    const on = WEEK.map((_, i) => days.includes(i));
+    const parts = []; let i = 0;
+    while (i < 7) { if (!on[i]) { i += 1; continue; } let j = i; while (j + 1 < 7 && on[j + 1]) j += 1; parts.push(j - i >= 2 ? `${WEEK[i]}–${WEEK[j]}` : j > i ? `${WEEK[i]}, ${WEEK[j]}` : WEEK[i]); i = j + 1; }
+    return parts.join(', ');
+  }
+  function hoursText(rows) { return rows.filter((r) => r.days.length && r.open != null && r.close != null).map((r) => `${daysText(r.days)} ${fmtMin(r.open)} – ${fmtMin(r.close)}`).join(' · ').slice(0, 120); }
+  /** Reads hours typed before ("Mon–Fri 6:30 AM – 3 PM"); null when it can't be read. */
+  function parseHours(text) {
+    const t = String(text || '').trim();
+    if (!t) return [];
+    const rows = [];
+    for (const seg of t.split(/\s*[·;|]\s*|\n/)) {
+      const x = seg.match(/^(.+?)\s+(\d{1,2}(?::\d{2})?\s*[ap]\.?m\.?)\s*(?:–|-|to)\s*(\d{1,2}(?::\d{2})?\s*[ap]\.?m\.?)$/i);
+      if (!x) return null;
+      const days = [];
+      for (const tok of x[1].split(/\s*[,&]\s*/)) {
+        const r = tok.split(/\s*(?:–|-|to)\s*/).map((d) => WEEK.findIndex((w) => d.slice(0, 3).toLowerCase() === w.toLowerCase()));
+        if (r.some((n) => n < 0)) return null;
+        if (r.length === 2) { for (let k = r[0]; k <= r[1]; k += 1) days.push(k); } else days.push(r[0]);
+      }
+      const open = parseMin(x[2]); const close = parseMin(x[3]);
+      if (open == null || close == null) return null;
+      rows.push({ days: [...new Set(days)], open, close });
+    }
+    return rows;
+  }
+  /** Open now / opens at, from the parsed hours. */
+  function hoursNow(text) {
+    const rows = parseHours(text);
+    if (!rows || !rows.length) return null;
+    const d = new Date(); const day = (d.getDay() + 6) % 7; const min = d.getHours() * 60 + d.getMinutes();
+    const today = rows.filter((r) => r.days.includes(day));
+    if (today.some((r) => min >= r.open && min < r.close)) { const r = today.find((x) => min >= x.open && min < x.close); return { open: true, text: `Open · closes ${fmtMin(r.close)}` }; }
+    const later = today.filter((r) => r.open > min).sort((a, b) => a.open - b.open)[0];
+    if (later) return { open: false, text: `Closed · opens ${fmtMin(later.open)}` };
+    for (let k = 1; k <= 7; k += 1) { const dd = (day + k) % 7; const r = rows.filter((x) => x.days.includes(dd)).sort((a, b) => a.open - b.open)[0]; if (r) return { open: false, text: `Closed · opens ${k === 1 ? 'tomorrow' : WEEK[dd]} ${fmtMin(r.open)}` }; }
+    return null;
+  }
+  function hoursEditorHtml(rows, raw) {
+    const timeSel = (v, attr) => `<select ${attr}>${HOUR_OPTS.map((m) => `<option value="${m}" ${m === v ? 'selected' : ''}>${fmtMin(m)}</option>`).join('')}</select>`;
+    return `<div class="pp-hours" id="ppHours">
+      ${rows === null ? `<p class="pp-hours-raw">Typed before: <b>${esc(raw)}</b><br><span class="pp-muted">Set the days and times below to replace it.</span></p>` : ''}
+      ${(rows || []).map((r, i) => `<div class="pp-hours-row" data-hr="${i}">
+        <div class="pp-hours-days" role="group" aria-label="Days">${WEEK.map((w, d) => `<button type="button" data-hr-day="${i}:${d}" aria-pressed="${r.days.includes(d)}">${w.slice(0, 2)}<span class="pp-sr">${w}</span></button>`).join('')}</div>
+        <div class="pp-hours-time">${timeSel(r.open, `data-hr-open="${i}" aria-label="Opens"`)}<span>to</span>${timeSel(r.close, `data-hr-close="${i}" aria-label="Closes"`)}<button type="button" class="pp-q-ic pp-q-ic--del" data-hr-rm="${i}" aria-label="Remove these hours">×</button></div>
+      </div>`).join('')}
+      <div class="pp-hours-acts">
+        ${(rows || []).length ? '<button type="button" class="pp-link" data-hr-add>+ Other days</button>' : `<button type="button" class="pp-chipbtn" data-hr-preset="weekdays">Mon–Fri 7 AM – 3 PM</button><button type="button" class="pp-chipbtn" data-hr-preset="sat">Mon–Sat</button><button type="button" class="pp-chipbtn" data-hr-preset="custom">Set hours</button>`}
+      </div>
+      <p class="pp-hours-out" ${(rows || []).length ? '' : 'hidden'}>${esc(hoursText(rows || []))}</p>
+    </div>`;
+  }
+  function bindHoursEditor(root, state0) {
+    const st = state0;
+    const paint = () => { const box = root.querySelector('#ppHours'); box.outerHTML = hoursEditorHtml(st.rows, st.raw); bindHoursEditor(root, st); };
+    const box = root.querySelector('#ppHours');
+    box.querySelectorAll('[data-hr-day]').forEach((b) => b.addEventListener('click', () => {
+      const [i, d] = b.getAttribute('data-hr-day').split(':').map(Number);
+      const r = st.rows[i]; r.days = r.days.includes(d) ? r.days.filter((x) => x !== d) : [...r.days, d].sort();
+      paint();
+    }));
+    box.querySelectorAll('[data-hr-open]').forEach((el) => el.addEventListener('change', () => { const r = st.rows[Number(el.getAttribute('data-hr-open'))]; r.open = Number(el.value); if (r.close <= r.open) r.close = Math.min(22 * 60, r.open + 8 * 60); paint(); }));
+    box.querySelectorAll('[data-hr-close]').forEach((el) => el.addEventListener('change', () => { const r = st.rows[Number(el.getAttribute('data-hr-close'))]; r.close = Number(el.value); if (r.close <= r.open) r.open = Math.max(4 * 60, r.close - 60); paint(); }));
+    box.querySelectorAll('[data-hr-rm]').forEach((b) => b.addEventListener('click', () => { st.rows.splice(Number(b.getAttribute('data-hr-rm')), 1); paint(); }));
+    const add = box.querySelector('[data-hr-add]');
+    if (add) add.addEventListener('click', () => { const used = new Set(st.rows.flatMap((r) => r.days)); const free = [0, 1, 2, 3, 4, 5, 6].filter((d) => !used.has(d)); st.rows.push({ days: free.includes(5) ? [5] : free.slice(0, 1), open: 7 * 60, close: 12 * 60 }); paint(); });
+    box.querySelectorAll('[data-hr-preset]').forEach((b) => b.addEventListener('click', () => {
+      const k = b.getAttribute('data-hr-preset');
+      st.rows = k === 'sat' ? [{ days: [0, 1, 2, 3, 4], open: 7 * 60, close: 15 * 60 }, { days: [5], open: 7 * 60, close: 12 * 60 }] : [{ days: [0, 1, 2, 3, 4], open: 7 * 60, close: 15 * 60 }];
+      if (k !== 'custom') { /* preset as is */ }
+      paint();
+    }));
+  }
+
   async function settingsPickups(head, token) {
     const list = await ensurePickups(true);
     if (token !== renderToken) return;
@@ -2638,12 +2757,14 @@
           <div class="pp-field pp-field--wide"><label for="ppPkAliases">Name on work orders <span>(comma separated)</span></label><input id="ppPkAliases" maxlength="300" value="${esc(aliases)}" placeholder="e.g. TRIWEST, TW Henderson" /></div>
           <div class="pp-field pp-field--wide"><label for="ppPkAddr">Address *</label><input id="ppPkAddr" maxlength="300" required value="${esc(l.address)}" data-om-address-autocomplete /></div>
           <div class="pp-field"><label for="ppPkPhone">Phone</label><input id="ppPkPhone" type="tel" inputmode="tel" maxlength="40" value="${esc(l.phone || '')}" /></div>
-          <div class="pp-field"><label for="ppPkHours">Pickup hours</label><input id="ppPkHours" maxlength="120" value="${esc(l.hours || '')}" placeholder="e.g. Mon–Fri 6:30 AM – 3 PM" /></div>
+          <div class="pp-field pp-field--wide"><span class="pp-flabel">Pickup hours</span>${hoursEditorHtml(parseHours(l.hours), l.hours || '')}</div>
           <div class="pp-field pp-field--wide"><label for="ppPkNotes">Notes for the crew</label><input id="ppPkNotes" maxlength="500" value="${esc(l.notes || '')}" placeholder="e.g. Will-call door on the north side" /></div>
           <label class="pp-check pp-field--wide"><input type="checkbox" id="ppPkDefault" ${l.is_default ? 'checked' : ''} /> Default pickup location</label>
           <p class="pp-error pp-field--wide" id="ppPkError" role="alert" hidden></p>
           <div class="pp-sheet-actions pp-field--wide">${loc ? '<button type="button" class="pp-btn pp-btn--sec pp-late" data-pk-del>Delete</button>' : ''}<button type="submit" class="pp-btn pp-btn--pri">${loc ? 'Save location' : 'Add location'}</button></div>
         </form>`);
+      const hrs = { rows: parseHours(l.hours), raw: l.hours || '' };
+      bindHoursEditor(root, hrs);
       root.querySelector('#ppPickForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const name = $('ppPkName').value.trim();
@@ -2652,7 +2773,7 @@
         const payload = {
           name, address,
           aliases: $('ppPkAliases').value.split(/[,;\n]/).map((a) => a.trim()).filter((a) => a.length >= 2).slice(0, 11),
-          phone: $('ppPkPhone').value.trim(), hours: $('ppPkHours').value.trim(), notes: $('ppPkNotes').value.trim(), is_default: $('ppPkDefault').checked,
+          phone: $('ppPkPhone').value.trim(), hours: hrs.rows === null ? hrs.raw : hoursText(hrs.rows), notes: $('ppPkNotes').value.trim(), is_default: $('ppPkDefault').checked,
         };
         try {
           if (loc) await api(`/api/builder/pickups/${encodeURIComponent(loc.id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -2671,7 +2792,7 @@
     setOut.innerHTML = `${head('Pickup locations', true)}
       <p class="pp-muted pp-meas-intro">Supplier yards where your crews pick up delivered material. When a work order names one (like <code>TRIWEST 9176215</code>), the job gets the full address and the order number automatically.</p>
       <div class="pp-sheet-actions" style="justify-content:flex-start;max-width:880px;margin-bottom:12px"><button type="button" class="pp-btn pp-btn--pri" data-pk-new>+ Add location</button></div>
-      ${list.length ? `<div class="pp-card pp-set-list">${list.map((l) => `<button type="button" class="pp-set-row" data-pk="${esc(l.id)}"><span class="pp-set-ic">${icon('pin')}</span><span><strong>${esc(l.name)}${l.is_default ? ' <span class="pp-chip pp-chip--ok">Default</span>' : ''}</strong><small>${esc(l.address)}</small>${[l.hours, l.phone].filter(Boolean).length ? `<small>${esc([l.hours, l.phone].filter(Boolean).join(' · '))}</small>` : ''}<small class="pp-pick-alias">Matches: ${(l.aliases || []).map((a) => `<code>${esc(a)}</code>`).join(' ')}</small></span>${icon('chev')}</button>`).join('')}</div>` : `<div class="pp-card pp-empty">${mate('delivery', 110)}<strong>No pickup locations yet</strong>Add the yards and warehouses your suppliers use.</div>`}`;
+      ${list.length ? `<div class="pp-card pp-set-list">${list.map((l) => `<button type="button" class="pp-set-row" data-pk="${esc(l.id)}"><span class="pp-set-ic">${icon('pin')}</span><span><strong>${esc(l.name)}${l.is_default ? ' <span class="pp-chip pp-chip--ok">Default</span>' : ''}</strong><small>${esc(l.address)}</small>${(() => { const n = hoursNow(l.hours); return n ? `<small class="pp-hours-now ${n.open ? 'is-open' : ''}"><i aria-hidden="true"></i>${esc(n.text)}</small>` : ''; })()}${[l.hours, l.phone].filter(Boolean).length ? `<small>${esc([l.hours, l.phone].filter(Boolean).join(' · '))}</small>` : ''}<small class="pp-pick-alias">Matches: ${(l.aliases || []).map((a) => `<code>${esc(a)}</code>`).join(' ')}</small></span>${icon('chev')}</button>`).join('')}</div>` : `<div class="pp-card pp-empty">${mate('delivery', 110)}<strong>No pickup locations yet</strong>Add the yards and warehouses your suppliers use.</div>`}`;
     view.querySelectorAll('[data-pk-new]').forEach((b) => b.addEventListener('click', () => open(null)));
     view.querySelectorAll('[data-pk]').forEach((b) => b.addEventListener('click', () => open(list.find((x) => x.id === b.getAttribute('data-pk')))));
   }
@@ -3005,6 +3126,31 @@
   function countsText(c) {
     return [c.stairs ? `${c.stairs} ${c.stairs === 1 ? 'stair' : 'stairs'}` : '', c.treads ? `${c.treads} treads` : '', c.risers ? `${c.risers} risers` : '', c.nosings ? `${c.nosings} ${c.nosings === 1 ? 'nosing' : 'nosings'}` : '', c.landings ? `${c.landings} ${c.landings === 1 ? 'landing' : 'landings'}` : '', c.vents ? `${c.vents} ${c.vents === 1 ? 'vent' : 'vents'}` : '', c.floor_text || ''].filter(Boolean).join(' · ') || 'Nothing measured yet';
   }
+  /** Asks before deleting a measurement (photos and plans go with it). */
+  function confirmMeasDelete(m, done) {
+    const c = m.counts || measCounts(m.data || {});
+    const what = countsText(c);
+    const root = openSheet('Delete measurement?', `<div class="pp-del-sheet">
+        <div class="pp-del-ic" aria-hidden="true">${icon('trash')}</div>
+        <p><strong>${esc(m.address)}</strong>${what ? `<small>${esc(what)}</small>` : ''}</p>
+        <p class="pp-muted">The measurement, its photos and plans are deleted. This can’t be undone.</p>
+        <p class="pp-error" data-del-err role="alert" hidden></p>
+        <div class="pp-sheet-actions"><button type="button" class="pp-btn pp-btn--sec" data-sheet-close>Keep it</button><button type="button" class="pp-btn pp-btn--danger" data-del-go>Delete</button></div>
+      </div>`, { noFocus: true });
+    root.querySelector('[data-del-go]').addEventListener('click', async (e) => {
+      const b = e.currentTarget;
+      b.disabled = true; b.textContent = 'Deleting…';
+      try {
+        await api(`/api/builder/measurements/${encodeURIComponent(m.id)}`, { method: 'DELETE' });
+        closeSheet();
+        mateToast('head-happy', 'Measurement deleted', m.address);
+        done();
+      } catch (ex) {
+        b.disabled = false; b.textContent = 'Delete';
+        const er = root.querySelector('[data-del-err]'); er.textContent = ex.message; er.hidden = false;
+      }
+    });
+  }
   function measStatusChip(m) {
     if (m.status === 'used') return '<span class="pp-chip pp-chip--dark">Sent with job</span>';
     if (m.status === 'done') return '<span class="pp-chip pp-chip--ok">Complete</span>';
@@ -3039,15 +3185,15 @@
     const count = (k) => (k === 'all' ? rows.length : rows.filter((m) => m.status === k).length);
     const list = rows.filter((m) => (f === 'all' || m.status === f) && (!q || String(m.address || '').toLowerCase().includes(q)));
     const pills = (c) => [c.treads ? `<span><b>${c.treads}</b> treads</span>` : '', c.risers ? `<span><b>${c.risers}</b> risers</span>` : '', c.nosings ? `<span><b>${c.nosings}</b> nosings</span>` : '', c.vents ? `<span><b>${c.vents}</b> vents</span>` : '', c.floor_sf ? `<span><b>${Number(c.floor_sf).toLocaleString('en-US')}</b> sf floors</span>` : ''].filter(Boolean).join('') || '<span class="pp-muted">Nothing measured yet</span>';
-    const card = (m) => `<a class="pp-card pp-mcard is-${esc(m.status)}" href="#measurements/${esc(m.id)}">
+    const card = (m) => `<div class="pp-mcard-wrap">${m.status === 'used' ? '' : `<button type="button" class="pp-mcard-del" data-meas-del="${esc(m.id)}" aria-label="Delete measurement at ${esc(m.address)}" title="Delete">${icon('trash')}</button>`}<a class="pp-card pp-mcard is-${esc(m.status)}" href="#measurements/${esc(m.id)}">
         <span class="pp-mcard-ic" aria-hidden="true">${icon('ruler')}</span>
         <span class="pp-mcard-main">
           <span class="pp-mcard-top"><strong>${esc(m.address)}</strong>${measStatusChip(m)}</span>
           <span class="pp-mcard-pills">${pills(m.counts || {})}</span>
-          <small>${esc(m.completed_by || m.updated_by || m.created_by || '')} · ${esc(fmtDayEn(m.completed_at || m.updated_at))}</small>
+          <small>${(() => { const t = measuredText(m); return `${t.typed ? 'Measured by ' : ''}${esc(t.who)} · ${esc(t.on)}`; })()}</small>
         </span>
         ${m.status === 'draft' ? '<span class="pp-mcard-go">Continue</span>' : icon('chev')}
-      </a>`;
+      </a></div>`;
     view.innerHTML = `
       <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder.account.name)}</p><h1>Measurements</h1></div><div class="pp-head-actions"><button type="button" class="pp-btn pp-btn--sec" id="ppMeasPlanBtn">${icon('upload')}From plans</button><button type="button" class="pp-btn pp-btn--pri" id="ppMeasNewBtn">${icon('locate')}New measurement</button></div></div>
       ${rows.length ? `<div class="pp-mlist-bar">
@@ -3059,6 +3205,10 @@
     view.querySelectorAll('#ppMeasNewBtn, [data-meas-new]').forEach((b) => b.addEventListener('click', () => openNewMeasurement(false)));
     view.querySelectorAll('#ppMeasPlanBtn, [data-meas-plan]').forEach((b) => b.addEventListener('click', () => openPlanUpload()));
     view.querySelectorAll('[data-mfilter]').forEach((b) => b.addEventListener('click', () => { state.measFilter = b.getAttribute('data-mfilter'); render(); }));
+    view.querySelectorAll('[data-meas-del]').forEach((b) => b.addEventListener('click', () => {
+      const m = rows.find((x) => x.id === b.getAttribute('data-meas-del'));
+      if (m) confirmMeasDelete(m, () => { state.homeMeas = null; render(); });
+    }));
     const qi = $('ppMeasQ');
     if (qi) qi.addEventListener('input', () => { state.measQuery = qi.value; const pos = qi.selectionStart; render().then(() => { const x = $('ppMeasQ'); if (x) { x.focus(); x.setSelectionRange(pos, pos); } }); });
     if (id === 'new') { history.replaceState(null, '', '#measurements'); openNewMeasurement(window.matchMedia('(max-width: 1023px)').matches); }
@@ -3817,17 +3967,40 @@
   }
 
   const VENT_TYPE_LABEL = Object.fromEntries(VENT_TYPES);
-  const VENT_ROOM_IDEAS = ['Kitchen', 'Living room', 'Family room', 'Dining room', 'Primary bedroom', 'Bedroom 2', 'Bedroom 3', 'Office', 'Hallway', 'Foyer', 'Mudroom', 'Laundry', 'Bonus room', 'Basement'];
-  /** Room names for vents: the plan's rooms first, then common names, without the ones already used. */
-  function ventRoomIdeas(m) {
-    const used = new Set((m.data.vents || []).map((v) => (v.room || '').trim().toLowerCase()).filter(Boolean));
-    const plan = m.data.plan;
-    const fromPlan = [];
-    if (plan && plan.levels) plan.levels.forEach((lv) => (lv.rooms || []).forEach((r) => { if (r.name && !r.exclude) fromPlan.push(r.name.trim()); }));
-    const out = [];
-    const seen = new Set();
-    fromPlan.concat(VENT_ROOM_IDEAS).forEach((n) => { const k = n.toLowerCase(); if (!n || seen.has(k) || used.has(k)) return; seen.add(k); out.push(n); });
-    return { fromPlan: out.filter((n) => fromPlan.some((p) => p.toLowerCase() === n.toLowerCase())), common: out.filter((n) => !fromPlan.some((p) => p.toLowerCase() === n.toLowerCase())) };
+  const roomKey = (n) => String(n || '').trim().toLowerCase();
+  /** Vents of one room of the plan: list with counts, edit, and + Vent with the room filled in. */
+  function openRoomVentsSheet(roomName) {
+    const m = state.meas;
+    const locked = m.status === 'used';
+    const k = roomKey(roomName);
+    const idx = [];
+    (m.data.vents || []).forEach((v, i) => { if (roomKey(v.room) === k) idx.push(i); });
+    const root = openSheet(`Vents · ${roomName}`, `
+      <div class="pp-rvents">
+        ${idx.length ? `<div class="pp-vlist" role="list">${idx.map((i) => { const v = m.data.vents[i]; return `<div class="pp-vrow" role="listitem">
+          <button type="button" class="pp-vrow-main" data-rv-open="${i}"><span class="pp-vrow-thumb" aria-hidden="true">${ventSvg(v)}</span><span class="pp-vrow-text"><strong>${esc(String(v.size || '').trim().replace('x', '×') || 'Vent')} ${esc(VENT_TYPE_LABEL[v.type] || '')}</strong><small>${esc([v.species, v.finish].filter((x) => x && x.trim()).join(' · '))}</small></span></button>
+          <span class="pp-stepper" role="group" aria-label="Quantity">${locked ? '' : `<button type="button" data-rv-qty="${i}:-1" aria-label="One less" ${(Number(v.qty) || 1) <= 1 ? 'disabled' : ''}>−</button>`}<b>${Number(v.qty) || 1}</b>${locked ? '' : `<button type="button" data-rv-qty="${i}:1" aria-label="One more">+</button>`}</span>
+        </div>`; }).join('')}</div>` : `<p class="pp-ssec-empty">No vents in ${esc(roomName)} yet.</p>`}
+        <div class="pp-sheet-actions">${locked ? '' : '<button type="button" class="pp-btn pp-btn--sec" data-rv-add>+ Vent</button>'}<button type="button" class="pp-btn pp-btn--pri" data-sheet-close>Done</button></div>
+      </div>`, { noFocus: true });
+    const after = () => { measSaveSoon(); const y = window.scrollY; paintMeasurement(); window.scrollTo(0, y); openRoomVentsSheet(roomName); };
+    root.querySelectorAll('[data-rv-qty]').forEach((b) => b.addEventListener('click', () => {
+      const [i, d] = b.getAttribute('data-rv-qty').split(':').map(Number);
+      m.data.vents[i].qty = Math.max(1, (Number(m.data.vents[i].qty) || 1) + d);
+      after();
+    }));
+    root.querySelectorAll('[data-rv-open]').forEach((b) => b.addEventListener('click', () => openVentSheet(Number(b.getAttribute('data-rv-open')), false)));
+    const add = root.querySelector('[data-rv-add]');
+    if (add) add.addEventListener('click', () => {
+      m.data.vents = m.data.vents || [];
+      const last = idx.length ? m.data.vents[idx[idx.length - 1]] : m.data.vents[m.data.vents.length - 1];
+      const v = newVent(last);
+      v.room = roomName;
+      const at = idx.length ? idx[idx.length - 1] + 1 : m.data.vents.length;
+      m.data.vents.splice(at, 0, v);
+      measSaveSoon();
+      openVentSheet(at, true);
+    });
   }
   /** Vents grouped by room, in the order the rooms were first measured; vents without a room last. */
   function ventGroups(vents) {
@@ -3845,49 +4018,22 @@
     const locked = m.status === 'used';
     const vents = m.data.vents || [];
     const total = vents.reduce((n, v) => n + (Number(v.qty) || 1), 0);
-    const groups = ventGroups(vents);
-    const rooms = groups.filter((g) => g.key).length;
-    const row = (i) => { const v = vents[i]; return `<div class="pp-vrow" role="listitem">
-        <button type="button" class="pp-vrow-main" data-vent-open="${i}" aria-label="Edit ${esc(String(v.size || 'vent').replace('x', '×'))} vent${v.room ? ` in ${esc(v.room)}` : ''}">
+    const rooms = new Set(vents.map((v) => (v.room || '').trim().toLowerCase()).filter(Boolean)).size;
+    const rows = vents.map((v, i) => `<div class="pp-vrow" role="listitem">
+        <button type="button" class="pp-vrow-main" data-vent-open="${i}" aria-label="Edit vent ${i + 1}${v.room ? `, ${esc(v.room)}` : ''}">
           <span class="pp-vrow-thumb" aria-hidden="true">${ventSvg(v)}</span>
-          <span class="pp-vrow-text"><strong>${esc(String(v.size || '').trim().replace('x', '×') || 'Vent')} ${esc(VENT_TYPE_LABEL[v.type] || '')}</strong><small>${esc([v.species, v.finish, v.color].filter((x) => x && x.trim()).join(' · ') || 'No wood or finish yet')}${(v.photos || []).length ? ` · ${(v.photos || []).length} photo${(v.photos || []).length > 1 ? 's' : ''}` : ''}</small></span>
+          <span class="pp-vrow-text"><strong>${esc(v.room || `Vent ${i + 1}`)}</strong><small>${esc([String(v.size || '').replace('x', '×'), VENT_TYPE_LABEL[v.type] || '', [v.species, v.finish].filter((x) => x && x.trim()).join(' · ')].filter(Boolean).join(' · '))}${(v.photos || []).length ? ` · ${(v.photos || []).length} photo${(v.photos || []).length > 1 ? 's' : ''}` : ''}</small></span>
         </button>
         <span class="pp-stepper" role="group" aria-label="Quantity">
           ${locked ? '' : `<button type="button" data-vent-qty="${i}:-1" aria-label="One less" ${(Number(v.qty) || 1) <= 1 ? 'disabled' : ''}>−</button>`}
           <b aria-live="polite">${Number(v.qty) || 1}</b>
           ${locked ? '' : `<button type="button" data-vent-qty="${i}:1" aria-label="One more">+</button>`}
         </span>
-      </div>`; };
-    const groupHtml = (g) => {
-      const n = g.items.reduce((a, i) => a + (Number(vents[i].qty) || 1), 0);
-      return `<div class="pp-vroom ${g.key ? '' : 'is-none'}">
-        <div class="pp-vroom-head"><span class="pp-vroom-ic" aria-hidden="true">${icon('home')}</span><div><strong>${esc(g.name || 'No room yet')}</strong><small>${n} vent${n === 1 ? '' : 's'}</small></div>${locked ? '' : `${g.key ? `<button type="button" class="pp-link pp-vroom-ren" data-vroom-ren="${esc(g.key)}">Rename</button>` : ''}<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-vroom-add="${esc(g.name)}" aria-label="Add a vent${g.name ? ` in ${esc(g.name)}` : ''}">+ Vent</button>`}</div>
-        <div class="pp-vlist" role="list">${g.items.map(row).join('')}</div>
-      </div>`;
-    };
+      </div>`).join('');
     return `<section class="pp-card pp-vents" aria-labelledby="ppVentsT">
-        <div class="pp-vents-head"><div><h3 id="ppVentsT">Vents</h3><small>${vents.length ? `${total} vent${total === 1 ? '' : 's'}${rooms ? ` in ${rooms} room${rooms === 1 ? '' : 's'}` : ''}` : 'Room by room — use the count for repeats'}</small></div>${locked ? '' : '<button type="button" class="pp-btn pp-btn--pri pp-btn--sm" id="ppVentRoom">+ Room</button>'}</div>
-        ${vents.length ? `<div class="pp-vrooms">${groups.map(groupHtml).join('')}</div>` : `<div class="pp-empty" style="padding:22px 8px">${mate('head-thinking', 56)}<strong>No vents measured</strong>Add a room, then each vent in it with its size, type and finish.</div>`}
+        <div class="pp-vents-head"><div><h3 id="ppVentsT">Vents</h3><small>${vents.length ? `${total} vent${total === 1 ? '' : 's'}${rooms ? ` in ${rooms} room${rooms === 1 ? '' : 's'}` : ''}` : 'Each size and room once — use the count for repeats'}</small></div>${locked ? '' : '<button type="button" class="pp-btn pp-btn--pri pp-btn--sm" id="ppVentAdd">+ Vent</button>'}</div>
+        ${vents.length ? `<div class="pp-vlist" role="list">${rows}</div>` : `<div class="pp-empty" style="padding:22px 8px">${mate('head-thinking', 56)}<strong>No vents measured</strong>Add each vent with its size, type and finish.</div>`}
       </section>`;
-  }
-
-  /** Picks or types a room, then opens a new vent there. */
-  function openVentRoomSheet(m, onPick, opts) {
-    const o = opts || {};
-    const ideas = ventRoomIdeas(m);
-    const chips = (list) => list.map((n) => `<button type="button" class="pp-chipbtn" data-vroom-pick="${esc(n)}">${esc(n)}</button>`).join('');
-    const root = openSheet(o.title || 'Which room?', `
-      <form class="pp-vroom-sheet" id="ppVRoomForm">
-        <div class="pp-field pp-field--wide"><label for="ppVRoomNew">Room name</label><input id="ppVRoomNew" value="${esc(o.value || '')}" maxlength="80" placeholder="e.g. Primary bedroom" autocomplete="off" /></div>
-        ${ideas.fromPlan.length && !o.value ? `<div class="pp-vroom-ideas"><span class="pp-flabel">From the plans</span><div>${chips(ideas.fromPlan.slice(0, 24))}</div></div>` : ''}
-        ${o.value ? '' : `<div class="pp-vroom-ideas"><span class="pp-flabel">Common rooms</span><div>${chips(ideas.common.slice(0, 14))}</div></div>`}
-        <div class="pp-sheet-actions"><button type="button" class="pp-btn pp-btn--sec" data-sheet-close>Cancel</button><button type="submit" class="pp-btn pp-btn--pri">${esc(o.cta || 'Add vent')}</button></div>
-      </form>`);
-    const inp = root.querySelector('#ppVRoomNew');
-    if (o.value) { inp.focus(); inp.select(); }
-    const done = (name) => { const v = String(name || '').trim(); if (!v) { inp.focus(); return; } closeSheet(); onPick(v.slice(0, 80)); };
-    root.querySelectorAll('[data-vroom-pick]').forEach((b) => b.addEventListener('click', () => done(b.getAttribute('data-vroom-pick'))));
-    root.querySelector('#ppVRoomForm').addEventListener('submit', (e) => { e.preventDefault(); done(inp.value); });
   }
 
   /** Vent editor in a sheet: drawing on top, fields below; the list updates when it closes. */
@@ -4029,7 +4175,7 @@
       return `<div class="pp-sgroup"><div class="pp-sgroup-h">${esc(g.name || 'No room yet')}<small>${n} vent${n === 1 ? '' : 's'}</small></div><ul class="pp-srows">${g.items.map((i) => { const v = vents[i]; return row(`<span class="pp-sthumb" aria-hidden="true">${ventSvg(v)}</span>`, `${esc(String(v.size || '?').trim().replace('x', '×'))} ${esc(VENT_TYPE_LABEL[v.type] || '')}`, esc([v.species, v.finish, v.color].filter((x) => x && x.trim()).join(' · ')), `${Number(v.qty) || 1}<small>EA</small>`); }).join('')}</ul></div>`;
     }).join('') : '';
     const c = measCounts(d);
-    return `${sec('floors', 'Floors', ft ? `${fmtSf(ft)} · ${totals.length} type${totals.length === 1 ? '' : 's'}` : '', floors, 'No floors yet — upload the house plans in Floors to measure every room.')}
+    return `${sec('floors', 'Floor Plan', ft ? `${fmtSf(ft)} · ${totals.length} type${totals.length === 1 ? '' : 's'}` : '', floors, 'No floors yet — upload the house plans in Floor Plan to measure every room.')}
       ${sec('stairs', 'Stairs', c.stairs ? `${c.stairs} stair${c.stairs === 1 ? '' : 's'} · ${c.treads} treads · ${c.risers} risers${c.nosings ? ` · ${c.nosings} nosings` : ''}` : '', stairs, 'No stairs measured.')}
       ${sec('vents', 'Vents', c.vents ? `${c.vents} vent${c.vents === 1 ? '' : 's'}${vg.filter((g) => g.key).length ? ` in ${vg.filter((g) => g.key).length} room${vg.filter((g) => g.key).length === 1 ? '' : 's'}` : ''}` : '', ventBody, 'No vents measured.')}`;
   }
@@ -4038,6 +4184,55 @@
   function measLogHtml(m) {
     const log = (m.log || []).slice(-8).reverse();
     return `<ol class="pp-mtl">${log.map((l) => `<li><span class="pp-mtl-dot" aria-hidden="true"></span><div><b>${esc(l.name || 'Someone')}</b> ${esc(LOG_EN[l.action] || l.action || '')}<small>${esc(fmtDayEn(l.at, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }))}</small></div></li>`).join('') || '<li class="pp-muted">No activity yet.</li>'}</ol>`;
+  }
+
+  function measuredText(m) {
+    const md = (m.data && m.data.measured) || m.measured || {};
+    const who = (md.names || []).join(' & ') || m.completed_by || m.updated_by || m.created_by || '';
+    const on = md.on ? fmtDayEn(`${md.on}T12:00:00`, { month: 'short', day: 'numeric', year: 'numeric' }) : fmtDayEn(m.completed_at || m.updated_at || m.created_at, { month: 'short', day: 'numeric', year: 'numeric' });
+    return { who, on, typed: Boolean((md.names || []).length) };
+  }
+  async function ensureTeam() {
+    if (state.teamList) return state.teamList;
+    const r = await api('/api/builder/team').catch(() => ({ data: [] }));
+    state.teamList = (r.data || []).filter((x) => x.name && !x.disabled);
+    return state.teamList;
+  }
+  /** Who measured the house and when: names from the team or typed, and the day. */
+  function measuredByHtml(m) {
+    const locked = m.status === 'used';
+    const md = m.data.measured || (m.data.measured = { names: [], on: '' });
+    const names = md.names || [];
+    const team = (state.teamList || []).map((x) => x.name).filter((n) => !names.some((y) => y.toLowerCase() === n.toLowerCase()));
+    const me = state.builder && state.builder.member && state.builder.member.name;
+    const ideas = me && !names.length && !team.includes(me) ? [me, ...team] : team;
+    return `<section class="pp-card pp-block pp-mby" id="ppMby" aria-labelledby="ppMbyT">
+        <h3 id="ppMbyT">Measured by</h3>
+        <div class="pp-mby-names">${names.length ? names.map((n, i) => `<span class="pp-mby-chip"><span class="pp-mby-av" aria-hidden="true">${esc(initials(n))}</span>${esc(n)}${locked ? '' : `<button type="button" data-mby-rm="${i}" aria-label="Remove ${esc(n)}">×</button>`}</span>`).join('') : `<p class="pp-muted pp-mby-none">Not set — the PDF shows ${esc(measuredText(m).who || 'who saved it')}.</p>`}</div>
+        ${locked ? '' : `${ideas.length ? `<div class="pp-mby-ideas">${ideas.slice(0, 8).map((n) => `<button type="button" class="pp-chipbtn" data-mby-pick="${esc(n)}">+ ${esc(n)}</button>`).join('')}</div>` : ''}
+        <form class="pp-mby-add" data-mby-form><input data-mby-in maxlength="80" placeholder="Add a name" aria-label="Add who measured" autocomplete="off" /><button type="submit" class="pp-btn pp-btn--sec pp-btn--sm">Add</button></form>`}
+        <label class="pp-field pp-mby-on"><span>Date measured</span><input type="date" data-mby-on value="${esc(md.on || '')}" max="${esc(dateKey(new Date()))}" ${locked ? 'disabled' : ''} /></label>
+      </section>`;
+  }
+  function bindMeasuredBy(m) {
+    const box = $('ppMby');
+    if (!box) return;
+    const md = m.data.measured;
+    const repaint = () => { box.outerHTML = measuredByHtml(m); bindMeasuredBy(m); paintMeasSubtitle(m); };
+    const add = (n) => { const v = String(n || '').trim().slice(0, 80); if (!v || md.names.length >= 6 || md.names.some((x) => x.toLowerCase() === v.toLowerCase())) return; md.names.push(v); if (!md.on) md.on = dateKey(new Date()); measSaveSoon(); repaint(); };
+    box.querySelectorAll('[data-mby-pick]').forEach((b) => b.addEventListener('click', () => add(b.getAttribute('data-mby-pick'))));
+    box.querySelectorAll('[data-mby-rm]').forEach((b) => b.addEventListener('click', () => { md.names.splice(Number(b.getAttribute('data-mby-rm')), 1); measSaveSoon(); repaint(); }));
+    const form = box.querySelector('[data-mby-form]');
+    if (form) form.addEventListener('submit', (e) => { e.preventDefault(); add(form.querySelector('[data-mby-in]').value); const i = $('ppMby') && $('ppMby').querySelector('[data-mby-in]'); if (i) i.focus(); });
+    const on = box.querySelector('[data-mby-on]');
+    if (on) on.addEventListener('change', () => { md.on = on.value || ''; measSaveSoon(); paintMeasSubtitle(m); });
+    if (!state.teamList) ensureTeam().then(() => { if ($('ppMby') && state.meas === m) repaint(); });
+  }
+  function paintMeasSubtitle(m) {
+    const el = $('ppMeasBy');
+    if (!el) return;
+    const t = measuredText(m);
+    el.textContent = t.who ? `Measured by ${t.who} · ${t.on}` : '';
   }
 
   /** Summary tab: status and actions on top, what goes on the Work Order, notes, photos, who measured. */
@@ -4067,10 +4262,11 @@
             ${locked || m.status === 'done' || empty ? '' : '<button type="button" class="pp-btn pp-btn--pri" data-sum-done>Complete</button>'}
           </div>
         </section>
-        <div class="pp-mkpis pp-mkpis--6">${tile(ft ? fmtSf(ft) : 0, 'Floors', 'floors')}${tile(c.treads, 'Treads', 'stairs')}${tile(c.risers, 'Risers', 'stairs')}${tile(c.nosings, 'Nosings', 'stairs')}${tile(c.landings, 'Landings', 'stairs')}${tile(c.vents, 'Vents', 'vents')}</div>
+        <div class="pp-mkpis pp-mkpis--6">${tile(ft ? fmtSf(ft) : 0, 'Floor Plan', 'floors')}${tile(c.treads, 'Treads', 'stairs')}${tile(c.risers, 'Risers', 'stairs')}${tile(c.nosings, 'Nosings', 'stairs')}${tile(c.landings, 'Landings', 'stairs')}${tile(c.vents, 'Vents', 'vents')}</div>
         <div class="pp-msum-grid">
           <div class="pp-msum-main" id="ppMeasSum">${measSummarySectionsHtml(m)}</div>
           <div class="pp-msum-side">
+            ${measuredByHtml(m)}
             <section class="pp-card pp-block"><h3>General notes</h3><textarea class="pp-mnotes" data-head="notes" maxlength="2000" rows="4" placeholder="e.g. access through the garage, concrete slab, client wants Jacobean on the treads" aria-label="General notes" ${locked ? 'disabled' : ''}>${esc(m.notes || '')}</textarea><small class="pp-muted pp-mnotes-hint">Goes on the PDF and the Work Order.</small></section>
             ${photos.length ? `<section class="pp-card pp-block"><h3>Photos <small class="pp-muted">${photos.length}</small></h3><div class="pp-sphotos">${photos.slice(0, 12).map((p) => `<a href="/api/builder/measurements/${encodeURIComponent(m.id)}/photo?key=${encodeURIComponent(p.k)}" target="_blank" rel="noopener" title="${esc(p.label)}"><img src="/api/builder/measurements/${encodeURIComponent(m.id)}/photo?key=${encodeURIComponent(p.k)}" alt="${esc(p.label)}" loading="lazy" /><span>${esc(p.label)}</span></a>`).join('')}</div></section>` : ''}
             <section class="pp-card pp-block"><h3>Activity</h3>${measLogHtml(m)}</section>
@@ -4358,12 +4554,12 @@
   }
 
   /** Send work order prefilled from a measurement: address, floor lines with agreed prices, the measurement attached. */
-  async function sendFromMeasurement(m, fromSendPage) {
+  async function sendFromMeasurement(m, fromSendPage, coOverride) {
     if (m.dirty) await measSaveNow();
     const plan = m.data && m.data.plan;
     const s = newSend();
     const companies = (state.builder.companies || []);
-    s.co = (plan && plan.quote_link_id && companies.some((c) => c.id === plan.quote_link_id) ? plan.quote_link_id : null) || (state.send && state.send.co) || (sendCo() && sendCo().id) || null;
+    s.co = coOverride || (plan && plan.quote_link_id && companies.some((c) => c.id === plan.quote_link_id) ? plan.quote_link_id : null) || (state.send && state.send.co) || (sendCo() && sendCo().id) || null;
     const totals = planTotals(plan).filter((t) => t.include);
     const c = measCounts(m.data);
     const f = emptyFields();
@@ -4494,11 +4690,12 @@
         <div class="pp-plan-level-body">
           <div class="pp-plan-sheet" data-plv-sheet="${li}">${lv.preview ? `<img src="/api/builder/measurements/${encodeURIComponent(m.id)}/plan-file?key=${encodeURIComponent(lv.preview)}" alt="${esc(lv.name)} plan" loading="lazy" /><canvas aria-hidden="true"></canvas>` : '<p class="pp-muted">No preview</p>'}</div>
           <div class="pp-plan-rooms" role="table" aria-label="Rooms on ${esc(lv.name)}">
-            <div class="pp-plan-room pp-plan-room--head" role="row"><span role="columnheader">Room</span><span role="columnheader">Floor</span><span role="columnheader">Area</span><span role="columnheader"><span class="pp-sr">Count</span></span></div>
+            <div class="pp-plan-room pp-plan-room--head" role="row"><span role="columnheader">Room</span><span role="columnheader">Floor</span><span role="columnheader">Area</span><span role="columnheader">Vents</span><span role="columnheader"><span class="pp-sr">Count</span></span></div>
             ${lv.rooms.map((r, ri) => ({ r, ri, on: !r.exclude && (plan.materials.find((x) => x.key === r.material) || {}).include })).sort((a, b) => Number(b.on) - Number(a.on)).map(({ r, ri, on }) => `<div class="pp-plan-room ${on ? '' : 'is-off'}" role="row" data-proom-hover="${li}:${ri}">
               <input class="pp-in" value="${esc(r.name)}" maxlength="60" data-proom-name="${li}:${ri}" aria-label="Room name" ${dis} />
               ${sel(matOpts, r.material, `data-proom-mat="${li}:${ri}" aria-label="Floor in ${esc(r.name)}" ${dis}`)}
               <span class="pp-plan-area">${fmtSf(r.area_sf)}</span>
+              ${(() => { const n = (m.data.vents || []).filter((v) => roomKey(v.room) === roomKey(r.name)).reduce((t, v) => t + (Number(v.qty) || 1), 0); return `<button type="button" class="pp-proom-vent ${n ? 'has' : ''}" data-proom-vent="${esc(r.name)}" aria-label="Vents in ${esc(r.name)}: ${n}" ${locked && !n ? 'disabled' : ''}>${n ? `${n} vent${n === 1 ? '' : 's'}` : '+ Vent'}</button>`; })()}
               <label class="pp-check" title="Count this room"><input type="checkbox" data-proom-inc="${li}:${ri}" ${r.exclude ? '' : 'checked'} ${dis} /><span class="pp-sr">Count ${esc(r.name)}</span></label>
             </div>`).join('')}
           </div>
@@ -4577,7 +4774,7 @@
     const pdfUrl = co ? `/api/builder/measurements/${encodeURIComponent(m.id)}/quote-pdf?company=${encodeURIComponent(co.id)}` : '';
     const controls = `<section class="pp-card pp-block pp-qp-ctl">
         <h3>Prices</h3>
-        ${companies.length ? `<label class="pp-field"><span>Company</span>${sel(companies.map((c) => [c.id, c.company_name]), plan.quote_link_id || '', `data-pq-co aria-label="Quote from" ${locked ? 'disabled' : ''}`)}</label>` : `<p class="pp-muted">Connect a flooring company to price the work. <a class="pp-link" href="#companies">Companies</a></p>`}
+        ${companies.length ? `<div class="pp-field"><span>Company</span>${coPickBtn(co, `data-pq-co aria-label="Quote from: ${co ? esc(co.company_name) : 'choose a company'}" ${locked ? 'disabled' : ''}`, co ? 'Prices from their list' : 'Search your companies')}</div>` : `<p class="pp-muted">Connect a flooring company to price the work. <a class="pp-link" href="#companies">Companies</a></p>`}
         ${money_ ? lines.map((l) => `<label class="pp-field"><span><i class="pp-swatch" style="background:${esc(l.color)}"></i> ${esc(l.name)} · ${fmtSf(l.qty)}</span>${sel([['', l.price && l.price.typed ? `Typed on the quote · ${money(l.price.price)}/sq ft` : sq.length ? 'Choose a price…' : 'No sq ft prices yet'], ...sq.map((p) => [p.id, `${p.name} · ${money(p.price)}/sq ft`])], l.price && !l.price.typed ? l.price.id : '', `data-pq-price="${esc(l.key)}" aria-label="Price for ${esc(l.name)}" ${locked ? 'disabled' : ''}`)}</label>`).join('') + '<p class="pp-muted pp-plan-note">Or type the price right on the quote.</p>' : '<p class="pp-muted">Your role can’t see prices.</p>'}
         ${money_ && co ? `<p class="pp-muted pp-plan-note">From your <a class="pp-link" href="#companies/${esc(co.id)}">${esc(co.company_name)} price list</a>. Missing a service? Add it there in “sq ft”.</p>` : ''}
         <div class="pp-qp-acts">
@@ -4616,7 +4813,7 @@
     const v = m.floorView || 'takeoff';
     const seg = (k, l) => `<button type="button" data-fview="${k}" aria-pressed="${v === k}">${l}</button>`;
     return `${floorKpisHtml(planTotals(plan))}
-      <div class="pp-filter pp-plan-seg" role="group" aria-label="Floors view">${seg('takeoff', 'Rooms')}${seg('3d', '3D')}${seg('quote', 'Quote')}</div>
+      <div class="pp-filter pp-plan-seg" role="group" aria-label="Floor Plan view">${seg('takeoff', 'Rooms')}${seg('3d', '3D')}${seg('quote', 'Quote')}</div>
       <div class="pp-plan-view" data-plan-view>${v === '3d' ? floors3dHtml(m) : v === 'quote' ? '<div class="pp-card pp-empty"><span class="pp-muted">Loading prices…</span></div>' : floorsTakeoffHtml(m)}</div>`;
   }
 
@@ -4651,7 +4848,17 @@
     // levels and rooms
     view.querySelectorAll('[data-plv-inc]').forEach((c) => c.addEventListener('change', () => { plan.levels[+c.getAttribute('data-plv-inc')].include = c.checked; save(); redraw(); }));
     const room = (attr, el) => { const [li, ri] = el.getAttribute(attr).split(':').map(Number); return plan.levels[li].rooms[ri]; };
-    view.querySelectorAll('[data-proom-name]').forEach((i) => i.addEventListener('input', () => { room('data-proom-name', i).name = i.value; save(); }));
+    view.querySelectorAll('[data-proom-name]').forEach((i) => i.addEventListener('input', () => {
+      const r = room('data-proom-name', i);
+      const was = roomKey(r.name);
+      // the room's vents follow the new name
+      if (was) (m.data.vents || []).forEach((v) => { if (roomKey(v.room) === was) v.room = i.value; });
+      r.name = i.value;
+      const vb = i.parentElement && i.parentElement.querySelector('[data-proom-vent]');
+      if (vb) vb.setAttribute('data-proom-vent', i.value);
+      save();
+    }));
+    view.querySelectorAll('[data-proom-vent]').forEach((b) => b.addEventListener('click', () => { const n = b.getAttribute('data-proom-vent').trim(); if (n) openRoomVentsSheet(n); }));
     view.querySelectorAll('[data-proom-mat]').forEach((s) => s.addEventListener('change', () => { room('data-proom-mat', s).material = s.value; save(); redraw(); }));
     view.querySelectorAll('[data-proom-inc]').forEach((c) => c.addEventListener('change', () => { room('data-proom-inc', c).exclude = !c.checked; save(); redraw(); }));
     view.querySelectorAll('[data-plv-scale]').forEach((b) => b.addEventListener('click', async () => {
@@ -4770,7 +4977,7 @@
       qbox.innerHTML = floorsQuoteHtml(m, prices);
       qbox.querySelectorAll('[data-send-wo]').forEach((b) => b.addEventListener('click', () => sendFromMeasurement(m)));
       const co = qbox.querySelector('[data-pq-co]');
-      if (co) co.addEventListener('change', () => { plan.quote_link_id = co.value || null; plan.quote_prices = {}; plan.quote_rates = {}; save(); redraw(); });
+      if (co) co.addEventListener('click', () => openCoPicker('Quote from', plan.quote_link_id, (id) => { plan.quote_link_id = id; plan.quote_prices = {}; plan.quote_rates = {}; save(); redraw(); }));
       qbox.querySelectorAll('[data-pq-price]').forEach((s) => s.addEventListener('change', () => {
         const k = s.getAttribute('data-pq-price');
         plan.quote_prices = plan.quote_prices || {};
@@ -4814,17 +5021,18 @@
         <a class="pp-back" href="#measurements" style="display:inline-flex">${icon('back')}Measurements</a>
         <div class="pp-mhead-row">
           <div class="pp-mhead-title"><h1 class="pp-meas-title">${esc(m.address)}</h1>
-            <p>${measStatusChip(m)} <span id="ppMeasSaved" class="pp-meas-saved">Saved</span>${m.notes ? ` · <button type="button" class="pp-link" data-mtab-go="summary">Notes</button>` : ''}</p></div>
+            <p>${measStatusChip(m)} <span id="ppMeasSaved" class="pp-meas-saved">Saved</span> <span class="pp-meas-by" id="ppMeasBy"></span>${m.notes ? ` · <button type="button" class="pp-link" data-mtab-go="summary">Notes</button>` : ''}</p></div>
           <div class="pp-head-actions">
             <a class="pp-btn pp-btn--sec pp-hide-phone" href="/api/builder/measurements/${encodeURIComponent(m.id)}/pdf" target="_blank" rel="noopener">${icon('download')}PDF</a>
             ${locked || !canDo('jobs.send') ? '' : `<button type="button" class="pp-btn pp-btn--sec" data-send-wo>${icon('send')}<span>Send<span class="pp-hide-phone"> work order</span></span></button>`}
             ${locked ? '' : m.status === 'done' ? '<button type="button" class="pp-btn pp-btn--sec" id="ppMeasReopen">Reopen</button>' : '<button type="button" class="pp-btn pp-btn--pri" id="ppMeasDone">Complete</button>'}
+            ${locked ? '' : `<button type="button" class="pp-btn pp-btn--sec pp-btn--icon" data-meas-del-head aria-label="Delete measurement" title="Delete measurement">${icon('trash')}</button>`}
           </div>
         </div>
       </div>
       ${locked ? `<div class="pp-match"><strong>This measurement was already sent with the Work Order</strong><span class="pp-muted" style="font-size:14px">${m.work_order_id ? `<a class="pp-link" href="#jobs/${encodeURIComponent(m.work_order_id)}">Open the job</a> · ` : ''}To measure again, start a new measurement for this address.</span></div>` : ''}
       <div class="pp-mtabs" role="tablist" aria-label="Measurement sections">
-        ${tab('stairs', 'Stairs', c.treads + c.risers ? `${c.treads}·${c.risers}` : null)}${tab('vents', 'Vents', c.vents || null)}${tab('floors', 'Floors', ft ? (ft >= 1000 ? `${(Math.round(ft / 100) / 10).toLocaleString('en-US')}k sf` : `${Math.round(ft)} sf`) : null)}${tab('summary', 'Summary', null)}
+        ${tab('stairs', 'Stairs', c.treads + c.risers ? `${c.treads}·${c.risers}` : null)}${tab('vents', 'Vents', c.vents || null)}${tab('floors', 'Floor Plan', ft ? (ft >= 1000 ? `${(Math.round(ft / 100) / 10).toLocaleString('en-US')}k sf` : `${Math.round(ft)} sf`) : null)}${tab('summary', 'Summary', null)}
       </div>
       <div class="pp-mpanel" role="tabpanel">
         ${m.tab === 'stairs'
@@ -4833,6 +5041,8 @@
       </div>
       ${locked || !state.builder.ai_reader ? '' : voiceFabHtml()}`;
     paintMeasSaved();
+    paintMeasSubtitle(m);
+    bindMeasuredBy(m);
     bindMeasurement();
     bindVoice();
     view.querySelectorAll('.pp-mhead [data-send-wo], .pp-msum [data-send-wo]').forEach((b) => b.addEventListener('click', () => sendFromMeasurement(m)));
@@ -5143,34 +5353,13 @@
       measSaveSoon();
       redraw();
     }));
-    const addVentIn = (room) => {
-      const same = m.data.vents.filter((v) => (v.room || '').trim().toLowerCase() === room.trim().toLowerCase());
-      const v = newVent(same[same.length - 1] || m.data.vents[m.data.vents.length - 1]);
-      v.room = room;
-      // keep the room's vents together in the list and on the Work Order
-      let at = -1;
-      m.data.vents.forEach((x, k) => { if ((x.room || '').trim().toLowerCase() === room.trim().toLowerCase()) at = k; });
-      const idx = at >= 0 ? at + 1 : m.data.vents.length;
-      m.data.vents.splice(idx, 0, v);
+    const ventAdd = $('ppVentAdd');
+    if (ventAdd) ventAdd.addEventListener('click', () => {
+      m.data.vents.push(newVent(m.data.vents[m.data.vents.length - 1]));
       measSaveSoon();
       redraw();
-      openVentSheet(idx, true);
-    };
-    const ventRoom = $('ppVentRoom');
-    if (ventRoom) ventRoom.addEventListener('click', () => openVentRoomSheet(m, addVentIn));
-    view.querySelectorAll('[data-vroom-add]').forEach((b) => b.addEventListener('click', () => {
-      const room = b.getAttribute('data-vroom-add');
-      if (room) addVentIn(room); else openVentRoomSheet(m, addVentIn);
-    }));
-    view.querySelectorAll('[data-vroom-ren]').forEach((b) => b.addEventListener('click', () => {
-      const k = b.getAttribute('data-vroom-ren');
-      const cur = (m.data.vents.find((v) => (v.room || '').trim().toLowerCase() === k) || {}).room || '';
-      openVentRoomSheet(m, (name) => {
-        m.data.vents.forEach((v) => { if ((v.room || '').trim().toLowerCase() === k) v.room = name; });
-        measSaveSoon();
-        redraw();
-      }, { title: 'Rename room', value: cur.trim(), cta: 'Rename' });
-    }));
+      openVentSheet(m.data.vents.length - 1, true);
+    });
     view.querySelectorAll('[data-vent-open]').forEach((b) => b.addEventListener('click', () => openVentSheet(Number(b.getAttribute('data-vent-open')), false)));
     view.querySelectorAll('[data-vent-qty]').forEach((b) => b.addEventListener('click', () => {
       const [i, d] = b.getAttribute('data-vent-qty').split(':').map(Number);
@@ -5231,13 +5420,7 @@
       state.meas = { ...r.data, tab: m.tab, dirty: false };
       paintMeasurement();
     });
-    const del = $('ppMeasDel');
-    if (del) del.addEventListener('click', async () => {
-      if (del.dataset.armed !== '1') { del.dataset.armed = '1'; del.textContent = 'Confirm: delete measurement'; return; }
-      await api(`/api/builder/measurements/${encodeURIComponent(m.id)}`, { method: 'DELETE' });
-      state.meas = null;
-      location.hash = '#measurements';
-    });
+    view.querySelectorAll('#ppMeasDel, [data-meas-del-head]').forEach((b) => b.addEventListener('click', () => confirmMeasDelete(m, () => { state.meas = null; state.homeMeas = null; location.hash = '#measurements'; })));
   }
 
   /* ─────────────────────────── voice dictation (Mate) ─────────────────────────── */
