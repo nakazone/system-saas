@@ -70,3 +70,37 @@ describe("catalog link sanity", () => {
     expect(out[0]!.pricing_item_id).toBe("tread");
   });
 });
+
+const RAW = `COLORADO FLOOR COMPANY
+WORK ORDER
+Area PC Style/Item Color/Description Inventory # Units Width Length Ship Wt. Quantity Rate Labor
+98 BILLING EA 1.00 0.00
+42 UNITY HARDWOODS 48" WHITE OAK TREAD WHITE OAK WUNDWOT48 EA 0.0 0.0 8.00 0.00
+42 UNITY HARDWOODS 48" WHITE OAK RISER WHITE OAK WUNDWOR48 EA 0.0 0.0 9.00 0.00
+42 UNITY HARDWOODS 42" WHITE OAK TREAD WHITE OAK WUNDWOT42 EA 0.0 0.0 8.00 0.00
+42 UNITY HARDWOODS 42" WHITE OAK RISER WHITE OAK WUNDWOR42 EA 0.0 0.0 9.00 0.00
+92 SITE FINISHED SAND/2 COAT TREADS - CUSTOM/FR&MOUNTAIN EA 16.00 50.000 800.00
+42 VENT FLUSH MT FRAME 4X10 GRAND PACIFIC FISHERMAN'S PIER VENFLUFRA 4X10 EA 0 0 10.00 0.00`;
+
+describe("the same order read in different ways gives the same stairs and sanding", () => {
+  it("uses the printed text when the model leaves out the stairs and the sanding line", () => {
+    const r = normalizeIntake({ raw_text: `${RAW}\nINSTALL DATE: TBD\n${CFC}`, address: "322 Lower Ranch View Rd", items: [{ description: "Stair tread installation", detail: "48\" · Double Returns", quantity: 8, uom: "EA" }], stairs: [] });
+    expect(r.stairs?.map((f) => [f.width, f.returns, f.treads, f.risers])).toEqual([[48, "double", 8, 9], [42, "left", 8, 9]]);
+    const sand = r.items.find((it) => it.service_name === "Sand & finish stair treads");
+    expect(sand).toMatchObject({ quantity: 16, rate: 50, total: 800, uom: "STEP" });
+    expect(r.stair_finish).toBe("site");
+  });
+  it("reads the flights from the product rows when the remarks are missing", () => {
+    const r = normalizeIntake({ raw_text: RAW, address: "322 Lower Ranch View Rd", items: [] });
+    expect(r.stairs?.map((f) => [f.width, f.treads, f.risers])).toEqual([[48, 8, 9], [42, 8, 9]]);
+    expect(r.items.find((it) => it.service_name === "Sand & finish stair treads")?.total).toBe(800);
+  });
+  it("the printed counts win over a wrong summary", () => {
+    const r = normalizeIntake({ raw_text: CFC, address: "x", items: [], stairs: [{ width: 48, returns: "double", treads: 16, risers: 18, species: "White Oak" }] });
+    expect(r.stairs?.map((f) => [f.width, f.treads, f.risers])).toEqual([[48, 8, 9], [42, 8, 9]]);
+  });
+  it("fills the sanding rate from the row when the model forgot it", () => {
+    const r = normalizeIntake({ raw_text: RAW, address: "x", items: [{ description: "SITE FINISHED SAND/2 COAT TREADS", detail: "", quantity: 16, uom: "EA" }] });
+    expect(r.items.find((it) => it.service_name === "Sand & finish stair treads")).toMatchObject({ rate: 50, total: 800 });
+  });
+});

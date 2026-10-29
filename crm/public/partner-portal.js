@@ -2010,6 +2010,15 @@
       return `<section class="pp-card pp-wz">
         <div class="pp-wz-head"><div><span class="pp-lbl">Step 2 · Measure</span><h2>${s.measBuilt ? 'Measurement built from the order' : 'Measurement for this address'}</h2><p class="pp-muted">${esc(countsText(m.counts || {}))}${m.measured_by ? ` · ${esc(m.measured_by)}` : ''}${m.status === 'used' ? ' · <span class="pp-late">already sent with another job</span>' : ''}</p></div>
           <a class="pp-btn pp-btn--sec pp-btn--sm" href="#measurements/${esc(m.id)}">${icon('pen')}Adjust</a></div>
+        ${(() => {
+          // a measurement saved for this address earlier may not be what this order asks for
+          if (s.measBuilt || !det.stairs.length || m.status === 'used') return '';
+          const want = det.stairs.reduce((a, g) => a + g.treads, 0);
+          const have = (m.counts && m.counts.treads) || 0;
+          const flightsHave = (m.counts && m.counts.stairs) || 0;
+          if (want === have && det.stairs.length === flightsHave) return '';
+          return `<div class="pp-wz-diff">${mate('head-curious', 40)}<div><strong>The work order asks for ${det.stairs.length > 1 ? `${det.stairs.length} flights` : '1 stair'} · ${want} treads</strong><small>This saved measurement has ${flightsHave} stair${flightsHave === 1 ? '' : 's'} · ${have} treads. Build a new one from the order, or keep this one.</small></div>${canMeasure ? '<button type="button" class="pp-btn pp-btn--pri pp-btn--sm" data-wz-build>Build from the order</button>' : ''}</div>`;
+        })()}
         ${s.measReply ? `<div class="pp-wz-mate">${mate('head-talking', 40)}<div><p>${esc(s.measReply)}</p>${(s.measObs || []).length ? `<ul>${s.measObs.map((o) => `<li>${esc(o)}</li>`).join('')}</ul>` : ''}</div></div>` : ''}
         <div class="pp-wz-grid">
           <div class="pp-wz-viz">${s.measData ? `${wzTurnHtml(s)}${measDrawingHtml(s.measData) || '<p class="pp-muted pp-viz-empty">No stairs in this measurement.</p>'}` : '<p class="pp-muted pp-viz-empty">Loading the drawing…</p>'}</div>

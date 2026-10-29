@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 /**
  * Builder portal — reads a work order / PO / schedule export the builder already has
  * (PDF, screenshot, photo of paper or pasted e-mail text) and turns it into the fields
@@ -91,6 +92,7 @@ export type StairFlightSpec = { width: number; returns: "double" | "left" | "rig
 const SYSTEM_PROMPT = `You read flooring work orders, purchase orders and schedule screens that home builders send to their flooring installer.
 The input may be a PDF, a screenshot of the builder's scheduling system, a photo of paper, or pasted e-mail text.
 Return ONLY a JSON object with these keys (strings; use "" when absent):
+- raw_text: FIRST, copy every line of text on the order exactly as printed, top to bottom, one line per row (table rows with all their columns: item, description, units, quantity, rate, labor; then the remarks / instructions block word for word). Keep numbers, inch marks and spelling exactly. This is a transcription, not a summary.
 - address: job site street address exactly as written (e.g. "109 Evergreen Dr"); include city/state/zip only if shown
 - community: subdivision / community / neighborhood name. If a value mixes a person's name and a number (e.g. "Peter Garcia #50"), put the person in contact_name and the number in lot
 - lot: lot number only
@@ -233,15 +235,19 @@ export function normalizeIntake(raw: Record<string, unknown>, today = new Date()
     .filter(Boolean)
     .slice(0, 4);
   const items = normalizeInstallationItems(raw.items, raw);
-  const stairsEarly = mergeStairs(normalizeStairs(raw.stairs), stairFlightsFromText(intakeSourceText(raw)));
-  if (!items.some((it) => serviceKind(`${it.service_name} ${it.description} ${it.detail}`) === "stair_sand_finish")) {
-    const src = intakeSourceText(raw);
-    const line = /(site\s*finish(?:ed)?[^\n]{0,60}|sand\s*(?:\/|&|and)[^\n]{0,60}|refinish[^\n]{0,60})/i.exec(src);
-    if (line && /\b(?:treads?|stairs?|steps?)\b/i.test(line[0])) {
-      const treads = stairsEarly.reduce((a, f) => a + f.treads, 0);
-      const qty = Number((/(\d+(?:\.\d+)?)\s*(?:EA|STEPS?|PCS?)\b/i.exec(line[0]) || [])[1] || 0) || treads;
-      if (qty > 0) items.push({ area: "Stairs", description: line[0].trim().slice(0, 160), detail: "", quantity: qty, uom: "STEP", rate: null, total: null, pricing_item_id: null, service_name: "Sand & finish stair treads" });
-    }
+  // what is printed wins over what the model summarized (the same file always gives the same stairs)
+  const printed = stairFlightsFromText(intakeSourceText(raw));
+  const stairsEarly = mergeStairs(printed.length ? printed : stairFlightsFromRows(intakeSourceText(raw)), normalizeStairs(raw.stairs));
+  const sandRow = stairSandRow(intakeSourceText(raw));
+  const sandItem = items.find((it) => serviceKind(`${it.service_name} ${it.description} ${it.detail}`) === "stair_sand_finish");
+  if (sandItem && sandRow) {
+    if (!sandItem.quantity && sandRow.qty) sandItem.quantity = sandRow.qty;
+    if (sandItem.rate == null && sandRow.rate != null) sandItem.rate = sandRow.rate;
+    if (sandItem.total == null && sandRow.total != null) sandItem.total = sandRow.total;
+  }
+  if (!sandItem && sandRow) {
+    const treads = stairsEarly.reduce((a, f) => a + f.treads, 0);
+    items.push({ area: "Stairs", description: sandRow.text.slice(0, 160), detail: "", quantity: sandRow.qty || treads, uom: "STEP", rate: sandRow.rate, total: sandRow.total, pricing_item_id: null, service_name: "Sand & finish stair treads" });
   }
   const laborTotal = toNumber(raw.labor_total);
   if (items.length && laborTotal != null) {
@@ -270,6 +276,52 @@ function normalizeStairs(value: unknown): StairFlightSpec[] {
     out.push({ width, returns: /double|both/.test(ret) ? "double" : /left/.test(ret) ? "left" : /right/.test(ret) ? "right" : "none", treads, risers, species: clean(r.species, 40) });
   }
   return out;
+}
+
+/** The stair sand & finish row of the order, with its quantity, rate and labor when printed:
+ * "SITE FINISHED SAND/2 COAT TREADS - CUSTOM/FR&MOUNTAIN  EA  16.00  50.000  800.00" → 16 × $50 = $800. */
+export function stairSandRow(source: string): { text: string; qty: number | null; rate: number | null; total: number | null } | null {
+  const lines = String(source || "").split(/\n+/);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    // a row may wrap: join it with the next line or two
+    const joined = [line, lines[i + 1] || "", lines[i + 2] || ""].join(" ").replace(/\s+/g, " ");
+    if (!/sand|finish|coat|stain|refinish/i.test(line)) continue;
+    // the row itself, or with its wrapped second line ("SITE FINISHED SAND/2" + "COAT TREADS -")
+    const kind = serviceKind(line) === "stair_sand_finish" ? "stair_sand_finish" : serviceKind(`${line} ${(lines[i + 1] || "").slice(0, 40)}`);
+    if (kind !== "stair_sand_finish") continue;
+    const nums = [...joined.matchAll(/(?<![\w"])(\d{1,5}(?:,\d{3})*(?:\.\d+)?)(?![\w"/'])/g)].map((m) => Number(m[1]!.replace(/,/g, ""))).filter((n) => Number.isFinite(n));
+    // quantity · rate · labor, where qty × rate ≈ labor
+    for (let k = 0; k + 2 < nums.length; k++) {
+      const [q, r, t] = [nums[k]!, nums[k + 1]!, nums[k + 2]!];
+      if (q > 0 && q <= 500 && r > 0 && Math.abs(q * r - t) < 0.6) return { text: line.trim(), qty: q, rate: r, total: t };
+    }
+    const q = /(\d{1,3}(?:\.\d+)?)\s*(?:EA|STEPS?|PCS?)\b|\b(?:EA|STEPS?)\s+(\d{1,3}(?:\.\d+)?)\b/i.exec(joined);
+    return { text: line.trim(), qty: q ? Number(q[1] || q[2]) : null, rate: null, total: null };
+  }
+  return null;
+}
+
+/** Stairs from the product rows when there is no STAIR TREADS block: 'UNITY HARDWOODS 48" WHITE OAK TREAD … 8.00'. */
+export function stairFlightsFromRows(source: string): StairFlightSpec[] {
+  const flights: StairFlightSpec[] = [];
+  const species = (String(source).match(/white oak|red oak|hickory|maple|walnut|ash|birch|acacia/i) || [""])[0].toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+  for (const line of String(source || "").split(/\n+/)) {
+    if (/sand|finish|coat|stain|nos(e|ing)/i.test(line)) continue;
+    const w = /\b(\d{2}(?:\.\d+)?)\s*(?:"|”|″|IN\b|INCH)/i.exec(line);
+    const isT = /\bTREADS?\b/i.test(line); const isR = /\bRISERS?\b/i.test(line);
+    if (!w || (!isT && !isR)) continue;
+    const width = Number(w[1]); if (width < 18 || width > 96) continue;
+    const q = [...line.matchAll(/(?<![\w"])(\d{1,2})(?:\.0+)?(?![\w"/'])/g)].map((m) => Number(m[1])).filter((n) => n > 0 && n !== width).pop();
+    if (!q) continue;
+    const r = /\b(DOUBLE|LEFT|RIGHT)\s+RETURNS?\b/i.exec(line);
+    const returns: StairFlightSpec["returns"] = r ? (r[1]!.toLowerCase() as StairFlightSpec["returns"]) : "none";
+    let f = flights.find((x) => x.width === width);
+    if (!f) { f = { width, returns, treads: 0, risers: 0, species }; flights.push(f); }
+    if (isT) f.treads += q; else f.risers += q;
+    if (f.returns === "none" && returns !== "none") f.returns = returns;
+  }
+  return flights.filter((f) => f.treads || f.risers);
 }
 
 /** "STAIR TREADS: … 48\" - DOUBLE RETURNS - 8 EA" and "STAIR RISERS: … 48\" - … - 9 EA" read straight from the text. */
@@ -385,7 +437,7 @@ type StairTreadInstruction = { size: string; returns: string; quantity: number }
  * material-only tread/riser rows when creating the service lines.
  */
 function intakeSourceText(raw: Record<string, unknown>): string {
-  const values = [raw.notes, raw.comments, raw.additional_notes, raw.work_description, raw.description]
+  const values = [raw.raw_text, raw.notes, raw.comments, raw.additional_notes, raw.work_description, raw.description]
     .filter((value): value is string => typeof value === "string");
   if (Array.isArray(raw.items)) {
     for (const item of raw.items) {
@@ -643,6 +695,8 @@ export function linkCatalog(items: IntakeItem[], rawItems: unknown, catalog: Cat
   });
 }
 
+const READ_CACHE = new Map<string, { at: number; result: IntakeResult; model: string }>();
+
 export async function readWorkOrder(input: { files: IntakeFile[]; text?: string; today?: Date; catalog?: CatalogItem[] }):
   Promise<{ ok: true; result: IntakeResult; model: string } | { ok: false; error: string }> {
   const images = input.files.filter((f) => f.contentType.startsWith("image/")).map((f) => f.dataUrl);
@@ -662,7 +716,16 @@ export async function readWorkOrder(input: { files: IntakeFile[]; text?: string;
       ? `Installer's service catalog (match each line's catalog_id to one of these ids, or null):\n${catalog.map((c) => `${c.id} | ${c.name} | unit: ${c.unit}${c.category ? ` | ${c.category}` : ""}`).join("\n")}`
       : "",
   ].filter(Boolean).join("\n\n");
-  const response = await aiChatJson({ system: SYSTEM_PROMPT, user, imageUrls: images, files: pdfs, timeoutMs: 75_000 });
+  // the same file always gives the same reading (the model can vary between runs)
+  const cacheKey = createHash("sha256").update(JSON.stringify([images, pdfs.map((f) => f.dataUrl), text, catalog.map((c) => c.id + c.name)])).digest("hex");
+  const hit = READ_CACHE.get(cacheKey);
+  if (hit && Date.now() - hit.at < 24 * 3600e3) return { ok: true, result: structuredClone(hit.result), model: hit.model };
+  const response = await aiChatJson({
+    system: SYSTEM_PROMPT, user, imageUrls: images, files: pdfs, timeoutMs: 90_000,
+    // small print on phone screenshots: read the images at full resolution, and the same way every time
+    imageDetail: "high", temperature: 0,
+    ...(process.env.WORK_ORDER_AI_MODEL?.trim() ? { model: process.env.WORK_ORDER_AI_MODEL.trim() } : {}),
+  });
   if (!response.ok) return { ok: false, error: response.error };
   const raw = extractJson(response.text);
   if (!raw) return { ok: false, error: "Não consegui ler o arquivo. Confira se ele está legível." };
@@ -680,5 +743,7 @@ export async function readWorkOrder(input: { files: IntakeFile[]; text?: string;
   }
   const filled = INTAKE_FIELDS.filter((k) => result.fields[k]).length + (result.items.length ? 1 : 0);
   if (filled < 2) return { ok: false, error: "Não encontrei os dados de um job neste arquivo. Preencha à mão ou envie outro arquivo." };
+  READ_CACHE.set(cacheKey, { at: Date.now(), result: structuredClone(result), model: response.model });
+  if (READ_CACHE.size > 200) READ_CACHE.delete(READ_CACHE.keys().next().value!);
   return { ok: true, result, model: response.model };
 }

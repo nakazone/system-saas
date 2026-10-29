@@ -1316,7 +1316,6 @@ body.pp-sheet-open { overflow: hidden; }
 .pp-mark.has-logo { background: #fff; border: 1px solid var(--pp-border); overflow: hidden; padding: 3px; }
 .pp-mark.has-logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
 
-<<<<<<< HEAD
 /* ═══════════ v3 polish: layout fixes, touch targets, motion ═══════════ */
 :root {
   --pp-ease-out: cubic-bezier(.23, 1, .32, 1);
@@ -1450,7 +1449,6 @@ body.pp-sheet-open { overflow: hidden; }
 .pp-toast { width: min(420px, calc(100vw - 24px)); max-width: none; }
 .pp-toast > div { flex: 1; min-width: 0; }
 @media (pointer: coarse) { .pp-viz-chips button { min-height: 40px; } }
-=======
 /* ── Stair workbench v3: one flight, one drawing, one selected editor ── */
 .pp-meas-layout--stairs { display: block; }
 .pp-meas-layout--stairs .pp-meas-main { gap: 12px; }
@@ -1580,7 +1578,6 @@ body.pp-sheet-open { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .pp-flight-tab, .pp-stair-setup > summary > i, .pp-stair-secondary > summary > i { transition: none; }
 }
->>>>>>> origin/main
 
 /* ═══════════ Measurements: compact list, tabbed editor, vent list + sheet ═══════════ */
 /* List */
@@ -2544,3 +2541,6 @@ button.tk-fact:hover { border-color: #E7792C; }
 .pp-plan-pickrow small { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; }
 .pp-plan-pickrow.is-unsure select { border-color: #F6C8A4; background: #FFF8F2; }
 @media (max-width: 767px) { .pp-plan-pickrow { grid-template-columns: 18px minmax(0, 1fr) auto; } .pp-plan-pickrow small { grid-column: 2 / 4; grid-row: 2; } }
+.pp-wz-diff { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; padding: 12px 14px; border-radius: 12px; background: #FFF8F2; border: 1px solid #F6C8A4; }
+.pp-wz-diff > div { flex: 1; min-width: 220px; display: grid; gap: 2px; }
+.pp-wz-diff small { color: #475467; font-size: 13px; }
