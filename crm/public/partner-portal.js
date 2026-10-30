@@ -5553,7 +5553,7 @@
         const w = Number(((linked.steps || []).find((x) => x.tread_w) || {}).tread_w) || 0;
         const same = c.treads === s.treads && (!w || Math.abs(w - s.width_in) <= 2);
         state = `<div class="pp-pst-link ${same ? 'is-ok' : 'is-diff'}"><strong>${icon('check')}${esc(linked.name || 'Stair')}</strong><small>Measured ${c.treads} treads${w ? ` · ${fmtIn(w)}"` : ''}${same ? ' — matches the plan' : ` — the plan shows about ${s.treads}${s.width_in ? ` · ${fmtIn(s.width_in)}"` : ''}`}</small>
-          <span class="pp-pst-acts"><button type="button" class="pp-link" data-pst-open="${esc(linked.id)}">Open in Stairs</button>${locked ? '' : `<button type="button" class="pp-link pp-late" data-pst-unlink="${i}">Unlink</button>`}</span></div>`;
+          <span class="pp-pst-acts"><button type="button" class="pp-link" data-pst-open="${esc(linked.id)}">Open in Stairs</button><button type="button" class="pp-link" data-pst-3d="${i}">See it in 3D</button>${locked ? '' : `<button type="button" class="pp-link" data-pst-flip="${i}" title="Which end is the bottom step">Bottom at the ${s.flip ? 'other' : 'near'} end ⇅</button><button type="button" class="pp-link pp-late" data-pst-unlink="${i}">Unlink</button>`}</span></div>`;
       } else if (!locked) {
         const guess = guessStairFor(m, s);
         const others = stairs.filter((x) => !(plan.stairs || []).some((o) => o.stair_id === x.id));
@@ -5836,6 +5836,8 @@
       const st = m.data.stairs.find((x) => x.id === ps.stair_id); if (st) delete st.plan_ref;
       delete ps.stair_id; save(); redraw();
     }));
+    view.querySelectorAll('[data-pst-flip]').forEach((b) => b.addEventListener('click', () => { const ps = pst('data-pst-flip', b); if (ps) { ps.flip = !ps.flip; save(); redraw(); } }));
+    view.querySelectorAll('[data-pst-3d]').forEach((b) => b.addEventListener('click', () => { const ps = pst('data-pst-3d', b); m.floorView = '3d'; if (ps && ps.level_id && (plan.levels || []).some((l) => l.id === ps.level_id && l.include && l.rooms.length)) m.plan3dLevel = ps.level_id; redraw(); }));
     view.querySelectorAll('[data-pst-dismiss]').forEach((b) => b.addEventListener('click', () => { const ps = pst('data-pst-dismiss', b); if (ps) { ps.dismissed = true; save(); redraw(); } }));
     view.querySelectorAll('[data-pst-restore]').forEach((b) => b.addEventListener('click', () => { (plan.stairs || []).forEach((x) => { delete x.dismissed; }); save(); redraw(); }));
     view.querySelectorAll('[data-pst-open]').forEach((b) => b.addEventListener('click', () => { m.tab = 'stairs'; m.activeStairId = b.getAttribute('data-pst-open'); paintMeasurement(); window.scrollTo(0, 0); }));
@@ -5947,7 +5949,7 @@
     if (plan3d) { try { plan3d.destroy(); } catch (_) { /* gone */ } plan3d = null; }
     if (stage && window.ObPlan3D) {
       try {
-        const v3 = await window.ObPlan3D.mount(stage, plan, { separate: Boolean(m.plan3dSeparate) });
+        const v3 = await window.ObPlan3D.mount(stage, plan, { separate: Boolean(m.plan3dSeparate), stairs: m.data.stairs || [] });
         if (!stage.isConnected) { v3.destroy(); return; }
         plan3d = v3;
         const wait = stage.querySelector('.pp-plan-3d-wait'); if (wait) wait.remove();

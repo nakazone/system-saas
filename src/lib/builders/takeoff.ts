@@ -104,6 +104,8 @@ const planStairSchema = z.object({
   manual: z.boolean().optional(),
   manual_est: z.boolean().optional(),
   dismissed: z.boolean().optional(),
+  /** 3D: the bottom step is at the other end of the box. */
+  flip: z.boolean().optional(),
   same_as: z.string().trim().max(40).optional(),
   seen_on: z.number().int().optional(),
   treads_alt: z.number().int().optional(),

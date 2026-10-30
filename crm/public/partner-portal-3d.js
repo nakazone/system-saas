@@ -187,6 +187,39 @@
     return g;
   }
 
+  /**
+   * A measured stair in its place on the plan: the steps (tread depth, riser height, width from the
+   * measurement) laid along the long side of the box drawn on the plan, rising from this floor.
+   * flip puts the bottom step at the other end.
+   */
+  function stairMesh(THREE, st, ps, sheetWft, sheetHft, cx, cz) {
+    const treads = (st.steps || []).filter((x) => x.kind !== 'riser' && (x.tread_w || x.tread_d));
+    if (!treads.length) return null;
+    const bx0 = ps.fx0 * sheetWft - cx; const bx1 = ps.fx1 * sheetWft - cx;
+    const bz0 = ps.fy0 * sheetHft - cz; const bz1 = ps.fy1 * sheetHft - cz;
+    const alongZ = (bz1 - bz0) >= (bx1 - bx0);
+    const runs = treads.map((t) => (Number(t.tread_d) || 10.5) / 12);
+    const rises = treads.map((t) => (Number(t.riser_h) || 7.5) / 12);
+    const width = (Number(treads[0].tread_w) || ps.width_in || 36) / 12;
+    const total = runs.reduce((a, b) => a + b, 0);
+    // bottom step at the far end of the box (toward the viewer) unless flipped
+    const start = alongZ ? (ps.flip ? bz0 : bz1) : (ps.flip ? bx0 : bx1);
+    const dir = ps.flip ? 1 : -1;
+    const mid = alongZ ? (bx0 + bx1) / 2 : (bz0 + bz1) / 2;
+    const arr = { pos: [], nor: [], uv: [] };
+    let along = 0; let top = 0.12;
+    for (let i = 0; i < treads.length; i++) {
+      top += rises[i];
+      const a0 = start + dir * along; const a1 = start + dir * (along + runs[i]);
+      const lo = Math.min(a0, a1); const hi = Math.max(a0, a1);
+      if (alongZ) boxInto(arr, mid - width / 2, 0.12, lo, mid + width / 2, top, hi, 4);
+      else boxInto(arr, lo, 0.12, mid - width / 2, hi, top, mid + width / 2, 4);
+      along += runs[i];
+    }
+    void total;
+    return new THREE.Mesh(geomOf(THREE, arr), new THREE.MeshLambertMaterial({ color: 0xC9A27C }));
+  }
+
   function labelSprite(THREE, text) {
     const cv = document.createElement('canvas'); const g = cv.getContext('2d');
     const fs = 44; g.font = `600 ${fs}px Geist, system-ui, sans-serif`;
@@ -384,6 +417,21 @@
       });
       group.add(labels);
       group.userData.labels = labels;
+
+      // stairs on this sheet that are in the measurement (built from the plan or linked to a measured stair)
+      const sheetWft = lv.sheet_pt_w ? lv.sheet_pt_w / lv.scale_ppf : gw * c;
+      const sheetHft = lv.sheet_pt_h ? lv.sheet_pt_h / lv.scale_ppf : gh * c;
+      for (const ps of (plan.stairs || [])) {
+        if (ps.dismissed || ps.same_as || !ps.stair_id) continue;
+        if (ps.level_id ? ps.level_id !== lv.id : ps.page !== lv.page) continue;
+        const st = (opts.stairs || []).find((x) => x.id === ps.stair_id);
+        if (!st) continue;
+        const mesh = stairMesh(THREE, st, ps, sheetWft, sheetHft, cx, cz);
+        if (!mesh) continue;
+        mesh.userData = { pick: true, level: lv, stair: st, planStair: ps, counted: true };
+        group.add(mesh); pickables.push(mesh);
+        group.add(new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry, 30), new THREE.LineBasicMaterial({ color: 0x8a6a4a })));
+      }
       scene.add(group);
       groups.push(group);
     });
@@ -435,6 +483,16 @@
     function tipFor(mesh, x, y) {
       if (!mesh) { tip.hidden = true; return; }
       const d = mesh.userData; const r = d.room;
+      if (d.stair) {
+        const n = (d.stair.steps || []).filter((x) => x.kind !== 'riser' && (x.tread_w || x.tread_d)).length;
+        const w = ((d.stair.steps || []).find((x) => x.tread_w) || {}).tread_w;
+        tip.innerHTML = `<strong>${escHtml(d.stair.name || 'Stair')}</strong><span><i style="background:#C9A27C"></i>${n} treads${w ? ` \u00b7 ${w}" wide` : ''}</span><small>${escHtml(d.level.name)} \u00b7 ${escHtml(d.stair.species || 'Stair')}</small>`;
+        tip.hidden = false;
+        const bw0 = el.clientWidth; const tw0 = tip.offsetWidth || 180;
+        tip.style.left = `${Math.min(bw0 - tw0 - 8, Math.max(8, x + 14))}px`;
+        tip.style.top = `${Math.max(8, y - 64)}px`;
+        return;
+      }
       const area = r ? r.area_sf : null;
       tip.innerHTML = `<strong>${escHtml(r ? r.name : (d.mat ? d.mat.label : 'Floor'))}</strong><span><i style="background:${d.mat ? escHtml(d.mat.color) : '#ccc'}"></i>${escHtml(d.mat ? d.mat.label : 'Not flooring')}${area != null ? ` \u00b7 ${Math.round(area).toLocaleString('en-US')} SF` : ''}</span><small>${escHtml(d.level.name)}${d.counted ? '' : ' \u00b7 not counted'}</small>`;
       tip.hidden = false;
