@@ -6659,38 +6659,87 @@
     if (box && m.data.vents[i]) box.innerHTML = ventSvg(m.data.vents[i]);
   }
 
-  /** 3D on the measurement: the whole stair, the selected tread up close, and the vents. */
-  let meas3d = [];
+  /**
+   * 3D on the measurement: the whole stair, the selected tread up close, and the vents. The viewers
+   * live across redraws: each one moves into the new box and updates in place (no reload, no spin).
+   */
+  let meas3d = new Map(); // key → { api, promise, sig }
   function mountMeas3d(m) {
-    meas3d.forEach((x) => { try { if (x.key && x.api && x.api.view) { m.view3d = m.view3d || {}; m.view3d[x.key] = x.api.view; } x.api.destroy(); } catch (_) { /* gone */ } });
-    meas3d = [];
     if (!window.ObPlan3D) return;
-    const track = (key, p) => { const rec = { key, api: null }; meas3d.push(rec); p.then((a) => { if (meas3d.includes(rec)) rec.api = a; else a.destroy(); }).catch(() => {}); return p; };
+    const seen = new Set();
+    const use = (key, el, sig, make, update) => {
+      seen.add(key);
+      const rec = meas3d.get(key);
+      if (rec && rec.api) {
+        rec.api.attach(el);
+        if (rec.sig !== sig) { rec.sig = sig; try { update(rec.api); } catch (_) { /* keep */ } }
+        el.classList.add('is-3d'); const w = el.querySelector('.pp-tread3d-wait'); if (w) w.remove();
+        return;
+      }
+      if (rec && rec.promise) { rec.pendingEl = el; rec.pendingUpdate = update; return; }
+      const r = { api: null, sig, promise: null, pendingEl: null, pendingUpdate: null };
+      r.promise = make(el).then((a) => {
+        if (meas3d.get(key) !== r) { a.destroy(); return; }
+        r.api = a; r.promise = null;
+        if (r.pendingEl) { a.attach(r.pendingEl); r.pendingEl.classList.add('is-3d'); if (r.pendingUpdate) r.pendingUpdate(a); }
+        const box = r.pendingEl || el; box.classList.add('is-3d'); const w = box.querySelector('.pp-tread3d-wait'); if (w) w.remove();
+      }).catch(() => { meas3d.delete(key); });
+      meas3d.set(key, r);
+    };
     view.querySelectorAll('[data-stair3d]').forEach((el) => {
       const si = Number(el.getAttribute('data-stair3d')); const s = m.data.stairs[si]; if (!s) return;
       const chain = stairChainFor(m.data, s.id);
+      const flights = chain.length ? chain : [s];
       const sel = (s.steps || [])[(m.vizSel && m.vizSel[si]) || 0];
-      const key = `stair:${chain[0] ? chain[0].id : s.id}`;
-      track(key, window.ObPlan3D.mountStair(el, chain.length ? chain : [s], {
+      const key = `stair:${flights[0].id}`;
+      const sig = JSON.stringify([flights, sel && sel.id]);
+      if (seen.has(key)) return;
+      use(key, el, sig, (box) => window.ObPlan3D.mountStair(box, flights, {
         selectedId: sel && sel.id,
-        view: m.view3d && m.view3d[key],
         onPick: (stairId, stepId) => {
           const fi = m.data.stairs.findIndex((x) => x.id === stairId); if (fi < 0) return;
           const idx = (m.data.stairs[fi].steps || []).findIndex((x) => x.id === stepId); if (idx < 0) return;
           m.vizSel[fi] = idx; m.activeStairId = stairId;
           const y = window.scrollY; paintMeasurement(); window.scrollTo(0, y);
         },
-      }).then((a) => { el.classList.add('is-3d'); return a; }));
+      }), (a) => a.update(flights, sel && sel.id));
     });
     view.querySelectorAll('[data-tread3d]').forEach((el) => {
       const [si, i] = el.getAttribute('data-tread3d').split(':').map(Number);
       const s = m.data.stairs[si]; const st = s && s.steps[i]; if (!st) return;
-      track('', window.ObPlan3D.mountTread(el, { stair: s, step: st, inch: fmtIn }).then((a) => { const w = el.querySelector('.pp-tread3d-wait'); if (w) w.remove(); return a; }));
+      const spec = { stair: s, step: st, inch: fmtIn };
+      use('tread', el, JSON.stringify([s.species, s.finish, s.color, s.riser_material, st]), (box) => window.ObPlan3D.mountTread(box, spec), (a) => a.update(spec));
     });
     view.querySelectorAll('[data-vents3d]').forEach((el) => {
-      const seen = new Set(); const kinds = (m.data.vents || []).filter((v) => { const k = `${v.size}|${v.type}`; if (seen.has(k)) return false; seen.add(k); return true; });
-      if (kinds.length) track('', window.ObPlan3D.mountVent(el, kinds));
+      const kseen = new Set(); const kinds = (m.data.vents || []).filter((v) => { const k = `${v.size}|${v.type}`; if (kseen.has(k)) return false; kseen.add(k); return true; });
+      if (!kinds.length) return;
+      const sig = JSON.stringify(kinds.map((v) => [v.size, v.type, v.species, v.finish, v.color]));
+      const rec = meas3d.get('vents');
+      if (rec && rec.api && rec.sig !== sig) { rec.api.destroy(); meas3d.delete('vents'); }
+      use('vents', el, sig, (box) => window.ObPlan3D.mountVent(box, kinds), () => {});
     });
+    // viewers whose box is gone (other tab, another measurement): free them
+    meas3d.forEach((rec, key) => {
+      if (seen.has(key)) return;
+      if (rec.api) rec.api.destroy();
+      meas3d.delete(key);
+    });
+  }
+  window.addEventListener('hashchange', () => {
+    if (/^#measurements\/[^/]+$/.test(location.hash)) return;
+    meas3d.forEach((r) => { if (r.api) r.api.destroy(); }); meas3d.clear();
+  });
+  /** The finish picker: change the data, then only the chips and the 3D (no page redraw). */
+  function applyTreadFinish(m, b) {
+    if (m.status === 'used') return;
+    const path = b.getAttribute('data-tf').split('.'); let o = m.data;
+    for (let k = 0; k < path.length - 1; k++) { o = o[/^\d+$/.test(path[k]) ? Number(path[k]) : path[k]]; if (!o) return; }
+    const field = path[path.length - 1];
+    o[field] = b.getAttribute('data-v');
+    measSaveSoon();
+    if (field === 'open') { const y = window.scrollY; paintMeasurement(); window.scrollTo(0, y); return; } // the Return row appears/disappears
+    b.closest('.pp-tf').querySelectorAll('[data-tf]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    mountMeas3d(m);
   }
 
   function bindMeasurement() {
@@ -6723,13 +6772,7 @@
       m.vizSel[si] = i;
       repaintViz(si);
     }));
-    view.querySelectorAll('[data-tf]').forEach((b) => b.addEventListener('click', () => {
-      if (m.status === 'used') return;
-      const path = b.getAttribute('data-tf').split('.'); let o = m.data;
-      for (let k = 0; k < path.length - 1; k++) { o = o[/^\d+$/.test(path[k]) ? Number(path[k]) : path[k]]; if (!o) return; }
-      o[path[path.length - 1]] = b.getAttribute('data-v');
-      measSaveSoon(); redraw();
-    }));
+    view.querySelectorAll('[data-tf]').forEach((b) => b.addEventListener('click', () => applyTreadFinish(m, b)));
     mountMeas3d(m);
     view.querySelectorAll('[data-viz-stair]').forEach((box) => box.addEventListener('click', (e) => {
       const si = Number(box.getAttribute('data-viz-stair'));

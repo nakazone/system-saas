@@ -3058,3 +3058,14 @@ a.pp-lb-btn, a.pp-lb-btn:visited { color: #fff; }
 .ob3d-tools button[aria-pressed="true"] { background: var(--pp-ink, #221E1A); color: #fff; }
 .ob3d-tools svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 @media (max-width: 640px) { .ob3d-tools button { min-width: 36px; height: 34px; } .ob3d-tools-views button { font-size: 11.5px; padding: 0 6px; } }
+/* Tread detail: the tread wide on top, the choices under it; compact camera tools */
+.pp-tread3d { grid-template-columns: 1fr !important; }
+.pp-tread3d-stage { aspect-ratio: 16 / 9 !important; min-height: 240px; }
+.pp-tread3d-opts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; }
+@media (max-width: 760px) { .pp-tread3d-opts { grid-template-columns: 1fr; } .pp-tread3d-stage { aspect-ratio: 4 / 3 !important; } }
+.ob3d-tools { right: 6px; bottom: 6px; top: 6px; align-content: space-between; }
+.ob3d-tools-views { order: -1; }
+.ob3d-tools button { min-width: 28px; height: 26px; padding: 0 7px; font-size: 11.5px; border-radius: 8px; }
+.ob3d-tools svg { width: 14px; height: 14px; }
+.ob3d-tools-views, .ob3d-tools-row { padding: 2px; border-radius: 10px; }
+.ob3d-tools button.is-key { color: #A64C14; }

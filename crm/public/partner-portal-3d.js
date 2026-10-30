@@ -1153,8 +1153,9 @@
   /* ───────────── small viewers: one stair, one tread, vents ───────────── */
 
   /** Renderer, studio light, soft shadows and an orbit camera with inertia, in el. */
-  async function core(el, o) {
+  async function core(el0, o) {
     const THREE = await loadThree();
+    let el = el0;
     o = o || {};
     const W = el.clientWidth || 400; const H = el.clientHeight || 300;
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -1254,18 +1255,18 @@
     // camera tools: zoom, move, views from each side, reset
     let tools = null;
     function smooth(to, ms) {
-      const from = { th: theta, ph: phi, d: dist };
+      const from = { th: theta, ph: phi, d: dist, t: target.clone() };
       if (to.th != null) { let dth = to.th - from.th; dth = Math.atan2(Math.sin(dth), Math.cos(dth)); to.th = from.th + dth; }
-      tweens.push({ t0: performance.now(), dur: ms || 450, fn: (p) => { const k = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2; if (to.th != null) theta = from.th + (to.th - from.th) * k; if (to.ph != null) phi = from.ph + (to.ph - from.ph) * k; if (to.d != null) dist = from.d + (to.d - from.d) * k; place(); } });
+      tweens.push({ t0: performance.now(), dur: ms || 450, fn: (p) => { const k = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2; if (to.th != null) theta = from.th + (to.th - from.th) * k; if (to.ph != null) phi = from.ph + (to.ph - from.ph) * k; if (to.d != null) dist = from.d + (to.d - from.d) * k; if (to.t) target.set(from.t.x + (to.t[0] - from.t.x) * k, from.t.y + (to.t[1] - from.t.y) * k, from.t.z + (to.t[2] - from.t.z) * k); place(); } });
       need();
     }
     if (o.tools !== false) {
       const base = () => (o.front != null ? o.front : 0);
-      const views = [['front', 'Front', () => ({ th: base(), ph: 1.25 })], ['left', 'Left', () => ({ th: base() - Math.PI / 2, ph: 1.2 })], ['right', 'Right', () => ({ th: base() + Math.PI / 2, ph: 1.2 })], ['top', 'Top', () => ({ ph: 0.16 })]];
+      const views = [['front', 'Front', () => ({ th: base(), ph: 1.25 })], ['left', 'Left', () => ({ th: base() - Math.PI / 2, ph: 1.2 })], ['right', 'Right', () => ({ th: base() + Math.PI / 2, ph: 1.2 })], ['top', 'Top', () => ({ ph: 0.16 })], ...(o.extraViews || [])];
       tools = document.createElement('div'); tools.className = 'ob3d-tools';
       const ic = { zin: '<path d="M12 5v14M5 12h14"/>', zout: '<path d="M5 12h14"/>', pan: '<path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/>', reset: '<path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/>' };
       const svg = (k) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ic[k]}</svg>`;
-      tools.innerHTML = `<div class="ob3d-tools-views" role="group" aria-label="View">${views.map(([k, l]) => `<button type="button" data-v3="${k}">${l}</button>`).join('')}</div><div class="ob3d-tools-row"><button type="button" data-z="in" aria-label="Zoom in" title="Zoom in">${svg('zin')}</button><button type="button" data-z="out" aria-label="Zoom out" title="Zoom out">${svg('zout')}</button><button type="button" data-pan aria-pressed="false" aria-label="Move" title="Move: drag to slide the view">${svg('pan')}</button><button type="button" data-rs aria-label="Reset view" title="Reset view">${svg('reset')}</button></div>`;
+      tools.innerHTML = `<div class="ob3d-tools-views" role="group" aria-label="View">${views.map(([k, l]) => `<button type="button" data-v3="${k}" ${k === 'corner' ? 'class="is-key"' : ''}>${l}</button>`).join('')}</div><div class="ob3d-tools-row"><button type="button" data-z="in" aria-label="Zoom in" title="Zoom in">${svg('zin')}</button><button type="button" data-z="out" aria-label="Zoom out" title="Zoom out">${svg('zout')}</button><button type="button" data-pan aria-pressed="false" aria-label="Move" title="Move: drag to slide the view">${svg('pan')}</button><button type="button" data-rs aria-label="Reset view" title="Reset view">${svg('reset')}</button></div>`;
       el.appendChild(tools);
       tools.addEventListener('pointerdown', (e) => e.stopPropagation());
       tools.querySelectorAll('[data-v3]').forEach((b) => b.addEventListener('click', () => { const v = views.find((x) => x[0] === b.getAttribute('data-v3')); vT = 0; vP = 0; smooth(v[2](), 520); }));
@@ -1284,60 +1285,105 @@
       THREE, scene, camera, renderer, target, place, need, frameBox, destroy, onFrame, cv,
       get view() { return { theta, phi, dist, tx: target.x, ty: target.y, tz: target.z }; },
       set view(v) { if (!v) return; theta = v.theta; phi = v.phi; dist = v.dist; target.set(v.tx, v.ty, v.tz); place(); need(); },
+      /** Moves the live viewer into a new box (the page was redrawn): no new 3D context, no reload. */
+      attach(next) {
+        if (!next || next === el) return;
+        ro.unobserve(el); el = next;
+        next.appendChild(cv); if (tools) next.appendChild(tools);
+        ro.observe(next);
+        const w = next.clientWidth; const h = next.clientHeight;
+        if (w && h) { renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+        need();
+      },
+      get el() { return el; },
       orbit(t, p) { theta = t; phi = p; place(); need(); },
       tween(dur, fn) { tweens.push({ t0: performance.now(), dur, fn }); need(); },
     };
   }
 
+  /** Common stains over the wood's own color. */
+  const STAINS = [
+    [/ebony|black/i, '#2B211B'], [/jacobean|dark walnut/i, '#3D2A1E'], [/special walnut|espresso/i, '#5A3B26'], [/provincial/i, '#6E4A2E'],
+    [/early american/i, '#7A4F2E'], [/golden oak|golden/i, '#A8733E'], [/gray|grey|weathered/i, '#8A8178'], [/whitewash|white wash|coastal/i, '#D9CFC2'],
+    [/red mahogany|mahogany/i, '#6B2E1E'], [/natural|clear/i, null],
+  ];
+  function stainOf(text) { const t = String(text || ''); for (const [re, c] of STAINS) if (re.test(t)) return c; return null; }
+
   function woodKit(THREE) {
     const cache = new Map();
+    const grain = new Map();
+    function tex(base, rot) {
+      const k = `${base}|${rot ? 1 : 0}`;
+      if (!grain.has(k)) {
+        const t = new THREE.CanvasTexture(grainCanvas(base, base.length * 7)); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        if (rot) { t.center.set(0.5, 0.5); t.rotation = Math.PI / 2; }
+        grain.set(k, t);
+      }
+      return grain.get(k);
+    }
     return {
-      wood(st) {
-        const base = woodColor([st.species, st.color].filter(Boolean).join(' '));
+      /** Wood of a stair (species, stain, finish). rot turns the grain 90° (returns, landings edges). */
+      wood(st, rot, scale) {
+        const stain = stainOf(st.color);
+        const base = stain || woodColor(st.species);
         const fin = finishLook(st.finish);
-        const k = `${base}|${fin.key}`;
+        const k = `${base}|${fin.key}|${rot ? 1 : 0}|${scale || 0}`;
         if (!cache.has(k)) {
-          const tex = new THREE.CanvasTexture(grainCanvas(base, base.length * 7)); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
-          cache.set(k, fin.paint ? new THREE.MeshStandardMaterial({ color: 0xf4f1ec, roughness: 0.6 }) : new THREE.MeshStandardMaterial({ map: tex, color: fin.tint, roughness: fin.rough, metalness: 0, envMapIntensity: fin.env }));
+          let m;
+          if (fin.paint) m = new THREE.MeshStandardMaterial({ color: 0xf4f1ec, roughness: 0.6 });
+          else {
+            const t = tex(base, rot);
+            const map = scale ? t.clone() : t;
+            if (scale) { map.needsUpdate = true; map.repeat.set(scale[0], scale[1]); }
+            m = new THREE.MeshStandardMaterial({ map, color: fin.tint, roughness: fin.rough, metalness: 0, envMapIntensity: fin.env });
+            if (fin.coat) { m = new THREE.MeshPhysicalMaterial({ map, color: fin.tint, roughness: fin.rough, metalness: 0, clearcoat: 0.6, clearcoatRoughness: 0.18, envMapIntensity: fin.env }); }
+          }
+          cache.set(k, m);
         }
         return cache.get(k);
       },
       paint: new THREE.MeshStandardMaterial({ color: 0xf7f4ef, roughness: 0.55 }),
       mass: new THREE.MeshStandardMaterial({ color: 0xe9e4dc, roughness: 0.92 }),
       rail: new THREE.MeshStandardMaterial({ color: 0x3a2a1e, roughness: 0.35 }),
+      dispose() { cache.forEach((m) => m.dispose()); grain.forEach((t) => t.dispose()); cache.clear(); grain.clear(); },
     };
   }
   /** How a finish reads on wood: raw and matte, a satin factory coat, or primed white. */
   function finishLook(f) {
     const t = String(f || '');
     if (/primed|paint/i.test(t)) return { key: 'primed', paint: true };
-    if (/prefinish|satin|semi|gloss|poly|finished/i.test(t) && !/unfinished/i.test(t)) return { key: 'pre', tint: 0xd2b090, rough: 0.22, env: 1.1 };
-    return { key: 'raw', tint: 0xe6d3bd, rough: 0.62, env: 0.45 };
+    if (/prefinish|satin|semi|gloss|poly|finished/i.test(t) && !/unfinished/i.test(t)) return { key: 'pre', tint: 0xdcbf9f, rough: 0.3, env: 1.0, coat: true };
+    return { key: 'raw', tint: 0xeedcc6, rough: 0.7, env: 0.4 };
   }
 
   /**
    * One stair (with its flights and landings) on its own: turn it, tap a tread or riser to pick it.
-   * opts: { selectedId, onPick(stairId, stepId), view }
+   * opts: { selectedId, onPick(stairId, stepId), view }. update(flights, selectedId) rebuilds in place.
    */
   async function mountStair(el, flights, opts) {
     opts = opts || {};
-    let api = null;
     const co = { wheel: false, onPick: (mesh) => { if (mesh && opts.onPick) opts.onPick(mesh.userData.stair.id, mesh.userData.stepId); }, onReset: () => reset() };
     const c = await core(el, co);
     const { THREE } = c;
-    const chain = stairChains(flights)[0] || [];
-    const built = buildStair(THREE, chain, woodKit(THREE));
-    c.scene.add(built.root);
-    const box = new THREE.Box3().setFromObject(built.root);
-    // look at the first flight from its side of the stair, a little from below the top
-    const rootFl = chain[0] && built.flights.get(chain[0].stair.id);
-    const bc = box.getCenter(new THREE.Vector3());
-    const side = rootFl ? Math.sign((rootFl.center.x - bc.x) || 0) || -1 : -1;
-    const th0 = side * 0.55; co.front = th0;
-    function reset() { c.orbit(th0, 1.02); c.frameBox(box, 1.35); }
-    if (opts.view) { c.frameBox(box, 1.35); c.view = opts.view; } else reset();
-    // the chosen step glows; the others stay as they are
+    const kit = woodKit(THREE);
+    let built = null; let box = null; let th0 = -0.55; let sig = '';
     const glow = new Map();
+    function build(fl) {
+      if (built) { c.scene.remove(built.root); built.root.traverse((m) => { if (m.geometry) m.geometry.dispose(); }); }
+      glow.clear();
+      const chain = stairChains(fl)[0] || [];
+      built = buildStair(THREE, chain, kit);
+      c.scene.add(built.root);
+      box = new THREE.Box3().setFromObject(built.root);
+      const rootFl = chain[0] && built.flights.get(chain[0].stair.id);
+      const bc = box.getCenter(new THREE.Vector3());
+      const side = rootFl ? Math.sign((rootFl.center.x - bc.x) || 0) || -1 : -1;
+      th0 = side * 0.55; co.front = th0;
+    }
+    /** Shape only (sizes, layout, turns): a change there reframes; wood or finish alone does not. */
+    const shapeSig = (fl) => JSON.stringify(fl.map((f) => [f.layout, f.turn, f.starts_on_landing_of, f.landing, (f.steps || []).map((x) => [x.kind, x.tread_w, x.tread_d, x.riser_h, x.open])]));
+    function reset() { c.orbit(th0, 1.02); c.frameBox(box, 1.35); }
     function select(id) {
       glow.forEach((mat, m) => { m.material.dispose(); m.material = mat; }); glow.clear();
       built.root.traverse((m) => {
@@ -1347,23 +1393,25 @@
       });
       c.need();
     }
+    build(flights); sig = shapeSig(flights);
+    if (opts.view) { c.frameBox(box, 1.35); c.view = opts.view; } else reset();
     select(opts.selectedId);
-    c.need();
-    api = { destroy: c.destroy, select, reset, get view() { return c.view; }, counts: built.counts };
+    const api = {
+      destroy() { kit.dispose(); c.destroy(); },
+      select, reset, attach: (n) => { c.attach(n); n.__ob3d = api; },
+      update(fl, selectedId) {
+        const keep = c.view; const ns = shapeSig(fl);
+        build(fl);
+        if (ns !== sig) { sig = ns; c.frameBox(box, 1.35); }
+        c.view = keep; select(selectedId);
+      },
+      get view() { return c.view; },
+      get counts() { return built.counts; },
+    };
     el.__ob3d = api;
     return api;
   }
 
-  /** Tread section: back edge at x=0, nose at the front (x = depth + overhang), rounded front edge. */
-  function treadShape(THREE, depth, thick, nose, profile) {
-    const s = new THREE.Shape();
-    const r = profile === 'square' ? 0 : thick / 2;
-    const fx = depth + nose;
-    s.moveTo(0, 0); s.lineTo(fx - r, 0);
-    if (r) s.absarc(fx - r, r, r, -Math.PI / 2, Math.PI / 2, false); else s.lineTo(fx, thick);
-    s.lineTo(0, thick); s.lineTo(0, 0);
-    return s;
-  }
   function dimLabel(THREE, text) {
     const cv = document.createElement('canvas'); const g = cv.getContext('2d'); const fs = 40;
     g.font = `700 ${fs}px Geist, system-ui, sans-serif`;
@@ -1372,8 +1420,9 @@
     g.fillStyle = '#221E1A'; const r = 14; g.beginPath(); g.moveTo(r, 0); g.arcTo(w, 0, w, cv.height, r); g.arcTo(w, cv.height, 0, cv.height, r); g.arcTo(0, cv.height, 0, 0, r); g.arcTo(0, 0, w, 0, r); g.fill();
     g.fillStyle = '#fff'; g.textBaseline = 'middle'; g.fillText(text, 14, cv.height / 2 + 2);
     const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
-    const h = 0.16; sp.scale.set((h * w) / cv.height, h, 1); sp.renderOrder = 20;
+    // same size on screen however close the camera is
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true, sizeAttenuation: false }));
+    const h = 0.05; sp.scale.set((h * w) / cv.height, h, 1); sp.renderOrder = 20;
     return sp;
   }
   function dimLine(THREE, a, b, mat) {
@@ -1382,77 +1431,142 @@
   }
 
   /**
-   * One tread up close, as measured: width, depth, the nose, the open sides with their returns
-   * (45° mitered, flat or bullnose), the riser under it and the wood with its finish. Dimensions on it.
-   * spec: { stair, step, inch: fmt function }
+   * A board seen from above (pts in feet: x right, z toward the front), T thick, every edge eased
+   * round like a nosing. Built as a beveled extrusion so the front nose and the returns wrap the corner.
+   */
+  function boardMesh(THREE, pts, T, mat, opts) {
+    const o = opts || {};
+    const sh = new THREE.Shape();
+    pts.forEach(([x, z], i) => (i ? sh.lineTo(x, -z) : sh.moveTo(x, -z)));
+    sh.closePath();
+    const b = o.square ? 0 : Math.min(T * 0.48, o.round || T * 0.48);
+    const geo = new THREE.ExtrudeGeometry(sh, { depth: Math.max(0.001, T - 2 * b), bevelEnabled: b > 0, bevelThickness: b, bevelSize: b * 0.96, bevelSegments: o.square ? 1 : 7, curveSegments: 18 });
+    geo.rotateX(-Math.PI / 2);
+    geo.translate(0, b, 0);
+    // texture: one grain repeat per board length
+    const uv = geo.attributes.uv; const pos = geo.attributes.position;
+    for (let i = 0; i < uv.count; i++) { uv.setXY(i, pos.getX(i) / (o.uvLen || 4), pos.getZ(i) / 0.9); }
+    const m = new THREE.Mesh(geo, mat); m.castShadow = true; m.receiveShadow = true;
+    return m;
+  }
+
+  /**
+   * One tread up close, as measured: width, depth, the nose, the open sides with their returns —
+   * 45° mitered (the nosing turns the corner with a miter joint), flat (the end cut square) or
+   * bullnose (the open end rounded) — the riser under it, the skirt on closed sides, the wood with
+   * its stain and finish, and the sizes on it. update(spec) swaps it in place, no reload.
    */
   async function mountTread(el, spec, opts) {
     opts = opts || {};
-    const c = await core(el, { wheel: false, phi: 1.12, theta: -0.38, front: 0, onReset: () => reset() });
+    let corner = null; // the open-side front corner, where the return is
+    const co = { wheel: false, phi: 1.12, theta: -0.38, front: 0, onReset: () => reset(), extraViews: [['corner', 'Return', () => (corner ? { th: corner.th, ph: 0.85, d: 1.2, t: corner.t } : { ph: 1.0 })]] };
+    const c = await core(el, co);
     const { THREE } = c;
-    const st = spec.stair || {}; const step = spec.step || {};
-    const fmt = spec.inch || ((v) => `${v}`);
     const kit = woodKit(THREE);
-    const wood = kit.wood(st);
-    const W = (Number(step.tread_w) || 36) * IN; const D = (Number(step.tread_d) || 10.5) * IN; const T = 1 * IN; const N = 1.1 * IN;
-    const rise = (Number(step.riser_h) || 7.5) * IN;
-    const open = step.open || 'none'; const ret = step.ret || '45';
-    const openL = open === 'left' || open === 'both'; const openR = open === 'right' || open === 'both';
-    const retOut = 1.2 * IN;
-    const grp = new THREE.Group(); c.scene.add(grp);
-    // tread: profile extruded across the width (x), depth along -z, nose toward +z
-    const mk = (len, profile) => {
-      const geo = new THREE.ExtrudeGeometry(treadShape(THREE, D, T, N, profile), { depth: len, bevelEnabled: false, curveSegments: 16 });
-      geo.rotateY(-Math.PI / 2); // shape x (depth) → world -z… extrusion (z) → world x
-      return geo;
-    };
-    const left = openL ? retOut : 0; const right = openR ? retOut : 0;
-    const tread = new THREE.Mesh(mk(W + left + right, 'round'), wood);
-    tread.position.set(-(W / 2 + left) + (W + left + right), rise - T, -D / 2);
-    tread.castShadow = true; tread.receiveShadow = true; grp.add(tread);
-    // returns on the open sides: the nose turns the corner (45°), stays square (flat) or is rounded (bullnose)
-    const seamMat = new THREE.LineBasicMaterial({ color: 0x3b2a1c, transparent: true, opacity: 0.7 });
-    [[openL, -1], [openR, 1]].forEach(([on, s]) => {
-      if (!on) return;
-      const x = s * (W / 2 + retOut);
-      if (ret === 'flat') return;
-      const rr = T / 2;
-      const cap = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr, D + N - rr, 18, 1), wood);
-      cap.rotation.x = Math.PI / 2; cap.position.set(x - s * rr, rise - T / 2, -D / 2 + (D + N - rr) / 2);
-      cap.castShadow = true; grp.add(cap);
-      const corner = new THREE.Mesh(new THREE.SphereGeometry(rr, 18, 12), wood); corner.position.set(x - s * rr, rise - T / 2, D / 2 + N - rr); grp.add(corner);
-      if (ret === '45') grp.add(dimLine(THREE, [x - s * retOut, rise + 0.002, D / 2 + N - retOut], [x, rise + 0.002, D / 2 + N], seamMat));
-    });
-    // riser under the nose, and the step below for scale
-    const riserMat = st.riser_material === 'primed' || st.riser_material === 'paint_grade' ? kit.paint : wood;
-    if (!step.no_riser && st.riser_material !== 'none') {
-      const r = new THREE.Mesh(new THREE.BoxGeometry(W, rise - T, 0.75 * IN), riserMat);
-      r.position.set(0, (rise - T) / 2, D / 2 - 0.375 * IN); r.castShadow = true; r.receiveShadow = true; grp.add(r);
+    let grp = null; let box = null; let shapeSig = ''; // eslint-disable-line prefer-const
+    const IN_ = 1 / 12;
+    function build(sp) {
+      if (grp) { c.scene.remove(grp); grp.traverse((m) => { if (m.geometry) m.geometry.dispose(); if (m.isSprite && m.material) { m.material.map.dispose(); m.material.dispose(); } }); }
+      grp = new THREE.Group(); c.scene.add(grp);
+      const st = sp.stair || {}; const step = sp.step || {};
+      const fmt = sp.inch || ((v) => `${v}`);
+      const W = (Number(step.tread_w) || 36) * IN_; const D = (Number(step.tread_d) || 10.5) * IN_; const T = 1 * IN_; const N = 1.1 * IN_;
+      const rise = (Number(step.riser_h) || 7.5) * IN_;
+      const open = step.open || 'none'; const ret = step.ret || '45';
+      const oL = open === 'left' || open === 'both'; const oR = open === 'right' || open === 'both';
+      const R = 1.25 * IN_; // return: how far the nose runs past the skirt on an open side
+      const back = -D / 2; const front = D / 2 + N;
+      const xl = -W / 2 - (oL ? R : 0); const xr = W / 2 + (oR ? R : 0);
+      const wood = kit.wood(st, false); const woodX = kit.wood(st, true);
+      const y0 = rise - T;
+      const add = (m) => { m.position.y += y0; grp.add(m); return m; };
+      // 1. the tread itself, by return type
+      if (ret === 'bullnose' && (oL || oL || oR)) {
+        // open ends rounded in plan (half round of the nose depth) — one piece
+        const rr = Math.min(3 * IN_, (front - back) / 2);
+        const pts = [];
+        const arc = (cx, cz, a0, a1, n) => { for (let k = 0; k <= n; k++) { const a = a0 + (a1 - a0) * (k / n); pts.push([cx + Math.cos(a) * rr, cz + Math.sin(a) * rr]); } };
+        pts.push([xl + (oL ? 0 : 0), back]); pts.push([xr, back]);
+        if (oR) arc(xr - rr, front - rr, 0, Math.PI / 2, 10); else pts.push([xr, front]);
+        if (oL) arc(xl + rr, front - rr, Math.PI / 2, Math.PI, 10); else pts.push([xl, front]);
+        add(boardMesh(THREE, pts, T, wood));
+      } else if (ret === 'flat') {
+        // nose runs to the end and the end is cut square (no return piece)
+        add(boardMesh(THREE, [[xl, back], [xr, back], [xr, front], [xl, front]], T, wood));
+        [[oL, xl], [oR, xr]].forEach(([on, x]) => {
+          if (!on) return;
+          const cap = new THREE.Mesh(new THREE.BoxGeometry(0.02, T * 0.98, front - back - 0.02), wood);
+          cap.position.set(x + (x < 0 ? 0.0095 : -0.0095), T / 2, (front + back) / 2); add(cap);
+        });
+      } else {
+        // 45° mitered: main board with the miter cut at each open front corner + a return piece
+        // whose grain runs front-to-back; the joint shows as a fine line at 45°
+        const main = [[oL ? -W / 2 : xl, back], [oR ? W / 2 : xr, back]];
+        if (oR) { main.push([W / 2, front - R]); main.push([xr, front]); } else main.push([xr, front]);
+        if (oL) { main.push([xl, front]); main.push([-W / 2, front - R]); } else main.push([xl, front]);
+        add(boardMesh(THREE, main, T, wood));
+        [[oR, 1], [oL, -1]].forEach(([on, s]) => {
+          if (!on) return;
+          const xi = s * W / 2; const xo = s * (W / 2 + R);
+          const pts = s > 0 ? [[xi, back], [xo, back], [xo, front], [xi, front - R]] : [[xo, back], [xi, back], [xi, front - R], [xo, front]];
+          add(boardMesh(THREE, pts, T, woodX, { uvLen: 1 }));
+          const seam = new THREE.LineBasicMaterial({ color: 0x24170e, transparent: true, opacity: 0.85 });
+          grp.add(dimLine(THREE, [xi, rise + 0.0015, front - R], [xo, rise + 0.0015, front], seam));
+          grp.add(dimLine(THREE, [xi, rise + 0.0015, back], [xi, rise + 0.0015, front - R], new THREE.LineBasicMaterial({ color: 0x24170e, transparent: true, opacity: 0.35 })));
+        });
+      }
+      // 2. riser under the nose, the skirt on closed sides, the step below for scale
+      const riserMat = st.riser_material === 'primed' || st.riser_material === 'paint_grade' ? kit.paint : kit.wood(st, false);
+      if (!step.no_riser && st.riser_material !== 'none') {
+        const r = new THREE.Mesh(new THREE.BoxGeometry(W, rise - T, 0.75 * IN_), riserMat);
+        r.position.set(0, (rise - T) / 2, D / 2 - 0.375 * IN_); r.castShadow = true; r.receiveShadow = true; grp.add(r);
+      }
+      [[!oL, -1], [!oR, 1]].forEach(([closed, s]) => {
+        if (!closed) return;
+        const sk = new THREE.Mesh(new THREE.BoxGeometry(0.75 * IN_, rise + 0.6, D + 0.5), kit.paint);
+        sk.position.set(s * (W / 2 + 0.375 * IN_), (rise + 0.6) / 2 - 0.05, -0.1); sk.castShadow = true; sk.receiveShadow = true; grp.add(sk);
+      });
+      const below = new THREE.Mesh(new THREE.BoxGeometry(W + 0.6, 0.02, D * 1.6), new THREE.MeshStandardMaterial({ color: 0xe9e4dc, roughness: 0.9 }));
+      below.position.set(0, -0.01, D * 0.4); below.receiveShadow = true; grp.add(below);
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(W + 0.2, rise * 1.4, 0.08), kit.mass);
+      wall.position.set(0, rise * 0.7 + T, back - 0.04); wall.receiveShadow = true; grp.add(wall);
+      // 3. sizes
+      const dm = new THREE.LineBasicMaterial({ color: 0xe7792c });
+      const yy = rise + 0.05;
+      grp.add(dimLine(THREE, [-W / 2, yy, front + 0.1], [W / 2, yy, front + 0.1], dm));
+      const lw = dimLabel(THREE, `${fmt(step.tread_w)}" wide`); lw.position.set(0, yy + 0.09, front + 0.1); grp.add(lw);
+      const sx = xr + 0.12;
+      grp.add(dimLine(THREE, [sx, yy, back], [sx, yy, front], dm));
+      const ld = dimLabel(THREE, `${fmt(step.tread_d)}" deep`); ld.position.set(sx + 0.05, yy + 0.09, (front + back) / 2); grp.add(ld);
+      grp.add(dimLine(THREE, [xl - 0.1, 0, front - 0.02], [xl - 0.1, rise, front - 0.02], dm));
+      const lr = dimLabel(THREE, `${fmt(step.riser_h)}" rise`); lr.position.set(xl - 0.22, rise / 2, front); grp.add(lr);
+      if (open !== 'none') {
+        const lt = dimLabel(THREE, ret === 'flat' ? 'Flat return' : ret === 'bullnose' ? 'Bullnose return' : '45° mitered return');
+        lt.position.set((oR ? xr : xl) - (oR ? 0.5 : -0.5), rise + 0.32, front + 0.05); grp.add(lt);
+      }
+      // frame on the tread (not the props around it)
+      box = new THREE.Box3();
+      grp.children.forEach((ch) => { if (ch.isMesh && ch.geometry && ch.geometry.type === 'ExtrudeGeometry') box.expandByObject(ch); });
+      box.expandByPoint(new THREE.Vector3(0, 0, D / 2));
+      viewTh = oR && !oL ? 0.55 : oL && !oR ? -0.55 : -0.4;
+      corner = open === 'none' ? null : oR ? { th: 0.75, t: [xr - 0.1, rise - 0.04, front - 0.12] } : { th: -0.75, t: [xl + 0.1, rise - 0.04, front - 0.12] };
+      return JSON.stringify([step.tread_w, step.tread_d, step.riser_h, open]);
     }
-    const below = new THREE.Mesh(new THREE.BoxGeometry(W + 0.6, 0.02, D * 1.6), new THREE.MeshStandardMaterial({ color: 0xe9e4dc, roughness: 0.9 }));
-    below.position.set(0, -0.01, D * 0.4); below.receiveShadow = true; grp.add(below);
-    const back = new THREE.Mesh(new THREE.BoxGeometry(W, rise * 1.3, 0.1), kit.mass);
-    back.position.set(0, rise * 0.65, -D / 2 - 0.05); back.receiveShadow = true; grp.add(back);
-    // dimensions
-    const dm = new THREE.LineBasicMaterial({ color: 0xe7792c });
-    const y = rise + 0.06;
-    const fz = D / 2 + N;
-    grp.add(dimLine(THREE, [-W / 2, y, fz + 0.12], [W / 2, y, fz + 0.12], dm));
-    const lw = dimLabel(THREE, `${fmt(step.tread_w)}" wide`); lw.position.set(0, y + 0.1, fz + 0.12); grp.add(lw);
-    const sx = W / 2 + right + 0.14;
-    grp.add(dimLine(THREE, [sx, y, -D / 2], [sx, y, fz], dm));
-    const ld = dimLabel(THREE, `${fmt(step.tread_d)}" deep`); ld.position.set(sx + 0.08, y + 0.1, (fz - D / 2) / 2); grp.add(ld);
-    grp.add(dimLine(THREE, [-W / 2 - left - 0.1, 0, fz - 0.02], [-W / 2 - left - 0.1, rise, fz - 0.02], dm));
-    const lr = dimLabel(THREE, `${fmt(step.riser_h)}" rise`); lr.position.set(-W / 2 - left - 0.2, rise / 2, fz); grp.add(lr);
-    const box = new THREE.Box3().setFromObject(tread);
-    box.expandByPoint(new THREE.Vector3(0, 0, D / 2));
-    function reset() { c.orbit(-0.38, 1.12); c.frameBox(box, 0.9); }
-    reset();
-    // a slow turn until the user takes over
-    let spin = !opts.still; const t0 = performance.now(); c.cv.addEventListener('pointerdown', () => { spin = false; });
-    c.onFrame.push(() => { if (!spin || performance.now() - t0 > 6000) return false; c.orbit(c.view.theta + 0.0025, c.view.phi); return true; });
+    let viewTh = -0.4;
+    function reset() { c.orbit(viewTh, 1.05); c.frameBox(box, 1.4); }
+    shapeSig = build(spec); reset();
+    // a short turn to show it's 3D, then it stays still
+    let spin = !opts.still; const t0 = performance.now();
+    c.cv.addEventListener('pointerdown', () => { spin = false; });
+    c.onFrame.push(() => { if (!spin || performance.now() - t0 > 4000) return false; c.orbit(c.view.theta + 0.002, c.view.phi); return true; });
     c.need();
-    const api = { destroy: c.destroy, reset };
+    const api = {
+      destroy() { kit.dispose(); c.destroy(); },
+      reset, attach: (n) => { c.attach(n); n.__ob3d = api; },
+      /** New wood, finish or return: swap the model, keep the camera where the user left it. */
+      update(sp) { spin = false; const keep = c.view; const ns = build(sp); if (ns !== shapeSig) { shapeSig = ns; reset(); } else c.view = keep; c.need(); },
+      get view() { return c.view; },
+    };
     el.__ob3d = api;
     return api;
   }
@@ -1494,7 +1608,7 @@
     let spin = !opts.still; const t0 = performance.now(); c.cv.addEventListener('pointerdown', () => { spin = false; });
     c.onFrame.push(() => { if (!spin || performance.now() - t0 > 6000) return false; c.orbit(c.view.theta + 0.002, c.view.phi); return true; });
     c.need();
-    const api = { destroy: c.destroy };
+    const api = { destroy: c.destroy, attach: (n) => { c.attach(n); n.__ob3d = api; } };
     el.__ob3d = api;
     return api;
   }
