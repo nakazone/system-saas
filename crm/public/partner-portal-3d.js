@@ -354,13 +354,13 @@
         const T = 1 * IN; const nose = 1.1 * IN;
         const open = c.open || 'none';
         const hasRiser = c.kind === 'riser' ? st.riser_material !== 'none' : !c.no_riser && st.riser_material !== 'none';
-        if (hasRiser) { addBox(grp, w, rise - (c.kind === 'riser' ? 0 : T), 0.75 * IN, { x: p0.x + d.x * 0.04, z: p0.z + d.z * 0.04 }, e, d, riserMat); risers += 1; }
+        if (hasRiser) { const rm = addBox(grp, w, rise - (c.kind === 'riser' ? 0 : T), 0.75 * IN, { x: p0.x + d.x * 0.04, z: p0.z + d.z * 0.04 }, e, d, riserMat); rm.userData = { pick: true, stair: st, stepId: c.id, counted: true }; picks.push(rm); risers += 1; }
         if (c.kind !== 'riser') {
           const ovL = open === 'left' || open === 'both' ? 1.2 * IN : 0; const ovR = open === 'right' || open === 'both' ? 1.2 * IN : 0;
           const across = w + ovL + ovR; const shift = (ovL - ovR) / 2;
           const tc = { x: start.x + d.x * (a + run / 2 - nose / 2) + L.x * shift, z: start.z + d.z * (a + run / 2 - nose / 2) + L.z * shift };
           const tread = addBox(grp, across, T, run + nose, tc, e + rise - T, d, wood);
-          tread.userData = { pick: true, stair: st, counted: true };
+          tread.userData = { pick: true, stair: st, stepId: c.id, counted: true };
           picks.push(tread);
           treads += 1;
           // the mass under the step, down to the floor
@@ -1004,7 +1004,7 @@
       tweens.splice(0).forEach((t) => t.res());
       scene.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } });
       if (scene.environment) scene.environment.dispose();
-      renderer.dispose();
+      renderer.dispose(); try { renderer.forceContextLoss(); } catch (_) { /* gone */ }
       [cv, tip, legend].forEach((n) => { if (n && n.parentNode) n.parentNode.removeChild(n); });
     }
 
@@ -1128,5 +1128,313 @@
   }
   function escHtml(v) { return String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
-  window.ObPlan3D = { mount, load: loadThree };
+  /* ───────────── small viewers: one stair, one tread, vents ───────────── */
+
+  /** Renderer, studio light, soft shadows and an orbit camera with inertia, in el. */
+  async function core(el, o) {
+    const THREE = await loadThree();
+    o = o || {};
+    const W = el.clientWidth || 400; const H = el.clientHeight || 300;
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(W, H);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = o.exposure || 0.95;
+    renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.setClearColor(0x000000, 0);
+    const cv = renderer.domElement; cv.style.touchAction = 'none'; cv.style.display = 'block';
+    el.appendChild(cv);
+    const scene = new THREE.Scene();
+    scene.environment = studioEnv(THREE, renderer);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0xb9ab98, 0.75));
+    const sun = new THREE.DirectionalLight(0xffeedd, 2.4); sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03; sun.shadow.radius = 4;
+    scene.add(sun); scene.add(sun.target);
+    const camera = new THREE.PerspectiveCamera(o.fov || 32, W / H, 0.05, 2000);
+    const target = new THREE.Vector3(); let theta = o.theta != null ? o.theta : -0.7; let phi = o.phi != null ? o.phi : 1.0; let dist = 10;
+    let vT = 0; let vP = 0; let minD = 0.5; let maxD = 200;
+    const tall = () => Math.max(1, 1.1 / Math.max(0.3, camera.aspect));
+    function place() {
+      phi = Math.max(0.15, Math.min(1.5, phi)); dist = Math.max(minD, Math.min(maxD, dist));
+      camera.position.set(target.x + dist * Math.sin(phi) * Math.sin(theta), target.y + dist * Math.cos(phi), target.z + dist * Math.sin(phi) * Math.cos(theta));
+      camera.lookAt(target);
+    }
+    function frameBox(box, k) {
+      const c = box.getCenter(new THREE.Vector3()); const s = box.getSize(new THREE.Vector3());
+      const r = Math.max(s.x, s.y, s.z) || 1;
+      target.copy(c); dist = r * (k || 1.6) * tall(); minD = r * 0.35; maxD = r * 6;
+      const sh = r * 1.2; const cam = sun.shadow.camera;
+      sun.position.set(c.x + r * 0.9, c.y + r * 2.2, c.z + r * 0.7); sun.target.position.copy(c);
+      cam.left = -sh; cam.right = sh; cam.top = sh; cam.bottom = -sh; cam.near = 0.1; cam.far = r * 8; cam.updateProjectionMatrix();
+      place();
+    }
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.ShadowMaterial({ opacity: 0.18 }));
+    ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+    let raf = 0; let alive = true; let dirty = true; const tweens = [];
+    const onFrame = [];
+    function need() { dirty = true; if (!raf) raf = requestAnimationFrame(frame); }
+    function frame() {
+      raf = 0; if (!alive) return;
+      if (!el.isConnected) { destroy(); return; }
+      let anim = false;
+      if (!ptrs.size && (Math.abs(vT) > 0.0004 || Math.abs(vP) > 0.0004)) { theta += vT; phi += vP; vT *= 0.92; vP *= 0.92; place(); anim = true; dirty = true; }
+      if (tweens.length) {
+        const now = performance.now();
+        for (let i = tweens.length - 1; i >= 0; i--) { const tw = tweens[i]; const p = Math.min(1, (now - tw.t0) / tw.dur); tw.fn(p); if (p >= 1) tweens.splice(i, 1); }
+        anim = true; dirty = true;
+      }
+      onFrame.forEach((f) => { if (f()) { anim = true; dirty = true; } });
+      if (dirty) { renderer.render(scene, camera); dirty = false; }
+      if (anim) raf = requestAnimationFrame(frame);
+    }
+    const ray = new THREE.Raycaster(); const ndc = new THREE.Vector2();
+    const ptrs = new Map(); let last = null; let pinch = null; let moved = 0;
+    cv.addEventListener('pointerdown', (e) => { vT = 0; vP = 0; cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); last = { x: e.clientX, y: e.clientY }; pinch = null; moved = 0; });
+    cv.addEventListener('pointermove', (e) => {
+      if (!ptrs.has(e.pointerId)) { if (o.onHover && e.pointerType === 'mouse') o.onHover(pick(e)); return; }
+      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y); if (pinch) dist *= pinch / d; pinch = d; moved += 10; }
+      else if (last) { const dx = e.clientX - last.x; const dy = e.clientY - last.y; moved += Math.abs(dx) + Math.abs(dy); vT = -dx * 0.009; vP = -dy * 0.007; theta += vT; phi += vP; last.x = e.clientX; last.y = e.clientY; }
+      place(); need();
+    });
+    const up = (e) => {
+      const was = ptrs.has(e.pointerId); ptrs.delete(e.pointerId); if (!ptrs.size) last = null; pinch = null;
+      if (was && moved < 6 && e.type === 'pointerup') { vT = 0; vP = 0; if (o.onPick) o.onPick(pick(e)); } else if (was) need();
+    };
+    cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+    cv.addEventListener('wheel', (e) => { if (!o.wheel && !e.ctrlKey) return; e.preventDefault(); dist *= Math.exp(e.deltaY * 0.0015); place(); need(); }, { passive: false });
+    cv.addEventListener('dblclick', () => { if (o.onReset) o.onReset(); });
+    function pick(e) {
+      const rect = cv.getBoundingClientRect();
+      ndc.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+      ray.setFromCamera(ndc, camera);
+      const hit = ray.intersectObjects(scene.children, true).find((h) => h.object.userData && h.object.userData.pick);
+      return hit ? hit.object : null;
+    }
+    const ro = new ResizeObserver(() => { const w = el.clientWidth; const h = el.clientHeight; if (!w || !h) return; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); need(); });
+    ro.observe(el);
+    function destroy() {
+      alive = false; ro.disconnect(); if (raf) cancelAnimationFrame(raf);
+      scene.traverse((x) => { if (x.geometry) x.geometry.dispose(); if (x.material) { const ms = Array.isArray(x.material) ? x.material : [x.material]; ms.forEach((mm) => { if (mm.map) mm.map.dispose(); mm.dispose(); }); } });
+      if (scene.environment) scene.environment.dispose();
+      renderer.dispose(); try { renderer.forceContextLoss(); } catch (_) { /* gone */ } if (cv.parentNode) cv.parentNode.removeChild(cv);
+    }
+    return {
+      THREE, scene, camera, renderer, target, place, need, frameBox, destroy, onFrame, cv,
+      get view() { return { theta, phi, dist, tx: target.x, ty: target.y, tz: target.z }; },
+      set view(v) { if (!v) return; theta = v.theta; phi = v.phi; dist = v.dist; target.set(v.tx, v.ty, v.tz); place(); need(); },
+      orbit(t, p) { theta = t; phi = p; place(); need(); },
+      tween(dur, fn) { tweens.push({ t0: performance.now(), dur, fn }); need(); },
+    };
+  }
+
+  function woodKit(THREE) {
+    const cache = new Map();
+    return {
+      wood(st) {
+        const base = woodColor([st.species, st.color].filter(Boolean).join(' '));
+        const fin = finishLook(st.finish);
+        const k = `${base}|${fin.key}`;
+        if (!cache.has(k)) {
+          const tex = new THREE.CanvasTexture(grainCanvas(base, base.length * 7)); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
+          cache.set(k, fin.paint ? new THREE.MeshStandardMaterial({ color: 0xf4f1ec, roughness: 0.6 }) : new THREE.MeshStandardMaterial({ map: tex, color: fin.tint, roughness: fin.rough, metalness: 0, envMapIntensity: fin.env }));
+        }
+        return cache.get(k);
+      },
+      paint: new THREE.MeshStandardMaterial({ color: 0xf7f4ef, roughness: 0.55 }),
+      mass: new THREE.MeshStandardMaterial({ color: 0xe9e4dc, roughness: 0.92 }),
+      rail: new THREE.MeshStandardMaterial({ color: 0x3a2a1e, roughness: 0.35 }),
+    };
+  }
+  /** How a finish reads on wood: raw and matte, a satin factory coat, or primed white. */
+  function finishLook(f) {
+    const t = String(f || '');
+    if (/primed|paint/i.test(t)) return { key: 'primed', paint: true };
+    if (/prefinish|satin|semi|gloss|poly|finished/i.test(t) && !/unfinished/i.test(t)) return { key: 'pre', tint: 0xd2b090, rough: 0.22, env: 1.1 };
+    return { key: 'raw', tint: 0xe6d3bd, rough: 0.62, env: 0.45 };
+  }
+
+  /**
+   * One stair (with its flights and landings) on its own: turn it, tap a tread or riser to pick it.
+   * opts: { selectedId, onPick(stairId, stepId), view }
+   */
+  async function mountStair(el, flights, opts) {
+    opts = opts || {};
+    let api = null;
+    const c = await core(el, { wheel: false, onPick: (mesh) => { if (mesh && opts.onPick) opts.onPick(mesh.userData.stair.id, mesh.userData.stepId); }, onReset: () => reset() });
+    const { THREE } = c;
+    const chain = stairChains(flights)[0] || [];
+    const built = buildStair(THREE, chain, woodKit(THREE));
+    c.scene.add(built.root);
+    const box = new THREE.Box3().setFromObject(built.root);
+    // look at the first flight from its side of the stair, a little from below the top
+    const rootFl = chain[0] && built.flights.get(chain[0].stair.id);
+    const bc = box.getCenter(new THREE.Vector3());
+    const side = rootFl ? Math.sign((rootFl.center.x - bc.x) || 0) || -1 : -1;
+    const th0 = side * 0.55;
+    function reset() { c.orbit(th0, 1.02); c.frameBox(box, 1.35); }
+    if (opts.view) { c.frameBox(box, 1.35); c.view = opts.view; } else reset();
+    // the chosen step glows; the others stay as they are
+    const glow = new Map();
+    function select(id) {
+      glow.forEach((mat, m) => { m.material.dispose(); m.material = mat; }); glow.clear();
+      built.root.traverse((m) => {
+        if (!m.isMesh || m.userData.stepId !== id || !id) return;
+        const mat = m.material.clone(); mat.emissive = new THREE.Color(0xc2611a); mat.emissiveIntensity = 0.55;
+        glow.set(m, m.material); m.material = mat;
+      });
+      c.need();
+    }
+    select(opts.selectedId);
+    c.need();
+    api = { destroy: c.destroy, select, reset, get view() { return c.view; }, counts: built.counts };
+    el.__ob3d = api;
+    return api;
+  }
+
+  /** Tread section: back edge at x=0, nose at the front (x = depth + overhang), rounded front edge. */
+  function treadShape(THREE, depth, thick, nose, profile) {
+    const s = new THREE.Shape();
+    const r = profile === 'square' ? 0 : thick / 2;
+    const fx = depth + nose;
+    s.moveTo(0, 0); s.lineTo(fx - r, 0);
+    if (r) s.absarc(fx - r, r, r, -Math.PI / 2, Math.PI / 2, false); else s.lineTo(fx, thick);
+    s.lineTo(0, thick); s.lineTo(0, 0);
+    return s;
+  }
+  function dimLabel(THREE, text) {
+    const cv = document.createElement('canvas'); const g = cv.getContext('2d'); const fs = 40;
+    g.font = `700 ${fs}px Geist, system-ui, sans-serif`;
+    const w = Math.ceil(g.measureText(text).width) + 28; cv.width = w; cv.height = fs + 22;
+    g.font = `700 ${fs}px Geist, system-ui, sans-serif`;
+    g.fillStyle = '#221E1A'; const r = 14; g.beginPath(); g.moveTo(r, 0); g.arcTo(w, 0, w, cv.height, r); g.arcTo(w, cv.height, 0, cv.height, r); g.arcTo(0, cv.height, 0, 0, r); g.arcTo(0, 0, w, 0, r); g.fill();
+    g.fillStyle = '#fff'; g.textBaseline = 'middle'; g.fillText(text, 14, cv.height / 2 + 2);
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+    const h = 0.16; sp.scale.set((h * w) / cv.height, h, 1); sp.renderOrder = 20;
+    return sp;
+  }
+  function dimLine(THREE, a, b, mat) {
+    const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...a), new THREE.Vector3(...b)]);
+    const l = new THREE.Line(g, mat); l.renderOrder = 19; return l;
+  }
+
+  /**
+   * One tread up close, as measured: width, depth, the nose, the open sides with their returns
+   * (45° mitered, flat or bullnose), the riser under it and the wood with its finish. Dimensions on it.
+   * spec: { stair, step, inch: fmt function }
+   */
+  async function mountTread(el, spec, opts) {
+    opts = opts || {};
+    const c = await core(el, { wheel: false, phi: 1.12, theta: -0.38, onReset: () => reset() });
+    const { THREE } = c;
+    const st = spec.stair || {}; const step = spec.step || {};
+    const fmt = spec.inch || ((v) => `${v}`);
+    const kit = woodKit(THREE);
+    const wood = kit.wood(st);
+    const W = (Number(step.tread_w) || 36) * IN; const D = (Number(step.tread_d) || 10.5) * IN; const T = 1 * IN; const N = 1.1 * IN;
+    const rise = (Number(step.riser_h) || 7.5) * IN;
+    const open = step.open || 'none'; const ret = step.ret || '45';
+    const openL = open === 'left' || open === 'both'; const openR = open === 'right' || open === 'both';
+    const retOut = 1.2 * IN;
+    const grp = new THREE.Group(); c.scene.add(grp);
+    // tread: profile extruded across the width (x), depth along -z, nose toward +z
+    const mk = (len, profile) => {
+      const geo = new THREE.ExtrudeGeometry(treadShape(THREE, D, T, N, profile), { depth: len, bevelEnabled: false, curveSegments: 16 });
+      geo.rotateY(-Math.PI / 2); // shape x (depth) → world -z… extrusion (z) → world x
+      return geo;
+    };
+    const left = openL ? retOut : 0; const right = openR ? retOut : 0;
+    const tread = new THREE.Mesh(mk(W + left + right, 'round'), wood);
+    tread.position.set(-(W / 2 + left) + (W + left + right), rise - T, -D / 2);
+    tread.castShadow = true; tread.receiveShadow = true; grp.add(tread);
+    // returns on the open sides: the nose turns the corner (45°), stays square (flat) or is rounded (bullnose)
+    const seamMat = new THREE.LineBasicMaterial({ color: 0x3b2a1c, transparent: true, opacity: 0.7 });
+    [[openL, -1], [openR, 1]].forEach(([on, s]) => {
+      if (!on) return;
+      const x = s * (W / 2 + retOut);
+      if (ret === 'flat') return;
+      const rr = T / 2;
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr, D + N - rr, 18, 1), wood);
+      cap.rotation.x = Math.PI / 2; cap.position.set(x - s * rr, rise - T / 2, -D / 2 + (D + N - rr) / 2);
+      cap.castShadow = true; grp.add(cap);
+      const corner = new THREE.Mesh(new THREE.SphereGeometry(rr, 18, 12), wood); corner.position.set(x - s * rr, rise - T / 2, D / 2 + N - rr); grp.add(corner);
+      if (ret === '45') grp.add(dimLine(THREE, [x - s * retOut, rise + 0.002, D / 2 + N - retOut], [x, rise + 0.002, D / 2 + N], seamMat));
+    });
+    // riser under the nose, and the step below for scale
+    const riserMat = st.riser_material === 'primed' || st.riser_material === 'paint_grade' ? kit.paint : wood;
+    if (!step.no_riser && st.riser_material !== 'none') {
+      const r = new THREE.Mesh(new THREE.BoxGeometry(W, rise - T, 0.75 * IN), riserMat);
+      r.position.set(0, (rise - T) / 2, D / 2 - 0.375 * IN); r.castShadow = true; r.receiveShadow = true; grp.add(r);
+    }
+    const below = new THREE.Mesh(new THREE.BoxGeometry(W + 0.6, 0.02, D * 1.6), new THREE.MeshStandardMaterial({ color: 0xe9e4dc, roughness: 0.9 }));
+    below.position.set(0, -0.01, D * 0.4); below.receiveShadow = true; grp.add(below);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(W, rise * 1.3, 0.1), kit.mass);
+    back.position.set(0, rise * 0.65, -D / 2 - 0.05); back.receiveShadow = true; grp.add(back);
+    // dimensions
+    const dm = new THREE.LineBasicMaterial({ color: 0xe7792c });
+    const y = rise + 0.06;
+    const fz = D / 2 + N;
+    grp.add(dimLine(THREE, [-W / 2, y, fz + 0.12], [W / 2, y, fz + 0.12], dm));
+    const lw = dimLabel(THREE, `${fmt(step.tread_w)}" wide`); lw.position.set(0, y + 0.1, fz + 0.12); grp.add(lw);
+    const sx = W / 2 + right + 0.14;
+    grp.add(dimLine(THREE, [sx, y, -D / 2], [sx, y, fz], dm));
+    const ld = dimLabel(THREE, `${fmt(step.tread_d)}" deep`); ld.position.set(sx + 0.08, y + 0.1, (fz - D / 2) / 2); grp.add(ld);
+    grp.add(dimLine(THREE, [-W / 2 - left - 0.1, 0, fz - 0.02], [-W / 2 - left - 0.1, rise, fz - 0.02], dm));
+    const lr = dimLabel(THREE, `${fmt(step.riser_h)}" rise`); lr.position.set(-W / 2 - left - 0.2, rise / 2, fz); grp.add(lr);
+    const box = new THREE.Box3().setFromObject(tread);
+    box.expandByPoint(new THREE.Vector3(0, 0, D / 2));
+    function reset() { c.orbit(-0.38, 1.12); c.frameBox(box, 0.9); }
+    reset();
+    // a slow turn until the user takes over
+    let spin = !opts.still; const t0 = performance.now(); c.cv.addEventListener('pointerdown', () => { spin = false; });
+    c.onFrame.push(() => { if (!spin || performance.now() - t0 > 6000) return false; c.orbit(c.view.theta + 0.0025, c.view.phi); return true; });
+    c.need();
+    const api = { destroy: c.destroy, reset };
+    el.__ob3d = api;
+    return api;
+  }
+
+  /** A floor register set in a patch of the floor: flush, self-rimming (raised lip) or return air. */
+  async function mountVent(el, vents, opts) {
+    opts = opts || {};
+    const c = await core(el, { wheel: false, phi: 0.75, theta: -0.5 });
+    const { THREE } = c;
+    const list = (Array.isArray(vents) ? vents : [vents]).slice(0, 6);
+    const grp = new THREE.Group(); c.scene.add(grp);
+    let x = 0;
+    list.forEach((v) => {
+      const m = /^(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)/i.exec(String(v.size || '4x10'));
+      const a = (m ? Number(m[1]) : 4) * IN; const b = (m ? Number(m[2]) : 10) * IN;
+      const base = woodColor([v.species, v.color].join(' '), '#C49C6E');
+      const fin = finishLook(v.finish);
+      const floorTex = new THREE.CanvasTexture(plankCanvas(base, 5, 31)); floorTex.colorSpace = THREE.SRGBColorSpace; floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping;
+      const pw = b + 0.9; const pd = a + 0.9;
+      floorTex.repeat.set(pw / 4, pd / 4);
+      const floor = new THREE.Mesh(new THREE.BoxGeometry(pw, 0.06, pd), new THREE.MeshStandardMaterial({ map: floorTex, color: 0xe8dccf, roughness: 0.45 }));
+      floor.position.set(x + pw / 2, -0.03, 0); floor.receiveShadow = true; grp.add(floor);
+      const ventTex = new THREE.CanvasTexture(ventCanvas(fin.paint ? '#f2efe9' : base)); ventTex.colorSpace = THREE.SRGBColorSpace;
+      const lip = v.type === 'self_rimming' ? 0.25 * IN : 0.02 * IN;
+      const frameW = v.type === 'self_rimming' ? b + 1.5 * IN : b; const frameD = v.type === 'self_rimming' ? a + 1.5 * IN : a;
+      const reg = new THREE.Mesh(new THREE.BoxGeometry(frameW, lip + 0.01, frameD), [
+        new THREE.MeshStandardMaterial({ color: fin.paint ? 0xf2efe9 : base, roughness: fin.rough || 0.5 }), new THREE.MeshStandardMaterial({ color: fin.paint ? 0xf2efe9 : base, roughness: fin.rough || 0.5 }),
+        new THREE.MeshStandardMaterial({ map: ventTex, roughness: fin.rough || 0.45, color: fin.paint ? 0xffffff : fin.tint }), new THREE.MeshStandardMaterial({ color: 0x222 }),
+        new THREE.MeshStandardMaterial({ color: fin.paint ? 0xf2efe9 : base }), new THREE.MeshStandardMaterial({ color: fin.paint ? 0xf2efe9 : base }),
+      ]);
+      reg.position.set(x + pw / 2, (lip + 0.01) / 2, 0); reg.castShadow = true; grp.add(reg);
+      const lab = dimLabel(THREE, `${String(v.size || '4x10').replace('x', '×')}${v.type === 'return_air' ? ' return' : v.type === 'self_rimming' ? ' drop-in' : ' flush'}`);
+      lab.position.set(x + pw / 2, 0.22, pd / 2 + 0.05); grp.add(lab);
+      x += pw + 0.25;
+    });
+    grp.position.x = -x / 2;
+    const box = new THREE.Box3().setFromObject(grp);
+    c.orbit(-0.5, 0.75); c.frameBox(box, 1.35);
+    let spin = !opts.still; const t0 = performance.now(); c.cv.addEventListener('pointerdown', () => { spin = false; });
+    c.onFrame.push(() => { if (!spin || performance.now() - t0 > 6000) return false; c.orbit(c.view.theta + 0.002, c.view.phi); return true; });
+    c.need();
+    const api = { destroy: c.destroy };
+    el.__ob3d = api;
+    return api;
+  }
+
+  window.ObPlan3D = { mount, mountStair, mountTread, mountVent, load: loadThree };
 })();

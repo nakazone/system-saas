@@ -4790,6 +4790,22 @@
     </svg>`;
   }
 
+  /** The selected tread up close in 3D, with the wood, finish and returns to pick. */
+  function treadDetailHtml(m, s, si, i) {
+    const st = s.steps[i]; const locked = m.status === 'used';
+    const chip = (path, v, label, on) => `<button type="button" data-tf="${path}" data-v="${esc(v)}" aria-pressed="${on}" ${locked ? 'disabled' : ''}>${esc(label)}</button>`;
+    const open = st.open || 'none';
+    return `<div class="pp-tread3d">
+      <div class="pp-tread3d-stage" data-tread3d="${si}:${i}"><span class="pp-tread3d-wait">Building the tread…</span></div>
+      <div class="pp-tread3d-opts">
+        <div class="pp-tf-row"><span>Wood</span><div class="pp-tf">${SPECIES.map((w) => chip(`stairs.${si}.species`, w, w, s.species === w)).join('')}</div></div>
+        <div class="pp-tf-row"><span>Finish</span><div class="pp-tf">${FINISHES.map((f) => chip(`stairs.${si}.finish`, f, f.replace(' (site finished)', ' · site finished'), s.finish === f)).join('')}</div></div>
+        <div class="pp-tf-row"><span>Open sides</span><div class="pp-tf">${OPEN_OPTS.map(([k, l]) => chip(`stairs.${si}.steps.${i}.open`, k, l, open === k)).join('')}</div></div>
+        ${open !== 'none' ? `<div class="pp-tf-row"><span>Return</span><div class="pp-tf">${RET_OPTS.map(([k, l]) => chip(`stairs.${si}.steps.${i}.ret`, k, l, (st.ret || '45') === k)).join('')}</div></div>` : ''}
+      </div>
+    </div>`;
+  }
+
   function stairVizHtml(m, s, si) {
     const sel = Math.min(Math.max(0, (m.vizSel && m.vizSel[si]) || 0), Math.max(0, (s.steps || []).length - 1));
     const chain0 = stairChainFor(m.data, s.id);
@@ -4819,8 +4835,8 @@
       <div class="pp-viz-3d">
         <div class="pp-viz-bar"><span class="pp-step-lbl pp-viz-lbl">${drawingTitle}</span>${mixedLayout ? '' : mirrorButton}</div>
         ${turnPick}
-        <div class="pp-viz-box" data-viz-box="3d">${drawing}</div>
-        <p class="pp-viz-hint">${drawingHint}${s.layout === 'round' || mixedLayout ? '' : ' <span class="pp-viz-turnhint">Drag the drawing to turn it · double-click to reset.</span>'}</p>
+        <div class="pp-viz-box" data-viz-box="3d">${s.layout === 'round' || mixedLayout || !window.ObPlan3D ? drawing : `<div class="pp-stair3d" data-stair3d="${si}"><div class="pp-viz-fallback">${drawing}</div></div>`}</div>
+        <p class="pp-viz-hint">${s.layout === 'round' || mixedLayout || !window.ObPlan3D ? drawingHint + (s.layout === 'round' || mixedLayout ? '' : ' <span class="pp-viz-turnhint">Drag the drawing to turn it · double-click to reset.</span>') : 'Drag to turn the stair · tap a tread or riser to edit it · double-click to reset.'}</p>
       </div>
     </div>`;
   }
@@ -4976,6 +4992,7 @@
           <div class="pp-stair-measure-card">
             <div class="pp-component-editor-head"><div><small>COMPONENT ${selectedStep ? String(selStep + 1).padStart(2, '0') : '—'} OF ${(s.steps || []).length}</small><strong>${esc(selectedLabel)}</strong><span>${esc(s.name || 'Stair')} · ${esc(s.species || 'Wood not selected')}${s.finish ? ' · ' + esc(s.finish) : ''}</span></div>
               <div class="pp-component-nav"><button type="button" class="pp-q-ic" data-viz-prev="${si}" aria-label="Previous component" ${(s.steps || []).length < 2 || selStep <= 0 ? 'disabled' : ''}>‹</button><button type="button" class="pp-q-ic" data-viz-next="${si}" aria-label="Next component" ${selStep >= (s.steps || []).length - 1 ? 'disabled' : ''}>›</button></div></div>
+            ${selectedStep && selectedStep.kind !== 'riser' && window.ObPlan3D ? treadDetailHtml(m, s, si, selStep) : ''}
             <div class="pp-selected-editor">${selectedRow || '<p class="pp-q-empty">Add a tread or riser to start measuring this flight.</p>'}</div>
             ${locked ? '' : '<div class="pp-stair-add"><button type="button" class="pp-q-add" data-step-add="' + si + '">+ Step (tread + riser)</button><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-riser-add="' + si + '"' + (s.riser_material === 'none' ? ' disabled' : '') + '>+ Riser only</button>'
             + ((s.steps || []).length ? '<span class="pp-stair-many"><label for="ppMany-' + si + '">Add</label><input id="ppMany-' + si + '" type="number" min="1" max="40" value="5" /><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-step-many="' + si + '">equal steps</button></span>' : '') + '</div>'}
@@ -5058,6 +5075,7 @@
       </div>`).join('');
     return `<section class="pp-card pp-vents" aria-labelledby="ppVentsT">
         <div class="pp-vents-head"><div><h3 id="ppVentsT">Vents</h3><small>${vents.length ? `${total} vent${total === 1 ? '' : 's'}${rooms ? ` in ${rooms} room${rooms === 1 ? '' : 's'}` : ''}` : 'Each size and room once — use the count for repeats'}</small></div>${locked ? '' : `<div class="pp-vents-acts"><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" id="ppVentCount" title="Tap once for each vent as you walk the house">${icon('tally')}Count</button><button type="button" class="pp-btn pp-btn--pri pp-btn--sm" id="ppVentAdd">+ Vent</button></div>`}</div>
+        ${vents.length && window.ObPlan3D ? '<div class="pp-vents3d" data-vents3d></div>' : ''}
         ${vents.length ? `<div class="pp-vsum" aria-label="Vents by size">${ventKinds(vents).map((k) => `<span><b>${k.n}</b> ${esc(k.label)}</span>`).join('')}</div>` : ''}
         ${vents.length ? `<div class="pp-vlist" role="list">${rows}</div>` : `<div class="pp-empty" style="padding:22px 8px">${mate('head-thinking', 56)}<strong>No vents measured</strong>Add each vent with its size, type and finish.</div>`}
       </section>`;
@@ -5182,7 +5200,7 @@
     const knownSize = VENT_SIZES.includes(v.size);
     const root = openSheet(isNew ? 'New vent' : (v.room || `Vent ${i + 1}`), `
       <div class="pp-vsheet">
-        <div class="pp-vent-viz" id="ppVentViz">${ventSvg(v)}</div>
+        <div class="pp-vent-viz ${window.ObPlan3D ? 'is-3d' : ''}" id="ppVentViz">${window.ObPlan3D ? '' : ventSvg(v)}</div>
         <div class="pp-fields pp-vsheet-fields">
           <div class="pp-field pp-field--wide"><label for="ppVRoom">Room</label><input id="ppVRoom" data-txt="${p}.room" value="${esc(v.room)}" maxlength="80" placeholder="e.g. Master bedroom" ${dis} /></div>
           <div class="pp-field"><label for="ppVSize">Size</label><select id="ppVSize" data-vsize="${p}" ${dis}>${VENT_SIZES.map((sz) => `<option ${sz === v.size ? 'selected' : ''}>${sz}</option>`).join('')}<option value="__other" ${knownSize ? '' : 'selected'}>Other…</option></select>${knownSize ? '' : `<input data-txt="${p}.size" value="${esc(String(v.size || '').trim())}" maxlength="20" placeholder="e.g. 4x16" aria-label="Other size" ${dis} />`}</div>
@@ -5199,7 +5217,14 @@
           <button type="button" class="pp-btn pp-btn--pri" data-sheet-close>Done</button>
         </div>
       </div>`, { noFocus: !isNew });
-    const repaint = () => { const box = root.querySelector('#ppVentViz'); if (box) box.innerHTML = ventSvg(m.data.vents[i]); };
+    let vent3d = null; let ventT = 0;
+    const repaint = () => {
+      const box = root.querySelector('#ppVentViz'); if (!box) return;
+      if (!window.ObPlan3D) { box.innerHTML = ventSvg(m.data.vents[i]); return; }
+      clearTimeout(ventT);
+      ventT = setTimeout(async () => { if (vent3d) vent3d.destroy(); vent3d = null; box.innerHTML = ''; try { vent3d = await window.ObPlan3D.mountVent(box, m.data.vents[i]); } catch (_) { box.innerHTML = ventSvg(m.data.vents[i]); } }, 120);
+    };
+    repaint();
     const reopen = () => { closeSheet(); openVentSheet(i, isNew); };
     root.querySelectorAll('[data-txt]').forEach((el) => el.addEventListener('input', () => { const { obj, key } = measAt(el.getAttribute('data-txt')); obj[key] = el.value; measSaveSoon(); repaint(); }));
     root.querySelectorAll('[data-num]').forEach((el) => el.addEventListener('input', () => { const { obj, key } = measAt(el.getAttribute('data-num')); obj[key] = Math.max(1, Math.round(Number(el.value) || 1)); measSaveSoon(); }));
@@ -6625,12 +6650,47 @@
       const selected = (m.vizSel && m.vizSel[targetSi]) || 0;
       view.querySelectorAll(`[data-step-row^="${targetSi}:"]`).forEach((row) => row.classList.toggle('is-sel', row.getAttribute('data-step-row') === `${targetSi}:${selected}`));
     });
+    mountMeas3d(m);
   }
   function repaintVent(i) {
     const m = state.meas;
     const card = view.querySelectorAll('.pp-vent')[i];
     const box = card && card.querySelector('.pp-vent-viz');
     if (box && m.data.vents[i]) box.innerHTML = ventSvg(m.data.vents[i]);
+  }
+
+  /** 3D on the measurement: the whole stair, the selected tread up close, and the vents. */
+  let meas3d = [];
+  function mountMeas3d(m) {
+    meas3d.forEach((x) => { try { if (x.key && x.api && x.api.view) { m.view3d = m.view3d || {}; m.view3d[x.key] = x.api.view; } x.api.destroy(); } catch (_) { /* gone */ } });
+    meas3d = [];
+    if (!window.ObPlan3D) return;
+    const track = (key, p) => { const rec = { key, api: null }; meas3d.push(rec); p.then((a) => { if (meas3d.includes(rec)) rec.api = a; else a.destroy(); }).catch(() => {}); return p; };
+    view.querySelectorAll('[data-stair3d]').forEach((el) => {
+      const si = Number(el.getAttribute('data-stair3d')); const s = m.data.stairs[si]; if (!s) return;
+      const chain = stairChainFor(m.data, s.id);
+      const sel = (s.steps || [])[(m.vizSel && m.vizSel[si]) || 0];
+      const key = `stair:${chain[0] ? chain[0].id : s.id}`;
+      track(key, window.ObPlan3D.mountStair(el, chain.length ? chain : [s], {
+        selectedId: sel && sel.id,
+        view: m.view3d && m.view3d[key],
+        onPick: (stairId, stepId) => {
+          const fi = m.data.stairs.findIndex((x) => x.id === stairId); if (fi < 0) return;
+          const idx = (m.data.stairs[fi].steps || []).findIndex((x) => x.id === stepId); if (idx < 0) return;
+          m.vizSel[fi] = idx; m.activeStairId = stairId;
+          const y = window.scrollY; paintMeasurement(); window.scrollTo(0, y);
+        },
+      }).then((a) => { el.classList.add('is-3d'); return a; }));
+    });
+    view.querySelectorAll('[data-tread3d]').forEach((el) => {
+      const [si, i] = el.getAttribute('data-tread3d').split(':').map(Number);
+      const s = m.data.stairs[si]; const st = s && s.steps[i]; if (!st) return;
+      track('', window.ObPlan3D.mountTread(el, { stair: s, step: st, inch: fmtIn }).then((a) => { const w = el.querySelector('.pp-tread3d-wait'); if (w) w.remove(); return a; }));
+    });
+    view.querySelectorAll('[data-vents3d]').forEach((el) => {
+      const seen = new Set(); const kinds = (m.data.vents || []).filter((v) => { const k = `${v.size}|${v.type}`; if (seen.has(k)) return false; seen.add(k); return true; });
+      if (kinds.length) track('', window.ObPlan3D.mountVent(el, kinds));
+    });
   }
 
   function bindMeasurement() {
@@ -6663,6 +6723,14 @@
       m.vizSel[si] = i;
       repaintViz(si);
     }));
+    view.querySelectorAll('[data-tf]').forEach((b) => b.addEventListener('click', () => {
+      if (m.status === 'used') return;
+      const path = b.getAttribute('data-tf').split('.'); let o = m.data;
+      for (let k = 0; k < path.length - 1; k++) { o = o[/^\d+$/.test(path[k]) ? Number(path[k]) : path[k]]; if (!o) return; }
+      o[path[path.length - 1]] = b.getAttribute('data-v');
+      measSaveSoon(); redraw();
+    }));
+    mountMeas3d(m);
     view.querySelectorAll('[data-viz-stair]').forEach((box) => box.addEventListener('click', (e) => {
       const si = Number(box.getAttribute('data-viz-stair'));
       const s = m.data.stairs[si];

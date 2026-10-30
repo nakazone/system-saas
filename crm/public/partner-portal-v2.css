@@ -3020,3 +3020,31 @@ a.pp-lb-btn, a.pp-lb-btn:visited { color: #fff; }
 @media (prefers-reduced-motion: reduce) { .obp, .obp-card.is-in { animation: none; } .obp-quote { transition: none; } }
 .obp-ctl svg { width: 18px; height: 18px; fill: currentColor; display: block; margin: auto; }
 .obp .obp-play, .obp .obp-play:hover { color: #fff; } .obp .obp-play svg { fill: #fff; }
+
+/* Stairs & vents in 3D (measurement) */
+.pp-stair3d { position: relative; width: 100%; aspect-ratio: 4 / 3; min-height: 260px; border-radius: 16px; background: radial-gradient(110% 90% at 50% 10%, #FBF8F3 0%, #F1ECE4 70%, #E9E2D7 100%); overflow: hidden; }
+.pp-stair3d > canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; }
+.pp-stair3d.is-3d .pp-viz-fallback { display: none; }
+.pp-stair3d .pp-viz-fallback { position: absolute; inset: 0; display: grid; place-items: center; opacity: .55; }
+.pp-viz-3d:has(.pp-stair3d.is-3d) [data-viz-mirror] { display: none; }
+.pp-tread3d { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 14px; align-items: stretch; margin: 4px 0 12px; padding: 12px; border-radius: 16px; background: #FBF8F3; border: 1px solid #F0E6DA; }
+.pp-tread3d-stage { position: relative; min-height: 220px; border-radius: 12px; background: radial-gradient(100% 90% at 50% 20%, #FFFFFF 0%, #F3EEE6 75%); overflow: hidden; }
+.pp-tread3d-stage > canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; }
+.pp-tread3d-wait { position: absolute; inset: 0; display: grid; place-items: center; font-size: 13px; color: var(--pp-muted); }
+.pp-tread3d-opts { display: grid; gap: 10px; align-content: start; }
+.pp-tf-row > span { display: block; margin-bottom: 5px; font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--pp-muted); }
+.pp-tf { display: flex; flex-wrap: wrap; gap: 5px; }
+.pp-tf button { min-height: 32px; padding: 0 11px; border-radius: 999px; border: 1px solid var(--pp-border); background: #fff; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--pp-ink); cursor: pointer; }
+.pp-tf button[aria-pressed="true"] { background: var(--pp-ink); border-color: var(--pp-ink); color: #fff; }
+.pp-tf button:disabled { opacity: .55; cursor: default; }
+.pp-vents3d { position: relative; height: 220px; margin: 12px 16px 0; border-radius: 16px; background: radial-gradient(110% 90% at 50% 10%, #FBF8F3 0%, #F1ECE4 70%, #E9E2D7 100%); overflow: hidden; }
+.pp-vents3d > canvas, .pp-vent-viz.is-3d > canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; }
+.pp-vent-viz.is-3d { position: relative; height: 220px; border-radius: 16px; background: radial-gradient(110% 90% at 50% 10%, #FBF8F3 0%, #F1ECE4 70%, #E9E2D7 100%); overflow: hidden; }
+@media (max-width: 760px) {
+  .pp-tread3d { grid-template-columns: 1fr; }
+  .pp-tread3d-stage { min-height: 200px; }
+  .pp-stair3d { aspect-ratio: 1 / 1; }
+}
+.pp-tread3d { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); }
+.pp-tread3d-stage { aspect-ratio: 4 / 3; min-height: 0; align-self: start; }
+@media (max-width: 760px) { .pp-tread3d { grid-template-columns: 1fr; } }
