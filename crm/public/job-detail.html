@@ -125,6 +125,7 @@
           <button type="button" class="jcm-seg__btn is-active" data-jd-tab="visitas">Visitas</button>
           <button type="button" class="jcm-seg__btn" data-jd-tab="checklist">Checklist</button>
           <button type="button" class="jcm-seg__btn" data-jd-tab="fotos">Fotos</button>
+          <button type="button" class="jcm-seg__btn" data-jd-tab="stain">Stain</button>
           <button type="button" class="jcm-seg__btn" data-jd-tab="comunicacoes">Comunicações</button>
           <button type="button" class="jcm-seg__btn" data-jd-tab="servicos">Serviços</button>
           <button type="button" class="jcm-seg__btn" data-jd-tab="financeiro">Financeiro</button>
@@ -186,6 +187,7 @@
           <button type="button" role="tab" data-tab="servicos" aria-selected="false">Serviços e faturas</button>
           <button type="button" role="tab" data-tab="fotos" aria-selected="false">Fotos <em id="jdTabFotos"></em></button>
           <button type="button" role="tab" data-tab="campo" aria-selected="false">Campo <em id="jdTabCampo"></em></button>
+          <button type="button" role="tab" data-tab="stain" aria-selected="false">Stain <em id="jdTabStain"></em></button>
           <button type="button" role="tab" data-tab="conversa" aria-selected="false">Conversa</button>
           <button type="button" role="tab" data-tab="builder" aria-selected="false" hidden>Builder <em id="jdTabBuilder"></em></button>
         </nav>
@@ -287,6 +289,11 @@
           <div id="jdField"></div>
         </section>
 
+        <!-- Stain: samples, cor aprovada e assinada, histórico -->
+        <section class="jd-panel" data-panel="stain" role="tabpanel" hidden>
+          <div id="jdStain"></div>
+        </section>
+
         <!-- Builder: mensagens e fotos que o builder vê -->
         <section class="jd-panel" data-panel="builder" role="tabpanel" hidden>
           <div id="jdBuilderChannel"></div>
@@ -319,7 +326,8 @@
   <script src="jobs-info.js?v=20261028-jobs4"></script>
   <script src="cam-viewer.js?v=20261009-cam1"></script>
   <script src="job-builder-channel.js?v=20261030-ch1"></script>
-  <script src="job-detail.js?v=20261030-builder1"></script>
-  <script src="job-detail-mobile.js?v=20261028-jobs4"></script>
+  <script src="job-stain.js?v=20261030-stain1"></script>
+  <script src="job-detail.js?v=20261030-stain1"></script>
+  <script src="job-detail-mobile.js?v=20261030-stain1"></script>
 </body>
 </html>

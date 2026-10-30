@@ -791,6 +791,9 @@ model Organization {
   partnerUsers             PartnerUser[]
   partnerJobRequests       PartnerJobRequest[]
   jobPartnerMessages       JobPartnerMessage[]
+  stainSampleRounds        StainSampleRound[]
+  stainSamples             StainSample[]
+  stainApprovals           StainApproval[]
   builders                 Builder[]
   pricingItems             PricingItem[]
   suppliers                Supplier[]
@@ -1170,6 +1173,88 @@ model JobPartnerMessage {
   createdAt      DateTime     @default(now())
 
   @@index([organizationId, workOrderId, createdAt])
+}
+
+/// Samples de stain: one round of samples the sanding crew applied on the floor, sent to the client to pick and sign.
+model StainSampleRound {
+  id                String       @id @default(uuid()) @db.Uuid
+  organizationId    String       @db.Uuid
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workOrderId       String       @db.Uuid
+  workOrder         WorkOrder    @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  number            Int          @default(1)
+  woodSpecies       String?
+  room              String?
+  notes             String?      @db.Text
+  /// draft | sent | viewed | approved | changes_requested | superseded
+  status            String       @default("draft")
+  /// JobMedia id of the photo with every sample side by side
+  boardMediaId      String?      @db.Uuid
+  recipientName     String?
+  recipientEmail    String?
+  /// Job from a builder: send the approval to the builder's job (ObraBuilder) as an update
+  sendToBuilder     Boolean      @default(true)
+  createdById       String?      @db.Uuid
+  createdByName     String?
+  sentAt            DateTime?
+  viewedAt          DateTime?
+  decidedAt         DateTime?
+  builderNotifiedAt DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  samples   StainSample[]
+  approvals StainApproval[]
+
+  @@unique([organizationId, workOrderId, number])
+  @@index([organizationId, workOrderId])
+}
+
+model StainSample {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @db.Uuid
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  roundId        String           @db.Uuid
+  round          StainSampleRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  /// Number written on the tape on the floor (#1, #2…)
+  number         Int
+  /// duraseal | blend | natural | other
+  kind           String           @default("duraseal")
+  brand          String?
+  colorName      String
+  /// Blend parts: [{ color, percent }]
+  blend          Json?
+  /// JobMedia ids of the photos the crew took of this sample
+  mediaIds       Json             @default("[]")
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([organizationId, roundId])
+}
+
+/// The client's answer to a round: approved (signed) or asked for another sample. Never edited.
+model StainApproval {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @db.Uuid
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  roundId        String           @db.Uuid
+  round          StainSampleRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  workOrderId    String           @db.Uuid
+  workOrder      WorkOrder        @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  sampleId       String?          @db.Uuid
+  /// approved | needs_sample
+  decision       String
+  signerName     String?
+  signatureKey   String?
+  termsText      String?          @db.Text
+  comment        String?          @db.Text
+  ip             String?
+  userAgent      String?
+  pdfKey         String?
+  createdAt      DateTime         @default(now())
+
+  @@index([organizationId, workOrderId])
+  @@index([roundId])
 }
 
 // ---------------------------------------------------------------------------
@@ -2651,6 +2736,8 @@ model WorkOrder {
   startReminderSentAt                  DateTime?
   /// Set when the "starts now" nudge / office auto-start ran (dedupe).
   startNudgeSentAt                     DateTime?
+  /// Stain color the client approved and signed (Samples de stain). Locks the color for the crew.
+  approvedStainSampleId                String?      @db.Uuid
   createdAt                            DateTime     @default(now())
   updatedAt                            DateTime     @updatedAt
 
@@ -2671,6 +2758,8 @@ model WorkOrder {
   invoices           QuoteInvoice[]
   partnerRequests    PartnerJobRequest[]
   partnerMessages    JobPartnerMessage[]
+  stainRounds        StainSampleRound[]
+  stainApprovals     StainApproval[]
   inspections        JobInspection[]
   measurements       JobMeasurement[]
   chatConversation   ChatConversation?

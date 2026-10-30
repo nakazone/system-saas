@@ -27,6 +27,7 @@ import { quotesRouter, publicQuotesRouter } from "./modules/quotes/routes.js";
 import { invoicesRouter } from "./modules/invoices/routes.js";
 import { publicInvoicesRouter } from "./modules/invoices/public-routes.js";
 import { publicJobsRouter } from "./modules/work-orders/public-routes.js";
+import { publicStainRouter } from "./modules/stain/public-routes.js";
 import { publicFolhaRouter } from "./modules/folha/public-routes.js";
 import { scheduleCalendarFeedPublicRouter } from "./crm/routes/schedule-calendar-feed.js";
 import { scheduleIcsPublicRouter } from "./crm/routes/schedule-ics-public.js";
@@ -242,6 +243,8 @@ export function createApp() {
   app.use(maintenanceGuard);
 
   // Public quote links (token-based, no subdomain tenant required)
+  // Samples de stain: the client picks the color and signs (/public/stain/<token>)
+  app.use("/public/stain", publicStainRouter);
   app.use("/public", publicQuotesRouter);
   app.use("/public/invoices", publicInvoicesRouter);
   app.use("/public/jobs", publicJobsRouter);

@@ -14,7 +14,7 @@
   };
   const SOURCE = { particular: "Particular", builder: "Builder", contractor: "Builder", loja: "Builder", internal: "Interno", other: "Outro" };
   const STAGE = { before: "Antes", during: "Durante", after: "Depois" };
-  const TABS = ["geral", "servicos", "fotos", "campo", "conversa", "builder"];
+  const TABS = ["geral", "servicos", "fotos", "campo", "stain", "conversa", "builder"];
 
   let jobId = null;
   let job = null;
@@ -1008,6 +1008,9 @@
         loadField().then(renderField);
       } else renderField();
     }
+    if (tab === "stain" && window.JobStain) {
+      window.JobStain.mount($("jdStain"), { jobId, notify });
+    }
     if (tab === "builder" && window.JobBuilderChannel) {
       window.JobBuilderChannel.mount($("jdBuilderChannel"), { jobId, canManage: canManage, notify });
     }
@@ -1453,6 +1456,7 @@
       const bTab = document.querySelector('#jdTabs [data-tab="builder"]');
       if (bTab) bTab.hidden = !hasPartnerPortal();
       if (hasPartnerPortal() && window.JobBuilderChannel) window.JobBuilderChannel.count(jobId);
+      if (window.JobStain) window.JobStain.summary(jobId);
       const want = (location.hash || "").replace("#", "");
       setTab(want === "builder" && !hasPartnerPortal() ? "geral" : want || "geral", { silent: true });
 

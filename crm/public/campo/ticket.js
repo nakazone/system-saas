@@ -1439,6 +1439,20 @@
       return;
     }
     bind();
+    const stainLink = $("cmStainLink");
+    if (stainLink) {
+      stainLink.href = `stain.html?id=${encodeURIComponent(jobId)}`;
+      fetch(`/api/work-orders/${encodeURIComponent(jobId)}/stain`, { credentials: "same-origin" })
+        .then((r) => r.json())
+        .then((j) => {
+          const d = j && j.data;
+          const sub = $("cmStainLinkSub");
+          if (!d || !sub) return;
+          if (d.approved) sub.textContent = `Aprovado: ${d.approved.sample.display_name}`;
+          else if (d.rounds.length) sub.textContent = `Rodada ${d.rounds[d.rounds.length - 1].number} · ${d.rounds[d.rounds.length - 1].status_label}`;
+        })
+        .catch(() => {});
+    }
     try {
       const json = await api(`/api/campo/jobs/${encodeURIComponent(jobId)}`);
       apply(json.data);

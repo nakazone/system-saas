@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#F7F8FA" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Samples de stain | Campo</title>
+  <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="campo.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="stain.css?v=20261030-stain1" />
+  <script src="/om-device.js?v=20261013-badge1"></script>
+  <link rel="manifest" href="/manifest.json?v=20260930-native2" />
+</head>
+<body class="cm-app st-app">
+  <main class="st" id="stRoot">
+    <header class="st-top">
+      <button type="button" class="st-back" id="stBack" aria-label="Voltar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div class="st-top__txt">
+        <span id="stJobLine">Job</span>
+        <h1 id="stTitle">Samples de stain</h1>
+      </div>
+    </header>
+    <div id="stView" class="st-view" aria-live="polite"><p class="st-empty">A carregar…</p></div>
+  </main>
+  <div class="st-bar" id="stBar" hidden></div>
+  <input type="file" id="stCamera" accept="image/*" capture="environment" hidden />
+  <div class="st-toast" id="stToast" role="status" hidden></div>
+  <script src="stain.js?v=20261030-stain1"></script>
+</body>
+</html>

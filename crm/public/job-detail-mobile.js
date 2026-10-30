@@ -636,6 +636,12 @@
         .catch((e) => {
           if (detTab === "checklist") $("jobMobExtra").innerHTML = `<p class="jcm-empty">${escapeHtml(e.message || "Erro")}</p>`;
         });
+    } else if (detTab === "stain") {
+      cta.textContent = "Samples de stain";
+      cta.className = "jcm-foot__btn jcm-foot__btn--primary";
+      cta.dataset.action = "stain";
+      if (window.JobStain) window.JobStain.mount($("jobMobExtra"), { jobId: wo.id, compact: true });
+      else $("jobMobExtra").innerHTML = `<p class="jcm-empty">Stain indisponível.</p>`;
     } else if (detTab === "comunicacoes") {
       cta.textContent = "Abrir canal";
       cta.className = "jcm-foot__btn jcm-foot__btn--primary";
@@ -880,6 +886,10 @@
         }
         if (action === "campo") {
           location.href = `campo/ticket.html?id=${encodeURIComponent(jobId)}`;
+          return;
+        }
+        if (action === "stain") {
+          location.href = `campo/stain.html?id=${encodeURIComponent(jobId)}`;
           return;
         }
         if (action === "comms-channel") {
