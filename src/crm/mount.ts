@@ -102,7 +102,7 @@ function injectBranding(html: string, extra = ""): string {
 
 /**
  * The company's trade pack for the browser: phase keys and labels (hardwood: Instalação / Lixa)
- * so screens stop hardcoding them. Pages keep their old literals as a fallback.
+ * and the customer quote sections and tagline, so screens stop hardcoding them. Pages keep their old literals as a fallback.
  */
 export function tradeInject(tradePacks: unknown): string {
   const pack = primaryPack(tradePacks);
@@ -110,6 +110,7 @@ export function tradeInject(tradePacks: unknown): string {
     id: pack.id,
     phases: pack.phases.map((p) => ({ key: p.key, label: p.label })),
     combined: pack.combinedPhaseKey,
+    quote: { tagline: pack.quote.tagline, sections: pack.quote.sections.map((s) => ({ key: s.key, label: s.label })) },
   }).replace(/</g, "\\u003c");
   return `<script>window.__OM_TRADE=${boot}</script>`;
 }

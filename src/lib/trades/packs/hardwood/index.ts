@@ -26,5 +26,6 @@ export const hardwood: TradePack = {
   combinedPhaseKey: "both",
   ai: {
     companyKind: "flooring installation companies",
+    tradeNoun: "flooring",
   },
 };

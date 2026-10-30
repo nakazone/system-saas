@@ -24,6 +24,15 @@
     { key: 'sand_finish', label: 'SAND & FINISH' },
     { key: 'add_on', label: 'ADD ON' },
   ];
+  // Section labels and the default tagline come from the company's trade pack when the server injects it.
+  const TRADE_QUOTE = window.__OM_TRADE && window.__OM_TRADE.quote ? window.__OM_TRADE.quote : null;
+  if (TRADE_QUOTE) {
+    if (TRADE_QUOTE.tagline) COMPANY.tagline = TRADE_QUOTE.tagline;
+    for (const t of TRADE_QUOTE.sections || []) {
+      const s = SECTION_DEFS.find((x) => x.key === t.key);
+      if (s && t.label) s.label = t.label;
+    }
+  }
 
   const money = (n) =>
     '$' +

@@ -7,6 +7,10 @@ import {
   isAiConfigured,
 } from "../ai/client.js";
 import { resolveImagesForAi } from "../storage/resolve.js";
+import { getPack } from "../trades/index.js";
+
+/** The trade word the AI uses for this product's companies (hardwood pack: "flooring"). */
+const TRADE_NOUN = getPack().ai.tradeNoun;
 
 export const JOB_REPORT_TEMPLATES = [
   "site_visit",
@@ -138,7 +142,7 @@ export type PhotoContext = {
   author_name?: string | null;
 };
 
-const SYSTEM = `You write concise field job photo reports for US flooring / construction crews.
+const SYSTEM = `You write concise field job photo reports for US ${TRADE_NOUN} / construction crews.
 Return ONLY JSON with keys:
 - title: string (short)
 - summary: string (2-4 sentences)
