@@ -598,9 +598,13 @@ buildersPricingRouter.post(
   async (req: AuthedRequest, res, next) => {
     try {
       const emptyOnly = Boolean(req.body?.empty_only);
-      const created = await withTenantTransaction(req.organizationId!, async (tx) =>
-        seedDefaultPricingServices(tx as never, req.organizationId!, { emptyOnly }),
-      );
+      const created = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const org = await tx.organization.findUnique({
+          where: { id: req.organizationId! },
+          select: { tradePacks: true },
+        });
+        return seedDefaultPricingServices(tx as never, req.organizationId!, { emptyOnly, trades: org?.tradePacks });
+      });
       const rows = await withTenantTransaction(req.organizationId!, async (tx) =>
         tx.pricingItem.findMany({ orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
       );

@@ -39,13 +39,14 @@ import {
   personCalendarTitle,
 } from "../../lib/schedule/lead-visit-ics.js";
 import { calendarNickFromBuilders, isBuilderParty, jobCalendarTitle, visitBlockEnd } from "../../lib/schedule/calendar-label.js";
+import { phaseKeys } from "../../lib/trades/index.js";
 
-const WO_SECTORS = ["installation", "sand_finish", "both"] as const;
+/** Job phases from the trade pack (hardwood: installation, sand_finish, both). */
+const WO_SECTORS: readonly string[] = phaseKeys();
 
 function normalizeWoSector(raw: unknown): string | null {
   const v = String(raw || "").trim().toLowerCase();
-  if (v === "installation" || v === "sand_finish" || v === "both") return v;
-  return null;
+  return WO_SECTORS.includes(v) ? v : null;
 }
 
 async function resolveRelatedWorkOrderId(
@@ -1067,7 +1068,7 @@ const workOrderBody = z.object({
     .nullable(),
   assigned_user_id: z.string().uuid().optional().nullable(),
   crew_id: z.string().uuid().optional().nullable(),
-  sector: z.enum(WO_SECTORS).optional().nullable(),
+  sector: z.enum(WO_SECTORS as [string, ...string[]]).optional().nullable(),
   related_work_order_id: z.string().uuid().optional().nullable(),
   member_user_ids: z.array(z.string().uuid()).optional(),
   line_items: z.array(lineItemBody).max(50).optional(),

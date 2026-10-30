@@ -174,7 +174,7 @@ export async function createOrganizationWithAdmin(input: SignupInput) {
 
     await seedDefaultChecklistTemplates(tx as never, organization.id);
     await seedDefaultPaymentTemplates(tx as never, organization.id);
-    await seedDefaultPricingServices(tx as never, organization.id, { emptyOnly: true });
+    await seedDefaultPricingServices(tx as never, organization.id, { emptyOnly: true, trades: organization.tradePacks });
 
     return { organization, admin };
   }, {

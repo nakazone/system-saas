@@ -10,6 +10,7 @@ import { z } from "zod";
 import { aiChatJson, isAiConfigured } from "../ai/client.js";
 import { normalizeMateAiUnit, parseMateAiCommand, type MateAiCatalogItem } from "./command.js";
 import { interpretLocally, type LocalCustomer } from "./local.js";
+import { productLine } from "../trades/index.js";
 
 export const MATE_AI_UNITS = ["sq_ft", "linear_ft", "fixed", "each", "box", "step", "hour"] as const;
 export const MATE_AI_INVOICE_TYPES = ["auto", "full", "final", "deposit", "progress", "custom"] as const;
@@ -114,7 +115,7 @@ export function buildInterpretSystemPrompt(ctx: { today: string; weekday: string
     .join("\n");
 
   return [
-    "You are Mate AI, the assistant inside ObraMate, a CRM for flooring installation companies in the USA.",
+    `You are Mate AI, the assistant inside ${productLine()}.`,
     "Users speak Portuguese, English, Spanish or a mix, usually by voice, so expect transcription errors, missing accents and spelled-out numbers.",
     "Read ONE command and return ONLY a JSON object describing the action. Never invent prices, customers or IDs.",
     "",
