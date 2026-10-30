@@ -7,7 +7,7 @@
 import { z } from "zod";
 
 /** What kind of floor a legend entry is — drives waste, services and the 3D finish. */
-export const FLOOR_KINDS = ["hardwood", "lvp", "laminate", "carpet", "rubber", "tile", "stone", "other"] as const;
+export const FLOOR_KINDS = ["hardwood", "lvp", "laminate", "carpet", "rubber", "tile", "stone", "concrete", "other"] as const;
 export type FloorKind = (typeof FLOOR_KINDS)[number];
 
 /** Only these are flooring jobs for now (tile, stone, shower pans, countertops stay out). */
@@ -21,6 +21,7 @@ export const KIND_LABEL: Record<FloorKind, string> = {
   rubber: "Rubber floor",
   tile: "Tile",
   stone: "Stone",
+  concrete: "Polished concrete",
   other: "Other",
 };
 
@@ -37,6 +38,10 @@ const materialSchema = z.object({
   sand_finish: z.boolean().optional().default(false),
   /** Product the builder picked: species, width, thickness, finish, brand, color… (see SPEC_FIELDS). */
   spec: z.record(z.string().max(24), z.string().trim().max(80)).optional().default({}),
+  /** A color that means another floor on some sheets ("Polished concrete throughout" in the basement). */
+  pages: z.array(z.number().int().min(1).max(200)).max(50).optional(),
+  not_pages: z.array(z.number().int().min(1).max(200)).max(50).optional(),
+  where: z.string().trim().max(120).optional(),
 });
 
 const roomSchema = z.object({
@@ -75,6 +80,35 @@ const levelSchema = z.object({
   grid: gridSchema.nullable().optional().default(null),
   /** Small preview of the sheet (stored file key). */
   preview: z.string().trim().max(300).nullable().optional().default(null),
+  /** Sheet size in PDF points (to turn a box on the preview into feet). */
+  sheet_pt_w: z.number().min(1).max(20000).optional(),
+  sheet_pt_h: z.number().min(1).max(20000).optional(),
+});
+
+/** A stair seen on the plans (tread lines / UP-DN), or marked by hand; linked to a measured stair. */
+const frac = z.number().min(0).max(1);
+const planStairSchema = z.object({
+  id: key,
+  page: z.number().int().min(1).max(200),
+  level_id: z.string().trim().max(40).optional(),
+  level: z.string().trim().max(60).optional(),
+  fx0: frac, fy0: frac, fx1: frac, fy1: frac,
+  x0: z.number().optional(), y0: z.number().optional(), x1: z.number().optional(), y1: z.number().optional(),
+  orient: z.string().trim().max(20).optional(),
+  treads: z.number().int().min(0).max(60),
+  width_in: z.number().min(0).max(200),
+  run_in: z.number().min(0).max(1200).optional(),
+  tread_in: z.number().min(0).max(30),
+  dir: z.string().trim().max(10).optional(),
+  confidence: z.string().trim().max(10).optional(),
+  manual: z.boolean().optional(),
+  manual_est: z.boolean().optional(),
+  dismissed: z.boolean().optional(),
+  same_as: z.string().trim().max(40).optional(),
+  seen_on: z.number().int().optional(),
+  treads_alt: z.number().int().optional(),
+  /** id of the stair in the measurement it is (built from the plan or measured on site). */
+  stair_id: z.string().trim().max(40).optional(),
 });
 
 export const planSchema = z.object({
@@ -87,6 +121,7 @@ export const planSchema = z.object({
   }).nullable().optional().default(null),
   materials: z.array(materialSchema).max(24).optional().default([]),
   levels: z.array(levelSchema).max(12).optional().default([]),
+  stairs: z.array(planStairSchema).max(40).optional().default([]),
   analyzed_at: z.string().max(40).nullable().optional().default(null),
   /** Picture of the 3D model (stored file key), used on the PDF. */
   snapshot: z.string().trim().max(300).nullable().optional().default(null),
@@ -110,6 +145,7 @@ export const SPEC_FIELDS: Record<FloorKind, string[]> = {
   rubber: ["brand", "color", "thickness"],
   tile: ["brand", "color", "size"],
   stone: ["brand", "color", "size"],
+  concrete: ["color"],
   other: ["brand", "color"],
 };
 export const SPEC_LABEL: Record<string, string> = {
@@ -133,7 +169,7 @@ export function specText(m: { kind: FloorKind; spec?: Record<string, string> }):
 
 /* ───────────────────────────── settings (waste) ───────────────────────────── */
 
-export const DEFAULT_WASTE: Record<FloorKind, number> = { hardwood: 10, lvp: 10, laminate: 10, carpet: 12, rubber: 8, tile: 12, stone: 12, other: 10 };
+export const DEFAULT_WASTE: Record<FloorKind, number> = { hardwood: 10, lvp: 10, laminate: 10, carpet: 12, rubber: 8, tile: 12, stone: 12, concrete: 0, other: 10 };
 
 const settingsSchema = z.object({
   waste: z.record(z.string().max(20), z.number().min(0).max(50)).optional().default({}),

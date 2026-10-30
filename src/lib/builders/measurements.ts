@@ -76,6 +76,8 @@ const stairSchema = z.object({
   nosings: z.array(nosingSchema).max(40).optional().default([]),
   photos: z.array(photoKey).max(12).optional().default([]),
   note: text(500),
+  /** The stair on the floor plans this is (plan.stairs[].id). */
+  plan_ref: z.string().trim().max(40).optional(),
 });
 
 const ventSchema = z.object({

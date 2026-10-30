@@ -827,6 +827,193 @@
     return true;
   }
 
+  /* ───────────── stairs on the plans ───────────── */
+
+  /**
+   * Stairs drawn on a sheet: a run of short parallel lines (the tread nosings), evenly spaced 8–14"
+   * apart and 2½–6' long, usually with UP / DN next to them. Works over highlighter fills (the lines
+   * are found by contrast with the pixels just above and below). Returns boxes in sheet pt with an
+   * estimate of treads, width and tread depth.
+   */
+  async function findStairs(sheet, ppf) {
+    if (!ppf) return [];
+    let Z = Math.min(4, Math.max(1, 14 / ppf));
+    if (sheet.ptW * sheet.ptH * Z * Z > 14e6) Z = Math.sqrt(14e6 / (sheet.ptW * sheet.ptH));
+    const r = await render(sheet, Z);
+    const { W, H } = r;
+    const img = r.ctx.getImageData(0, 0, W, H).data;
+    r.canvas.width = 1; r.canvas.height = 1;
+    const L = new Uint8Array(W * H);
+    const Sat = new Uint8Array(W * H);
+    for (let i = 0, p = 0; p < L.length; p++, i += 4) {
+      L[p] = (img[i] * 77 + img[i + 1] * 150 + img[i + 2] * 29) >> 8;
+      Sat[p] = Math.max(img[i], img[i + 1], img[i + 2]) - Math.min(img[i], img[i + 1], img[i + 2]);
+    }
+    const pxft = ppf * Z;
+    const minLen = 2.3 * pxft; const maxLen = 6.6 * pxft;
+    const minGap = 0.62 * pxft; const maxGap = 1.2 * pxft;
+    const d = Math.max(2, Math.round(pxft * 0.18)); // ~2" away: the paper / fill beside a thin line
+    await tick();
+    const found = [];
+    for (const horiz of [true, false]) {
+      // thin lines across the run direction
+      const A = horiz ? H : W; const B = horiz ? W : H;
+      const at = horiz ? (a, b) => a * W + b : (a, b) => b * W + a;
+      const lines = [];
+      for (let a = d; a < A - d; a++) {
+        let start = -1; let gap = 0;
+        const runs = [];
+        for (let b = 0; b <= B; b++) {
+          let on = false;
+          if (b < B) {
+            const v = L[at(a, b)];
+            const n1 = L[at(a - d, b)]; const n2 = L[at(a + d, b)];
+            on = (v < 230 && v + 10 < n1 && v + 10 < n2 && Math.abs(n1 - n2) < 30)
+              // on a strong highlighter the tread lines can come out lighter than the fill
+              || (v > n1 + 9 && v > n2 + 9 && Math.abs(n1 - n2) < 24 && Sat[at(a - d, b)] > 110 && Sat[at(a + d, b)] > 110);
+          }
+          if (on) { if (start < 0) start = b; gap = 0; } else if (start >= 0) {
+            gap++;
+            if (gap > 2 || b === B) {
+              const end = b - gap;
+              if (end - start + 1 >= 2) runs.push([start, end]);
+              start = -1; gap = 0;
+            }
+          }
+        }
+        // a tread line crossed by the UP arrow or a break mark is cut in two: join pieces ~5" apart
+        // (dashed tread lines — the part of the stair above the cut — are pieces too)
+        for (let k = 0; k < runs.length; k++) {
+          let [s0, e0] = runs[k]; let ink = e0 - s0 + 1;
+          while (k + 1 < runs.length && runs[k + 1][0] - e0 <= 0.42 * pxft) { e0 = runs[k + 1][1]; ink += runs[k + 1][1] - runs[k + 1][0] + 1; k++; }
+          const len = e0 - s0 + 1;
+          if (len >= minLen && len <= maxLen && ink >= len * 0.45) lines.push({ a, b0: s0, b1: e0 });
+        }
+        if (a % 300 === 0) await tick();
+      }
+      // a line drawn 2–3 px thick: one line
+      lines.sort((p, q) => p.b0 - q.b0 || p.a - q.a);
+      const merged = [];
+      for (const ln of lines) {
+        const m = merged.find((x) => ln.a - x.a1 <= 2 && ln.a >= x.a0 && Math.abs(x.b0 - ln.b0) < 4 && Math.abs(x.b1 - ln.b1) < 4);
+        if (m) { m.a1 = ln.a; m.b0 = Math.min(m.b0, ln.b0); m.b1 = Math.max(m.b1, ln.b1); } else merged.push({ a0: ln.a, a1: ln.a, b0: ln.b0, b1: ln.b1 });
+      }
+      for (const m of merged) m.a = (m.a0 + m.a1) / 2;
+      if (window.__stairDebug) console.log('stairdbg', sheet.page, horiz, 'Z', Z.toFixed(2), 'lines', lines.length, 'merged', merged.length, 'pxft', pxft.toFixed(1));
+      // runs of lines across the same width, evenly spaced (a line hidden by the UP arrow or a label may be missing)
+      const overlap = (p, q0, q1) => Math.min(p.b1, q1) - Math.max(p.b0, q0);
+      const used = new Set();
+      merged.sort((p, q) => p.a - q.a);
+      const chains = [];
+      for (let i = 0; i < merged.length; i++) {
+        if (used.has(i)) continue;
+        const base = merged[i];
+        const chain = [i];
+        let lo = base.b0; let hi = base.b1; let last = base; const gaps = [];
+        for (let j = i + 1; j < merged.length; j++) {
+          const c = merged[j];
+          const g = c.a - last.a;
+          const step = gaps.length ? median(gaps) : 0;
+          const limit = step ? Math.min(maxGap * 2.4, step * 2.3) : maxGap;
+          if (g > limit) { if (g > maxGap * 3) break; continue; }
+          if (g < minGap) continue;
+          const w = Math.min(hi - lo, c.b1 - c.b0);
+          if (overlap(c, lo, hi) < w * 0.6 || Math.abs((c.b1 - c.b0) - (hi - lo)) > Math.max(hi - lo, c.b1 - c.b0) * 0.45) continue;
+          if (g <= maxGap) gaps.push(g);
+          chain.push(j); last = c;
+          lo = Math.min(lo, c.b0); hi = Math.max(hi, c.b1);
+        }
+        if (window.__stairDebug && chain.length >= 3) console.log('stairdbg chain', sheet.page, horiz, chain.length, JSON.stringify(chain.map((k) => [Math.round(merged[k].a / Z), Math.round(merged[k].b0 / Z), Math.round(merged[k].b1 / Z)])));
+        if (chain.length < 3 || !gaps.length) continue;
+        chain.forEach((k) => used.add(k));
+        const ls = chain.map((k) => merged[k]);
+        const spacing = median(gaps);
+        chains.push({ a0: ls[0].a, a1: ls[ls.length - 1].a, b0: median(ls.map((x) => x.b0)), b1: median(ls.map((x) => x.b1)), spacing, n: ls.length });
+      }
+      // one flight cut by a break line or a label: same width, close together
+      chains.sort((p, q) => p.a0 - q.a0);
+      for (let k = 0; k < chains.length; k++) {
+        const p = chains[k]; if (!p) continue;
+        for (let m = k + 1; m < chains.length; m++) {
+          const q = chains[m]; if (!q) continue;
+          const w = Math.min(p.b1 - p.b0, q.b1 - q.b0);
+          if (Math.min(p.b1, q.b1) - Math.max(p.b0, q.b0) > w * 0.7 && q.a0 - p.a1 > 0 && q.a0 - p.a1 < 3 * pxft && Math.abs(p.spacing - q.spacing) < Math.max(p.spacing, q.spacing) * 0.3) {
+            p.a1 = q.a1; p.b0 = Math.min(p.b0, q.b0); p.b1 = Math.max(p.b1, q.b1); p.n += q.n; p.spacing = (p.spacing + q.spacing) / 2; chains[m] = null;
+          }
+        }
+      }
+      for (const c of chains) {
+        if (!c) continue;
+        const steps = Math.round((c.a1 - c.a0) / c.spacing);
+        // one flight has 3–18 steps; more evenly spaced lines are decking, siding or a hatch
+        if (steps < 3 || steps > 18) continue;
+        const box = horiz ? { x0: c.b0 / Z, x1: c.b1 / Z, y0: c.a0 / Z, y1: c.a1 / Z } : { x0: c.a0 / Z, x1: c.a1 / Z, y0: c.b0 / Z, y1: c.b1 / Z };
+        found.push({ ...box, horiz, lines: steps + 1, spacing: c.spacing / Z });
+      }
+    }
+    // overlapping finds: keep the one that looks most like a stair (tread spacing ~10", UP/DN beside it, more steps)
+    const wordsAll = (sheet.lines || []).filter((l) => /^(UP|DN|DOWN|STAIRS?|STEPS?)\b/i.test(l.text.trim()));
+    const treadIn = (f) => (f.spacing / ppf) * 12;
+    const score = (f) => f.lines + (treadIn(f) >= 8.5 && treadIn(f) <= 11.75 ? 4 : 0)
+      + (wordsAll.some((w) => w.cx > f.x0 - 2.5 * ppf && w.cx < f.x1 + 2.5 * ppf && w.cy > f.y0 - 2.5 * ppf && w.cy < f.y1 + 2.5 * ppf) ? 5 : 0);
+    found.sort((p, q) => score(q) - score(p));
+    const keep = [];
+    for (const f of found) {
+      const ov = keep.find((k) => Math.min(k.x1, f.x1) - Math.max(k.x0, f.x0) > 0 && Math.min(k.y1, f.y1) - Math.max(k.y0, f.y0) > 0);
+      if (!ov) keep.push(f);
+    }
+    // UP / DN / STAIR text near a run says which way it goes (and confirms it is a stair)
+    const words = (sheet.lines || []).filter((l) => /^(UP|DN|DOWN|STAIRS?|STEPS?)\b/i.test(l.text.trim()));
+    // rows of a note are evenly spaced too: a run with text lines inside is a note, not a stair
+    const isNote = (f) => (sheet.lines || []).filter((l) => {
+      const t = l.text.trim();
+      // words of a sentence across most of the run (not a dimension, R.O., or UP)
+      return /[A-Z]{3,}\s+[A-Z]{2,}/i.test(t) && !/\d['"]/.test(t) && (l.x1 - l.x0) > (f.x1 - f.x0) * 0.4 && l.cx > f.x0 && l.cx < f.x1 && l.cy > f.y0 - 2 && l.cy < f.y1 + 2;
+    }).length >= 2;
+    return keep.filter((f) => !isNote(f)).map((f, i) => {
+      const pad = 2.5 * ppf;
+      const near = words.filter((w) => w.cx > f.x0 - pad && w.cx < f.x1 + pad && w.cy > f.y0 - pad && w.cy < f.y1 + pad);
+      const dir = near.find((w) => /^UP/i.test(w.text)) ? 'up' : near.find((w) => /^(DN|DOWN)/i.test(w.text)) ? 'down' : '';
+      const widthPt = f.horiz ? f.x1 - f.x0 : f.y1 - f.y0;
+      const runPt = f.horiz ? f.y1 - f.y0 : f.x1 - f.x0;
+      const tread = (f.spacing / ppf) * 12;
+      return {
+        id: `ps${sheet.page}-${i + 1}`,
+        page: sheet.page,
+        x0: Math.round(f.x0 * 10) / 10, y0: Math.round(f.y0 * 10) / 10, x1: Math.round(f.x1 * 10) / 10, y1: Math.round(f.y1 * 10) / 10,
+        // fractions of the sheet, to frame it on the preview
+        fx0: f.x0 / sheet.ptW, fy0: f.y0 / sheet.ptH, fx1: f.x1 / sheet.ptW, fy1: f.y1 / sheet.ptH,
+        orient: f.horiz ? 'vertical-run' : 'horizontal-run',
+        treads: Math.max(1, f.lines - 1),
+        width_in: Math.round((widthPt / ppf) * 12 / 0.5) * 0.5,
+        run_in: Math.round((runPt / ppf) * 12),
+        tread_in: Math.round(tread * 4) / 4,
+        dir,
+        // interior treads are 9–11½" deep; shelves, siding and decking are spaced otherwise
+        confidence: near.length && tread >= 8.5 && tread <= 12 ? 'high'
+          : (tread >= 8.5 && tread <= 11.75 && (f.lines >= 5 || (f.lines >= 4 && (widthPt / ppf) * 12 >= 30 && (widthPt / ppf) * 12 <= 50))) ? 'medium' : 'low',
+      };
+    }).filter((s) => s.confidence !== 'low');
+  }
+
+  /**
+   * The same stair drawn on two floors (going up on one, seen from above on the next) is one stair:
+   * the one on the floor above becomes a view of the one below.
+   */
+  function joinStairsAcrossSheets(list, sheets) {
+    const order = new Map(sheets.map((sh) => [sh.page, sh.order ?? sh.page]));
+    const sorted = list.slice().sort((a, b) => (order.get(a.page) || 0) - (order.get(b.page) || 0));
+    for (const s of sorted) {
+      if (s.same_as) continue;
+      const tol = 0.04;
+      // a flight that goes UP from that floor is its own stair (stairs stack in the same place)
+      const other = sorted.find((o) => o !== s && !o.same_as && o.dir !== 'up' && o.page !== s.page && (order.get(o.page) || 0) === (order.get(s.page) || 0) + 1
+        && Math.abs(o.fx0 - s.fx0) < tol && Math.abs(o.fx1 - s.fx1) < tol && Math.min(o.fy1, s.fy1) - Math.max(o.fy0, s.fy0) > 0);
+      if (other) { other.same_as = s.id; s.seen_on = other.page; if (other.treads > s.treads && other.tread_in >= 8.5) { s.treads_alt = other.treads; } }
+    }
+    return list;
+  }
+
   function boxOf(col) {
     const xs = col.map((h) => h.line.x0); const xe = col.map((h) => h.line.x1); const ys = col.map((h) => h.line.y0); const ye = col.map((h) => h.line.y1);
     return { x0: Math.min(...xs) - 45, x1: Math.max(...xe) + 25, y0: Math.min(...ys) - 18, y1: Math.max(...ye) + 18 };
@@ -863,6 +1050,8 @@
         page: sheet.page,
         name: sheet.name,
         scale_ppf: ppf,
+        sheet_pt_w: Math.round(sheet.ptW * 10) / 10,
+        sheet_pt_h: Math.round(sheet.ptH * 10) / 10,
         scale_auto: Boolean(sheet.ppf && Math.abs(sheet.ppf - ppf) < 1e-6),
         include: rooms.length > 0,
         floor: sheet.order,
@@ -884,5 +1073,5 @@
     return hexOf([0, 1, 2].map((k) => median(px.map((p) => p[k]))));
   }
 
-  window.ObTakeoff = { open, legend, markupColors, onSheet, readSheet, render, zoomFor, colorAt, decodeGrid, decodeRle, parseDim, FLOORING, _test: { scaleFromDims, legendKind, cleanRoom, noteKind } };
+  window.ObTakeoff = { open, legend, markupColors, onSheet, findStairs, joinStairsAcrossSheets, readSheet, render, zoomFor, colorAt, decodeGrid, decodeRle, parseDim, FLOORING, _test: { scaleFromDims, legendKind, cleanRoom, noteKind } };
 })();

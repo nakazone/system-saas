@@ -4600,7 +4600,7 @@
         ? '<span class="pp-flight-landing-chip"><small>LANDING</small><strong>' + esc(fmtIn(stair.landing.width) || '—') + ' × ' + esc(fmtIn(stair.landing.depth) || '—') + ' in</strong></span>'
         : '';
       return '<button type="button" class="pp-flight-tab' + (stair.id === activeId ? ' is-active' : '') + '" data-stair-activate="' + esc(stair.id) + '" role="tab" aria-selected="' + (stair.id === activeId) + '">'
-        + '<span class="pp-flight-tab-index">' + String(index + 1).padStart(2, '0') + '</span><span class="pp-flight-tab-copy"><strong>' + esc(title) + '</strong><small>' + counts.treads + ' treads · ' + counts.risers + ' risers</small></span>'
+        + '<span class="pp-flight-tab-index">' + String(index + 1).padStart(2, '0') + '</span><span class="pp-flight-tab-copy"><strong>' + esc(title) + '</strong><small>' + counts.treads + ' treads · ' + counts.risers + ' risers' + (stair.plan_ref && m.data.plan && (m.data.plan.stairs || []).some((x) => x.id === stair.plan_ref) ? ' · on the plan' : '') + '</small></span>'
         + (linked ? '<span class="pp-flight-tab-link" aria-label="Connected by landing">⌁</span>' : '') + '</button>' + (upperFlight ? landing : '');
     }).join('');
     return '<div class="pp-flight-switcher" role="tablist" aria-label="Stairs and flights">' + tabs + '</div>' + stairHtml(m, stairs[activeIndex], activeIndex);
@@ -5236,7 +5236,8 @@
       planProgress(root, 'No legend — reading the colors and notes on the plans…', 24);
       const mk = window.ObTakeoff.markupColors ? await window.ObTakeoff.markupColors(opened) : { mats: [], unknown: [] };
       mats = await pickColors(opened, mk);
-      if (!mats || !mats.length) throw new Error('No floor colors were marked, so nothing was measured.');
+      // no colors at all is fine: a plan can be read only for its stairs
+      if (!mats) throw new Error('Canceled.');
     }
     mats.forEach((x) => { if (x.kind === 'hardwood' && x.sand_finish == null) x.sand_finish = true; });
     // reading again keeps what the person already chose for each floor (product, counted or not)
@@ -5245,7 +5246,7 @@
       const old = before.find((o) => o.label === x.label && o.kind === x.kind && String(o.pages || '') === String(x.pages || '')) || before.find((o) => o.color === x.color && String(o.pages || '') === String(x.pages || ''));
       if (old) { x.spec = { ...(old.spec || {}) }; x.include = old.include; x.sand_finish = old.sand_finish; x.kind = old.kind; x.label = old.label; }
     });
-    const levels = []; const previews = [];
+    const levels = []; const previews = []; const planStairs = [];
     const sheets = opened.sheets;
     for (let i = 0; i < sheets.length; i++) {
       const sh = sheets[i];
@@ -5256,10 +5257,15 @@
       }
       const base = 25 + (i / sheets.length) * 65;
       const res = await window.ObTakeoff.readSheet(sh, mats, ppf, (p) => planProgress(root, `${sh.name}: ${p.step === 'floors' ? 'finding the floors' : p.step === 'rooms' ? 'splitting into rooms' : 'drawing the sheet'}…`, base + (p.f || 0) * (55 / sheets.length)));
-      if (!res.level.rooms.length) continue;
+      // stairs drawn on the sheet (tread lines, UP / DN)
+      planProgress(root, `${sh.name}: finding the stairs…`, base + 60 / sheets.length);
+      const st = window.ObTakeoff.findStairs ? await window.ObTakeoff.findStairs(sh, ppf).catch(() => []) : [];
+      st.forEach((x) => { x.level_id = res.level.id; x.level = sh.name; });
+      planStairs.push(...st);
+      if (!res.level.rooms.length && !st.length) continue;
       levels.push(res.level); previews.push(res.preview);
     }
-    if (!levels.length) throw new Error('No colored floors were found on these plans. Check that the floors are marked with the legend colors.');
+    if (!levels.length) throw new Error('No colored floors or stairs were found on these plans. Check that the floors are marked with colors, or mark the stair by hand.');
     planProgress(root, 'Saving…', 94);
     const fileRef = await upload;
     for (let i = 0; i < levels.length; i++) {
@@ -5274,6 +5280,7 @@
       analyzed_at: new Date().toISOString(),
       quote_link_id: prev.quote_link_id || (companies[0] && companies[0].id) || null,
       quote_prices: prev.quote_prices || {},
+      stairs: keepStairLinks(window.ObTakeoff.joinStairsAcrossSheets ? window.ObTakeoff.joinStairsAcrossSheets(planStairs, sheets) : planStairs, prev.stairs || [], m),
     };
     m.tab = 'floors';
     m.floorView = 'takeoff';
@@ -5485,6 +5492,160 @@
     return `<div class="pp-plan-kpis">${inc.map((t) => { const o = orderQty(t); return `<div class="pp-plan-kpi"><span class="pp-swatch" style="background:${esc(t.color)}"></span><div><small>${esc(t.label)}${specText(t) ? ` · ${esc(specText(t))}` : ''}</small><b>${fmtSf(t.area)}</b><span>Order ${fmtSf(o.sf)}${o.boxes ? ` · ${o.boxes} boxes` : ''} · ${o.waste}% waste</span></div></div>`; }).join('')}</div>`;
   }
 
+  /* ───────────── stairs on the plans ───────────── */
+
+  const planImg = (m, lv) => (lv && lv.preview ? `/api/builder/measurements/${encodeURIComponent(m.id)}/plan-file?key=${encodeURIComponent(lv.preview)}` : '');
+  /** Re-reading the plans keeps which stair each plan stair was linked to (same sheet, same place). */
+  function keepStairLinks(list, before, m) {
+    const ids = new Set(((m.data && m.data.stairs) || []).map((x) => x.id));
+    for (const s of list) {
+      const old = before.find((o) => o.page === s.page && Math.min(o.fx1, s.fx1) - Math.max(o.fx0, s.fx0) > 0 && Math.min(o.fy1, s.fy1) - Math.max(o.fy0, s.fy0) > 0);
+      if (!old) continue;
+      if (old.stair_id && ids.has(old.stair_id)) s.stair_id = old.stair_id;
+      if (old.dismissed) s.dismissed = true;
+      if (old.manual) Object.assign(s, { treads: old.treads, width_in: old.width_in, tread_in: old.tread_in });
+    }
+    // stairs marked by hand stay
+    for (const o of before) if (o.manual && !list.some((s) => s.id === o.id)) list.push(o);
+    return list;
+  }
+  function stairEst(s) { return `${s.treads} tread${s.treads === 1 ? '' : 's'} · ${fmtIn(s.width_in)}" wide · ${fmtIn(s.tread_in)}" deep`; }
+  /** The measured stair that looks most like a stair on the plans (width first, then tread count). */
+  function guessStairFor(m, ps) {
+    const taken = new Set((m.data.plan.stairs || []).filter((x) => x.stair_id).map((x) => x.stair_id));
+    const cand = (m.data.stairs || []).filter((x) => !taken.has(x.id));
+    let best = null; let bestScore = Infinity;
+    for (const st of cand) {
+      const c = measCounts({ stairs: [st], vents: [] });
+      const w = Number(((st.steps || []).find((x) => x.tread_w) || {}).tread_w) || 0;
+      const score = (w ? Math.abs(w - ps.width_in) / 6 : 2) + Math.abs(c.treads - ps.treads) / 3;
+      if (score < bestScore) { bestScore = score; best = st; }
+    }
+    return best && bestScore < 3 ? best : null;
+  }
+  function planStairsHtml(m) {
+    const plan = m.data.plan; const locked = m.status === 'used';
+    const list = (plan.stairs || []).filter((s) => !s.same_as && !s.dismissed);
+    const stairs = m.data.stairs || [];
+    const levelOf = (s) => plan.levels.find((l) => l.id === s.level_id) || plan.levels.find((l) => l.page === s.page);
+    const thumb = (s) => {
+      const lv = levelOf(s); const src = planImg(m, lv);
+      if (!src) return '<span class="pp-pst-thumb is-empty"></span>';
+      // frame the stair with a margin, using the sheet preview
+      const pad = 0.035;
+      const x0 = Math.max(0, s.fx0 - pad); const y0 = Math.max(0, s.fy0 - pad); const x1 = Math.min(1, s.fx1 + pad); const y1 = Math.min(1, s.fy1 + pad);
+      const w = x1 - x0; const h = y1 - y0;
+      const ratio = (lv.sheet_pt_h || 792) / (lv.sheet_pt_w || 612);
+      // pixel frame: the sheet scaled so the box fills ~150 px wide (at most 190 px tall)
+      let tw = 150; let th = (tw / w) * ratio * h;
+      if (th > 190) { tw *= 190 / th; th = 190; }
+      const iw = tw / w;
+      return `<span class="pp-pst-thumb" style="width:${tw.toFixed(0)}px;height:${th.toFixed(0)}px"><img src="${src}" alt="" style="width:${iw.toFixed(1)}px;left:${(-x0 * iw).toFixed(1)}px;top:${(-y0 * iw * ratio).toFixed(1)}px" /><i style="left:${((s.fx0 - x0) / w * 100).toFixed(1)}%;top:${((s.fy0 - y0) / h * 100).toFixed(1)}%;width:${((s.fx1 - s.fx0) / w * 100).toFixed(1)}%;height:${((s.fy1 - s.fy0) / h * 100).toFixed(1)}%"></i></span>`;
+    };
+    const row = (s) => {
+      const i = plan.stairs.indexOf(s);
+      const linked = s.stair_id && stairs.find((x) => x.id === s.stair_id);
+      const lv = levelOf(s);
+      const views = (plan.stairs || []).filter((o) => o.same_as === s.id).map((o) => (plan.levels.find((l) => l.page === o.page) || {}).name).filter(Boolean);
+      let state = '';
+      if (linked) {
+        const c = measCounts({ stairs: [linked], vents: [] });
+        const w = Number(((linked.steps || []).find((x) => x.tread_w) || {}).tread_w) || 0;
+        const same = c.treads === s.treads && (!w || Math.abs(w - s.width_in) <= 2);
+        state = `<div class="pp-pst-link ${same ? 'is-ok' : 'is-diff'}"><strong>${icon('check')}${esc(linked.name || 'Stair')}</strong><small>Measured ${c.treads} treads${w ? ` · ${fmtIn(w)}"` : ''}${same ? ' — matches the plan' : ` — the plan shows about ${s.treads}${s.width_in ? ` · ${fmtIn(s.width_in)}"` : ''}`}</small>
+          <span class="pp-pst-acts"><button type="button" class="pp-link" data-pst-open="${esc(linked.id)}">Open in Stairs</button>${locked ? '' : `<button type="button" class="pp-link pp-late" data-pst-unlink="${i}">Unlink</button>`}</span></div>`;
+      } else if (!locked) {
+        const guess = guessStairFor(m, s);
+        const others = stairs.filter((x) => !(plan.stairs || []).some((o) => o.stair_id === x.id));
+        state = `<div class="pp-pst-build">
+            <label class="pp-pst-num">Treads<input type="number" min="1" max="40" step="1" value="${s.treads}" data-pst-treads="${i}" /></label>
+            <label class="pp-pst-num">Width"<input type="number" min="18" max="96" step="0.5" value="${s.width_in}" data-pst-width="${i}" /></label>
+            <label class="pp-pst-num">Tread"<input type="number" min="7" max="16" step="0.25" value="${s.tread_in}" data-pst-depth="${i}" /></label>
+          </div>
+          <div class="pp-pst-acts">
+            <button type="button" class="pp-btn pp-btn--pri pp-btn--sm" data-pst-build="${i}">Build this stair</button>
+            ${others.length ? `<span class="pp-pst-or">or link to</span><select data-pst-link="${i}" aria-label="Link to a measured stair"><option value="">Measured stair…</option>${others.map((x) => { const c = measCounts({ stairs: [x], vents: [] }); return `<option value="${esc(x.id)}" ${guess && guess.id === x.id ? 'selected' : ''}>${esc(x.name || 'Stair')} · ${c.treads} treads</option>`; }).join('')}</select>${guess ? `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-pst-linkgo="${i}">Link</button>` : `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-pst-linkgo="${i}">Link</button>`}` : ''}
+            <button type="button" class="pp-link pp-pst-dismiss" data-pst-dismiss="${i}">Not a stair</button>
+          </div>
+          ${guess ? `<p class="pp-pst-guess">${icon('check')}Looks like <b>${esc(guess.name || 'Stair')}</b>, measured on site — link it to see the measured stair on the plan.</p>` : ''}`;
+      }
+      return `<article class="pp-pst ${linked ? 'is-linked' : ''}">
+        ${thumb(s)}
+        <div class="pp-pst-main">
+          <div class="pp-pst-top"><strong>${esc(lv ? lv.name : s.level || 'Plan')}${s.dir === 'up' ? ' · going up' : s.dir === 'down' ? ' · going down' : ''}</strong>${s.manual ? '<span class="pp-pst-tag">Marked by hand</span>' : `<span class="pp-pst-tag ${s.confidence === 'high' ? 'is-high' : ''}">${s.confidence === 'high' ? 'Found on the plan' : 'Probably a stair'}</span>`}</div>
+          <small class="pp-muted">From the plan: about ${esc(stairEst(s))}${views.length ? ` · also seen on ${esc(views.join(', '))}` : ''}</small>
+          ${state}
+        </div>
+      </article>`;
+    };
+    const markBtns = locked ? '' : `<div class="pp-pst-mark">${plan.levels.filter((l) => l.preview).map((l) => `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-pst-mark="${esc(l.id)}">${icon('ruler')}Mark a stair on ${esc(l.name)}</button>`).join('')}</div>`;
+    const dismissed = (plan.stairs || []).filter((s) => s.dismissed).length;
+    return `<section class="pp-card pp-block pp-pst-card">
+      <div class="pp-block-head"><h3>Stairs on the plans${list.length ? ` · ${list.length}` : ''}</h3><span class="pp-muted">${list.length ? 'Build each stair from the plan, or link it to a stair measured on site' : 'No stair found on the plans — mark it by hand'}</span></div>
+      ${list.map(row).join('')}
+      ${markBtns}
+      ${dismissed && !locked ? `<button type="button" class="pp-link pp-pst-restore" data-pst-restore>Show ${dismissed} hidden</button>` : ''}
+    </section>`;
+  }
+  /** A stair in the measurement from what the plan shows: N treads, width, depth, one more riser. */
+  function buildStairFromPlan(m, ps) {
+    const lv = m.data.plan.levels.find((l) => l.id === ps.level_id);
+    const flights = (m.data.stairs || []).length;
+    const actions = [
+      { type: 'add_stair', name: `${lv ? lv.name : 'Plan'} stair`.replace(/ level stair$/i, ' stair') },
+      { type: 'add_steps', stair: flights, count: Math.max(1, Math.round(ps.treads)), tread_w: ps.width_in, tread_d: ps.tread_in || 10.5, riser_w: ps.width_in, riser_h: 7.5, open: 'none', ret: '45' },
+      { type: 'add_riser', stair: flights, count: 1, riser_w: ps.width_in, riser_h: 7.5 },
+    ];
+    applyVoiceActions(m, actions);
+    const st = m.data.stairs[m.data.stairs.length - 1];
+    st.plan_ref = ps.id; st.note = st.note || `From the plans (${lv ? lv.name : 'plan'}): sizes to confirm on site.`;
+    ps.stair_id = st.id;
+    return st;
+  }
+  /** Draw a box over the stair on a sheet: two taps (corners) — sizes come from the sheet's scale. */
+  function markStairOnPlan(m, levelId, done) {
+    const plan = m.data.plan;
+    const lv = plan.levels.find((l) => l.id === levelId);
+    if (!lv) return;
+    const root = openSheet(`Mark the stair · ${lv.name}`, `<p class="pp-muted" style="margin:0 0 10px">Tap one corner of the stair, then the opposite corner. Treads run across the short side.</p>
+      <div class="pp-pst-pick"><img src="${planImg(m, lv)}" alt="${esc(lv.name)} plan" draggable="false" /><i hidden></i></div>
+      <div class="pp-pst-pickinfo" data-pick-info>No stair marked yet.</div>
+      <div class="pp-sheet-actions"><button type="button" class="pp-btn pp-btn--sec" data-sheet-close>Cancel</button><button type="button" class="pp-btn pp-btn--pri" data-pick-ok disabled>Add this stair</button></div>`, { wide: true, noFocus: true });
+    const box = root.querySelector('.pp-pst-pick'); const img = box.querySelector('img'); const mark = box.querySelector('i');
+    let a = null; let rect = null; let est = null;
+    const ptW = 612; // sheet size isn't stored: fractions + the level's scale (pt per foot at 1:1 preview)
+    const at = (e) => { const r = img.getBoundingClientRect(); return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))]; };
+    const paint = () => {
+      if (!rect) { mark.hidden = true; return; }
+      mark.hidden = false;
+      Object.assign(mark.style, { left: `${rect[0] * 100}%`, top: `${rect[1] * 100}%`, width: `${(rect[2] - rect[0]) * 100}%`, height: `${(rect[3] - rect[1]) * 100}%` });
+    };
+    img.addEventListener('click', (e) => {
+      const p = at(e);
+      if (!a) { a = p; rect = [p[0], p[1], p[0], p[1]]; est = null; root.querySelector('[data-pick-ok]').disabled = true; root.querySelector('[data-pick-info]').textContent = 'Now tap the opposite corner.'; paint(); return; }
+      rect = [Math.min(a[0], p[0]), Math.min(a[1], p[1]), Math.max(a[0], p[0]), Math.max(a[1], p[1])];
+      a = null; // a third tap starts over
+      paint();
+      // feet from the sheet's scale: preview is the whole sheet; pt size from the image ratio
+      const ptH = ptW * (img.naturalHeight / img.naturalWidth);
+      const sheetW = lv.sheet_pt_w || ptW; const sheetH = lv.sheet_pt_h || ptH;
+      const wFt = ((rect[2] - rect[0]) * sheetW) / lv.scale_ppf; const hFt = ((rect[3] - rect[1]) * sheetH) / lv.scale_ppf;
+      const width = Math.min(wFt, hFt) * 12; const run = Math.max(wFt, hFt) * 12;
+      const tread = 10.5;
+      est = { width_in: Math.round(width * 2) / 2, run_in: Math.round(run), tread_in: tread, treads: Math.max(1, Math.round(run / tread)) };
+      root.querySelector('[data-pick-info]').innerHTML = `About <b>${est.treads} treads</b> · ${fmtIn(est.width_in)}" wide · ${Math.round(run)}" long — adjust after adding.`;
+      root.querySelector('[data-pick-ok]').disabled = false;
+    });
+    root.querySelector('[data-pick-ok]').addEventListener('click', () => {
+      if (!rect || !est) return;
+      const s = { id: `pm${Date.now().toString(36)}`, page: lv.page, level_id: lv.id, level: lv.name, fx0: rect[0], fy0: rect[1], fx1: rect[2], fy1: rect[3], orient: 'manual', dir: '', confidence: 'high', manual: true, ...est };
+      plan.stairs = plan.stairs || [];
+      plan.stairs.push(s);
+      closeSheet();
+      done && done(s);
+    });
+  }
+
   function floorsTakeoffHtml(m) {
     const plan = m.data.plan; const locked = m.status === 'used';
     const totals = planTotals(plan);
@@ -5522,7 +5683,7 @@
         </div>
       </section>`;
     }).join('');
-    return `${mats}${levels}
+    return `${plan.materials.length ? mats : ''}${planStairsHtml(m)}${levels}
       <div class="pp-plan-foot"><span class="pp-muted">${esc(plan.file ? plan.file.name : '')}${plan.analyzed_at ? ` · read ${esc(fmtDayEn(plan.analyzed_at))}` : ''}</span>
         ${plan.file ? `<a class="pp-link" href="/api/builder/measurements/${encodeURIComponent(m.id)}/plan-file?key=${encodeURIComponent(plan.file.key)}" target="_blank" rel="noopener">Open the plans</a>` : ''}
         ${locked ? '' : `<button type="button" class="pp-link" data-plan-reread>Read the plans again</button><label class="pp-link">Upload new plans<input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" data-plan-file hidden /></label>`}
@@ -5649,6 +5810,36 @@
       try { await readPlans(m, file, box); redraw(); mateToast('measure', 'Floors measured', 'Check the rooms and the 3D view.'); } catch (ex) { mateToast('head-curious', 'Could not read the plans', ex.message); redraw(); }
     }));
     if (!plan || !plan.levels || !plan.levels.length) return;
+    // stairs on the plans: build from the plan, link to a stair measured on site, mark by hand
+    const pst = (attr, b) => plan.stairs[+b.getAttribute(attr)];
+    view.querySelectorAll('[data-pst-treads],[data-pst-width],[data-pst-depth]').forEach((inp) => inp.addEventListener('change', () => {
+      const k = inp.hasAttribute('data-pst-treads') ? ['data-pst-treads', 'treads'] : inp.hasAttribute('data-pst-width') ? ['data-pst-width', 'width_in'] : ['data-pst-depth', 'tread_in'];
+      const ps = pst(k[0], inp); const v = Number(inp.value);
+      if (ps && v > 0) { ps[k[1]] = v; ps.manual_est = true; save(); }
+    }));
+    view.querySelectorAll('[data-pst-build]').forEach((b) => b.addEventListener('click', () => {
+      const ps = pst('data-pst-build', b); if (!ps) return;
+      const st = buildStairFromPlan(m, ps);
+      m.dirty = true; save(); redraw();
+      mateToast('measure', 'Stair built from the plan', `${st.name} · ${stairEst(ps)} — check the sizes in Stairs.`);
+    }));
+    view.querySelectorAll('[data-pst-linkgo]').forEach((b) => b.addEventListener('click', () => {
+      const i = +b.getAttribute('data-pst-linkgo'); const ps = plan.stairs[i];
+      const sel2 = view.querySelector(`[data-pst-link="${i}"]`); const id = sel2 && sel2.value;
+      const st = id && m.data.stairs.find((x) => x.id === id);
+      if (!ps || !st) { if (sel2) sel2.focus(); return; }
+      ps.stair_id = st.id; st.plan_ref = ps.id; save(); redraw();
+      mateToast('measure', 'Linked', `${st.name || 'Stair'} is the stair on ${ps.level || 'the plan'}.`);
+    }));
+    view.querySelectorAll('[data-pst-unlink]').forEach((b) => b.addEventListener('click', () => {
+      const ps = pst('data-pst-unlink', b); if (!ps) return;
+      const st = m.data.stairs.find((x) => x.id === ps.stair_id); if (st) delete st.plan_ref;
+      delete ps.stair_id; save(); redraw();
+    }));
+    view.querySelectorAll('[data-pst-dismiss]').forEach((b) => b.addEventListener('click', () => { const ps = pst('data-pst-dismiss', b); if (ps) { ps.dismissed = true; save(); redraw(); } }));
+    view.querySelectorAll('[data-pst-restore]').forEach((b) => b.addEventListener('click', () => { (plan.stairs || []).forEach((x) => { delete x.dismissed; }); save(); redraw(); }));
+    view.querySelectorAll('[data-pst-open]').forEach((b) => b.addEventListener('click', () => { m.tab = 'stairs'; m.activeStairId = b.getAttribute('data-pst-open'); paintMeasurement(); window.scrollTo(0, 0); }));
+    view.querySelectorAll('[data-pst-mark]').forEach((b) => b.addEventListener('click', () => markStairOnPlan(m, b.getAttribute('data-pst-mark'), () => { save(); redraw(); })));
     view.querySelectorAll('[data-fview]').forEach((b) => b.addEventListener('click', () => { m.floorView = b.getAttribute('data-fview'); redraw(); }));
     const reread = view.querySelector('[data-plan-reread]');
     if (reread) reread.addEventListener('click', async () => {
