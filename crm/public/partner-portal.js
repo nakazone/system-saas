@@ -560,7 +560,7 @@
     view.innerHTML = `
       <div class="pp-bento">
         <div class="pp-head" style="grid-column: span 12">
-          <div><p class="pp-eyebrow">${esc(fmtDay(now, { weekday: 'long', month: 'long', day: 'numeric' }))}</p><h1>${esc(hello)}${first ? `, ${esc(first)}` : ''}</h1></div>
+          <div class="pp-hello"><div class="pp-hello-txt"><p class="pp-eyebrow">${esc(fmtDay(now, { weekday: 'long', month: 'long', day: 'numeric' }))}</p><h1>${esc(hello)}${first ? `, ${esc(first)}` : ''}</h1>${helloLine(now)}</div><img class="pp-hello-mate" src="/assets/img/mascot/mate-helmet.webp?v=1" alt="" width="169" height="220" decoding="async" fetchpriority="high" /></div>
           ${state.builder ? '' : '<div class="pp-head-actions"><a class="pp-btn pp-btn--sec" href="#calendar">Calendar</a><a class="pp-btn pp-btn--sec" href="#documents">Photos & docs</a><a class="pp-btn pp-btn--pri" href="#send">Send work</a></div>'}
         </div>
         ${installBannerHtml() ? `<div style="grid-column: span 12">${installBannerHtml()}</div>` : ''}
@@ -624,6 +624,14 @@
       if (card) card.remove();
     }));
     $('ppHomeDrop').addEventListener('click', () => { location.hash = '#send'; });
+  }
+
+  /** One line under the greeting: what the day looks like. */
+  function helloLine(now) {
+    const today = jobsInDay(dateKey(now)).length;
+    const drafts = state.builder && canDo('measure') ? (state.homeMeas || []).filter((m) => m.status === 'draft').length : 0;
+    const bits = [today ? `${plural(today, 'job', 'jobs')} on site today` : 'Nothing on site today', drafts ? `${plural(drafts, 'measurement', 'measurements')} in progress` : ''].filter(Boolean);
+    return `<p class="pp-hello-line">${esc(bits.join(' · '))}</p>`;
   }
 
   /** Builder home: big actions for the phone, today's jobs and measurements in progress. */
