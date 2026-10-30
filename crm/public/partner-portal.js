@@ -115,6 +115,7 @@
   function icon(name) {
     const paths = {
       back: '<path d="M15 18l-6-6 6-6"/>',
+      tally: '<path d="M6 5v14M10 5v14M14 5v14M18 5v14M3 15l18-6"/>',
       upload: '<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>',
       camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
       text: '<path d="M4 6h16v12H4z"/><path d="M4 7l8 6 8-6"/>',
@@ -4846,9 +4847,118 @@
         </span>
       </div>`).join('');
     return `<section class="pp-card pp-vents" aria-labelledby="ppVentsT">
-        <div class="pp-vents-head"><div><h3 id="ppVentsT">Vents</h3><small>${vents.length ? `${total} vent${total === 1 ? '' : 's'}${rooms ? ` in ${rooms} room${rooms === 1 ? '' : 's'}` : ''}` : 'Each size and room once — use the count for repeats'}</small></div>${locked ? '' : '<button type="button" class="pp-btn pp-btn--pri pp-btn--sm" id="ppVentAdd">+ Vent</button>'}</div>
+        <div class="pp-vents-head"><div><h3 id="ppVentsT">Vents</h3><small>${vents.length ? `${total} vent${total === 1 ? '' : 's'}${rooms ? ` in ${rooms} room${rooms === 1 ? '' : 's'}` : ''}` : 'Each size and room once — use the count for repeats'}</small></div>${locked ? '' : `<div class="pp-vents-acts"><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" id="ppVentCount" title="Tap once for each vent as you walk the house">${icon('tally')}Count</button><button type="button" class="pp-btn pp-btn--pri pp-btn--sm" id="ppVentAdd">+ Vent</button></div>`}</div>
+        ${vents.length ? `<div class="pp-vsum" aria-label="Vents by size">${ventKinds(vents).map((k) => `<span><b>${k.n}</b> ${esc(k.label)}</span>`).join('')}</div>` : ''}
         ${vents.length ? `<div class="pp-vlist" role="list">${rows}</div>` : `<div class="pp-empty" style="padding:22px 8px">${mate('head-thinking', 56)}<strong>No vents measured</strong>Add each vent with its size, type and finish.</div>`}
       </section>`;
+  }
+
+  /** Vents added up by size and type (the same kind in several rooms counts together). */
+  function ventKinds(vents) {
+    const map = new Map();
+    vents.forEach((v) => {
+      const size = String(v.size || '4x10').trim();
+      const k = `${size}|${v.type || 'flush'}`;
+      if (!map.has(k)) map.set(k, { key: k, size, type: v.type || 'flush', n: 0, label: `${size.replace('x', '×')} ${VENT_TYPE_LABEL[v.type] || ''}`.trim() });
+      map.get(k).n += Number(v.qty) || 1;
+    });
+    return Array.from(map.values());
+  }
+  /**
+   * Counter for walking the house: pick the kind, tap the big button once per vent. Each tap goes
+   * straight into the vent lines (same size, type and room → its count goes up; otherwise a new line),
+   * so closing the sheet never loses a count. Undo takes back the last taps.
+   */
+  function openVentCounter() {
+    const m = state.meas;
+    m.data.vents = m.data.vents || [];
+    const c = state.ventCount || (state.ventCount = { kind: null, room: '', taps: [], adding: false, newSize: '4x10', newType: 'flush' });
+    if (c.measId !== m.id) { c.measId = m.id; c.taps = []; c.kind = null; }
+    const kinds = () => {
+      const list = ventKinds(m.data.vents);
+      if (c.kind && !list.some((k) => k.key === c.kind)) {
+        const [size, type] = c.kind.split('|');
+        list.push({ key: c.kind, size, type, n: 0, label: `${size.replace('x', '×')} ${VENT_TYPE_LABEL[type] || ''}`.trim() });
+      }
+      if (!list.length) list.push({ key: '4x10|flush', size: '4x10', type: 'flush', n: 0, label: `4×10 ${VENT_TYPE_LABEL.flush}` });
+      return list;
+    };
+    const total = () => m.data.vents.reduce((n, v) => n + (Number(v.qty) || 1), 0);
+    const back = () => { measSaveSoon(); const y = window.scrollY; paintMeasurement(); window.scrollTo(0, y); };
+    const roomsKnown = () => Array.from(new Set(m.data.vents.map((v) => (v.room || '').trim()).filter(Boolean)));
+    function paint() {
+      const list = kinds();
+      if (!c.kind || !list.some((k) => k.key === c.kind)) c.kind = list[0].key;
+      const cur = list.find((k) => k.key === c.kind);
+      const sessionN = c.taps.length;
+      const [cs, ct] = c.kind.split('|');
+      const here = m.data.vents.find((x) => String(x.size || '').trim() === cs && (x.type || 'flush') === ct && roomKey(x.room) === roomKey(c.room));
+      const open = $('ppSheet') && $('ppSheet').querySelector('.pp-vcount') ? $('ppSheet') : null;
+      const html = `
+        <div class="pp-vcount">
+          <div class="pp-vcount-kinds" role="group" aria-label="Vent kind">${list.map((k) => `<button type="button" data-vc-kind="${esc(k.key)}" aria-pressed="${k.key === c.kind}"><span>${esc(k.label)}</span><b>${k.n}</b></button>`).join('')}<button type="button" class="pp-vcount-new" data-vc-new aria-expanded="${c.adding}">+ Size</button></div>
+          ${c.adding ? `<div class="pp-vcount-add">
+            <select data-vc-size aria-label="Size">${VENT_SIZES.map((sz) => `<option ${sz === c.newSize ? 'selected' : ''}>${sz}</option>`).join('')}</select>
+            <div class="pp-seg" role="group" aria-label="Type">${VENT_TYPES.map(([k, l]) => `<button type="button" data-vc-type="${k}" aria-pressed="${c.newType === k}">${esc(l)}</button>`).join('')}</div>
+            <button type="button" class="pp-btn pp-btn--pri pp-btn--sm" data-vc-addkind>Use this size</button>
+          </div>` : ''}
+          <label class="pp-vcount-room"><span>Room <small>(optional)</small></span><input data-vc-room list="ppVcRooms" value="${esc(c.room)}" maxlength="60" placeholder="e.g. Kitchen" autocomplete="off" /><datalist id="ppVcRooms">${roomsKnown().map((r) => `<option value="${esc(r)}"></option>`).join('')}</datalist></label>
+          <button type="button" class="pp-vcount-tap" data-vc-tap aria-label="Add one ${esc(cur.label)} vent">
+            <span class="pp-vcount-n" aria-live="polite">${here ? Number(here.qty) || 1 : 0}</span>
+            <span class="pp-vcount-l">${esc(cur.label)}${c.room.trim() ? ` · ${esc(c.room.trim())}` : ''}</span>
+            <span class="pp-vcount-hint">Tap once for each vent</span>
+          </button>
+          <div class="pp-vcount-foot">
+            <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-vc-undo ${sessionN ? '' : 'disabled'}>↶ Undo</button>
+            <span><b>${total()}</b> vent${total() === 1 ? '' : 's'} in all${sessionN ? ` · ${sessionN} counted now` : ''}</span>
+            <button type="button" class="pp-btn pp-btn--pri pp-btn--sm" data-sheet-close>Done</button>
+          </div>
+        </div>`;
+      let root;
+      if (open) { open.querySelector('.pp-sheet-body').innerHTML = html; root = open; }
+      else root = openSheet('Count vents', html, { noFocus: true });
+      root.querySelectorAll('[data-vc-kind]').forEach((b) => b.addEventListener('click', () => { c.kind = b.getAttribute('data-vc-kind'); c.adding = false; paint(); }));
+      root.querySelector('[data-vc-new]').addEventListener('click', () => { c.adding = !c.adding; paint(); });
+      const sz = root.querySelector('[data-vc-size]'); if (sz) sz.addEventListener('change', () => { c.newSize = sz.value; });
+      root.querySelectorAll('[data-vc-type]').forEach((b) => b.addEventListener('click', () => { c.newType = b.getAttribute('data-vc-type'); paint(); }));
+      const ak = root.querySelector('[data-vc-addkind]'); if (ak) ak.addEventListener('click', () => { c.kind = `${c.newSize}|${c.newType}`; c.adding = false; paint(); });
+      const room = root.querySelector('[data-vc-room]');
+      room.addEventListener('input', () => {
+        c.room = room.value.slice(0, 60);
+        const l = root.querySelector('.pp-vcount-l'); if (l) l.textContent = cur.label + (c.room.trim() ? ` · ${c.room.trim()}` : '');
+        const rk = roomKey(c.room); const [sz0, ty0] = c.kind.split('|');
+        const here = m.data.vents.find((x) => String(x.size || '').trim() === sz0 && (x.type || 'flush') === ty0 && roomKey(x.room) === rk);
+        const n = root.querySelector('.pp-vcount-n'); if (n) n.textContent = String(here ? Number(here.qty) || 1 : 0);
+      });
+      root.querySelector('[data-vc-tap]').addEventListener('click', () => {
+        c.room = room.value.slice(0, 60);
+        const [size, type] = c.kind.split('|');
+        const rk = roomKey(c.room);
+        let v = m.data.vents.find((x) => String(x.size || '').trim() === size && (x.type || 'flush') === type && roomKey(x.room) === rk);
+        let created = false;
+        if (v) v.qty = (Number(v.qty) || 1) + 1;
+        else {
+          const like = m.data.vents.filter((x) => String(x.size || '').trim() === size && (x.type || 'flush') === type).pop() || m.data.vents[m.data.vents.length - 1];
+          v = { ...newVent(like || null), size, type, room: c.room.trim(), qty: 1 };
+          m.data.vents.push(v); created = true;
+        }
+        c.taps.push({ id: v.id, created });
+        if (navigator.vibrate) { try { navigator.vibrate(12); } catch (_) { /* optional */ } }
+        back(); paint();
+        const t = $('ppSheet') && $('ppSheet').querySelector('.pp-vcount-tap'); if (t) { t.classList.remove('is-hit'); void t.offsetWidth; t.classList.add('is-hit'); }
+      });
+      root.querySelector('[data-vc-undo]').addEventListener('click', () => {
+        const last = c.taps.pop(); if (!last) return;
+        const i = m.data.vents.findIndex((x) => x.id === last.id);
+        if (i >= 0) {
+          const v = m.data.vents[i];
+          if ((Number(v.qty) || 1) > 1) v.qty = (Number(v.qty) || 1) - 1;
+          else if (last.created) m.data.vents.splice(i, 1);
+        }
+        back(); paint();
+      });
+    }
+    paint();
   }
 
   /** Vent editor in a sheet: drawing on top, fields below; the list updates when it closes. */
@@ -6405,6 +6515,8 @@
       measSaveSoon();
       redraw();
     }));
+    const ventCount = $('ppVentCount');
+    if (ventCount) ventCount.addEventListener('click', openVentCounter);
     const ventAdd = $('ppVentAdd');
     if (ventAdd) ventAdd.addEventListener('click', () => {
       m.data.vents.push(newVent(m.data.vents[m.data.vents.length - 1]));
