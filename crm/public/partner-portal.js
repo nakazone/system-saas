@@ -950,7 +950,8 @@
     const services = t.services || [];
     const checklist = t.checklist || [];
     const pct = checklist.length ? Math.round((t.checklist_done / checklist.length) * 100) : 0;
-    const docs = data.documents || [];
+    const docsAll = data.documents || [];
+    const docs = (() => { const seen = new Set(); return docsAll.filter((d) => { const k = `${d.type}|${d.title}`; if (seen.has(k)) return false; seen.add(k); return true; }); })();
     const invoices = data.invoices || [];
     const requests = data.requests || [];
     const photos = data.photos || [];
@@ -966,7 +967,7 @@
             ${state.builder && state.ctx ? `<span class="tk-num">${esc(state.ctx.company_name)} ·</span>` : ''}
             ${job.number ? `<span class="tk-num">JOB #${esc(job.number)}</span>` : ''}
             <span class="tk-pill tk-pill--${pillTone}">${esc(t.status || 'Scheduled')}</span>
-            ${job.external_ref ? `<span class="tk-num">· YOUR # ${esc(job.external_ref)}</span>` : ''}
+            ${job.external_ref ? `<span class="tk-ref">Your # ${esc(job.external_ref)}</span>` : ''}
           </div>
           ${job.can_edit ? '<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-edit-job>Edit</button>' : ''}
           <button type="button" class="tk-iconbtn" data-print-ticket aria-label="Print ticket">${ICON.print}</button>
@@ -1001,12 +1002,12 @@
         ${t.lockbox ? `<div class="tk-lock"><span>${ICON.lock}</span><div><small>Lockbox code</small><b>${esc(t.lockbox)}</b></div></div>` : ''}
       </section>
 
-      ${t.notes ? `<section class="tk-sec"><h3>Instructions</h3><p class="tk-notes">${esc(t.notes)}</p></section>` : ''}
+      ${t.notes ? `<section class="tk-sec"><h3>Instructions</h3>${String(t.notes).length > 260 || String(t.notes).split('\n').length > 6 ? `<div class="tk-clamp" data-clamp><p class="tk-notes">${esc(t.notes)}</p><button type="button" class="pp-link tk-clamp-btn" data-clamp-btn>Show all</button></div>` : `<p class="tk-notes">${esc(t.notes)}</p>`}</section>` : ''}
 
       <section class="tk-sec">
         <h3>Services${services.length ? ` <small>${services.length}</small>` : ''}</h3>
         ${services.length
-          ? `<ul class="tk-list tk-svc">${services.map((sv) => `<li><span>${esc(sv.name)}${sv.notes ? `<small>${esc(sv.notes)}</small>` : ''}</span><span class="tk-amt">${sv.total ? `<b>${money(sv.total)}</b>` : ''}${sv.qty ? `<small>${esc(sv.qty)}${sv.unit_price ? ` × ${money(sv.unit_price)}` : ''}</small>` : ''}</span></li>`).join('')}${t.total ? `<li class="tk-total"><span>Total</span><b>${money(t.total)}</b></li>` : ''}</ul>`
+          ? `<ul class="tk-list tk-svc">${services.map((sv) => `<li${sv.notes && String(sv.notes).length > 90 ? ' class="tk-svc-long" data-clamp tabindex="0" title="Tap to see all"' : ''}><span>${esc(sv.name)}${sv.notes ? `<small>${esc(sv.notes)}</small>` : ''}</span><span class="tk-amt">${sv.total ? `<b>${money(sv.total)}</b>` : ''}${sv.qty ? `<small>${esc(sv.qty)}${sv.unit_price ? ` × ${money(sv.unit_price)}` : ''}</small>` : ''}</span></li>`).join('')}${t.total ? `<li class="tk-total"><span>Total</span><b>${money(t.total)}</b></li>` : ''}</ul>`
           : `<p class="tk-empty">The company hasn’t added services to this job yet.${canDo('jobs.send') && i < 3 ? ' <button type="button" class="pp-link" data-update-job>Send the services</button>' : ''}</p>`}
       </section>
 
@@ -1035,9 +1036,18 @@
         ${invoices.length ? `<ul class="tk-list">${invoices.map((inv) => { const st = invoiceState(inv); return `<li><a href="#invoices/${encodeURIComponent(inv.id)}" class="tk-row"><span>${esc(inv.number || 'Invoice')}<small class="${['overdue', 'soon'].includes(st.key) ? 'pp-late' : ''}">${esc(st.label)}</small></span><b>${money(st.key === 'paid' ? inv.amount : inv.balance)}</b></a></li>`; }).join('')}</ul>` : '<p class="tk-empty">No invoices for this job yet.</p>'}
       </section>` : ''}
 
-      ${docs.length ? `<section class="tk-sec" id="tkDocs"><h3>Documents</h3><ul class="tk-list">${docs.map((d) => `<li><a href="${esc(d.file_url)}" target="_blank" rel="noopener" class="tk-row"><span>${esc(d.title)}<small>${d.type === 'report' ? 'Report' : d.type === 'sent' ? 'You sent' : 'File'}</small></span><b>Open</b></a></li>`).join('')}</ul></section>` : ''}
+      ${docs.length ? (() => {
+        const seen = new Set();
+        const uniq = docs.filter((d) => { const k = `${d.type}|${d.title}`; if (seen.has(k)) return false; seen.add(k); return true; });
+        const row = (d) => `<li><a href="${esc(d.file_url)}" target="_blank" rel="noopener" class="tk-row tk-doc"><span class="tk-doc-ic ${d.type === 'report' ? 'is-report' : ''}" aria-hidden="true">${/\.pdf$/i.test(d.title || '') || d.type === 'report' ? 'PDF' : /\.(png|jpe?g|webp|heic)$/i.test(d.title || '') ? 'IMG' : 'FILE'}</span><span>${esc(d.title)}<small>${d.type === 'report' ? 'Report' : d.type === 'sent' ? 'You sent' : 'From the company'}</small></span><b>Open</b></a></li>`;
+        return `<section class="tk-sec" id="tkDocs"><h3>Documents <small>${uniq.length}</small></h3><ul class="tk-list">${uniq.slice(0, 4).map(row).join('')}</ul>${uniq.length > 4 ? `<details class="tk-more"><summary>Show ${uniq.length - 4} more</summary><ul class="tk-list">${uniq.slice(4).map(row).join('')}</ul></details>` : ''}<button type="button" class="pp-link tk-alldocs" data-job-docs="${esc(job.id)}">All photos & docs of this job</button></section>`;
+      })() : ''}
 
-      ${requests.length ? `<section class="tk-sec"><h3>Your requests</h3>${requests.map((r) => `<div class="pp-req" style="padding:8px 0"><div class="pp-req-top"><strong>${esc(r.title)}</strong>${requestStatus(r)}</div><p>${esc(fmtDay(r.created_at))}</p>${r.review_note ? `<p class="pp-reply">${esc(r.review_note)}</p>` : ''}</div>`).join('')}</section>` : ''}
+      ${requests.length ? (() => {
+        const rq = (r) => `<div class="pp-req" style="padding:8px 0"><div class="pp-req-top"><strong>${esc(r.title)}</strong>${requestStatus(r)}</div><p>${esc(fmtDay(r.created_at))}</p>${r.review_note ? `<p class="pp-reply">${esc(r.review_note)}</p>` : ''}</div>`;
+        const sorted = requests.slice().sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+        return `<section class="tk-sec"><h3>Your requests <small>${requests.length}</small></h3>${sorted.slice(0, 2).map(rq).join('')}${sorted.length > 2 ? `<details class="tk-more"><summary>Show ${sorted.length - 2} older</summary>${sorted.slice(2).map(rq).join('')}</details>` : ''}</section>`;
+      })() : ''}
 
       ${office ? `<section class="tk-sec"><h3>Questions? Contact ${esc(office.name)}</h3><p class="tk-sub" style="margin:0 0 10px">${esc(office.phone)}</p><div class="tk-two"><a class="tk-btn" href="tel:+${esc(office.digits)}">${ICON.phone}Call</a><a class="tk-btn" href="https://wa.me/${esc(office.digits)}?text=${encodeURIComponent(`Hi, about job${job.number ? ` #${job.number}` : ''} (${job.title || ''}): `)}" target="_blank" rel="noopener">WhatsApp</a></div></section>` : ''}`;
 
@@ -1140,6 +1150,13 @@
     }));
     view.querySelectorAll('[data-edit-job]').forEach((b) => b.addEventListener('click', () => openJobEditor(data)));
     view.querySelectorAll('[data-tk-go]').forEach((b) => b.addEventListener('click', () => { const el = document.getElementById(b.getAttribute('data-tk-go')); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); else b.disabled = true; }));
+    view.querySelectorAll('[data-clamp]').forEach((el) => {
+      const toggle = (e) => { if (e && e.target.closest('a')) return; el.classList.toggle('is-open'); const b = el.querySelector('[data-clamp-btn]'); if (b) b.textContent = el.classList.contains('is-open') ? 'Show less' : 'Show all'; };
+      const b = el.querySelector('[data-clamp-btn]');
+      if (b) b.addEventListener('click', (e) => { e.stopPropagation(); toggle(); });
+      else { el.addEventListener('click', toggle); el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }); }
+    });
+    view.querySelectorAll('[data-job-docs]').forEach((b) => b.addEventListener('click', () => { state.docJob = `job:${b.getAttribute('data-job-docs')}`; state.docFilter = 'all'; state.docFrom = 'all'; location.hash = '#documents'; }));
     view.querySelectorAll('[data-update-job]').forEach((b) => b.addEventListener('click', () => {
       state.send = newSend();
       state.send.presetJob = { id: data.job.id, number: data.job.number, title: data.job.title, address: data.job.address };
@@ -1551,13 +1568,16 @@
     }
     const rows = state.requests;
     box.innerHTML = `<div style="padding:16px 16px 8px"><h2 id="ppReqTitle" style="margin:0;font-size:17px">Your requests</h2><p class="pp-muted" style="margin:2px 0 0;font-size:13px">${rows.filter((r) => r.status === 'pending').length} waiting for the company</p></div>
-      ${rows.length ? rows.slice(0, 30).map((r) => `<div class="pp-req">
+      ${rows.length ? rows.slice(0, state.reqAll ? 30 : 3).map((r) => `<div class="pp-req">
         <div class="pp-req-top"><strong>${esc(r.title)}</strong>${requestStatus(r)}</div>
         <p>${esc(r.address)}${r.external_ref ? ` · your # ${esc(r.external_ref)}` : ''}</p>
         <p>Sent ${esc(fmtDay(r.created_at))}${r.preferred_date ? ` · for ${esc(fmtDay(dateOnly(r.preferred_date)))}` : ''}${r.read_by_ai ? ' · read by AI' : ''}${r.target_job_id ? ' · job update' : ''}</p>
         ${r.review_note ? `<p class="pp-reply">${esc(r.review_note)}</p>` : ''}
         ${r.job_id ? `<p><a class="pp-link" href="#jobs/${encodeURIComponent(r.job_id)}">Open job</a></p>` : ''}
-      </div>`).join('') : '<div class="pp-empty" style="padding:20px 16px">You haven’t sent any requests yet.</div>'}`;
+      </div>`).join('') : '<div class="pp-empty" style="padding:20px 16px">You haven’t sent any requests yet.</div>'}
+      ${rows.length > 3 && !state.reqAll ? `<button type="button" class="pp-link pp-req-more" data-req-all>Show all ${Math.min(rows.length, 30)} requests</button>` : ''}`;
+    const more = box.querySelector('[data-req-all]');
+    if (more) more.addEventListener('click', () => { state.reqAll = true; renderRequestsList(); });
   }
 
   const WZ_STEPS = [['pick', 'Work order'], ['measure', 'Measure'], ['quote', 'Quote'], ['details', 'Send'], ['done', 'Track']];
@@ -2720,7 +2740,7 @@
       const inner = d.type === 'photo'
         ? `<img src="${esc(thumbUrl(d.file_url, 420))}" alt="${esc(d.title || 'Photo')}" loading="lazy" decoding="async" />`
         : `<span class="pp-dt-video">${icon('camera')}<b>Video</b></span>`;
-      return `<button type="button" class="pp-dt" data-doc-view="${i}" aria-label="Open ${esc(d.title || 'photo')}, from ${esc(fromLabel(d))}">${inner}<span class="pp-dt-meta"><i class="pp-dt-dot ${mine ? 'is-mine' : ''}" aria-hidden="true"></i>${esc(fromLabel(d))}${d.created_at ? ` · ${esc(fmtDay(d.created_at))}` : ''}</span></button>`;
+      return `<button type="button" class="pp-dt" data-doc-view="${i}" aria-label="Open ${esc(d.title || 'photo')}, from ${esc(fromLabel(d))}">${inner}<span class="pp-dt-meta" data-date="${esc(d.created_at ? fmtDay(d.created_at) : '')}"><i class="pp-dt-dot ${mine ? 'is-mine' : ''}" aria-hidden="true"></i>${esc(fromLabel(d))}${d.created_at ? ` · ${esc(fmtDay(d.created_at))}` : ''}</span></button>`;
     };
     const fileRow = (d) => {
       const mine = (d.from || 'company') === 'builder';
@@ -2760,6 +2780,7 @@
         </div>
         <div class="pp-dtools-row">
           <div class="pp-filter" role="group" aria-label="Type">${btn('all', 'All')}${btn('photo', 'Photos')}${btn('report', 'Reports')}${btn('file', 'Files')}</div>
+          <div class="pp-dlegend pp-show-phone" aria-hidden="true"><span><i></i>${state.builder && multiCo() && !state.coFilter ? 'Companies' : esc(providerName())}</span><span><i class="is-mine"></i>${state.builder ? 'Your team' : 'You'}</span></div>
           <div class="pp-filter" role="group" aria-label="Sent by">${fbtn('all', 'Everyone')}${fbtn('company', state.builder && multiCo() && !state.coFilter ? 'Companies' : esc(providerName()))}${fbtn('builder', state.builder ? 'Your team' : 'You')}</div>
         </div>
       </div>

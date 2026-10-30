@@ -2871,3 +2871,70 @@ a.pp-lb-btn, a.pp-lb-btn:visited { color: #fff; }
   .pp-hello-mate { height: 150px; margin: -54px -6px -16px 0; }
 }
 @media (prefers-reduced-motion: reduce) { .pp-hello-mate { animation: none; } }
+
+/* ═══════════ App UX pass (phone) ═══════════ */
+/* A wrapping column flex sizes each line to its widest child: lists grew wider than the phone. */
+@media (max-width: 1023px) {
+  .pp-split, .pp-split--list { flex-wrap: nowrap; }
+  .pp-split > *, .pp-split--list > * { min-width: 0; width: 100%; }
+}
+/* Job page: long text folds, documents compact, YOUR # as a chip */
+.tk-ref { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; background: var(--pp-surface); font-size: 12px; font-weight: 700; letter-spacing: .02em; color: var(--pp-ink); }
+.tk-clamp .tk-notes { display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
+.tk-clamp.is-open .tk-notes { display: block; -webkit-line-clamp: unset; }
+.tk-clamp-btn { margin-top: 6px; font-size: 14px; }
+.tk-svc-long { cursor: pointer; }
+.tk-svc-long small { display: -webkit-box !important; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tk-svc-long.is-open small { display: block !important; -webkit-line-clamp: unset; }
+.tk-svc-long:not(.is-open) > span:first-child::after { content: "More"; display: inline-block; margin-top: 2px; font-size: 12px; font-weight: 700; color: var(--pp-orange, #E7792C); }
+.tk-doc { align-items: center; gap: 12px; }
+.tk-doc > span:nth-child(2) { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.tk-doc-ic { flex: none; width: 34px; height: 40px; border-radius: 7px; display: grid; place-items: center; background: #FBEBDD; color: #A64C14; font-size: 10px; font-weight: 800; }
+.tk-doc-ic.is-report { background: #EEF3E6; color: #4E6A2E; }
+.tk-more { margin-top: 4px; }
+.tk-more > summary { list-style: none; cursor: pointer; padding: 8px 0; font-size: 14px; font-weight: 600; color: var(--pp-orange, #E7792C); }
+.tk-more > summary::-webkit-details-marker { display: none; }
+.tk-more[open] > summary { display: none; }
+.tk-alldocs { display: inline-block; margin-top: 8px; font-size: 14px; }
+@media (max-width: 640px) {
+  .tk-hero-acts { display: none; }
+}
+@media (max-width: 640px) {
+  .tk-sec .pp-req-top { flex-wrap: wrap; gap: 6px; }
+  .tk-sec .pp-req-top strong { flex: 1 1 100%; }
+}
+.pp-req-more { display: block; margin: 4px 16px 14px; font-size: 14px; }
+.pp-req-top strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+@media (max-width: 640px) {
+  /* Invoices: the three totals fit side by side */
+  .pp-stages { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; overflow: visible; margin: 0; padding: 0; }
+  .pp-stage { min-width: 0; padding: 10px; }
+  .pp-stage b { font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Calendar list: titles may take two lines */
+  .pp-agenda-jobs strong, .pp-agenda-jobs .pp-today-main strong { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  /* Measurements: denser cards */
+  .pp-mcard { gap: 10px; padding: 12px 12px; }
+  .pp-mcard-ic { width: 34px; height: 34px; border-radius: 10px; }
+  .pp-mcard-ic svg { width: 18px; height: 18px; }
+  .pp-mcard-main { gap: 4px; }
+  .pp-mcard-wrap .pp-mcard { padding-right: 46px; }
+  .pp-mcard-del { top: 6px; right: 4px; }
+  /* Requests: status under the title */
+  .pp-req-top { flex-wrap: wrap; gap: 6px; }
+  .pp-req-top strong { flex: 1 1 100%; }
+  /* Photos & docs: date only on tiles; the dot color says who sent it */
+  .pp-dt-meta { font-size: 0; gap: 0; padding: 12px 6px 5px; }
+  .pp-dt-meta::after { content: attr(data-date); font-size: 10.5px; margin-left: 5px; }
+}
+.pp-dlegend { display: flex; gap: 12px; font-size: 12.5px; color: var(--pp-muted); align-items: center; }
+.pp-dlegend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #9BC26B; margin-right: 5px; vertical-align: 1px; }
+.pp-dlegend i.is-mine { background: #F09A55; }
+.pp-show-phone { display: none !important; }
+@media (max-width: 640px) { .pp-show-phone { display: flex !important; } }
+@media (max-width: 640px) {
+  .pp-stages { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+  .pp-stage { padding: 9px 8px; font-size: 12px; }
+  .pp-stage b { font-size: 15px; }
+}
+@media (max-width: 640px) { .pp-stage { font-size: 11.5px; white-space: nowrap; } .pp-stage > *:not(b) { overflow: hidden; text-overflow: ellipsis; } }
+@media (max-width: 640px) { .pp-stage { overflow: hidden; text-overflow: ellipsis; } }
