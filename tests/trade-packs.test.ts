@@ -138,3 +138,38 @@ describe("company settings show the trades (read-only)", () => {
     expect(parsed.success && "trade_packs" in (parsed.data as object)).toBe(false);
   });
 });
+
+describe("ObraBuilder takeoff and work order reading come from the pack (delivery 4)", () => {
+  it("takeoff catalog is exactly the old one", async () => {
+    const T = await import("../src/lib/builders/takeoff.js");
+    expect(T.FLOORING_KINDS).toEqual(["hardwood", "lvp", "laminate", "carpet", "rubber"]);
+    expect(T.SPEC_FIELDS).toEqual({
+      hardwood: ["species", "construction", "width", "thickness", "grade", "finish", "color", "sheen", "install", "pattern", "brand"],
+      lvp: ["brand", "color", "size", "thickness", "wear", "install", "underlayment"],
+      laminate: ["brand", "color", "size", "thickness", "install", "underlayment"],
+      carpet: ["brand", "color", "pad"],
+      rubber: ["brand", "color", "thickness"],
+      tile: ["brand", "color", "size"],
+      stone: ["brand", "color", "size"],
+      concrete: ["color"],
+      other: ["brand", "color"],
+    });
+    expect(T.SPEC_LABEL).toEqual({
+      species: "Species", construction: "Construction", width: "Width", thickness: "Thickness", grade: "Grade", finish: "Finish", color: "Color / stain",
+      sheen: "Sheen", install: "Install", pattern: "Pattern", brand: "Brand / product", size: "Plank size", wear: "Wear layer", underlayment: "Underlayment", pad: "Pad",
+    });
+    expect(T.DEFAULT_WASTE).toEqual({ hardwood: 10, lvp: 10, laminate: 10, carpet: 12, rubber: 8, tile: 12, stone: 12, concrete: 0, other: 10 });
+    // Keys keep the same order (the PDF and the app list them in this order).
+    expect(Object.keys(T.SPEC_FIELDS)).toEqual([...T.FLOOR_KINDS]);
+    expect(Object.keys(T.DEFAULT_WASTE)).toEqual([...T.FLOOR_KINDS]);
+  });
+
+  it("work order reading prompt is byte-for-byte the old one", () => {
+    // sha256 of SYSTEM_PROMPT evaluated from src/lib/partner-intake/extract.ts on main @ 2a593d4.
+    expect(sha256(getPack().ai.workOrderPrompt)).toBe("ad7f4762d956107cd0ed11a8665a38208b9f2a261ee2a5c1fcac4f9763f824f2");
+  });
+});
+
+function sha256(s: string) {
+  return createHash("sha256").update(s).digest("hex");
+}

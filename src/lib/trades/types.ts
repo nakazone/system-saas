@@ -37,6 +37,17 @@ export type PhaseDef = {
   doneAtField: PhaseDoneField;
 };
 
+/** What the ObraBuilder plan takeoff measures for this trade (keys are plan legend kinds). */
+export type PackTakeoff = {
+  /** Legend kinds counted as jobs of this trade. */
+  measuredKinds: readonly string[];
+  /** Product details each kind asks for, in print order. */
+  specFields: Readonly<Record<string, readonly string[]>>;
+  specLabels: Readonly<Record<string, string>>;
+  /** Default waste % per kind. */
+  waste: Readonly<Record<string, number>>;
+};
+
 export type TradePack = {
   id: TradeId;
   label: string;
@@ -51,11 +62,14 @@ export type TradePack = {
    * it runs all phases in sequence (hardwood: "both").
    */
   phases: readonly PhaseDef[];
+  takeoff: PackTakeoff;
   combinedPhaseKey: string;
   ai: {
     /** How the assistant describes the product's customers, e.g. "flooring installation companies". */
     companyKind: string;
     /** The trade word used inside prompts: "flooring contractor", "flooring jobs", "empresa de flooring". */
     tradeNoun: string;
+    /** System prompt for reading a builder's work order / PO / schedule screen into a job request. */
+    workOrderPrompt: string;
   };
 };

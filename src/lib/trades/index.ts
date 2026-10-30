@@ -6,7 +6,7 @@ import type { PackService, PhaseDef, TradeId, TradePack } from "./types.js";
 import { TRADE_IDS } from "./types.js";
 import { hardwood } from "./packs/hardwood/index.js";
 
-export type { PackService, PhaseDef, PhaseDoneField, QuoteSectionDef, TradeId, TradePack } from "./types.js";
+export type { PackService, PackTakeoff, PhaseDef, PhaseDoneField, QuoteSectionDef, TradeId, TradePack } from "./types.js";
 export { TRADE_IDS } from "./types.js";
 
 export const DEFAULT_TRADE: TradeId = "hardwood";
