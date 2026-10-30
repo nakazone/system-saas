@@ -1397,7 +1397,7 @@
         <img class="pp-mate-art" src="/assets/img/mascot/mate-reading.webp?v=20261027-m2" alt="" height="96" decoding="async">
         <div style="display:flex;gap:12px;align-items:center"><span class="pp-doc-ico" style="width:44px;height:44px">${s.files[0] && s.files[0].type === 'application/pdf' ? 'PDF' : s.files.length ? 'IMG' : 'TXT'}</span><div><strong>${esc(s.files.length ? s.files.map((f) => f.name).join(', ') : 'Pasted text')}</strong><div class="pp-muted" style="font-size:13px">Reading the address, job #, date and service lines…</div></div></div>
         <div class="pp-progress"><i></i></div>
-        <p class="pp-muted" style="margin:0;font-size:14px">It takes a few seconds. Nothing is sent before you check it.</p>
+        <p class="pp-muted" style="margin:0;font-size:14px">Mate zooms into the small print, so it can take up to a minute. Nothing is sent before you check it.</p>
       </div>`;
       return;
     }

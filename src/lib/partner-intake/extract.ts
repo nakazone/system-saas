@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
  */
 import { z } from "zod";
 import { aiChatJson, isAiConfigured } from "../ai/client.js";
+import { zoomStrips } from "./zoom.js";
 
 /** Lines as the builder confirmed them in the portal (sent with the request). */
 export const intakeItemSchema = z.object({
@@ -239,7 +240,21 @@ export function normalizeIntake(raw: Record<string, unknown>, today = new Date()
   const items = normalizeInstallationItems(raw.items, raw);
   // what is printed wins over what the model summarized (the same file always gives the same stairs)
   const printed = stairFlightsFromText(intakeSourceText(raw));
-  const stairsEarly = mergeStairs(printed.length ? printed : stairFlightsFromRows(intakeSourceText(raw)), normalizeStairs(raw.stairs));
+  const rowsRead = stairFlightsFromRows(intakeSourceText(raw));
+  const aiStairs = normalizeStairs(raw.stairs);
+  const stairsEarly = reconcileFlights(mergeStairs(printed.length ? printed : rowsRead, aiStairs), [printed, rowsRead, aiStairs], warnings);
+  // tread install lines follow the reconciled flights (one misread "9" doesn't make a 9-tread flight)
+  for (const it of items) {
+    if (serviceKind(`${it.service_name} ${it.description} ${it.detail}`) !== "stair_tread") continue;
+    const w = Number((/\b(\d{2}(?:\.\d+)?)\s*(?:"|”|“|″|inch(?:es)?\b|in\b)/i.exec(`${it.service_name} ${it.description} ${it.detail}`) || [])[1] || 0);
+    const f = w ? stairsEarly.filter((x) => x.width === w) : stairsEarly.length === 1 ? stairsEarly : [];
+    const want = f.reduce((a, x) => a + x.treads, 0);
+    if (want && it.quantity !== want) {
+      warnings.push(`${w ? `${w}" ` : ""}tread line read as ${it.quantity}; set to the ${want} treads of that flight.`);
+      it.quantity = want;
+      if (it.rate != null) it.total = Math.round(it.rate * want * 100) / 100;
+    }
+  }
   const sandRow = stairSandRow(intakeSourceText(raw));
   let sandItem = items.find((it) => serviceKind(`${it.service_name} ${it.description} ${it.detail}`) === "stair_sand_finish");
   const treadsTotal = stairsEarly.reduce((a, f) => a + f.treads, 0);
@@ -335,7 +350,12 @@ export function stairSandRow(source: string): { text: string; qty: number | null
 export function stairFlightsFromRows(source: string): StairFlightSpec[] {
   const flights: StairFlightSpec[] = [];
   const species = (String(source).match(/white oak|red oak|hickory|maple|walnut|ash|birch|acacia/i) || [""])[0].toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
-  for (const line of String(source || "").split(/\n+/)) {
+  const all = String(source || "").split(/\n+/);
+  for (let li = 0; li < all.length; li++) {
+    let line = all[li]!;
+    // the item's second line ("WHITE OAK TREAD") is often printed under the row with the numbers
+    const nx = all[li + 1] || "";
+    if (!/\bTREADS?\b|\bRISERS?\b/i.test(line) && /\bTREADS?\b|\bRISERS?\b/i.test(nx) && !/\d/.test(nx.replace(/\b\d{2}\s*(?:"|”|″)/g, ""))) line = `${line} ${nx}`;
     if (/sand|finish|coat|stain|nos(e|ing)/i.test(line)) continue;
     const w = /\b(\d{2}(?:\.\d+)?)\s*(?:"|”|″|IN\b|INCH)/i.exec(line);
     const isT = /\bTREADS?\b/i.test(line); const isR = /\bRISERS?\b/i.test(line);
@@ -389,6 +409,34 @@ export function stairFlightsFromText(source: string): StairFlightSpec[] {
     same.forEach((x, i) => { const give = i === same.length - 1 ? left : Math.min(left, x.treads + 1); x.risers += give; left -= give; });
   }
   return flights;
+}
+
+/**
+ * The same counts are printed twice on these orders (the STAIR TREADS / RISERS remarks and the
+ * product rows), and the model gives its own: per flight, the count most of them agree on wins,
+ * and a flight has one more riser than treads when two readings disagree.
+ */
+export function reconcileFlights(base: StairFlightSpec[], sources: StairFlightSpec[][], warnings?: string[]): StairFlightSpec[] {
+  return base.map((f) => {
+    const same = sources.map((src) => src.find((x) => x.width === f.width && (x.returns === f.returns || x.returns === "none" || f.returns === "none"))).filter((x): x is StairFlightSpec => Boolean(x));
+    const pick = (vals: number[], fits: (v: number) => boolean, cur: number): number => {
+      const seen = vals.filter((v) => v > 0);
+      if (!seen.length) return cur;
+      const tally = new Map<number, number>();
+      for (const v of seen) tally.set(v, (tally.get(v) || 0) + 1);
+      const ranked = [...tally.entries()].sort((a, b) => b[1] - a[1]);
+      // the readings that fit "one more riser than treads" first (votes are not independent: the
+      // model often repeats its own misread), then the most common one
+      const fitting = ranked.filter(([v]) => fits(v));
+      return (fitting[0] || ranked[0])![0];
+    };
+    const treads = pick(same.map((x) => x.treads), (t) => same.some((x) => x.risers === t + 1), f.treads);
+    const risers = pick(same.map((x) => x.risers), (r) => r === treads + 1, f.risers);
+    if ((treads !== f.treads || risers !== f.risers) && warnings) {
+      warnings.push(`${f.width}" flight read as ${f.treads} treads · ${f.risers} risers in one place; the order's other counts say ${treads} treads · ${risers} risers.`);
+    }
+    return { ...f, treads, risers };
+  });
 }
 
 /** AI flights first; the text fills what the AI left out (risers, returns). */
@@ -700,7 +748,8 @@ export function linkCatalog(items: IntakeItem[], rawItems: unknown, catalog: Cat
       const c = catalog.find((x) => x.id === chosen)!;
       const a = serviceKind(`${it.service_name} ${it.description} ${it.detail}`);
       const b = serviceKind(`${c.name} ${c.category || ""}`);
-      if (a === "other" || b === "other" || a === b) return { ...it, pricing_item_id: chosen };
+      // stair, vent and finishing lines only take a service of the same kind ("Hardwood - Nail Down" is not a tread install)
+      if (a === "other" || a === b) return { ...it, pricing_item_id: chosen };
     }
     const sameName = it.service_name && catalog.find((c) => c.name.trim().toLowerCase() === it.service_name.trim().toLowerCase());
     if (sameName) return { ...it, pricing_item_id: sameName.id };
@@ -724,6 +773,10 @@ export function linkCatalog(items: IntakeItem[], rawItems: unknown, catalog: Cat
   });
 }
 
+/** Reads small print best of the models this account uses (env WORK_ORDER_AI_MODEL overrides). */
+export const WORK_ORDER_DEFAULT_MODEL = "gpt-6-sol";
+/** Bump when the reading changes, so a cached reading of the same file is not reused. */
+const READ_VERSION = "2026-10-29b";
 const READ_CACHE = new Map<string, { at: number; result: IntakeResult; model: string }>();
 
 export async function readWorkOrder(input: { files: IntakeFile[]; text?: string; today?: Date; catalog?: CatalogItem[] }):
@@ -746,15 +799,29 @@ export async function readWorkOrder(input: { files: IntakeFile[]; text?: string;
       : "",
   ].filter(Boolean).join("\n\n");
   // the same file always gives the same reading (the model can vary between runs)
-  const cacheKey = createHash("sha256").update(JSON.stringify([images, pdfs.map((f) => f.dataUrl), text, catalog.map((c) => c.id + c.name)])).digest("hex");
+  const cacheKey = createHash("sha256").update(JSON.stringify([READ_VERSION, images, pdfs.map((f) => f.dataUrl), text, catalog.map((c) => c.id + c.name)])).digest("hex");
   const hit = READ_CACHE.get(cacheKey);
   if (hit && Date.now() - hit.at < 24 * 3600e3) return { ok: true, result: structuredClone(hit.result), model: hit.model };
-  const response = await aiChatJson({
-    system: SYSTEM_PROMPT, user, imageUrls: images, files: pdfs, timeoutMs: 90_000,
-    // small print on phone screenshots: read the images at full resolution, and the same way every time
-    imageDetail: "high", temperature: 0,
-    ...(process.env.WORK_ORDER_AI_MODEL?.trim() ? { model: process.env.WORK_ORDER_AI_MODEL.trim() } : {}),
+  // small print (a work order on a phone screenshot): the whole image, then zoomed strips of it
+  const strips: string[] = [];
+  const room = Math.max(0, 16 - images.length);
+  for (const img of images) { if (strips.length >= room) break; strips.push(...(await zoomStrips(img)).slice(0, room - strips.length)); }
+  const userWithStrips = strips.length
+    ? `${user}\n\nThe first image${images.length > 1 ? "s are the whole pages" : " is the whole page"}; the next ${strips.length} images are the same page${images.length > 1 ? "s" : ""} cut into overlapping strips from top to bottom and enlarged so the small print is readable. Read every number and word from the strips (they are sharper). A line can appear in two strips where they overlap: count it once.`
+    : user;
+  const call = (model?: string) => aiChatJson({
+    system: SYSTEM_PROMPT, user: userWithStrips, imageUrls: [...images, ...strips], files: pdfs, timeoutMs: 120_000,
+    // read the images at full resolution, and the same way every time
+    imageDetail: "high", temperature: 0, maxImages: 16,
+    ...(model ? { model } : {}),
   });
+  const preferred = process.env.WORK_ORDER_AI_MODEL?.trim() || WORK_ORDER_DEFAULT_MODEL;
+  let response = await call(preferred);
+  // the account may not have the work-order model: the default chat model reads it instead
+  if (!response.ok && !process.env.WORK_ORDER_AI_MODEL?.trim()) {
+    console.warn(`[work-order] model ${preferred} failed (${response.error}); using the default chat model`);
+    response = await call();
+  }
   if (!response.ok) return { ok: false, error: response.error };
   const raw = extractJson(response.text);
   if (!raw) return { ok: false, error: "Não consegui ler o arquivo. Confira se ele está legível." };

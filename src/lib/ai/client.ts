@@ -253,6 +253,8 @@ export async function aiChatJson(params: {
   timeoutMs?: number;
   /** Overrides the default chat model for this call. */
   model?: string;
+  /** Most images sent (default 8). */
+  maxImages?: number;
   /** "high" reads small print on documents (no downscaling of the images). */
   imageDetail?: "high" | "low" | "auto";
   /** 0 for extraction that must give the same answer every time. */
@@ -272,7 +274,7 @@ export async function aiChatJson(params: {
   const model = params.model?.trim() || chatModel();
   const images = (params.imageUrls || [])
     .filter((u) => typeof u === "string" && u.length > 0)
-    .slice(0, 8);
+    .slice(0, params.maxImages ?? 8);
 
   const files = (params.files || []).filter((f) => f && f.dataUrl).slice(0, 5);
   const userContent: AiChatMessage["content"] =

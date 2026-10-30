@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { linkCatalog, normalizeIntake, serviceKind, stairFlightsFromText } from "../src/lib/partner-intake/extract.js";
+import { linkCatalog, normalizeIntake, serviceKind, stairFlightsFromRows, stairFlightsFromText } from "../src/lib/partner-intake/extract.js";
 
 const CFC = `INSTALL DATE: TBD
 BLDR: PETE GARCIA
@@ -123,5 +123,36 @@ describe("stair sanding step count", () => {
     const r = normalizeIntake({ raw_text: CFC, address: "x", items: [{ description: "Site finished sand / 2 coat treads", detail: "", quantity: 2, uom: "EA", rate: 50, total: 800 }] });
     const sand = r.items.find((it) => it.service_name === "Sand & finish stair treads")!;
     expect([sand.quantity, sand.rate, sand.total]).toEqual([16, 50, 800]);
+  });
+});
+
+describe("a misread count is outvoted by the order's other counts", () => {
+  // the 42" tread line misread as 9 in the remarks (phone screenshot, small print); the product rows say 8
+  const MISREAD = CFC.replace('42" - LEFT RETURNS - 8 EA', '42" - LEFT RETURNS - 9 EA');
+  const ROWS = `42 UNITY HARDWOODS 48" WHITE OAK WUNDWOT48 EA 0.0 0.0 8.00 0.00
+WHITE OAK TREAD
+42 UNITY HARDWOODS 48" WHITE OAK WUNDWOR48 EA 0.0 0.0 9.00 0.00
+WHITE OAK RISER
+42 UNITY HARDWOODS 42" WHITE OAK WUNDWOT42 EA 0.0 0.0 8.00 0.00
+WHITE OAK TREAD
+42 UNITY HARDWOODS 42" WHITE OAK WUNDWOR42 EA 0.0 0.0 9.00 0.00
+WHITE OAK RISER
+92 SITE FINISHED SAND/2 EA 16.00 50.000 800.00
+COAT TREADS -`;
+  it("keeps 8 treads · 9 risers on each flight and the tread lines at 8", () => {
+    const r = normalizeIntake({ raw_text: `${ROWS}\n${MISREAD}`, address: "x", items: [], stairs: [{ width: 42, returns: "left", treads: 9, risers: 9 }] });
+    expect(r.stairs.map((f) => [f.width, f.treads, f.risers])).toEqual([[48, 8, 9], [42, 8, 9]]);
+    const treads = r.items.filter((it) => /Stair tread/.test(it.service_name)).map((it) => it.quantity);
+    expect(treads).toEqual([8, 8]);
+    const sand = r.items.find((it) => it.service_name === "Sand & finish stair treads")!;
+    expect([sand.quantity, sand.total]).toEqual([16, 800]);
+  });
+  it("reads the product rows when the description wraps under the numbers", () => {
+    expect(stairFlightsFromRows(ROWS).map((f) => [f.width, f.treads, f.risers])).toEqual([[48, 8, 9], [42, 8, 9]]);
+  });
+  it("does not link a tread install to a floor install service", () => {
+    const items = [{ area: "Stairs", description: "Solid White Oak Tread", detail: '48" · Double Returns', quantity: 8, uom: "STEP", rate: null, total: null, pricing_item_id: null, service_name: 'Stair tread installation — 48" Double Returns' }];
+    const out = linkCatalog(items, [{ description: "Solid White Oak Tread", detail: '48" · Double Returns', catalog_id: "hw" }], [{ id: "hw", name: "Hardwood - Nail Down", unit: "SF", category: "Hardwood" } as never]);
+    expect(out[0]!.pricing_item_id).toBeNull();
   });
 });
