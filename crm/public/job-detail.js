@@ -636,7 +636,8 @@
   }
   function hasPartnerPortal() {
     const customerType = String(job.customer_type || "").toLowerCase();
-    return Boolean(job.builder_id) || ["builder", "contractor"].includes(customerType);
+    const source = String(job.source_type || "").toLowerCase();
+    return Boolean(job.builder_id) || ["builder", "contractor"].includes(customerType) || source === "builder" || source === "contractor";
   }
   async function loadProposals() {
     const card = $("jobProposalCard");

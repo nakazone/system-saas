@@ -534,7 +534,11 @@
 
   function hasPartnerPortal(wo) {
     const customerType = String(wo?.customer_type || "").toLowerCase();
-    return Boolean(wo?.builder_id) || customerType === "builder" || customerType === "contractor";
+    const source = String(wo?.source_type || "").toLowerCase();
+    return Boolean(wo?.from_portal || wo?.builder_id) || customerType === "builder" || customerType === "contractor" || source === "builder" || source === "contractor";
+  }
+  function detailTabs(wo) {
+    return hasPartnerPortal(wo) ? [...DETAIL_TABS, ["builder", "Builder"]] : DETAIL_TABS;
   }
   function partnerShareButton(attr, id, on, onLabel, offLabel, extra) {
     const J = I();
@@ -969,6 +973,17 @@
         onError: (err) => notify(err.message || "Erro", "error"),
       });
     }
+    if (hasPartnerPortal(wo) && window.JobBuilderChannel) {
+      if (detailTab === "builder" && $("jxBuilder")) {
+        window.JobBuilderChannel.mount($("jxBuilder"), {
+          jobId: wo.id,
+          canManage,
+          notify: (msg, type) => notify(msg, type === "error" ? "error" : "success"),
+        });
+      } else {
+        window.JobBuilderChannel.count(wo.id);
+      }
+    }
   }
 
   function renderDetail() {
@@ -1022,7 +1037,8 @@
     }
     kpis.push(["Equipe", team.length ? team.map((t) => t.name.split(" ")[0]).join(", ") : "Sem equipe", team.length ? `${team.length} pessoa${team.length > 1 ? "s" : ""}` : canManage ? "escalar no Editar" : ""]);
 
-    const tab = DETAIL_TABS.some(([k]) => k === detailTab) ? detailTab : "geral";
+    const tabs = detailTabs(wo);
+    const tab = tabs.some(([k]) => k === detailTab) ? detailTab : "geral";
     detailTab = tab;
     const who = J.client(wo);
     const head = who && who !== "Sem cliente" ? who : wo.title || "Job";
@@ -1035,7 +1051,9 @@
             ? panelCampo(wo)
             : tab === "conversa"
               ? panelConversa()
-              : panelGeral(wo);
+              : tab === "builder"
+                ? `<div id="jxBuilder"></div>`
+                : panelGeral(wo);
 
     host.innerHTML = `
       <a class="jx-back" href="#" data-jx-back>${SVG.back}Jobs</a>
@@ -1081,8 +1099,8 @@
             : ""
         }
       </div>
-      <nav class="jx-tabs" role="tablist">${DETAIL_TABS.map(
-        ([k, label]) => `<button type="button" role="tab" class="${k === tab ? "is-on" : ""}" data-jx-tab="${k}" aria-selected="${k === tab}">${label}</button>`,
+      <nav class="jx-tabs" role="tablist">${tabs.map(
+        ([k, label]) => `<button type="button" role="tab" class="${k === tab ? "is-on" : ""}" data-jx-tab="${k}" aria-selected="${k === tab}">${label}${k === "builder" ? ` <em id="jdTabBuilder"></em>` : ""}</button>`,
       ).join("")}</nav>
       <div class="jx-panel" data-jx-panel="${tab}">${body}</div>`;
     if (hasPartnerPortal(wo) && (tab === "geral" || tab === "fotos")) ensurePartnerDocs(wo);

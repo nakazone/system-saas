@@ -45,3 +45,13 @@
   .bc-msg { max-width: 88%; }
   .bc-share { max-width: none; width: 100%; }
 }
+
+/* The Jobs list panel does not load the job page styles. */
+.jx-panel .bc .jd-card { background: #fff; border-radius: 20px; box-shadow: 0 0 0 1px #E5E7EB; padding: 16px 18px; margin-bottom: 14px; }
+.jx-panel .bc .jd-ch { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; }
+.jx-panel .bc .jd-ch h2 { margin: 0; font-size: 12px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: #667085; }
+.jx-panel .bc .jd-empty { margin: 0; color: #667085; font-size: 13.5px; line-height: 1.5; }
+.jx-panel .bc .jd-btn { height: 42px; padding: 0 16px; border-radius: 12px; border: 0; font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; }
+.jx-panel .bc .jd-btn--pri { background: #E7792C; color: #fff; }
+.jx-panel .bc .jd-btn--pri:hover { background: #EF8A44; }
+.jx-panel .bc .jd-btn--pri:disabled { opacity: .6; cursor: default; }
