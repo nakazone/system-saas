@@ -809,19 +809,23 @@ export async function readWorkOrder(input: { files: IntakeFile[]; text?: string;
   const userWithStrips = strips.length
     ? `${user}\n\nThe first image${images.length > 1 ? "s are the whole pages" : " is the whole page"}; the next ${strips.length} images are the same page${images.length > 1 ? "s" : ""} cut into overlapping strips from top to bottom and enlarged so the small print is readable. Read every number and word from the strips (they are sharper). A line can appear in two strips where they overlap: count it once.`
     : user;
-  const call = (model?: string) => aiChatJson({
-    system: SYSTEM_PROMPT, user: userWithStrips, imageUrls: [...images, ...strips], files: pdfs, timeoutMs: 120_000,
+  const call = (model?: string, timeoutMs = 60_000) => aiChatJson({
+    system: SYSTEM_PROMPT, user: userWithStrips, imageUrls: [...images, ...strips], files: pdfs, timeoutMs,
+    // reading, not puzzling: a reasoning model answers in seconds at low effort
+    reasoningEffort: "low",
     // read the images at full resolution, and the same way every time
     imageDetail: "high", temperature: 0, maxImages: 16,
     ...(model ? { model } : {}),
   });
   const preferred = process.env.WORK_ORDER_AI_MODEL?.trim() || WORK_ORDER_DEFAULT_MODEL;
+  const t0 = Date.now();
   let response = await call(preferred);
-  // the account may not have the work-order model: the default chat model reads it instead
+  // the account may not have the work-order model (or it was too slow): the default chat model reads it instead
   if (!response.ok && !process.env.WORK_ORDER_AI_MODEL?.trim()) {
-    console.warn(`[work-order] model ${preferred} failed (${response.error}); using the default chat model`);
-    response = await call();
+    console.warn(`[work-order] model ${preferred} failed after ${Date.now() - t0} ms (${response.error}); using the default chat model`);
+    response = await call(undefined, 45_000);
   }
+  console.log(`[work-order] read in ${Date.now() - t0} ms · ${response.ok ? response.model : "failed"} · ${images.length} image(s) + ${strips.length} strip(s)`);
   if (!response.ok) return { ok: false, error: response.error };
   const raw = extractJson(response.text);
   if (!raw) return { ok: false, error: "Não consegui ler o arquivo. Confira se ele está legível." };

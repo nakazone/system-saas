@@ -255,6 +255,8 @@ export async function aiChatJson(params: {
   model?: string;
   /** Most images sent (default 8). */
   maxImages?: number;
+  /** Reasoning models (GPT-5/6, o-series): how hard to think — "low" answers much faster. */
+  reasoningEffort?: "minimal" | "low" | "medium" | "high";
   /** "high" reads small print on documents (no downscaling of the images). */
   imageDetail?: "high" | "low" | "auto";
   /** 0 for extraction that must give the same answer every time. */
@@ -305,6 +307,7 @@ export async function aiChatJson(params: {
       ],
     };
     if (modelAcceptsTemperature(model)) body.temperature = params.temperature ?? 0.2;
+    else if (params.reasoningEffort) body.reasoning_effort = params.reasoningEffort;
     const send = () =>
       fetch(`${aiBaseUrl()}/chat/completions`, {
         method: "POST",
@@ -316,6 +319,13 @@ export async function aiChatJson(params: {
         body: JSON.stringify(body),
       });
     let res = await send();
+    if (res.status === 400 && "reasoning_effort" in body) {
+      const peek = (await res.clone().json().catch(() => ({}))) as { error?: { message?: string; param?: string } };
+      if (/reasoning/i.test(String(peek.error?.param || peek.error?.message || ""))) {
+        delete body.reasoning_effort;
+        res = await send();
+      }
+    }
     if (res.status === 400 && "temperature" in body) {
       // Some models only accept the default temperature; retry once without it.
       const peek = (await res.clone().json().catch(() => ({}))) as { error?: { message?: string; param?: string } };
