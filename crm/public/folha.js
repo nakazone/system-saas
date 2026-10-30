@@ -6,7 +6,11 @@
 (function () {
   "use strict";
   const $ = (id) => document.getElementById(id);
-  const SECTORS = { installation: "Instalação", sand_finish: "Lixa" };
+  // Phases ("setores") come from the company's trade pack, injected by the server; the literals are the fallback.
+  const TRADE = window.__OM_TRADE && Array.isArray(window.__OM_TRADE.phases) ? window.__OM_TRADE : null;
+  const SECTORS = TRADE
+    ? Object.fromEntries(TRADE.phases.map((p) => [p.key, (p.label && p.label["pt-BR"]) || p.key]))
+    : { installation: "Instalação", sand_finish: "Lixa" };
   let METHODS = [
     ["zelle", "Zelle"],
     ["cash", "Dinheiro"],
@@ -30,11 +34,11 @@
   }
   const TABS = ["semana", "conferir", "pagamentos", "relatorios", "funcionarios"];
 
-  const SECTOR_KEYS = ["installation", "sand_finish"];
+  const SECTOR_KEYS = Object.keys(SECTORS);
   function readSectorPref() {
     try {
       const s = localStorage.getItem("folha_setor");
-      if (s && ["all", "installation", "sand_finish"].includes(s)) return s;
+      if (s && ["all", ...SECTOR_KEYS].includes(s)) return s;
     } catch (_) {
       /* ignore */
     }

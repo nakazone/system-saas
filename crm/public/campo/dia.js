@@ -66,7 +66,11 @@
       );
     });
   }
-  const SECTOR = { installation: "Instalação", sand_finish: "Lixa" };
+  // Phases from the company's trade pack (server-injected); the literals are the fallback.
+  const TRADE = window.__OM_TRADE && Array.isArray(window.__OM_TRADE.phases) ? window.__OM_TRADE : null;
+  const SECTOR = TRADE
+    ? Object.fromEntries(TRADE.phases.map((p) => [p.key, (p.label && p.label["pt-BR"]) || p.key]))
+    : { installation: "Instalação", sand_finish: "Lixa" };
   const ICON = {
     cam: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h1.6l1.4-2h7l1.4 2h1.6A2.5 2.5 0 0 1 21 8.5v9A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5z"/><circle cx="12" cy="13" r="3.6"/></svg>',
     pin: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.1-7-11.5A7 7 0 0 1 19 9.5C19 14.9 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>',
