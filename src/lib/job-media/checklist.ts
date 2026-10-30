@@ -3,6 +3,10 @@
  */
 import { randomUUID } from "node:crypto";
 import { aiChatJson, isAiConfigured } from "../ai/client.js";
+import { getPack } from "../trades/index.js";
+
+/** The trade word the AI uses for this product's companies (hardwood pack: "flooring"). */
+const TRADE_NOUN = getPack().ai.tradeNoun;
 
 export type CampoChecklistItem = {
   id: string;
@@ -204,7 +208,7 @@ export async function proposeChecklistFromSpeech(transcript: string): Promise<
   }
 
   const result = await aiChatJson({
-    system: `You turn spoken field notes into a job checklist for US flooring installers.
+    system: `You turn spoken field notes into a job checklist for US ${TRADE_NOUN} installers.
 Return ONLY JSON: { "items": [ { "text": string, "photo_required": boolean } ] }
 Max 15 items. Short actionable labels. American English.`,
     user: `Create checklist items from this:\n"""${text.slice(0, 2000)}"""`,

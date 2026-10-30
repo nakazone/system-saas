@@ -55,5 +55,7 @@ export type TradePack = {
   ai: {
     /** How the assistant describes the product's customers, e.g. "flooring installation companies". */
     companyKind: string;
+    /** The trade word used inside prompts: "flooring contractor", "flooring jobs", "empresa de flooring". */
+    tradeNoun: string;
   };
 };

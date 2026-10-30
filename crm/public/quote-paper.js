@@ -14,7 +14,16 @@
     { key: 'sand_finish', label: 'SAND & FINISH', name: 'Sand & Finish', st: 'Sand & Finishing' },
     { key: 'add_on', label: 'ADD ON', name: 'Add On', st: 'Add On' },
   ];
-  const DEFAULT_TAGLINE = 'Hardwood · LVP · Refinishing';
+  // Section labels and the tagline come from the company's trade pack (server-injected window.__OM_TRADE);
+  // the literals above are the fallback. Only keys this file already knows are relabeled.
+  const TRADE_QUOTE = global.__OM_TRADE && global.__OM_TRADE.quote ? global.__OM_TRADE.quote : null;
+  if (TRADE_QUOTE && Array.isArray(TRADE_QUOTE.sections)) {
+    for (const t of TRADE_QUOTE.sections) {
+      const s = SECTIONS.find((x) => x.key === t.key);
+      if (s && t.label) s.label = t.label;
+    }
+  }
+  const DEFAULT_TAGLINE = (TRADE_QUOTE && TRADE_QUOTE.tagline) || 'Hardwood · LVP · Refinishing';
 
   function esc(s) {
     return String(s == null ? '' : s)

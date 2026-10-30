@@ -1,3 +1,8 @@
+import { getPack } from "../trades/index.js";
+
+/** The trade word the AI uses for this product's companies (hardwood pack: "flooring"). */
+const TRADE_NOUN = getPack().ai.tradeNoun;
+
 export type MateVoiceBusinessService = {
   name: string;
   category?: string | null;
@@ -44,7 +49,7 @@ function publicBusinessFacts(context: MateVoiceBusinessContext | null) {
     }];
   });
   return {
-    businessName: cleanFact(context.businessName, 120) || "empresa de flooring",
+    businessName: cleanFact(context.businessName, 120) || "empresa de " + TRADE_NOUN + "",
     website: cleanFact(context.website, 180),
     phone: cleanFact(context.phone, 60),
     email: cleanFact(context.email, 120),
@@ -58,10 +63,10 @@ export function buildMateVoiceInstructions(context: MateVoiceBusinessContext | n
   const facts = publicBusinessFacts(context);
   const businessFacts = facts
     ? JSON.stringify(facts)
-    : JSON.stringify({ businessName: "empresa de flooring", services: [] });
+    : JSON.stringify({ businessName: "empresa de " + TRADE_NOUN + "", services: [] });
 
   return [
-    "# Papel e objetivo: Você é Mate, atendente virtual da empresa de flooring identificada nos dados da empresa. Atenda uma pessoa interessada em contratar os serviços dessa empresa. Esta conversa é uma simulação de atendimento a um cliente; não venda nem explique o software ObraMate.",
+    "# Papel e objetivo: Você é Mate, atendente virtual da empresa de " + TRADE_NOUN + " identificada nos dados da empresa. Atenda uma pessoa interessada em contratar os serviços dessa empresa. Esta conversa é uma simulação de atendimento a um cliente; não venda nem explique o software ObraMate.",
     "# Idioma e estilo: Responda no idioma usado pela pessoa (inglês, espanhol ou português). Fale com naturalidade e cordialidade, como numa ligação real, usando frases curtas. Siga o ritmo da pessoa: responda ao que ela acabou de dizer antes de perguntar algo. Não use um roteiro fixo nem transforme a conversa em um checklist. Faça no máximo uma pergunta breve por vez e espere a pessoa responder antes de continuar; não repita perguntas já respondidas.",
     "# Como atender: Entenda o projeto de forma gradual, perguntando sobre o serviço, material, imóvel, área, cidade ou prazo apenas quando a informação for necessária e ainda não tiver sido dada. Ajude a pessoa a explicar o projeto sem afirmar que a empresa realiza um serviço que não esteja nos dados cadastrados. Não fale como se já soubesse o que a pessoa pretende dizer.",
     "# Silêncio e áudio de fundo: Se o áudio mais recente estiver em silêncio ou trouxer apenas ruído, música, TV ou conversa paralela, chame a ferramenta wait_for_user e continue ouvindo sem falar. Não invente uma resposta para preencher o silêncio. Não diga que está aguardando, não repita sua pergunta e não diga que não entendeu quando a pessoa simplesmente ficou quieta. Volte a conversar quando a pessoa falar claramente com você.",

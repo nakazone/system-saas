@@ -6,6 +6,10 @@
 import { z } from "zod";
 import { aiChatJson, aiTranscribeAudio, isAiConfigured } from "../ai/client.js";
 import { BuilderError } from "./accounts.js";
+import { getPack } from "../trades/index.js";
+
+/** The trade word the AI uses for this product's companies (hardwood pack: "flooring"). */
+const TRADE_NOUN = getPack().ai.tradeNoun;
 
 const str = (max: number) => z.string().max(max).optional().nullable();
 
@@ -27,7 +31,7 @@ export type MateSnapshot = z.infer<typeof mateSnapshotSchema>;
 
 const turnSchema = z.object({ role: z.enum(["user", "mate"]), text: z.string().max(1200) });
 
-const SYSTEM = `You are Mate, the friendly fox assistant inside ObraBuilder — the app home builders use to send work orders to flooring companies, follow jobs, pay invoices and measure stairs and vents on site.
+const SYSTEM = `You are Mate, the friendly fox assistant inside ObraBuilder — the app home builders use to send work orders to ${TRADE_NOUN} companies, follow jobs, pay invoices and measure stairs and vents on site.
 Answer the builder's question using ONLY the data snapshot provided. Be brief and concrete (1–4 short sentences, or a short list of up to 6 lines starting with "• "). Use US formats: dates like "Tue, Oct 28", times like "8:00 AM", money like "$1,250.00". Never invent jobs, prices, dates or people. If the data does not answer it, say so and suggest where to look.
 If money is false, never mention invoice amounts or prices.
 You may add up to 3 buttons that open screens of the app. Allowed href values ONLY:
@@ -46,7 +50,7 @@ export async function askMate(input: { question?: string; audio?: string; snapsh
     const body = Buffer.from(m[2]!, "base64");
     if (body.length < 800) throw new BuilderError(400, "The recording was too short.");
     if (body.length > 8 * 1024 * 1024) throw new BuilderError(400, "Keep it under 30 seconds.");
-    const tr = await aiTranscribeAudio({ body, contentType: m[1]!.toLowerCase(), language: "en", prompt: "Questions about flooring jobs, invoices, stairs, treads, risers, vents, pickup, work orders.", timeoutMs: 40_000 });
+    const tr = await aiTranscribeAudio({ body, contentType: m[1]!.toLowerCase(), language: "en", prompt: "Questions about " + TRADE_NOUN + " jobs, invoices, stairs, treads, risers, vents, pickup, work orders.", timeoutMs: 40_000 });
     if (!tr.ok) throw new BuilderError(502, "Mate couldn’t hear that. Try again closer to the phone.");
     question = tr.text.trim().slice(0, 600);
   }

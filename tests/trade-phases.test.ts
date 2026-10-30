@@ -115,6 +115,15 @@ describe("phases reach the browser", () => {
         { key: "sand_finish", label: { "pt-BR": "Lixa", "en-US": "Sand & Finish" } },
       ],
       combined: "both",
+      quote: {
+        tagline: "Hardwood · LVP · Refinishing",
+        sections: [
+          { key: "supply", label: "SUPPLY" },
+          { key: "installation", label: "INSTALLATION" },
+          { key: "sand_finish", label: "SAND & FINISH" },
+          { key: "add_on", label: "ADD ON" },
+        ],
+      },
     });
     // Unknown or missing trades fall back to hardwood.
     expect(tradeInject(undefined)).toBe(tag);

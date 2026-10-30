@@ -4,6 +4,7 @@
  */
 import { z } from "zod";
 import { formatUsPhone } from "../phone.js";
+import { normalizeTrades } from "../trades/index.js";
 
 export const WEEK_DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
 export type WeekDay = (typeof WEEK_DAYS)[number];
@@ -258,6 +259,8 @@ export type OrganizationSettingsRow = {
   timezone: string;
   defaultLocale: string;
   areaUnit: string;
+  /** Trade Packs the company runs (read-only here; set by the platform). */
+  tradePacks: string[];
   weekStart: string;
   googleReviewUrl: string | null;
   updatedAt: Date;
@@ -291,6 +294,7 @@ export const ORGANIZATION_SETTINGS_SELECT = {
   timezone: true,
   defaultLocale: true,
   areaUnit: true,
+  tradePacks: true,
   weekStart: true,
   googleReviewUrl: true,
   updatedAt: true,
@@ -327,6 +331,7 @@ export function serializeOrganizationSettings(o: OrganizationSettingsRow) {
     timezone: o.timezone,
     default_locale: o.defaultLocale,
     area_unit: o.areaUnit,
+    trade_packs: normalizeTrades(o.tradePacks),
     week_start: o.weekStart,
     google_review_url: o.googleReviewUrl,
     updated_at: o.updatedAt.toISOString(),

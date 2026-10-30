@@ -114,3 +114,27 @@ describe("seedDefaultPricingServices", () => {
     expect(await seedDefaultPricingServices(t.tx as never, "org-1", { trades: ["hardwood"] })).toBe(91);
   });
 });
+
+describe("AI wording comes from the pack (delivery 3)", () => {
+  it("trade noun is the word every prompt used", async () => {
+    expect(getPack().ai.tradeNoun).toBe("flooring");
+    const { buildMateVoiceInstructions } = await import("../src/lib/mate-voice/realtime.js");
+    const text = buildMateVoiceInstructions(null);
+    expect(text).toContain('"businessName":"empresa de flooring"');
+    expect(text).toContain("atendente virtual da empresa de flooring identificada");
+  });
+});
+
+describe("company settings show the trades (read-only)", () => {
+  it("serializes trade_packs and ignores them on update", async () => {
+    const { serializeOrganizationSettings, organizationSettingsPatchSchema, ORGANIZATION_SETTINGS_SELECT } = await import(
+      "../src/lib/settings/organization.js"
+    );
+    const base = Object.fromEntries(Object.keys(ORGANIZATION_SETTINGS_SELECT).map((k) => [k, null]));
+    const row = (tradePacks: string[]) => ({ ...base, updatedAt: new Date(), tradePacks }) as never;
+    expect(serializeOrganizationSettings(row(["hardwood"])).trade_packs).toEqual(["hardwood"]);
+    expect(serializeOrganizationSettings(row([])).trade_packs).toEqual(["hardwood"]);
+    const parsed = organizationSettingsPatchSchema.safeParse({ trade_packs: ["tile"] });
+    expect(parsed.success && "trade_packs" in (parsed.data as object)).toBe(false);
+  });
+});
