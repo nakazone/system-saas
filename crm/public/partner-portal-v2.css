@@ -2854,17 +2854,20 @@ a.pp-lb-btn, a.pp-lb-btn:visited { color: #fff; }
   .pp-qa small { display: none; }
 }
 
-/* Home · greeting with Mate (hard hat) */
-.pp-hello { display: flex; align-items: center; gap: 14px; min-width: 0; }
-.pp-hello-mate { flex: none; width: 64px; height: 64px; border-radius: 18px; object-fit: cover; background: #1F1B17; box-shadow: 0 8px 18px -10px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,255,255,.06); transform-origin: 50% 90%; animation: ppMateHi 900ms cubic-bezier(.2,.8,.2,1) 200ms both; }
+/* Home · greeting with Mate (hard hat), big like in ObraMate */
+.pp-bento > .pp-head:has(.pp-hello) { display: block; }
+.pp-hello { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 150px; margin-top: 64px; padding: 22px 28px; border-radius: 24px; background: linear-gradient(120deg, #FFF6EE 0%, #FCE7D5 55%, #F8D4B4 100%); border: 1px solid #F3DCC6; overflow: visible; }
+.pp-hello::after { content: ""; position: absolute; right: 0; top: 0; bottom: 0; width: 46%; border-radius: 0 24px 24px 0; background: radial-gradient(120% 90% at 85% 100%, rgba(231,121,44,.28), transparent 60%); pointer-events: none; }
+.pp-hello-txt { position: relative; z-index: 1; min-width: 0; }
 .pp-hello h1 { margin: 0; }
-.pp-hello .pp-eyebrow { margin: 0 0 2px; }
-.pp-hello-line { margin: 4px 0 0; color: var(--pp-muted); font-size: 14px; }
-@keyframes ppMateHi { 0% { transform: scale(.85) rotate(-6deg); opacity: 0; } 60% { transform: scale(1.04) rotate(3deg); opacity: 1; } 100% { transform: none; } }
+.pp-hello .pp-eyebrow { margin: 0 0 4px; }
+.pp-hello-line { margin: 6px 0 0; color: #7A5A40; font-size: 15px; font-weight: 500; }
+.pp-hello-mate { position: relative; z-index: 1; flex: none; align-self: flex-end; width: auto; height: 210px; margin: -84px 4px -22px 0; filter: drop-shadow(0 4px 6px rgba(120,60,20,.16)); transform-origin: 60% 100%; animation: ppMateHi 900ms cubic-bezier(.2,.8,.2,1) 150ms both; }
+@keyframes ppMateHi { 0% { transform: translateY(18px) scale(.94); opacity: 0; } 60% { transform: translateY(-4px) rotate(1.5deg); opacity: 1; } 100% { transform: none; } }
 @media (max-width: 640px) {
-  .pp-hello { gap: 12px; align-items: flex-start; }
-  .pp-hello-mate { width: 56px; height: 56px; border-radius: 16px; margin-top: 4px; }
+  .pp-hello { min-height: 128px; margin-top: 26px; padding: 16px 16px; border-radius: 20px; gap: 6px; }
+  .pp-hello h1 { font-size: 24px; line-height: 1.15; }
   .pp-hello-line { font-size: 13px; }
+  .pp-hello-mate { height: 150px; margin: -54px -6px -16px 0; }
 }
 @media (prefers-reduced-motion: reduce) { .pp-hello-mate { animation: none; } }
-@media (max-width: 640px) { .pp-hello h1 { font-size: 28px; line-height: 1.15; } .pp-hello-mate { margin-top: 2px; } }

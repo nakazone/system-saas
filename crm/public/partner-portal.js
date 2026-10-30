@@ -560,7 +560,7 @@
     view.innerHTML = `
       <div class="pp-bento">
         <div class="pp-head" style="grid-column: span 12">
-          <div class="pp-hello"><img class="pp-hello-mate" src="/assets/img/mascot/mate-helmet-192.webp?v=1" alt="" width="64" height="64" decoding="async" /><div><p class="pp-eyebrow">${esc(fmtDay(now, { weekday: 'long', month: 'long', day: 'numeric' }))}</p><h1>${esc(hello)}${first ? `, ${esc(first)}` : ''}</h1>${helloLine(now)}</div></div>
+          <div class="pp-hello"><div class="pp-hello-txt"><p class="pp-eyebrow">${esc(fmtDay(now, { weekday: 'long', month: 'long', day: 'numeric' }))}</p><h1>${esc(hello)}${first ? `, ${esc(first)}` : ''}</h1>${helloLine(now)}</div><img class="pp-hello-mate" src="/assets/img/mascot/mate-helmet.webp?v=1" alt="" width="169" height="220" decoding="async" fetchpriority="high" /></div>
           ${state.builder ? '' : '<div class="pp-head-actions"><a class="pp-btn pp-btn--sec" href="#calendar">Calendar</a><a class="pp-btn pp-btn--sec" href="#documents">Photos & docs</a><a class="pp-btn pp-btn--pri" href="#send">Send work</a></div>'}
         </div>
         ${installBannerHtml() ? `<div style="grid-column: span 12">${installBannerHtml()}</div>` : ''}
