@@ -2651,3 +2651,43 @@ body.pp-sheet-open .pp-busy { display: none; }
   .pp-pst { grid-template-columns: 1fr; }
   .pp-pst-thumb { justify-self: start; }
 }
+
+/* ───────── UX pass (Oct 30) ───────── */
+/* loading: thin bar on top while a screen loads, skeleton shaped like the page */
+#ppLoadBar { position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 200; pointer-events: none; opacity: 0; background: linear-gradient(90deg, var(--pp-orange, #E7792C), #F2A365); transform-origin: 0 50%; transform: scaleX(0); }
+#ppLoadBar.is-on { opacity: 1; animation: pp-loadbar 2.4s cubic-bezier(.2, .8, .2, 1) forwards; }
+#ppLoadBar.is-done { animation: none; transform: scaleX(1); opacity: 0; transition: opacity 220ms ease 60ms, transform 160ms ease; }
+@keyframes pp-loadbar { 0% { transform: scaleX(0); } 60% { transform: scaleX(.7); } 100% { transform: scaleX(.92); } }
+.pp-skel { display: grid; gap: 12px; }
+.pp-skhead { display: grid; gap: 10px; margin: 6px 0 8px; }
+.pp-skgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.pp-skcard { display: grid; gap: 10px; padding: 18px; }
+.pp-sk { display: block; border-radius: 8px; background: linear-gradient(90deg, #EEF0F3 25%, #F7F8FA 50%, #EEF0F3 75%); background-size: 200% 100%; animation: pp-sk 1.3s ease-in-out infinite; }
+@keyframes pp-sk { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) { .pp-sk { animation: none; } #ppLoadBar.is-on { animation: none; transform: scaleX(.7); } }
+.pp-loadfail { display: grid; justify-items: center; gap: 8px; text-align: center; padding: 34px 20px; }
+.pp-loadfail strong { font-size: 17px; }
+.pp-loadfail span { color: var(--pp-muted); font-size: 14px; max-width: 420px; }
+
+/* measurement header: separators without a leading dot when the line wraps */
+.pp-meas-by:not(:empty)::before { content: none; }
+.pp-mhead-title p { column-gap: 10px; }
+.pp-meas-notes { font-size: 13px; }
+
+@media (max-width: 767px) {
+  /* title on its own line, actions in one row under it */
+  .pp-mhead-row { flex-direction: column; align-items: stretch; gap: 10px; }
+  .pp-mhead-row .pp-head-actions { display: flex; flex-wrap: nowrap; gap: 8px; }
+  .pp-mhead-row .pp-head-actions .pp-btn { flex: 1; min-width: 0; }
+  .pp-mhead-row .pp-head-actions .pp-btn--icon { flex: 0 0 44px; }
+  .pp-mtabs button { padding: 0 8px; }
+  /* Mate's mic: smaller on phones so it covers less of the lists */
+  .pp-voice-fab { width: 56px; height: 56px; }
+  .pp-voice-fab img { width: 46px; height: 46px; }
+}
+
+@media (max-width: 767px) {
+  /* job ticket: back + actions on one row, company · job # · status under it */
+  .tk-hero-top .tk-meta { order: 3; flex: 1 0 100%; }
+  .tk-hero-top .pp-back { margin-right: auto; }
+}

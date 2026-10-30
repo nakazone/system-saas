@@ -441,6 +441,11 @@
     setNav(r.name);
     // Entering a new screen settles in once; re-renders of the same screen (search, filters) don't animate.
     const screenKey = `${r.name}/${r.id}`;
+    // a new screen that waits on the network: a thin progress bar at once, a skeleton if it takes a moment
+    const fresh = screenKey !== lastScreen;
+    const before = view.firstElementChild;
+    const slow = fresh ? setTimeout(() => { if (token === renderToken && view.firstElementChild === before) view.innerHTML = skeletonHtml(r.name); }, 180) : 0;
+    loadBar(true);
     if (screenKey !== lastScreen) {
       lastScreen = screenKey;
       view.classList.remove('pp-enter');
@@ -472,9 +477,31 @@
       if (token === renderToken) paintCoBar(r);
     } catch (err) {
       if (token !== renderToken) return;
-      view.innerHTML = `<p class="pp-error" role="alert">${esc(err.message || 'Could not load.')}</p>`;
+      view.innerHTML = `<div class="pp-card pp-empty pp-loadfail" role="alert">${mate('head-curious', 56)}<strong>${navigator.onLine === false ? 'You’re offline' : 'This page didn’t load'}</strong><span>${esc(navigator.onLine === false ? 'Check the connection and try again.' : err.message || 'Something went wrong.')}</span><button type="button" class="pp-btn pp-btn--pri pp-btn--sm" data-retry>Try again</button></div>`;
+      const rb = view.querySelector('[data-retry]'); if (rb) rb.addEventListener('click', () => { lastScreen = ''; render(); });
+    } finally {
+      clearTimeout(slow);
+      if (token === renderToken) loadBar(false);
     }
     updateCounts();
+  }
+
+  /** Thin bar at the top while a screen loads (only shows when it takes more than a blink). */
+  let barTimer = 0;
+  function loadBar(on) {
+    let bar = document.getElementById('ppLoadBar');
+    if (!bar) { bar = document.createElement('div'); bar.id = 'ppLoadBar'; bar.setAttribute('aria-hidden', 'true'); document.body.appendChild(bar); }
+    clearTimeout(barTimer);
+    if (on) { barTimer = setTimeout(() => bar.classList.add('is-on'), 120); return; }
+    if (bar.classList.contains('is-on')) { bar.classList.add('is-done'); barTimer = setTimeout(() => bar.classList.remove('is-on', 'is-done'), 260); }
+  }
+  /** Placeholder shaped like the screen that is loading. */
+  function skeletonHtml(name) {
+    const line = (w, h) => `<i class="pp-sk" style="width:${w};height:${h || 12}px"></i>`;
+    const card = (n) => `<div class="pp-card pp-skcard">${line('38%', 14)}${Array.from({ length: n }, (_, i) => line(`${86 - i * 14}%`)).join('')}</div>`;
+    const head = `<div class="pp-skhead">${line('120px', 11)}${line('220px', 30)}</div>`;
+    const grid = ['jobs', 'invoices', 'measurements', 'empresas', 'documentos'].includes(name);
+    return `<div class="pp-skel" aria-busy="true" aria-label="Loading">${head}${grid ? `<div class="pp-skgrid">${card(3)}${card(3)}${card(3)}</div>` : ''}${card(4)}${card(3)}</div>`;
   }
 
   /* ─────────────────────────── home ─────────────────────────── */
@@ -673,8 +700,11 @@
     if (sub) { await postJson('/api/builder/push/unsubscribe', { endpoint: sub.endpoint }).catch(() => {}); await sub.unsubscribe(); }
   }
   async function renderNotifications(token) {
-    const r = (await loadNotes(true)) || { data: [], unread: 0 };
+    const got = await loadNotes(true);
     if (token !== renderToken) return;
+    // couldn't load: say so (the list isn't empty, it just didn't come)
+    if (!got && !state.notes) throw new Error('Could not load your notifications.');
+    const r = got || state.notes || { data: [], unread: 0 };
     const ps = await pushState();
     const rows = r.data || [];
     const today = dateKey(new Date());
@@ -823,11 +853,12 @@
     print: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></svg>',
   };
 
+  const thumbUrl = (u, w) => (/\/documents\/media\//.test(u) ? `${u}${u.includes('?') ? '&' : '?'}w=${w}` : u);
   function photoGrid(photos) {
     const label = { before: 'Before', during: 'During', after: 'After' };
     return `<div class="tk-photos">${photos.slice(0, 9).map((p) => p.type === 'video'
       ? `<a href="${esc(p.file_url)}" target="_blank" rel="noopener" class="tk-ph tk-ph--video"><span>Video</span>${p.stage && label[p.stage] ? `<b>${label[p.stage]}</b>` : ''}</a>`
-      : `<a href="${esc(p.file_url)}" target="_blank" rel="noopener" class="tk-ph"><img src="${esc(p.file_url)}" alt="${esc(p.caption || 'Job photo')}" loading="lazy" />${p.stage && label[p.stage] ? `<b>${label[p.stage]}</b>` : ''}${p.caption ? `<i>${esc(p.caption)}</i>` : ''}</a>`).join('')}</div>`;
+      : `<a href="${esc(p.file_url)}" target="_blank" rel="noopener" class="tk-ph"><img src="${esc(thumbUrl(p.file_url, 480))}" decoding="async" alt="${esc(p.caption || 'Job photo')}" loading="lazy" />${p.stage && label[p.stage] ? `<b>${label[p.stage]}</b>` : ''}${p.caption ? `<i>${esc(p.caption)}</i>` : ''}</a>`).join('')}</div>`;
   }
 
   function jobDetailHtml(data) {
@@ -2578,7 +2609,7 @@
       ${list.length ? `<div class="pp-doc-grid">${list.map((d) => {
         const job = d.job || {};
         const prev = d.type === 'photo'
-          ? `<a class="pp-doc-prev" href="${esc(d.file_url)}" target="_blank" rel="noopener"><img src="${esc(d.file_url)}" alt="${esc(d.title)}" loading="lazy" /></a>`
+          ? `<a class="pp-doc-prev" href="${esc(d.file_url)}" target="_blank" rel="noopener"><img src="${esc(thumbUrl(d.file_url, 560))}" decoding="async" alt="${esc(d.title)}" loading="lazy" /></a>`
           : `<div class="pp-doc-prev" aria-hidden="true">${d.type === 'report' ? 'PDF' : d.type === 'video' ? 'VIDEO' : 'FILE'}</div>`;
         return `<article class="pp-card pp-doc-card">${prev}<div class="pp-doc-body"><span class="pp-lbl">${d.type === 'photo' ? 'Photo' : d.type === 'video' ? 'Video' : d.type === 'report' ? 'Report' : 'File'}${d.created_at ? ` · ${esc(fmtDay(d.created_at))}` : ''}</span><h3>${esc(d.title || 'Document')}</h3><p>${job.id ? `<a class="pp-link" href="#jobs/${encodeURIComponent(job.id)}">${esc(job.title || 'Job')}${job.number ? ` · #${esc(job.number)}` : ''}</a>` : ''}</p>${job.address ? `<p>${esc(job.address)}</p>` : ''}<div class="pp-doc-actions"><a class="pp-btn pp-btn--sec pp-btn--sm" href="${esc(d.file_url)}" target="_blank" rel="noopener">View</a><a class="pp-btn pp-btn--sec pp-btn--sm" href="${esc(d.file_url)}?download=1">Download</a></div></div></article>`;
       }).join('')}</div>` : `<div class="pp-card pp-empty">${mate(state.documents.length ? 'head-curious' : 'tablet')}<strong>${state.documents.length ? 'Nothing found' : 'Nothing shared yet'}</strong>${state.documents.length ? 'Change the search or the filter.' : 'Only photos, reports and files the company has shared with you appear here. If you expected a file, ask the company to share it.'}</div>`}`;
@@ -6034,7 +6065,7 @@
         <a class="pp-back" href="#measurements" style="display:inline-flex">${icon('back')}Measurements</a>
         <div class="pp-mhead-row">
           <div class="pp-mhead-title"><h1 class="pp-meas-title">${esc(m.address)}</h1>
-            <p>${measStatusChip(m)} <span id="ppMeasSaved" class="pp-meas-saved">Saved</span> <span class="pp-meas-by" id="ppMeasBy"></span>${m.notes ? ` · <button type="button" class="pp-link" data-mtab-go="summary">Notes</button>` : ''}</p></div>
+            <p>${measStatusChip(m)} <span id="ppMeasSaved" class="pp-meas-saved">Saved</span> <span class="pp-meas-by" id="ppMeasBy"></span>${m.notes ? `<button type="button" class="pp-link pp-meas-notes" data-mtab-go="summary">Notes</button>` : ''}</p></div>
           <div class="pp-head-actions">
             <a class="pp-btn pp-btn--sec pp-hide-phone" href="/api/builder/measurements/${encodeURIComponent(m.id)}/pdf" target="_blank" rel="noopener">${icon('download')}PDF</a>
             ${locked || !canDo('jobs.send') ? '' : `<button type="button" class="pp-btn pp-btn--sec" data-send-wo>${icon('send')}<span>Send<span class="pp-hide-phone"> work order</span></span></button>`}
@@ -6046,7 +6077,7 @@
       ${state.send && state.send.phase === 'review' && state.send.measurement && state.send.measurement.id === m.id ? `<div class="pp-wz-back"><span>${mate('head-happy', 28)}You’re sending a work order with this measurement.</span><a class="pp-btn pp-btn--pri pp-btn--sm" href="#send">Back to the work order</a></div>` : ''}
       ${locked ? `<div class="pp-match"><strong>This measurement was already sent with the Work Order</strong><span class="pp-muted" style="font-size:14px">${m.work_order_id ? `<a class="pp-link" href="#jobs/${encodeURIComponent(m.work_order_id)}">Open the job</a> · ` : ''}To measure again, start a new measurement for this address.</span></div>` : ''}
       <div class="pp-mtabs" role="tablist" aria-label="Measurement sections">
-        ${tab('stairs', 'Stairs', c.treads + c.risers ? `${c.treads}·${c.risers}` : null)}${tab('vents', 'Vents', c.vents || null)}${tab('floors', 'Floor Plan', ft ? (ft >= 1000 ? `${(Math.round(ft / 100) / 10).toLocaleString('en-US')}k sf` : `${Math.round(ft)} sf`) : null)}${tab('summary', 'Summary', null)}
+        ${tab('stairs', 'Stairs', c.treads + c.risers ? `${c.treads}·${c.risers}` : null)}${tab('vents', 'Vents', c.vents || null)}${tab('floors', '<span class="pp-hide-phone">Floor </span>Plan', ft ? (ft >= 1000 ? `${(Math.round(ft / 100) / 10).toLocaleString('en-US')}k sf` : `${Math.round(ft)} sf`) : null)}${tab('summary', 'Summary', null)}
       </div>
       <div class="pp-mpanel" role="tabpanel">
         ${m.tab === 'stairs'

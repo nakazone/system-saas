@@ -1642,6 +1642,14 @@ function partnerDocsReady(user: NonNullable<PartnerRequest["partnerUser"]>, res:
   return false;
 }
 
+/** A photo resized to `width` px (WebP), for thumbnails. */
+async function thumbnailOf(stream: NodeJS.ReadableStream, width: number): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as unknown as Uint8Array));
+  const sharp = (await import("sharp")).default;
+  return sharp(Buffer.concat(chunks)).rotate().resize({ width, withoutEnlargement: true }).webp({ quality: 78 }).toBuffer();
+}
+
 function safeFileName(value: string, fallback: string): string {
   const clean = value.replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 120);
   return clean || fallback;
@@ -1786,6 +1794,20 @@ partnerPortalRouter.get(
       }
       const extension = row.type === "video" ? "mp4" : "jpg";
       const fileName = safeFileName(row.caption || `obra-${row.jobNumber ?? row.id}`, `obra-${row.id}`);
+      // ?w=480: a small copy for grids and previews (phone photos are several MB each)
+      const w = Math.round(Number(req.query.w) || 0);
+      if (row.type !== "video" && w >= 120 && w <= 1600 && !req.query.download) {
+        const small = await thumbnailOf(stream, w).catch(() => null);
+        if (small) {
+          res.setHeader("Cache-Control", "private, max-age=86400");
+          res.setHeader("X-Content-Type-Options", "nosniff");
+          res.setHeader("Content-Type", "image/webp");
+          res.end(small);
+          return;
+        }
+        res.status(404).json({ success: false, error: "File unavailable." });
+        return;
+      }
       res.setHeader("Cache-Control", "private, no-store");
       res.setHeader("X-Content-Type-Options", "nosniff");
       res.setHeader("Content-Type", row.type === "video" ? "video/mp4" : "image/jpeg");
