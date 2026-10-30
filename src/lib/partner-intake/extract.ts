@@ -257,6 +257,11 @@ export function normalizeIntake(raw: Record<string, unknown>, today = new Date()
       if (sandRow?.qty && !sandItem.quantity) sandItem.quantity = sandRow.qty;
       if (sandItem.rate == null && sandRow?.rate != null) sandItem.rate = sandRow.rate;
       if (sandItem.total == null && sandRow?.total != null) sandItem.total = sandRow.total;
+      // labor ÷ rate gives the steps when both are printed (800.00 ÷ 50.000 = 16)
+      const byMoney = sandItem.rate && sandItem.total ? sandItem.total / sandItem.rate : 0;
+      if (byMoney && Math.abs(byMoney - Math.round(byMoney)) < 0.01 && byMoney <= 500 && (!treadsTotal || (byMoney >= treadsTotal / 2 && byMoney <= treadsTotal + risersTotal))) {
+        sandItem.quantity = Math.round(byMoney);
+      }
       // no trustworthy row: the steps sanded are the treads of the order
       const q = Number(sandItem.quantity) || 0;
       if (treadsTotal && (q < treadsTotal / 2 || q > treadsTotal + risersTotal)) {

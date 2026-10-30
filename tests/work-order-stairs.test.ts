@@ -119,4 +119,9 @@ describe("stair sanding step count", () => {
     const sand = r.items.find((it) => it.service_name === "Sand & finish stair treads")!;
     expect([sand.quantity, sand.total]).toEqual([16, 800]);
   });
+  it("labor ÷ rate gives the steps when the row is not in the text", () => {
+    const r = normalizeIntake({ raw_text: CFC, address: "x", items: [{ description: "Site finished sand / 2 coat treads", detail: "", quantity: 2, uom: "EA", rate: 50, total: 800 }] });
+    const sand = r.items.find((it) => it.service_name === "Sand & finish stair treads")!;
+    expect([sand.quantity, sand.rate, sand.total]).toEqual([16, 50, 800]);
+  });
 });

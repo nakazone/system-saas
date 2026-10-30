@@ -1704,6 +1704,12 @@
   }
   /** Stairs of the order (from the measurement when there is one): treads and risers per flight. */
   function orderStairCounts(s) {
+    // what the work order says wins: the measurement is drawn from it (photos can miscount)
+    const det = orderTakeoff(s.items);
+    if (det.stairs.some((f) => f.treads)) {
+      const flights = det.stairs.map((f) => ({ w: f.w, treads: f.treads, risers: f.risers }));
+      return { flights, treads: flights.reduce((a, f) => a + f.treads, 0), risers: flights.reduce((a, f) => a + f.risers, 0) };
+    }
     const md = s.measurement && s.useMeasurement && s.measData;
     if (md && (md.stairs || []).length) {
       const flights = md.stairs.map((st) => {
@@ -1998,6 +2004,68 @@
       det.stairs.length > 1 ? `These are ${det.stairs.length} flights of ONE stair joined by a landing, listed lower flight first. Build them as connected flights (landing on each lower flight, starts_on_landing_of on the next). From the photos work out the landing size and which way each upper flight turns.` : 'From the photos work out landings and how the stair turns.',
       'Estimate tread depth and riser height from the photos.'].join('\n');
   }
+  /**
+   * The treads and risers of each flight are the work order's (8 treads → 9 risers): the photos give
+   * the shape — sizes, landing, turn — but can miscount steps. Returns what was corrected.
+   */
+  function fitStairsToOrder(data, det, base) {
+    const notes = [];
+    det.stairs.forEach((g, i) => {
+      const st = (data.stairs || [])[base + i];
+      if (!st || !g.treads) return;
+      st.steps = st.steps || [];
+      const before = measCounts({ stairs: [st], vents: [] });
+      const isTread = (x) => x.kind !== 'riser' && (x.tread_w || x.tread_d);
+      const w = g.w || 42;
+      // treads
+      let tr = st.steps.filter(isTread).length;
+      while (tr < g.treads) {
+        const prev = [...st.steps].reverse().find(isTread) || null;
+        const nx = newStep(prev, 'step');
+        if (!prev) Object.assign(nx, { tread_w: w, tread_d: 11.25, riser_w: w, riser_h: 7.5, open: g.open || 'none' });
+        const lastTreadAt = st.steps.lastIndexOf(prev);
+        st.steps.splice(lastTreadAt + 1, 0, nx);
+        tr++;
+      }
+      while (tr > g.treads) {
+        const at = st.steps.map((x, k) => (isTread(x) ? k : -1)).filter((k) => k >= 0).pop();
+        st.steps.splice(at, 1); tr--;
+      }
+      // risers: every tread has one, and the flight one more at the top
+      const want = g.risers || g.treads + 1;
+      if (want > 0 && st.riser_material === 'none') st.riser_material = '';
+      const count = () => measCounts({ stairs: [st], vents: [] }).risers;
+      for (const x of st.steps.filter(isTread)) {
+        if (count() >= want) break;
+        if (x.no_riser) x.no_riser = false;
+        if (!x.riser_w && !x.riser_h) { x.riser_w = x.tread_w || w; x.riser_h = 7.5; }
+      }
+      while (count() < want) {
+        const prev = [...st.steps].reverse().find((x) => x.kind === 'riser' || x.riser_h != null) || st.steps[st.steps.length - 1] || null;
+        const r = newStep(prev, 'riser'); if (!r.riser_w) r.riser_w = w; if (!r.riser_h) r.riser_h = 7.5;
+        st.steps.push(r);
+      }
+      while (count() > want) {
+        const at = st.steps.map((x, k) => (x.kind === 'riser' ? k : -1)).filter((k) => k >= 0).pop();
+        if (at != null) { st.steps.splice(at, 1); continue; }
+        const t = st.steps.find((x) => isTread(x) && !x.no_riser);
+        if (!t) break;
+        t.no_riser = true;
+      }
+      // the tread width and returns are the products on the order (48" double returns, 42" left returns)
+      const wBefore = ((st.steps.find(isTread) || {}).tread_w) || 0;
+      const oBefore = ((st.steps.find(isTread) || {}).open) || 'none';
+      if (g.w) st.steps.forEach((x) => { if (isTread(x)) x.tread_w = g.w; if (x.riser_w || x.riser_h) x.riser_w = g.w; });
+      if (g.open && g.open !== 'none') st.steps.forEach((x) => { if (isTread(x)) x.open = g.open; });
+      const after = measCounts({ stairs: [st], vents: [] });
+      const fix = [];
+      if (before.treads !== after.treads || before.risers !== after.risers) fix.push(`the photos counted ${before.treads} treads · ${before.risers} risers — set to the order's ${after.treads} treads · ${after.risers} risers`);
+      if (g.w && wBefore && Math.abs(wBefore - g.w) > 0.01) fix.push(`width ${wBefore}" → ${g.w}" from the order`);
+      if (g.open && g.open !== 'none' && oBefore !== g.open) fix.push(`${OPEN_TXT[g.open]} from the order`);
+      if (fix.length) notes.push(`${st.name || `Flight ${i + 1}`}: ${fix.join('; ')}.`);
+    });
+    return notes;
+  }
   /** Without photos: one straight flight per width, typical depth/height to check on site. */
   function orderActions(det, base) {
     const out = [];
@@ -2166,9 +2234,18 @@
           s.measReply = `${e.message || 'Mate couldn’t look at the photos.'} Built with typical sizes instead.`;
         }
       }
-      if (!actions.some((a) => a.type === 'add_stair')) actions = actions.concat(orderActions(det, m.data.stairs.length));
+      const base = m.data.stairs.length;
+      const seen = actions.filter((a) => a.type === 'add_stair').length;
+      if (seen && det.stairs.length && seen !== det.stairs.length) {
+        // the photos gave another number of flights than the order: the order decides
+        s.measObs = [...(s.measObs || []), `The photos looked like ${seen} flight${seen === 1 ? '' : 's'}; the work order has ${det.stairs.length}. Built from the order.`];
+        actions = actions.filter((a) => !['add_stair', 'set_stair', 'add_steps', 'set_steps', 'remove_steps', 'add_riser', 'add_nosing'].includes(a.type));
+      }
+      if (!actions.some((a) => a.type === 'add_stair')) actions = actions.concat(orderActions(det, base));
       det.vents.forEach((v) => actions.push({ type: 'add_vent', size: v.size, vent_type: v.type, qty: v.qty, ...(v.species ? { species: v.species } : {}), ...(v.color ? { color: v.color } : {}) }));
       applyVoiceActions(m, actions);
+      const fixed = fitStairsToOrder(m.data, det, base);
+      if (fixed.length) s.measObs = [...(s.measObs || []), ...fixed];
       const saved = await api(`/api/builder/measurements/${encodeURIComponent(m.id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: m.data, notes: m.notes || '' }) });
       const c = measCounts(m.data);
       s.measurement = { id: m.id, address: saved.data.address || m.address, status: saved.data.status || 'draft', counts: c, summary: measSummary(m.data).map((l) => ({ text: `${l.kind} · ${l.text}`, qty: Number(l.qty).toLocaleString('en-US'), uom: l.uom || 'EA' })), measured_by: state.builder.member.name, measured_at: new Date().toISOString() };
