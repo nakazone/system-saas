@@ -62,7 +62,6 @@ import { builderAccountRouter } from "./modules/builders/routes.js";
 import { CRM_ASSETS_DIR, CRM_PUBLIC_DIR } from "./crm/mount.js";
 import { getLocalFileStorage } from "./lib/storage/index.js";
 import { i18nPublicRouter } from "./lib/i18n/routes.js";
-import compression from "compression";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PgSession = connectPgSimple(session);
@@ -86,17 +85,6 @@ export function createApp() {
   app.set("view engine", "ejs");
   app.set("views", path.join(__dirname, "views"));
   app.set("trust proxy", 1);
-
-  // gzip text (HTML, JS, CSS, JSON): the portal script alone is ~520 KB raw, ~120 KB gzipped.
-  // Live streams (chat SSE) are left alone so events are not held in the buffer.
-  app.use(compression({
-    threshold: 1024,
-    filter: (req, res) => {
-      const type = String(res.getHeader("Content-Type") || "");
-      if (type.includes("text/event-stream") || req.headers.accept === "text/event-stream") return false;
-      return compression.filter(req, res);
-    },
-  }));
 
   // Stripe needs the raw body to check the signature: before the JSON parser.
   app.use(stripeWebhookRouter);
