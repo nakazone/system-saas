@@ -2853,3 +2853,18 @@ a.pp-lb-btn, a.pp-lb-btn:visited { color: #fff; }
   .pp-qa strong { font-size: 12.5px; line-height: 1.2; }
   .pp-qa small { display: none; }
 }
+
+/* Home · greeting with Mate (hard hat) */
+.pp-hello { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.pp-hello-mate { flex: none; width: 64px; height: 64px; border-radius: 18px; object-fit: cover; background: #1F1B17; box-shadow: 0 8px 18px -10px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,255,255,.06); transform-origin: 50% 90%; animation: ppMateHi 900ms cubic-bezier(.2,.8,.2,1) 200ms both; }
+.pp-hello h1 { margin: 0; }
+.pp-hello .pp-eyebrow { margin: 0 0 2px; }
+.pp-hello-line { margin: 4px 0 0; color: var(--pp-muted); font-size: 14px; }
+@keyframes ppMateHi { 0% { transform: scale(.85) rotate(-6deg); opacity: 0; } 60% { transform: scale(1.04) rotate(3deg); opacity: 1; } 100% { transform: none; } }
+@media (max-width: 640px) {
+  .pp-hello { gap: 12px; align-items: flex-start; }
+  .pp-hello-mate { width: 56px; height: 56px; border-radius: 16px; margin-top: 4px; }
+  .pp-hello-line { font-size: 13px; }
+}
+@media (prefers-reduced-motion: reduce) { .pp-hello-mate { animation: none; } }
+@media (max-width: 640px) { .pp-hello h1 { font-size: 28px; line-height: 1.15; } .pp-hello-mate { margin-top: 2px; } }
