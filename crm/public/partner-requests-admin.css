@@ -65,3 +65,4 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
 .requests-sched-row input:disabled { opacity: .5; }
 .requests-sched-all { display: inline-flex !important; grid-auto-flow: column; align-items: center; gap: 6px !important; height: 40px; }
 .requests-sched-hint { margin: 8px 0 0; font-size: 12.5px; color: #667085; }
+.requests-card.is-focus { box-shadow: 0 0 0 3px rgba(231, 121, 44, .45); }

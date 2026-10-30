@@ -113,6 +113,10 @@
       const status = $('requestStatusFilter').value;
       const result = await request(`/api/partner-requests?status=${encodeURIComponent(status)}`);
       render(result.data || []);
+      // opened from a notification: show that request
+      const want = new URLSearchParams(location.search).get('id');
+      const card = want && list.querySelector(`[data-req-id="${CSS.escape(want)}"]`);
+      if (card) { card.classList.add('is-focus'); card.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
     } catch (err) {
       error.textContent = err.message || 'Não foi possível carregar os pedidos.';
       error.hidden = false;
@@ -153,7 +157,7 @@
         <p class="requests-sched-hint">${pref ? `O builder pediu ${escapeHtml(formatDate(item.preferred_date))}. ` : ''}O builder recebe o aviso com a data no app.</p>
       </fieldset>` : '';
       const review = item.status === 'pending' ? `${sched}<div class="requests-review"><label for="review-${escapeHtml(item.id)}">Mensagem para o Builder (opcional)</label><textarea id="review-${escapeHtml(item.id)}" maxlength="2000" placeholder="Confirmação, pedido de informação ou motivo da recusa…"></textarea><div class="requests-actions"><button type="button" data-action="accept" data-id="${escapeHtml(item.id)}">${item.target_job ? 'Aprovar e atualizar o Job' : 'Aprovar e agendar'}</button><button type="button" data-action="decline" data-id="${escapeHtml(item.id)}">Não aprovar</button></div></div>` : '';
-      return `<article class="requests-card"><div class="requests-card-head"><div><h2>${escapeHtml(item.title)}</h2><p class="requests-meta">${escapeHtml(item.partner_company)} · ${escapeHtml(formatDate(item.created_at))}${item.read_by_ai ? ' · lido pela IA a partir do arquivo' : ''}${item.target_job ? ' · atualização' : ''}</p></div><span class="requests-status ${statusClass}">${statusLabel(item.status)}</span></div><div class="requests-info">${details}</div>${files ? `<div class="requests-files">${files}</div>` : ''}${review}</article>`;
+      return `<article class="requests-card" data-req-id="${sid}"><div class="requests-card-head"><div><h2>${escapeHtml(item.title)}</h2><p class="requests-meta">${escapeHtml(item.partner_company)} · ${escapeHtml(formatDate(item.created_at))}${item.read_by_ai ? ' · lido pela IA a partir do arquivo' : ''}${item.target_job ? ' · atualização' : ''}</p></div><span class="requests-status ${statusClass}">${statusLabel(item.status)}</span></div><div class="requests-info">${details}</div>${files ? `<div class="requests-files">${files}</div>` : ''}${review}</article>`;
     }).join('');
   }
 

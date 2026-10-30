@@ -901,6 +901,20 @@ partnerPortalRouter.post("/api/partner-portal/requests", requirePartnerAuth, req
         return;
       }
     }
+    // waiting for approval: the company's office hears about it right away (bell + push), not only on the Requests page
+    {
+      const partnerName = req.builderMember?.account.name || user.companyName || user.builder?.company || user.customer?.company || user.customer?.name || "Builder";
+      await publishAppNotification({
+        organizationId: user.organizationId,
+        type: parsed.data.target_job_id ? "builder_request_update" : "builder_request_new",
+        title: parsed.data.target_job_id
+          ? `${partnerName} enviou uma atualização de job para aprovar`
+          : `Novo pedido de ${partnerName} — aprovar e agendar`,
+        body: [row.title, parsed.data.external_ref ? `#${parsed.data.external_ref}` : "", `enviado por ${req.builderMember?.name || user.name}`].filter(Boolean).join(" · "),
+        url: `partner-requests-admin.html?id=${row.id}`,
+        dedupeKey: `builder-request:${row.id}`,
+      }).catch((error) => console.warn("[partner-requests] notification failed:", error instanceof Error ? error.message : error));
+    }
     res.status(201).json({ success: true, data: { id: row.id, status: "pending" } });
   } catch (error) {
     next(error);
