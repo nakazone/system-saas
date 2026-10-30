@@ -6,6 +6,8 @@
   const I = () => window.JobsInfo;
   const $ = (id) => document.getElementById(id);
   let all = [];
+  /** Pending builder-portal requests. Shown on the list before a job exists. */
+  let portalRequests = [];
   let canManage = false;
   let canBill = false;
   let canInvoice = false;
@@ -353,6 +355,40 @@
         .join("")}</div>
       <button type="button" class="jx-cal__all${weekFilter ? "" : " is-on"}" data-jx-cal="all">Todas as semanas</button>`;
   }
+  function requestHit(item) {
+    if (!q) return true;
+    const text = [item.title, item.address, item.partner_company, item.partner_name, item.external_ref, item.service_type, item.notes]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return text.includes(q) || (q.length >= 5 && text.includes(q.slice(1)));
+  }
+  function showPending() {
+    if (statusFilter && statusFilter !== "Rascunho" && statusFilter !== "Sem data") return false;
+    if (filter && filter !== "all" && filter !== "nodate") return false;
+    if (source && source !== "builder") return false;
+    return true;
+  }
+  function pendingRequestHtml(item) {
+    const J = I();
+    const jobId = item.target_job && item.target_job.id;
+    const href = jobId
+      ? `job-detail.html?id=${encodeURIComponent(jobId)}`
+      : `partner-requests-admin.html?id=${encodeURIComponent(item.id)}`;
+    const who = item.partner_company || item.partner_name || "Builder";
+    const addr = item.address && item.address !== "—" ? `<span class="jx-row__addr">${SVG.pin}<span>${J.esc(item.address)}</span></span>` : "";
+    return `<div class="jx-rowwrap"><a class="jx-row" href="${href}" ${jobId ? `data-jx-id="${J.esc(jobId)}"` : ""}>
+      <span class="jx-row__b">
+        <span class="jx-row__l1"><b>${J.esc(who)}</b></span>
+        ${addr}
+        <span class="jx-row__l3">${J.esc(item.title || "Pedido do builder")}</span>
+      </span>
+      <span class="jx-row__side">
+        <span class="jx-row__when">Pedido</span>
+        <span class="jx-row__st">Aguardando</span>
+      </span>
+    </a></div>`;
+  }
   function renderList() {
     renderWeekCal();
     let rows = visibleRows();
@@ -363,8 +399,12 @@
         return sameWeek(d, weekFilter);
       });
     }
+    const pending = showPending() ? portalRequests.filter(requestHit) : [];
+    const portalIds = new Set(rows.filter((w) => w.from_portal && I().isActive(w)).map((w) => String(w.id)));
+    const portal = sortRows(rows.filter((w) => portalIds.has(String(w.id))));
+    rows = rows.filter((w) => !portalIds.has(String(w.id)));
     const host = $("jxRows");
-    if (!rows.length) {
+    if (!rows.length && !portal.length && !pending.length) {
       const empty = q
         ? `Nenhum job para “${I().esc(q)}”. Abra o quote e use Abrir job, ou busque pelo builder, endereço ou número do quote.`
         : all.length
@@ -386,6 +426,9 @@
     });
     const keys = [...weeks.keys()].sort((a, b) => weekRank(a) - weekRank(b));
     let html = "";
+    if (pending.length || portal.length) {
+      html += `<section class="jx-week jx-week--portal"><p class="jx-grp jx-grp--portal"><span>Do portal</span><em>${pending.length + portal.length}</em></p>${pending.map(pendingRequestHtml).join("")}${portal.map(rowHtml).join("")}</section>`;
+    }
     keys.forEach((key, i) => {
       const g = sortRows(weeks.get(key));
       const [yy, mm, dd] = key.split("-").map(Number);
@@ -411,7 +454,7 @@
         void deleteJob(btn.getAttribute("data-jx-delete"), btn.getAttribute("data-jx-label"), btn);
       });
     });
-    return rows;
+    return [...portal, ...rows];
   }
 
   // ---------------------------------------------------------------- detail
@@ -1176,8 +1219,15 @@
     if (query.length >= 2) params.set("q", query);
     const pin = query.length >= 2 ? selId : selId || focusId;
     if (pin) params.set("id", pin);
-    const j = await api(`/api/work-orders${params.toString() ? `?${params}` : ""}`);
+    const pendingP = canManage
+      ? api("/api/partner-requests?status=pending").then((r) => r.data || []).catch(() => [])
+      : Promise.resolve([]);
+    const [j, pending] = await Promise.all([
+      api(`/api/work-orders${params.toString() ? `?${params}` : ""}`),
+      pendingP,
+    ]);
     if (seq !== loadSeq) return;
+    portalRequests = pending;
     fetchedQuery = query.length >= 2 ? query : "";
     all = j.data || [];
     if (selId && !all.some((w) => String(w.id) === String(selId))) {

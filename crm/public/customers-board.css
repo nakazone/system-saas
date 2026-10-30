@@ -209,6 +209,12 @@ a.cx-ev:hover b { text-decoration: underline; text-decoration-color: var(--cx-or
 .cx-f select { appearance: none; background-image: linear-gradient(45deg, transparent 50%, #98A2B3 50%), linear-gradient(135deg, #98A2B3 50%, transparent 50%); background-position: calc(100% - 16px) 55%, calc(100% - 10px) 55%; background-size: 6px 6px, 6px 6px; background-repeat: no-repeat; padding-right: 28px !important; }
 .cx-fs textarea { height: auto; min-height: 72px !important; padding: 9px 11px !important; resize: vertical; line-height: 1.45; }
 .cx-f input:focus, .cx-f select:focus, .cx-fs textarea:focus { outline: none; box-shadow: 0 0 0 1px #D0D5DD, 0 0 0 4px rgba(231, 121, 44, .14) !important; }
+.cx-f.is-bad input, .cx-f.is-bad select, .cx-fs.is-bad textarea { box-shadow: 0 0 0 1.5px #B4561A !important; }
+.cx-field-err { display: block; margin-top: 4px; font-size: 12px; font-weight: 650; color: #B4561A; }
+.cx-mgr { display: grid; grid-template-columns: 1.2fr .8fr 1fr auto; gap: 8px; align-items: end; margin-bottom: 8px; }
+.cx-mgr .cx-x { height: 38px; }
+.cx-mgrsel { height: 32px; max-width: 150px; border: 0; border-radius: 9px; box-shadow: 0 0 0 1px var(--cx-line); background: #fff; font: inherit; font-size: 12px; padding: 0 8px; color: var(--cx-ink); }
+.cx-li__go { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; color: inherit !important; }
 .cx-opts { display: flex; gap: 8px; }
 .cx-opt {
   flex: 1; display: flex; gap: 10px; align-items: flex-start; padding: 11px 12px; border-radius: 14px; border: 0; background: #fff; box-shadow: 0 0 0 1px var(--cx-line);
@@ -308,6 +314,7 @@ body.cx-modal-open { overflow: hidden; }
   .cx-modal__card { max-width: none; border-radius: 22px 22px 0 0; max-height: 92vh; max-height: 92dvh; }
   .cx-modal__foot { padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
   .cx-ff { grid-template-columns: 1fr; }
+  .cx-mgr { grid-template-columns: 1fr; }
   .cx-opts { flex-direction: column; }
   .cx-f input { font-size: 16px; height: 42px; }
   .cx-pr { grid-template-columns: minmax(0, 1fr) 110px; }

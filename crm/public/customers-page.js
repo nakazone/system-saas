@@ -22,7 +22,7 @@
   let canCreate = false;
   let canEdit = false;
   let pricingCache = null;
-  let form = { type: "particular", pricing: "table", rates: {} };
+  let form = { type: "particular", pricing: "table", rates: {}, managers: [] };
   let priceDraft = {};
 
   const $ = (id) => document.getElementById(id);
@@ -163,7 +163,7 @@
     if (filter === "balance" && !(Number(s.open_balance) > 0.004)) return false;
     if (filter !== "all" && filter !== "balance" && c.customer_type !== filter) return false;
     if (q) {
-      const hay = [c.name, c.display_name, c.client_code, c.email, c.phone, c.address, c.responsible_name, c.company].filter(Boolean).join(" ").toLowerCase();
+      const hay = [c.name, c.display_name, c.client_code, c.nickname, c.email, c.phone, c.address, c.responsible_name, c.company].filter(Boolean).join(" ").toLowerCase();
       const digits = q.replace(/\D/g, "");
       if (!hay.includes(q) && !(digits.length >= 3 && String(c.phone || "").replace(/\D/g, "").includes(digits))) return false;
     }
@@ -298,9 +298,26 @@
     if (j.status === "scheduled" && j.scheduled_start) sub += ` · ${dm(j.scheduled_start)}`;
     else if (j.status === "completed") sub += ` · concluído ${dm(j.updated_at)}`;
     else if (j.address) sub += ` · ${j.address}`;
-    return `<a class="cx-li" href="job-detail.html?id=${encodeURIComponent(j.id)}"><span class="cx-li__ic">${ic("job", 15)}</span>
+    if (j.manager_name) sub += ` · ${j.manager_name}`;
+    const managers = (detail && detail.customer && detail.customer.managers) || [];
+    const pick =
+      canEdit && managers.length
+        ? `<select class="cx-mgrsel" data-job-manager="${esc(j.id)}" aria-label="Manager deste job">${[`<option value="">Manager</option>`]
+            .concat(
+              managers.map(
+                (m) =>
+                  `<option value="${esc(m.id)}"${String(m.id) === String(j.manager_id || "") ? " selected" : ""}>${esc(m.name)}</option>`,
+              ),
+            )
+            .join("")}</select>`
+        : "";
+    const inner = `<span class="cx-li__ic">${ic("job", 15)}</span>
       <span class="cx-li__b"><b>${esc(j.title || "Job")}</b><small>${esc(sub)}</small></span>
-      <span class="cx-li__v">${pill(JOB_TONE[j.status] || "mu", j.status_label || j.status)}</span></a>`;
+      <span class="cx-li__v">${pill(JOB_TONE[j.status] || "mu", j.status_label || j.status)}</span>`;
+    if (!pick) {
+      return `<a class="cx-li" href="job-detail.html?id=${encodeURIComponent(j.id)}">${inner}</a>`;
+    }
+    return `<div class="cx-li"><a class="cx-li__go" href="job-detail.html?id=${encodeURIComponent(j.id)}">${inner}</a>${pick}</div>`;
   }
   function quoteLine(qt) {
     const [tone, label] = quoteStatus(qt);
@@ -406,6 +423,7 @@
     </header>`;
 
     const kv = [];
+    if (org) kv.push(["Nickname", c.nickname || "—"]);
     if (org) kv.push(["Responsável", c.responsible_name || "—"]);
     kv.push(["Telefone", c.phone ? `<a href="${tel}">${esc(c.phone)}</a>` : "—", true]);
     kv.push(["E-mail", c.email ? `<a href="${mail}">${esc(c.email)}</a>` : "—", true]);
@@ -422,6 +440,17 @@
     }
     const contact = `<section class="cx-box"><h3>Contato${canEdit ? '<button type="button" class="cx-lnk" data-edit>Editar</button>' : ""}</h3>
       <dl class="cx-kv">${kv.map(([k, v, raw]) => `<dt>${k}</dt><dd>${raw ? v : esc(v)}</dd>`).join("")}</dl></section>`;
+    const managerRows = Array.isArray(c.managers) ? c.managers : [];
+    const managersBox =
+      org && managerRows.length
+        ? `<section class="cx-box"><h3>Managers${canEdit ? '<button type="button" class="cx-lnk" data-edit>Editar</button>' : ""}</h3>${managerRows
+            .map((m) => {
+              const jobs = (detail.jobs || []).filter((j) => String(j.manager_id || "") === String(m.id));
+              const who = [m.phone, m.email].filter(Boolean).join(" · ");
+              return `<div class="cx-li"><span class="cx-li__ic">${ic("user", 15)}</span><span class="cx-li__b"><b>${esc(m.name)}</b><small>${esc(who || "Sem telefone")}</small></span><span class="cx-li__v">${esc(plural(jobs.length, "job", "jobs"))}</span></div>`;
+            })
+            .join("")}</section>`
+        : "";
     const partner = detail.partner_access || {};
     const partnerStatus = partner.status === "active" ? "Ativo" : partner.status === "suspended" ? "Suspenso" : "Sem acesso";
     const partnerAccessBox = isPartnerCustomer(c.customer_type)
@@ -508,7 +537,7 @@
 
     host.innerHTML = `<article class="cx-page">${head}
       <div class="cx-cols">
-        <div class="cx-col cx-col--info">${contact}${partnerAccessBox}${prices}${referralBox}${addrBox}${notes}${origin}</div>
+        <div class="cx-col cx-col--info">${contact}${managersBox}${partnerAccessBox}${prices}${referralBox}${addrBox}${notes}${origin}</div>
         <div class="cx-col">${jobs}${quotes}</div>
         <div class="cx-col">${invoices}${activity}</div>
       </div>
@@ -628,6 +657,8 @@
     $("cxNameLabel").textContent = org ? "Empresa *" : "Nome *";
     $("cxRespWrap").hidden = !org;
     if ($("cxNickWrap")) $("cxNickWrap").hidden = !org;
+    if ($("cxManagersWrap")) $("cxManagersWrap").hidden = !org;
+    renderManagers();
     document.querySelectorAll("[data-pricing]").forEach((b) => b.classList.toggle("is-on", b.getAttribute("data-pricing") === form.pricing));
     $("cxPricingTableHint").textContent = `Coluna ${TYPE_PT[form.type]}`;
     const n = Object.values(form.rates || {}).filter((v) => Number(v) > 0).length;
@@ -658,7 +689,9 @@
       pricing: c && c.pricing_mode === "custom" ? "custom" : "table",
       rates: c && c.custom_pricing_rates && typeof c.custom_pricing_rates === "object" ? { ...c.custom_pricing_rates } : {},
       referredBy: c ? c.referred_by_customer_id || "" : "",
+      managers: c && Array.isArray(c.managers) ? c.managers.map((m) => ({ ...m })) : [],
     };
+    clearFieldErrors();
     $("cxFormTitle").textContent = c ? "Editar cliente" : "Novo cliente";
     $("cxFormDelete").hidden = !c || !canEdit;
     $("cxFormError").hidden = true;
@@ -704,25 +737,114 @@
     const el = $("cxFormError");
     el.textContent = msg;
     el.hidden = !msg;
+    if (msg) el.scrollIntoView({ block: "nearest" });
+  }
+
+  function clearFieldErrors() {
+    document.querySelectorAll("#cxForm .is-bad").forEach((el) => el.classList.remove("is-bad"));
+    document.querySelectorAll("#cxForm .cx-field-err").forEach((el) => el.remove());
+    document.querySelectorAll("#cxForm [aria-invalid]").forEach((el) => el.removeAttribute("aria-invalid"));
+  }
+
+  function fieldError(inputId, message) {
+    const input = $(inputId);
+    const wrap = input && input.closest(".cx-f, .cx-fs");
+    if (wrap) wrap.classList.add("is-bad");
+    if (input) input.setAttribute("aria-invalid", "true");
+    if (wrap && !wrap.querySelector(".cx-field-err")) {
+      const hint = document.createElement("small");
+      hint.className = "cx-field-err";
+      hint.textContent = message;
+      wrap.appendChild(hint);
+    }
+    return input;
+  }
+
+  function newManagerId() {
+    if (window.crypto && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (ch) => {
+      const r = (Math.random() * 16) | 0;
+      return (ch === "x" ? r : (r & 0x3) | 0x8).toString(16);
+    });
+  }
+
+  function readManagersFromDom() {
+    const rows = [];
+    document.querySelectorAll("#cxManagers [data-mgr]").forEach((row) => {
+      rows.push({
+        id: row.getAttribute("data-mgr") || newManagerId(),
+        name: (row.querySelector("[data-mgr-name]")?.value || "").trim(),
+        phone: (row.querySelector("[data-mgr-phone]")?.value || "").trim(),
+        email: (row.querySelector("[data-mgr-email]")?.value || "").trim(),
+      });
+    });
+    form.managers = rows;
+  }
+
+  function renderManagers() {
+    const host = $("cxManagers");
+    if (!host) return;
+    const rows = Array.isArray(form.managers) ? form.managers : [];
+    if (!rows.length) {
+      host.innerHTML = '<p class="cx-hint">Nenhum manager ainda.</p>';
+      return;
+    }
+    host.innerHTML = rows
+      .map(
+        (m, i) => `<div class="cx-mgr" data-mgr="${esc(m.id)}">
+          <div class="cx-f"><label>Nome</label><input type="text" id="cxMgrName${i}" data-mgr-name maxlength="120" value="${esc(m.name || "")}" autocomplete="off" /></div>
+          <div class="cx-f"><label>Telefone</label><input type="tel" data-mgr-phone maxlength="14" value="${esc(m.phone || "")}" placeholder="(XXX) XXX-XXXX" autocomplete="off" /></div>
+          <div class="cx-f"><label>E-mail</label><input type="email" data-mgr-email maxlength="255" value="${esc(m.email || "")}" autocomplete="off" /></div>
+          <button type="button" class="cx-x" data-mgr-remove="${esc(m.id)}" aria-label="Remover manager"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+        </div>`,
+      )
+      .join("");
   }
 
   async function submitForm(ev) {
     ev.preventDefault();
     formError("");
+    clearFieldErrors();
     const id = $("cxFormId").value.trim();
     const org = isOrg(form.type);
     const name = $("cxName").value.trim();
     const resp = $("cxResp").value.trim();
     const email = $("cxEmail").value.trim();
-    if (name.length < 2) return formError(org ? "Informe o nome da empresa." : "Informe o nome do cliente.");
-    if (org && resp.length < 2) return formError("Informe o responsável (pessoa de contato).");
-    if (!email) return formError("Informe o e-mail.");
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return formError("E-mail inválido.");
+    readManagersFromDom();
+    const problems = [];
+    if (name.length < 2) problems.push(["cxName", org ? "Informe o nome da empresa." : "Informe o nome do cliente."]);
+    if (org && resp.length < 2) problems.push(["cxResp", "Informe o responsável (pessoa de contato)."]);
+    if (!email) problems.push(["cxEmail", "Informe o e-mail."]);
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) problems.push(["cxEmail", "E-mail inválido."]);
+    form.managers.forEach((m, i) => {
+      const dirty = m.name || m.phone || m.email;
+      if (dirty && m.name.length < 2) problems.push([`cxMgrName${i}`, `Informe o nome do manager ${i + 1}.`]);
+    });
+    if (problems.length) {
+      let first = null;
+      problems.forEach(([inputId, message]) => {
+        const input = inputId ? fieldError(inputId, message) : null;
+        if (!first) first = input;
+      });
+      const message = problems[0][1];
+      formError(message);
+      notify(message, "error");
+      if (first) {
+        first.focus();
+        first.scrollIntoView({ block: "center" });
+      }
+      return;
+    }
     const dump = org ? (($("cxDumpster") && $("cxDumpster").value) || "unknown") : "unknown";
     const stor = org ? (($("cxStorage") && $("cxStorage").value) || "unknown") : "unknown";
     const body = {
       name,
-      nickname: org ? ($("cxNickname")?.value.trim() || null) : null,
+      nickname: org ? String($("cxNickname")?.value || "").trim() || null : null,
+      managers: org
+        ? form.managers
+            .filter((m) => m.name && m.name.length >= 2)
+            .map((m) => ({ id: m.id, name: m.name, phone: m.phone || null, email: m.email || null }))
+        : [],
       client_code: $("cxClientCode")?.value.trim() || null,
       email,
       phone: $("cxPhone").value.trim(),
@@ -748,13 +870,20 @@
         method: id ? "PUT" : "POST",
         body: JSON.stringify(body),
       });
+      if (body.nickname && (!j.data || j.data.nickname !== body.nickname)) {
+        formError("O nickname não foi gravado.");
+        notify("O nickname não foi gravado.", "error");
+        return;
+      }
       closeModal("cxFormModal");
       notify(id ? "Cliente atualizado." : "Cliente cadastrado.", "success");
       await loadList();
       const nid = (j.data && j.data.id) || id;
       if (nid) openDetail(nid, { push: !id });
     } catch (e) {
-      formError(e.message || "Não foi possível salvar.");
+      const message = e.message || "Não foi possível salvar.";
+      formError(message);
+      notify(message, "error");
     } finally {
       btn.disabled = false;
       btn.textContent = "Salvar";
@@ -1111,6 +1240,46 @@
     });
     $("cxPhone").addEventListener("input", (e) => {
       e.target.value = maskPhone(e.target.value);
+    });
+    $("cxForm").addEventListener("input", (e) => {
+      const wrap = e.target.closest(".cx-f, .cx-fs");
+      if (!wrap || !wrap.classList.contains("is-bad")) return;
+      wrap.classList.remove("is-bad");
+      wrap.querySelector(".cx-field-err")?.remove();
+      e.target.removeAttribute("aria-invalid");
+    });
+    $("cxManagerAdd")?.addEventListener("click", () => {
+      readManagersFromDom();
+      form.managers.push({ id: newManagerId(), name: "", phone: "", email: "" });
+      renderManagers();
+      const last = $("cxManagers")?.querySelector("[data-mgr]:last-child [data-mgr-name]");
+      last?.focus();
+    });
+    $("cxManagers")?.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-mgr-remove]");
+      if (!btn) return;
+      readManagersFromDom();
+      form.managers = form.managers.filter((m) => String(m.id) !== btn.getAttribute("data-mgr-remove"));
+      renderManagers();
+    });
+    $("cxManagers")?.addEventListener("input", (e) => {
+      if (e.target.matches("[data-mgr-phone]")) e.target.value = maskPhone(e.target.value);
+    });
+    $("cxDetail").addEventListener("change", async (e) => {
+      const sel = e.target.closest("[data-job-manager]");
+      if (!sel || !detail) return;
+      const jobId = sel.getAttribute("data-job-manager");
+      try {
+        await api(`/api/work-orders/${encodeURIComponent(jobId)}`, {
+          method: "PUT",
+          body: JSON.stringify({ manager_id: sel.value || null }),
+        });
+        notify("Manager do job atualizado.", "success");
+        if (selectedId) openDetail(selectedId);
+      } catch (err) {
+        notify(err.message || "Não foi possível atribuir o manager.", "error");
+        if (selectedId) openDetail(selectedId);
+      }
     });
     $("cxForm").addEventListener("submit", submitForm);
     $("cxFormDelete").addEventListener("click", () => deleteCustomer($("cxFormId").value, $("cxName").value));

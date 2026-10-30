@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
+import { managerIdOrNull, managerName } from "../../lib/customers/managers.js";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { requireCrmAuth, requireCrmPermission, dec } from "../http.js";
 import { findScheduleConflicts } from "../../lib/schedule/conflicts.js";
@@ -177,6 +178,7 @@ function mapWorkOrder(wo: {
   builderId: string | null;
   address: string | null;
   clientRef?: string | null;
+  managerId?: string | null;
   notes: string | null;
   campoAttention?: string | null;
   needsDelivery?: boolean;
@@ -199,7 +201,7 @@ function mapWorkOrder(wo: {
   allDay?: boolean;
   createdAt: Date;
   updatedAt: Date;
-  customer?: { id: string; name: string; clientCode?: string | null; customerType?: string | null; email?: string | null; phone?: string | null } | null;
+  customer?: { id: string; name: string; clientCode?: string | null; customerType?: string | null; email?: string | null; phone?: string | null; managers?: unknown } | null;
   builder?: { id: string; firstName: string; lastName: string; company: string | null; nickname?: string | null } | null;
   assignedUser?: { id: string; name: string } | null;
   crew?: { id: string; name: string; color: string | null } | null;
@@ -259,6 +261,8 @@ function mapWorkOrder(wo: {
     builder_id: wo.builderId,
     address: wo.address,
     client_ref: (wo.clientRef && String(wo.clientRef).trim()) || quoteNote || null,
+    manager_id: wo.managerId || null,
+    manager_name: managerName(wo.customer?.managers, wo.managerId),
     notes: wo.notes,
     /** "Atenção" box shown to the field crew in Campo. */
     campo_attention: wo.campoAttention ?? null,
@@ -433,7 +437,7 @@ const relatedWoSelect = {
 } as const;
 
 const woInclude = {
-  customer: { select: { id: true, name: true, company: true, nickname: true, clientCode: true, customerType: true, email: true, phone: true } },
+  customer: { select: { id: true, name: true, company: true, nickname: true, clientCode: true, customerType: true, email: true, phone: true, managers: true } },
   builder: { select: { id: true, firstName: true, lastName: true, company: true, email: true, nickname: true } },
   assignedUser: { select: { id: true, name: true } },
   crew: { select: { id: true, name: true, color: true } },
@@ -821,6 +825,43 @@ scheduleJobsRouter.get(
         });
         if (extra) rows.unshift(extra);
       }
+      // Jobs that arrived through the builder portal stay on the list even when they
+      // are older than the newest 200. Opening one from Pedidos is not required.
+      const portalLinks = await prisma.partnerJobRequest.findMany({
+        where: {
+          organizationId: req.organizationId!,
+          OR: [{ workOrderId: { not: null } }, { status: "pending", targetWorkOrderId: { not: null } }],
+        },
+        select: { workOrderId: true, targetWorkOrderId: true, status: true },
+        orderBy: { createdAt: "desc" },
+        take: 400,
+      });
+      const portalSet = new Set<string>();
+      const portalOrder: string[] = [];
+      for (const link of portalLinks) {
+        const id = link.workOrderId || (link.status === "pending" ? link.targetWorkOrderId : null);
+        if (!id || portalSet.has(id)) continue;
+        portalSet.add(id);
+        portalOrder.push(id);
+      }
+      const have = new Set(rows.map((row) => row.id));
+      const missing = q ? [] : portalOrder.filter((id) => !have.has(id)).slice(0, 80);
+      if (missing.length) {
+        const extras = await prisma.workOrder.findMany({
+          where: {
+            id: { in: missing },
+            organizationId: req.organizationId!,
+            status: { in: ["draft", "scheduled", "in_progress"] },
+            ...(Object.keys(fieldScope).length ? { AND: [fieldScope] } : {}),
+          },
+          include: woIncludeFor(req.user),
+        });
+        const byId = new Map(extras.map((row) => [row.id, row]));
+        for (const id of missing) {
+          const row = byId.get(id);
+          if (row) rows.push(row);
+        }
+      }
       const changedIds = await withTenantTransaction(req.organizationId!, (tx) =>
         ensureQuoteDiscountsOnJobs(
           tx,
@@ -849,9 +890,10 @@ scheduleJobsRouter.get(
         await withTenantTransaction(req.organizationId!, (tx) => foldUnlinkedQuoteInvoices(tx, rows));
       }
       const leadNames = await leadNamesById(req.organizationId!, rows);
-      let data = rows.map((row) =>
-        applyQuoteLead(mapWorkOrder(row), row.quotes?.[0]?.leadId ? leadNames.get(row.quotes[0].leadId) || null : null),
-      );
+      let data = rows.map((row) => ({
+        ...applyQuoteLead(mapWorkOrder(row), row.quotes?.[0]?.leadId ? leadNames.get(row.quotes[0].leadId) || null : null),
+        from_portal: portalSet.has(row.id),
+      }));
       if (billingFilter) {
         data = data.filter((wo) => {
           const b = wo.billing;
@@ -1004,6 +1046,7 @@ const workOrderBody = z.object({
   builder_id: z.string().uuid().optional().nullable(),
   address: z.string().max(500).optional().nullable(),
   client_ref: z.string().max(120).optional().nullable(),
+  manager_id: z.string().uuid().optional().nullable(),
   notes: z.string().max(8000).optional().nullable(),
   campo_attention: z.string().max(2000).optional().nullable(),
   needs_delivery: z.boolean().optional(),
@@ -1033,6 +1076,33 @@ const workOrderBody = z.object({
   sand_scheduled_start: z.string().datetime().optional().nullable(),
   all_day: z.boolean().optional(),
 });
+
+async function managerForJob(
+  organizationId: string,
+  customerId: string | null,
+  builderId: string | null,
+  managerId: string | null | undefined,
+): Promise<string | null> {
+  if (!managerId) return null;
+  let ownerId = customerId;
+  if (!ownerId && builderId) {
+    const builder = await prisma.builder.findFirst({
+      where: { id: builderId, organizationId },
+      select: { customerId: true },
+    });
+    ownerId = builder?.customerId || null;
+  }
+  if (!ownerId) {
+    const err = new Error("Cadastre o builder em Clients para atribuir um manager.") as Error & { status?: number };
+    err.status = 400;
+    throw err;
+  }
+  const customer = await prisma.customer.findFirst({
+    where: { id: ownerId, organizationId },
+    select: { managers: true },
+  });
+  return managerIdOrNull(customer?.managers, managerId);
+}
 
 scheduleJobsRouter.post(
   "/api/work-orders",
@@ -1077,6 +1147,17 @@ scheduleJobsRouter.post(
       });
       if (relatedId === "__abort__") return;
 
+      const managerId = await managerForJob(
+        req.organizationId!,
+        d.customer_id || null,
+        d.builder_id || null,
+        d.manager_id,
+      ).catch((e: Error & { status?: number }) => {
+        res.status(e.status || 400).json({ success: false, error: e.message });
+        return "__abort__" as const;
+      });
+      if (managerId === "__abort__") return;
+
       const number = await nextWorkOrderNumber(req.organizationId!);
       const row = await prisma.workOrder.create({
         data: {
@@ -1090,6 +1171,7 @@ scheduleJobsRouter.post(
           builderId: d.builder_id || null,
           address: d.address?.trim() || null,
           clientRef: d.client_ref?.trim() || null,
+          managerId,
           notes: d.notes?.trim() || null,
           campoAttention: d.campo_attention?.trim() || null,
           needsDelivery: d.needs_delivery === true,
@@ -1245,6 +1327,20 @@ scheduleJobsRouter.put(
         (existing.scheduledStart?.getTime() ?? null) !== (start?.getTime() ?? null);
 
       const finish = d.status !== undefined ? sectorFinishPatch(existing, d.status) : null;
+      let managerId: string | null | undefined = undefined;
+      if (d.manager_id !== undefined) {
+        const resolved = await managerForJob(
+          req.organizationId!,
+          d.customer_id !== undefined ? d.customer_id || null : existing.customerId,
+          d.builder_id !== undefined ? d.builder_id || null : existing.builderId,
+          d.manager_id,
+        ).catch((e: Error & { status?: number }) => {
+          res.status(e.status || 400).json({ success: false, error: e.message });
+          return "__abort__" as const;
+        });
+        if (resolved === "__abort__") return;
+        managerId = resolved;
+      }
       const row = await withTenantTransaction(req.organizationId!, async (tx) => {
         const updated = await tx.workOrder.update({
           where: { id: existing.id },
@@ -1266,6 +1362,7 @@ scheduleJobsRouter.put(
             : {}),
           ...(d.address !== undefined ? { address: d.address?.trim() || null } : {}),
           ...(d.client_ref !== undefined ? { clientRef: d.client_ref?.trim().slice(0, 120) || null } : {}),
+          ...(managerId !== undefined ? { managerId } : {}),
           // New address → forget the cached job location (re-geocoded on the next work day).
           ...(d.address !== undefined && (d.address?.trim() || null) !== existing.address
             ? { geoLat: null, geoLng: null, geoCheckedAt: null }

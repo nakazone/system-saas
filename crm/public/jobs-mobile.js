@@ -5,6 +5,8 @@
 (function () {
   const ROLE_KEY = "om_jobs_role";
   let allJobs = [];
+  /** Pending builder-portal requests, shown even when the job does not exist yet. */
+  let portalRequests = [];
   let canManage = false;
   let canInvoice = false;
   let currentUserId = null;
@@ -355,7 +357,25 @@
     const rows = tabFiltered(base);
     const host = $("jobsMobList");
     if (!host) return;
-    if (!rows.length) {
+    const needle = mobQ.trim().toLowerCase();
+    const pending = !isField && canManage && (tab === "today" || tab === "active") && !mobStatus
+      ? portalRequests.filter((item) => {
+          if (!needle) return true;
+          const text = [item.title, item.address, item.partner_company, item.partner_name, item.external_ref].filter(Boolean).join(" ").toLowerCase();
+          return text.includes(needle);
+        })
+      : [];
+    const portalActive = (tab === "today" || tab === "active") && !mobStatus
+      ? base.filter((wo) => {
+          if (!wo.from_portal || !isActive(wo) || wo.status === "canceled") return false;
+          if (!needle) return true;
+          const text = window.JobsInfo?.searchText?.(wo) || "";
+          return text.includes(needle) || (needle.length >= 5 && text.includes(needle.slice(1)));
+        })
+      : [];
+    const portalIds = new Set(portalActive.map((wo) => String(wo.id)));
+    const rest = rows.filter((wo) => !portalIds.has(String(wo.id)));
+    if (!rest.length && !pending.length && !portalActive.length) {
       const empty = mobQ
         ? `Nenhum job para “${escapeHtml(mobQ)}”. Abra o quote e use Abrir job.`
         : isField
@@ -364,7 +384,17 @@
       host.innerHTML = `<p class="jcm-empty">${empty}</p>`;
       return;
     }
-    host.innerHTML = rows.map((wo) => (isField ? renderFieldCard(wo) : renderOfficeCard(wo))).join("");
+    const pendingCard = (item) => {
+      const jobId = item.target_job && item.target_job.id;
+      const href = jobId ? `job-detail.html?id=${encodeURIComponent(jobId)}` : `partner-requests-admin.html?id=${encodeURIComponent(item.id)}`;
+      const who = item.partner_company || item.partner_name || "Builder";
+      return `<article class="jmx-card jcm-portal-card"><a class="jmx-card__a" href="${href}"><b class="jmx-card__t">${escapeHtml(who)}</b><span class="jmx-card__s">${escapeHtml(item.title || "Pedido do builder")}</span>${item.address && item.address !== "—" ? `<span class="jmx-card__s jmx-card__addr">${escapeHtml(item.address)}</span>` : ""}</a><div class="jmx-card__r3"><span class="jmx-card__when">Pedido · Aguardando</span></div></article>`;
+    };
+    const portalHead = pending.length || portalActive.length ? `<p class="jcm-portal">Do portal</p>` : "";
+    host.innerHTML = portalHead
+      + pending.map(pendingCard).join("")
+      + portalActive.map((wo) => (isField ? renderFieldCard(wo) : renderOfficeCard(wo))).join("")
+      + rest.map((wo) => (isField ? renderFieldCard(wo) : renderOfficeCard(wo))).join("");
     if (window.OmGestures) window.OmGestures.bindSwipeRow(host);
 
     host.querySelectorAll("[data-job-action]").forEach((btn) => {
@@ -464,10 +494,20 @@
     const params = new URLSearchParams();
     if (query.length >= 2) params.set("q", query);
     if (focusId && query.length < 2) params.set("id", focusId);
-    const j = await fetch(`/api/work-orders${params.toString() ? `?${params}` : ""}`, { credentials: "include" }).then((r) => r.json());
+    const pendingP = canManage && !isField
+      ? fetch("/api/partner-requests?status=pending", { credentials: "include" })
+          .then((r) => r.json())
+          .then((body) => (body && body.success !== false ? body.data || [] : []))
+          .catch(() => [])
+      : Promise.resolve([]);
+    const [j, pending] = await Promise.all([
+      fetch(`/api/work-orders${params.toString() ? `?${params}` : ""}`, { credentials: "include" }).then((r) => r.json()),
+      pendingP,
+    ]);
     if (seq !== loadSeq) return;
     if (!j.success && j.success !== undefined) throw new Error(j.error || "Erro");
     fetchedMobQuery = query.length >= 2 ? query.toLowerCase() : "";
+    portalRequests = pending;
     allJobs = j.data || [];
     if (focusId && !allJobs.some((wo) => String(wo.id) === String(focusId))) {
       try {

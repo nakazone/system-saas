@@ -14,6 +14,7 @@ import { formatUsPhone } from "../../lib/phone.js";
 import { ensureReferralCode, referralBalance } from "../../lib/referrals/engine.js";
 import { parseReferralSettings } from "../../lib/referrals/settings.js";
 import { publicBaseUrl } from "../../lib/http/public-url.js";
+import { cleanManagers, managerName } from "../../lib/customers/managers.js";
 
 export const customersOverviewRouter = Router();
 
@@ -66,7 +67,9 @@ async function loadAll(tx: TenantPrisma, customerIds?: string[]) {
   const ids = customers.map((c) => c.id);
   const [jobs, quotes, invoices] = await Promise.all([
     tx.workOrder.findMany({
-      where: { customerId: { in: ids } },
+      where: {
+        OR: [{ customerId: { in: ids } }, { builder: { customerId: { in: ids } } }],
+      },
       select: {
         id: true,
         number: true,
@@ -76,6 +79,7 @@ async function loadAll(tx: TenantPrisma, customerIds?: string[]) {
         scheduledStart: true,
         scheduledEnd: true,
         customerId: true,
+        managerId: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -277,6 +281,12 @@ function baseCustomer(c: Loaded["customers"][number]) {
         ? Object.values(c.customPricingRates as Record<string, unknown>).filter((v) => Number(v) > 0).length
         : 0,
     company: c.company,
+    nickname: c.nickname ? String(c.nickname).trim() || null : null,
+    client_code: c.clientCode ? String(c.clientCode).trim() || null : null,
+    display_name: c.clientCode && String(c.clientCode).trim()
+      ? `${c.name} - ${String(c.clientCode).trim()}`
+      : c.name,
+    managers: cleanManagers(c.managers),
     responsible_name: c.contactName ?? null,
     dumpster_status: ynStatus(c.dumpsterStatus),
     dumpster_notes: c.dumpsterNotes ?? null,
@@ -397,6 +407,8 @@ customersOverviewRouter.get("/api/customers/:id/overview", requireCrmAuth, async
         status: j.status,
         status_label: JOB_PT[j.status] || j.status,
         address: j.address,
+        manager_id: j.managerId || null,
+        manager_name: managerName(c.managers, j.managerId),
         scheduled_start: j.scheduledStart,
         scheduled_end: j.scheduledEnd,
         updated_at: j.updatedAt,

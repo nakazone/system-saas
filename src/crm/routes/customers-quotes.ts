@@ -7,6 +7,7 @@ import { hashPassword } from "../../lib/auth/password.js";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { withTenantTransaction, type TenantPrisma } from "../../lib/tenant/prisma-tenant.js";
 import { cleanNickname, mirrorNickname } from "../../lib/builders/nickname-sync.js";
+import { cleanManagers } from "../../lib/customers/managers.js";
 import { requireCrmAuth, requireCrmPermission, dec, asSnakeBuilder } from "../http.js";
 import { canViewPricing, withPricingGate } from "../../lib/pricing/visibility.js";
 import { recordActivity } from "../../lib/activity/record.js";
@@ -467,6 +468,7 @@ function mapCustomer(c: {
   customPricingRates?: unknown;
   company: string | null;
   nickname?: string | null;
+  managers?: unknown;
   notes: string | null;
   contactName?: string | null;
   dumpsterStatus?: string | null;
@@ -493,6 +495,7 @@ function mapCustomer(c: {
     custom_pricing_rates: normalizeCustomPricingRates(c.customPricingRates),
     company: c.company,
     nickname: c.nickname ? String(c.nickname).trim() || null : null,
+    managers: cleanManagers(c.managers),
     notes: c.notes,
     responsible_name: c.contactName ?? null,
     dumpster_status: normalizeYnStatus(c.dumpsterStatus) || "unknown",
@@ -1237,6 +1240,7 @@ customersQuotesRouter.post(
             .nullable(),
           company: z.string().optional().nullable(),
           nickname: z.string().max(40).optional().nullable(),
+          managers: z.array(z.record(z.string(), z.unknown())).max(30).optional().nullable(),
           notes: z.string().optional().nullable(),
           client_code: z.string().max(80).optional().nullable(),
           responsible_name: z.string().optional().nullable(),
@@ -1271,6 +1275,7 @@ customersQuotesRouter.post(
         const customerType = normalizeCustomerType(parsed.data.customer_type);
         const isOrgType = customerType === "builder";
         const nickname = isOrgType ? cleanNickname(parsed.data.nickname) : null;
+        const managers = isOrgType ? cleanManagers(parsed.data.managers) : [];
         const dumpsterStatus = isOrgType ? normalizeYnStatus(parsed.data.dumpster_status) || "unknown" : null;
         const storageStatus = isOrgType ? normalizeYnStatus(parsed.data.storage_status) || "unknown" : null;
         const created = await tx.customer.create({
@@ -1286,6 +1291,7 @@ customersQuotesRouter.post(
             customPricingRates: customRates,
             company: parsed.data.company || null,
             nickname,
+            managers,
             notes: parsed.data.notes || null,
             contactName: String(parsed.data.responsible_name || "").trim() || null,
             dumpsterStatus,
@@ -1434,6 +1440,7 @@ customersQuotesRouter.put(
         const isOrgType = nextType === "builder";
         const nickname =
           body.nickname !== undefined ? (isOrgType ? cleanNickname(body.nickname) : null) : undefined;
+        const managers = body.managers !== undefined ? (isOrgType ? cleanManagers(body.managers) : []) : undefined;
         const dumpsterTouched =
           body.dumpster_status !== undefined || body.dumpster_notes !== undefined || body.customer_type !== undefined;
         const storageTouched =
@@ -1471,6 +1478,7 @@ customersQuotesRouter.put(
                 : undefined,
             company: body.company !== undefined ? String(body.company || "") || null : undefined,
             nickname,
+            managers,
             notes: body.notes !== undefined ? String(body.notes || "") || null : undefined,
             contactName:
               body.responsible_name !== undefined ? String(body.responsible_name || "").trim() || null : undefined,
@@ -1491,14 +1499,40 @@ customersQuotesRouter.put(
             referredByCustomerId,
           },
         });
+        if (nickname !== undefined) {
+          await tx.builder.updateMany({
+            where: { organizationId: req.organizationId!, customerId: row.id },
+            data: { nickname: row.nickname },
+          });
+        }
         if (row.nickname) {
           await mirrorNickname(
             tx,
             req.organizationId!,
             row.nickname,
-            { company: row.company, name: row.name, email: row.email },
+            { company: row.company || row.name, name: row.name, email: row.email },
             { customerId: row.id },
           );
+        }
+        if (managers) {
+          const kept = managers.map((m) => m.id);
+          const linkedBuilders = await tx.builder.findMany({
+            where: { organizationId: req.organizationId!, customerId: row.id },
+            select: { id: true },
+          });
+          const builderIds = linkedBuilders.map((b) => b.id);
+          const owner = {
+            OR: [
+              { customerId: row.id },
+              ...(builderIds.length ? [{ builderId: { in: builderIds } }] : []),
+            ],
+          };
+          await tx.workOrder.updateMany({
+            where: kept.length
+              ? { ...owner, managerId: { notIn: kept } }
+              : { ...owner, managerId: { not: null } },
+            data: { managerId: null },
+          });
         }
         if (partnerUsers.length) {
           if (!isOrgType) {

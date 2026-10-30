@@ -62,6 +62,7 @@
       status: "draft",
       customerId: null,
       builderId: null,
+      managerId: null,
       sourceType: "particular",
       sourceName: "",
       sourceNameAuto: true,
@@ -294,6 +295,7 @@
         sub: [c.company && c.company !== c.name ? c.company : null, c.phone, c.email].filter(Boolean).join(" · "),
         address: c.address || "",
         custom: c.pricing_mode === "custom",
+        managers: Array.isArray(c.managers) ? c.managers : [],
       };
     }
     const b = currentBuilder();
@@ -311,6 +313,7 @@
         sub: [person && person !== builderName(b) ? person : null, b.phone, b.email].filter(Boolean).join(" · "),
         address: b.address || "",
         custom: !!(pc && pc.pricing_mode === "custom"),
+        managers: Array.isArray(pc?.managers) ? pc.managers : [],
       };
     }
     return null;
@@ -874,7 +877,22 @@
       </div>
       <label class="jm-field jm-field--wide" style="margin-top:10px">ID do cliente
         <input type="text" id="jmClientCode" class="jm-in" maxlength="120" value="${esc(st.clientRef || "")}" placeholder="Só neste job" autocomplete="off" />
-      </label>`;
+      </label>
+      ${
+        Array.isArray(card.managers) && card.managers.length
+          ? `<label class="jm-field jm-field--wide" style="margin-top:10px">Manager
+              <select id="jmManager" class="jm-in">
+                <option value="">Escolher</option>
+                ${card.managers
+                  .map(
+                    (m) =>
+                      `<option value="${esc(m.id)}"${String(st.managerId || "") === String(m.id) ? " selected" : ""}>${esc(m.name)}</option>`,
+                  )
+                  .join("")}
+              </select>
+            </label>`
+          : ""
+      }`;
       return;
     }
     const rows = pickerEntries(st.pickerQuery);
@@ -1554,6 +1572,11 @@
     side.innerHTML = `<h4>Resumo</h4>
       <dl>
         <div><dt>Cliente</dt><dd>${esc(card?.name || "—")}</dd></div>
+        ${
+          card && Array.isArray(card.managers) && card.managers.length
+            ? `<div><dt>Manager</dt><dd>${esc(card.managers.find((m) => String(m.id) === String(st.managerId))?.name || "—")}</dd></div>`
+            : ""
+        }
         <div><dt>Preços</dt><dd>${esc(customRates() ? "Personalizada" : TYPE_LABEL[st.sourceType] || "Particular")}</dd></div>
         <div><dt>Start</dt><dd>${esc(whenLabel())}</dd></div>
         <div><dt>Setor</dt><dd>${esc(sectorLabel(st.sector))}</dd></div>
@@ -1701,6 +1724,7 @@
     if (kind === "customer") {
       st.customerId = id;
       st.builderId = null;
+      st.managerId = null;
       const c = currentCustomer();
       const t = String(c?.customer_type || "particular").toLowerCase();
       st.sourceType = t === "contractor" ? "builder" : TYPE_LABEL[t] ? t : "particular";
@@ -1709,6 +1733,7 @@
     } else {
       st.builderId = id;
       st.customerId = null;
+      st.managerId = null;
       const b = currentBuilder();
       const t = String(b?.type || "builder").toLowerCase();
       st.sourceType = "builder";
@@ -1720,6 +1745,7 @@
         if (pc) {
           repriceLines();
           renderServices();
+          renderClient();
         }
       });
     }
@@ -2010,6 +2036,7 @@
     st.status = wo.status || "draft";
     st.customerId = wo.customer_id || null;
     st.builderId = wo.builder_id || null;
+    st.managerId = wo.manager_id || null;
     st.sourceType = sourceTypeUi(wo.source_type || "other");
     st.sourceName = wo.source_name || "";
     st.sourceNameAuto = !wo.source_name;
@@ -2087,6 +2114,7 @@
       builder_id: st.builderId || null,
       address: st.address.trim() || null,
       client_ref: String(st.clientRef || "").trim() || null,
+      manager_id: st.managerId || null,
       notes: st.notes.trim() || null,
       campo_attention: st.attention.trim() || null,
       needs_delivery: Boolean(st.needsDelivery),
@@ -2125,7 +2153,7 @@
   function sectionPayload(full) {
     if (st.section === "all") return full;
     const pick = {
-      details: ["title", "source_type", "source_name", "customer_id", "builder_id", "address", "status"],
+      details: ["title", "source_type", "source_name", "customer_id", "builder_id", "manager_id", "address", "status"],
       schedule: ["scheduled_start", "scheduled_end", "sand_scheduled_start", "all_day", "sector"],
       services: ["line_items"],
       team: ["assigned_user_id", "member_user_ids"],
@@ -2575,6 +2603,10 @@
         renderPickerKeepFocus();
         remoteSearch(t.value.trim());
         return;
+      case "jmManager":
+        st.managerId = t.value || null;
+        renderSide();
+        return;
       case "jmClientCode":
         // Debounced persist of client ID — display becomes "Name - ID" without renaming Customer.name.
         clearTimeout(st._clientCodeTimer);
@@ -2701,6 +2733,10 @@
           .catch((err) => notify(err.message || "Falha ao ler arquivo.", "error"));
         return;
       }
+      case "jmManager":
+        st.managerId = t.value || null;
+        renderSide();
+        return;
       case "jmSector":
         st.sector = t.value === "installation" || t.value === "sand_finish" || t.value === "both" ? t.value : null;
         if (st.sector !== "both") st.sandDate = "";

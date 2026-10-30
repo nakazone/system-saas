@@ -169,7 +169,7 @@
     const pillCls = item.status === 'accepted' ? 'is-accepted' : item.status === 'declined' ? 'is-declined' : '';
     const tags = [
       item.read_by_ai ? '<span class="rq-tag rq-tag--ai">Lido pela IA</span>' : '',
-      item.target_job ? `<span class="rq-tag rq-tag--upd">Atualiza o Job #${escapeHtml(item.target_job.number || '')}</span>` : '',
+      item.target_job ? `<a class="rq-tag rq-tag--upd" href="jobs.html?id=${encodeURIComponent(item.target_job.id)}">Atualiza o Job #${escapeHtml(item.target_job.number || '')}</a>` : '',
     ].join('');
     const fact = (label, value, wide) => value ? `<div${wide ? ' class="is-wide"' : ''}><dt>${label}</dt><dd>${value}</dd></div>` : '';
     const contact = [item.contact_name, item.contact_phone, item.contact_email].filter(Boolean).map(escapeHtml).join(' · ');

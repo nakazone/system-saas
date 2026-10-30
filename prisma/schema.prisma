@@ -1268,6 +1268,8 @@ model Customer {
   company              String?
   /// Short name for builder customers. Calendar jobs show this instead of the company name.
   nickname             String?
+  /// Builder company managers. Each job can point at one id in this list.
+  managers             Json?
   notes                String?      @db.Text
   /// Pessoa de contato (responsável) em Builder / Loja
   contactName          String?
@@ -2603,6 +2605,8 @@ model WorkOrder {
   address                              String?
   /// Client ID for this job only (the quote note). Not stored on the customer.
   clientRef                            String?
+  /// Manager of the builder company for this job (id inside Customer.managers).
+  managerId                            String?      @db.Uuid
   notes                                String?      @db.Text
   /// Highlight for field workers (ATENÇÃO box)
   campoAttention                       String?      @db.Text

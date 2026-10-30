@@ -23,7 +23,7 @@
   <link rel="stylesheet" href="om-gestures.css?v=20261013-rl4" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
-  <link rel="stylesheet" href="customers-board.css?v=20261009-org1" />
+  <link rel="stylesheet" href="customers-board.css?v=20261029-cli1" />
 </head>
 <body class="dashboard-app-body om-app sidebar-collapsed cx-app">
   <script src="/om-reload.js?v=20261013-rl8"></script>
@@ -134,6 +134,12 @@
             <div class="cx-f cx-f--full"><label for="cxAddress">Endereço</label><input type="text" id="cxAddress" maxlength="500" placeholder="Comece a digitar o endereço…" autocomplete="off" /></div>
           </div>
         </section>
+        <section class="cx-fs" id="cxManagersWrap" hidden>
+          <h4>Managers</h4>
+          <p class="cx-hint">Mesma empresa, pessoas diferentes. No job você escolhe qual manager fica com a obra.</p>
+          <div id="cxManagers"></div>
+          <button type="button" class="cx-btn" id="cxManagerAdd">Adicionar manager</button>
+        </section>
         <section class="cx-fs" id="cxOrgExtra" hidden>
           <h4>Dumpster e Storage</h4>
           <p class="cx-hint">Só preencha se a empresa tiver essas informações.</p>
@@ -231,8 +237,8 @@
   <script src="crm-shell.js?v=20261028-ptrhome"></script>
   <script src="om-mobile-nav.js?v=20261014-perfil1"></script>
   <script src="om-gestures.js?v=20261028-ptrhome"></script>
-  <script src="crm-job-modal.js?v=20261029-tbl1"></script>
+  <script src="crm-job-modal.js?v=20261029-cli1"></script>
   <script src="lead-signals.js?v=20261015-leads4"></script>
-  <script src="customers-page.js?v=20261028-ob-customeraccess"></script>
+  <script src="customers-page.js?v=20261029-cli1"></script>
 </body>
 </html>

@@ -146,6 +146,7 @@
   .jx-swipe { overflow: visible; }
 }
 .jx-grp { display: flex; align-items: baseline; margin: 12px 10px 4px; font-size: 11.5px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--jx-ink3); }
+.jx-grp--portal { color: #B4561A; }
 .jx-grp em { margin-left: auto; font-style: normal; letter-spacing: 0; text-transform: none; font-weight: 600; }
 .jx-row { display: flex; align-items: flex-start; gap: 11px; padding: 10px 12px; border-radius: 14px; cursor: pointer; color: var(--jx-ink) !important; }
 .jx-row:hover { background: #FAFBFC; }
