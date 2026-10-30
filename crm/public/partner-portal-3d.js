@@ -565,9 +565,55 @@
     const ventMeshes = []; const ventPins = [];
     let sfTotal = 0;
 
+    // ── stairs: each stair (flights + landings) built once and set where the plan shows it.
+    //    Built before the floors so the floor above can open where a stair comes up (stairwell).
+    const chains = stairChains(opts.stairs || []);
+    const placed = []; const holes = new Map();
+    chains.forEach((chain) => {
+      const built = buildStair(THREE, chain, kit);
+      if (!built.steps.length) return;
+      let li = -1;
+      for (const { stair } of chain) {
+        const ps = (plan.stairs || []).find((x) => x.stair_id === stair.id && !x.dismissed && !x.same_as);
+        const fl = built.flights.get(stair.id);
+        if (!ps || !fl) continue;
+        const k = levels.findIndex((l) => (ps.level_id ? l.id === ps.level_id : l.page === ps.page));
+        if (k < 0) continue;
+        const lv = levels[k];
+        const sheetWft = lv.sheet_pt_w ? lv.sheet_pt_w / lv.scale_ppf : lv.grid.w * lv.grid.cell;
+        const sheetHft = lv.sheet_pt_h ? lv.sheet_pt_h / lv.scale_ppf : lv.grid.h * lv.grid.cell;
+        const bx0 = ps.fx0 * sheetWft - cx; const bx1 = ps.fx1 * sheetWft - cx;
+        const bz0 = ps.fy0 * sheetHft - cz; const bz1 = ps.fy1 * sheetHft - cz;
+        const alongZ = (bz1 - bz0) >= (bx1 - bx0);
+        const dT = alongZ ? { x: 0, z: ps.flip ? 1 : -1 } : { x: ps.flip ? 1 : -1, z: 0 };
+        const phi0 = Math.atan2(dT.x, dT.z) - Math.atan2(fl.d.x, fl.d.z);
+        built.root.rotation.y = phi0;
+        const cs = Math.cos(phi0); const sn = Math.sin(phi0);
+        const rc = { x: fl.center.x * cs + fl.center.z * sn, z: -fl.center.x * sn + fl.center.z * cs };
+        built.root.position.set((bx0 + bx1) / 2 - rc.x, FLOOR_T, (bz0 + bz1) / 2 - rc.z);
+        li = k;
+        break;
+      }
+      if (li >= 0) {
+        // the stair reaches the floor above: open that floor over it
+        const bb = new THREE.Box3().setFromObject(built.root);
+        if (bb.max.y - FLOOR_T > STORY * 0.55 && li + 1 < levels.length) {
+          if (!holes.has(li + 1)) holes.set(li + 1, []);
+          holes.get(li + 1).push({ x0: bb.min.x - 0.15, x1: bb.max.x + 0.15, z0: bb.min.z - 0.15, z1: bb.max.z + 0.15 });
+        }
+      }
+      placed.push({ chain, built, li });
+    });
+
     levels.forEach((lv, li) => {
       const cells = decoded[li]; const gw = lv.grid.w; const gh = lv.grid.h; const c = lv.grid.cell;
       const roomGrid = lv.grid.rooms ? decodeRooms(lv.grid.rooms, gw * gh) : null;
+      const holeCells = [];
+      (holes.get(li) || []).forEach((h) => {
+        const gx0 = Math.max(0, Math.floor((h.x0 + cx) / c)); const gx1 = Math.min(gw, Math.ceil((h.x1 + cx) / c));
+        const gz0 = Math.max(0, Math.floor((h.z0 + cz) / c)); const gz1 = Math.min(gh, Math.ceil((h.z1 + cz) / c));
+        for (let y = gz0; y < gz1; y++) for (let x = gx0; x < gx1; x++) { const i = y * gw + x; cells[i] = 0; holeCells.push(i); }
+      });
       const group = new THREE.Group(); group.userData = { id: lv.id, name: lv.name, index: li };
       const X = (v) => v * c - cx; const Z = (v) => v * c - cz;
 
@@ -610,6 +656,7 @@
 
       // slab under the whole house of this level
       const house = houseOf(cells, gw, gh);
+      holeCells.forEach((i) => { house[i] = 0; });
       const slab = { pos: [], nor: [], uv: [] };
       for (const r of rects(house, gw, gh)) boxInto(slab, X(r.x), -SLAB, Z(r.y), X(r.x + r.w), 0, Z(r.y + r.h), 4);
       if (slab.pos.length) { const sm = new THREE.Mesh(geomOf(THREE, slab), slabMat); sm.receiveShadow = true; sm.castShadow = true; group.add(sm); }
@@ -654,38 +701,12 @@
       groups.push(group);
     });
 
-    // ── stairs: each stair (flights + landings) built once, then set where the plan shows it ──
-    const chains = stairChains(opts.stairs || []);
+    // stairs into their floor, or next to the house when the plan doesn't show them
     let besideX = (maxX - cx) + 5;
-    chains.forEach((chain) => {
-      const built = buildStair(THREE, chain, kit);
-      if (!built.steps.length) return;
+    placed.forEach(({ chain, built, li }) => {
       const holder = new THREE.Group(); holder.add(built.root);
-      let placed = false;
-      for (const { stair } of chain) {
-        const ps = (plan.stairs || []).find((x) => x.stair_id === stair.id && !x.dismissed && !x.same_as);
-        const fl = built.flights.get(stair.id);
-        if (!ps || !fl) continue;
-        const li = levels.findIndex((l) => (ps.level_id ? l.id === ps.level_id : l.page === ps.page));
-        if (li < 0) continue;
-        const lv = levels[li];
-        const sheetWft = lv.sheet_pt_w ? lv.sheet_pt_w / lv.scale_ppf : lv.grid.w * lv.grid.cell;
-        const sheetHft = lv.sheet_pt_h ? lv.sheet_pt_h / lv.scale_ppf : lv.grid.h * lv.grid.cell;
-        const bx0 = ps.fx0 * sheetWft - cx; const bx1 = ps.fx1 * sheetWft - cx;
-        const bz0 = ps.fy0 * sheetHft - cz; const bz1 = ps.fy1 * sheetHft - cz;
-        const alongZ = (bz1 - bz0) >= (bx1 - bx0);
-        const dT = alongZ ? { x: 0, z: ps.flip ? 1 : -1 } : { x: ps.flip ? 1 : -1, z: 0 };
-        const phi = Math.atan2(dT.x, dT.z) - Math.atan2(fl.d.x, fl.d.z);
-        built.root.rotation.y = phi;
-        const cs = Math.cos(phi); const sn = Math.sin(phi);
-        const rc = { x: fl.center.x * cs + fl.center.z * sn, z: -fl.center.x * sn + fl.center.z * cs };
-        built.root.position.set((bx0 + bx1) / 2 - rc.x, FLOOR_T, (bz0 + bz1) / 2 - rc.z);
-        groups[li].add(holder);
-        placed = true;
-        break;
-      }
-      if (!placed) {
-        // not on the plan: stands next to the house, on the lowest floor
+      if (li >= 0 && groups[li]) groups[li].add(holder);
+      else {
         const box = new THREE.Box3().setFromObject(built.root);
         built.root.position.set(besideX - box.min.x, FLOOR_T, -(box.min.z + box.max.z) / 2);
         besideX += (box.max.x - box.min.x) + 4;
@@ -1016,6 +1037,7 @@
         levels: levels.length,
         stairs: stairSets.reduce((a, s) => ({ treads: a.treads + s.counts.treads, risers: a.risers + s.counts.risers, landings: a.landings + s.counts.landings }), { treads: 0, risers: 0, landings: 0 }),
         vents: ventMeshes.length,
+        wells: [...holes.entries()].map(([li, hs]) => ({ level: levels[li] && levels[li].name, n: hs.length, w: Math.round(hs[0].x1 - hs[0].x0), d: Math.round(hs[0].z1 - hs[0].z0) })),
       },
       /** Empty house: walls only. */
       clear() {
@@ -1161,7 +1183,7 @@
     function frameBox(box, k) {
       const c = box.getCenter(new THREE.Vector3()); const s = box.getSize(new THREE.Vector3());
       const r = Math.max(s.x, s.y, s.z) || 1;
-      target.copy(c); dist = r * (k || 1.6) * tall(); minD = r * 0.35; maxD = r * 6;
+      target.copy(c); dist = r * (k || 1.6) * tall(); minD = r * 0.12; maxD = r * 6;
       const sh = r * 1.2; const cam = sun.shadow.camera;
       sun.position.set(c.x + r * 0.9, c.y + r * 2.2, c.z + r * 0.7); sun.target.position.copy(c);
       cam.left = -sh; cam.right = sh; cam.top = sh; cam.bottom = -sh; cam.near = 0.1; cam.far = r * 8; cam.updateProjectionMatrix();
@@ -1188,12 +1210,27 @@
     }
     const ray = new THREE.Raycaster(); const ndc = new THREE.Vector2();
     const ptrs = new Map(); let last = null; let pinch = null; let moved = 0;
-    cv.addEventListener('pointerdown', (e) => { vT = 0; vP = 0; cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); last = { x: e.clientX, y: e.clientY }; pinch = null; moved = 0; });
+    let panMode = false;
+    function pan(dx, dy) {
+      const k = dist * 0.0018;
+      const right = new THREE.Vector3(Math.cos(theta), 0, -Math.sin(theta));
+      const upv = new THREE.Vector3(-Math.cos(phi) * Math.sin(theta), Math.sin(phi), -Math.cos(phi) * Math.cos(theta));
+      target.addScaledVector(right, -dx * k).addScaledVector(upv, dy * k);
+    }
+    cv.addEventListener('pointerdown', (e) => { vT = 0; vP = 0; cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); last = { x: e.clientX, y: e.clientY, pan: panMode || e.button === 2 || e.shiftKey }; pinch = null; moved = 0; });
+    cv.addEventListener('contextmenu', (e) => e.preventDefault());
     cv.addEventListener('pointermove', (e) => {
       if (!ptrs.has(e.pointerId)) { if (o.onHover && e.pointerType === 'mouse') o.onHover(pick(e)); return; }
       ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y); if (pinch) dist *= pinch / d; pinch = d; moved += 10; }
-      else if (last) { const dx = e.clientX - last.x; const dy = e.clientY - last.y; moved += Math.abs(dx) + Math.abs(dy); vT = -dx * 0.009; vP = -dy * 0.007; theta += vT; phi += vP; last.x = e.clientX; last.y = e.clientY; }
+      if (ptrs.size === 2) {
+        const [a, b] = [...ptrs.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y); const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        if (pinch) { dist *= pinch.d / d; pan(mid.x - pinch.mid.x, mid.y - pinch.mid.y); }
+        pinch = { d, mid }; moved += 10;
+      } else if (last) {
+        const dx = e.clientX - last.x; const dy = e.clientY - last.y; moved += Math.abs(dx) + Math.abs(dy);
+        if (last.pan) pan(dx, dy); else { vT = -dx * 0.009; vP = -dy * 0.007; theta += vT; phi += vP; }
+        last.x = e.clientX; last.y = e.clientY;
+      }
       place(); need();
     });
     const up = (e) => {
@@ -1201,7 +1238,9 @@
       if (was && moved < 6 && e.type === 'pointerup') { vT = 0; vP = 0; if (o.onPick) o.onPick(pick(e)); } else if (was) need();
     };
     cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
-    cv.addEventListener('wheel', (e) => { if (!o.wheel && !e.ctrlKey) return; e.preventDefault(); dist *= Math.exp(e.deltaY * 0.0015); place(); need(); }, { passive: false });
+    let engaged = false; cv.addEventListener('pointerdown', () => { engaged = true; });
+    cv.addEventListener('mouseleave', () => { engaged = false; });
+    cv.addEventListener('wheel', (e) => { if (!o.wheel && !e.ctrlKey && !engaged) return; e.preventDefault(); dist *= Math.exp(e.deltaY * 0.0015); place(); need(); }, { passive: false });
     cv.addEventListener('dblclick', () => { if (o.onReset) o.onReset(); });
     function pick(e) {
       const rect = cv.getBoundingClientRect();
@@ -1212,8 +1251,31 @@
     }
     const ro = new ResizeObserver(() => { const w = el.clientWidth; const h = el.clientHeight; if (!w || !h) return; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); need(); });
     ro.observe(el);
+    // camera tools: zoom, move, views from each side, reset
+    let tools = null;
+    function smooth(to, ms) {
+      const from = { th: theta, ph: phi, d: dist };
+      if (to.th != null) { let dth = to.th - from.th; dth = Math.atan2(Math.sin(dth), Math.cos(dth)); to.th = from.th + dth; }
+      tweens.push({ t0: performance.now(), dur: ms || 450, fn: (p) => { const k = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2; if (to.th != null) theta = from.th + (to.th - from.th) * k; if (to.ph != null) phi = from.ph + (to.ph - from.ph) * k; if (to.d != null) dist = from.d + (to.d - from.d) * k; place(); } });
+      need();
+    }
+    if (o.tools !== false) {
+      const base = () => (o.front != null ? o.front : 0);
+      const views = [['front', 'Front', () => ({ th: base(), ph: 1.25 })], ['left', 'Left', () => ({ th: base() - Math.PI / 2, ph: 1.2 })], ['right', 'Right', () => ({ th: base() + Math.PI / 2, ph: 1.2 })], ['top', 'Top', () => ({ ph: 0.16 })]];
+      tools = document.createElement('div'); tools.className = 'ob3d-tools';
+      const ic = { zin: '<path d="M12 5v14M5 12h14"/>', zout: '<path d="M5 12h14"/>', pan: '<path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/>', reset: '<path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/>' };
+      const svg = (k) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ic[k]}</svg>`;
+      tools.innerHTML = `<div class="ob3d-tools-views" role="group" aria-label="View">${views.map(([k, l]) => `<button type="button" data-v3="${k}">${l}</button>`).join('')}</div><div class="ob3d-tools-row"><button type="button" data-z="in" aria-label="Zoom in" title="Zoom in">${svg('zin')}</button><button type="button" data-z="out" aria-label="Zoom out" title="Zoom out">${svg('zout')}</button><button type="button" data-pan aria-pressed="false" aria-label="Move" title="Move: drag to slide the view">${svg('pan')}</button><button type="button" data-rs aria-label="Reset view" title="Reset view">${svg('reset')}</button></div>`;
+      el.appendChild(tools);
+      tools.addEventListener('pointerdown', (e) => e.stopPropagation());
+      tools.querySelectorAll('[data-v3]').forEach((b) => b.addEventListener('click', () => { const v = views.find((x) => x[0] === b.getAttribute('data-v3')); vT = 0; vP = 0; smooth(v[2](), 520); }));
+      tools.querySelectorAll('[data-z]').forEach((b) => b.addEventListener('click', () => smooth({ d: dist * (b.getAttribute('data-z') === 'in' ? 0.7 : 1.4) }, 260)));
+      tools.querySelector('[data-pan]').addEventListener('click', (e) => { panMode = !panMode; e.currentTarget.setAttribute('aria-pressed', String(panMode)); cv.style.cursor = panMode ? 'move' : ''; });
+      tools.querySelector('[data-rs]').addEventListener('click', () => { panMode = false; tools.querySelector('[data-pan]').setAttribute('aria-pressed', 'false'); cv.style.cursor = ''; if (o.onReset) o.onReset(); });
+    }
     function destroy() {
       alive = false; ro.disconnect(); if (raf) cancelAnimationFrame(raf);
+      if (tools && tools.parentNode) tools.parentNode.removeChild(tools);
       scene.traverse((x) => { if (x.geometry) x.geometry.dispose(); if (x.material) { const ms = Array.isArray(x.material) ? x.material : [x.material]; ms.forEach((mm) => { if (mm.map) mm.map.dispose(); mm.dispose(); }); } });
       if (scene.environment) scene.environment.dispose();
       renderer.dispose(); try { renderer.forceContextLoss(); } catch (_) { /* gone */ } if (cv.parentNode) cv.parentNode.removeChild(cv);
@@ -1260,7 +1322,8 @@
   async function mountStair(el, flights, opts) {
     opts = opts || {};
     let api = null;
-    const c = await core(el, { wheel: false, onPick: (mesh) => { if (mesh && opts.onPick) opts.onPick(mesh.userData.stair.id, mesh.userData.stepId); }, onReset: () => reset() });
+    const co = { wheel: false, onPick: (mesh) => { if (mesh && opts.onPick) opts.onPick(mesh.userData.stair.id, mesh.userData.stepId); }, onReset: () => reset() };
+    const c = await core(el, co);
     const { THREE } = c;
     const chain = stairChains(flights)[0] || [];
     const built = buildStair(THREE, chain, woodKit(THREE));
@@ -1270,7 +1333,7 @@
     const rootFl = chain[0] && built.flights.get(chain[0].stair.id);
     const bc = box.getCenter(new THREE.Vector3());
     const side = rootFl ? Math.sign((rootFl.center.x - bc.x) || 0) || -1 : -1;
-    const th0 = side * 0.55;
+    const th0 = side * 0.55; co.front = th0;
     function reset() { c.orbit(th0, 1.02); c.frameBox(box, 1.35); }
     if (opts.view) { c.frameBox(box, 1.35); c.view = opts.view; } else reset();
     // the chosen step glows; the others stay as they are
@@ -1325,7 +1388,7 @@
    */
   async function mountTread(el, spec, opts) {
     opts = opts || {};
-    const c = await core(el, { wheel: false, phi: 1.12, theta: -0.38, onReset: () => reset() });
+    const c = await core(el, { wheel: false, phi: 1.12, theta: -0.38, front: 0, onReset: () => reset() });
     const { THREE } = c;
     const st = spec.stair || {}; const step = spec.step || {};
     const fmt = spec.inch || ((v) => `${v}`);

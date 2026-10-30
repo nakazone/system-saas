@@ -3048,3 +3048,13 @@ a.pp-lb-btn, a.pp-lb-btn:visited { color: #fff; }
 .pp-tread3d { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); }
 .pp-tread3d-stage { aspect-ratio: 4 / 3; min-height: 0; align-self: start; }
 @media (max-width: 760px) { .pp-tread3d { grid-template-columns: 1fr; } }
+
+/* 3D camera tools */
+.ob3d-tools { position: absolute; right: 8px; bottom: 8px; z-index: 3; display: grid; gap: 6px; justify-items: end; pointer-events: none; }
+.ob3d-tools > * { pointer-events: auto; }
+.ob3d-tools-views, .ob3d-tools-row { display: flex; gap: 2px; padding: 3px; border-radius: 12px; background: rgba(255,255,255,.9); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: 0 0 0 1px rgba(34,30,26,.08), 0 6px 16px -10px rgba(34,30,26,.4); }
+.ob3d-tools button { min-width: 32px; height: 30px; padding: 0 8px; border: 0; border-radius: 9px; background: transparent; font: inherit; font-size: 12px; font-weight: 600; color: var(--pp-ink, #221E1A); cursor: pointer; display: inline-grid; place-items: center; }
+.ob3d-tools button:hover { background: rgba(34,30,26,.07); }
+.ob3d-tools button[aria-pressed="true"] { background: var(--pp-ink, #221E1A); color: #fff; }
+.ob3d-tools svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+@media (max-width: 640px) { .ob3d-tools button { min-width: 36px; height: 34px; } .ob3d-tools-views button { font-size: 11.5px; padding: 0 6px; } }
