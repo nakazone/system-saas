@@ -4,6 +4,8 @@
  */
 import type { TradePack } from "../../types.js";
 import { HARDWOOD_SERVICES } from "./services.js";
+import { HARDWOOD_TAKEOFF } from "./takeoff.js";
+import { HARDWOOD_WORK_ORDER_PROMPT } from "./work-order-prompt.js";
 
 export const hardwood: TradePack = {
   id: "hardwood",
@@ -24,8 +26,10 @@ export const hardwood: TradePack = {
     { key: "sand_finish", label: { "pt-BR": "Lixa", "en-US": "Sand & Finish" }, doneAtField: "sandDoneAt" },
   ],
   combinedPhaseKey: "both",
+  takeoff: HARDWOOD_TAKEOFF,
   ai: {
     companyKind: "flooring installation companies",
     tradeNoun: "flooring",
+    workOrderPrompt: HARDWOOD_WORK_ORDER_PROMPT,
   },
 };

@@ -5,13 +5,18 @@
  * grid of the floors for the 3D view. Waste % per material lives on the builder account.
  */
 import { z } from "zod";
+import { getPack } from "../trades/index.js";
 
 /** What kind of floor a legend entry is — drives waste, services and the 3D finish. */
 export const FLOOR_KINDS = ["hardwood", "lvp", "laminate", "carpet", "rubber", "tile", "stone", "concrete", "other"] as const;
 export type FloorKind = (typeof FLOOR_KINDS)[number];
 
-/** Only these are flooring jobs for now (tile, stone, shower pans, countertops stay out). */
-export const FLOORING_KINDS: FloorKind[] = ["hardwood", "lvp", "laminate", "carpet", "rubber"];
+const isFloorKind = (k: string): k is FloorKind => (FLOOR_KINDS as readonly string[]).includes(k);
+/** What the trade pack measures, which product details each floor asks for, and default waste. */
+const PACK_TAKEOFF = getPack().takeoff;
+
+/** Kinds the pack counts as jobs (hardwood: hardwood, lvp, laminate, carpet, rubber; tile/stone/countertops stay out). */
+export const FLOORING_KINDS: FloorKind[] = PACK_TAKEOFF.measuredKinds.filter(isFloorKind);
 
 export const KIND_LABEL: Record<FloorKind, string> = {
   hardwood: "Hardwood",
@@ -138,22 +143,11 @@ export type Plan = z.infer<typeof planSchema>;
 
 /* ───────────────────────────── product specs ───────────────────────────── */
 
-/** Which product details each kind of floor asks for, in print order. */
-export const SPEC_FIELDS: Record<FloorKind, string[]> = {
-  hardwood: ["species", "construction", "width", "thickness", "grade", "finish", "color", "sheen", "install", "pattern", "brand"],
-  lvp: ["brand", "color", "size", "thickness", "wear", "install", "underlayment"],
-  laminate: ["brand", "color", "size", "thickness", "install", "underlayment"],
-  carpet: ["brand", "color", "pad"],
-  rubber: ["brand", "color", "thickness"],
-  tile: ["brand", "color", "size"],
-  stone: ["brand", "color", "size"],
-  concrete: ["color"],
-  other: ["brand", "color"],
-};
-export const SPEC_LABEL: Record<string, string> = {
-  species: "Species", construction: "Construction", width: "Width", thickness: "Thickness", grade: "Grade", finish: "Finish", color: "Color / stain",
-  sheen: "Sheen", install: "Install", pattern: "Pattern", brand: "Brand / product", size: "Plank size", wear: "Wear layer", underlayment: "Underlayment", pad: "Pad",
-};
+/** Which product details each kind of floor asks for, in print order (from the trade pack). */
+export const SPEC_FIELDS: Record<FloorKind, string[]> = Object.fromEntries(
+  FLOOR_KINDS.map((k) => [k, [...(PACK_TAKEOFF.specFields[k] ?? ["brand", "color"])]]),
+) as Record<FloorKind, string[]>;
+export const SPEC_LABEL: Record<string, string> = { ...PACK_TAKEOFF.specLabels };
 
 /** "White Oak · Engineered · 7" × 3/4" · Select · Unfinished · Natural". */
 export function specText(m: { kind: FloorKind; spec?: Record<string, string> }): string {
@@ -171,7 +165,10 @@ export function specText(m: { kind: FloorKind; spec?: Record<string, string> }):
 
 /* ───────────────────────────── settings (waste) ───────────────────────────── */
 
-export const DEFAULT_WASTE: Record<FloorKind, number> = { hardwood: 10, lvp: 10, laminate: 10, carpet: 12, rubber: 8, tile: 12, stone: 12, concrete: 0, other: 10 };
+/** Default waste % per kind (from the trade pack; builders override it in Settings › Takeoff & waste). */
+export const DEFAULT_WASTE: Record<FloorKind, number> = Object.fromEntries(
+  FLOOR_KINDS.map((k) => [k, PACK_TAKEOFF.waste[k] ?? 10]),
+) as Record<FloorKind, number>;
 
 const settingsSchema = z.object({
   waste: z.record(z.string().max(20), z.number().min(0).max(50)).optional().default({}),

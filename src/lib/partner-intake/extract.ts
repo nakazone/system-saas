@@ -7,6 +7,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { aiChatJson, isAiConfigured } from "../ai/client.js";
 import { zoomStrips } from "./zoom.js";
+import { getPack } from "../trades/index.js";
 
 /** Lines as the builder confirmed them in the portal (sent with the request). */
 export const intakeItemSchema = z.object({
@@ -90,47 +91,8 @@ export type IntakeResult = {
 
 export type StairFlightSpec = { width: number; returns: "double" | "left" | "right" | "none"; treads: number; risers: number; species: string };
 
-const SYSTEM_PROMPT = `You read flooring work orders, purchase orders and schedule screens that home builders send to their flooring installer.
-The input may be a PDF, a screenshot of the builder's scheduling system, a photo of paper, or pasted e-mail text.
-Return ONLY a JSON object with these keys (strings; use "" when absent):
-- raw_text: FIRST, copy every line of text on the order exactly as printed, top to bottom, one line per row (table rows with all their columns: item, description, units, quantity, rate, labor; then the remarks / instructions block word for word). Keep numbers, inch marks and spelling exactly. This is a transcription, not a summary.
-- address: job site street address exactly as written (e.g. "109 Evergreen Dr"); include city/state/zip only if shown
-- community: subdivision / community / neighborhood name. If a value mixes a person's name and a number (e.g. "Peter Garcia #50"), put the person in contact_name and the number in lot
-- lot: lot number only
-- plan: house plan / model name
-- external_ref: the builder's own job #, PO # or work order # (the main one, digits/letters only)
-- service_type: the trade / work requested, short (e.g. "Hardwood install", "Carpet", "Tile backsplash", "Stair nosing")
-- preferred_date: the job date as written (keep the text, e.g. "Monday, October 12th" or "10/12/2026"): the INSTALL DATE / start / scheduled date; when the install date is blank, use the order's "DATE BUILT" date (and add "preferred_date" to unsure)
-- pickup: where the crew picks up the material, as written next to the job address or in the delivery box, usually a supplier and its order / delivery number (e.g. "TRIWEST 9176215" printed in red beside ADDRESS → "TriWest · 9176215"); add a street address only if one is printed
-- square_feet: total square feet as a plain number, if shown
-- material: material / wood type / product (e.g. "Engineered white oak")
-- contact_name: superintendent / project manager name
-- contact_phone: their phone
-- contact_email: their e-mail
-- notes: everything else that matters to the crew (shortages, add-ons, access, warehouse, who buys which material), short sentences
-- title: a short job title: "<service_type> · <address>"
-- items: array of distinct services the installer must perform (not one object per product/material row):
-  {"area": rooms covered (short, e.g. "LL Rec Room, Hearth Room, LL Bed 2 & 3, Baths, Laundry"), "description": product or service, "detail": install detail column, "quantity": number, "uom": unit as written (SF, LF, EA, SY, STEP…), "rate": labor rate per unit as a number or null, "total": line labor total as a number or null, "catalog_id": id of the matching service from the installer's catalog (given below) or null, "service_name": short generic name of the work as an installer would list it in a price list, in English, without brand / color / SKU (e.g. "LVP install with attached pad", "Moisture barrier – 6 mil poly", "End cap / transition install", "Floor protection cover")}
-  A builder's remarks / scope section can describe the actual work better than the item table. Use those instructions together with the table; the table may list materials or components, not separate labor services. Do not turn every material row into an installation service or count a material quantity as the step count.
-  For stair work, consolidate each requested tread type into one service using the quantity in the "STAIR TREADS" instructions. Example: "STAIR TREADS: SOLID WHITE OAK - 48\" - DOUBLE RETURNS - 8 EA" means one "Stair tread installation — 48\" double returns" service, quantity 8, uom STEP. "42\" - LEFT RETURNS - 8 EA" is a separate service, quantity 8, uom STEP. Keep the dimension and return type together. A separate "STAIR RISERS" section is usually material/component counts; do not create riser-install services from it unless the order explicitly lists riser installation as labor.
-  For a vent installation instruction, use the vent size from the table (for example 4x10) and the quantity from the install instruction/table to create one service such as "Wood vent installation — 4x10", uom EA. Do not mistake the vent product description for a second service.
-  A line such as "SITE FINISHED SAND/2 COAT TREADS" with quantity 16 means "Sand & finish stair treads", quantity 16, uom STEP. Do not merge it into tread installation.
-  Quantities come from the Quantity column. The first column of a dealer work order ("98", "42", "92") is a product / price-class code, never a quantity, and numbers inside a description ("SAND/2 COAT" = 2 coats, "4X10" = vent size, "48\"" = width) are not quantities either. Check: quantity × rate = labor when both are printed (16 × 50.000 = 800.00).
-  Stairs: each flight has its treads and one more riser than treads (8 treads → 9 risers). "STAIR TREADS: 48\" - 8 EA / 42\" - 8 EA" is 16 treads in total over 2 flights; the stair sanding line counts treads (16), not treads + risers.
-  Take service lines from the labor / work order table and scope notes. Material-only pages (purchase order, sales order, pick ticket) repeat products without labor: do not add those again. A line with "$ -" or no price still counts, with total null.
-- stairs: when the order has stair treads/risers, one object per tread width (each width is usually one flight of the same stair): {"width": inches as a number (48), "returns": "double" | "left" | "right" | "none", "treads": tread count, "risers": riser count (from the STAIR RISERS section or the riser rows), "species": wood species ("White Oak") or ""}. Example: "STAIR TREADS: SOLID WHITE OAK - 48\" - DOUBLE RETURNS - 8 EA / 42\" - LEFT RETURNS - 8 EA; STAIR RISERS: 48\" - 9 EA / 42\" - 9 EA" → [{"width":48,"returns":"double","treads":8,"risers":9,"species":"White Oak"},{"width":42,"returns":"left","treads":8,"risers":9,"species":"White Oak"}]. Two or more tread widths (or return types) on one order are usually the flights of ONE stair joined by a landing (e.g. a wider 48\" starter flight with double returns and a 42\" upper flight with a left return): list them in the order the work order lists them, lower flight first. Do not mix treads and risers of different widths. Widths are not always 48/42: read whatever is written (36\", 39\", 44\", 54\"…). Use [] when there are no stairs.
-- stair_finish: "site" when the stair treads are sanded / finished on site (e.g. "SITE FINISHED SAND/2 COAT TREADS", "sand & finish stairs", "stain and 3 coats"), "prefinished" when the treads are prefinished, or "".
-- labor_total: the printed labor total (e.g. "TOTAL WOOD LABOR $ 5,117.00" → 5117) as a number, or null
-Documents often come from a flooring dealer / distributor (e.g. "The Colorado Floor Company") sending labor to an installer. In that case the "BUILDER:" on the page is the home builder / end client: put it in notes ("Home builder: …"), not in contact_name. "AREA #" or "Area 9" is a sales area, not a lot. The INSTALL DATE wins over "DATE BUILT"; DATE BUILT is used only when INSTALL DATE is blank.
-"INSTALL DATE: TBD" (or "to be determined") means there is no date yet: leave preferred_date "" and do not use the order date.
-On a "WORK ORDER" with "Sold To" and "Install At" boxes, the job address is the street line of "Install At" (with its city/state/zip); the first line there is usually "<community> #<lot>, <plan>" (e.g. "GRANBY RANCH #50, PEACH" → community "Granby Ranch", lot "50", plan "Peach"); short words like "NAIL WOOD" under it are install notes. "Sold To" is the dealer's customer, not the job. "BLDR:" in the remarks is the builder's superintendent → contact_name. "PO Number: NEED PO" means no PO yet → keep the order number (e.g. "HN001195") as external_ref.
-Keep separately requested work separate: stair tread installation, sanding / finishing, and vent installation are different services. For stair treads, use STEP as the service unit even if the order says EA. Preserve dimensions (48\", 42\", 4x10), species and return type (double returns, left returns) in the service name or detail. Do not create a service for risers merely because the material table lists riser pieces.
-Matching to the catalog: pick the catalog service that is the same kind of work (e.g. a waterproof / LVP / SPC floor with attached pad → the LVP or vinyl plank install service; "6 mil poly" moisture barrier → moisture barrier / vapor barrier / underlayment service; end caps or transitions → transition / end cap / T-molding service; floor protection cover → floor protection service). Prefer a service whose unit fits the line's unit. Use null when nothing in the catalog is that work; never force a match.
-square_feet: the main flooring square feet (the largest SF install line), not the sum of underlayment lines.
-service_type: the main install, e.g. "LVP / waterproof flooring install", "Hardwood install", "Carpet install".
-- unsure: array of keys you are not confident about
-- warnings: array of short notes (in English) explaining any ambiguous reading
-Never invent values. Ignore page chrome (buttons, menus, battery, time of day).`;
+/** The work order reading prompt comes from the trade pack (hardwood: flooring WOs, stairs, sand & finish). */
+const SYSTEM_PROMPT = getPack().ai.workOrderPrompt;
 
 const MAX = { title: 160, address: 300, notes: 5000, contact_email: 254, contact_phone: 40, contact_name: 120, service_type: 100 } as const;
 
