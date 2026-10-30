@@ -783,6 +783,11 @@
       camera.position.set(target.x + dist * Math.sin(phi) * Math.sin(theta), target.y + dist * Math.cos(phi), target.z + dist * Math.sin(phi) * Math.cos(theta));
       camera.lookAt(target);
     }
+    if (noHouse && stairSets.length) {
+      const bx = new THREE.Box3(); stairSets.forEach((st) => bx.expandByObject(st.root));
+      const c0 = bx.getCenter(new THREE.Vector3()); const s0 = bx.getSize(new THREE.Vector3());
+      target.copy(c0); dist = Math.max(16, Math.max(s0.x, s0.y, s0.z) * 1.8) * Math.max(1, 1.15 / Math.max(0.3, camera.aspect));
+    }
     place();
 
     // ── picking, tooltip and legend ──
@@ -938,12 +943,14 @@
     function flyTo(what, ms) {
       let box = null;
       ventPins.forEach((p) => { p.visible = what === 'vents'; });
+      if (what === 'home' && noHouse && stairSets.length) what = 'allstairs';
       if (what === 'stairs' && stairSets.length) {
         const main = stairSets.slice().sort((a, b) => b.counts.treads - a.counts.treads)[0];
         const top = groups.indexOf(main.holder.parent);
         groups.forEach((g, i) => { g.visible = top < 0 || i <= top; });
         box = new THREE.Box3().expandByObject(main.root);
-      } else if (!focus) groups.forEach((g) => { g.visible = true; });
+      } else if (what === 'allstairs') { box = new THREE.Box3(); stairSets.forEach((st) => box.expandByObject(st.root)); }
+      else if (!focus) groups.forEach((g) => { g.visible = true; });
       if (what === 'vents' && ventMeshes.length) { box = new THREE.Box3(); ventMeshes.forEach((m) => box.expandByObject(m)); }
       const from = { tx: target.x, ty: target.y, tz: target.z, d: dist, th: theta, ph: phi };
       let to;
