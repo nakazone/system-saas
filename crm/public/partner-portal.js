@@ -1227,6 +1227,7 @@
     renderSendBody();
     try {
       const r = await postJson(companyInvited() ? '/api/builder/read' : '/api/partner-portal/requests/read', { text: s.text, files: s.files.map((f) => ({ name: f.name, data_url: f.dataUrl })) }, state.builder && !companyInvited() ? sendCo().id : undefined);
+      if (state.send !== s) return; // canceled while reading
       const data = r.data || {};
       if (!data.ai_available) {
         s.fields = emptyFields();
@@ -1255,11 +1256,13 @@
         s.match = data.match || null;
         s.mode = s.presetJob || s.match ? 'update' : 'new';
       }
+      if (state.send !== s) return;
       if (s.presetJob) s.match = s.presetJob;
       s.phase = 'review';
       s.step = s.presetJob ? 'details' : 'measure';
       if (s.measurement && !s.measData) loadMeasData(s);
     } catch (err) {
+      if (state.send !== s) return;
       s.phase = 'review';
       s.step = 'details';
       s.fields = emptyFields();
@@ -1268,6 +1271,17 @@
       s.warnings = [`${err.message || 'Could not read the file.'} Fill in the fields below — the file goes with the request.`];
     }
     renderSendBody();
+  }
+  /** Stops the work order being sent: while reading right away, after that with a quick check. */
+  function cancelSend() {
+    const s = state.send;
+    const reset = () => { const co = s && s.co; state.send = newSend(); if (co) state.send.co = co; closeSheet(); renderSendBody(); window.scrollTo(0, 0); mateToast('head-curious', 'Canceled', 'Nothing was sent.'); };
+    if (!s || s.phase === 'reading') { reset(); return; }
+    const root = openSheet('Cancel this work order?', `<div class="pp-del-sheet">
+        <p class="pp-muted">What Mate read, the quote and your changes are cleared. Nothing is sent to ${esc(providerName())}.${s.measBuilt ? ' The measurement Mate built stays in Measurements.' : ''}</p>
+        <div class="pp-sheet-actions"><button type="button" class="pp-btn pp-btn--sec" data-sheet-close>Keep going</button><button type="button" class="pp-btn pp-btn--danger" data-cancel-go>Cancel work order</button></div>
+      </div>`);
+    root.querySelector('[data-cancel-go]').addEventListener('click', reset);
   }
   function emptyFields() {
     return FIELD_ORDER.reduce((o, k) => { o[k] = ''; return o; }, {});
@@ -1306,7 +1320,7 @@
     view.innerHTML = `
       <div class="pp-head pp-send-head">
         <div><h1>Send work</h1><p class="pp-muted pp-send-sub">A work order, a measurement or the plans — ${esc(providerName())} gets it as a job.</p></div>
-        <ol class="pp-steps" id="ppSteps" aria-label="Steps"></ol>
+        <div class="pp-send-headr"><ol class="pp-steps" id="ppSteps" aria-label="Steps"></ol><span id="ppSendCancelBox"></span></div>
       </div>
       ${coCards}
       <div class="pp-split pp-split--stack">
@@ -1369,6 +1383,13 @@
     const s = state.send;
     const steps = $('ppSteps');
     if (steps) steps.innerHTML = stepsHtml(s.phase);
+    // cancel at any step until it is sent
+    const cbox = $('ppSendCancelBox');
+    if (cbox) {
+      const can = s.phase === 'reading' || s.phase === 'review';
+      cbox.innerHTML = can ? `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm pp-send-cancel" id="ppSendCancel">Cancel</button>` : '';
+      const b = $('ppSendCancel'); if (b) b.addEventListener('click', cancelSend);
+    }
     document.body.classList.toggle('pp-focus', s.phase === 'review');
 
     if (s.phase === 'reading') {
@@ -1528,7 +1549,7 @@
     const top = `
       <div class="pp-card pp-wz-top">
         <div style="display:flex;gap:10px;align-items:center">${s.ai || s.fromMeas ? `<span class="pp-mateface" aria-hidden="true"><img src="/assets/img/mascot/mate-head-neutral.webp?v=20261027-m2" alt="" width="36" height="36"></span>` : ''}<div><strong style="font-size:17px">${esc(f.title || (s.fromMeas ? 'Work order from your measurement' : s.ai ? 'Work order read by Mate' : 'New work order'))}</strong><div class="pp-muted" style="font-size:14px">${esc(f.address || 'No address yet')}${f.external_ref ? ` · PO ${esc(f.external_ref)}` : ''}${s.ai && checked ? ` · <span class="pp-late">${plural(checked, 'field', 'fields')} to check</span>` : ''}</div></div></div>
-        <button type="button" class="pp-link" id="ppRestart">${s.files.length || s.ai ? 'Change file' : 'Start over'}</button>
+        <span class="pp-wz-orderacts"><button type="button" class="pp-link" id="ppRestart">${s.files.length || s.ai ? 'Change file' : 'Start over'}</button><button type="button" class="pp-link pp-send-cancel-m" data-send-cancel>Cancel</button></span>
       </div>`;
     if (s.step === 'measure') return `${top}${measureStepHtml(s)}${wizardNav(s)}`;
     if (s.step === 'quote') return `${top}${quoteStepHtml(s)}${wizardNav(s)}`;
@@ -2106,7 +2127,7 @@
       const chain = stairChainFor(data, root.id);
       const idx = chain.map((fl) => stairs.findIndex((x) => x.id === fl.id));
       const flip = chain.slice(1).some((fl) => fl.turn === 'right' || fl.turn === 'u_right');
-      return `<div class="pp-wz-draw"><span class="pp-lbl">${chain.length > 1 ? `${esc(root.name || 'Stair')} · ${chain.length} flights` : esc(root.name || 'Stair')}</span>${stairSvg(chain.length > 1 ? chain : root, -1, flip, idx, {}, -1)}</div>`;
+      return `<div class="pp-wz-draw"><span class="pp-lbl">${chain.length > 1 ? `${esc(root.name || 'Stair')} · ${chain.length} flights` : esc(root.name || 'Stair')}<em class="pp-viz-turnhint"> · drag to turn</em></span>${stairSvg(chain.length > 1 ? chain : root, -1, flip, idx, {}, -1)}</div>`;
     }).join('');
   }
   function measureStepHtml(s) {
@@ -2341,7 +2362,8 @@
     }));
     view.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => { s.mode = b.getAttribute('data-mode'); renderSendBody(); }));
     $('ppRestart').addEventListener('click', () => { const preset = s.presetJob; const co = s.co; state.send = newSend(); state.send.presetJob = preset; state.send.co = co; renderSendBody(); });
-    const discard = () => { state.send = newSend(); renderSendBody(); };
+    const discard = () => cancelSend();
+    view.querySelectorAll('[data-send-cancel]').forEach((b) => b.addEventListener('click', cancelSend));
     if ($('ppDiscard')) $('ppDiscard').addEventListener('click', discard);
     view.querySelectorAll('[data-discard]').forEach((b) => b.addEventListener('click', discard));
     if ($('ppItemsTitle')) bindItems();
@@ -3892,6 +3914,56 @@
     'fisherman': '#8F8577', 'pier': '#8F8577', gray: '#8D867B', white: '#EDE8E0',
   };
   let vizSeq = 0;
+  /** Stair drawings turned with the mouse / finger: angle per stair, the arguments to redraw, a steady frame. */
+  const vizYaw = new Map(); const vizArgs = new Map();
+  /** Drag a stair drawing sideways to turn it (mouse or finger); double-click puts it back. */
+  (function stairTurnByDrag() {
+    let drag = null; let raf = 0; let swallowClick = false;
+    const redraw = () => {
+      raf = 0;
+      if (!drag) return;
+      const el = document.querySelector(`svg[data-viz-draw="${drag.id}"]`);
+      const args = vizArgs.get(drag.id);
+      if (!el || !args) return;
+      vizYaw.set(drag.key, drag.yaw);
+      const box = document.createElement('div'); box.innerHTML = stairSvg(...args);
+      const next = box.firstElementChild; if (!next) return;
+      el.replaceWith(next);
+      drag.id = next.getAttribute('data-viz-draw');
+      next.classList.add('is-turning');
+    };
+    document.addEventListener('pointerdown', (e) => {
+      const svg = e.target.closest && e.target.closest('svg[data-viz-draw]');
+      if (!svg || e.button > 0) return;
+      const key = svg.getAttribute('data-viz-yaw');
+      drag = { id: svg.getAttribute('data-viz-draw'), key, x: e.clientX, start: vizYaw.get(key) || 0, yaw: vizYaw.get(key) || 0, moved: false };
+    });
+    document.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      const dx = e.clientX - drag.x;
+      if (!drag.moved && Math.abs(dx) < 5) return;
+      drag.moved = true;
+      drag.yaw = drag.start + dx * 0.011;
+      if (!raf) raf = requestAnimationFrame(redraw);
+    });
+    const end = () => {
+      if (!drag) return;
+      if (drag.moved) {
+        swallowClick = true; setTimeout(() => { swallowClick = false; }, 0);
+        const el = document.querySelector(`svg[data-viz-draw="${drag.id}"]`); if (el) el.classList.remove('is-turning');
+      }
+      drag = null;
+    };
+    document.addEventListener('pointerup', end); document.addEventListener('pointercancel', end);
+    // a drag is not a click on a tread
+    document.addEventListener('click', (e) => { if (swallowClick && e.target.closest && e.target.closest('svg[data-viz-draw]')) { e.stopPropagation(); e.preventDefault(); } }, true);
+    document.addEventListener('dblclick', (e) => {
+      const svg = e.target.closest && e.target.closest('svg[data-viz-draw]');
+      if (!svg) return;
+      drag = { id: svg.getAttribute('data-viz-draw'), key: svg.getAttribute('data-viz-yaw'), yaw: 0 };
+      redraw(); drag = null;
+    });
+  })();
 
   function hexMix(a, b, t) {
     const pa = [1, 3, 5].map((i) => parseInt(a.slice(i, i + 2), 16));
@@ -4093,7 +4165,13 @@
   ];
   /** Whole stair drawn from component rows, including riser-only endings and optional landings. */
   function stairSvg(stairOrFlights, sel, mirror, flightIndexes, selectedByFlight, activeFlightIndex) {
+    const args = [stairOrFlights, sel, mirror, flightIndexes, selectedByFlight, activeFlightIndex];
     const flights = Array.isArray(stairOrFlights) ? stairOrFlights : [stairOrFlights];
+    // turned by dragging: the angle stays with the stair across redraws
+    const yawKey = flights.map((f) => f.id || f.name || '').join('|');
+    const yaw = vizYaw.get(yawKey) || 0;
+    const cy = Math.cos(yaw); const sy = Math.sin(yaw);
+    const T = (x, y) => { const xx = mirror ? -x : x; return [xx * cy - y * sy, xx * sy + y * cy]; };
     const stair = flights[0];
     if (flights.length === 1 && stair.layout === 'round') return roundStairSvg(stair, sel);
     if (flights.some((flight) => flight.layout === 'round')) return '<p class="pp-muted pp-viz-empty">Use the connected elevation below to review a stair with a round flight.</p>';
@@ -4113,8 +4191,8 @@
     if (!flightData.some(({ components, flight }) => components.length || (flight.landing && flight.landing.enabled))) return '<p class="pp-muted pp-viz-empty">The stair builds itself here as you measure the steps.</p>';
     const cos = Math.cos(Math.PI / 6); const sin = Math.sin(Math.PI / 6);
     // World → screen (isometric). Each flight has its own frame so a flight can turn on the landing.
-    const PW = (x, y, z) => { const xx = mirror ? -x : x; return [(xx + y) * cos, (xx - y) * sin - z]; };
-    const shapes = []; const all = [];
+    const PW = (x, y, z) => { const t = T(x, y); return [(t[0] + t[1]) * cos, (t[0] - t[1]) * sin - z]; };
+    const shapes = []; const all = []; const allW = [];
     const nose = 1.25; const thickness = 1;
     const firstWidth = (flight) => { const st = (flight.steps || []).find((x) => x.kind !== 'riser' && x.tread_w) || (flight.steps || []).find((x) => x.riser_w); return Number(st && (st.tread_w || st.riser_w)) || 36; };
     let z = 0;
@@ -4165,12 +4243,13 @@
     for (let flightPosition = geoByFlight.length - 1; flightPosition >= 0; flightPosition -= 1) {
       const { rows, landing, frame: fr } = geoByFlight[flightPosition];
       const toW = (x, y) => [fr.ox + x * fr.ax[0] + y * fr.ay[0], fr.oy + x * fr.ax[1] + y * fr.ay[1]];
-      const P = (x, y, z) => { const w = toW(x, y); return PW(w[0], w[1], z); };
+      const P = (x, y, z) => { const w = toW(x, y); allW.push([w[0], w[1], z]); return PW(w[0], w[1], z); };
       const pts = (arr) => arr.map((p) => P(...p).map((v) => v.toFixed(2)).join(',')).join(' ');
-      const depthOf = (x, y) => { const w = toW(x, y); return (mirror ? -w[0] : w[0]) - w[1]; };
+      const depthOf = (x, y) => { const w = T(...toW(x, y)); return w[0] - w[1]; };
       // which long side of this flight faces the viewer
-      const rightVisible = ((mirror ? -fr.ax[0] : fr.ax[0]) - fr.ax[1]) > 0;
-      const facesViewer = ((mirror ? -fr.ay[0] : fr.ay[0]) - fr.ay[1]) < 0;
+      const ax = T(fr.ax[0], fr.ax[1]); const ay = T(fr.ay[0], fr.ay[1]);
+      const rightVisible = (ax[0] - ax[1]) > 0;
+      const facesViewer = (ay[0] - ay[1]) < 0;
       let cur = null;
       const open = (key) => { cur = { key, parts: [] }; groups.push(cur); };
       const put = (svg) => cur.parts.push(svg);
@@ -4252,11 +4331,24 @@
     }
     groups.map((g, n) => ({ g, n })).sort((a, b) => a.g.key - b.g.key || a.n - b.n).forEach(({ g }) => shapes.push(...g.parts));
     const xs = all.map((point) => point[0]); const ys = all.map((point) => point[1]);
-    const pad = 8; const minX = Math.min(...xs) - pad; const minY = Math.min(...ys) - pad;
-    const w = Math.max(...xs) - minX + pad; const h = Math.max(...ys) - minY + pad;
+    const pad = 8; let minX = Math.min(...xs) - pad; let minY = Math.min(...ys) - pad;
+    let w = Math.max(...xs) - minX + pad; let h = Math.max(...ys) - minY + pad;
+    if (yaw && allW.length) {
+      // while turning: a frame that fits the stair at every angle, so it doesn't zoom in and out
+      const wx = allW.map((p) => p[0]); const wy = allW.map((p) => p[1]); const wz = allW.map((p) => p[2]);
+      const c = [(Math.min(...wx) + Math.max(...wx)) / 2, (Math.min(...wy) + Math.max(...wy)) / 2];
+      const r = Math.SQRT2 * Math.max(...allW.map((p) => Math.hypot(p[0] - c[0], p[1] - c[1])));
+      const zc = (Math.min(...wz) + Math.max(...wz)) / 2; const zh = (Math.max(...wz) - Math.min(...wz)) / 2;
+      const pc = PW(c[0], c[1], zc);
+      const hx = r * cos + pad; const hy = r * sin + zh + pad;
+      minX = pc[0] - hx; minY = pc[1] - hy; w = hx * 2; h = hy * 2;
+    }
+    const drawId = `sv${(vizSeq += 1)}`;
+    vizArgs.set(drawId, args);
+    if (vizArgs.size > 60) vizArgs.delete(vizArgs.keys().next().value);
     const counts = measCounts({ stairs: flights, vents: [] });
     const flightLabel = flights.length > 1 ? ` with ${flights.length} connected flights and ${flights.filter((flight) => flight.landing && flight.landing.enabled).length} landings` : '';
-    return `<svg class="pp-viz-svg pp-viz-stair" viewBox="${minX.toFixed(1)} ${minY.toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}" role="img" aria-label="Complete assembled stair${flightLabel}, with ${counts.treads} treads and ${counts.risers} risers">
+    return `<svg class="pp-viz-svg pp-viz-stair" data-viz-draw="${drawId}" data-viz-yaw="${esc(yawKey)}" viewBox="${minX.toFixed(1)} ${minY.toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)}" role="img" aria-label="Complete assembled stair${flightLabel}, with ${counts.treads} treads and ${counts.risers} risers">
       <defs>${flightData.map(({ vizId, tone: flightTone, riserTone, paint: paintGrade, flight }) => woodDefs(`${vizId}t`, flightTone, isGlossy(flight.finish)) + woodDefs(`${vizId}r`, riserTone, !paintGrade && isGlossy(flight.finish), true)).join('')}</defs>
       ${shapes.join('')}
     </svg>`;
@@ -4401,7 +4493,7 @@
         <div class="pp-viz-bar"><span class="pp-step-lbl pp-viz-lbl">${drawingTitle}</span>${mixedLayout ? '' : mirrorButton}</div>
         ${turnPick}
         <div class="pp-viz-box" data-viz-box="3d">${drawing}</div>
-        <p class="pp-viz-hint">${drawingHint}</p>
+        <p class="pp-viz-hint">${drawingHint}${s.layout === 'round' || mixedLayout ? '' : ' <span class="pp-viz-turnhint">Drag the drawing to turn it · double-click to reset.</span>'}</p>
       </div>
     </div>`;
   }
@@ -5022,8 +5114,9 @@
 
   /** Progress shown while Mate reads the plans. */
   function planProgress(root, text, pct) {
-    const box = root && root.querySelector('[data-plan-progress]');
-    if (!box) return;
+    // the sheet that started it may be gone (the color check replaced it): show it on top of the page
+    let box = root && root.isConnected && root.querySelector('[data-plan-progress]');
+    if (!box) box = planBusyBox();
     box.hidden = false;
     box.querySelector('span').textContent = text;
     box.querySelector('i').style.width = `${Math.max(4, Math.min(100, pct || 0))}%`;
@@ -5033,7 +5126,20 @@
    * Reads the plans into the measurement: legend colors, scale, floors per level and room,
    * previews. Asks the person for colors / scale only when the file has none to read.
    */
+  /** "Mate is measuring the floors" over the page, with the progress bar, until the plans are read. */
+  function planBusyBox() {
+    let el = $('ppPlanBusy');
+    if (!el) {
+      document.body.insertAdjacentHTML('beforeend', `<div class="pp-busy" id="ppPlanBusy" role="status" aria-live="polite"><div class="pp-busy-card">${mate('head-thinking', 72)}<strong>Mate is measuring the floors</strong><div class="pp-plan-progress" data-plan-progress><span>Starting…</span><b><i></i></b></div><small>Big plans can take a minute. Keep this page open.</small></div></div>`);
+      el = $('ppPlanBusy');
+    }
+    return el.querySelector('[data-plan-progress]');
+  }
+  function planBusyEnd() { const el = $('ppPlanBusy'); if (el) el.remove(); }
   async function readPlans(m, file, root, existing) {
+    try { return await readPlansNow(m, file, root, existing); } finally { planBusyEnd(); }
+  }
+  async function readPlansNow(m, file, root, existing) {
     if (!window.ObTakeoff) throw new Error('The plan reader did not load. Refresh the page and try again.');
     planProgress(root, 'Opening the plans…', 4);
     const upload = existing ? Promise.resolve(existing) : uploadPlanFile(m.id, file);
@@ -5134,7 +5240,7 @@
         paint();
       });
       let done = false;
-      root.querySelector('[data-picked-done]').addEventListener('click', () => { done = true; closeSheet(); resolve(mats.map((x, i) => { const { unsure, from, ...rest } = x; void unsure; void from; return { ...rest, key: `${x.kind}-${i + 1}` }; })); });
+      root.querySelector('[data-picked-done]').addEventListener('click', () => { done = true; closeSheet(); planProgress(null, 'Measuring the floors…', 25); resolve(mats.map((x, i) => { const { unsure, from, ...rest } = x; void unsure; void from; return { ...rest, key: `${x.kind}-${i + 1}` }; })); });
       new MutationObserver((_, obs) => { if (!root.isConnected) { obs.disconnect(); if (!done) resolve(null); } }).observe(document.body, { childList: true });
     });
   }
@@ -5272,8 +5378,8 @@
         render();
         mateToast('measure', 'Floors measured', 'Check the rooms and the 3D view.');
       } catch (ex) {
-        formError('ppPlanErr', ex);
-        btn.disabled = false;
+        if ($('ppPlanErr')) formError('ppPlanErr', ex); else mateToast('head-curious', 'Could not read the plans', ex.message);
+        if ($('ppPlanGo')) btn.disabled = false;
         if (created) { closeSheet(); location.hash = `#measurements/${created.id}`; }
       }
     });
@@ -6435,6 +6541,7 @@
     if (old) old.remove();
     document.body.insertAdjacentHTML('beforeend', `<div class="pp-toast" id="ppToast" role="status">${mate(pose, 44)}<div><strong>${esc(title)}</strong>${text ? `<span>${esc(text)}</span>` : ''}</div></div>`);
     const el = $('ppToast');
+    el.addEventListener('click', () => { el.classList.add('is-out'); setTimeout(() => el.remove(), 200); });
     setTimeout(() => { if (el.isConnected) { el.classList.add('is-out'); setTimeout(() => el.remove(), 220); } }, 3600);
   }
 

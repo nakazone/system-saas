@@ -2286,8 +2286,9 @@ button.pp-mkpi:active { transform: scale(.98); }
 .pp-mcard-del:hover { background: #FEECEB; color: #B42318; }
 .pp-mcard-del svg, .pp-btn--icon svg, .pp-del-ic svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .pp-btn--icon { width: 44px; padding: 0; justify-content: center; }
-.pp-btn--danger { background: #B42318; border-color: #B42318; color: #FFFFFF; }
-.pp-btn--danger:hover { background: #912018; }
+.pp-btn--danger, .pp-sheet-actions .pp-btn--danger { background: #D92D20; border-color: #D92D20; color: #FFFFFF !important; font-weight: 700; }
+.pp-btn--danger:hover { background: #B42318; border-color: #B42318; color: #FFFFFF !important; }
+.pp-btn--danger svg { stroke: #FFFFFF; }
 .pp-del-sheet { display: grid; gap: 10px; justify-items: start; }
 .pp-del-sheet p { margin: 0; }
 .pp-del-sheet p small { display: block; color: var(--pp-muted); font-size: 13px; }
@@ -2548,3 +2549,37 @@ button.tk-fact:hover { border-color: #E7792C; }
 
 /* a color that means another floor on one sheet (e.g. "Polished concrete throughout" in the basement) */
 .pp-plan-where { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: var(--pp-accent-soft, #fdeedd); color: var(--pp-accent-ink, #9a4a12); font-size: 11.5px; font-weight: 600; }
+
+/* stair drawings turn when dragged sideways */
+svg.pp-viz-stair[data-viz-draw] { cursor: grab; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+svg.pp-viz-stair.is-turning { cursor: grabbing; }
+.pp-viz-turnhint { color: #667085; font-style: normal; font-weight: 500; text-transform: none; letter-spacing: 0; }
+/* light destructive buttons (Remove / Delete beside other actions): red text on white, soft red on hover */
+.pp-btn--sec.pp-late { color: #B42318 !important; border-color: #F4C7C3; background: #FFFFFF; }
+.pp-btn--sec.pp-late:hover { background: #FEF3F2; border-color: #F04438; }
+
+/* reading plans: progress over the page (the color check sheet is gone by then) */
+.pp-busy { position: fixed; inset: 0; z-index: 94; background: rgba(20, 16, 12, .42); display: grid; place-items: center; padding: 24px; animation: pp-fade .15s ease; }
+body.pp-sheet-open .pp-busy { display: none; }
+.pp-busy-card { width: min(440px, 100%); background: var(--pp-card, #fff); border-radius: 20px; padding: 26px 24px 22px; display: grid; justify-items: center; gap: 8px; text-align: center; box-shadow: 0 24px 60px rgba(20, 16, 12, .25); }
+.pp-busy-card img { animation: pp-busy-bob 1.4s ease-in-out infinite; }
+.pp-busy-card strong { font-size: 17px; }
+.pp-busy-card .pp-plan-progress { margin-top: 6px; }
+.pp-busy-card small { color: var(--pp-muted); font-size: 12.5px; }
+@keyframes pp-busy-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .pp-busy-card img { animation: none; } }
+
+/* Send work: cancel beside the steps */
+.pp-send-headr { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.pp-send-cancel { color: #B42318 !important; border-color: #F4C7C3; }
+.pp-send-cancel:hover { background: #FEF3F2; border-color: #F04438; }
+@media (max-width: 720px) { .pp-send-headr { justify-content: space-between; width: 100%; } }
+
+/* notifications at the top of the screen (the bottom menu stays free) */
+.pp-toast { top: calc(68px + env(safe-area-inset-top, 0px)); bottom: auto !important; animation: pp-toast-top-in 280ms var(--pp-ease-out); cursor: pointer; }
+.pp-toast.is-out { transform: translate(-50%, -10px); }
+@keyframes pp-toast-top-in { from { opacity: 0; transform: translate(-50%, -16px) scale(.98); } }
+@media (max-width: 1023px) { .pp-toast { top: calc(10px + env(safe-area-inset-top, 0px)); } }
+.pp-wz-orderacts { display: inline-flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.pp-send-cancel-m { display: none; color: #B42318 !important; text-decoration-color: #F4C7C3; }
+@media (max-width: 1023px) { .pp-send-cancel-m { display: inline; } }
