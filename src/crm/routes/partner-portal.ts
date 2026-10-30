@@ -1303,6 +1303,34 @@ partnerPortalRouter.get("/api/partner-portal/requests/:id/files/:index", require
   }
 });
 
+/** What the builder sent besides the fields: the services with their prices, the pickup and the measurement. */
+function requestIntakeView(intake: unknown) {
+  const v = (intake && typeof intake === "object" ? intake : {}) as Record<string, unknown>;
+  const items = (Array.isArray(v.items) ? v.items : []).slice(0, 40).map((raw) => {
+    const it = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+    const num = (x: unknown) => (x == null || x === "" || !Number.isFinite(Number(x)) ? null : Number(x));
+    return {
+      name: String(it.service_name || it.description || "").slice(0, 160),
+      detail: [it.description && it.service_name && it.description !== it.service_name ? String(it.description) : "", String(it.detail || "")].filter(Boolean).join(" · ").slice(0, 300),
+      area: String(it.area || "").slice(0, 200),
+      quantity: num(it.quantity) ?? 0,
+      uom: String(it.uom || "").slice(0, 12),
+      rate: num(it.rate),
+      total: num(it.total),
+    };
+  });
+  const lines = (Array.isArray(v.measurement_lines) ? v.measurement_lines : []).slice(0, 30).map((raw) => {
+    const l = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+    return { kind: String(l.kind || ""), text: String(l.text || "").slice(0, 200), qty: Number(l.qty) || 0, uom: String(l.uom || "") };
+  });
+  return {
+    services: items,
+    labor_total: v.labor_total == null || !Number.isFinite(Number(v.labor_total)) ? null : Number(v.labor_total),
+    pickup: typeof v.pickup === "string" ? v.pickup.slice(0, 300) : "",
+    measurement: lines.length ? { lines } : null,
+  };
+}
+
 partnerPortalRouter.get("/api/partner-requests", requireCrmAuth, requireCrmPermission("work_orders.manage"), async (req: AuthedRequest, res, next) => {
   try {
     const status = String(req.query.status || "pending");
@@ -1357,9 +1385,11 @@ partnerPortalRouter.get("/api/partner-requests", requireCrmAuth, requireCrmPermi
         external_ref: row.externalRef,
         target_job: row.targetWorkOrderId ? targets.get(row.targetWorkOrderId) || null : null,
         read_by_ai: Boolean(row.intake && typeof row.intake === "object" && (row.intake as { source?: string }).source === "ai"),
+        ...requestIntakeView(row.intake),
         files: requestFiles(row.files).map((file, index) => ({
           name: file.name,
           size: file.size,
+          content_type: file.contentType,
           file_url: `/api/partner-requests/${encodeURIComponent(row.id)}/files/${index}`,
         })),
       })),

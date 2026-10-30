@@ -1,46 +1,130 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#f5f7f9" />
-  <title>Pedidos de parceiros · ObraMate</title>
-  <link rel="icon" href="/favicon.ico" sizes="any" />
-  <link rel="stylesheet" href="partner-requests-admin.css?v=20261029-wf1" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f7f4ee" />
+  <title>Pedidos de builders | ObraMate</title>
+  <style id="om-chrome-critical">html{--plab-rail:72px;--crm-sidebar-expanded-width:232px}body.om-app.dashboard-app-body{--crm-topbar-height:56px;--crm-sidebar-width:var(--crm-sidebar-expanded-width,232px)}body.om-app.dashboard-app-body.sidebar-collapsed{--crm-sidebar-width:72px}@media (min-width:1025px){body.om-app .dashboard-container{display:block!important;margin-left:var(--crm-sidebar-width,72px)!important;margin-top:var(--crm-topbar-height)!important;width:auto}body.om-app #dashboardSidebar,body.om-app .dashboard-sidebar{position:fixed!important;inset:0 auto 0 0!important;top:0!important;left:0!important;width:var(--crm-sidebar-width,72px)!important;min-width:var(--crm-sidebar-width,72px)!important;max-width:var(--crm-sidebar-width,72px)!important;height:100vh!important;margin:0!important;transform:none!important;transition:none!important;z-index:40}body.om-app.sidebar-collapsed #dashboardSidebar,body.om-app.sidebar-collapsed .dashboard-sidebar{overflow:visible!important}body.om-app .dashboard-main{margin-left:0!important;margin-top:var(--crm-topbar-height)!important;display:flex!important;flex-direction:column!important;transition:none!important;padding-bottom:6.5rem!important}body.om-app .dashboard-sidebar,body.om-app .dashboard-container{transition:none!important}body.om-app.sidebar-collapsed .nav-item__label,body.om-app.sidebar-collapsed .sidebar-user-bar__text{display:none!important}body.om-app.sidebar-collapsed .sidebar-nav-group-label{visibility:hidden!important}}/*maismob2*/@media (max-width:1024px){body.om-app.dashboard-app-body,body.om-app{--crm-sidebar-width:0px!important}body.om-app .dashboard-container{display:block!important;margin:0!important;width:100%!important;max-width:100%!important}body.om-app .dashboard-main,body.om-app.dashboard-app-body .dashboard-main,body.om-app.sidebar-collapsed .dashboard-main{margin:0!important;margin-left:0!important;margin-top:0!important;width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box!important}body.om-app #dashboardSidebar,body.om-app .dashboard-sidebar{position:fixed!important;left:0!important;top:0!important;height:100vh!important;height:100dvh!important;width:min(288px,92vw)!important;min-width:0!important;max-width:min(288px,92vw)!important;transform:translate3d(-105%,0,0)!important;z-index:1100!important;margin:0!important}body.om-app #dashboardSidebar.mobile-open,body.om-app .dashboard-sidebar.mobile-open{transform:translate3d(0,0,0)!important}}</style>
+  <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
+  <link rel="icon" href="/favicon.ico?v=20260924-pwa" sizes="any" />
+  <link rel="apple-touch-icon" href="/assets/favicon-180.png?v=20260924-pwa" />
+  <link rel="stylesheet" href="styles.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="design-system.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="mobile-design-system.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="crm-shared-nav.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="crm-toast.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="crm-shell.css?v=20261019-logout2" />
+  <link rel="stylesheet" href="crm-pwa-install.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="crm-module-panel.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="obramate-app.css?v=20261019-logout2" />
+  <link rel="stylesheet" href="om-mobile-nav.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="om-gestures.css?v=20261013-rl4" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
+  <link rel="stylesheet" href="partner-requests-admin.css?v=20261029-ui2" />
 </head>
-<body>
-  <header class="requests-header">
-    <a href="jobs.html" class="requests-back">← Jobs</a>
-    <div><span>Portal do parceiro</span><h1>Pedidos de jobs</h1></div>
-    <div class="requests-tools"><label for="requestStatusFilter">Mostrar</label><select id="requestStatusFilter"><option value="pending">Pendentes</option><option value="all">Todos</option></select><button type="button" id="requestsRefresh">Atualizar</button></div>
+<body class="dashboard-app-body om-app sidebar-collapsed rq-app">
+  <script src="/om-reload.js?v=20261013-rl8"></script>
+  <script src="om-device.js?v=20261013-badge1"></script>
+  <script>
+    (function () {
+      try {
+        if (localStorage.getItem("crm_sidebar_collapsed") === "0") {
+          document.body.classList.remove("sidebar-collapsed");
+        }
+      } catch (e) {}
+      if (window.__omDevice && window.__omDevice.applyBodyClass) window.__omDevice.applyBodyClass();
+    })();
+  </script>
+
+  <header class="mobile-app-header" id="mobileAppHeader">
+    <button type="button" class="mobile-app-header__menu" id="mobileMenuToggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="dashboardSidebar">
+      <span class="mobile-app-header__menu-icon" aria-hidden="true"></span>
+    </button>
+    <div class="mobile-app-header__brand">
+      <img src="/assets/obramate-logo.png" alt="ObraMate" class="mobile-app-header__logo crm-system-logo" width="28" height="28" onerror="this.style.display='none'" />
+      <h1 class="mobile-app-header__title">Pedidos</h1>
+    </div>
   </header>
-  <main class="requests-main">
-    <section class="requests-policy" aria-labelledby="requestModeTitle">
-      <div class="requests-policy-head">
-        <div>
-          <p class="requests-policy-eyebrow">Fluxo de entrada</p>
-          <h2 id="requestModeTitle">Como os pedidos do portal entram em Jobs</h2>
-          <p id="requestModeHelp" class="requests-policy-help">Esta regra vale para todos os Builders e Contractors conectados a esta empresa. Pedidos existentes mantêm o status atual.</p>
-        </div>
-        <button type="button" id="requestModeSave" disabled>Salvar regra</button>
+
+  <div class="dashboard-container">
+    <aside class="dashboard-sidebar" id="dashboardSidebar">
+      <div class="sidebar-header">
+        <img src="/assets/favicon-192.png?v=20260924-pwa" alt="ObraMate" class="sidebar-brand-logo crm-system-logo" width="32" height="32" onerror="this.style.display='none'" />
+        <button type="button" class="sidebar-collapse-btn" id="sidebarCollapseBtn" aria-pressed="true" aria-label="Expandir menu lateral" title="Expandir menu">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
       </div>
-      <fieldset id="requestModeChoices" class="requests-policy-choices">
-        <legend class="visually-hidden">Escolha como novos pedidos serão tratados</legend>
-        <label class="requests-policy-choice">
-          <input type="radio" name="requestMode" value="review" checked />
-          <span><strong>Aprovar antes de criar o Job</strong><small>O pedido fica nesta fila. Ao aceitar, um Job novo é criado e a data solicitada aparece no calendário.</small></span>
-        </label>
-        <label class="requests-policy-choice">
-          <input type="radio" name="requestMode" value="automatic" />
-          <span><strong>Criar Job automaticamente</strong><small>Pedidos novos viram Jobs e atualizações seguem para o Job indicado. A data solicitada aparece no calendário quando um Job novo é criado.</small></span>
-        </label>
-      </fieldset>
-      <div id="requestModeStatus" class="requests-policy-status" role="status" aria-live="polite"></div>
-    </section>
-    <p class="requests-intro">Pedidos enviados pelos Builders e Contractors conectados a esta empresa. A regra abaixo define se a equipe revisa cada pedido ou se pedidos novos entram automaticamente em Jobs.</p>
-    <p id="requestsError" class="requests-error" role="alert" hidden></p>
-    <div id="requestsList" class="requests-list" aria-live="polite"><div class="requests-empty">Carregando pedidos…</div></div>
-  </main>
-  <script src="partner-requests-admin.js?v=20261029-wf1" defer></script>
+      <nav class="sidebar-nav" aria-label="Principal">
+        <div id="crmSharedNavRoot" data-layout="sidebar"></div>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-user-bar">
+          <div class="sidebar-user-bar__avatar" id="sidebarUserAvatar" aria-hidden="true">—</div>
+          <div class="sidebar-user-bar__text">
+            <span class="sidebar-user-bar__name" id="sidebarUserName">—</span>
+            <span class="sidebar-user-bar__role" id="sidebarUserRole"></span>
+          </div>
+          <button type="button" id="logoutBtn" class="sidebar-logout-btn" title="Sair" aria-label="Sair">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+    <div class="mobile-overlay" id="mobileOverlay"></div>
+    <main class="dashboard-main">
+      <div class="rq" id="rqRoot">
+        <header class="rq-head">
+          <div class="rq-head__t">
+            <p class="rq-eyebrow">Portal do parceiro</p>
+            <h1>Pedidos de builders</h1>
+          </div>
+          <dl class="rq-sum" aria-label="Resumo">
+            <div><dt>Para aprovar</dt><dd id="rqSumPending">—</dd></div>
+            <div><dt>Aprovados</dt><dd id="rqSumAccepted">—</dd></div>
+            <div><dt>Não aprovados</dt><dd id="rqSumDeclined">—</dd></div>
+          </dl>
+          <div class="rq-head__acts">
+            <button type="button" class="rq-btn" id="requestsRefresh"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg><span>Atualizar</span></button>
+            <button type="button" class="rq-btn" id="rqRuleBtn" aria-expanded="false" aria-controls="rqRule"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg><span id="rqRuleBtnText">Regra: aprovar antes</span></button>
+          </div>
+        </header>
+
+        <section class="rq-rule" id="rqRule" aria-labelledby="requestModeTitle" hidden>
+          <div class="rq-rule__head">
+            <div><h2 id="requestModeTitle">Como os pedidos entram em Jobs</h2><p id="requestModeHelp" class="rq-muted">Vale para todos os builders conectados a esta empresa.</p></div>
+          </div>
+          <fieldset id="requestModeChoices" class="rq-rule__choices">
+            <legend class="rq-sr">Escolha como novos pedidos serão tratados</legend>
+            <label class="rq-choice"><input type="radio" name="requestMode" value="review" checked /><span><strong>Aprovar antes de criar o Job</strong><small>O pedido espera aqui. Ao aprovar, você escolhe a data e o Job é criado no calendário.</small></span></label>
+            <label class="rq-choice"><input type="radio" name="requestMode" value="automatic" /><span><strong>Criar o Job automaticamente</strong><small>Pedidos novos viram Jobs na hora; atualizações vão para o Job indicado.</small></span></label>
+          </fieldset>
+          <div class="rq-rule__foot"><span id="requestModeStatus" class="rq-muted" role="status" aria-live="polite"></span><button type="button" class="rq-btn rq-btn--pri" id="requestModeSave" disabled>Salvar regra</button></div>
+        </section>
+
+        <div class="rq-bar">
+          <nav class="rq-chips" id="rqChips" aria-label="Mostrar">
+            <button type="button" class="rq-chip is-on" data-status="pending">Para aprovar <em id="rqChipPending"></em></button>
+            <button type="button" class="rq-chip" data-status="accepted">Aprovados</button>
+            <button type="button" class="rq-chip" data-status="declined">Não aprovados</button>
+            <button type="button" class="rq-chip" data-status="all">Todos</button>
+          </nav>
+          <p class="rq-intro rq-muted" id="rqIntro">Pedidos enviados pelos builders conectados. Confira os serviços, escolha a data e aprove.</p>
+        </div>
+        <p id="requestsError" class="rq-error" role="alert" hidden></p>
+        <div id="requestsList" class="rq-list" aria-live="polite"><p class="rq-empty">Carregando pedidos…</p></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="crm-toast.js"></script>
+  <script src="crm-i18n.js?v=20261001-refresh1"></script>
+  <script src="saas-branding.js"></script>
+  <script src="crm-shared-nav.js?v=20261015-refnav1"></script>
+  <script src="crm-shell.js?v=20261028-ptrhome"></script>
+  <script src="om-mobile-nav.js?v=20261014-perfil1"></script>
+  <script src="om-gestures.js?v=20261028-ptrhome"></script>
+  <script src="partner-requests-admin.js?v=20261029-ui2" defer></script>
 </body>
 </html>

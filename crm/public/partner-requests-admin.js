@@ -7,15 +7,34 @@
   const modeInputs = Array.from(document.querySelectorAll('input[name="requestMode"]'));
   let savedRequestMode = 'review';
   let canEditRequestMode = false;
+  let filter = 'pending';
+  let rows = [];
+  let focusDone = false;
 
+  function toast(msg) {
+    try { if (window.crmToast && window.crmToast.show) window.crmToast.show(msg, { type: 'success' }); } catch (_) { /* optional */ }
+  }
   function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
   }
-
-  function formatDate(value) {
+  function formatDate(value, withTime) {
     if (!value) return '—';
     const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' }).format(date);
+    if (Number.isNaN(date.getTime())) return '—';
+    return new Intl.DateTimeFormat('pt-BR', withTime ? { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' } : { dateStyle: 'medium', timeZone: 'UTC' }).format(date);
+  }
+  function money(n) {
+    return n == null ? '—' : Number(n).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  }
+  function qty(n) { return Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }); }
+  function initials(name) {
+    return String(name || 'B').replace(/^the\s+/i, '').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || 'B';
+  }
+  function fileKind(f) {
+    const n = String(f.name || '').toLowerCase(); const t = String(f.content_type || '');
+    if (t === 'application/pdf' || n.endsWith('.pdf')) return 'PDF';
+    if (t.startsWith('image/') || /\.(png|jpe?g|webp|heic)$/.test(n)) return 'IMG';
+    return 'ARQ';
   }
 
   async function request(url, options) {
@@ -33,34 +52,34 @@
   }
 
   function statusLabel(status) {
-    if (status === 'accepted') return 'Aceito';
+    if (status === 'accepted') return 'Aprovado';
     if (status === 'declined') return 'Não aprovado';
-    return 'Pendente';
+    return 'Para aprovar';
   }
 
+  /* ───────── regra de entrada ───────── */
   function selectedRequestMode() {
     return modeInputs.find((input) => input.checked)?.value || 'review';
   }
-
   function paintRequestMode() {
     const mode = selectedRequestMode();
-    document.querySelectorAll('.requests-policy-choice').forEach((label) => {
+    document.querySelectorAll('.rq-choice').forEach((label) => {
       label.classList.toggle('is-selected', label.querySelector('input')?.checked === true);
       label.classList.toggle('is-disabled', !canEditRequestMode);
     });
     modeSave.disabled = !canEditRequestMode || mode === savedRequestMode;
+    modeStatus.classList.remove('is-error');
     modeStatus.textContent = canEditRequestMode
-      ? mode === savedRequestMode ? '' : 'Há uma alteração pendente para salvar.'
-      : 'Somente quem tem permissão de configurações pode alterar esta regra.';
+      ? mode === savedRequestMode ? '' : 'Alteração ainda não salva.'
+      : 'Só quem tem permissão de configurações pode mudar esta regra.';
     $('requestModeHelp').textContent = mode === 'automatic'
-      ? 'Novos pedidos de todos os Builders e Contractors conectados a esta empresa viram Jobs. Atualizações são anexadas ao Job indicado; a data solicitada entra no calendário quando um Job novo é criado. Pedidos que já estão na fila continuam pendentes.'
-      : 'Novos pedidos de todos os Builders e Contractors conectados a esta empresa aguardam aprovação. Ao aceitar, um pedido novo cria um Job e registra a data solicitada no calendário; atualizações são anexadas ao Job indicado. Pedidos já aceitos ou recusados não mudam.';
-    $('requestStatusFilter').value = mode === 'automatic' ? 'all' : 'pending';
-    document.querySelector('.requests-intro').textContent = mode === 'automatic'
-      ? 'Esta tela mantém o histórico dos pedidos enviados pelo portal. A equipe recebe uma notificação quando um pedido novo vira Job.'
-      : 'Esta tela reúne pedidos aguardando revisão. Ao aceitar, um pedido novo cria um Job; a equipe pode completar os detalhes e conferir a data solicitada no calendário.';
+      ? 'Pedidos novos de todos os builders conectados viram Jobs na hora. A equipe recebe um aviso a cada Job criado.'
+      : 'Pedidos novos de todos os builders conectados esperam aqui. A equipe recebe um aviso, escolhe a data e aprova.';
+    $('rqRuleBtnText').textContent = savedRequestMode === 'automatic' ? 'Regra: Job automático' : 'Regra: aprovar antes';
+    $('rqIntro').textContent = savedRequestMode === 'automatic'
+      ? 'Os pedidos já viram Jobs automaticamente. Aqui fica o histórico do que os builders enviaram.'
+      : 'Pedidos enviados pelos builders conectados. Confira os serviços, escolha a data e aprove.';
   }
-
   async function loadRequestMode() {
     try {
       const result = await request('/api/settings/partner-portal');
@@ -71,32 +90,25 @@
         input.checked = input.value === savedRequestMode;
         input.disabled = !canEditRequestMode;
       });
+      if (savedRequestMode === 'automatic') setFilter('all', true);
       paintRequestMode();
-      await load();
     } catch (err) {
       modeStatus.textContent = err.message || 'Não foi possível carregar a regra de entrada.';
       modeStatus.classList.add('is-error');
-      await load();
     }
+    await load();
   }
-
   async function saveRequestMode() {
     const mode = selectedRequestMode();
     if (!canEditRequestMode || mode === savedRequestMode) return;
     modeSave.disabled = true;
     modeSave.textContent = 'Salvando…';
-    modeStatus.classList.remove('is-error');
-    modeStatus.textContent = '';
     try {
-      await request('/api/settings/partner-portal', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ request_mode: mode }),
-      });
+      await request('/api/settings/partner-portal', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ request_mode: mode }) });
       savedRequestMode = mode;
       paintRequestMode();
-      modeStatus.textContent = 'Regra salva. Ela vale para os próximos pedidos.';
-      await load();
+      modeStatus.textContent = 'Regra salva. Vale para os próximos pedidos.';
+      toast('Regra salva');
     } catch (err) {
       modeStatus.textContent = err.message || 'Não foi possível salvar a regra.';
       modeStatus.classList.add('is-error');
@@ -106,59 +118,115 @@
     }
   }
 
+  /* ───────── lista ───────── */
+  function setFilter(status, silent) {
+    filter = status;
+    document.querySelectorAll('#rqChips .rq-chip').forEach((b) => b.classList.toggle('is-on', b.getAttribute('data-status') === status));
+    if (!silent) paint();
+  }
   async function load() {
     error.hidden = true;
-    list.innerHTML = '<div class="requests-empty">Carregando pedidos…</div>';
+    if (!rows.length) list.innerHTML = '<p class="rq-empty">Carregando pedidos…</p>';
     try {
-      const status = $('requestStatusFilter').value;
-      const result = await request(`/api/partner-requests?status=${encodeURIComponent(status)}`);
-      render(result.data || []);
-      // opened from a notification: show that request
-      const want = new URLSearchParams(location.search).get('id');
-      const card = want && list.querySelector(`[data-req-id="${CSS.escape(want)}"]`);
-      if (card) { card.classList.add('is-focus'); card.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+      const result = await request('/api/partner-requests?status=all');
+      rows = result.data || [];
+      paint();
     } catch (err) {
       error.textContent = err.message || 'Não foi possível carregar os pedidos.';
       error.hidden = false;
       list.innerHTML = '';
     }
   }
-
-  function render(rows) {
-    if (!rows.length) {
-      list.innerHTML = '<div class="requests-empty">Nenhum pedido nesta lista.</div>';
+  function paint() {
+    const count = (st) => rows.filter((r) => r.status === st).length;
+    const pending = count('pending');
+    $('rqSumPending').textContent = String(pending);
+    $('rqSumPending').classList.toggle('is-hot', pending > 0);
+    $('rqSumAccepted').textContent = String(count('accepted'));
+    $('rqSumDeclined').textContent = String(count('declined'));
+    $('rqChipPending').textContent = pending ? String(pending) : '';
+    // aberto por uma notificação: o pedido aparece mesmo que já tenha sido respondido
+    const want = new URLSearchParams(location.search).get('id');
+    if (want && !focusDone && filter !== 'all') {
+      const target = rows.find((r) => r.id === want);
+      if (target && target.status !== filter) setFilter(target.status, true);
+    }
+    const shown = filter === 'all' ? rows : rows.filter((r) => r.status === filter);
+    if (!shown.length) {
+      list.innerHTML = `<p class="rq-empty">${filter === 'pending' ? 'Nenhum pedido esperando aprovação. Quando um builder enviar, você recebe um aviso.' : 'Nenhum pedido nesta lista.'}</p>`;
       return;
     }
-    list.innerHTML = rows.map((item) => {
-      const statusClass = item.status === 'accepted' ? 'is-accepted' : item.status === 'declined' ? 'is-declined' : '';
-      const files = (item.files || []).map((file) => `<a href="${escapeHtml(file.file_url)}" target="_blank" rel="noopener">${escapeHtml(file.name)}</a>`).join('');
-      const details = [
-        item.target_job ? `<p><strong>Atualização do job:</strong> #${escapeHtml(item.target_job.number || '')} ${escapeHtml(item.target_job.title)}</p>` : '',
-        `<p><strong>Builder:</strong> ${escapeHtml(item.partner_company)} · ${escapeHtml(item.partner_name)} (${escapeHtml(item.partner_email)})</p>`,
-        item.external_ref ? `<p><strong>Nº do builder:</strong> ${escapeHtml(item.external_ref)}</p>` : '',
-        `<p><strong>Endereço:</strong> ${escapeHtml(item.address)}</p>`,
-        `<p><strong>Contato no local:</strong> ${escapeHtml(item.contact_name || '—')}${item.contact_phone ? ` · ${escapeHtml(item.contact_phone)}` : ''}${item.contact_email ? ` · ${escapeHtml(item.contact_email)}` : ''}</p>`,
-        `<p><strong>Serviço:</strong> ${escapeHtml(item.service_type || '—')}</p>`,
-        `<p><strong>Data desejada:</strong> ${escapeHtml(formatDate(item.preferred_date))}</p>`,
-        `<p><strong>Enviado:</strong> ${escapeHtml(formatDate(item.created_at))}</p>`,
-        item.notes ? `<p><strong>Informações:</strong> ${escapeHtml(item.notes)}</p>` : '',
-        item.review_note ? `<p><strong>Resposta enviada:</strong> ${escapeHtml(item.review_note)}</p>` : '',
-        item.work_order ? `<p><strong>Job criado:</strong> #${escapeHtml(item.work_order.number || '')} ${escapeHtml(item.work_order.title)}</p>` : '',
-      ].join('');
-      const pref = item.preferred_date ? String(item.preferred_date).slice(0, 10) : '';
-      const sid = escapeHtml(item.id);
-      const sched = item.status === 'pending' ? `<fieldset class="requests-sched"><legend>Agendar o serviço</legend>
-        <div class="requests-sched-row">
-          <label>Data<input type="date" id="sd-${sid}" value="${escapeHtml(pref)}" required /></label>
-          <label>Início<input type="time" id="ss-${sid}" value="08:00" step="900" /></label>
-          <label>Fim<input type="time" id="se-${sid}" value="16:00" step="900" /></label>
-          <label class="requests-sched-all"><input type="checkbox" id="sa-${sid}" /> Dia inteiro</label>
+    list.innerHTML = shown.map(card).join('');
+    if (want && !focusDone) {
+      const el = list.querySelector(`[data-req-id="${CSS.escape(want)}"]`);
+      if (el) { focusDone = true; el.classList.add('is-focus'); setTimeout(() => el.scrollIntoView({ block: 'start', behavior: 'smooth' }), 60); }
+    }
+  }
+
+  function card(item) {
+    const sid = escapeHtml(item.id);
+    const pending = item.status === 'pending';
+    const pillCls = item.status === 'accepted' ? 'is-accepted' : item.status === 'declined' ? 'is-declined' : '';
+    const tags = [
+      item.read_by_ai ? '<span class="rq-tag rq-tag--ai">Lido pela IA</span>' : '',
+      item.target_job ? `<span class="rq-tag rq-tag--upd">Atualiza o Job #${escapeHtml(item.target_job.number || '')}</span>` : '',
+    ].join('');
+    const fact = (label, value, wide) => value ? `<div${wide ? ' class="is-wide"' : ''}><dt>${label}</dt><dd>${value}</dd></div>` : '';
+    const contact = [item.contact_name, item.contact_phone, item.contact_email].filter(Boolean).map(escapeHtml).join(' · ');
+    const facts = `<dl class="rq-facts">
+      ${fact('Endereço', escapeHtml(item.address), true)}
+      ${fact('Nº do builder', escapeHtml(item.external_ref || ''))}
+      ${fact('Data pedida', item.preferred_date ? escapeHtml(formatDate(item.preferred_date)) : 'A combinar')}
+      ${fact('Contato no local', contact)}
+      ${fact('Serviço', escapeHtml(item.service_type || ''))}
+      ${fact('Retirada do material', escapeHtml(item.pickup || ''), true)}
+    </dl>`;
+    const services = (item.services || []).length ? (() => {
+      const sum = item.services.reduce((a, s) => a + (s.total || 0), 0);
+      return `<p class="rq-lbl">Serviços · ${item.services.length}</p>
+        <div class="rq-svc" role="table" aria-label="Serviços">
+          <div class="rq-svc__h" role="row"><span role="columnheader">Serviço</span><span role="columnheader">Qtd</span><span role="columnheader">Preço</span><span role="columnheader">Total</span></div>
+          ${item.services.map((s) => `<div class="rq-svc__r" role="row"><div role="cell"><strong>${escapeHtml(s.name || 'Serviço')}</strong>${s.detail ? `<small>${escapeHtml(s.detail)}</small>` : ''}</div><span role="cell">${qty(s.quantity)} ${escapeHtml(String(s.uom || '').toLowerCase())}</span><span role="cell"${s.rate == null ? ' class="is-none"' : ''}>${s.rate == null ? '—' : money(s.rate)}</span><span role="cell"${s.total == null ? ' class="is-none"' : ''}>${s.total == null ? '—' : money(s.total)}</span></div>`).join('')}
+          <div class="rq-svc__f" role="row"><span role="cell">Total</span><span role="cell">${money(sum)}</span></div>
+          ${item.labor_total != null && Math.abs(item.labor_total - sum) > 0.5 ? `<div class="rq-svc__f rq-svc__f--sub" role="row"><span role="cell">Total impresso na ordem</span><span role="cell">${money(item.labor_total)}</span></div>` : ''}
+        </div>`;
+    })() : '';
+    const notes = item.notes ? `<p class="rq-lbl">Informações</p><p class="rq-notes">${escapeHtml(item.notes)}</p>` : '';
+    const meas = item.measurement && item.measurement.lines.length
+      ? `<p class="rq-lbl">Medição do builder</p><ul class="rq-meas">${item.measurement.lines.map((l) => `<li><span>${escapeHtml(l.text)}</span><em>${qty(l.qty)} ${escapeHtml(l.uom)}</em></li>`).join('')}</ul>` : '';
+    const files = (item.files || []).length
+      ? `<p class="rq-lbl">Arquivos</p><div class="rq-files">${item.files.map((f) => `<a class="rq-file" href="${escapeHtml(f.file_url)}" target="_blank" rel="noopener"><i>${fileKind(f)}</i><span>${escapeHtml(f.name)}</span></a>`).join('')}</div>` : '';
+    const pref = item.preferred_date ? String(item.preferred_date).slice(0, 10) : '';
+    const act = pending ? `<div class="rq-act">
+        <div>
+          <p class="rq-lbl">Agendar o serviço</p>
+          <div class="rq-sched">
+            <label class="rq-field">Data<input type="date" id="sd-${sid}" value="${escapeHtml(pref)}" required /></label>
+            <label class="rq-field">Início<input type="time" id="ss-${sid}" value="08:00" step="900" /></label>
+            <label class="rq-field">Fim<input type="time" id="se-${sid}" value="16:00" step="900" /></label>
+            <label class="rq-allday"><input type="checkbox" id="sa-${sid}" /> Dia inteiro</label>
+          </div>
         </div>
-        <p class="requests-sched-hint">${pref ? `O builder pediu ${escapeHtml(formatDate(item.preferred_date))}. ` : ''}O builder recebe o aviso com a data no app.</p>
-      </fieldset>` : '';
-      const review = item.status === 'pending' ? `${sched}<div class="requests-review"><label for="review-${escapeHtml(item.id)}">Mensagem para o Builder (opcional)</label><textarea id="review-${escapeHtml(item.id)}" maxlength="2000" placeholder="Confirmação, pedido de informação ou motivo da recusa…"></textarea><div class="requests-actions"><button type="button" data-action="accept" data-id="${escapeHtml(item.id)}">${item.target_job ? 'Aprovar e atualizar o Job' : 'Aprovar e agendar'}</button><button type="button" data-action="decline" data-id="${escapeHtml(item.id)}">Não aprovar</button></div></div>` : '';
-      return `<article class="requests-card" data-req-id="${sid}"><div class="requests-card-head"><div><h2>${escapeHtml(item.title)}</h2><p class="requests-meta">${escapeHtml(item.partner_company)} · ${escapeHtml(formatDate(item.created_at))}${item.read_by_ai ? ' · lido pela IA a partir do arquivo' : ''}${item.target_job ? ' · atualização' : ''}</p></div><span class="requests-status ${statusClass}">${statusLabel(item.status)}</span></div><div class="requests-info">${details}</div>${files ? `<div class="requests-files">${files}</div>` : ''}${review}</article>`;
-    }).join('');
+        <label class="rq-field">Mensagem para o builder (opcional)<textarea id="review-${sid}" data-crm-rich="off" maxlength="2000" placeholder="Confirmação, pedido de informação ou motivo da recusa…"></textarea></label>
+        <p class="rq-hint">${pref ? `O builder pediu ${escapeHtml(formatDate(item.preferred_date))}. ` : ''}Ele recebe o aviso com a data no app.</p>
+        <div class="rq-btns"><button type="button" class="rq-btn rq-btn--quiet" data-action="decline" data-id="${sid}">Não aprovar</button><button type="button" class="rq-btn rq-btn--pri" data-action="accept" data-id="${sid}">${item.target_job ? 'Aprovar e atualizar o Job' : 'Aprovar e agendar'}</button></div>
+      </div>` : (item.review_note || item.work_order) ? `<div class="rq-review">${item.work_order ? `Job <a href="job-detail.html?id=${encodeURIComponent(item.work_order.id)}">#${escapeHtml(item.work_order.number || '')} ${escapeHtml(item.work_order.title)}</a>` : ''}${item.review_note ? `${item.work_order ? ' · ' : ''}Resposta: ${escapeHtml(item.review_note)}` : ''}</div>` : '';
+    const right = `${meas}${notes}${files}` || '<p class="rq-muted" style="margin:0;font-size:13px">Sem arquivos nem medição.</p>';
+    return `<article class="rq-card" data-req-id="${sid}">
+      <div class="rq-card__head">
+        <span class="rq-av" aria-hidden="true">${escapeHtml(initials(item.partner_company))}</span>
+        <div class="rq-card__t">
+          <h2>${escapeHtml(item.title)}</h2>
+          <p class="rq-card__meta"><b>${escapeHtml(item.partner_company)}</b><span>${escapeHtml(item.partner_name)}</span><span>Enviado ${escapeHtml(formatDate(item.created_at, true))}</span>${tags}</p>
+        </div>
+        <span class="rq-pill ${pillCls}">${statusLabel(item.status)}</span>
+      </div>
+      <div class="rq-card__body">
+        <div class="rq-col">${facts}${services}</div>
+        <div class="rq-col">${right}</div>
+      </div>
+      ${act}
+    </article>`;
   }
 
   list.addEventListener('change', (event) => {
@@ -174,7 +242,7 @@
     const id = button.getAttribute('data-id');
     const action = button.getAttribute('data-action');
     const note = $(`review-${id}`)?.value.trim() || '';
-    if (action === 'decline' && !note && !window.confirm('Não aprovar este pedido sem adicionar uma mensagem?')) return;
+    if (action === 'decline' && !note && !window.confirm('Não aprovar este pedido sem uma mensagem para o builder?')) return;
     let schedule = null;
     if (action === 'accept') {
       const date = $(`sd-${id}`) ? $(`sd-${id}`).value : '';
@@ -188,27 +256,32 @@
       schedule = { date, start: allDay ? '' : ($(`ss-${id}`) || {}).value || '', end: allDay ? '' : ($(`se-${id}`) || {}).value || '', all_day: allDay };
     }
     error.hidden = true;
+    const label = button.textContent;
     button.disabled = true;
+    button.textContent = action === 'accept' ? 'Aprovando…' : 'Enviando…';
     try {
       await request(`/api/partner-requests/${encodeURIComponent(id)}/${action}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ review_note: note, ...(schedule ? { schedule } : {}) }),
       });
+      toast(action === 'accept' ? 'Pedido aprovado — o Job está no calendário' : 'Pedido não aprovado — o builder foi avisado');
       await load();
     } catch (err) {
       error.textContent = err.message || 'Não foi possível atualizar o pedido.';
       error.hidden = false;
       button.disabled = false;
+      button.textContent = label;
     }
   });
 
-  $('requestStatusFilter').addEventListener('change', load);
+  $('rqChips').addEventListener('click', (e) => { const b = e.target.closest('[data-status]'); if (b) setFilter(b.getAttribute('data-status')); });
   $('requestsRefresh').addEventListener('click', load);
-  modeInputs.forEach((input) => input.addEventListener('change', () => {
-    paintRequestMode();
-    void load();
-  }));
+  $('rqRuleBtn').addEventListener('click', () => {
+    const box = $('rqRule'); box.hidden = !box.hidden;
+    $('rqRuleBtn').setAttribute('aria-expanded', String(!box.hidden));
+  });
+  modeInputs.forEach((input) => input.addEventListener('change', paintRequestMode));
   modeSave.addEventListener('click', saveRequestMode);
   void loadRequestMode();
 })();
