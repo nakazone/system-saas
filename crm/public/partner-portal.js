@@ -616,6 +616,7 @@
         </button>
       </div>`;
     bindDrop($('ppHomeDrop'), (files) => startSendWithFiles(files));
+    bindNowPanel(view);
     view.querySelectorAll('[data-qa-camera]').forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); $('ppCameraInput').click(); }));
     view.querySelectorAll('[data-setup-hide]').forEach((b) => b.addEventListener('click', () => {
       try { localStorage.setItem(`ob_setup_hidden_${state.builder.account.id}`, '1'); } catch (_) { /* private mode */ }
@@ -629,18 +630,86 @@
   function homeQuickHtml(now, setupHtml) {
     const today = jobsInDay(dateKey(now)).sort((a, b) => toDate(a.scheduledStart) - toDate(b.scheduledStart));
     const act = (href, ic, label, sub, attrs) => `<a class="pp-qa" href="${href}" ${attrs || ''}><span class="pp-qa-ic">${icon(ic)}</span><span><strong>${esc(label)}</strong><small>${esc(sub)}</small></span></a>`;
-    const meas = (state.homeMeas || []).filter((m) => m.status === 'draft').slice(0, 3);
     return `<section class="pp-qa-grid" style="grid-column: span 12" aria-label="Quick actions">
         ${canDo('jobs.send') ? act('#send', 'upload', 'Send work order', 'PDF, photo or text') : ''}
         ${canDo('measure') ? act('#measurements/new', 'ruler', 'Measure', 'Stairs & vents on site') : ''}
         ${canDo('jobs.send') ? act('#send', 'camera', 'Snap a work order', 'Use the camera', 'data-qa-camera') : ''}
         ${act('#calendar', 'cal', 'Calendar', today.length ? `${plural(today.length, 'job', 'jobs')} today` : 'Nothing today')}
       </section>
-      ${setupHtml || ''}
-      ${today.length ? `<section class="pp-tile pp-today" style="grid-column: span 12" aria-labelledby="ppToday"><div class="pp-tile-head"><h2 id="ppToday">Today on site</h2><span class="pp-lbl">${today.length}</span></div>
-        <div class="pp-today-list">${today.map((j) => `<a class="pp-today-item" href="#jobs/${encodeURIComponent(j.id)}"><span class="pp-today-time">${j.allDay ? 'All day' : esc(fmtTime(j.scheduledStart))}</span><span class="pp-today-main"><strong>${esc(j.title || 'Job')}</strong><small>${esc(j.address || '')}</small></span>${jobChip(j)}</a>`).join('')}</div></section>` : ''}
-      ${meas.length ? `<section class="pp-tile" style="grid-column: span 12" aria-labelledby="ppMeasHome"><div class="pp-tile-head"><h2 id="ppMeasHome">Measurements in progress</h2><a class="pp-link" href="#measurements" style="font-size:13px">All</a></div>
-        ${meas.map((m) => `<a class="pp-today-item" href="#measurements/${esc(m.id)}"><span class="pp-today-time">${icon('ruler')}</span><span class="pp-today-main"><strong>${esc(m.address)}</strong><small>${esc(countsText(m.counts))}</small></span><span class="pp-chip pp-chip--late">In progress</span></a>`).join('')}</section>` : ''}`;
+      ${nowPanelHtml(today)}
+      ${setupHtml || ''}`;
+  }
+
+  /**
+   * "Right now": today's jobs and measurements in progress in one compact panel — tabs on top,
+   * a row of small cards that scrolls sideways, quick actions on each card.
+   */
+  function nowPanelHtml(today) {
+    const drafts = canDo('measure') ? (state.homeMeas || []).filter((m) => m.status === 'draft').sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || ''))) : [];
+    if (!today.length && !drafts.length) return '';
+    let tab = state.nowTab;
+    if (!tab) { try { tab = localStorage.getItem('ob_now_tab') || ''; } catch (_) { tab = ''; } }
+    if (tab !== 'today' && tab !== 'meas') tab = today.length ? 'today' : 'meas';
+    if (tab === 'today' && !today.length) tab = 'meas';
+    if (tab === 'meas' && !drafts.length) tab = 'today';
+    state.nowTab = tab;
+    const mapUrl = (addr) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`;
+    const jobCard = (j) => {
+      const i = jobStepIndex(j);
+      return `<article class="pp-now-card${i === 2 ? ' is-live' : ''}">
+        <a class="pp-now-hit" href="#jobs/${encodeURIComponent(j.id)}" aria-label="Open ${esc(j.title || 'job')}"></a>
+        <div class="pp-now-top"><span class="pp-now-time">${j.allDay ? 'All day' : esc(fmtTime(j.scheduledStart))}</span>${jobChip(j)}</div>
+        <strong class="pp-now-title">${esc(j.title || 'Job')}</strong>
+        <small class="pp-now-sub">${esc(j.address || '')}${j._coName && multiCo() ? ` · ${esc(j._coName)}` : ''}</small>
+        <div class="pp-now-acts">${j.address ? `<a href="${esc(mapUrl(j.address))}" target="_blank" rel="noopener" class="pp-now-act">${icon('pin')}<span>Directions</span></a>` : ''}<a href="#jobs/${encodeURIComponent(j.id)}/messages" class="pp-now-act">${icon('chat')}<span>Message</span></a></div>
+      </article>`;
+    };
+    const measCard = (m) => {
+      const c = m.counts || {};
+      const pills = [c.treads ? `${c.treads} treads` : '', c.risers ? `${c.risers} risers` : '', c.vents ? `${c.vents} vents` : '', c.floor_sf ? `${Number(c.floor_sf).toLocaleString('en-US')} sf` : ''].filter(Boolean);
+      return `<article class="pp-now-card is-meas">
+        <a class="pp-now-hit" href="#measurements/${esc(m.id)}" aria-label="Continue measurement at ${esc(m.address)}"></a>
+        <div class="pp-now-top"><span class="pp-now-time">${icon('ruler')}${esc(noteAgo(m.updated_at) || 'Draft')}</span><span class="pp-chip pp-chip--late">In progress</span></div>
+        <strong class="pp-now-title">${esc(m.address)}</strong>
+        <div class="pp-now-pills">${pills.length ? pills.map((t) => `<span>${esc(t)}</span>`).join('') : '<small class="pp-now-sub">Nothing measured yet</small>'}</div>
+        <div class="pp-now-acts"><a href="#measurements/${esc(m.id)}" class="pp-now-act is-pri">Continue ${icon('chev')}</a></div>
+      </article>`;
+    };
+    const cards = tab === 'today'
+      ? today.map(jobCard).join('') + `<a class="pp-now-card pp-now-more" href="#calendar">${icon('cal')}<span>Calendar</span></a>`
+      : drafts.slice(0, 8).map(measCard).join('') + `<a class="pp-now-card pp-now-more" href="#measurements/new">${icon('ruler')}<span>New measurement</span></a>${drafts.length > 8 ? `<a class="pp-now-card pp-now-more" href="#measurements">See all ${drafts.length}</a>` : ''}`;
+    const tabBtn = (key, label, n) => (n ? `<button type="button" role="tab" data-now-tab="${key}" aria-selected="${tab === key}">${label}<b>${n}</b></button>` : '');
+    return `<section class="pp-tile pp-now" style="grid-column: span 12" aria-label="Right now">
+        <div class="pp-now-head">
+          <div class="pp-now-tabs" role="tablist">${tabBtn('today', 'Today on site', today.length)}${tabBtn('meas', 'Measuring', drafts.length)}</div>
+          <div class="pp-now-nav"><button type="button" class="pp-now-arrow" data-now-scroll="-1" aria-label="Scroll left">‹</button><button type="button" class="pp-now-arrow" data-now-scroll="1" aria-label="Scroll right">›</button></div>
+        </div>
+        <div class="pp-now-row" role="tabpanel" data-now-row>${cards}</div>
+      </section>`;
+  }
+  function bindNowPanel(root) {
+    const box = root.querySelector('.pp-now');
+    if (!box) return;
+    box.querySelectorAll('[data-now-tab]').forEach((b) => b.addEventListener('click', () => {
+      state.nowTab = b.getAttribute('data-now-tab');
+      try { localStorage.setItem('ob_now_tab', state.nowTab); } catch (_) { /* private mode */ }
+      const fresh = document.createElement('div');
+      const today = jobsInDay(dateKey(new Date())).sort((x, y) => toDate(x.scheduledStart) - toDate(y.scheduledStart));
+      fresh.innerHTML = nowPanelHtml(today);
+      box.replaceWith(fresh.firstElementChild);
+      bindNowPanel(root);
+    }));
+    const row = box.querySelector('[data-now-row]');
+    const arrows = box.querySelectorAll('[data-now-scroll]');
+    const sync = () => {
+      const max = row.scrollWidth - row.clientWidth;
+      box.classList.toggle('no-scroll', max < 4);
+      arrows[0].disabled = row.scrollLeft < 4;
+      arrows[1].disabled = row.scrollLeft > max - 4;
+    };
+    arrows.forEach((b) => b.addEventListener('click', () => row.scrollBy({ left: Number(b.getAttribute('data-now-scroll')) * row.clientWidth * 0.8, behavior: 'smooth' })));
+    row.addEventListener('scroll', sync, { passive: true });
+    requestAnimationFrame(sync);
   }
 
   /* ─────────────────────────── notifications (bell + push) ─────────────────────────── */
