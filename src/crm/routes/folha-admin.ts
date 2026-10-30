@@ -67,6 +67,7 @@ import {
   payrollMethodLabel,
 } from "../../lib/settings/payroll-payment-methods.js";
 import { documentAddressLine, documentLicenseLine } from "../../lib/settings/organization.js";
+import { phaseLabels } from "../../lib/trades/index.js";
 
 export const folhaAdminRouter = Router();
 
@@ -100,7 +101,8 @@ function timeLabel(d: Date | null | undefined, tz: string) {
 }
 const WD = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 const dateLabel = (d: Date) => `${WD[d.getUTCDay()]} ${d.getUTCDate()}/${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
-const SECTOR_LABEL: Record<string, string> = { installation: "Instalação", sand_finish: "Lixa" };
+/** Phase (sector) labels come from the trade pack (hardwood: Instalação / Lixa). */
+const SECTOR_LABEL: Record<string, string> = phaseLabels();
 export const sectorKey = (s: string | null | undefined) => (s === "sand_finish" ? "sand_finish" : "installation");
 const STATUS_LABEL: Record<string, string> = {
   in_progress: "Em andamento",

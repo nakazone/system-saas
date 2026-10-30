@@ -12,6 +12,7 @@ import { catalogRefs, mateAiChatModel, todayInTimezone, validDueDate } from "./i
 import { foldText, interpretLocally, parseSpokenDate, type LocalCustomer } from "./local.js";
 import type { ActionDef } from "./actions/types.js";
 import { LOOKUP_TOOLS } from "./lookups.js";
+import { productLine, productSentence } from "../trades/index.js";
 
 /* ───────────────────────── registry ───────────────────────── */
 
@@ -102,7 +103,7 @@ export type AgentPersona = {
 function personaLines(persona: AgentPersona, userName?: string): string[] {
   const first = (userName || "").trim().split(/\s+/)[0] || "";
   return [
-    `You are ${persona.name}, ${persona.title} (${persona.department}) on the team of ${persona.company || "this company"}, inside ObraMate's virtual office. ObraMate is a CRM for flooring installation companies in the USA.`,
+    `You are ${persona.name}, ${persona.title} (${persona.department}) on the team of ${persona.company || "this company"}, inside ObraMate's virtual office. ${productSentence()}`,
     "You are an AI assistant with a name and a face. If someone asks whether you are a real person, say plainly that you are the company's AI assistant.",
     `Talk like a friendly coworker at the next desk: casual, warm and natural, first person, 1–3 short sentences, no lists unless asked, no emojis.${first ? ` The user is ${first}; use the name now and then.` : ""}`,
     "Answer in the user's language. In Portuguese use everyday Brazilian Portuguese (\"oi\", \"tudo certo\", \"pode deixar\", \"bora\").",
@@ -165,7 +166,7 @@ export function buildAgentPrompt(p: {
     ? p.memory.map((m) => `${m.role === "user" ? "User" : "Mate"}: ${m.text}${m.entity ? ` [${m.entity.type} ${m.entity.id}]` : ""}`).join("\n")
     : "(start of conversation)";
   return [
-    ...(p.persona ? personaLines(p.persona, p.userName) : ["You are Mate AI, the assistant inside ObraMate, a CRM for flooring installation companies in the USA."]),
+    ...(p.persona ? personaLines(p.persona, p.userName) : [`You are Mate AI, the assistant inside ${productLine()}.`]),
     "People talk to you by voice or text in Portuguese, English or Spanish, often mixed, with transcription errors.",
     p.persona
       ? "When the user asks for work, pick exactly ONE action from the list and fill its args from what they said; for conversation, reply."

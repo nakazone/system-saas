@@ -8,6 +8,7 @@ import {
   DEFAULT_QUOTE_INCLUSIONS,
   resolveQuoteTermsItems,
 } from "./client-document.js";
+import { getPack } from "../trades/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -28,7 +29,8 @@ const DEFAULT_PAL = {
   exclude: "#dc2626",
 };
 
-const DEFAULT_TAGLINE = "Hardwood · LVP · Refinishing";
+/** Default tagline under the company name comes from the trade pack (hardwood: "Hardwood · LVP · Refinishing"). */
+const DEFAULT_TAGLINE = getPack().quote.tagline;
 
 const SYSTEM_LOGO_CANDIDATES = [
   "src/public/img/mascot/mate-head-happy.png",
@@ -224,13 +226,13 @@ function resolvePalette(input: { brandPrimary?: string | null; brandAccent?: str
   };
 }
 
-/** Fixed customer-facing order: Supply → Installation → Sand & Finish → Add On. Products roll into Supply. */
-const SECTION_DEFS = [
-  { key: "supply", label: "SUPPLY" },
-  { key: "installation", label: "INSTALLATION" },
-  { key: "sand_finish", label: "SAND & FINISH" },
-  { key: "add_on", label: "ADD ON" },
-] as const;
+type SectionKey = "supply" | "installation" | "sand_finish" | "add_on";
+
+/**
+ * Customer-facing section order from the trade pack (hardwood: Supply → Installation →
+ * Sand & Finish → Add On). Products roll into Supply.
+ */
+const SECTION_DEFS = getPack().quote.sections as ReadonlyArray<{ key: SectionKey; label: string }>;
 
 function isAddOnType(serviceType: string): boolean {
   const st = serviceType.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
@@ -374,7 +376,7 @@ function orgInitials(name: string): string {
     .toUpperCase() || "OM";
 }
 
-function lineSection(it: QuotePdfLine): (typeof SECTION_DEFS)[number]["key"] {
+function lineSection(it: QuotePdfLine): SectionKey {
   // Catalog products belong with Supply on the customer PDF.
   if (String(it.itemType || "").toLowerCase() === "product") return "supply";
   const st = String(it.serviceType || "").trim().toLowerCase();
@@ -404,7 +406,7 @@ function lineSection(it: QuotePdfLine): (typeof SECTION_DEFS)[number]["key"] {
 
 export function groupItemsForPdf(items: QuotePdfLine[]) {
   const list = Array.isArray(items) ? items : [];
-  const buckets: Record<(typeof SECTION_DEFS)[number]["key"], QuotePdfLine[]> = {
+  const buckets: Record<SectionKey, QuotePdfLine[]> = {
     supply: [],
     installation: [],
     sand_finish: [],

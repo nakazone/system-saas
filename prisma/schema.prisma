@@ -767,6 +767,8 @@ model Organization {
   defaultLocale           String    @default("pt-BR")
   /// sq_ft | m2
   areaUnit                String    @default("sq_ft")
+  /// Trade Packs this company runs (src/lib/trades). The first one drives quote sections, job phases and AI wording.
+  tradePacks              String[]  @default(["hardwood"])
   /// monday | sunday
   weekStart               String    @default("monday")
   googleReviewUrl         String?
