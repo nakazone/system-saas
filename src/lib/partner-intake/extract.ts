@@ -114,6 +114,8 @@ Return ONLY a JSON object with these keys (strings; use "" when absent):
   For stair work, consolidate each requested tread type into one service using the quantity in the "STAIR TREADS" instructions. Example: "STAIR TREADS: SOLID WHITE OAK - 48\" - DOUBLE RETURNS - 8 EA" means one "Stair tread installation — 48\" double returns" service, quantity 8, uom STEP. "42\" - LEFT RETURNS - 8 EA" is a separate service, quantity 8, uom STEP. Keep the dimension and return type together. A separate "STAIR RISERS" section is usually material/component counts; do not create riser-install services from it unless the order explicitly lists riser installation as labor.
   For a vent installation instruction, use the vent size from the table (for example 4x10) and the quantity from the install instruction/table to create one service such as "Wood vent installation — 4x10", uom EA. Do not mistake the vent product description for a second service.
   A line such as "SITE FINISHED SAND/2 COAT TREADS" with quantity 16 means "Sand & finish stair treads", quantity 16, uom STEP. Do not merge it into tread installation.
+  Quantities come from the Quantity column. The first column of a dealer work order ("98", "42", "92") is a product / price-class code, never a quantity, and numbers inside a description ("SAND/2 COAT" = 2 coats, "4X10" = vent size, "48\"" = width) are not quantities either. Check: quantity × rate = labor when both are printed (16 × 50.000 = 800.00).
+  Stairs: each flight has its treads and one more riser than treads (8 treads → 9 risers). "STAIR TREADS: 48\" - 8 EA / 42\" - 8 EA" is 16 treads in total over 2 flights; the stair sanding line counts treads (16), not treads + risers.
   Take service lines from the labor / work order table and scope notes. Material-only pages (purchase order, sales order, pick ticket) repeat products without labor: do not add those again. A line with "$ -" or no price still counts, with total null.
 - stairs: when the order has stair treads/risers, one object per tread width (each width is usually one flight of the same stair): {"width": inches as a number (48), "returns": "double" | "left" | "right" | "none", "treads": tread count, "risers": riser count (from the STAIR RISERS section or the riser rows), "species": wood species ("White Oak") or ""}. Example: "STAIR TREADS: SOLID WHITE OAK - 48\" - DOUBLE RETURNS - 8 EA / 42\" - LEFT RETURNS - 8 EA; STAIR RISERS: 48\" - 9 EA / 42\" - 9 EA" → [{"width":48,"returns":"double","treads":8,"risers":9,"species":"White Oak"},{"width":42,"returns":"left","treads":8,"risers":9,"species":"White Oak"}]. Two or more tread widths (or return types) on one order are usually the flights of ONE stair joined by a landing (e.g. a wider 48\" starter flight with double returns and a 42\" upper flight with a left return): list them in the order the work order lists them, lower flight first. Do not mix treads and risers of different widths. Widths are not always 48/42: read whatever is written (36\", 39\", 44\", 54\"…). Use [] when there are no stairs.
 - stair_finish: "site" when the stair treads are sanded / finished on site (e.g. "SITE FINISHED SAND/2 COAT TREADS", "sand & finish stairs", "stain and 3 coats"), "prefinished" when the treads are prefinished, or "".
@@ -239,15 +241,37 @@ export function normalizeIntake(raw: Record<string, unknown>, today = new Date()
   const printed = stairFlightsFromText(intakeSourceText(raw));
   const stairsEarly = mergeStairs(printed.length ? printed : stairFlightsFromRows(intakeSourceText(raw)), normalizeStairs(raw.stairs));
   const sandRow = stairSandRow(intakeSourceText(raw));
-  const sandItem = items.find((it) => serviceKind(`${it.service_name} ${it.description} ${it.detail}`) === "stair_sand_finish");
-  if (sandItem && sandRow) {
-    if (!sandItem.quantity && sandRow.qty) sandItem.quantity = sandRow.qty;
-    if (sandItem.rate == null && sandRow.rate != null) sandItem.rate = sandRow.rate;
-    if (sandItem.total == null && sandRow.total != null) sandItem.total = sandRow.total;
-  }
+  let sandItem = items.find((it) => serviceKind(`${it.service_name} ${it.description} ${it.detail}`) === "stair_sand_finish");
+  const treadsTotal = stairsEarly.reduce((a, f) => a + f.treads, 0);
+  const risersTotal = stairsEarly.reduce((a, f) => a + f.risers, 0);
   if (!sandItem && sandRow) {
-    const treads = stairsEarly.reduce((a, f) => a + f.treads, 0);
-    items.push({ area: "Stairs", description: sandRow.text.slice(0, 160), detail: "", quantity: sandRow.qty || treads, uom: "STEP", rate: sandRow.rate, total: sandRow.total, pricing_item_id: null, service_name: "Sand & finish stair treads" });
+    sandItem = { area: "Stairs", description: sandRow.text.slice(0, 160), detail: "", quantity: sandRow.qty || treadsTotal, uom: "STEP", rate: sandRow.rate, total: sandRow.total, pricing_item_id: null, service_name: "Sand & finish stair treads" };
+    items.push(sandItem);
+  }
+  if (sandItem) {
+    // the printed row wins when its numbers check out (qty × rate = labor); the item code ("92")
+    // or the coats ("SAND/2 COAT") are not the step count
+    if (sandRow && sandRow.qty && sandRow.rate != null && sandRow.total != null) {
+      sandItem.quantity = sandRow.qty; sandItem.rate = sandRow.rate; sandItem.total = sandRow.total;
+    } else {
+      if (sandRow?.qty && !sandItem.quantity) sandItem.quantity = sandRow.qty;
+      if (sandItem.rate == null && sandRow?.rate != null) sandItem.rate = sandRow.rate;
+      if (sandItem.total == null && sandRow?.total != null) sandItem.total = sandRow.total;
+      // no trustworthy row: the steps sanded are the treads of the order
+      const q = Number(sandItem.quantity) || 0;
+      if (treadsTotal && (q < treadsTotal / 2 || q > treadsTotal + risersTotal)) {
+        warnings.push(`Stair sanding read as ${q || "no"} steps; set to the ${treadsTotal} treads on the order.`);
+        sandItem.quantity = treadsTotal;
+        if (sandItem.rate != null) sandItem.total = Math.round(sandItem.rate * treadsTotal * 100) / 100;
+      }
+    }
+    sandItem.uom = "STEP";
+    if (stairsEarly.length && treadsTotal) {
+      // spell out what is sanded: the treads of each flight
+      const per = stairsEarly.filter((f) => f.treads).map((f) => `${f.width}" ${f.treads}`).join(" + ");
+      const note = `Treads: ${per} = ${treadsTotal}${risersTotal ? ` (risers ${risersTotal} not on this line)` : ""}`;
+      if (!sandItem.detail.includes("Treads:")) sandItem.detail = [sandItem.detail, note].filter(Boolean).join(" · ").slice(0, 200);
+    }
   }
   const laborTotal = toNumber(raw.labor_total);
   if (items.length && laborTotal != null) {

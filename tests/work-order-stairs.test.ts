@@ -104,3 +104,19 @@ describe("the same order read in different ways gives the same stairs and sandin
     expect(r.items.find((it) => it.service_name === "Sand & finish stair treads")).toMatchObject({ rate: 50, total: 800 });
   });
 });
+
+describe("stair sanding step count", () => {
+  it("takes the printed 16 even when the model read the item code or the coats", () => {
+    for (const bad of [92, 2, 34]) {
+      const r = normalizeIntake({ raw_text: RAW + "\n" + CFC, address: "x", items: [{ description: "SITE FINISHED SAND/2 COAT TREADS", detail: "", quantity: bad, uom: "EA", rate: 50, total: bad * 50 }] });
+      const sand = r.items.find((it) => it.service_name === "Sand & finish stair treads")!;
+      expect([sand.quantity, sand.rate, sand.total]).toEqual([16, 50, 800]);
+      expect(sand.detail).toContain('Treads: 48" 8 + 42" 8 = 16');
+    }
+  });
+  it("without a readable row, an impossible count becomes the treads on the order", () => {
+    const r = normalizeIntake({ raw_text: CFC, address: "x", items: [{ description: "Site finished sand / 2 coat treads", detail: "", quantity: 92, uom: "EA", rate: 50, total: null }] });
+    const sand = r.items.find((it) => it.service_name === "Sand & finish stair treads")!;
+    expect([sand.quantity, sand.total]).toEqual([16, 800]);
+  });
+});

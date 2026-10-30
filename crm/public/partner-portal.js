@@ -1641,6 +1641,7 @@
           ${itemSub(it) ? `<small>${esc(itemSub(it))}</small>` : ''}
           ${it.area ? `<small class="pp-q-area">${esc(it.area)}</small>` : ''}
           ${agreedChip(s, it)}
+          ${stairQtyChip(s, it)}
         </div>
         <label class="pp-q-qty"><span class="pp-q-lbl">Qty</span><input type="text" inputmode="decimal" data-it="${i}" data-k="quantity" value="${esc(it.quantity)}" aria-label="Quantity of ${esc(itemTitle(s, it))}" ${it.remove ? 'disabled' : ''} /></label>
         <label class="pp-q-unit"><span class="pp-q-lbl">Unit</span><select data-it="${i}" data-k="uom" aria-label="Unit" ${it.remove ? 'disabled' : ''}>${UOMS.concat(UOMS.includes(it.uom) ? [] : [it.uom]).map((u) => `<option value="${esc(u)}" ${u === it.uom ? 'selected' : ''}>${esc(UOM_LABEL[u] || u)}</option>`).join('')}</select></label>
@@ -1700,6 +1701,42 @@
     if (rate == null) return `<small class="pp-q-agreed">Your price ${money(a.price)} · <button type="button" class="pp-link" data-it-agreed="${s.items.indexOf(it)}">Use it</button></small>`;
     if (Math.abs(rate - a.price) < 0.005) return `<small class="pp-q-agreed is-ok">✓ Your agreed price</small>`;
     return `<small class="pp-q-agreed is-diff">Agreed ${money(a.price)}, order says ${money(rate)} · <button type="button" class="pp-link" data-it-agreed="${s.items.indexOf(it)}">Use ${money(a.price)}</button></small>`;
+  }
+  /** Stairs of the order (from the measurement when there is one): treads and risers per flight. */
+  function orderStairCounts(s) {
+    const md = s.measurement && s.useMeasurement && s.measData;
+    if (md && (md.stairs || []).length) {
+      const flights = md.stairs.map((st) => {
+        const c = measCounts({ stairs: [st], vents: [] });
+        const w = ((st.steps || []).find((x) => x.tread_w) || {}).tread_w;
+        return { w: w || 0, treads: c.treads, risers: c.risers };
+      });
+      return { flights, treads: flights.reduce((a, f) => a + f.treads, 0), risers: flights.reduce((a, f) => a + f.risers, 0) };
+    }
+    const sp = (s.orderStairs || []).map((f) => ({ w: Number(f.width) || 0, treads: Number(f.treads) || 0, risers: Number(f.risers) || (Number(f.treads) ? Number(f.treads) + 1 : 0) }));
+    return sp.length ? { flights: sp, treads: sp.reduce((a, f) => a + f.treads, 0), risers: sp.reduce((a, f) => a + f.risers, 0) } : null;
+  }
+  /** Checks a stair line's step count against the stairs: sanding = all treads; tread install = that width's treads. */
+  function stairQtyChip(s, it) {
+    if (it.remove) return '';
+    const st = orderStairCounts(s);
+    if (!st || !st.treads) return '';
+    const kind = serviceKindOf(`${it.service_name || ''} ${it.description || ''} ${it.detail || ''}`);
+    const q = Number(String(it.quantity).replace(/[^\d.]/g, '')) || 0;
+    const i = s.items.indexOf(it);
+    let want = 0; let why = '';
+    if (kind === 'stair_sand_finish') {
+      want = st.treads;
+      why = `${st.flights.map((f) => `${f.w ? `${f.w}" ` : ''}${f.treads}`).join(' + ')} treads`;
+    } else if (kind === 'stair_tread') {
+      const w = Number((/\b(\d{2})\s*(?:"|”|″|in\b)/i.exec(`${it.description} ${it.detail} ${it.service_name}`) || [])[1] || 0);
+      const f = w ? st.flights.filter((x) => x.w === w) : (st.flights.length === 1 ? st.flights : []);
+      if (!f.length) return '';
+      want = f.reduce((a, x) => a + x.treads, 0);
+      why = `${w ? `${w}" ` : ''}flight: ${want} treads · ${f.reduce((a, x) => a + x.risers, 0)} risers`;
+    } else return '';
+    if (q === want) return `<small class="pp-q-agreed is-ok">✓ ${esc(why)}</small>`;
+    return `<small class="pp-q-agreed is-diff">The stairs have ${esc(why)} · <button type="button" class="pp-link" data-it-qty="${i}:${want}">Use ${want}</button></small>`;
   }
   /** Lines without a price take the agreed one as soon as the order is read. */
   function applyAgreed(s) {
@@ -1796,6 +1833,12 @@
       const it = s.items[Number(b.getAttribute('data-it-agreed'))];
       const ag = it && agreedFor(s, it);
       if (ag) { it.rate = ag.price; rerender(); }
+    }));
+    view.querySelectorAll('[data-it-qty]').forEach((b) => b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const [i, q] = b.getAttribute('data-it-qty').split(':').map(Number);
+      const it = s.items[i];
+      if (it) { it.quantity = q; if (it.rate != null && it.rate !== '') it.total = Math.round(Number(it.rate) * q * 100) / 100; rerender(); }
     }));
     view.querySelectorAll('[data-it-rm]').forEach((b) => b.addEventListener('click', () => {
       const i = Number(b.getAttribute('data-it-rm'));
@@ -2037,6 +2080,7 @@
           <div>
             <ul class="pp-wz-found">
               ${det.stairs.map((g, i) => `<li><span class="pp-wz-ic">${icon('ruler')}</span><span><strong>${det.stairs.length > 1 ? `${i === 0 ? 'Lower flight' : i === det.stairs.length - 1 ? 'Upper flight' : `Flight ${i + 1}`} · ` : ''}${g.w ? `${g.w}"` : 'Stair'} · ${g.treads} treads · ${g.risers} risers</strong><small>${esc(OPEN_TXT[g.open])}${g.species ? ` · ${esc(g.species)}` : ''}</small></span></li>`).join('')}
+              ${det.stairs.length > 1 ? `<li class="pp-wz-total"><span class="pp-wz-ic">Σ</span><span><strong>Stair total · ${det.stairs.reduce((a, g) => a + g.treads, 0)} treads · ${det.stairs.reduce((a, g) => a + g.risers, 0)} risers</strong><small>${det.stairs.map((g) => `${g.w ? `${g.w}"` : ''} ${g.treads}+${g.risers}`).join(' · ')} — each flight has one more riser than treads${det.finish === 'site' ? ` · sanding: ${det.stairs.reduce((a, g) => a + g.treads, 0)} treads` : ''}</small></span></li>` : ''}
               ${det.vents.map((v) => `<li><span class="pp-wz-ic">${icon('home')}</span><span><strong>${v.qty} vent${v.qty === 1 ? '' : 's'} · ${esc(v.size.replace('x', '×'))} ${esc(VENT_TYPE_LABEL[v.type] || '')}</strong><small>${esc([v.species, v.color].filter(Boolean).join(' · ') || 'Wood and finish to confirm')}</small></span></li>`).join('')}
             </ul>
           </div>
