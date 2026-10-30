@@ -117,6 +117,7 @@
   function icon(name) {
     const paths = {
       back: '<path d="M15 18l-6-6 6-6"/>',
+      play: '<path d="M8 5.5v13l10.5-6.5z"/>',
       tally: '<path d="M6 5v14M10 5v14M14 5v14M18 5v14M3 15l18-6"/>',
       upload: '<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>',
       camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
@@ -6041,6 +6042,186 @@
       <div class="pp-plan-progress" data-plan-progress hidden><span>…</span><b><i></i></b></div>`;
   }
 
+  /* ─────────────── Presentation: the measurement as a show for the client ─────────────── */
+
+  /** Lines of the quote to the subcontractor: floors from the plan, stairs and vents from the measurement. */
+  function presentQuote(m, prices) {
+    const d = m.data; const out = [];
+    const findPrice = (re, unitOk) => prices.find((p) => re.test(p.name) && (!unitOk || unitOk(p.unit))) || null;
+    if (d.plan && (d.plan.levels || []).length) {
+      quoteLines(m, prices).forEach((l) => out.push({ sec: 'Floors', name: l.name, spec: l.spec, qty: l.qty, uom: 'sq ft', rate: l.price ? l.price.price : null, color: l.color }));
+    }
+    const sum = measSummary(d);
+    const stairWords = { Tread: /tread/i, Riser: /riser/i, Nosing: /nos(e|ing)/i, Landing: /landing/i };
+    sum.filter((x) => stairWords[x.kind]).forEach((x) => {
+      const p = findPrice(stairWords[x.kind], (u) => u !== 'sq_ft');
+      out.push({ sec: 'Stairs', name: `${x.kind} · ${x.group}`, spec: x.text, qty: x.qty, uom: 'EA', rate: p ? p.price : null });
+    });
+    const c = measCounts(d);
+    if (c.treads && (d.stairs || []).some((s) => /unfinished|site/i.test(s.finish || ''))) {
+      const p = findPrice(/sand|finish/i, (u) => u !== 'sq_ft') ;
+      out.push({ sec: 'Stairs', name: 'Sand & finish stair treads', spec: 'Site finished', qty: c.treads, uom: 'steps', rate: p && /stair|tread|step/i.test(p.name) ? p.price : null });
+    }
+    sum.filter((x) => x.kind === 'Vent').forEach((x) => {
+      const p = findPrice(/vent|register/i, (u) => u !== 'sq_ft');
+      out.push({ sec: 'Vents', name: 'Wood vent', spec: x.text, qty: x.qty, uom: 'EA', rate: p ? p.price : null });
+    });
+    return out;
+  }
+
+  function empty3d(m) { const c = measCounts(m.data || {}); return !c.treads && !c.vents && !(m.data && m.data.plan && (m.data.plan.levels || []).some((l) => l.include && l.rooms && l.rooms.length)); }
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest && e.target.closest('[data-present]');
+    if (b && state.meas) { e.preventDefault(); openPresentation(state.meas); }
+  });
+
+  async function openPresentation(m) {
+    if (!window.ObPlan3D) return;
+    const d = m.data; const plan = d.plan || { levels: [], materials: [] };
+    const coId = (plan.quote_link_id) || (state.company && state.company.id) || '';
+    const co = (state.builder && state.builder.companies || []).find((c) => c.id === coId) || state.company || null;
+    const money_ = canDo('money.view');
+    const totals = plan.levels && plan.levels.length ? planTotals(plan).filter((t) => t.include) : [];
+    const counts = measCounts(d);
+    const ventKindsList = ventKinds(d.vents || []);
+    const chapters = [
+      { key: 'house', title: 'The house', show: totals.length > 0 },
+      { key: 'stairs', title: 'Stairs', show: counts.treads > 0 },
+      { key: 'vents', title: 'Vents', show: counts.vents > 0 },
+      { key: 'quote', title: 'The quote', show: true },
+    ].filter((c) => c.show);
+    document.body.insertAdjacentHTML('beforeend', `<div class="obp" id="obPresent" role="dialog" aria-modal="true" aria-label="Presentation of ${esc(m.address)}">
+      <div class="obp-stage" id="obpStage"><div class="obp-wait">${mate('measure', 90)}<span>Building the house…</span></div></div>
+      <header class="obp-top">
+        <div class="obp-brand"><img src="/assets/img/mascot/mate-helmet.webp?v=1" alt="" /><div><small>${esc(state.builder && state.builder.account ? state.builder.account.name : 'ObraBuilder')}</small><strong>${esc(m.address)}</strong>${m.community || m.lot ? `<span>${esc([m.community, m.lot ? `Lot ${m.lot}` : ''].filter(Boolean).join(' · '))}</span>` : ''}</div></div>
+        <button type="button" class="obp-x" data-obp-close aria-label="Close presentation">×</button>
+      </header>
+      <section class="obp-card" aria-live="polite"><p class="obp-eyebrow" data-obp-eyebrow></p><h2 data-obp-title></h2><div class="obp-big" data-obp-big></div><p class="obp-sub" data-obp-sub></p><div class="obp-chips" data-obp-chips></div></section>
+      <aside class="obp-quote" data-obp-quote hidden></aside>
+      <nav class="obp-nav" aria-label="Chapters">
+        <button type="button" class="obp-ctl" data-obp-prev aria-label="Previous">‹</button>
+        <div class="obp-dots">${chapters.map((c, i) => `<button type="button" data-obp-go="${i}"><i></i><span>${esc(c.title)}</span></button>`).join('')}</div>
+        <button type="button" class="obp-ctl obp-play" data-obp-play aria-label="Pause"></button>
+        <button type="button" class="obp-ctl" data-obp-next aria-label="Next">›</button>
+      </nav>
+    </div>`);
+    const root = $('obPresent');
+    document.body.classList.add('pp-sheet-open');
+    const $q = (sel) => root.querySelector(sel);
+    let v3 = null; let idx = -1; let playing = true; let run = 0; let alive = true;
+    const close = () => {
+      alive = false; run += 1;
+      try { if (v3) v3.destroy(); } catch (_) { /* gone */ }
+      root.remove(); document.body.classList.remove('pp-sheet-open');
+      document.removeEventListener('keydown', onKey);
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    };
+    const onKey = (e) => { if (e.key === 'Escape') close(); else if (e.key === 'ArrowRight') go(idx + 1, false); else if (e.key === 'ArrowLeft') go(idx - 1, false); else if (e.key === ' ') { e.preventDefault(); togglePlay(); } };
+    document.addEventListener('keydown', onKey);
+    root.querySelectorAll('[data-obp-close]').forEach((b) => b.addEventListener('click', close));
+    window.addEventListener('hashchange', close, { once: true });
+
+    // prices (to show the money on the quote)
+    const prices = money_ && coId ? await api(`/api/builder/prices?company=${encodeURIComponent(coId)}`).then((r) => (r.data || []).filter((p) => !p.company_id || p.company_id === coId)).catch(() => []) : [];
+    const lines = presentQuote(m, prices);
+
+    try {
+      v3 = await window.ObPlan3D.mount($('obpStage'), plan, { separate: (plan.levels || []).filter((l) => l.include && l.rooms && l.rooms.length).length > 1, stairs: d.stairs || [], vents: d.vents || [], still: true, legend: false });
+    } catch (ex) {
+      $('obpStage').innerHTML = `<div class="obp-wait"><span>${esc(ex.message || '3D is not available on this device.')}</span></div>`;
+    }
+    if (!alive) { if (v3) v3.destroy(); return; }
+    const wait = $('obpStage').querySelector('.obp-wait'); if (wait && v3) wait.remove();
+    const P = v3 ? v3.present : null;
+
+    const setCard = (eyebrow, title, big, sub, chips) => {
+      $q('[data-obp-eyebrow]').textContent = eyebrow; $q('[data-obp-title]').textContent = title;
+      $q('[data-obp-big]').innerHTML = big; $q('[data-obp-sub]').textContent = sub || '';
+      $q('[data-obp-chips]').innerHTML = (chips || []).map((c) => `<span>${c.color ? `<i style="background:${esc(c.color)}"></i>` : ''}${esc(c.text)}</span>`).join('');
+      const card = $q('.obp-card'); card.classList.remove('is-in'); void card.offsetWidth; card.classList.add('is-in');
+    };
+    const num = (n) => Math.round(n).toLocaleString('en-US');
+    const quoteHtml = () => {
+      const secs = ['Floors', 'Stairs', 'Vents'].map((s) => [s, lines.filter((l) => l.sec === s)]).filter(([, ls]) => ls.length);
+      const total = lines.reduce((a, l) => a + (l.rate != null ? l.rate * l.qty : 0), 0);
+      const missing = lines.filter((l) => l.rate == null).length;
+      return `<div class="obp-q-head"><small>Work order &amp; quote</small><h3>${esc(m.address)}</h3>
+          <div class="obp-q-parties"><div><span>From</span><b>${esc(state.builder && state.builder.account ? state.builder.account.name : 'Builder')}</b></div><div><span>To</span><b>${esc(co ? co.company_name : 'Subcontractor')}</b></div></div></div>
+        ${secs.map(([s, ls]) => `<section><h4>${esc(s)}<small>${money_ && ls.some((l) => l.rate != null) ? esc(money(ls.reduce((a, l) => a + (l.rate != null ? l.rate * l.qty : 0), 0))) : money_ ? 'To price' : ''}</small></h4>
+          ${ls.map((l) => `<div class="obp-q-row"><div><strong>${l.color ? `<i style="background:${esc(l.color)}"></i>` : ''}${esc(l.name)}</strong>${l.spec ? `<small>${esc(l.spec)}</small>` : ''}</div><div class="obp-q-num"><span>${num(l.qty)} ${esc(l.uom)}${money_ && l.rate != null ? ` × ${esc(money(l.rate))}` : ''}</span>${money_ ? `<b>${l.rate != null ? esc(money(l.rate * l.qty)) : '—'}</b>` : ''}</div></div>`).join('')}</section>`).join('')}
+        ${money_ ? `<div class="obp-q-total"><span>Total</span><b>${esc(money(total))}</b></div>${missing ? `<p class="obp-q-note">${missing} line${missing === 1 ? '' : 's'} without a price yet — ${esc(co ? co.company_name : 'the company')} prices them on their side.</p>` : ''}` : ''}
+        <div class="obp-q-acts"><a class="pp-btn pp-btn--sec" href="/api/builder/measurements/${encodeURIComponent(m.id)}/pdf" target="_blank" rel="noopener">${icon('download')}Measurement PDF</a>${canDo('jobs.send') && m.status !== 'used' ? `<button type="button" class="pp-btn pp-btn--pri" data-obp-send>${icon('send')}Send to ${esc(co ? co.company_name : 'the company')}</button>` : ''}</div>`;
+    };
+
+    async function chapter(i, animate) {
+      const my = ++run; const c = chapters[i];
+      root.querySelectorAll('[data-obp-go]').forEach((b, k) => { b.classList.toggle('is-on', k === i); b.classList.toggle('is-done', k < i); });
+      root.dataset.chapter = c.key;
+      const q = $q('[data-obp-quote]'); if (c.key !== 'quote') { q.hidden = true; q.classList.remove('is-in'); }
+      const eb = `${i + 1} of ${chapters.length}`;
+      if (!P) { if (c.key === 'quote') { q.innerHTML = quoteHtml(); q.hidden = false; requestAnimationFrame(() => q.classList.add('is-in')); bindSend(); } return; }
+      if (c.key === 'house') {
+        const chips = totals.map((t) => ({ color: t.color, text: `${t.label}${specText(t) ? ` · ${specText(t)}` : ''} · ${fmtSf(t.area)}` }));
+        const lvN = (plan.levels || []).filter((l) => l.include && l.rooms && l.rooms.length).length;
+        setCard(eb, 'The house, measured from the plans', `<b data-n>0</b><span>SF of flooring</span>`, `${lvN} level${lvN === 1 ? '' : 's'} · every room read from the drawings`, chips);
+        if (animate) {
+          P.clear(); P.tour(false); await P.home(900);
+          if (my !== run) return;
+          await P.floors(5200, (sf) => { const n = $q('[data-n]'); if (n) n.textContent = num(sf); });
+        } else { P.showAll(); P.home(800); }
+        const n = $q('[data-n]'); if (n) n.textContent = num(totals.reduce((a, t) => a + t.area, 0) || P.info.sf);
+        P.labels(true);
+      } else if (c.key === 'stairs') {
+        const sp = [...new Set((d.stairs || []).map((s) => [s.species, s.finish].filter(Boolean).join(' · ')).filter(Boolean))];
+        setCard(eb, 'Stairs, built from the site measurement', `<b data-t>0</b><span>treads</span><b data-r>0</b><span>risers</span>${counts.landings ? `<b data-l>0</b><span>landing${counts.landings > 1 ? 's' : ''}</span>` : ''}`, `${counts.stairs} flight${counts.stairs === 1 ? '' : 's'}${counts.nosings ? ` · ${counts.nosings} nosings` : ''} · every tread and riser sized`, sp.map((t) => ({ color: '#C9A57A', text: t })));
+        const paint = (x) => { const t = $q('[data-t]'); const r = $q('[data-r]'); const l = $q('[data-l]'); if (t) t.textContent = x.treads; if (r) r.textContent = x.risers; if (l) l.textContent = x.landings; };
+        if (animate) {
+          // floors stay; the stairs come in one step at a time
+          P.showAll(); P.tour(false); P.hideStairs(); P.hideVents();
+          await P.stairs(3600, paint);
+        } else { P.showAll(); await P.fly('stairs', 900); }
+        paint({ treads: counts.treads, risers: counts.risers, landings: counts.landings });
+      } else if (c.key === 'vents') {
+        setCard(eb, 'Vents, room by room', `<b data-v>0</b><span>vents</span>`, 'Size, type and wood matched to the floor', ventKindsList.map((k) => ({ text: `${k.n} × ${k.label}` })));
+        if (animate) { P.showAll(); P.hideVents(); await P.vents(2600, (n) => { const x = $q('[data-v]'); if (x) x.textContent = n; }); }
+        else { P.showAll(); await P.fly('vents', 900); P.pins(true); }
+        const x = $q('[data-v]'); if (x) x.textContent = counts.vents;
+      } else {
+        P.showAll(); P.pins(false); P.home(1400); P.tour(true);
+        const total = lines.reduce((a, l) => a + (l.rate != null ? l.rate * l.qty : 0), 0);
+        setCard(eb, `Ready for ${co ? co.company_name : 'the subcontractor'}`, money_ && total ? `<b>${esc(money(total))}</b><span>quote total</span>` : `<b>${lines.length}</b><span>lines</span>`, 'Floors, stairs and vents in one work order — with the plans, the 3D and the measurement PDF.', []);
+        q.innerHTML = quoteHtml(); q.hidden = false; requestAnimationFrame(() => q.classList.add('is-in'));
+        bindSend();
+      }
+      if (my !== run || !alive) return;
+      if (playing && i < chapters.length - 1) {
+        await new Promise((r) => setTimeout(r, 1800));
+        if (my === run && alive && playing) go(i + 1, true);
+      } else if (i === chapters.length - 1) { playing = false; paintPlay(); }
+    }
+    function bindSend() {
+      const b = root.querySelector('[data-obp-send]');
+      if (b) b.addEventListener('click', () => { close(); sendFromMeasurement(m); });
+    }
+    function go(i, animate) {
+      if (i < 0 || i >= chapters.length) return;
+      if (!animate) playing = false;
+      paintPlay();
+      idx = i; chapter(i, animate);
+    }
+    function paintPlay() { const b = $q('[data-obp-play]'); b.innerHTML = playing ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg>' : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg>'; b.setAttribute('aria-label', playing ? 'Pause' : 'Play'); }
+    function togglePlay() {
+      playing = !playing; paintPlay();
+      if (playing) { if (idx >= chapters.length - 1) { go(0, true); playing = true; paintPlay(); } else go(idx + 1, true); }
+    }
+    $q('[data-obp-prev]').addEventListener('click', () => go(idx - 1, false));
+    $q('[data-obp-next]').addEventListener('click', () => go(idx + 1, false));
+    $q('[data-obp-play]').addEventListener('click', togglePlay);
+    root.querySelectorAll('[data-obp-go]').forEach((b) => b.addEventListener('click', () => go(Number(b.getAttribute('data-obp-go')), false)));
+    if (root.requestFullscreen && window.matchMedia('(min-width: 1024px)').matches) root.requestFullscreen().catch(() => {});
+    go(0, true); playing = true; paintPlay();
+  }
+
   function floors3dHtml(m) {
     const lv = (m.data.plan.levels || []).filter((l) => l.include && l.rooms.length).sort((a, b) => a.floor - b.floor);
     const on = m.plan3dLevel || 'all';
@@ -6052,6 +6233,7 @@
           <label class="pp-switch"><input type="checkbox" data-p3-walls ${m.plan3dWalls === false ? '' : 'checked'} /><span>Walls</span></label>
           <label class="pp-switch"><input type="checkbox" data-p3-labels ${m.plan3dLabels === false ? '' : 'checked'} /><span>Names</span></label>
           <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-p3-reset>Reset view</button>
+          <button type="button" class="pp-btn pp-btn--dark pp-btn--sm" data-present>${icon('play')}Present</button>
         </div>
       </div>
       <div class="pp-plan-3d-stage" id="ppPlan3d"><div class="pp-plan-3d-wait">${mate('measure', 80)}<span>Building the house…</span></div></div>
@@ -6299,7 +6481,7 @@
     if (plan3d) { try { plan3d.destroy(); } catch (_) { /* gone */ } plan3d = null; }
     if (stage && window.ObPlan3D) {
       try {
-        const v3 = await window.ObPlan3D.mount(stage, plan, { separate: Boolean(m.plan3dSeparate), stairs: m.data.stairs || [] });
+        const v3 = await window.ObPlan3D.mount(stage, plan, { separate: Boolean(m.plan3dSeparate), stairs: m.data.stairs || [], vents: m.data.vents || [] });
         if (!stage.isConnected) { v3.destroy(); return; }
         plan3d = v3;
         const wait = stage.querySelector('.pp-plan-3d-wait'); if (wait) wait.remove();
@@ -6386,6 +6568,7 @@
           <div class="pp-mhead-title"><h1 class="pp-meas-title">${esc(m.address)}</h1>
             <p>${measStatusChip(m)} <span id="ppMeasSaved" class="pp-meas-saved">Saved</span> <span class="pp-meas-by" id="ppMeasBy"></span>${m.notes ? `<button type="button" class="pp-link pp-meas-notes" data-mtab-go="summary">Notes</button>` : ''}</p></div>
           <div class="pp-head-actions">
+            ${empty3d(m) ? '' : `<button type="button" class="pp-btn pp-btn--dark" data-present>${icon('play')}<span>Present</span></button>`}
             <a class="pp-btn pp-btn--sec pp-hide-phone" href="/api/builder/measurements/${encodeURIComponent(m.id)}/pdf" target="_blank" rel="noopener">${icon('download')}PDF</a>
             ${locked || !canDo('jobs.send') ? '' : `<button type="button" class="pp-btn pp-btn--sec" data-send-wo>${icon('send')}<span>Send<span class="pp-hide-phone"> work order</span></span></button>`}
             ${locked ? '' : m.status === 'done' ? '<button type="button" class="pp-btn pp-btn--sec" id="ppMeasReopen">Reopen</button>' : '<button type="button" class="pp-btn pp-btn--pri" id="ppMeasDone">Complete</button>'}
