@@ -260,7 +260,7 @@ export async function applyPartnerRequest(
       const picked = pick ? await scheduleFromPick(tx, organizationId, pick) : null;
       await tx.workOrder.update({
         where: { id: target.id },
-        data: { notes: [target.notes, update].filter(Boolean).join("\n\n"), ...(picked ? { scheduledStart: picked.scheduledStart, scheduledEnd: picked.scheduledEnd, allDay: picked.allDay, status: picked.status } : {}) },
+        data: { notes: [target.notes, update].filter(Boolean).join("\n\n"), sharePhotosWithPartners: true, ...(picked ? { scheduledStart: picked.scheduledStart, scheduledEnd: picked.scheduledEnd, allDay: picked.allDay, status: picked.status } : {}) },
       });
       await tx.partnerJobRequest.update({
         where: { id: request.id },
@@ -319,6 +319,8 @@ export async function applyPartnerRequest(
       organizationId: organizationId,
       number,
       title: request.title,
+      // the builder who sent it follows the work: every ObraCam photo shows in their portal
+      sharePhotosWithPartners: true,
       status: schedule ? schedule.status : "draft",
       ...(schedule ? { scheduledStart: schedule.scheduledStart, scheduledEnd: schedule.scheduledEnd, allDay: schedule.allDay } : {}),
       ...(pickup ? { campoAttention: `Pickup do material: ${pickup}` } : {}),

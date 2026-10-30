@@ -29,6 +29,7 @@ import { findMeasurementForAddress, markMeasurementUsed, measurementPack } from 
 import { pickupForWorkOrder } from "../../lib/builders/pickups.js";
 import { findJobMatch, intakeItemsSchema, isIntakeReaderConfigured, readWorkOrder, type IntakeFile } from "../../lib/partner-intake/extract.js";
 import { parsePartnerPortalSettings } from "../../lib/settings/partner-portal.js";
+import { decodeMessageFiles, listMessages, postMessage, sendMessageFile, serializeMessage } from "../../lib/jobs/partner-messages.js";
 
 type PartnerRequest = TenantRequest & {
   /** Role used for the builder permissions ("legacy" for company-created portal users). */
@@ -50,6 +51,9 @@ type PartnerRequest = TenantRequest & {
 };
 
 export const partnerPortalRouter = Router();
+
+/** Photos / videos the builder sees: shared one by one, or every one of a job that shares its photos (jobs a builder sent). */
+const PARTNER_MEDIA = { deletedAt: null, OR: [{ sharedWithPartners: true }, { workOrder: { sharePhotosWithPartners: true } }] } satisfies Prisma.JobMediaWhereInput;
 
 function partnerJobScope(user: NonNullable<PartnerRequest["partnerUser"]>) {
   const OR: Array<{ builderId?: string; customerId?: string }> = [];
@@ -1066,7 +1070,7 @@ partnerPortalRouter.get("/api/partner-portal/jobs/:id", requirePartnerAuth, asyn
       const invoiceScopes = await partnerInvoiceScopes(tx, user);
       const [media, reports, invoices, requests] = await Promise.all([
         tx.jobMedia.findMany({
-          where: { organizationId: user.organizationId, workOrderId: job.id, sharedWithPartners: true, deletedAt: null },
+          where: { organizationId: user.organizationId, workOrderId: job.id, ...PARTNER_MEDIA },
           orderBy: { createdAt: "desc" },
           take: 60,
           select: { id: true, type: true, caption: true, stage: true, createdAt: true },
@@ -1201,7 +1205,155 @@ partnerPortalRouter.get("/api/partner-portal/jobs/:id", requirePartnerAuth, asyn
       res.status(404).json({ success: false, error: "Job not found." });
       return;
     }
-    res.json({ success: true, data });
+    const messages = (await listMessages(user.organizationId, data.job.id)).map((m) => serializeMessage(m, (mid, i) => bcUrl(req, `/api/partner-portal/jobs/${encodeURIComponent(data.job.id)}/messages/${encodeURIComponent(mid)}/files/${i}`)));
+    res.json({ success: true, data: { ...data, messages } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/* ───────────── the job's channel with the company ───────────── */
+
+const messageSchema = z.object({
+  body: z.string().trim().max(4000).optional().default(""),
+  files: z.array(z.object({ name: z.string().trim().min(1).max(180), data_url: z.string().min(1).max(14_000_000) })).max(6).optional().default([]),
+});
+
+/** Builder writes to the company inside the job. */
+partnerPortalRouter.post("/api/partner-portal/jobs/:id/messages", requirePartnerAuth, async (req: PartnerRequest, res, next) => {
+  try {
+    const user = req.partnerUser!;
+    if (!partnerDocsReady(user, res)) return;
+    const parsed = messageSchema.safeParse(req.body || {});
+    if (!parsed.success || (!parsed.data.body && !parsed.data.files.length)) {
+      res.status(400).json({ success: false, error: "Write a message or attach a photo." });
+      return;
+    }
+    const job = await withTenantTransaction(user.organizationId, (tx) => tx.workOrder.findFirst({
+      where: { id: String(req.params.id), organizationId: user.organizationId, ...partnerJobScope(user), status: { not: "canceled" } },
+      select: { id: true },
+    }));
+    if (!job) {
+      res.status(404).json({ success: false, error: "Job not found." });
+      return;
+    }
+    const files = decodeMessageFiles(parsed.data.files);
+    if (!files.ok) {
+      res.status(400).json({ success: false, error: files.error });
+      return;
+    }
+    const row = await postMessage({
+      organizationId: user.organizationId, workOrderId: job.id, side: "builder",
+      authorName: req.builderMember?.name || user.name || "Builder", partnerUserId: user.id,
+      body: parsed.data.body, files: files.files,
+    });
+    res.status(201).json({ success: true, data: serializeMessage(row, (mid, i) => bcUrl(req, `/api/partner-portal/jobs/${encodeURIComponent(job.id)}/messages/${encodeURIComponent(mid)}/files/${i}`)) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+partnerPortalRouter.get("/api/partner-portal/jobs/:id/messages/:messageId/files/:index", requirePartnerAuth, async (req: PartnerRequest, res, next) => {
+  try {
+    const user = req.partnerUser!;
+    if (!partnerDocsReady(user, res)) return;
+    const job = await withTenantTransaction(user.organizationId, (tx) => tx.workOrder.findFirst({
+      where: { id: String(req.params.id), organizationId: user.organizationId, ...partnerJobScope(user) },
+      select: { id: true },
+    }));
+    if (!job) {
+      res.status(404).json({ success: false, error: "Job not found." });
+      return;
+    }
+    await sendMessageFile(res, next, user.organizationId, job.id, String(req.params.messageId), Number(req.params.index), Boolean(req.query.download));
+  } catch (error) {
+    next(error);
+  }
+});
+
+/** Company side: the job's channel with its builder, and whether the builder sees every ObraCam photo. */
+partnerPortalRouter.get("/api/work-orders/:id/builder-channel", requireCrmAuth, requireCrmPermission("work_orders.view"), async (req: AuthedRequest, res, next) => {
+  try {
+    const orgId = req.organizationId!;
+    const job = await withTenantTransaction(orgId, (tx) => tx.workOrder.findFirst({
+      where: { id: String(req.params.id), organizationId: orgId },
+      select: { id: true, builderId: true, sharePhotosWithPartners: true, builder: { select: { company: true, firstName: true, lastName: true } }, customer: { select: { customerType: true, company: true, name: true } } },
+    }));
+    if (!job) {
+      res.status(404).json({ success: false, error: "Job não encontrado." });
+      return;
+    }
+    const partner = job.builderId
+      ? { name: job.builder?.company || [job.builder?.firstName, job.builder?.lastName].filter(Boolean).join(" ") || "Builder" }
+      : ["builder", "contractor"].includes(String(job.customer?.customerType || "").toLowerCase()) ? { name: job.customer?.company || job.customer?.name || "Builder" } : null;
+    const [rows, portal, photos] = await Promise.all([
+      listMessages(orgId, job.id),
+      job.builderId ? prisma.builderLink.count({ where: { organizationId: orgId, tenantBuilderId: job.builderId, status: "active" } }) : Promise.resolve(0),
+      withTenantTransaction(orgId, (tx) => tx.jobMedia.count({ where: { organizationId: orgId, workOrderId: job.id, deletedAt: null } })),
+    ]);
+    res.json({ success: true, data: {
+      partner,
+      on_obrabuilder: portal > 0,
+      share_photos: job.sharePhotosWithPartners,
+      photos,
+      messages: rows.map((m) => serializeMessage(m, (mid, i) => `/api/work-orders/${encodeURIComponent(job.id)}/builder-channel/${encodeURIComponent(mid)}/files/${i}`)),
+    } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+partnerPortalRouter.post("/api/work-orders/:id/builder-channel", requireCrmAuth, requireCrmPermission("work_orders.view"), async (req: AuthedRequest, res, next) => {
+  try {
+    const orgId = req.organizationId!;
+    const parsed = messageSchema.safeParse(req.body || {});
+    if (!parsed.success || (!parsed.data.body && !parsed.data.files.length)) {
+      res.status(400).json({ success: false, error: "Escreva uma mensagem ou anexe uma foto." });
+      return;
+    }
+    const job = await withTenantTransaction(orgId, (tx) => tx.workOrder.findFirst({ where: { id: String(req.params.id), organizationId: orgId }, select: { id: true } }));
+    if (!job) {
+      res.status(404).json({ success: false, error: "Job não encontrado." });
+      return;
+    }
+    const files = decodeMessageFiles(parsed.data.files);
+    if (!files.ok) {
+      res.status(400).json({ success: false, error: files.error });
+      return;
+    }
+    const row = await postMessage({
+      organizationId: orgId, workOrderId: job.id, side: "company",
+      authorName: req.user?.name || "Escritório", authorUserId: req.user?.id || null,
+      body: parsed.data.body, files: files.files,
+    });
+    res.status(201).json({ success: true, data: serializeMessage(row, (mid, i) => `/api/work-orders/${encodeURIComponent(job.id)}/builder-channel/${encodeURIComponent(mid)}/files/${i}`) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+partnerPortalRouter.get("/api/work-orders/:id/builder-channel/:messageId/files/:index", requireCrmAuth, requireCrmPermission("work_orders.view"), async (req: AuthedRequest, res, next) => {
+  try {
+    await sendMessageFile(res, next, req.organizationId!, String(req.params.id), String(req.params.messageId), Number(req.params.index), Boolean(req.query.download));
+  } catch (error) {
+    next(error);
+  }
+});
+
+partnerPortalRouter.patch("/api/work-orders/:id/builder-channel", requireCrmAuth, requireCrmPermission("work_orders.manage"), async (req: AuthedRequest, res, next) => {
+  try {
+    const orgId = req.organizationId!;
+    const parsed = z.object({ share_photos: z.boolean() }).safeParse(req.body || {});
+    if (!parsed.success) {
+      res.status(400).json({ success: false, error: "Informe se as fotos ficam visíveis para o builder." });
+      return;
+    }
+    const updated = await withTenantTransaction(orgId, (tx) => tx.workOrder.updateMany({ where: { id: String(req.params.id), organizationId: orgId }, data: { sharePhotosWithPartners: parsed.data.share_photos } }));
+    if (!updated.count) {
+      res.status(404).json({ success: false, error: "Job não encontrado." });
+      return;
+    }
+    res.json({ success: true, data: { share_photos: parsed.data.share_photos } });
   } catch (error) {
     next(error);
   }
@@ -1534,7 +1686,7 @@ partnerPortalRouter.get(
         if (!jobIds.length) return [];
         const [mediaRows, reportRows] = await Promise.all([
           tx.jobMedia.findMany({
-            where: { organizationId: user.organizationId, workOrderId: { in: jobIds }, sharedWithPartners: true, deletedAt: null },
+            where: { organizationId: user.organizationId, workOrderId: { in: jobIds }, ...PARTNER_MEDIA },
             orderBy: { createdAt: "desc" },
             take: 500,
             select: { id: true, workOrderId: true, type: true, caption: true, stage: true, createdAt: true },
@@ -1601,8 +1753,7 @@ partnerPortalRouter.get(
           where: {
             id: String(req.params.id),
             organizationId: user.organizationId,
-            sharedWithPartners: true,
-            deletedAt: null,
+            ...PARTNER_MEDIA,
           },
           select: {
             id: true,

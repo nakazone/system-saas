@@ -201,10 +201,7 @@
         <div>
           <p class="rq-lbl">Agendar o serviço</p>
           <div class="rq-sched">
-            <label class="rq-field">Data<input type="date" id="sd-${sid}" value="${escapeHtml(pref)}" required /></label>
-            <label class="rq-field">Início<input type="time" id="ss-${sid}" value="08:00" step="900" /></label>
-            <label class="rq-field">Fim<input type="time" id="se-${sid}" value="16:00" step="900" /></label>
-            <label class="rq-allday"><input type="checkbox" id="sa-${sid}" /> Dia inteiro</label>
+            <label class="rq-field">Data do serviço<input type="date" id="sd-${sid}" value="${escapeHtml(pref)}" required /></label>
           </div>
         </div>
         <label class="rq-field">Mensagem para o builder (opcional)<textarea id="review-${sid}" data-crm-rich="off" maxlength="2000" placeholder="Confirmação, pedido de informação ou motivo da recusa…"></textarea></label>
@@ -229,13 +226,6 @@
     </article>`;
   }
 
-  list.addEventListener('change', (event) => {
-    const box = event.target.closest('[id^="sa-"]');
-    if (!box) return;
-    const id = box.id.slice(3);
-    ['ss-', 'se-'].forEach((p) => { const el = $(p + id); if (el) el.disabled = box.checked; });
-  });
-
   list.addEventListener('click', async (event) => {
     const button = event.target.closest('[data-action]');
     if (!button) return;
@@ -252,8 +242,7 @@
         if ($(`sd-${id}`)) $(`sd-${id}`).focus();
         return;
       }
-      const allDay = Boolean($(`sa-${id}`) && $(`sa-${id}`).checked);
-      schedule = { date, start: allDay ? '' : ($(`ss-${id}`) || {}).value || '', end: allDay ? '' : ($(`se-${id}`) || {}).value || '', all_day: allDay };
+      schedule = { date, start: '', end: '', all_day: true };
     }
     error.hidden = true;
     const label = button.textContent;

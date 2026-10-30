@@ -14,7 +14,7 @@ import { withTenantTransaction } from "../tenant/prisma-tenant.js";
 import { registerJob, trackRun } from "../ops/jobs.js";
 import { safeTimeZone } from "../time/zoned.js";
 
-export type NotificationKind = "accepted" | "declined" | "scheduled" | "rescheduled" | "started" | "photos" | "report" | "completed";
+export type NotificationKind = "accepted" | "declined" | "scheduled" | "rescheduled" | "started" | "photos" | "report" | "completed" | "message";
 
 type Draft = {
   kind: NotificationKind;
@@ -83,6 +83,17 @@ async function record(accountId: string, drafts: Draft[]): Promise<void> {
   for (const p of payloads) await pushToAccount(accountId, p).catch(() => undefined);
 }
 
+/** Tells every ObraBuilder account linked to this builder (in this company) right away: bell + push. */
+export async function notifyBuilderAccounts(organizationId: string, tenantBuilderId: string, draft: Omit<Draft, "organizationId">): Promise<number> {
+  const links = await prisma.builderLink.findMany({
+    where: { organizationId, tenantBuilderId, status: "active" },
+    select: { builderAccountId: true },
+  });
+  const ids = [...new Set(links.map((l) => l.builderAccountId))];
+  for (const id of ids) await record(id, [{ ...draft, organizationId }]).catch(() => undefined);
+  return ids.length;
+}
+
 export async function pushToAccount(accountId: string, payload: { title: string; body: string; url: string; tag?: string }): Promise<number> {
   const rows = await prisma.builderPushSubscription.findMany({ where: { builderAccountId: accountId } });
   if (!rows.length) return 0;
@@ -125,7 +136,7 @@ export async function sweepAccount(accountId: string): Promise<number> {
       });
       const ids = jobs.map((j) => j.id);
       const [media, reports, requests] = await Promise.all([
-        ids.length ? tx.jobMedia.groupBy({ by: ["workOrderId"], where: { organizationId: orgId, workOrderId: { in: ids }, sharedWithPartners: true, deletedAt: null }, _count: { _all: true } }) : Promise.resolve([]),
+        ids.length ? tx.jobMedia.groupBy({ by: ["workOrderId"], where: { organizationId: orgId, workOrderId: { in: ids }, deletedAt: null, OR: [{ sharedWithPartners: true }, { workOrder: { sharePhotosWithPartners: true } }] }, _count: { _all: true } }) : Promise.resolve([]),
         ids.length ? tx.jobReport.groupBy({ by: ["workOrderId"], where: { organizationId: orgId, workOrderId: { in: ids }, sharedWithPartners: true, status: "published" }, _count: { _all: true } }) : Promise.resolve([]),
         tx.partnerJobRequest.findMany({
           where: { organizationId: orgId, partnerUser: { builderId }, createdAt: { gte: since } },

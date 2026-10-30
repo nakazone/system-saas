@@ -1,0 +1,47 @@
+/* Job › Builder: canal com o builder (mesma base do job-detail) */
+.bc { display: grid; gap: 12px; }
+.bc-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.bc-head { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.bc-who { display: flex; gap: 12px; align-items: center; flex: 1; min-width: 240px; }
+.bc-who h2 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -.015em; }
+.bc-who p { margin: 2px 0 0; font-size: 13px; color: var(--jd-ink-2, #667085); }
+.bc-av { flex: none; width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; background: #FDF0E6; color: #B4561A; font-weight: 750; }
+.bc-share { display: flex; gap: 10px; align-items: flex-start; max-width: 420px; padding: 12px 14px; border-radius: 14px; box-shadow: 0 0 0 1px var(--jd-line, #E5E7EB); background: #fff; cursor: pointer; }
+.bc-share input { margin-top: 2px; width: 18px; height: 18px; accent-color: var(--jd-terra, #E7792C); flex: none; }
+.bc-share strong { display: block; font-size: 13.5px; }
+.bc-share small { display: block; margin-top: 2px; font-size: 12.5px; line-height: 1.45; color: var(--jd-ink-2, #667085); }
+
+.bc-thread { display: flex; flex-direction: column; }
+.bc-list { list-style: none; margin: 0; padding: 4px 2px 12px; display: flex; flex-direction: column; gap: 12px; max-height: min(60vh, 560px); overflow-y: auto; }
+.bc-none { padding: 26px 12px; text-align: center; color: var(--jd-ink-2, #667085); font-size: 13.5px; }
+.bc-msg { display: flex; flex-direction: column; align-items: flex-start; max-width: min(78%, 560px); }
+.bc-msg.is-mine { align-self: flex-end; align-items: flex-end; }
+.bc-bub { padding: 10px 13px; border-radius: 16px 16px 16px 6px; background: #F1F3F5; color: var(--jd-ink, #221E1A); font-size: 14px; line-height: 1.45; }
+.bc-msg.is-mine .bc-bub { border-radius: 16px 16px 6px 16px; background: #FDF0E6; }
+.bc-bub p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.bc-msg small { margin-top: 4px; font-size: 11.5px; color: var(--jd-muted, #98A2B3); }
+.bc-msg small b { color: var(--jd-ink-2, #667085); font-weight: 650; }
+.bc-files { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.bc-bub p + .bc-files { margin-top: 8px; }
+.bc-bub > .bc-files:first-child { margin-top: 0; }
+.bc-img img { display: block; width: 132px; height: 100px; object-fit: cover; border-radius: 10px; }
+.bc-file { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px 0 6px; border-radius: 10px; background: #fff; box-shadow: 0 0 0 1px var(--jd-line, #E5E7EB); font-size: 12.5px; font-weight: 600; color: inherit; text-decoration: none; }
+.bc-file i { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; background: #FDF0E6; color: #B4561A; font-style: normal; font-size: 9.5px; font-weight: 800; }
+
+.bc-form { border-top: 1px solid var(--jd-line, #E5E7EB); padding-top: 12px; }
+.bc-pending { display: flex; flex-wrap: wrap; gap: 8px; }
+.bc-pending:not(:empty) { margin-bottom: 10px; }
+.bc-chip { position: relative; width: 56px; height: 56px; border-radius: 10px; overflow: hidden; box-shadow: 0 0 0 1px var(--jd-line, #E5E7EB); display: grid; place-items: center; background: #FDF0E6; }
+.bc-chip img { width: 100%; height: 100%; object-fit: cover; }
+.bc-chip i { font-style: normal; font-size: 11px; font-weight: 800; color: #B4561A; }
+.bc-chip button { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; border-radius: 50%; border: 0; background: rgba(34, 30, 26, .78); color: #fff; font-size: 13px; line-height: 1; cursor: pointer; }
+.bc-compose { display: flex; gap: 8px; align-items: flex-end; }
+.bc-attach { flex: none; width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; box-shadow: 0 0 0 1px var(--jd-line, #E5E7EB); color: var(--jd-ink-2, #667085); cursor: pointer; background: #fff; }
+.bc-attach:hover { color: var(--jd-terra-d, #B4561A); }
+.bc-compose textarea { flex: 1; min-height: 42px; max-height: 160px; resize: none; border: 0; border-radius: 12px; box-shadow: 0 0 0 1px var(--jd-line, #E5E7EB); padding: 11px 12px; font: inherit; font-size: 14px; line-height: 1.4; }
+.bc-compose textarea:focus { outline: none; box-shadow: 0 0 0 2px rgba(231, 121, 44, .5); }
+.bc-send { height: 42px !important; padding: 0 18px; flex: none; }
+@media (max-width: 640px) {
+  .bc-msg { max-width: 88%; }
+  .bc-share { max-width: none; width: 100%; }
+}

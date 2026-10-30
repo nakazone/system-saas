@@ -2583,3 +2583,32 @@ body.pp-sheet-open .pp-busy { display: none; }
 .pp-wz-orderacts { display: inline-flex; gap: 14px; align-items: center; flex-wrap: wrap; }
 .pp-send-cancel-m { display: none; color: #B42318 !important; text-decoration-color: #F4C7C3; }
 @media (max-width: 1023px) { .pp-send-cancel-m { display: inline; } }
+
+/* Job › messages with the company */
+.tk-msgs .tk-mlist { list-style: none; margin: 0; padding: 2px 0 10px; display: flex; flex-direction: column; gap: 10px; max-height: 440px; overflow-y: auto; }
+.tk-msgs .tk-mlist > .tk-empty { padding: 8px 0; }
+.tk-msg { display: flex; flex-direction: column; align-items: flex-start; max-width: 86%; }
+.tk-msg.is-mine { align-self: flex-end; align-items: flex-end; }
+.tk-bub { padding: 9px 12px; border-radius: 16px 16px 16px 6px; background: #F1F3F5; font-size: 14.5px; line-height: 1.45; color: #221E1A; }
+.tk-msg.is-mine .tk-bub { border-radius: 16px 16px 6px 16px; background: #FDF0E6; }
+.tk-bub p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.tk-msg small { margin-top: 3px; font-size: 11.5px; color: #98A2B3; }
+.tk-msg small b { color: #667085; font-weight: 650; }
+.tk-mfiles { display: flex; flex-wrap: wrap; gap: 6px; }
+.tk-bub p + .tk-mfiles { margin-top: 8px; }
+.tk-mimg img { display: block; width: 120px; height: 92px; object-fit: cover; border-radius: 10px; }
+.tk-mfile { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px 0 5px; border-radius: 10px; background: #fff; box-shadow: 0 0 0 1px var(--pp-border, #E5E7EB); font-size: 12.5px; font-weight: 600; color: inherit; text-decoration: none; }
+.tk-mfile i { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; background: #FDF0E6; color: #B4561A; font-style: normal; font-size: 9px; font-weight: 800; }
+.tk-mform { border-top: 1px solid var(--pp-border, #E5E7EB); padding-top: 10px; }
+.tk-mpend { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.tk-mpend span { position: relative; width: 52px; height: 52px; border-radius: 10px; overflow: hidden; display: grid; place-items: center; background: #FDF0E6; box-shadow: 0 0 0 1px var(--pp-border, #E5E7EB); }
+.tk-mpend img { width: 100%; height: 100%; object-fit: cover; }
+.tk-mpend i { font-style: normal; font-size: 10px; font-weight: 800; color: #B4561A; }
+.tk-mpend button { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; border: 0; border-radius: 50%; background: rgba(34, 30, 26, .78); color: #fff; font-size: 13px; line-height: 1; cursor: pointer; }
+.tk-mcompose { display: flex; align-items: flex-end; gap: 8px; }
+.tk-mattach { flex: none; width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; box-shadow: 0 0 0 1px var(--pp-border, #E5E7EB); background: #fff; color: #667085; cursor: pointer; }
+.tk-mattach svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.tk-mcompose textarea { flex: 1; min-height: 42px; max-height: 150px; resize: none; border: 0; border-radius: 12px; box-shadow: 0 0 0 1px var(--pp-border, #E5E7EB); padding: 10px 12px; font: inherit; font-size: 15px; line-height: 1.4; background: #fff; }
+.tk-mcompose textarea:focus { outline: none; box-shadow: 0 0 0 2px rgba(231, 121, 44, .5); }
+.tk-mcompose .pp-btn { height: 42px; flex: none; }
+@media print { .tk-mform { display: none; } }

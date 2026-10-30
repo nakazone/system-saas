@@ -615,7 +615,7 @@
 
   /* ─────────────────────────── notifications (bell + push) ─────────────────────────── */
 
-  const NOTE_IC = { accepted: 'check', declined: 'back', scheduled: 'cal', rescheduled: 'cal', started: 'pin', photos: 'camera', report: 'text', completed: 'check' };
+  const NOTE_IC = { message: 'chat', accepted: 'check', declined: 'back', scheduled: 'cal', rescheduled: 'cal', started: 'pin', photos: 'camera', report: 'text', completed: 'check' };
   async function loadNotes(fresh) {
     if (!state.builder) return null;
     try {
@@ -786,7 +786,7 @@
     });
     if (selectedId) {
       document.body.classList.add('pp-focus');
-      const data = await loadJob(selectedId).catch((err) => ({ error: err.message }));
+      const data = await loadJob(selectedId, /\/messages$/.test(location.hash)).catch((err) => ({ error: err.message }));
       if (token !== renderToken) return;
       state.ctx = (data && data._co && coById(data._co)) || null;
       $('ppJobPane').innerHTML = data.error ? `<p class="pp-error">${esc(data.error)}</p>` : jobDetailHtml(data);
@@ -843,6 +843,7 @@
     const invoices = data.invoices || [];
     const requests = data.requests || [];
     const photos = data.photos || [];
+    const messages = data.messages || [];
     const pillTone = i === 3 ? 'done' : i === 2 ? 'accent' : 'info';
     const office = t.office;
 
@@ -870,12 +871,15 @@
           ${(() => { const openInv = invoices.filter((inv) => invoiceState(inv).key !== 'paid'); const due = openInv.reduce((a, inv) => a + Number(inv.balance || 0), 0); return [
             t.total && canDo('money.view') ? `<div class="tk-fact"><small>Job value</small><b>${money(t.total)}</b></div>` : '',
             canDo('money.view') ? `<button type="button" class="tk-fact" data-tk-go="tkInv"><small>Invoices</small><b class="${openInv.some((inv) => invoiceState(inv).key === 'overdue') ? 'pp-late' : ''}">${invoices.length ? (due ? `${money(due)} open` : 'Paid') : '—'}</b></button>` : '',
+            `<button type="button" class="tk-fact" data-tk-go="tkMsgs"><small>Messages</small><b>${messages.length || '—'}</b></button>`,
             `<button type="button" class="tk-fact" data-tk-go="ppPhotos"><small>Photos</small><b>${photos.length || '—'}</b></button>`,
             `<button type="button" class="tk-fact" data-tk-go="tkDocs"><small>Documents</small><b>${docs.length || '—'}</b></button>`,
           ].join(''); })()}
         </div>
         ${canDo('jobs.send') && i < 3 ? `<div class="tk-hero-acts"><button type="button" class="pp-btn pp-btn--pri pp-btn--sm" data-update-job>${icon('send')}Send update</button>${office ? `<a class="pp-btn pp-btn--sec pp-btn--sm" href="tel:+${esc(office.digits)}">Call ${esc(office.name)}</a>` : ''}</div>` : ''}
       </section>
+
+      ${jobMessagesHtml(data)}
 
       ${t.attention ? `<section class="tk-attn" role="note"><span aria-hidden="true">!</span><div><b>Attention</b><p>${esc(t.attention)}</p></div></section>` : ''}
 
@@ -934,8 +938,89 @@
       <div class="pp-fixbar">${job.can_edit ? '<button type="button" class="pp-btn pp-btn--sec" data-edit-job>Edit job</button>' : '<a class="pp-btn pp-btn--sec" href="#ppPhotos">Photos</a>'}${canDo('jobs.send') ? '<button type="button" class="pp-btn pp-btn--pri" data-update-job>Send update</button>' : '<a class="pp-btn pp-btn--sec" href="#documents">Photos & docs</a>'}</div>`;
   }
 
+  /** The job's channel with the company: updates, questions, photos — both ways. */
+  function jobMessagesHtml(data) {
+    const msgs = data.messages || [];
+    const company = (state.ctx && state.ctx.company_name) || providerName();
+    const pend = (state.msgFiles && state.msgFiles[data.job.id]) || [];
+    const bubble = (m) => {
+      const mine = m.side === 'builder';
+      const files = (m.files || []).map((f) => /^image\//.test(f.content_type)
+        ? `<a class="tk-mimg" href="${esc(f.url)}" target="_blank" rel="noopener"><img src="${esc(f.url)}" alt="${esc(f.name)}" loading="lazy" /></a>`
+        : `<a class="tk-mfile" href="${esc(f.url)}" target="_blank" rel="noopener"><i>PDF</i><span>${esc(f.name)}</span></a>`).join('');
+      return `<li class="tk-msg ${mine ? 'is-mine' : ''}"><div class="tk-bub">${m.body ? `<p>${esc(m.body)}</p>` : ''}${files ? `<div class="tk-mfiles">${files}</div>` : ''}</div><small>${mine ? '' : `<b>${esc(company)}</b> · ${esc(m.author)} · `}${esc(fmtWhen(m.created_at))}</small></li>`;
+    };
+    return `<section class="tk-sec tk-msgs" id="tkMsgs">
+      <h3>Messages with ${esc(company)}${msgs.length ? ` <small>${msgs.length}</small>` : ''}</h3>
+      <ol class="tk-mlist">${msgs.length ? msgs.map(bubble).join('') : `<li class="tk-empty">Updates from ${esc(company)} show up here. Ask anything about this job — they get it right away.</li>`}</ol>
+      <form class="tk-mform" data-msg-form>
+        ${pend.length ? `<div class="tk-mpend">${pend.map((f, k) => `<span>${/^data:image/.test(f.data_url) ? `<img src="${f.data_url}" alt="" />` : '<i>PDF</i>'}<button type="button" data-msg-rm="${k}" aria-label="Remove">×</button></span>`).join('')}</div>` : ''}
+        <div class="tk-mcompose">
+          <label class="tk-mattach" title="Attach photos or a PDF">${icon('camera')}<span class="pp-sr">Attach</span><input type="file" accept="image/*,application/pdf" multiple hidden data-msg-file /></label>
+          <textarea data-msg-text rows="1" maxlength="4000" placeholder="Write a message…" aria-label="Message"></textarea>
+          <button type="submit" class="pp-btn pp-btn--pri pp-btn--sm">${icon('send')}Send</button>
+        </div>
+      </form>
+    </section>`;
+  }
+  function fmtWhen(d) {
+    const x = toDate(d); if (!x) return '';
+    return x.toDateString() === new Date().toDateString()
+      ? x.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+      : x.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  }
+  function bindJobMessages(data) {
+    const form = view.querySelector('[data-msg-form]');
+    if (!form) return;
+    state.msgFiles = state.msgFiles || {};
+    const id = data.job.id;
+    const files = state.msgFiles[id] = state.msgFiles[id] || [];
+    const list = view.querySelector('.tk-mlist'); if (list) list.scrollTop = list.scrollHeight;
+    const ta = form.querySelector('[data-msg-text]');
+    const grow = () => { ta.style.height = 'auto'; ta.style.height = `${Math.min(150, ta.scrollHeight)}px`; };
+    ta.addEventListener('input', grow);
+    const repaint = () => {
+      const keep = ta.value;
+      const sec = view.querySelector('#tkMsgs');
+      sec.outerHTML = jobMessagesHtml(data);
+      bindJobMessages(data);
+      const t2 = view.querySelector('[data-msg-text]'); t2.value = keep; t2.dispatchEvent(new Event('input'));
+    };
+    form.querySelector('[data-msg-file]').addEventListener('change', async (e) => {
+      for (const f of Array.from(e.target.files || [])) {
+        if (files.length >= 6) break;
+        try {
+          files.push(f.type === 'application/pdf'
+            ? { name: f.name, data_url: await new Promise((ok, bad) => { const fr = new FileReader(); fr.onload = () => ok(fr.result); fr.onerror = bad; fr.readAsDataURL(f); }) }
+            : { name: f.name.replace(/\.\w+$/, '') + '.jpg', data_url: await shrinkPhoto(f, 1800) });
+        } catch (_) { /* skip */ }
+      }
+      repaint();
+    });
+    form.querySelectorAll('[data-msg-rm]').forEach((b) => b.addEventListener('click', () => { files.splice(Number(b.getAttribute('data-msg-rm')), 1); repaint(); }));
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const body = ta.value.trim();
+      if (!body && !files.length) { ta.focus(); return; }
+      const btn = form.querySelector('button[type=submit]'); btn.disabled = true;
+      try {
+        const r = await postJson(`/api/partner-portal/jobs/${encodeURIComponent(id)}/messages`, { body, files }, data._co);
+        data.messages = [...(data.messages || []), r.data];
+        files.length = 0; ta.value = '';
+        repaint();
+        view.querySelector('[data-msg-text]').value = '';
+      } catch (err) {
+        btn.disabled = false;
+        mateToast('head-curious', 'Not sent', err.message);
+      }
+    });
+  }
+
   function bindJobDetail(data) {
     if (!data || data.error) return;
+    bindJobMessages(data);
+    // opened from a message notification: go to the conversation
+    if (/\/messages$/.test(location.hash)) setTimeout(() => { const el = document.getElementById('tkMsgs'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 80);
     view.querySelectorAll('[data-back]').forEach((b) => b.addEventListener('click', () => { location.hash = b.getAttribute('data-back'); }));
     view.querySelectorAll('[data-print-ticket]').forEach((b) => b.addEventListener('click', () => {
       document.body.classList.add('pp-printing');

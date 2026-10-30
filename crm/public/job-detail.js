@@ -14,7 +14,7 @@
   };
   const SOURCE = { particular: "Particular", builder: "Builder", contractor: "Builder", loja: "Builder", internal: "Interno", other: "Outro" };
   const STAGE = { before: "Antes", during: "Durante", after: "Depois" };
-  const TABS = ["geral", "servicos", "fotos", "campo", "conversa"];
+  const TABS = ["geral", "servicos", "fotos", "campo", "conversa", "builder"];
 
   let jobId = null;
   let job = null;
@@ -1007,6 +1007,9 @@
         loadField().then(renderField);
       } else renderField();
     }
+    if (tab === "builder" && window.JobBuilderChannel) {
+      window.JobBuilderChannel.mount($("jdBuilderChannel"), { jobId, canManage: canManage, notify });
+    }
     if (tab === "conversa" && !commsCtl && window.JobChatComms) {
       commsCtl = window.JobChatComms.mount($("jobCommsBody"), {
         jobId,
@@ -1445,7 +1448,12 @@
 
       bind();
       await loadJob();
-      setTab((location.hash || "").replace("#", "") || "geral", { silent: true });
+      // jobs a builder sent: the channel with the builder (messages + photos they see)
+      const bTab = document.querySelector('#jdTabs [data-tab="builder"]');
+      if (bTab) bTab.hidden = !hasPartnerPortal();
+      if (hasPartnerPortal() && window.JobBuilderChannel) window.JobBuilderChannel.count(jobId);
+      const want = (location.hash || "").replace("#", "");
+      setTab(want === "builder" && !hasPartnerPortal() ? "geral" : want || "geral", { silent: true });
 
       // Deep link from the Jobs list ("Faturar"): open the billing dialog straight away.
       if (new URLSearchParams(location.search).get("faturar") === "1" && canInvoice && billing?.billing?.remaining_to_invoice > 0.004) {

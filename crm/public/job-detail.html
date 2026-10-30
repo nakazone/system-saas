@@ -29,6 +29,7 @@
   <link rel="stylesheet" href="job-detail-v2.css?v=20261015-step1" />
   <link rel="stylesheet" href="cam-viewer.css?v=20261009-btnw2" />
   <link rel="stylesheet" href="jobs-mobile-v2.css?v=20261028-jobs4" />
+  <link rel="stylesheet" href="job-builder-channel.css?v=20261030-ch1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="om-device.js?v=20261013-badge1"></script>
   <script src="crm-field-gate.js?v=20261014-perfil1"></script>
@@ -186,6 +187,7 @@
           <button type="button" role="tab" data-tab="fotos" aria-selected="false">Fotos <em id="jdTabFotos"></em></button>
           <button type="button" role="tab" data-tab="campo" aria-selected="false">Campo <em id="jdTabCampo"></em></button>
           <button type="button" role="tab" data-tab="conversa" aria-selected="false">Conversa</button>
+          <button type="button" role="tab" data-tab="builder" aria-selected="false" hidden>Builder <em id="jdTabBuilder"></em></button>
         </nav>
 
         <!-- Visão geral -->
@@ -285,6 +287,11 @@
           <div id="jdField"></div>
         </section>
 
+        <!-- Builder: mensagens e fotos que o builder vê -->
+        <section class="jd-panel" data-panel="builder" role="tabpanel" hidden>
+          <div id="jdBuilderChannel"></div>
+        </section>
+
         <!-- Conversa -->
         <section class="jd-panel" data-panel="conversa" role="tabpanel" hidden>
           <div class="jd-card" id="jobCommsCard">
@@ -311,7 +318,8 @@
   <script src="job-chat-comms.js?v=20260929-obranames1"></script>
   <script src="jobs-info.js?v=20261028-jobs4"></script>
   <script src="cam-viewer.js?v=20261009-cam1"></script>
-  <script src="job-detail.js?v=20261028-jobs4"></script>
+  <script src="job-builder-channel.js?v=20261030-ch1"></script>
+  <script src="job-detail.js?v=20261030-ch1"></script>
   <script src="job-detail-mobile.js?v=20261028-jobs4"></script>
 </body>
 </html>
