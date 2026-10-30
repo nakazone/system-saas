@@ -48,16 +48,22 @@
 .inv-pay-opt__side { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .inv-pay-opt__side b { font-weight: 700; }
 .inv-pay-math {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 16px 20px;
-  margin: 0 0 16px; padding: 20px 20px 18px; border-radius: 20px; background: #221E1A; color: #fff;
+  display: flex; flex-wrap: wrap; align-items: stretch;
+  margin: 0 0 14px; padding: 0; border-radius: 16px; background: #221E1A; color: #fff; overflow: hidden;
 }
-.inv-pay-math div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.inv-pay-math span { font-size: 13px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: #C8C2B8; }
-.inv-pay-math b { font-size: 30px; font-weight: 700; letter-spacing: -.04em; line-height: 1; font-variant-numeric: tabular-nums; }
-.inv-pay-math .is-now b { font-size: 34px; color: #E7792C; }
-.inv-pay-math .is-bal { grid-column: 1 / -1; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.16); }
-.inv-pay-math .is-bal b { font-size: 44px; }
-.inv-pay-math__note { grid-column: 1 / -1; margin: 0; font-size: 15px; line-height: 1.4; color: #E7E1D8; }
+.inv-pay-math div {
+  display: flex; flex-direction: column; justify-content: center; gap: 3px;
+  flex: 1 1 88px; min-width: 0; padding: 11px 14px;
+}
+.inv-pay-math span { font-size: 10.5px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: #C8C2B8; }
+.inv-pay-math b { font-size: 17px; font-weight: 700; letter-spacing: -.03em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.inv-pay-math .is-now b { color: #E7792C; }
+.inv-pay-math .is-bal { background: rgba(255,255,255,.05); }
+.inv-pay-math .is-bal b { font-size: 20px; }
+.inv-pay-math__note {
+  flex: 1 0 100%; margin: 0; padding: 8px 14px 10px;
+  border-top: 1px solid rgba(255,255,255,.12); font-size: 12.5px; line-height: 1.35; color: #E7E1D8;
+}
 .inv-pay-math__note.is-error { color: #F3B4A0; }
 .inv-card.inv-summary { background: transparent; box-shadow: none; padding: 0; }
 .inv-summary .inv-pay-math { margin: 0; }
@@ -314,9 +320,8 @@
   .ix-grp { margin: 10px 8px 4px; }
   .ix-row { background: transparent; box-shadow: none; border-radius: 14px; padding: 12px 10px; margin-bottom: 0; }
   .ix-row.is-on { background: #fff; box-shadow: 0 0 0 1px var(--inv-line); }
-  .inv-pay-math b { font-size: 26px; }
-  .inv-pay-math .is-now b { font-size: 28px; }
-  .inv-pay-math .is-bal b { font-size: 36px; }
+  .inv-pay-math div { flex-basis: 46%; padding: 10px 12px; }
+  .inv-pay-math b, .inv-pay-math .is-bal b { font-size: 16px; }
   .ix-row__l1 b { font-size: 15px; }
   .ix-row__amt { font-size: 15px; }
 
