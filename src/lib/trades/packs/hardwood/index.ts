@@ -20,8 +20,8 @@ export const hardwood: TradePack = {
     ],
   },
   phases: [
-    { key: "installation", label: { "pt-BR": "Instalação", "en-US": "Installation" } },
-    { key: "sand_finish", label: { "pt-BR": "Lixa", "en-US": "Sand & Finish" } },
+    { key: "installation", label: { "pt-BR": "Instalação", "en-US": "Installation" }, doneAtField: "installationDoneAt" },
+    { key: "sand_finish", label: { "pt-BR": "Lixa", "en-US": "Sand & Finish" }, doneAtField: "sandDoneAt" },
   ],
   combinedPhaseKey: "both",
   ai: {

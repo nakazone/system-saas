@@ -20,6 +20,8 @@ export type TenantRequest = Request & {
     timezone?: string | null;
     /** Company default language ("pt-BR" | "en" | "es"). */
     defaultLocale?: string | null;
+    /** Trade Packs the company runs (src/lib/trades); default ["hardwood"]. */
+    tradePacks?: string[];
   };
   isPlatformAdminHost?: boolean;
   isPublicHost?: boolean;
@@ -98,6 +100,7 @@ async function loadOrganizationBySlug(slug: string) {
       contactPhone: true,
       timezone: true,
       defaultLocale: true,
+      tradePacks: true,
     },
   });
 }
@@ -117,6 +120,7 @@ async function loadOrganizationById(id: string) {
       contactPhone: true,
       timezone: true,
       defaultLocale: true,
+      tradePacks: true,
     },
   });
 }

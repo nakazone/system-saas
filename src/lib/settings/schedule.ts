@@ -1,12 +1,14 @@
 /**
  * Configurações › Agenda — calendars livres (Jobs/Visitas/Meetings/Extra).
- * Jobs podem ter sector: all | installation | sand_finish.
+ * Jobs podem ter sector: all | uma fase do pacote de ofício (hardwood: installation | sand_finish).
  */
 import { z } from "zod";
 import { randomUUID } from "crypto";
+import { PHASE_KEYS, isPhaseKey } from "../trades/phases.js";
 
 export type ScheduleCalendarKind = "jobs" | "visits" | "meetings" | "custom";
-export type ScheduleJobSector = "all" | "installation" | "sand_finish";
+/** "all" or a phase key of the trade pack (hardwood: installation | sand_finish). */
+export type ScheduleJobSector = string;
 
 export type ScheduleCalendar = {
   id: string;
@@ -61,8 +63,8 @@ function kindOf(r: Record<string, unknown>): ScheduleCalendarKind {
 
 function sectorOf(r: Record<string, unknown>, kind: ScheduleCalendarKind): ScheduleJobSector | undefined {
   if (kind !== "jobs") return undefined;
-  if (r.sector === "installation" || r.sector === "sand_finish" || r.sector === "all") {
-    return r.sector;
+  if (isPhaseKey(r.sector) || r.sector === "all") {
+    return r.sector as string;
   }
   return "all";
 }
@@ -133,7 +135,7 @@ const calendarSchema = z.object({
   name: z.string().trim().min(1, "Nome obrigatório").max(80),
   color: z.string().regex(COLOR_RE, "Cor inválida"),
   kind: z.enum(["jobs", "visits", "meetings", "custom"]).optional(),
-  sector: z.enum(["all", "installation", "sand_finish"]).optional().nullable(),
+  sector: z.enum(["all", ...PHASE_KEYS] as [string, ...string[]]).optional().nullable(),
 });
 
 export const scheduleSettingsPutSchema = z.object({
@@ -171,8 +173,8 @@ export function applyScheduleSettingsPut(body: ScheduleSettingsPut): ScheduleSet
     };
     if (kind === "jobs") {
       cal.sector =
-        row.sector === "installation" || row.sector === "sand_finish" || row.sector === "all"
-          ? row.sector
+        isPhaseKey(row.sector) || row.sector === "all"
+          ? (row.sector as string)
           : "all";
     }
     out.push(cal);
@@ -245,8 +247,7 @@ export function resolveJobCalendar(
   sector: string | null | undefined,
 ): ScheduleCalendar {
   const jobs = settings.calendars.filter((c) => c.kind === "jobs");
-  const sec =
-    sector === "installation" || sector === "sand_finish" ? sector : null;
+  const sec = isPhaseKey(sector) ? sector : null;
   if (sec) {
     const hit = jobs.find((c) => (c.sector || "all") === sec);
     if (hit) return hit;

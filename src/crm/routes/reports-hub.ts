@@ -21,6 +21,7 @@ import { jobBilling } from "../../lib/invoices/job.js";
 import { reportData as folhaReportData } from "./folha-admin.js";
 import { loadDashboardOverview, viewerAccess } from "../../lib/dashboard/overview.js";
 import { safeTimeZone } from "../../lib/time/zoned.js";
+import { isPhaseKey } from "../../lib/trades/phases.js";
 
 export const reportsHubRouter = Router();
 
@@ -355,8 +356,7 @@ async function buildIrss(
   period: PeriodFilter,
   filters: { employeeId: string | null; sector: string | null },
 ) {
-  const sectorFilter =
-    filters.sector === "installation" || filters.sector === "sand_finish" ? filters.sector : null;
+  const sectorFilter = isPhaseKey(filters.sector) ? filters.sector : null;
   const base = await folhaReportData(tx as Parameters<typeof folhaReportData>[0], {
     from: period.from,
     to: period.to,

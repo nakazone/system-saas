@@ -17,6 +17,7 @@ import {
   ymdToBrShort,
 } from "../lib/payroll-calc.js";
 import { findLinkableUserId, resolveOwnEmployee } from "../lib/payroll-employee-link.js";
+import { isPhaseKey } from "../../lib/trades/phases.js";
 
 export const constructionPayrollRouter = Router();
 
@@ -242,7 +243,7 @@ function boolish(v: unknown): boolean {
 
 function normalizeSector(v: unknown): string | null {
   const s = String(v || "").trim().toLowerCase();
-  if (s === "sand_finish" || s === "installation") return s;
+  if (isPhaseKey(s)) return s;
   return s || null;
 }
 

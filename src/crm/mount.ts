@@ -19,6 +19,7 @@ import { i18nVersion, orgDefaultUiLocale } from "../lib/i18n/index.js";
 import type { TenantRequest } from "../lib/tenant/resolve-tenant.js";
 import { SAAS_DISABLED_HTML } from "./disabled-modules.js";
 import { isMateVoiceEnabled } from "../lib/mate-voice/staging.js";
+import { primaryPack } from "../lib/trades/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -99,9 +100,24 @@ function injectBranding(html: string, extra = ""): string {
   return `${block}\n${html}`;
 }
 
+/**
+ * The company's trade pack for the browser: phase keys and labels (hardwood: Instalação / Lixa)
+ * so screens stop hardcoding them. Pages keep their old literals as a fallback.
+ */
+export function tradeInject(tradePacks: unknown): string {
+  const pack = primaryPack(tradePacks);
+  const boot = JSON.stringify({
+    id: pack.id,
+    phases: pack.phases.map((p) => ({ key: p.key, label: p.label })),
+    combined: pack.combinedPhaseKey,
+  }).replace(/</g, "\\u003c");
+  return `<script>window.__OM_TRADE=${boot}</script>`;
+}
+
 async function renderCrmHtml(req: Request, full: string): Promise<string> {
   const org = (req as TenantRequest).organization;
-  const extra = i18nInject(full, await i18nVersion().catch(() => "0"), org ? org.defaultLocale ?? null : undefined);
+  const i18n = i18nInject(full, await i18nVersion().catch(() => "0"), org ? org.defaultLocale ?? null : undefined);
+  const extra = [tradeInject(org?.tradePacks), i18n].filter(Boolean).join("\n    ");
   // Pages that load crm-i18n.js themselves would load it twice; the engine guards it, but skip the tag.
   const html = fs.readFileSync(full, "utf8").replace(/<script[^>]+src="crm-i18n\.js[^"]*"[^>]*><\/script>\s*/g, "");
   return injectBranding(html, extra);

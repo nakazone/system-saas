@@ -68,6 +68,7 @@ import {
 } from "../../lib/settings/payroll-payment-methods.js";
 import { documentAddressLine, documentLicenseLine } from "../../lib/settings/organization.js";
 import { phaseLabels } from "../../lib/trades/index.js";
+import { PHASE_KEYS, isPhaseKey, phaseOrDefault } from "../../lib/trades/phases.js";
 
 export const folhaAdminRouter = Router();
 
@@ -103,7 +104,8 @@ const WD = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 const dateLabel = (d: Date) => `${WD[d.getUTCDay()]} ${d.getUTCDate()}/${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 /** Phase (sector) labels come from the trade pack (hardwood: Instalação / Lixa). */
 const SECTOR_LABEL: Record<string, string> = phaseLabels();
-export const sectorKey = (s: string | null | undefined) => (s === "sand_finish" ? "sand_finish" : "installation");
+/** A timesheet's phase; anything unknown counts as the first phase (hardwood: installation). */
+export const sectorKey = (s: string | null | undefined) => phaseOrDefault(s);
 const STATUS_LABEL: Record<string, string> = {
   in_progress: "Em andamento",
   pending: "Conferir",
@@ -362,8 +364,8 @@ async function weekData(tx: PayrollTx, organizationId: string, refYmd: string, t
     period: { id: period.id, label: period.label, status: period.status },
     totals: {
       all: sum(rows),
-      installation: sum(rows.filter((r) => r.sector === "installation")),
-      sand_finish: sum(rows.filter((r) => r.sector === "sand_finish")),
+      // One total per phase of the trade pack (hardwood: installation, sand_finish).
+      ...Object.fromEntries(PHASE_KEYS.map((k) => [k, sum(rows.filter((r) => r.sector === k))])),
     },
     employees: rows,
     cycle_summary: describePayCycle(cycle),
@@ -1529,7 +1531,7 @@ const employeeBody = z.object({
   email: z.string().email().optional().nullable().or(z.literal("")),
   phone: z.string().max(40).optional().nullable(),
   role_title: z.string().max(80).optional().nullable(),
-  sector: z.enum(["installation", "sand_finish"]).optional().nullable(),
+  sector: z.enum(PHASE_KEYS as [string, ...string[]]).optional().nullable(),
   pay_type: z.enum(["daily", "production"]).optional(),
   daily_rate: z.number().min(0).max(100000).optional(),
   overtime_rate: z.number().min(0).max(10000).optional().nullable(),
@@ -1697,7 +1699,7 @@ const csvCell = (v: unknown) => {
 };
 const toCsv = (rows: (string | number | null)[][]) => rows.map((r) => r.map(csvCell).join(",")).join("\r\n");
 
-type ReportFilter = { from: Date; to: Date; employeeId: string | null; sector: "installation" | "sand_finish" | null };
+type ReportFilter = { from: Date; to: Date; employeeId: string | null; sector: string | null };
 
 function parseReportFilter(q: Record<string, unknown>, tz: string): ReportFilter {
   const today = workDateFor(new Date(), tz);
@@ -1705,7 +1707,7 @@ function parseReportFilter(q: Record<string, unknown>, tz: string): ReportFilter
   const from = /^\d{4}-\d{2}-\d{2}$/.test(String(q.from || "")) ? parseYmd(String(q.from))! : yearStart;
   const to = /^\d{4}-\d{2}-\d{2}$/.test(String(q.to || "")) ? parseYmd(String(q.to))! : today;
   const employeeId = /^[0-9a-f-]{36}$/i.test(String(q.employee_id || "")) ? String(q.employee_id) : null;
-  const sector = q.sector === "installation" || q.sector === "sand_finish" ? q.sector : null;
+  const sector = isPhaseKey(q.sector) ? (q.sector as string) : null;
   if (to.getTime() < from.getTime()) throw httpErr(400, "O fim do período precisa ser depois do início.");
   return { from, to, employeeId, sector };
 }

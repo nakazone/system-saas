@@ -20,6 +20,7 @@ import {
 } from "./stages.js";
 import { startOfZonedDay, startOfZonedMonth, zonedDateKey, zonedDayDiff } from "../time/zoned.js";
 import { geocodeAddress } from "../payroll/geocode.js";
+import { COMBINED_PHASE } from "../trades/phases.js";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -784,7 +785,7 @@ export function buildJobsForecast(
   const byDate = new Map(buckets.map((b) => [b.date, b]));
   const slots: { wo: WorkOrderRow; start: Date; end: Date; title: string }[] = [];
   for (const wo of workOrders) {
-    const sand = wo.sector === "both" && wo.sandScheduledStart ? wo.sandScheduledStart : null;
+    const sand = wo.sector === COMBINED_PHASE && wo.sandScheduledStart ? wo.sandScheduledStart : null;
     const inst = wo.installationStart !== undefined ? wo.installationStart : wo.scheduledStart;
     if (inst) {
       const end =
@@ -1076,7 +1077,7 @@ export async function loadDashboardOverview(
           status: { not: "canceled" },
           OR: [
             { scheduledStart: { not: null, gte: todayStart, lt: forecastEnd } },
-            { sector: "both", sandScheduledStart: { not: null, gte: todayStart, lt: forecastEnd } },
+            { sector: COMBINED_PHASE, sandScheduledStart: { not: null, gte: todayStart, lt: forecastEnd } },
           ],
         },
         orderBy: { scheduledStart: "asc" },

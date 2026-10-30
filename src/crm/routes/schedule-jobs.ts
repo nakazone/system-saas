@@ -40,6 +40,7 @@ import {
 } from "../../lib/schedule/lead-visit-ics.js";
 import { calendarNickFromBuilders, isBuilderParty, jobCalendarTitle, visitBlockEnd } from "../../lib/schedule/calendar-label.js";
 import { phaseKeys } from "../../lib/trades/index.js";
+import { COMBINED_PHASE, PHASE_KEYS, phaseLabel } from "../../lib/trades/phases.js";
 
 /** Job phases from the trade pack (hardwood: installation, sand_finish, both). */
 const WO_SECTORS: readonly string[] = phaseKeys();
@@ -1186,7 +1187,7 @@ scheduleJobsRouter.post(
           scheduledStart: start,
           scheduledEnd: end,
           sandScheduledStart:
-            normalizeWoSector(d.sector) === "both" && d.sand_scheduled_start
+            normalizeWoSector(d.sector) === COMBINED_PHASE && d.sand_scheduled_start
               ? new Date(d.sand_scheduled_start)
               : null,
           allDay: Boolean(start),
@@ -1406,10 +1407,10 @@ scheduleJobsRouter.put(
           ...(d.scheduled_start !== undefined || d.scheduled_end !== undefined
             ? { scheduledStart: start, scheduledEnd: end, allDay: Boolean(start) }
             : {}),
-          ...(d.sand_scheduled_start !== undefined || (d.sector !== undefined && normalizeWoSector(d.sector) !== "both")
+          ...(d.sand_scheduled_start !== undefined || (d.sector !== undefined && normalizeWoSector(d.sector) !== COMBINED_PHASE)
             ? {
                 sandScheduledStart:
-                  (d.sector !== undefined ? normalizeWoSector(d.sector) : existing.sector) === "both" &&
+                  (d.sector !== undefined ? normalizeWoSector(d.sector) : existing.sector) === COMBINED_PHASE &&
                   d.sand_scheduled_start
                     ? new Date(d.sand_scheduled_start)
                     : null,
@@ -2213,14 +2214,14 @@ scheduleJobsRouter.get(
       const jobEvents = workOrders.flatMap((wo) => {
         const slots: Array<{ at: Date; sand: boolean }> = [];
         const awaitingSand =
-          wo.sector === "both" && Boolean(wo.installationDoneAt) && !wo.sandDoneAt && wo.status !== "canceled";
+          wo.sector === COMBINED_PHASE && Boolean(wo.installationDoneAt) && !wo.sandDoneAt && wo.status !== "canceled";
         if (wo.scheduledStart && !awaitingSand) slots.push({ at: wo.scheduledStart, sand: false });
-        if (wo.sector === "both" && wo.sandScheduledStart) slots.push({ at: wo.sandScheduledStart, sand: true });
+        if (wo.sector === COMBINED_PHASE && wo.sandScheduledStart) slots.push({ at: wo.sandScheduledStart, sand: true });
         return slots.map(({ at, sand }) => {
-          const sector = sand ? "sand_finish" : wo.sector === "both" ? "installation" : wo.sector;
+          const sector = sand ? PHASE_KEYS[1]! : wo.sector === COMBINED_PHASE ? PHASE_KEYS[0]! : wo.sector;
           const jobCal = resolveJobCalendar(sched, sector);
           const endIso = new Date(at.getTime() + 24 * 60 * 60 * 1000).toISOString();
-          const sectorLabel = sand ? "Sand & Finish" : wo.sector === "both" ? "Installation" : "";
+          const sectorLabel = sand ? phaseLabel(PHASE_KEYS[1]!, "en-US") : wo.sector === COMBINED_PHASE ? phaseLabel(PHASE_KEYS[0]!, "en-US") : "";
           const quote = wo.quotes?.[0];
           const lead = quote?.leadId ? originByLead.get(quote.leadId) : undefined;
           const clientRef =

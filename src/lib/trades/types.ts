@@ -26,10 +26,15 @@ export type PackService = {
 /** A section of the customer-facing quote, in print order. */
 export type QuoteSectionDef = { key: string; label: string };
 
+/** WorkOrder columns that record when a phase was closed. */
+export type PhaseDoneField = "installationDoneAt" | "sandDoneAt";
+
 /** A job phase that has its own crew, calendar and payroll period (hardwood: Instalação / Lixa). */
 export type PhaseDef = {
   key: string;
   label: { "pt-BR": string; "en-US": string };
+  /** Column that stores when this phase was closed on a job that runs all phases. */
+  doneAtField: PhaseDoneField;
 };
 
 export type TradePack = {
