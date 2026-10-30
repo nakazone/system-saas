@@ -4764,7 +4764,7 @@
 
   /* ─────────────────────────── floors from the house plans (takeoff, 3D, quote) ─────────────────────────── */
 
-  const FLOOR_KIND_OPTS = [['hardwood', 'Hardwood'], ['lvp', 'LVP'], ['laminate', 'Laminate'], ['carpet', 'Carpet'], ['rubber', 'Rubber floor'], ['tile', 'Tile'], ['stone', 'Stone'], ['other', 'Not flooring']];
+  const FLOOR_KIND_OPTS = [['hardwood', 'Hardwood'], ['lvp', 'LVP'], ['laminate', 'Laminate'], ['carpet', 'Carpet'], ['rubber', 'Rubber floor'], ['tile', 'Tile'], ['stone', 'Stone'], ['concrete', 'Polished concrete'], ['other', 'Not flooring']];
   const FLOORING_KINDS = ['hardwood', 'lvp', 'laminate', 'carpet', 'rubber'];
   const KIND_WORDS = { hardwood: /hard\s?wood|\bwood\b|engineered|oak/i, lvp: /\blvp\b|\blvt\b|vinyl/i, laminate: /laminate/i, carpet: /carpet/i, rubber: /rubber/i };
   let plan3d = null;
@@ -4776,7 +4776,7 @@
     laminate: ['brand', 'color', 'size', 'thickness', 'install', 'underlayment'],
     carpet: ['brand', 'color', 'pad'],
     rubber: ['brand', 'color', 'thickness'],
-    tile: ['brand', 'color', 'size'], stone: ['brand', 'color', 'size'], other: ['brand', 'color'],
+    tile: ['brand', 'color', 'size'], stone: ['brand', 'color', 'size'], concrete: ['color'], other: ['brand', 'color'],
   };
   const SPEC_LABEL = { species: 'Species', construction: 'Construction', width: 'Width', thickness: 'Thickness', grade: 'Grade', finish: 'Finish', color: 'Color / stain', sheen: 'Sheen', install: 'Install', pattern: 'Pattern', brand: 'Brand / product', size: 'Plank size', wear: 'Wear layer', underlayment: 'Underlayment', pad: 'Pad' };
   const SPEC_OPTS = {
@@ -4930,7 +4930,7 @@
     // reading again keeps what the person already chose for each floor (product, counted or not)
     const before = (m.data && m.data.plan && m.data.plan.materials) || [];
     mats.forEach((x) => {
-      const old = before.find((o) => o.label === x.label && o.kind === x.kind) || before.find((o) => o.color === x.color);
+      const old = before.find((o) => o.label === x.label && o.kind === x.kind && String(o.pages || '') === String(x.pages || '')) || before.find((o) => o.color === x.color && String(o.pages || '') === String(x.pages || ''));
       if (old) { x.spec = { ...(old.spec || {}) }; x.include = old.include; x.sand_finish = old.sand_finish; x.kind = old.kind; x.label = old.label; }
     });
     const levels = []; const previews = [];
@@ -4993,13 +4993,13 @@
         ...f.unknown.map((u, i) => ({ key: `floor-u${i}`, label: 'Not flooring', color: u.color, kind: 'other', include: false, sand_finish: false, unsure: true })),
       ];
       const intro = f.mats.length || f.unknown.length
-        ? `These plans have no legend, so Mate read the colors and the notes on them${f.mats.some((x) => x.from === 'note') ? ' (like the note written on a colored box)' : ''}. Check what each color is — tap the plan to add a color it missed.`
+        ? `These plans have no legend, so Mate read the colors and the notes on them${f.mats.some((x) => x.from === 'note') ? ' (like the note written on a colored box)' : ''}.${f.mats.some((x) => x.pages) ? ' The same color can mean another floor on one sheet — the notes on that sheet decide.' : ''} Check what each color is — tap the plan to add a color it missed.`
         : 'These plans have no legend Mate can read. Tap a colored floor, then say what it is. Repeat for each floor color.';
       const root = openSheet(f.mats.length ? 'Check the floor colors' : 'Mark the floor colors', `<p class="pp-muted" style="margin:0 0 10px">${esc(intro)}</p>
         <div class="pp-plan-picked" data-picked></div>
         <div class="pp-plan-pick"><img alt="Plan sheet" src="${crop.url}" /></div>
         <div class="pp-sheet-actions"><button type="button" class="pp-btn pp-btn--pri" data-picked-done>Measure these floors</button></div>`, { wide: true, noFocus: true });
-      const paint = () => { root.querySelector('[data-picked]').innerHTML = mats.map((x, i) => `<div class="pp-plan-pickrow ${x.unsure ? 'is-unsure' : ''}"><span class="pp-swatch" style="background:${esc(x.color)}"></span>${sel(FLOOR_KIND_OPTS, x.kind, `data-pick-kind="${i}" aria-label="Floor type"`)}<small class="pp-muted">${x.unsure ? 'Mate couldn’t tell — choose' : x.from === 'note' ? `From the note${x.spec && Object.keys(x.spec).length ? `: ${esc(Object.values(x.spec).join(' · '))}` : ''}` : x.from === 'callout' ? 'From a callout next to it' : ''}</small><button type="button" class="pp-link pp-late" data-pick-rm="${i}">Remove</button></div>`).join('') || '<p class="pp-muted" style="margin:6px 0">No colors yet.</p>';
+      const paint = () => { root.querySelector('[data-picked]').innerHTML = mats.map((x, i) => `<div class="pp-plan-pickrow ${x.unsure ? 'is-unsure' : ''}"><span class="pp-swatch" style="background:${esc(x.color)}"></span>${sel(FLOOR_KIND_OPTS, x.kind, `data-pick-kind="${i}" aria-label="Floor type"`)}<small class="pp-muted">${x.unsure ? 'Mate couldn’t tell — choose' : x.from === 'note' ? `From the note${x.spec && Object.keys(x.spec).length ? `: ${esc(Object.values(x.spec).join(' · '))}` : ''}` : x.from === 'callout' ? 'From a callout next to it' : ''}${x.where ? `<b class="pp-plan-where">${esc(x.where)}</b>` : ''}</small><button type="button" class="pp-link pp-late" data-pick-rm="${i}">Remove</button></div>`).join('') || '<p class="pp-muted" style="margin:6px 0">No colors yet.</p>';
         root.querySelectorAll('[data-pick-kind]').forEach((s) => s.addEventListener('change', () => { const x = mats[+s.getAttribute('data-pick-kind')]; x.kind = s.value; x.label = FLOOR_KIND_OPTS.find((o) => o[0] === s.value)[1]; x.include = FLOORING_KINDS.includes(s.value); x.unsure = false; x.sand_finish = s.value === 'hardwood'; }));
         root.querySelectorAll('[data-pick-rm]').forEach((b) => b.addEventListener('click', () => { mats.splice(+b.getAttribute('data-pick-rm'), 1); paint(); }));
       };
@@ -5181,7 +5181,7 @@
     const mats = `<section class="pp-card pp-block pp-plan-mats"><div class="pp-block-head"><h3>Floors on the plans</h3><span class="pp-muted">From the legend</span></div>
       ${plan.materials.map((x, i) => { const t = totals.find((y) => y.key === x.key); return `<div class="pp-plan-mat ${x.include ? '' : 'is-off'}">
         <span class="pp-swatch" style="background:${esc(x.color)}"></span>
-        <div class="pp-plan-mat-main"><strong>${esc(x.label)}</strong><small>${t ? fmtSf(t.area) : 'Not found on the plans'}</small>${x.include && t && FLOORING_KINDS.includes(x.kind) ? (specText(x) ? `<button type="button" class="pp-plan-spec" data-pmat-spec="${i}" ${dis}>${esc(specText(x))}</button>` : (locked ? '' : `<button type="button" class="pp-link pp-plan-spec-add" data-pmat-spec="${i}">+ Product details</button>`)) : ''}</div>
+        <div class="pp-plan-mat-main"><strong>${esc(x.label)}</strong><small>${t ? fmtSf(t.area) : 'Not found on the plans'}${x.where ? ` · ${esc(x.where)}` : ''}</small>${x.include && t && FLOORING_KINDS.includes(x.kind) ? (specText(x) ? `<button type="button" class="pp-plan-spec" data-pmat-spec="${i}" ${dis}>${esc(specText(x))}</button>` : (locked ? '' : `<button type="button" class="pp-link pp-plan-spec-add" data-pmat-spec="${i}">+ Product details</button>`)) : ''}</div>
         ${sel(FLOOR_KIND_OPTS, x.kind, `data-pmat-kind="${i}" aria-label="Floor type for ${esc(x.label)}" ${dis}`)}
         ${x.kind === 'hardwood' ? `<label class="pp-check pp-plan-sand"><input type="checkbox" data-pmat-sand="${i}" ${x.sand_finish ? 'checked' : ''} ${dis} />Sand &amp; finish</label>` : '<span class="pp-plan-sand"></span>'}
         <label class="pp-switch" title="Count this floor"><input type="checkbox" data-pmat-inc="${i}" ${x.include ? 'checked' : ''} ${dis} /><span>${x.include ? 'In the takeoff' : 'Left out'}</span></label>

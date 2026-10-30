@@ -220,7 +220,7 @@
   /** Label every pixel with the nearest legend color (0 = none). Handles see-through markups. */
   function classify(img, W, H, mats) {
     const n = W * H; const lab = new Uint8Array(n);
-    const vs = mats.map((m) => { const c = rgbOf(m.color); const v = [c[0] - 255, c[1] - 255, c[2] - 255]; return { v, vv: v[0] * v[0] + v[1] * v[1] + v[2] * v[2] || 1 }; });
+    const vs = mats.map((m) => { if (m.skip) return { v: [0, 0, 0], vv: 1, skip: true }; const c = rgbOf(m.color); const v = [c[0] - 255, c[1] - 255, c[2] - 255]; return { v, vv: v[0] * v[0] + v[1] * v[1] + v[2] * v[2] || 1 }; });
     for (let p = 0, i = 0; p < n; p++, i += 4) {
       const r = img[i]; const g = img[i + 1]; const b = img[i + 2];
       const mx = r > g ? (r > b ? r : b) : (g > b ? g : b); const mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
@@ -228,7 +228,8 @@
       const pr = r - 255; const pg = g - 255; const pb = b - 255;
       let best = 0; let bd = 14;
       for (let k = 0; k < vs.length; k++) {
-        const { v, vv } = vs[k];
+        const { v, vv, skip } = vs[k];
+        if (skip) continue;
         const t = (pr * v[0] + pg * v[1] + pb * v[2]) / vv;
         if (t < 0.4 || t > 1.12) continue;
         const tc = t > 1.08 ? 1.08 : t;
@@ -600,12 +601,17 @@
     [/\bRUBBER\b/, 'rubber', 'Rubber floor'],
     [/\b(TILE|PORCELAIN|CERAMIC)\b/, 'tile', 'Tile'],
     [/\b(STONE|MARBLE|SLATE|TRAVERTINE)\b/, 'stone', 'Stone'],
+    [/\b(POLISHED|SEALED|STAINED|GROUND|BURNISHED|EXPOSED)\s+CONCRETE\b|\bCONCRETE\s+(FLOOR|FLOORS|SLAB|FINISH)\b|\bEPOXY\b/, 'concrete', 'Polished concrete'],
   ];
-  const NOT_FLOOR = /\b(TREADS?|RISERS?|STAIRS?|NOSE|TOPS?|COUNTER|BACKSPLASH|VANITY\s+TOP|CABINET)\b/;
+  /** A note that covers a whole level ("POLISHED CONCRETE THROUGHOUT", "CARPET ENTIRE BASEMENT"). */
+  const WHOLE_LEVEL = /\b(THROUGHOUT|THRU\s?OUT|ENTIRE\s+(FLOOR|LEVEL|BASEMENT|SPACE)|ALL\s+(OF\s+)?(THE\s+)?(BASEMENT|LEVEL|FLOOR|ROOMS))\b/;
+  const NOT_FLOOR = /\b(TREADS?|RISERS?|STAIRS?|STEPS?|NOSE|TOPS?|COUNTER|BACKSPLASH|VANITY\s+TOP|CABINET|WALLS?|FOUNDATION|FOOTINGS?|DRIVEWAY|SIDEWALK|CURB)\b/;
   function noteKind(text) {
-    const u = text.toUpperCase();
-    for (const [rx, kind, label] of NOTE_KIND) if (rx.test(u)) return { kind, label };
-    return null;
+    const u = text.toUpperCase().replace(/\s+/g, ' ');
+    // the most specific word wins: "POLISHED CONCRETE" over a "WOOD" elsewhere in a long note
+    let best = null;
+    for (const [rx, kind, label] of NOTE_KIND) { const m = rx.exec(u); if (m && (!best || m.index < best.at)) best = { kind, label: kind === 'concrete' && !/POLISHED/.test(u) ? 'Concrete' : label, at: m.index }; }
+    return best && { kind: best.kind, label: best.label };
   }
   const dist3 = (a, b) => Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]), Math.abs(a[2] - b[2]));
 
@@ -727,8 +733,16 @@
   async function markupColors(opened) {
     const { colors, perSheet } = await fillColors(opened);
     if (!colors.length) return { mats: [], unknown: [] };
-    const strong = colors.map(() => null); const votes = colors.map(() => ({}));
-    void dist3;
+    const votes = colors.map(() => ({}));
+    // notes per sheet: the same highlighter can mean wood upstairs and concrete in the basement
+    const local = new Map(); // page → colors.map(() => {kind: {label, n, spec}})
+    const addNote = (page, j, k, text, w) => {
+      if (!local.has(page)) local.set(page, colors.map(() => ({})));
+      const sv = local.get(page)[j];
+      sv[k.kind] = sv[k.kind] || { ...k, n: 0, spec: {} };
+      sv[k.kind].n += w;
+      Object.assign(sv[k.kind].spec, specFromNote(text));
+    };
     for (const { sh, img, W, H, Z } of perSheet) {
       // notes are often split over lines: join each line with the one under it for the words
       const ls = sh.lines.filter((l) => l.ang === 0 && l.text.length <= 60);
@@ -745,20 +759,29 @@
         }
         return block.sort((a, b) => a.y0 - b.y0).map((m) => m.text).join(' ');
       };
+      // the color covering most of this sheet (for "… THROUGHOUT" notes)
+      const share = colorsNear(sh.ptW / 2, sh.ptH / 2, Math.max(sh.ptW, sh.ptH), img, W, H, Z, colors);
+      const main = share.indexOf(Math.max(...share));
+      const seenText = new Set();
       ls.forEach((l) => {
         const text = noteOf(l);
-        const k = noteKind(l.text) || noteKind(text);
-        if (!k || NOT_FLOOR.test(text.toUpperCase()) && k.kind !== 'tile') return;
+        const k = noteKind(text) || noteKind(l.text);
+        const U = text.toUpperCase();
+        if (!k || NOT_FLOOR.test(U) && k.kind !== 'tile') return;
         const bg = bgUnder(l, img, W, H, Z);
         const on = bg ? shadeOf(bg, colors) : null;
         if (on && on.t >= 0.75) {
           // the note is written on a solid box of that color: that's the color's legend — and not a floor
           sh.noteBoxes = sh.noteBoxes || [];
           if (!sh.noteBoxes.some((b) => l.cx >= b.x0 && l.cx <= b.x1 && l.cy >= b.y0 && l.cy <= b.y1)) sh.noteBoxes.push(boxAround(l, img, W, H, Z, colors[on.j]));
-          const sv = strong[on.j] || (strong[on.j] = {});
-          sv[k.kind] = sv[k.kind] || { ...k, n: 0, spec: {} };
-          sv[k.kind].n += 1;
-          Object.assign(sv[k.kind].spec, specFromNote(text));
+          if (seenText.has(text)) return; seenText.add(text);
+          addNote(sh.page, on.j, k, text, WHOLE_LEVEL.test(U) ? 3 : 1);
+          return;
+        }
+        if (WHOLE_LEVEL.test(U) && share[main] > 0 && !seenText.has(text)) {
+          // "POLISHED CONCRETE THROUGHOUT": the whole level, whatever color it was marked in
+          seenText.add(text);
+          addNote(sh.page, main, k, text, 2);
           return;
         }
         const near = colorsNear(l.cx, l.cy, 36, img, W, H, Z, colors);
@@ -767,19 +790,41 @@
         near.forEach((n, j) => { if (n / tot > 0.25) { const v = votes[j]; v[k.kind] = v[k.kind] || { ...k, n: 0, spec: specFromNote(text) }; v[k.kind].n += n / tot; } });
       });
     }
+    const top = (o) => Object.values(o).sort((a, b) => b.n - a.n)[0] || null;
+    const name = (pg) => (opened.sheets.find((x) => x.page === pg) || {}).name || `Sheet ${pg}`;
     const mats = []; const unknown = [];
     colors.forEach((c, j) => {
-      const s0 = strong[j] ? Object.values(strong[j]).sort((a, b) => b.n - a.n)[0] : null;
-      const v = Object.values(votes[j]).sort((a, b) => b.n - a.n)[0];
+      // what each sheet's notes say this color is
+      const perPage = [...local.entries()].map(([page, arr]) => ({ page, pick: top(arr[j]) })).filter((x) => x.pick);
+      // the color's usual meaning: the kind most sheets agree on (then the most notes)
+      const tally = {};
+      for (const x of perPage) { const t = tally[x.pick.kind] || (tally[x.pick.kind] = { ...x.pick, sheets: 0, n: 0, spec: {} }); t.sheets++; t.n += x.pick.n; Object.assign(t.spec, x.pick.spec); }
+      const s0 = Object.values(tally).sort((a, b) => b.sheets - a.sheets || b.n - a.n)[0] || null;
+      const v = top(votes[j]);
       const pick = s0 || v;
-      if (pick) mats.push({ label: pick.label, color: c.color, kind: pick.kind, spec: pick.spec || {}, from: s0 ? 'note' : 'callout' });
-      else unknown.push({ color: c.color, px: c.px });
+      if (!pick) { unknown.push({ color: c.color, px: c.px }); return; }
+      const odd = perPage.filter((x) => x.pick.kind !== pick.kind);
+      mats.push({ label: pick.label, color: c.color, kind: pick.kind, spec: pick.spec || {}, from: s0 ? 'note' : 'callout', not_pages: odd.map((x) => x.page) });
+      // sheets whose notes say otherwise get their own floor for this color
+      const byKind = {};
+      for (const x of odd) (byKind[x.pick.kind] = byKind[x.pick.kind] || { ...x.pick, pages: [], spec: {} }).pages.push(x.page), Object.assign(byKind[x.pick.kind].spec, x.pick.spec);
+      for (const o of Object.values(byKind)) mats.push({ label: o.label, color: c.color, kind: o.kind, spec: o.spec, from: 'note', pages: o.pages });
     });
-    // one floor per kind: two shades of the same kind keep both colors under one label
     return {
-      mats: mats.map((m, i) => ({ key: m.kind + '-' + (i + 1), label: m.label, color: m.color, kind: m.kind, include: DEFAULT_ON.includes(m.kind), sand_finish: m.kind === 'hardwood' && /site|sand/i.test(m.spec.finish || ''), spec: m.spec, from: m.from })),
+      mats: mats.map((m, i) => {
+        const out = { key: m.kind + '-' + (i + 1), label: m.label, color: m.color, kind: m.kind, include: DEFAULT_ON.includes(m.kind), sand_finish: m.kind === 'hardwood' && /site|sand/i.test(m.spec.finish || ''), spec: m.spec, from: m.from };
+        if (m.pages && m.pages.length) { out.pages = m.pages; out.where = m.pages.map(name).join(', '); }
+        if (m.not_pages && m.not_pages.length) { out.not_pages = m.not_pages; out.where = 'All but ' + m.not_pages.map(name).join(', '); }
+        return out;
+      }),
       unknown,
     };
+  }
+  /** Whether a floor color counts on a sheet (a color can mean another floor on one sheet). */
+  function onSheet(m, page) {
+    if (Array.isArray(m.pages) && m.pages.length && !m.pages.includes(page)) return false;
+    if (Array.isArray(m.not_pages) && m.not_pages.includes(page)) return false;
+    return true;
   }
 
   function boxOf(col) {
@@ -798,7 +843,9 @@
     const img = r.ctx.getImageData(0, 0, r.W, r.H).data;
     onProgress && onProgress({ step: 'floors', page: sheet.page });
     const exclude = [...(sheet.legendBox ? [sheet.legendBox] : []), ...(sheet.noteBoxes || [])];
-    const fl = await floorsOf(img, r.W, r.H, mats, ppf, Z, exclude, (f) => onProgress && onProgress({ step: 'floors', page: sheet.page, f }));
+    // a color can mean another floor on one sheet ("POLISHED CONCRETE THROUGHOUT" on the basement)
+    const use = mats.map((m) => ({ ...m, skip: !onSheet(m, sheet.page) }));
+    const fl = await floorsOf(img, r.W, r.H, use, ppf, Z, exclude, (f) => onProgress && onProgress({ step: 'floors', page: sheet.page, f }));
     await tick();
     onProgress && onProgress({ step: 'rooms', page: sheet.page });
     const ro = roomsOf(fl.labels, r.W, r.H, mats, sheet.lines, Z, fl.pxPerFt);
@@ -837,5 +884,5 @@
     return hexOf([0, 1, 2].map((k) => median(px.map((p) => p[k]))));
   }
 
-  window.ObTakeoff = { open, legend, markupColors, readSheet, render, zoomFor, colorAt, decodeGrid, decodeRle, parseDim, FLOORING, _test: { scaleFromDims, legendKind, cleanRoom } };
+  window.ObTakeoff = { open, legend, markupColors, onSheet, readSheet, render, zoomFor, colorAt, decodeGrid, decodeRle, parseDim, FLOORING, _test: { scaleFromDims, legendKind, cleanRoom, noteKind } };
 })();

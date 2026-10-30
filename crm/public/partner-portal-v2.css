@@ -2544,3 +2544,6 @@ button.tk-fact:hover { border-color: #E7792C; }
 .pp-wz-diff { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; padding: 12px 14px; border-radius: 12px; background: #FFF8F2; border: 1px solid #F6C8A4; }
 .pp-wz-diff > div { flex: 1; min-width: 220px; display: grid; gap: 2px; }
 .pp-wz-diff small { color: #475467; font-size: 13px; }
+
+/* a color that means another floor on one sheet (e.g. "Polished concrete throughout" in the basement) */
+.pp-plan-where { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: var(--pp-accent-soft, #fdeedd); color: var(--pp-accent-ink, #9a4a12); font-size: 11.5px; font-weight: 600; }
