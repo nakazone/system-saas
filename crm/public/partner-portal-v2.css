@@ -2725,3 +2725,6 @@ body.pp-sheet-open .pp-busy { display: none; }
 .pp-sheet .pp-vcount-tap { align-content: center; gap: 6px; }
 .pp-sheet .pp-vcount-tap span { color: #fff; }
 .pp-sheet .pp-vcount-tap .pp-vcount-l { margin-top: 4px; }
+/* Photos & docs · who sent it */
+.pp-doc-from { display: inline-flex; align-self: flex-start; margin-bottom: 4px; padding: 2px 9px; border-radius: 999px; background: #EEF3E6; color: #4E6A2E; font-size: 12px; font-weight: 700; }
+.pp-doc-from.is-mine { background: #FBEBDD; color: #A64C14; }

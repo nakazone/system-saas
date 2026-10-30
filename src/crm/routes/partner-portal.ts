@@ -29,7 +29,7 @@ import { findMeasurementForAddress, markMeasurementUsed, measurementPack } from 
 import { pickupForWorkOrder } from "../../lib/builders/pickups.js";
 import { findJobMatch, intakeItemsSchema, isIntakeReaderConfigured, readWorkOrder, type IntakeFile } from "../../lib/partner-intake/extract.js";
 import { parsePartnerPortalSettings } from "../../lib/settings/partner-portal.js";
-import { decodeMessageFiles, listMessages, postMessage, sendMessageFile, serializeMessage } from "../../lib/jobs/partner-messages.js";
+import { decodeMessageFiles, imageThumbnail, listMessages, messageFiles, postMessage, sendMessageFile, serializeMessage, thumbWidthOf } from "../../lib/jobs/partner-messages.js";
 
 type PartnerRequest = TenantRequest & {
   /** Role used for the builder permissions ("legacy" for company-created portal users). */
@@ -54,6 +54,13 @@ export const partnerPortalRouter = Router();
 
 /** Photos / videos the builder sees: shared one by one, or every one of a job that shares its photos (jobs a builder sent). */
 const PARTNER_MEDIA = { deletedAt: null, OR: [{ sharedWithPartners: true }, { workOrder: { sharePhotosWithPartners: true } }] } satisfies Prisma.JobMediaWhereInput;
+
+/** Requests the builder account sent: this login's, and its company's when it is a builder. */
+function partnerRequestScope(user: NonNullable<PartnerRequest["partnerUser"]>) {
+  const OR: Array<{ partnerUserId?: string; builderId?: string }> = [{ partnerUserId: user.id }];
+  if (user.builderId) OR.push({ builderId: user.builderId });
+  return { OR };
+}
 
 function partnerJobScope(user: NonNullable<PartnerRequest["partnerUser"]>) {
   const OR: Array<{ builderId?: string; customerId?: string }> = [];
@@ -1090,7 +1097,7 @@ partnerPortalRouter.get("/api/partner-portal/jobs/:id", requirePartnerAuth, asyn
           })
           : Promise.resolve([]),
         tx.partnerJobRequest.findMany({
-          where: { organizationId: user.organizationId, partnerUserId: user.id, OR: [{ workOrderId: job.id }, { targetWorkOrderId: job.id }] },
+          where: { organizationId: user.organizationId, AND: [partnerRequestScope(user), { OR: [{ workOrderId: job.id }, { targetWorkOrderId: job.id }] }] },
           orderBy: { createdAt: "desc" },
           take: 20,
           select: { id: true, title: true, status: true, externalRef: true, notes: true, preferredDate: true, reviewNote: true, createdAt: true, files: true },
@@ -1265,7 +1272,7 @@ partnerPortalRouter.get("/api/partner-portal/jobs/:id/messages/:messageId/files/
       res.status(404).json({ success: false, error: "Job not found." });
       return;
     }
-    await sendMessageFile(res, next, user.organizationId, job.id, String(req.params.messageId), Number(req.params.index), Boolean(req.query.download));
+    await sendMessageFile(res, next, user.organizationId, job.id, String(req.params.messageId), Number(req.params.index), Boolean(req.query.download), thumbWidthOf(req.query.w));
   } catch (error) {
     next(error);
   }
@@ -1431,7 +1438,7 @@ partnerPortalRouter.get("/api/partner-portal/requests/:id/files/:index", require
     if (!partnerDocsReady(user, res)) return;
     const index = Number(req.params.index);
     const row = await withTenantTransaction(user.organizationId, (tx) => tx.partnerJobRequest.findFirst({
-      where: { id: String(req.params.id), organizationId: user.organizationId, partnerUserId: user.id },
+      where: { id: String(req.params.id), organizationId: user.organizationId, ...partnerRequestScope(user) },
       select: { files: true },
     }));
     const file = Number.isInteger(index) ? requestFiles(row?.files)[index] : undefined;
@@ -1441,6 +1448,19 @@ partnerPortalRouter.get("/api/partner-portal/requests/:id/files/:index", require
     }
     const stream = await storage.getStream(file.key);
     if (!stream) {
+      res.status(404).json({ success: false, error: "File unavailable." });
+      return;
+    }
+    const w = thumbWidthOf(req.query.w);
+    if (w && /^image\//.test(file.contentType) && !req.query.download) {
+      const small = await imageThumbnail(stream, w).catch(() => null);
+      if (small) {
+        res.setHeader("Cache-Control", "private, max-age=86400");
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        res.setHeader("Content-Type", "image/webp");
+        res.end(small);
+        return;
+      }
       res.status(404).json({ success: false, error: "File unavailable." });
       return;
     }
@@ -1691,7 +1711,23 @@ partnerPortalRouter.get(
           take: 100,
         });
         const jobIds = jobs.map((job) => job.id);
-        if (!jobIds.length) return [];
+        const [requestRows, messageRows] = await Promise.all([
+          tx.partnerJobRequest.findMany({
+            where: { organizationId: user.organizationId, ...partnerRequestScope(user), status: { not: "declined" } },
+            orderBy: { createdAt: "desc" },
+            take: 200,
+            select: { id: true, title: true, address: true, status: true, workOrderId: true, targetWorkOrderId: true, files: true, createdAt: true },
+          }),
+          jobIds.length
+            ? tx.jobPartnerMessage.findMany({
+                where: { organizationId: user.organizationId, workOrderId: { in: jobIds } },
+                orderBy: { createdAt: "desc" },
+                take: 400,
+                select: { id: true, workOrderId: true, side: true, authorName: true, files: true, createdAt: true },
+              })
+            : Promise.resolve([]),
+        ]);
+        if (!jobIds.length && !requestRows.length) return [];
         const [mediaRows, reportRows] = await Promise.all([
           tx.jobMedia.findMany({
             where: { organizationId: user.organizationId, workOrderId: { in: jobIds }, ...PARTNER_MEDIA },
@@ -1738,7 +1774,35 @@ partnerPortalRouter.get(
             job: jobRef(job.id),
             file_url: bcUrl(req, `/api/partner-portal/documents/attachment/${encodeURIComponent(job.id)}/file`),
           }));
-        const documents = [...media, ...reports, ...attachments];
+        const kindOf = (contentType: string) => (/^image\//.test(contentType) ? "photo" : "file");
+        const sent = requestRows.flatMap((row) => {
+          const jobId = row.workOrderId || row.targetWorkOrderId;
+          const job = jobId && jobById.has(jobId) ? jobRef(jobId) : { id: null, title: row.title, number: null, address: row.address };
+          return requestFiles(row.files).map((file, index) => ({
+            id: `req-${row.id}-${index}`,
+            type: kindOf(file.contentType),
+            content_type: file.contentType,
+            title: file.name,
+            created_at: row.createdAt.toISOString(),
+            from: "builder" as const,
+            via: row.status === "pending" ? "Sent · waiting for approval" : "Sent with the job",
+            job,
+            file_url: bcUrl(req, `/api/partner-portal/requests/${encodeURIComponent(row.id)}/files/${index}`),
+          }));
+        });
+        const chat = messageRows.flatMap((m) => messageFiles(m.files).map((file, index) => ({
+          id: `msg-${m.id}-${index}`,
+          type: kindOf(file.contentType),
+          content_type: file.contentType,
+          title: file.name,
+          created_at: m.createdAt.toISOString(),
+          from: m.side === "builder" ? ("builder" as const) : ("company" as const),
+          via: `Message · ${m.authorName}`,
+          job: jobRef(m.workOrderId),
+          file_url: bcUrl(req, `/api/partner-portal/jobs/${encodeURIComponent(m.workOrderId)}/messages/${encodeURIComponent(m.id)}/files/${index}`),
+        })));
+        const fromCompany = <T extends object>(rows: T[]) => rows.map((row) => ({ ...row, from: "company" as const }));
+        const documents = [...fromCompany(media), ...fromCompany(reports), ...fromCompany(attachments), ...sent, ...chat];
         documents.sort((a, b) => b.created_at.localeCompare(a.created_at));
         return documents;
       });

@@ -20,6 +20,7 @@
     jobStage: 'all',
     invoiceFilter: 'open',
     docFilter: 'all',
+    docFrom: 'all',
     docQuery: '',
     calMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
     calDay: dateKey(new Date()),
@@ -854,7 +855,7 @@
     print: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></svg>',
   };
 
-  const thumbUrl = (u, w) => (/\/documents\/media\//.test(u) ? `${u}${u.includes('?') ? '&' : '?'}w=${w}` : u);
+  const thumbUrl = (u, w) => (/\/documents\/media\/|\/requests\/[^/]+\/files\/|\/messages\/[^/]+\/files\//.test(u) ? `${u}${u.includes('?') ? '&' : '?'}w=${w}` : u);
   function photoGrid(photos) {
     const label = { before: 'Before', during: 'During', after: 'After' };
     return `<div class="tk-photos">${photos.slice(0, 9).map((p) => p.type === 'video'
@@ -2597,24 +2598,33 @@
     const q = state.docQuery.trim().toLowerCase();
     const list = state.documents.filter((d) => {
       const type = state.docFilter === 'all' || (state.docFilter === 'photo' ? ['photo', 'video'].includes(d.type) : d.type === state.docFilter);
-      const text = [d.title, d.summary, d.job && d.job.title, d.job && d.job.number, d.job && d.job.address].filter(Boolean).join(' ').toLowerCase();
-      return type && (!q || text.includes(q));
+      const from = !state.docFrom || state.docFrom === 'all' || (d.from || 'company') === state.docFrom;
+      const text = [d.title, d.summary, d.via, d._coName, d.job && d.job.title, d.job && d.job.number, d.job && d.job.address].filter(Boolean).join(' ').toLowerCase();
+      return type && from && (!q || text.includes(q));
     });
     const btn = (key, label) => `<button type="button" data-doc-filter="${key}" aria-pressed="${state.docFilter === key}">${label}</button>`;
+    const fromNow = state.docFrom || 'all';
+    const fbtn = (key, label) => `<button type="button" data-doc-from="${key}" aria-pressed="${fromNow === key}">${label}</button>`;
+    const coOf = (d) => d._coName || providerName();
+    const fromLabel = (d) => ((d.from || 'company') === 'builder' ? (state.builder ? 'Sent by your team' : 'Sent by you') : `From ${coOf(d)}`);
     view.innerHTML = `
-      <div class="pp-head"><div><p class="pp-eyebrow">${state.builder && multiCo() && !state.coFilter ? 'Shared by your companies' : `Shared by ${esc(providerName())}`}</p><h1>Photos & docs</h1></div><span class="pp-muted">${plural(list.length, 'item', 'items')}</span></div>
+      <div class="pp-head"><div><p class="pp-eyebrow">${state.builder && multiCo() && !state.coFilter ? 'Your companies and your team' : `${esc(providerName())} and your team`}</p><h1>Photos & docs</h1></div><span class="pp-muted">${plural(list.length, 'item', 'items')}</span></div>
       <div class="pp-tools">
         <div class="pp-side-search"><label>${icon('search')}<span class="pp-sr">Search documents</span><input id="ppDocSearch" type="search" placeholder="Job or document" value="${esc(state.docQuery)}" /></label></div>
         <div class="pp-filter" role="group" aria-label="Type">${btn('all', 'All')}${btn('photo', 'Photos & videos')}${btn('report', 'Reports')}${btn('file', 'Files')}</div>
+        <div class="pp-filter" role="group" aria-label="Sent by">${fbtn('all', 'Everyone')}${fbtn('company', state.builder && multiCo() && !state.coFilter ? 'From companies' : `From ${esc(providerName())}`)}${fbtn('builder', state.builder ? 'From your team' : 'From you')}</div>
       </div>
       ${list.length ? `<div class="pp-doc-grid">${list.map((d) => {
         const job = d.job || {};
+        const isPdf = d.type === 'report' || /pdf/i.test(d.content_type || '') || /\.pdf$/i.test(d.title || '');
         const prev = d.type === 'photo'
           ? `<a class="pp-doc-prev" href="${esc(d.file_url)}" target="_blank" rel="noopener"><img src="${esc(thumbUrl(d.file_url, 560))}" decoding="async" alt="${esc(d.title)}" loading="lazy" /></a>`
-          : `<div class="pp-doc-prev" aria-hidden="true">${d.type === 'report' ? 'PDF' : d.type === 'video' ? 'VIDEO' : 'FILE'}</div>`;
-        return `<article class="pp-card pp-doc-card">${prev}<div class="pp-doc-body"><span class="pp-lbl">${d.type === 'photo' ? 'Photo' : d.type === 'video' ? 'Video' : d.type === 'report' ? 'Report' : 'File'}${d.created_at ? ` · ${esc(fmtDay(d.created_at))}` : ''}</span><h3>${esc(d.title || 'Document')}</h3><p>${job.id ? `<a class="pp-link" href="#jobs/${encodeURIComponent(job.id)}">${esc(job.title || 'Job')}${job.number ? ` · #${esc(job.number)}` : ''}</a>` : ''}</p>${job.address ? `<p>${esc(job.address)}</p>` : ''}<div class="pp-doc-actions"><a class="pp-btn pp-btn--sec pp-btn--sm" href="${esc(d.file_url)}" target="_blank" rel="noopener">View</a><a class="pp-btn pp-btn--sec pp-btn--sm" href="${esc(d.file_url)}?download=1">Download</a></div></div></article>`;
-      }).join('')}</div>` : `<div class="pp-card pp-empty">${mate(state.documents.length ? 'head-curious' : 'tablet')}<strong>${state.documents.length ? 'Nothing found' : 'Nothing shared yet'}</strong>${state.documents.length ? 'Change the search or the filter.' : 'Only photos, reports and files the company has shared with you appear here. If you expected a file, ask the company to share it.'}</div>`}`;
+          : `<div class="pp-doc-prev" aria-hidden="true">${isPdf ? 'PDF' : d.type === 'video' ? 'VIDEO' : 'FILE'}</div>`;
+        const mine = (d.from || 'company') === 'builder';
+        return `<article class="pp-card pp-doc-card${mine ? ' is-mine' : ''}">${prev}<div class="pp-doc-body"><span class="pp-doc-from ${mine ? 'is-mine' : ''}">${esc(fromLabel(d))}</span><span class="pp-lbl">${d.type === 'photo' ? 'Photo' : d.type === 'video' ? 'Video' : d.type === 'report' ? 'Report' : 'File'}${d.created_at ? ` · ${esc(fmtDay(d.created_at))}` : ''}${d.via ? ` · ${esc(d.via)}` : ''}</span><h3>${esc(d.title || 'Document')}</h3><p>${job.id ? `<a class="pp-link" href="#jobs/${encodeURIComponent(job.id)}">${esc(job.title || 'Job')}${job.number ? ` · #${esc(job.number)}` : ''}</a>` : job.title ? esc(job.title) : ''}</p>${job.address ? `<p>${esc(job.address)}</p>` : ''}<div class="pp-doc-actions"><a class="pp-btn pp-btn--sec pp-btn--sm" href="${esc(d.file_url)}" target="_blank" rel="noopener">View</a><a class="pp-btn pp-btn--sec pp-btn--sm" href="${esc(d.file_url)}?download=1">Download</a></div></div></article>`;
+      }).join('')}</div>` : `<div class="pp-card pp-empty">${mate(state.documents.length ? 'head-curious' : 'tablet')}<strong>${state.documents.length ? 'Nothing found' : 'Nothing shared yet'}</strong>${state.documents.length ? 'Change the search or the filter.' : 'Photos, reports and files from the company, and the files your team sent with jobs or in messages, appear here.'}</div>`}`;
     view.querySelectorAll('[data-doc-filter]').forEach((b) => b.addEventListener('click', () => { state.docFilter = b.getAttribute('data-doc-filter'); render(); }));
+    view.querySelectorAll('[data-doc-from]').forEach((b) => b.addEventListener('click', () => { state.docFrom = b.getAttribute('data-doc-from'); render(); }));
     const s = $('ppDocSearch');
     s.addEventListener('input', () => { state.docQuery = s.value; const pos = s.selectionStart; render().then(() => { const x = $('ppDocSearch'); if (x) { x.focus(); x.setSelectionRange(pos, pos); } }); });
   }

@@ -139,6 +139,8 @@ export async function sendMessageFile(
   res: import("express").Response,
   next: import("express").NextFunction,
   organizationId: string, workOrderId: string, messageId: string, index: number, download: boolean,
+  /** images only: a WebP this many px wide (thumbnails in lists) */
+  thumbWidth?: number,
 ): Promise<void> {
   const row = await withTenantTransaction(organizationId, (tx) => tx.jobPartnerMessage.findFirst({ where: { id: messageId, organizationId, workOrderId }, select: { files: true } }));
   const f = row && Number.isInteger(index) ? messageFiles(row.files)[index] : undefined;
@@ -147,10 +149,42 @@ export async function sendMessageFile(
     res.status(404).json({ success: false, error: "File not found." });
     return;
   }
+  if (thumbWidth && /^image\//.test(f.contentType) && !download) {
+    const small = await imageThumbnail(stream, thumbWidth).catch(() => null);
+    if (small) {
+      res.setHeader("Cache-Control", "private, max-age=86400");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Content-Type", "image/webp");
+      res.end(small);
+      return;
+    }
+    const again = await storage.getStream(f.key);
+    if (!again) { res.status(404).json({ success: false, error: "File not found." }); return; }
+    res.setHeader("Cache-Control", "private, no-store");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Content-Type", f.contentType);
+    again.on("error", next);
+    again.pipe(res);
+    return;
+  }
   res.setHeader("Cache-Control", "private, no-store");
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Content-Type", f.contentType);
   res.setHeader("Content-Disposition", `${download ? "attachment" : "inline"}; filename="${safeName(f.name, "file")}"`);
   stream.on("error", next);
   stream.pipe(res);
+}
+
+/** A photo resized to `width` px (WebP), for thumbnails. */
+export async function imageThumbnail(stream: NodeJS.ReadableStream, width: number): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as unknown as Uint8Array));
+  const sharp = (await import("sharp")).default;
+  return sharp(Buffer.concat(chunks)).rotate().resize({ width, withoutEnlargement: true }).webp({ quality: 78 }).toBuffer();
+}
+
+/** `?w=` on a file URL → a thumbnail width (120–1200 px), else undefined. */
+export function thumbWidthOf(value: unknown): number | undefined {
+  const w = Number(value);
+  return Number.isFinite(w) && w > 0 ? Math.max(120, Math.min(1200, Math.round(w))) : undefined;
 }
