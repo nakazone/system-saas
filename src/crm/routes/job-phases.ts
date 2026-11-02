@@ -14,7 +14,7 @@ import { requireCrmAuth } from "../http.js";
 import { withTenantTransaction, type TenantPrisma } from "../../lib/tenant/prisma-tenant.js";
 import { myJobAccessWhere } from "../lib/campo-shared.js";
 import { primaryPack, type TradePack } from "../../lib/trades/index.js";
-import { readJobPhases } from "../../lib/trades/job-phases.js";
+import { asEvidence, readJobPhases, type JobPhaseRow } from "../../lib/trades/job-phases.js";
 import { addPhaseEvidence, closeJobPhase, ensureJobPhases, listJobPhases } from "../../lib/trades/job-phases-db.js";
 
 export const jobPhasesRouter = Router();
@@ -55,14 +55,29 @@ async function phasesState(tx: TenantPrisma, req: AuthedRequest, jobId: string) 
   const pack = await packOf(tx, req.organizationId!);
   if (pack.phaseStorage === "table") await ensureJobPhases(tx, req.organizationId!, jobId, pack);
   const rows = pack.phaseStorage === "table" ? await listJobPhases(tx, jobId) : [];
+  const rowByKey = new Map(rows.map((r) => [r.phaseKey, r]));
+  const evidenceOf = (key: string) => asEvidence(rowByKey.get(key)?.evidence);
+  // Photos attached as evidence (ObraCam), shown as thumbnails on the job page.
+  const mediaIds = [...new Set(rows.flatMap((r) => Object.values(asEvidence(r.evidence)).map((e) => e.mediaId).filter((id): id is string => Boolean(id))))];
+  const media = mediaIds.length
+    ? new Map(
+        (await tx.jobMedia.findMany({ where: { id: { in: mediaIds }, workOrderId: jobId, deletedAt: null }, select: { id: true, url: true, thumbUrl: true } })).map((m) => [
+          m.id,
+          { id: m.id, url: m.url, thumb_url: m.thumbUrl || m.url },
+        ]),
+      )
+    : new Map<string, { id: string; url: string; thumb_url: string }>();
   // Team screens are written in pt-BR and translated in the browser; English labels go along too.
   const locale = "pt-BR" as const;
   return {
     trade: pack.id,
     storage: pack.phaseStorage,
     status: job.status,
+    can_force: perms(req).manage,
     phases: readJobPhases(pack, job, rows, locale).map((v) => {
       const def = pack.phases.find((d) => d.key === v.key);
+      const row = rowByKey.get(v.key) as (JobPhaseRow & { doneByName?: string | null }) | undefined;
+      const ev = evidenceOf(v.key);
       return {
         key: v.key,
         label: v.label,
@@ -71,8 +86,22 @@ async function phasesState(tx: TenantPrisma, req: AuthedRequest, jobId: string) 
         scheduled_start: v.scheduledStart?.toISOString() ?? null,
         ready_at: v.readyAt?.toISOString() ?? null,
         done_at: v.doneAt?.toISOString() ?? null,
+        done_by_name: row?.doneByName ?? null,
         wait_after_hours: def?.waitAfterHours ?? 0,
-        requires: (def?.requires ?? []).map((r) => ({ key: r.key, kind: r.kind, label: r.label[locale], label_en: r.label["en-US"], done: !v.missing.includes(r.key) || v.status === "done" })),
+        requires: (def?.requires ?? []).map((r) => {
+          const e = ev[r.key];
+          return {
+            key: r.key,
+            kind: r.kind,
+            label: r.label[locale],
+            label_en: r.label["en-US"],
+            done: Boolean(e) || v.status === "done",
+            value: e?.value ?? null,
+            at: e?.at ?? null,
+            by: e?.by ?? null,
+            photo: e?.mediaId ? media.get(e.mediaId) ?? null : null,
+          };
+        }),
       };
     }),
   };
@@ -138,6 +167,7 @@ const COMPLETE_MESSAGES: Record<string, string> = {
   previous_open: "Conclua a fase anterior primeiro.",
   waiting: "Ainda em tempo de cura da fase anterior.",
   missing_evidence: "Faltam provas para concluir esta fase.",
+  failed_test: "O teste falhou. Corrija e registre o teste de novo.",
   already_done: "Esta fase já foi concluída.",
   unknown_phase: "Fase não encontrada.",
 };

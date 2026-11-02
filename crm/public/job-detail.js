@@ -2,7 +2,8 @@
  * Job page (desktop + tablet). Phones use the job-detail-mobile.js overlay.
  *
  * Header (status, client, address, dates, main action) + progress steps, then tabs:
- * Visão geral · Serviços e faturas · Fotos · Campo · Conversa. Tab data loads on demand.
+ * Visão geral · Fases (trades with per-job phases) · Serviços e faturas · Fotos · Campo · Stain
+ * (hardwood) · Conversa. Tab data loads on demand.
  */
 (function () {
   const STATUS = {
@@ -14,7 +15,7 @@
   };
   const SOURCE = { particular: "Particular", builder: "Builder", contractor: "Builder", loja: "Builder", internal: "Interno", other: "Outro" };
   const STAGE = { before: "Antes", during: "Durante", after: "Depois" };
-  const TABS = ["geral", "servicos", "fotos", "campo", "stain", "conversa", "builder"];
+  const TABS = ["geral", "fases", "servicos", "fotos", "campo", "stain", "conversa", "builder"];
 
   let jobId = null;
   let job = null;
@@ -979,8 +980,15 @@
   }
 
   // ---------------------------------------------------------------- tabs
+  /** Tabs this company's trade does not use (Fases: per-job phases; Stain: hardwood only). */
+  function tabOff(t) {
+    if (t === "fases") return !(window.JobPhases && window.JobPhases.available());
+    if (t === "stain") return Boolean(window.__OM_TRADE && window.__OM_TRADE.id && window.__OM_TRADE.id !== "hardwood");
+    return false;
+  }
+
   function setTab(next, opts) {
-    tab = TABS.includes(next) ? next : "geral";
+    tab = TABS.includes(next) && !tabOff(next) ? next : "geral";
     document.querySelectorAll("#jdTabs [data-tab]").forEach((b) => {
       const on = b.getAttribute("data-tab") === tab;
       b.classList.toggle("is-on", on);
@@ -1007,6 +1015,10 @@
         $("jdField").innerHTML = '<div class="jd-card"><p class="jd-empty">A carregar…</p></div>';
         loadField().then(renderField);
       } else renderField();
+    }
+    if (tab === "fases" && window.JobPhases) {
+      // Closing the last phase completes the job: refresh the header and steps.
+      window.JobPhases.mount($("jdPhases"), { jobId, notify, address: job?.address || null, onChange: (d) => d && job && d.status !== job.status && loadJob().catch(() => {}) });
     }
     if (tab === "stain" && window.JobStain) {
       window.JobStain.mount($("jdStain"), { jobId, notify });
@@ -1094,8 +1106,9 @@
     });
     $("jdTabs").addEventListener("keydown", (e) => {
       if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
-      const i = TABS.indexOf(tab) + (e.key === "ArrowRight" ? 1 : -1);
-      const next = TABS[(i + TABS.length) % TABS.length];
+      const on = TABS.filter((t) => !document.querySelector(`#jdTabs [data-tab="${t}"]`)?.hidden);
+      const i = on.indexOf(tab) + (e.key === "ArrowRight" ? 1 : -1);
+      const next = on[(i + on.length) % on.length];
       setTab(next);
       document.querySelector(`#jdTabs [data-tab="${next}"]`)?.focus();
     });
@@ -1459,7 +1472,12 @@
       const bTab = document.querySelector('#jdTabs [data-tab="builder"]');
       if (bTab) bTab.hidden = !hasPartnerPortal();
       if (hasPartnerPortal() && window.JobBuilderChannel) window.JobBuilderChannel.count(jobId);
-      if (window.JobStain) window.JobStain.summary(jobId);
+      ["fases", "stain"].forEach((t) => {
+        const b = document.querySelector(`#jdTabs [data-tab="${t}"]`);
+        if (b) b.hidden = tabOff(t);
+      });
+      if (window.JobStain && !tabOff("stain")) window.JobStain.summary(jobId);
+      if (window.JobPhases && !tabOff("fases")) window.JobPhases.summary(jobId);
       const want = (location.hash || "").replace("#", "");
       setTab(want === "builder" && !hasPartnerPortal() ? "geral" : want || "geral", { silent: true });
 

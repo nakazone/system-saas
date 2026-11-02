@@ -117,6 +117,7 @@ describe("phases reach the browser", () => {
         { key: "sand_finish", label: { "pt-BR": "Lixa", "en-US": "Sand & Finish" } },
       ],
       combined: "both",
+      phaseStorage: "columns",
       quote: {
         tagline: "Hardwood · LVP · Refinishing",
         sections: [

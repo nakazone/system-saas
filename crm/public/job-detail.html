@@ -123,6 +123,7 @@
 
         <div class="jcm-seg">
           <button type="button" class="jcm-seg__btn is-active" data-jd-tab="visitas">Visitas</button>
+          <button type="button" class="jcm-seg__btn" data-jd-tab="fases" hidden>Fases</button>
           <button type="button" class="jcm-seg__btn" data-jd-tab="checklist">Checklist</button>
           <button type="button" class="jcm-seg__btn" data-jd-tab="fotos">Fotos</button>
           <button type="button" class="jcm-seg__btn" data-jd-tab="stain">Stain</button>
@@ -184,6 +185,7 @@
 
         <nav class="jd-tabs" id="jdTabs" role="tablist" aria-label="Seções do job">
           <button type="button" role="tab" data-tab="geral" class="is-on" aria-selected="true">Visão geral</button>
+          <button type="button" role="tab" data-tab="fases" aria-selected="false" hidden>Fases <em id="jdTabFases" translate="no"></em></button>
           <button type="button" role="tab" data-tab="servicos" aria-selected="false">Serviços e faturas</button>
           <button type="button" role="tab" data-tab="fotos" aria-selected="false">Fotos <em id="jdTabFotos"></em></button>
           <button type="button" role="tab" data-tab="campo" aria-selected="false">Campo <em id="jdTabCampo"></em></button>
@@ -289,6 +291,11 @@
           <div id="jdField"></div>
         </section>
 
+        <!-- Fases: as fases do job do ofício (Tile), com provas e esperas de cura -->
+        <section class="jd-panel" data-panel="fases" role="tabpanel" hidden>
+          <div id="jdPhases"></div>
+        </section>
+
         <!-- Stain: samples, cor aprovada e assinada, histórico -->
         <section class="jd-panel" data-panel="stain" role="tabpanel" hidden>
           <div id="jdStain"></div>
@@ -327,7 +334,8 @@
   <script src="cam-viewer.js?v=20261009-cam1"></script>
   <script src="job-builder-channel.js?v=20261030-ch1"></script>
   <script src="job-stain.js?v=20261030-stain1"></script>
-  <script src="job-detail.js?v=20261102-sandid1"></script>
-  <script src="job-detail-mobile.js?v=20261102-sandid1"></script>
+  <script src="job-phases.js?v=20261102-fases1"></script>
+  <script src="job-detail.js?v=20261102-fases1"></script>
+  <script src="job-detail-mobile.js?v=20261102-fases1"></script>
 </body>
 </html>

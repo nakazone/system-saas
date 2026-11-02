@@ -567,6 +567,12 @@
         btn.hidden = !checklistEnabled;
         if (!checklistEnabled && detTab === "checklist") detTab = "visitas";
       }
+      // Fases: trades with per-job phases (Tile). Stain: hardwood only.
+      if (key === "fases" || key === "stain") {
+        const off = key === "fases" ? !(window.JobPhases && window.JobPhases.available()) : Boolean(window.__OM_TRADE && window.__OM_TRADE.id && window.__OM_TRADE.id !== "hardwood");
+        btn.hidden = off;
+        if (off && detTab === key) detTab = "visitas";
+      }
       btn.classList.toggle("is-active", key === detTab);
     });
     $("jobMobVisitas").hidden = detTab !== "visitas";
@@ -636,6 +642,9 @@
         .catch((e) => {
           if (detTab === "checklist") $("jobMobExtra").innerHTML = `<p class="jcm-empty">${escapeHtml(e.message || "Erro")}</p>`;
         });
+    } else if (detTab === "fases") {
+      restoreVisitCta();
+      window.JobPhases.mount($("jobMobExtra"), { jobId: wo.id, compact: true, address: wo.address || null, notify: (m, t) => (t === "error" ? window.crmToast?.error?.(m) : window.crmToast?.success?.(m)) });
     } else if (detTab === "stain") {
       cta.textContent = "Samples de stain";
       cta.className = "jcm-foot__btn jcm-foot__btn--primary";

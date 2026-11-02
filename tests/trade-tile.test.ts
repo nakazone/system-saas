@@ -87,6 +87,7 @@ describe("Tile pack", () => {
     expect(t.id).toBe("tile");
     expect(t.phases).toBeUndefined();
     expect(t.combined).toBeUndefined();
+    expect(t.phaseStorage).toBe("table");
     expect(t.jobPhases.map((p: { key: string }) => p.key)).toEqual(tile.phases.map((p) => p.key));
     expect(t.takeoff.measuredKinds).toEqual(["tile", "stone"]);
     expect(t.quote.sections.map((s: { key: string }) => s.key)).toEqual(["supply", "prep", "installation", "showers", "add_on"]);
@@ -94,6 +95,7 @@ describe("Tile pack", () => {
     const h = boot(["hardwood"]);
     expect(h.phases.map((p: { key: string }) => p.key)).toEqual(["installation", "sand_finish"]);
     expect(h.combined).toBe("both");
+    expect(h.phaseStorage).toBe("columns");
     expect(h.jobPhases.map((p: { key: string }) => p.key)).toEqual(["installation", "sand_finish"]);
   });
 
@@ -207,8 +209,20 @@ describe.skipIf(!privileged)("Job phases API — a Tile company and a Hardwood c
     const flood = wp.json.data.phases.find((p: any) => p.key === "flood_test");
     expect(new Date(flood.ready_at).getTime()).toBeGreaterThan(Date.now() + 23 * 3600_000);
 
-    await call("tile", "POST", `/api/work-orders/${job}/phases/flood_test/evidence/flood_result`, { value: { depth_in: 2, hours: 24, passed: true } });
+    // A leaking flood test blocks the phase, even for the office skipping the wait.
+    await call("tile", "POST", `/api/work-orders/${job}/phases/flood_test/evidence/flood_result`, { value: { depth_in: 2, hours: 24, passed: false } });
     await call("tile", "POST", `/api/work-orders/${job}/phases/flood_test/evidence/water_line_photo`, { value: "photo" });
+    const leaked = await call("tile", "POST", `/api/work-orders/${job}/phases/flood_test/complete`, { force: true });
+    expect(leaked.status).toBe(409);
+    expect(leaked.json.code).toBe("failed_test");
+
+    const redone = await call("tile", "POST", `/api/work-orders/${job}/phases/flood_test/evidence/flood_result`, { value: { depth_in: 2, hours: 24, passed: true } });
+    // The job page gets the recorded proofs, who recorded them, and whether it may skip the wait.
+    expect(redone.json.data.can_force).toBe(true);
+    const fr = redone.json.data.phases.find((p: any) => p.key === "flood_test").requires.find((r: any) => r.key === "flood_result");
+    expect(fr).toMatchObject({ done: true, value: { depth_in: 2, hours: 24, passed: true }, photo: null });
+    expect(typeof fr.at).toBe("string");
+    expect(redone.json.data.phases.find((p: any) => p.key === "prep").done_by_name).toBeTruthy();
     const waiting = await call("tile", "POST", `/api/work-orders/${job}/phases/flood_test/complete`);
     expect(waiting.status).toBe(409);
     expect(waiting.json.code).toBe("waiting");

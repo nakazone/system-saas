@@ -51,7 +51,7 @@ type Locale = keyof PhaseDef["label"];
 export type EvidenceEntry = { at: string; by?: string | null; value?: unknown; mediaId?: string | null };
 export type Evidence = Record<string, EvidenceEntry>;
 
-function asEvidence(raw: unknown): Evidence {
+export function asEvidence(raw: unknown): Evidence {
   return raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Evidence) : {};
 }
 
@@ -148,7 +148,8 @@ export type CompleteError =
   | { error: "already_done" }
   | { error: "previous_open"; phase: string }
   | { error: "waiting"; until: Date }
-  | { error: "missing_evidence"; missing: string[] };
+  | { error: "missing_evidence"; missing: string[] }
+  | { error: "failed_test"; failed: string[] };
 
 export type CompleteResult =
   | {
@@ -165,7 +166,7 @@ export type CompleteResult =
 /**
  * Close a phase of a "table" pack job. Rules, in order:
  * the previous phases are done or skipped; the previous phase's wait has passed (readyAt);
- * every requirement of this phase has evidence. `force` skips the wait (office override), never
+ * every requirement of this phase has evidence and no test is recorded as failed. `force` skips the wait (office override), never
  * the order or the evidence.
  */
 export function completePhase(
@@ -188,6 +189,11 @@ export function completePhase(
   }
   const missing = missingFor(def, asEvidence(row.evidence));
   if (missing.length) return { ok: false, error: "missing_evidence", missing };
+  // A test recorded as failed (flood test leaked) blocks the phase until it is redone.
+  const failedKeys = Object.entries(asEvidence(row.evidence))
+    .filter(([, e]) => e && typeof e.value === "object" && e.value !== null && (e.value as { passed?: unknown }).passed === false)
+    .map(([k]) => k);
+  if (failedKeys.length) return { ok: false, error: "failed_test", failed: failedKeys };
 
   const nextRow = ordered.slice(idx + 1).find((r) => r.status !== "skipped");
   const waitH = def.waitAfterHours ?? 0;

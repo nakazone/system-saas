@@ -15,6 +15,8 @@ export function tradeInject(tradePacks: unknown): string {
     ...(pack.phaseStorage === "columns"
       ? { phases: pack.phases.map((p) => ({ key: p.key, label: p.label })), combined: pack.combinedPhaseKey }
       : {}),
+    // "table": the job page shows the Fases tab (JobPhase rows); "columns": phases follow the job status.
+    phaseStorage: pack.phaseStorage,
     // Every pack: the job's phases in order, with waits and required evidence (for the job screen).
     jobPhases: pack.phases.map((p) => ({
       key: p.key,
