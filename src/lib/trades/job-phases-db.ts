@@ -4,6 +4,7 @@
  * tenant Prisma extension scope every read and write to the company.
  */
 import type { Prisma } from "@prisma/client";
+import type { TenantPrisma } from "../tenant/prisma-tenant.js";
 import {
   completePhase,
   planJobPhases,
@@ -14,7 +15,7 @@ import {
 } from "./job-phases.js";
 import type { TradePack } from "./types.js";
 
-type Tx = Prisma.TransactionClient;
+type Tx = TenantPrisma;
 
 /** Create the phase rows of a job once (no-op for "columns" packs or when they already exist). */
 export async function ensureJobPhases(tx: Tx, organizationId: string, workOrderId: string, pack: TradePack): Promise<number> {

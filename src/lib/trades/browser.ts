@@ -10,8 +10,18 @@ export function tradeInject(tradePacks: unknown): string {
   const pack = primaryPack(tradePacks);
   const boot = JSON.stringify({
     id: pack.id,
-    phases: pack.phases.map((p) => ({ key: p.key, label: p.label })),
-    combined: pack.combinedPhaseKey,
+    // Payroll / field-app sectors: only packs whose phases live on the WorkOrder columns (Hardwood).
+    // Other packs get the Hardwood sectors' fallback in the browser until their payroll is defined.
+    ...(pack.phaseStorage === "columns"
+      ? { phases: pack.phases.map((p) => ({ key: p.key, label: p.label })), combined: pack.combinedPhaseKey }
+      : {}),
+    // Every pack: the job's phases in order, with waits and required evidence (for the job screen).
+    jobPhases: pack.phases.map((p) => ({
+      key: p.key,
+      label: p.label,
+      waitAfterHours: p.waitAfterHours ?? 0,
+      requires: (p.requires ?? []).map((r) => ({ key: r.key, kind: r.kind, label: r.label })),
+    })),
     quote: { tagline: pack.quote.tagline, sections: pack.quote.sections.map((s) => ({ key: s.key, label: s.label })) },
     takeoff: {
       measuredKinds: pack.takeoff.measuredKinds,

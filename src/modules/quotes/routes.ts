@@ -886,6 +886,7 @@ quotesRouter.get(
       const total = Number(quote.total);
       const scheduleItems = pdfPaymentItemsFromSchedule(total, quote.paymentSchedule?.items);
       const pdf = await buildQuotePdf({
+        tradePacks: docOrg.tradePacks,
         organizationName: req.organization!.name,
         organizationContact: [req.organization!.contactPhone, req.organization!.contactEmail]
           .filter(Boolean)

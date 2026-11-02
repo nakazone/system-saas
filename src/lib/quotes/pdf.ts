@@ -8,7 +8,7 @@ import {
   DEFAULT_QUOTE_INCLUSIONS,
   resolveQuoteTermsItems,
 } from "./client-document.js";
-import { getPack } from "../trades/index.js";
+import { getPack, primaryPack, type TradePack } from "../trades/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -274,6 +274,8 @@ export type QuotePdfPaymentItem = {
 };
 
 export type QuotePdfInput = {
+  /** Organization.tradePacks; picks the quote sections and default tagline (Hardwood when missing). */
+  tradePacks?: unknown;
   organizationName: string;
   organizationContact?: string | null;
   organizationAddress?: string | null;
@@ -404,7 +406,12 @@ function lineSection(it: QuotePdfLine): SectionKey {
   return "installation";
 }
 
-export function groupItemsForPdf(items: QuotePdfLine[]) {
+/**
+ * Customer-facing sections for the quote lines. Hardwood (no `quote.match` in its pack) keeps the
+ * original classifier below unchanged; other packs sort lines with their own words.
+ */
+export function groupItemsForPdf(items: QuotePdfLine[], pack: TradePack = getPack()) {
+  if (pack.quote.match) return groupByPackWords(Array.isArray(items) ? items : [], pack);
   const list = Array.isArray(items) ? items : [];
   const buckets: Record<SectionKey, QuotePdfLine[]> = {
     supply: [],
@@ -427,6 +434,39 @@ export function groupItemsForPdf(items: QuotePdfLine[]) {
     items: buckets[d.key],
     sectionTotal: buckets[d.key].reduce((s, it) => s + (Number(it.amount) || 0), 0),
   }));
+}
+
+function groupByPackWords(list: QuotePdfLine[], pack: TradePack) {
+  const sections = pack.quote.sections;
+  const fallback = pack.quote.fallbackSection || sections[0]?.key || "installation";
+  const has = (k: string) => sections.some((d) => d.key === k);
+  const buckets = new Map<string, QuotePdfLine[]>(sections.map((d) => [d.key, []]));
+  for (const it of list) {
+    let key = String(it.itemType || "").toLowerCase() === "product" && has("supply") ? "supply" : "";
+    if (!key) {
+      // The service name decides first, then its type, then the description ("Tile demo" whose
+      // description says "shower walls" is still prep).
+      for (const field of [it.name, it.serviceType, it.description]) {
+        const text = String(field || "").toLowerCase();
+        if (!text) continue;
+        const hit = pack.quote.match!.find((r) => has(r.section) && r.words.some((w) => text.includes(w)));
+        if (hit) {
+          key = hit.section;
+          break;
+        }
+      }
+      key = key || fallback;
+    }
+    (buckets.get(key) ?? buckets.get(fallback)!).push(it);
+  }
+  return sections
+    .filter((d) => (buckets.get(d.key) || []).length > 0)
+    .map((d) => ({
+      label: d.label,
+      key: d.key,
+      items: buckets.get(d.key)!,
+      sectionTotal: buckets.get(d.key)!.reduce((sum, it) => sum + (Number(it.amount) || 0), 0),
+    }));
 }
 
 /** Map payment schedule rows into PDF payment lines (amounts from percent of total when needed). */
@@ -614,6 +654,8 @@ function termsToItems(terms: string | null | undefined): string[] {
 }
 
 export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
+  /** The company's trade pack decides the sections and the default tagline (Hardwood when unknown). */
+  const pack = primaryPack(input.tradePacks);
   const PAL = resolvePalette(input);
   const systemLogoBuf = loadSystemLogoBuffer();
   const tenantLogoBuf = await loadLogoBuffer(input.organizationLogoUrl);
@@ -779,7 +821,7 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
     doc.fillColor(PAL.primary).font("Helvetica-Bold").fontSize(18);
     doc.text(input.organizationName, textX, y + 2, { lineBreak: false });
     doc.fillColor(PAL.muted).font("Helvetica").fontSize(8);
-    doc.text(input.organizationTagline || DEFAULT_TAGLINE, textX, y + 24, { lineBreak: false });
+    doc.text(input.organizationTagline || pack.quote.tagline || DEFAULT_TAGLINE, textX, y + 24, { lineBreak: false });
     const contactBits = [
       input.organizationContact,
       input.organizationLicense,
@@ -913,7 +955,7 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
       y = headTop + headH + 8;
     };
 
-    const sections = groupItemsForPdf(mainLines);
+    const sections = groupItemsForPdf(mainLines, pack);
     if (!sections.length) {
       doc.fillColor(PAL.muted).font("Helvetica").fontSize(9);
       doc.text("No line items.", margin, y);

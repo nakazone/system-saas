@@ -654,6 +654,7 @@ publicQuotesRouter.get("/quotes/:token/pdf", async (req, res, next) => {
     const scheduleItems = pdfPaymentItemsFromSchedule(total, quote.paymentSchedule?.items);
     const publicQuoteUrl = `${req.protocol}://${req.get("host")}/public/quotes/${token}`;
     const pdf = await buildQuotePdf({
+      tradePacks: org.tradePacks,
       organizationName: org.name,
       organizationContact: [org.contactPhone, org.contactEmail].filter(Boolean).join(" · "),
       organizationAddress: documentAddressLine(org as never),

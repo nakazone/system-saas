@@ -977,7 +977,9 @@ partnerPortalRouter.post("/api/partner-portal/requests/read", requirePartnerAuth
       select: { id: true, name: true, unit: true, category: true, priceBuilder: true, partnerPrice: true, price: true },
       take: 200,
     }));
-    const read = await readWorkOrder({ files, text: parsed.data.text, catalog });
+    // Read it the way the receiving company's trade reads work orders (tile vs hardwood…).
+    const org = await prisma.organization.findUnique({ where: { id: user.organizationId }, select: { tradePacks: true } });
+    const read = await readWorkOrder({ files, text: parsed.data.text, catalog, trades: org?.tradePacks });
     if (!read.ok) {
       res.status(422).json({ success: false, error: read.error, code: "read_failed" });
       return;

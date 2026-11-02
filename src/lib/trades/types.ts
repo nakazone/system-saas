@@ -10,7 +10,7 @@
  * The full design (measurement models, evidence, waste engines…) lives in labs/trades/.
  */
 
-export const TRADE_IDS = ["hardwood"] as const;
+export const TRADE_IDS = ["hardwood", "tile"] as const;
 export type TradeId = (typeof TRADE_IDS)[number];
 
 /** A default Tabela de Valores row. Rates always start at 0. */
@@ -72,6 +72,14 @@ export type TradePack = {
     /** Default PDF tagline under the company name. */
     tagline: string;
     sections: readonly QuoteSectionDef[];
+    /**
+     * How lines are sorted into sections: the line's name is checked against the rules first, then
+     * its service type, then its description; the first rule with a matching word wins and the
+     * rest go to `fallbackSection`. Hardwood leaves this out and
+     * keeps the original classifier in src/lib/quotes/pdf.ts.
+     */
+    match?: readonly { section: string; words: readonly string[] }[];
+    fallbackSection?: string;
   };
   /**
    * Job phases. The first is the default phase; `combinedKey` is the value a job uses when

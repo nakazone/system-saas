@@ -107,7 +107,8 @@ describe("phases reach the browser", () => {
     const { tradeInject } = await import("../src/lib/trades/browser.js");
     const tag = tradeInject(["hardwood"]);
     const json = tag.replace(/^<script>window\.__OM_TRADE=/, "").replace(/<\/script>$/, "");
-    const { takeoff, ...boot } = JSON.parse(json);
+    const { takeoff, jobPhases, ...boot } = JSON.parse(json);
+    expect(jobPhases.map((p: { key: string }) => p.key)).toEqual(["installation", "sand_finish"]);
     expect(Object.keys(takeoff)).toEqual(["measuredKinds", "specFields", "specLabels", "specSuggestions"]);
     expect(boot).toEqual({
       id: "hardwood",

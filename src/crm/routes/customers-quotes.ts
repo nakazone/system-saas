@@ -303,6 +303,7 @@ async function quotePdfInputForCrm(organizationId: string, quoteId: string) {
   const scheduleItems = pdfPaymentItemsFromSchedule(total, quote.paymentSchedule?.items);
   const depositAmount = scheduleItems[0]?.amount ?? null;
   const input: Parameters<typeof buildQuotePdf>[0] = {
+    tradePacks: org.tradePacks,
     organizationName: org.name,
     organizationContact: [org.contactPhone, org.contactEmail].filter(Boolean).join(" · "),
     organizationAddress: documentAddressLine({

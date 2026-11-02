@@ -109,7 +109,7 @@ function readColumnPhases(pack: TradePack, job: ColumnsJob, locale: Locale): Pha
     }
     if (!openSeen) {
       openSeen = true;
-      v.status = job.status === "in_progress" ? "in_progress" : v.scheduledStart ? "scheduled" : "pending";
+      v.status = job.status === "in_progress" ? "in_progress" : job.status === "scheduled" || v.scheduledStart ? "scheduled" : "pending";
     } else {
       v.status = v.scheduledStart ? "scheduled" : "pending";
     }

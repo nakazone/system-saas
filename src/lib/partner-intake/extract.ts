@@ -7,7 +7,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { aiChatJson, isAiConfigured } from "../ai/client.js";
 import { zoomStrips } from "./zoom.js";
-import { getPack } from "../trades/index.js";
+import { primaryPack } from "../trades/index.js";
 
 /** Lines as the builder confirmed them in the portal (sent with the request). */
 export const intakeItemSchema = z.object({
@@ -91,8 +91,11 @@ export type IntakeResult = {
 
 export type StairFlightSpec = { width: number; returns: "double" | "left" | "right" | "none"; treads: number; risers: number; species: string };
 
-/** The work order reading prompt comes from the trade pack (hardwood: flooring WOs, stairs, sand & finish). */
-const SYSTEM_PROMPT = getPack().ai.workOrderPrompt;
+/**
+ * The work order reading prompt comes from the receiving company's trade pack
+ * (hardwood: flooring WOs, stairs, sand & finish; tile: showers, niches, trims). Default: Hardwood.
+ */
+const systemPromptFor = (trades?: unknown) => primaryPack(trades).ai.workOrderPrompt;
 
 const MAX = { title: 160, address: 300, notes: 5000, contact_email: 254, contact_phone: 40, contact_name: 120, service_type: 100 } as const;
 
@@ -741,7 +744,7 @@ export const WORK_ORDER_DEFAULT_MODEL = "gpt-6-sol";
 const READ_VERSION = "2026-10-29b";
 const READ_CACHE = new Map<string, { at: number; result: IntakeResult; model: string }>();
 
-export async function readWorkOrder(input: { files: IntakeFile[]; text?: string; today?: Date; catalog?: CatalogItem[] }):
+export async function readWorkOrder(input: { files: IntakeFile[]; text?: string; today?: Date; catalog?: CatalogItem[]; trades?: unknown }):
   Promise<{ ok: true; result: IntakeResult; model: string } | { ok: false; error: string }> {
   const images = input.files.filter((f) => f.contentType.startsWith("image/")).map((f) => f.dataUrl);
   const pdfs = input.files.filter((f) => f.contentType === "application/pdf").map((f) => ({ filename: f.name, dataUrl: f.dataUrl }));
@@ -772,7 +775,7 @@ export async function readWorkOrder(input: { files: IntakeFile[]; text?: string;
     ? `${user}\n\nThe first image${images.length > 1 ? "s are the whole pages" : " is the whole page"}; the next ${strips.length} images are the same page${images.length > 1 ? "s" : ""} cut into overlapping strips from top to bottom and enlarged so the small print is readable. Read every number and word from the strips (they are sharper). A line can appear in two strips where they overlap: count it once.`
     : user;
   const call = (model?: string, timeoutMs = 60_000) => aiChatJson({
-    system: SYSTEM_PROMPT, user: userWithStrips, imageUrls: [...images, ...strips], files: pdfs, timeoutMs,
+    system: systemPromptFor(input.trades), user: userWithStrips, imageUrls: [...images, ...strips], files: pdfs, timeoutMs,
     // reading, not puzzling: a reasoning model answers in seconds at low effort
     reasoningEffort: "low",
     // read the images at full resolution, and the same way every time

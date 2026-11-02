@@ -1,17 +1,18 @@
 /**
  * Trade Pack registry. Code that used to hardcode flooring values asks the registry instead.
- * Phase 0: every organization runs the Hardwood pack, so nothing changes for users.
+ * Every organization runs Hardwood unless the platform sets its tradePacks (e.g. ["tile"]).
  */
 import type { PackService, PhaseDef, TradeId, TradePack } from "./types.js";
 import { TRADE_IDS } from "./types.js";
 import { hardwood } from "./packs/hardwood/index.js";
+import { tile } from "./packs/tile/index.js";
 
 export type { PackService, PackTakeoff, PhaseDef, PhaseDoneField, PhaseRequirement, QuoteSectionDef, TradeId, TradePack } from "./types.js";
 export { TRADE_IDS } from "./types.js";
 
 export const DEFAULT_TRADE: TradeId = "hardwood";
 
-const PACKS: Record<TradeId, TradePack> = { hardwood };
+const PACKS: Record<TradeId, TradePack> = { hardwood, tile };
 
 export function isTradeId(v: unknown): v is TradeId {
   return typeof v === "string" && (TRADE_IDS as readonly string[]).includes(v);
