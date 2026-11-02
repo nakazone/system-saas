@@ -1548,12 +1548,12 @@
       box = new THREE.Box3();
       grp.children.forEach((ch) => { if (ch.isMesh && ch.geometry && ch.geometry.type === 'ExtrudeGeometry') box.expandByObject(ch); });
       box.expandByPoint(new THREE.Vector3(0, 0, D / 2));
-      viewTh = oR && !oL ? 0.55 : oL && !oR ? -0.55 : -0.4;
+      viewTh = oR && !oL ? 0.45 : oL && !oR ? -0.45 : -0.25;
       corner = open === 'none' ? null : oR ? { th: 0.75, t: [xr - 0.1, rise - 0.04, front - 0.12] } : { th: -0.75, t: [xl + 0.1, rise - 0.04, front - 0.12] };
       return JSON.stringify([step.tread_w, step.tread_d, step.riser_h, open]);
     }
     let viewTh = -0.4;
-    function reset() { c.orbit(viewTh, 1.05); c.frameBox(box, 1.4); }
+    function reset() { c.orbit(viewTh, 0.88); c.frameBox(box, 1.35); }
     shapeSig = build(spec); reset();
     // a short turn to show it's 3D, then it stays still
     let spin = !opts.still; const t0 = performance.now();
