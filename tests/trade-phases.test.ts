@@ -104,10 +104,11 @@ describe("phase helpers reproduce the old literals", () => {
 
 describe("phases reach the browser", () => {
   it("CRM pages get window.__OM_TRADE built from the company's pack", async () => {
-    const { tradeInject } = await import("../src/crm/mount.js");
+    const { tradeInject } = await import("../src/lib/trades/browser.js");
     const tag = tradeInject(["hardwood"]);
     const json = tag.replace(/^<script>window\.__OM_TRADE=/, "").replace(/<\/script>$/, "");
-    const boot = JSON.parse(json);
+    const { takeoff, ...boot } = JSON.parse(json);
+    expect(Object.keys(takeoff)).toEqual(["measuredKinds", "specFields", "specLabels", "specSuggestions"]);
     expect(boot).toEqual({
       id: "hardwood",
       phases: [

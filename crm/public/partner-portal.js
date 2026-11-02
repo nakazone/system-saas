@@ -5475,12 +5475,14 @@
   /* ─────────────────────────── floors from the house plans (takeoff, 3D, quote) ─────────────────────────── */
 
   const FLOOR_KIND_OPTS = [['hardwood', 'Hardwood'], ['lvp', 'LVP'], ['laminate', 'Laminate'], ['carpet', 'Carpet'], ['rubber', 'Rubber floor'], ['tile', 'Tile'], ['stone', 'Stone'], ['concrete', 'Polished concrete'], ['other', 'Not flooring']];
-  const FLOORING_KINDS = ['hardwood', 'lvp', 'laminate', 'carpet', 'rubber'];
+  // Takeoff catalog from the trade pack (server-injected window.__OM_TRADE.takeoff); literals are the fallback.
+  const TRADE_TK = window.__OM_TRADE && window.__OM_TRADE.takeoff ? window.__OM_TRADE.takeoff : null;
+  const FLOORING_KINDS = TRADE_TK && Array.isArray(TRADE_TK.measuredKinds) ? TRADE_TK.measuredKinds.slice() : ['hardwood', 'lvp', 'laminate', 'carpet', 'rubber'];
   const KIND_WORDS = { hardwood: /hard\s?wood|\bwood\b|engineered|oak/i, lvp: /\blvp\b|\blvt\b|vinyl/i, laminate: /laminate/i, carpet: /carpet/i, rubber: /rubber/i };
   let plan3d = null;
 
   /** Product details each floor type asks for; values are suggestions, anything can be typed. */
-  const SPEC_FIELDS = {
+  const SPEC_FIELDS = (TRADE_TK && TRADE_TK.specFields) || {
     hardwood: ['species', 'construction', 'width', 'thickness', 'grade', 'finish', 'color', 'sheen', 'install', 'pattern', 'brand'],
     lvp: ['brand', 'color', 'size', 'thickness', 'wear', 'install', 'underlayment'],
     laminate: ['brand', 'color', 'size', 'thickness', 'install', 'underlayment'],
@@ -5488,8 +5490,8 @@
     rubber: ['brand', 'color', 'thickness'],
     tile: ['brand', 'color', 'size'], stone: ['brand', 'color', 'size'], concrete: ['color'], other: ['brand', 'color'],
   };
-  const SPEC_LABEL = { species: 'Species', construction: 'Construction', width: 'Width', thickness: 'Thickness', grade: 'Grade', finish: 'Finish', color: 'Color / stain', sheen: 'Sheen', install: 'Install', pattern: 'Pattern', brand: 'Brand / product', size: 'Plank size', wear: 'Wear layer', underlayment: 'Underlayment', pad: 'Pad' };
-  const SPEC_OPTS = {
+  const SPEC_LABEL = (TRADE_TK && TRADE_TK.specLabels) || { species: 'Species', construction: 'Construction', width: 'Width', thickness: 'Thickness', grade: 'Grade', finish: 'Finish', color: 'Color / stain', sheen: 'Sheen', install: 'Install', pattern: 'Pattern', brand: 'Brand / product', size: 'Plank size', wear: 'Wear layer', underlayment: 'Underlayment', pad: 'Pad' };
+  const SPEC_OPTS = (TRADE_TK && TRADE_TK.specSuggestions) || {
     species: ['White Oak', 'Red Oak', 'Hickory', 'Maple', 'Walnut', 'Ash', 'Birch', 'Brazilian Cherry', 'Acacia'],
     construction: ['Engineered', 'Solid'],
     width: ['2-1/4"', '3-1/4"', '4"', '5"', '6"', '6-1/2"', '7"', '7-1/2"', '8"', '9"', '10"', 'Mixed widths'],

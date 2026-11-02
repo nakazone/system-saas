@@ -173,3 +173,46 @@ describe("ObraBuilder takeoff and work order reading come from the pack (deliver
 function sha256(s: string) {
   return createHash("sha256").update(s).digest("hex");
 }
+
+describe("ObraBuilder browser lists come from the pack (delivery 5)", () => {
+  /** Run the real catalog block of partner-portal.js with a given `window` and return what it builds. */
+  async function browserCatalog(win: Record<string, unknown>) {
+    const fs = await import("node:fs");
+    const src = fs.readFileSync("crm/public/partner-portal.js", "utf8");
+    const start = src.indexOf("  // Takeoff catalog from the trade pack");
+    const end = src.indexOf("  function specText(m)", start);
+    expect(start).toBeGreaterThan(0);
+    expect(end).toBeGreaterThan(start);
+    const block = src.slice(start, end);
+    const run = new Function("window", `${block}\nreturn { FLOORING_KINDS, SPEC_FIELDS, SPEC_LABEL, SPEC_OPTS };`);
+    return JSON.parse(JSON.stringify(run(win)));
+  }
+
+  it("builds the same lists with the injected pack as with the old literals", async () => {
+    const { tradeInject } = await import("../src/lib/trades/browser.js");
+    const tag = tradeInject(["hardwood"]);
+    const boot = JSON.parse(tag.replace(/^<script>window\.__OM_TRADE=/, "").replace(/<\/script>$/, ""));
+    const fromPack = await browserCatalog({ __OM_TRADE: boot });
+    const fallback = await browserCatalog({});
+    expect(fromPack).toEqual(fallback);
+    expect(fromPack.FLOORING_KINDS).toEqual(["hardwood", "lvp", "laminate", "carpet", "rubber"]);
+  });
+
+  it("the plan reader counts the same floor kinds with and without the pack", async () => {
+    const fs = await import("node:fs");
+    const src = fs.readFileSync("crm/public/partner-portal-takeoff.js", "utf8");
+    const m = src.match(/  \/\/ Floor kinds the trade pack measures[\s\S]*?;\n/);
+    expect(m).toBeTruthy();
+    const run = new Function("window", `${m![0]}\nreturn FLOORING;`);
+    const { tradeInject } = await import("../src/lib/trades/browser.js");
+    const boot = JSON.parse(tradeInject(undefined).replace(/^<script>window\.__OM_TRADE=/, "").replace(/<\/script>$/, ""));
+    expect(run({ __OM_TRADE: boot })).toEqual(run({}));
+  });
+
+  it("server takeoff and browser fallbacks agree (labels and fields)", async () => {
+    const T = await import("../src/lib/builders/takeoff.js");
+    const fallback = await browserCatalog({});
+    expect(fallback.SPEC_FIELDS).toEqual(T.SPEC_FIELDS);
+    expect(fallback.SPEC_LABEL).toEqual(T.SPEC_LABEL);
+  });
+});

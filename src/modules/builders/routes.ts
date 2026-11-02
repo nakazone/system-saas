@@ -86,6 +86,7 @@ import {
   photoStream,
   saveMeasurement,
 } from "../../lib/builders/measurements.js";
+import { tradeInject } from "../../lib/trades/browser.js";
 import { builderReferralCoupon, couponTextEn } from "../../lib/billing/coupons.js";
 import { intakeItemsSchema, isIntakeReaderConfigured, readWorkOrder, type IntakeFile } from "../../lib/partner-intake/extract.js";
 
@@ -314,7 +315,10 @@ builderAccountRouter.get("/partner-portal.html", async (req, res, next) => {
       next();
       return;
     }
-    const html = fs.readFileSync(path.join(CRM_PUBLIC_DIR, "partner-portal.html"), "utf8");
+    // Builders work with flooring companies of every trade; Phase 0 serves the Hardwood pack.
+    const raw = fs.readFileSync(path.join(CRM_PUBLIC_DIR, "partner-portal.html"), "utf8");
+    const tag = tradeInject(undefined);
+    const html = /<\/head>/i.test(raw) ? raw.replace(/<\/head>/i, `    ${tag}\n</head>`) : `${tag}\n${raw}`;
     res.setHeader("Cache-Control", "no-store, max-age=0");
     res.type("html").send(html);
   } catch (error) {

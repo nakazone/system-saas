@@ -19,7 +19,7 @@ import { i18nVersion, orgDefaultUiLocale } from "../lib/i18n/index.js";
 import type { TenantRequest } from "../lib/tenant/resolve-tenant.js";
 import { SAAS_DISABLED_HTML } from "./disabled-modules.js";
 import { isMateVoiceEnabled } from "../lib/mate-voice/staging.js";
-import { primaryPack } from "../lib/trades/index.js";
+import { tradeInject } from "../lib/trades/browser.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -100,20 +100,6 @@ function injectBranding(html: string, extra = ""): string {
   return `${block}\n${html}`;
 }
 
-/**
- * The company's trade pack for the browser: phase keys and labels (hardwood: Instalação / Lixa)
- * and the customer quote sections and tagline, so screens stop hardcoding them. Pages keep their old literals as a fallback.
- */
-export function tradeInject(tradePacks: unknown): string {
-  const pack = primaryPack(tradePacks);
-  const boot = JSON.stringify({
-    id: pack.id,
-    phases: pack.phases.map((p) => ({ key: p.key, label: p.label })),
-    combined: pack.combinedPhaseKey,
-    quote: { tagline: pack.quote.tagline, sections: pack.quote.sections.map((s) => ({ key: s.key, label: s.label })) },
-  }).replace(/</g, "\\u003c");
-  return `<script>window.__OM_TRADE=${boot}</script>`;
-}
 
 async function renderCrmHtml(req: Request, full: string): Promise<string> {
   const org = (req as TenantRequest).organization;
@@ -265,3 +251,6 @@ export function createCrmRouter(): Router {
 
   return router;
 }
+
+/** Kept for callers/tests that import it from here. */
+export { tradeInject };

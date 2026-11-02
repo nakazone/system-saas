@@ -29,7 +29,10 @@
     [/^(STONE|MARBLE|SLATE)\b/, 'stone', 'Stone'],
     [/^(MUD\s+SHOWER|SHOWER\s+PAN|SLAB\s+C\.?\s?TOP|COUNTER|QUARTZ|GRANITE)/, 'other', null],
   ];
-  const FLOORING = ['hardwood', 'lvp', 'laminate', 'carpet', 'rubber'];
+  // Floor kinds the trade pack measures (server-injected); literal is the fallback.
+  const FLOORING = (window.__OM_TRADE && window.__OM_TRADE.takeoff && Array.isArray(window.__OM_TRADE.takeoff.measuredKinds))
+    ? window.__OM_TRADE.takeoff.measuredKinds.slice()
+    : ['hardwood', 'lvp', 'laminate', 'carpet', 'rubber'];
   /** Counted right away; rubber and the rest can be switched on by hand. */
   const DEFAULT_ON = ['hardwood', 'lvp', 'laminate', 'carpet'];
   /** Words that name a room on a plan (room labels split a colored area into rooms). */

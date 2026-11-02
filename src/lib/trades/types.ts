@@ -46,6 +46,8 @@ export type PackTakeoff = {
   specLabels: Readonly<Record<string, string>>;
   /** Default waste % per kind. */
   waste: Readonly<Record<string, number>>;
+  /** Suggestions per product field; "field:kind" keys override "field". */
+  specSuggestions: Readonly<Record<string, readonly string[]>>;
 };
 
 export type TradePack = {
