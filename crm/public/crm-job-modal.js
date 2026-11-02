@@ -1042,8 +1042,11 @@
     const lower = String(raw || "")
       .trim()
       .toLowerCase()
+      .replace(/&/g, " ")
+      .replace(/\band\b/g, " ")
       .replace(/[_-]+/g, " ")
-      .replace(/\s+/g, " ");
+      .replace(/\s+/g, " ")
+      .trim();
     if (!lower) return "Installation";
     if (lower === "supply" || lower.includes("supply") || lower.includes("fornec") || lower.includes("material")) return "Supply";
     if (
@@ -1055,6 +1058,42 @@
       return "Sand & Finishing";
     }
     return "Installation";
+  }
+
+  /** Fold & / and / accents so "Sand & Finish" hits sand_finish / Lixamento / Sand & Finishing. */
+  function catalogSearchNorm(s) {
+    return String(s || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/&/g, " ")
+      .replace(/\band\b/g, " ")
+      .replace(/[^a-z0-9]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function catalogSearchAliases(category) {
+    const norm = normalizeServiceType(category);
+    if (norm === "Sand & Finishing") {
+      return ["sand finish", "sand finishing", "sand and finish", "lixa", "lixamento", "acabamento", "sand finish"];
+    }
+    if (norm === "Supply") return ["supply", "material", "fornecimento"];
+    if (norm === "Installation") return ["installation", "instalacao", "instalação"];
+    return [];
+  }
+
+  function catalogSearchHay(p) {
+    const rawCat = p.category || p.category_label || "";
+    const norm = normalizeServiceType(rawCat);
+    return [p.name, p.unit || p.unit_type, rawCat, norm, ...catalogSearchAliases(rawCat)].filter(Boolean).join(" ");
+  }
+
+  function catalogMatchesQuery(p, q) {
+    const needle = catalogSearchNorm(q);
+    if (!needle) return true;
+    const hay = catalogSearchNorm(catalogSearchHay(p));
+    return needle.split(" ").every((tok) => tok && hay.includes(tok));
   }
 
   function lineAmount(q, r) {
@@ -1217,14 +1256,9 @@
       },
       catalog: () => pricingAsCatalog(),
       filterCatalog(q) {
-        const needle = String(q || "")
-          .trim()
-          .toLowerCase();
         const rows = pricingAsCatalog();
-        if (!needle) return rows.slice(0, 12);
-        return rows
-          .filter((p) => `${p.name || ""} ${p.unit_type || ""} ${p.category || ""}`.toLowerCase().includes(needle))
-          .slice(0, 12);
+        if (!String(q || "").trim()) return rows.slice(0, 12);
+        return rows.filter((p) => catalogMatchesQuery(p, q)).slice(0, 12);
       },
       rateFor: (row) => priceFor(row),
       descFor: (row, name) => descBodyWithoutTitle(name || (row && row.name) || "", (row && (row.default_description || row.notes)) || ""),
@@ -1308,16 +1342,8 @@
   }
 
   function filterPricing(q) {
-    const needle = String(q || "")
-      .trim()
-      .toLowerCase();
-    if (!needle) return pricing.slice(0, 12);
-    return pricing
-      .filter((p) => {
-        const hay = `${p.name || ""} ${p.unit || ""} ${p.category || ""}`.toLowerCase();
-        return hay.includes(needle);
-      })
-      .slice(0, 12);
+    if (!String(q || "").trim()) return pricing.slice(0, 12);
+    return pricing.filter((p) => catalogMatchesQuery(p, q)).slice(0, 12);
   }
 
   function blankSvcPanel(opts) {

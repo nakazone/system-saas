@@ -678,10 +678,10 @@
       ? `<div class="jx-box jx-cash${receivedOk ? " is-paid" : ""}">
           ${receivedOk ? `<span class="jx-cash__stamp">Recebido</span>` : ""}
           <h3>Cash</h3><dl class="jx-kv">
-          <dt>Total</dt><dd>${J.money(wo.billing.services_total)}</dd>
-          <dt class="jx-cash__row">Invoiced${invoicedOk ? check : ""}</dt><dd>${J.money(invoiced)}</dd>
-          <dt>Recebido</dt><dd>${J.money(received)}</dd>
-          <dt>A faturar</dt><dd>${J.money(wo.billing.remaining_to_invoice)}</dd>
+          <div><dt>Total</dt><dd>${J.money(wo.billing.services_total)}</dd></div>
+          <div><dt class="jx-cash__row">Invoiced${invoicedOk ? check : ""}</dt><dd>${J.money(invoiced)}</dd></div>
+          <div><dt>Recebido</dt><dd>${J.money(received)}</dd></div>
+          <div><dt>A faturar</dt><dd>${J.money(wo.billing.remaining_to_invoice)}</dd></div>
         </dl>${invoiceBtn}</div>`
       : "";
     return `<div class="jx-cols">
@@ -703,11 +703,11 @@
         }</div>
         <div class="jx-box"><h3>Obra${canManage ? `<button type="button" class="jx-lnk" data-jx-act="schedule">Agenda</button>` : ""}</h3>
           <dl class="jx-kv">
-            <dt>Start</dt><dd>${J.esc(J.dateRange(wo))}${wo.scheduled_start || wo.sand_scheduled_start ? " · dia inteiro" : ""}</dd>
-            <dt>Complete</dt><dd>${J.esc(J.completeLabel(wo))}</dd>
-            <dt>Endereço</dt><dd>${wo.address ? `<a href="${J.esc(maps)}" target="_blank" rel="noopener">${J.esc(wo.address)}</a>` : '<span class="jx-mu">Sem endereço</span>'}</dd>
-            ${wo.quote_number ? `<dt>Quote</dt><dd>${J.esc(wo.quote_number)}</dd>` : ""}
-            ${J.builderName(wo) ? `<dt>Builder</dt><dd>${J.esc(J.builderName(wo))}</dd>` : ""}
+            <div><dt>Start</dt><dd>${J.esc(J.dateRange(wo))}${wo.scheduled_start || wo.sand_scheduled_start ? " · dia inteiro" : ""}</dd></div>
+            <div><dt>Complete</dt><dd>${J.esc(J.completeLabel(wo))}</dd></div>
+            <div><dt>Endereço</dt><dd>${wo.address ? `<a href="${J.esc(maps)}" target="_blank" rel="noopener">${J.esc(wo.address)}</a>` : '<span class="jx-mu">Sem endereço</span>'}</dd></div>
+            ${wo.quote_number ? `<div><dt>Quote</dt><dd>${J.esc(wo.quote_number)}</dd></div>` : ""}
+            ${J.builderName(wo) ? `<div><dt>Builder</dt><dd>${J.esc(J.builderName(wo))}</dd></div>` : ""}
           </dl>
         </div>
       </div>

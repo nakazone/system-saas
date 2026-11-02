@@ -180,12 +180,27 @@
     };
   }
 
+  function dropPhotoEverywhere(photoId) {
+    const id = String(photoId);
+    feed = feed.filter((x) => String(x.id) !== id);
+    Object.keys(mediaCache).forEach((jobId) => {
+      mediaCache[jobId] = (mediaCache[jobId] || []).filter((x) => String(x.id) !== id);
+    });
+    jobs.forEach((j) => {
+      if (!j.photos) return;
+      j.photos = j.photos.filter((x) => String(x.id) !== id);
+      j.photo_count = Math.max(0, (j.photo_count || 0) - 1);
+      if (j.last_photo && String(j.last_photo.id) === id) j.last_photo = j.photos[0] || null;
+    });
+  }
+
   function openViewer(list, index) {
     if (!window.CamViewer || !list.length) return;
     window.CamViewer.open({
       photos: list,
       index,
       canPortfolio: canManage,
+      canDelete: canManage,
       onPortfolio: async (photo, next) => {
         await api(`/api/work-orders/${encodeURIComponent(photo.job.id)}/media/${encodeURIComponent(photo.id)}/portfolio`, { method: "PATCH", body: JSON.stringify({ in_portfolio: next }) });
         [feed, ...Object.values(mediaCache), ...jobs.map((x) => x.photos || [])].forEach((arr) =>
@@ -195,6 +210,13 @@
         );
         window.crmToast?.success?.(next ? "Foto no portfólio público." : "Foto tirada do portfólio.");
         return { in_portfolio: next };
+      },
+      onDelete: async (photo) => {
+        await api(`/api/work-orders/${encodeURIComponent(photo.job.id)}/media/${encodeURIComponent(photo.id)}`, { method: "DELETE" });
+        dropPhotoEverywhere(photo.id);
+        window.crmToast?.success?.("Foto apagada.");
+        renderList();
+        renderRight();
       },
     });
   }
@@ -209,18 +231,25 @@
   }
 
   // ---------------------------------------------------------------- job aberto
+  function mapsHref(address) {
+    return `https://maps.google.com/?q=${encodeURIComponent(address)}`;
+  }
   function headHtml(j, list) {
     const n = list ? list.length : j.photo_count || 0;
     const authors = list ? [...new Set(list.map((p) => p.author_name).filter(Boolean))] : [];
     const st = j.status === "in_progress" ? "dk" : j.status === "completed" ? "ol" : "";
     const lastTxt = j.last_photo ? `Última foto ${ago(j.last_photo.created_at)}` : "Nenhuma foto";
-    const meta = [j.client_name ? esc(j.client_name) : "", j.address ? `${SVG.pin}${esc(j.address)}` : "", `${n} foto${n === 1 ? "" : "s"}`, authors.length ? `por ${esc(authors.slice(0, 3).join(", "))}` : ""].filter(Boolean);
+    const meta = [j.client_name ? esc(j.client_name) : "", `${n} foto${n === 1 ? "" : "s"}`, authors.length ? `por ${esc(authors.slice(0, 3).join(", "))}` : ""].filter(Boolean);
+    const addr = j.address
+      ? `<a class="cam-addr" href="${esc(mapsHref(j.address))}" target="_blank" rel="noopener"><span class="cam-addr__ic" aria-hidden="true">${SVG.pin}</span><span class="cam-addr__txt"><strong>${esc(j.address)}</strong><small>Abrir no mapa</small></span></a>`
+      : `<p class="cam-addr cam-addr--empty"><span class="cam-addr__ic" aria-hidden="true">${SVG.pin}</span><span class="cam-addr__txt"><strong>Sem endereço</strong><small>Edite o job para informar o local</small></span></p>`;
     return `<a class="cam-back" href="#" data-cam-back>${SVG.back}ObraCam</a>
       <div class="cam-dh">
         <div class="cam-dh__t">
           <div class="cam-chips"><span class="cam-pill${st ? ` cam-pill--${st}` : ""}">${esc(statusLabel(j.status))}</span><span class="cam-pill${needsPhoto(j) ? " cam-pill--hot" : ""}">${esc(lastTxt)}</span>${j.number != null ? `<span class="cam-num">Job #${esc(j.number)}</span>` : ""}</div>
           <h2><a href="job-detail.html?id=${encodeURIComponent(j.id)}">${esc(j.title || "Job")}</a></h2>
           <p class="cam-dmeta">${meta.map((x) => `<span>${x}</span>`).join("")}</p>
+          ${addr}
         </div>
         <div class="cam-dh__acts">
           <a class="cam-btn" href="job-detail.html?id=${encodeURIComponent(j.id)}#fotos">${SVG.cam}Adicionar fotos</a>
@@ -539,12 +568,56 @@
     });
   }
 
+  function boardJobFromWo(wo) {
+    return {
+      id: wo.id,
+      number: wo.number,
+      title: wo.title,
+      status: wo.status,
+      field_status: wo.field_status || null,
+      address: wo.address || null,
+      client_name: wo.customer?.name || wo.source_name || null,
+      photo_count: 0,
+      scheduled_start: wo.scheduled_start || null,
+      geo_lat: null,
+      geo_lng: null,
+      last_photo: null,
+      photos: [],
+      stale: true,
+      detail_url: `job-detail.html?id=${wo.id}`,
+    };
+  }
+
+  async function openNewJobTicket(wo) {
+    if (!wo?.id) return;
+    mode = "active";
+    stageFilter = "all";
+    const ix = jobs.findIndex((j) => String(j.id) === String(wo.id));
+    const row = boardJobFromWo(wo);
+    if (ix >= 0) jobs[ix] = { ...jobs[ix], ...row, photos: jobs[ix].photos || [], photo_count: jobs[ix].photo_count || 0 };
+    else jobs.unshift(row);
+    mediaCache[wo.id] = mediaCache[wo.id] || [];
+    select(wo.id, true);
+  }
+
   bind();
+  $("camAddJob")?.addEventListener("click", () => {
+    if (!canManage || !window.__crmJobModal?.openCreate) return;
+    window.__crmJobModal.openCreate({ allDay: true }).catch((e) => window.crmToast?.error?.(e.message || "Não foi possível abrir o job"));
+  });
   fetch("/api/auth/session", { credentials: "include" })
     .then((r) => r.json())
     .then((s) => {
       const perms = s?.user?.permissions || [];
       canManage = s?.user?.role === "admin" || perms.includes("work_orders.manage");
+      const add = $("camAddJob");
+      if (add) add.hidden = !canManage;
+      if (window.__crmJobModal?.onSaved) {
+        window.__crmJobModal.onSaved((data, meta) => {
+          if (data && meta?.created) openNewJobTicket(data);
+          else if (data) load().then(() => select(data.id, true)).catch(() => {});
+        });
+      }
     })
     .catch(() => {});
   load().catch((e) => {

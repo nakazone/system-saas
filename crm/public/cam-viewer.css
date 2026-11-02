@@ -17,6 +17,10 @@ body.cv-open { overflow: hidden; }
 .cv-round:hover, .cv-nav:hover { background: rgba(255, 255, 255, .24); }
 .cv-round.is-on { background: #E7792C; color: #fff; }
 .cv-round.is-on svg { fill: currentColor; }
+.cv-top__acts { display: inline-flex; gap: 8px; }
+.cv-round--danger:hover { background: rgba(180, 86, 26, .85); }
+.cv-btn--danger { color: #B4561A !important; box-shadow: 0 0 0 1px #F2D9C6; }
+.cv-btn--danger:hover { background: #FDF0E6; }
 .cv-nav { position: absolute; top: 50%; margin-top: -21px; }
 .cv-nav--prev { left: 16px; }
 .cv-nav--next { right: 16px; }

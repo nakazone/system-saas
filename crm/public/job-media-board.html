@@ -23,8 +23,9 @@
   <script src="om-device.js?v=20261013-badge1"></script>
   <script src="crm-field-gate.js?v=20261014-perfil1"></script>
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
-  <link rel="stylesheet" href="obracam.css?v=20261009-btnw2" />
-  <link rel="stylesheet" href="cam-viewer.css?v=20261009-btnw2" />
+  <link rel="stylesheet" href="crm-job-modal.css?v=20261028-jobs4" />
+  <link rel="stylesheet" href="obracam.css?v=20261102-cam1" />
+  <link rel="stylesheet" href="cam-viewer.css?v=20261102-cam1" />
 </head>
 <body class="dashboard-app-body om-app sidebar-collapsed cam-app">
   <script src="/om-reload.js?v=20261013-rl8"></script>
@@ -79,7 +80,7 @@
         <div class="cam-split" id="camSplit">
           <section class="cam-list" aria-label="Jobs">
             <div class="cam-list__top">
-              <div class="cam-list__h"><h1>ObraCam</h1><span id="camJobsN"></span></div>
+              <div class="cam-list__h"><h1>ObraCam</h1><span id="camJobsN"></span><button type="button" class="cam-btn cam-btn--pri cam-add" id="camAddJob" hidden data-crm-permission="work_orders.manage"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Job</span></button></div>
               <p class="cam-stats" id="camStats"></p>
               <label class="cam-search">
                 <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
@@ -106,7 +107,9 @@
   <script src="crm-shared-nav.js?v=20261015-refnav1"></script>
   <script src="crm-shell.js?v=20261028-ptrhome"></script>
   <script src="om-mobile-nav.js?v=20261014-perfil1"></script>
-  <script src="cam-viewer.js?v=20261009-cam1"></script>
-  <script src="job-media-board.js?v=20261009-cam2"></script>
+  <script src="crm-address-autocomplete.js?v=20261028-pac"></script>
+  <script src="crm-job-modal.js?v=20261102-svc1"></script>
+  <script src="cam-viewer.js?v=20261102-cam1"></script>
+  <script src="job-media-board.js?v=20261102-cam1"></script>
 </body>
 </html>

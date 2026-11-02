@@ -1,6 +1,7 @@
 /**
  * Visualizador de fotos do ObraCam (computador, iPad e iPhone).
- * window.CamViewer.open({ photos, index, canPortfolio, onPortfolio(photo, next) => Promise<photo|void> })
+ * window.CamViewer.open({ photos, index, canPortfolio, onPortfolio(photo, next) => Promise<photo|void>,
+ *                         canDelete, onDelete(photo) => Promise<void> })
  * photo = { id, url, thumb_url, stage, when, author, device, caption, address, lat, lng, distance_m,
  *           far_from_job, location_available, in_portfolio, job: { id, number, title, client } }
  */
@@ -14,6 +15,7 @@
     next: '<svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>',
     star: '<svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>',
     dl: '<svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
+    trash: '<svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>',
     pin: '<svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>',
   };
   let st = null;
@@ -91,7 +93,7 @@
         ${n > 1 ? `<button type="button" class="cv-nav cv-nav--prev" data-cv="prev" aria-label="Anterior">${ICON.prev}</button><button type="button" class="cv-nav cv-nav--next" data-cv="next" aria-label="Próxima">${ICON.next}</button>` : ""}
         ${strip}
         <div class="cv-top"><button type="button" class="cv-round" data-cv="close" aria-label="Fechar">${ICON.x}</button><span class="cv-count">${n > 1 ? `${st.index + 1} de ${n}` : ""}</span>
-        ${st.canPortfolio && p.id ? `<button type="button" class="cv-round${p.in_portfolio ? " is-on" : ""}" data-cv="port" aria-label="${p.in_portfolio ? "Tirar do portfólio" : "Pôr no portfólio"}">${ICON.star}</button>` : "<span></span>"}</div>
+        <span class="cv-top__acts">${st.canPortfolio && p.id ? `<button type="button" class="cv-round${p.in_portfolio ? " is-on" : ""}" data-cv="port" aria-label="${p.in_portfolio ? "Tirar do portfólio" : "Pôr no portfólio"}">${ICON.star}</button>` : ""}${st.canDelete && p.id ? `<button type="button" class="cv-round cv-round--danger" data-cv="del" aria-label="Apagar foto">${ICON.trash}</button>` : ""}</span></div>
       </div>
       <aside class="cv-side">
         <span class="cv-grab" aria-hidden="true"></span>
@@ -111,6 +113,7 @@
             ${st.canPortfolio && p.id ? `<button type="button" class="cv-btn" data-cv="port">${ICON.star}${p.in_portfolio ? "No portfólio" : "Portfólio"}</button>` : ""}
             <a class="cv-btn" href="${esc(p.url)}" download target="_blank" rel="noopener">${ICON.dl}Baixar</a>
           </div>
+          ${st.canDelete && p.id ? `<button type="button" class="cv-btn cv-btn--danger" data-cv="del">${ICON.trash}Apagar foto</button>` : ""}
         </div>
       </aside>`;
   }
@@ -139,6 +142,22 @@
       } catch (err) {
         window.crmToast?.error?.(err.message || "Erro");
       }
+    } else if (a === "del" && st.onDelete) {
+      const p = st.photos[st.index];
+      if (!p?.id) return;
+      if (!confirm("Apagar esta foto?")) return;
+      try {
+        await st.onDelete(p);
+        st.photos.splice(st.index, 1);
+        if (!st.photos.length) {
+          close();
+          return;
+        }
+        if (st.index >= st.photos.length) st.index = st.photos.length - 1;
+        render();
+      } catch (err) {
+        window.crmToast?.error?.(err.message || "Erro");
+      }
     }
   }
 
@@ -151,7 +170,14 @@
   function open(opts) {
     const photos = (opts && opts.photos) || [];
     if (!photos.length) return;
-    st = { photos, index: Math.min(Math.max(0, opts.index || 0), photos.length - 1), canPortfolio: !!opts.canPortfolio, onPortfolio: opts.onPortfolio || null };
+    st = {
+      photos,
+      index: Math.min(Math.max(0, opts.index || 0), photos.length - 1),
+      canPortfolio: !!opts.canPortfolio,
+      onPortfolio: opts.onPortfolio || null,
+      canDelete: !!opts.canDelete,
+      onDelete: opts.onDelete || null,
+    };
     ensure();
     render();
     root.hidden = false;

@@ -76,7 +76,7 @@ jobFieldExtrasRouter.get(
       since.setDate(since.getDate() - days);
       const data = await withTenantTransaction(req.organizationId!, async (tx) => {
         const rows = await tx.workOrder.findMany({
-          where: { status: { in: ["scheduled", "in_progress", "completed"] } },
+          where: { status: { in: ["draft", "scheduled", "in_progress", "completed"] } },
           select: {
             id: true,
             number: true,
@@ -206,6 +206,45 @@ jobFieldExtrasRouter.get(
 
       res.json({ success: true, data: { jobs: data, feed }, meta: { days } });
     } catch (error) {
+      next(error);
+    }
+  },
+);
+
+jobFieldExtrasRouter.delete(
+  "/api/work-orders/:jobId/media/:mediaId",
+  requireCrmAuth,
+  requireCrmPermission("work_orders.manage"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const jobId = String(req.params.jobId);
+      const mediaId = String(req.params.mediaId);
+      await withTenantTransaction(req.organizationId!, async (tx) => {
+        const row = await tx.jobMedia.findFirst({
+          where: { id: mediaId, workOrderId: jobId, deletedAt: null },
+        });
+        if (!row) throw Object.assign(new Error("Foto não encontrada"), { status: 404 });
+        await tx.jobMedia.update({
+          where: { id: row.id },
+          data: { deletedAt: new Date() },
+        });
+        await recordActivity(tx, {
+          organizationId: req.organizationId!,
+          entityType: "work_order",
+          entityId: jobId,
+          action: "job_media.deleted",
+          actorType: "user",
+          actorId: req.user!.id,
+          changes: { media_id: { from: mediaId, to: null } },
+        });
+      });
+      res.json({ success: true });
+    } catch (error: unknown) {
+      const err = error as { status?: number; message?: string };
+      if (err?.status) {
+        res.status(err.status).json({ success: false, error: err.message || "Error" });
+        return;
+      }
       next(error);
     }
   },

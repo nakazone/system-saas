@@ -53,6 +53,8 @@
     if (!s) return 'Installation';
     const lower = s
       .toLowerCase()
+      .replace(/&/g, ' ')
+      .replace(/\band\b/g, ' ')
       .replace(/[_-]+/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
@@ -1898,11 +1900,42 @@
     return normalizeServiceType(category);
   }
 
+  function catalogSearchNorm(s) {
+    return String(s || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/&/g, ' ')
+      .replace(/\band\b/g, ' ')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function catalogSearchHay(row) {
+    const rawCat = row.category || row.category_label || row.service_type || '';
+    const norm = normalizeServiceType(rawCat);
+    const aliases =
+      norm === 'Sand & Finishing'
+        ? ['sand finish', 'sand finishing', 'lixa', 'lixamento', 'acabamento', 'sand_finish']
+        : norm === 'Supply'
+          ? ['supply', 'material', 'fornecimento']
+          : norm === 'Installation'
+            ? ['installation', 'instalacao', 'instalação']
+            : [];
+    return [row.name, row.unit_type || row.unit, rawCat, norm, ...aliases].filter(Boolean).join(' ');
+  }
+
   function filterCatalogForServiceSearch(query) {
-    const q = String(query || '').trim().toLowerCase();
+    const q = String(query || '').trim();
     const list = !q
       ? catalog.slice(0, 40)
-      : catalog.filter((row) => String(row.name || '').toLowerCase().includes(q));
+      : catalog.filter((row) => {
+          const needle = catalogSearchNorm(q);
+          if (!needle) return true;
+          const hay = catalogSearchNorm(catalogSearchHay(row));
+          return needle.split(' ').every((tok) => tok && hay.includes(tok));
+        });
     return list.slice(0, 40);
   }
 

@@ -50,7 +50,7 @@
     if (document.querySelector('link[href*="crm-job-billing.css"]')) return;
     const l = document.createElement("link");
     l.rel = "stylesheet";
-    l.href = "crm-job-billing.css?v=20261001-jobinv1";
+    l.href = "crm-job-billing.css?v=20261102-tabinv1";
     document.head.appendChild(l);
   }
 

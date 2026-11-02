@@ -377,7 +377,9 @@
 .jx-tbl tbody tr:last-child td { border-bottom: 0; }
 .jx-detail .jx-tbl .r { text-align: right; white-space: nowrap; padding-left: 12px; }
 .jx-tbl tfoot td { border-top: 1px solid var(--jx-line); border-bottom: 0; padding-top: 11px; font-weight: 700; }
-.jx-kv { margin: 0; display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 8px 10px; font-size: 13px; }
+/* Row wrappers keep Safari/iPad from dropping bare dt/dd inside display:grid on <dl>. */
+.jx-kv { margin: 0; display: grid; gap: 8px; font-size: 13px; }
+.jx-kv > div { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 8px 10px; align-items: baseline; min-width: 0; }
 .jx-kv dt { color: var(--jx-ink2); }
 .jx-kv dd { margin: 0; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
 .jx-kv dd a:hover { text-decoration: underline; text-decoration-color: var(--jx-or); }

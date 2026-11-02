@@ -116,10 +116,28 @@
 .jb-inline .jb-field { margin-bottom: 0.7rem; }
 .jb-inline__go { width: 100%; height: 40px !important; }
 
-@media (max-width: 640px) {
+/* iPad / tablet: bottom sheet so opts + amounts stay on screen (centered modal clipped on short viewports). */
+@media (max-width: 1024px) {
   .jb-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .jb-dialog { top: auto; bottom: 0; left: 0; width: 100vw; max-height: 88vh; border-radius: 18px 18px 0 0; transform: translateY(12px); }
+  .jb-dialog {
+    top: auto; bottom: 0; left: 0; right: 0; width: 100vw; max-width: none;
+    max-height: min(88vh, calc(100dvh - 12px));
+    border-radius: 18px 18px 0 0;
+    transform: translateY(12px);
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+    -webkit-overflow-scrolling: touch;
+  }
   .jb-dialog.is-open { transform: translateY(0); }
+  .jb-opt {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: "radio title" "radio side";
+    row-gap: 0.35rem;
+  }
+  .jb-opt > input[type="radio"] { grid-area: radio; align-self: start; margin-top: 2px; }
+  .jb-opt > .jb-opt__t { grid-area: title; }
+  .jb-opt > span:last-child { grid-area: side; justify-self: start; }
+  .jb-opt__inp { font-size: 16px; width: 6.5rem; }
+  .jb-field input { font-size: 16px; }
   .jb-inv {
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas: "main amt" "chip amt";

@@ -917,11 +917,11 @@ scheduleJobsRouter.get(
   requireCrmPermission("work_orders.view"),
   async (req: AuthedRequest, res, next) => {
     try {
+      // Office job picker: all active rows. isVisible is only for the builder portal.
       const rows = await prisma.pricingItem.findMany({
         where: {
           organizationId: req.organizationId!,
           active: true,
-          isVisible: true,
         },
         orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       });
