@@ -1102,7 +1102,7 @@
         (m.builder && (m.builder.company || m.builder.name)) ||
         m.source_name;
       const jobHrefId = String(e.id).replace(/:(sand|installation|main)$/i, '');
-      return { name, phone: c.phone, email: c.email, href: `job-detail.html?id=${encodeURIComponent(jobHrefId)}`, hrefLabel: `Abrir job${m.number ? ' #' + m.number : ''}` };
+      return { name, phone: c.phone, email: c.email, href: `jobs.html?id=${encodeURIComponent(jobHrefId)}`, hrefLabel: `Abrir job${m.number ? ' #' + m.number : ''}` };
     }
     const c = m.customer;
     return c ? { name: c.name, href: `customers.html?id=${encodeURIComponent(c.id)}`, hrefLabel: 'Abrir cliente' } : {};
@@ -1236,7 +1236,7 @@
         <div><span>Responsável</span>${canEdit ? tap('assigned_user_id', assigneeInner) : assigneeInner}</div>
         ${
           e.type === 'job' && e.meta.related_work_order
-            ? `<div><span>Job ligado</span><b><a class="ag-link" href="job-detail.html?id=${encodeURIComponent(e.meta.related_work_order.id)}">#${esc(
+            ? `<div><span>Job ligado</span><b><a class="ag-link" href="jobs.html?id=${encodeURIComponent(e.meta.related_work_order.id)}">#${esc(
                 e.meta.related_work_order.number != null ? e.meta.related_work_order.number : '—'
               )} · ${esc(e.meta.related_work_order.title)}</a></b></div>`
             : ''
@@ -1246,7 +1246,7 @@
             ? `<div><span>Lixa / relacionados</span><b>${e.meta.related_children
                 .map(
                   (c) =>
-                    `<a class="ag-link" href="job-detail.html?id=${encodeURIComponent(c.id)}">#${esc(c.number != null ? c.number : '—')} · ${esc(c.title)}</a>`
+                    `<a class="ag-link" href="jobs.html?id=${encodeURIComponent(c.id)}">#${esc(c.number != null ? c.number : '—')} · ${esc(c.title)}</a>`
                 )
                 .join('<br>')}</b></div>`
             : ''
