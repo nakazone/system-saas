@@ -1425,7 +1425,10 @@
   }
 
   async function boot() {
-    jobId = new URLSearchParams(location.search).get("id");
+    // Calendar may pass `${id}:sand` for sector=both Sand dates — strip before API calls.
+    jobId = String(new URLSearchParams(location.search).get("id") || "")
+      .replace(/:(sand|installation|main)$/i, "")
+      .trim();
     if (!jobId) {
       location.href = "jobs.html";
       return;

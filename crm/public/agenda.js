@@ -1101,7 +1101,8 @@
         c.name ||
         (m.builder && (m.builder.company || m.builder.name)) ||
         m.source_name;
-      return { name, phone: c.phone, email: c.email, href: `job-detail.html?id=${encodeURIComponent(e.id)}`, hrefLabel: `Abrir job${m.number ? ' #' + m.number : ''}` };
+      const jobHrefId = String(e.id).replace(/:(sand|installation|main)$/i, '');
+      return { name, phone: c.phone, email: c.email, href: `job-detail.html?id=${encodeURIComponent(jobHrefId)}`, hrefLabel: `Abrir job${m.number ? ' #' + m.number : ''}` };
     }
     const c = m.customer;
     return c ? { name: c.name, href: `customers.html?id=${encodeURIComponent(c.id)}`, hrefLabel: 'Abrir cliente' } : {};

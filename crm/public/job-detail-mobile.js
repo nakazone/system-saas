@@ -961,7 +961,9 @@
   async function boot() {
     if (!isMobile()) return;
     if (!$("jobMobRoot")) return;
-    jobId = new URLSearchParams(location.search).get("id");
+    jobId = String(new URLSearchParams(location.search).get("id") || "")
+      .replace(/:(sand|installation|main)$/i, "")
+      .trim();
     if (!jobId) return;
     if ((location.hash || "") === "#fotos") detTab = "fotos";
     // A barra fixa fica no body: dentro do main (que pode ter transform) ela não gruda no rodapé.

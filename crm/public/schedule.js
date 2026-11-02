@@ -1348,7 +1348,7 @@
     if (openJobBtn) {
       if (ev.type === "job") {
         openJobBtn.hidden = false;
-        openJobBtn.href = `job-detail.html?id=${encodeURIComponent(ev.id)}`;
+        openJobBtn.href = `job-detail.html?id=${encodeURIComponent(String(ev.id).replace(/:(sand|installation|main)$/i, ""))}`;
       } else {
         openJobBtn.hidden = true;
         openJobBtn.removeAttribute("href");

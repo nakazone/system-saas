@@ -48,6 +48,16 @@ function normalizeWoSector(raw: unknown): string | null {
   return null;
 }
 
+/**
+ * Calendar emits `${workOrderId}:sand` for the Sand date of sector=both jobs.
+ * Strip that suffix (and legacy :installation/:main) before Prisma UUID lookups.
+ */
+function workOrderIdParam(req: AuthedRequest, name = "id"): string {
+  return String(param(req, name) || "")
+    .replace(/:(sand|installation|main)$/i, "")
+    .trim();
+}
+
 async function resolveRelatedWorkOrderId(
   organizationId: string,
   relatedId: string | null | undefined,
@@ -965,7 +975,7 @@ scheduleJobsRouter.get(
   requireCrmPermission("work_orders.view"),
   async (req: AuthedRequest, res, next) => {
     try {
-      const jobId = String(req.params.id);
+      const jobId = workOrderIdParam(req);
       try {
         await withTenantTransaction(req.organizationId!, async (tx) => {
           const quote = await tx.quote.findFirst({
@@ -1241,7 +1251,7 @@ scheduleJobsRouter.put(
   async (req: AuthedRequest, res, next) => {
     try {
       const existing = await prisma.workOrder.findFirst({
-        where: { id: String(req.params.id), organizationId: req.organizationId! },
+        where: { id: workOrderIdParam(req), organizationId: req.organizationId! },
       });
       if (!existing) {
         res.status(404).json({ success: false, error: "Work order not found" });
@@ -1534,7 +1544,7 @@ scheduleJobsRouter.post(
   requireCrmPermission("work_orders.manage"),
   async (req: AuthedRequest, res, next) => {
     try {
-      const jobId = String(req.params.id);
+      const jobId = workOrderIdParam(req);
       const raw = (req.body || {}) as Record<string, unknown>;
       const dataUrl = String(raw.data_url || raw.dataUrl || "");
       const fileName = String(raw.file_name || raw.fileName || "anexo").slice(0, 180);
@@ -1604,7 +1614,7 @@ scheduleJobsRouter.patch(
         res.status(400).json({ success: false, error: "Informe se o arquivo deve ser compartilhado." });
         return;
       }
-      const jobId = String(req.params.id);
+      const jobId = workOrderIdParam(req);
       const existing = await prisma.workOrder.findFirst({
         where: { id: jobId, organizationId: req.organizationId!, status: { not: "canceled" } },
         select: { id: true, builderId: true, deliveryAttachmentKey: true, customer: { select: { customerType: true } } },
@@ -1638,7 +1648,7 @@ scheduleJobsRouter.delete(
   async (req: AuthedRequest, res, next) => {
     try {
       const existing = await prisma.workOrder.findFirst({
-        where: { id: String(req.params.id), organizationId: req.organizationId! },
+        where: { id: workOrderIdParam(req), organizationId: req.organizationId! },
       });
       if (!existing) {
         res.status(404).json({ success: false, error: "Work order not found" });
@@ -1865,7 +1875,7 @@ scheduleJobsRouter.get(
     try {
       const row = await prisma.meeting.findFirst({
         where: {
-          id: String(req.params.id),
+          id: workOrderIdParam(req),
           organizationId: req.organizationId!,
           ...fieldMeetingScope(req.user),
         },
@@ -1894,7 +1904,7 @@ scheduleJobsRouter.get(
         String(req.headers.accept || "").includes("application/json");
       const row = await prisma.meeting.findFirst({
         where: {
-          id: String(req.params.id),
+          id: workOrderIdParam(req),
           organizationId: req.organizationId!,
           ...fieldMeetingScope(req.user),
         },
@@ -2050,7 +2060,7 @@ scheduleJobsRouter.put(
   async (req: AuthedRequest, res, next) => {
     try {
       const existing = await prisma.meeting.findFirst({
-        where: { id: String(req.params.id), organizationId: req.organizationId! },
+        where: { id: workOrderIdParam(req), organizationId: req.organizationId! },
       });
       if (!existing) {
         res.status(404).json({ success: false, error: "Compromisso não encontrado" });
@@ -2115,7 +2125,7 @@ scheduleJobsRouter.delete(
   async (req: AuthedRequest, res, next) => {
     try {
       const existing = await prisma.meeting.findFirst({
-        where: { id: String(req.params.id), organizationId: req.organizationId! },
+        where: { id: workOrderIdParam(req), organizationId: req.organizationId! },
       });
       if (!existing) {
         res.status(404).json({ success: false, error: "Compromisso não encontrado" });
