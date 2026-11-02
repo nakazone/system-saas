@@ -288,7 +288,13 @@
         <span class="ix-row__bar">${progHtml(i)}</span>
       </span>
       <span class="ix-row__side">
-        <span class="ix-row__amt">${money(open ? i.remaining_amount : i.amount)}</span>
+        <span class="ix-row__amt">${money(
+          open
+            ? Number(i.paid_amount) > 0.004
+              ? i.remaining_amount
+              : i.amount
+            : i.amount,
+        )}</span>
         ${when.text ? `<span class="ix-row__when${when.hot ? ' is-hot' : ''}">${esc(when.text)}</span>` : ''}
         <span class="ix-row__st${hot ? ' is-hot' : ''}">${esc(label)}</span>
       </span>
@@ -415,11 +421,13 @@
       if (seq !== loadSeq) return; // superseded by a newer reload (e.g. after discount/edit)
       all = r.rows;
       summary = r.summary;
-      // Keep the open invoice row aligned with the detail paper if it just healed the amount.
+      // Prefer the open detail amounts (discount / payment) over a stale list snapshot.
       const cur = typeof window.InvoicePage?.current === 'function' ? window.InvoicePage.current() : null;
       if (cur && cur.id) {
         const i = all.findIndex((x) => String(x.id) === String(cur.id));
         if (i >= 0) {
+          const listAmt = Number(all[i].amount) || 0;
+          const detailAmt = Number(cur.amount) || 0;
           Object.assign(all[i], {
             display_status: cur.display_status,
             status: cur.status,
@@ -429,9 +437,14 @@
             days_overdue: cur.days_overdue,
             viewed_at: cur.viewed_at,
             issued_at: cur.issued_at,
-            amount: cur.amount,
+            amount: detailAmt > 0 && (listAmt <= 0 || Math.abs(listAmt - detailAmt) > 0.004) ? detailAmt : all[i].amount,
             due_date: cur.due_date,
           });
+          if (detailAmt > 0) {
+            all[i].amount = detailAmt;
+            if (cur.remaining_amount != null) all[i].remaining_amount = cur.remaining_amount;
+            if (cur.paid_amount != null) all[i].paid_amount = cur.paid_amount;
+          }
         }
       }
       renderAll();

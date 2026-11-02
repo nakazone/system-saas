@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="obramate-app.css?v=20261019-logout2" />
   <link rel="stylesheet" href="crm-pdf-viewer.css?v=20261027-pdf1" />
   <link rel="stylesheet" href="invoices-module.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="invoices-v2.css?v=20261030-pay1" />
+  <link rel="stylesheet" href="invoices-v2.css?v=20261102-payrem1" />
   <link rel="stylesheet" href="om-gestures.css?v=20261102-ptr1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
@@ -249,6 +249,19 @@
             <span class="inv-pay-opt__v" id="payFullAmount">$0.00</span>
           </label>
         </div>
+        <fieldset class="inv-field" id="payRemainderBox" hidden>
+          <legend>O que fazer com o restante?</legend>
+          <div class="inv-pay-opts inv-pay-opts--stack">
+            <label class="inv-pay-opt">
+              <input type="radio" name="payRemainder" value="reduce_invoice" />
+              <span class="inv-pay-opt__t">Reduzir a fatura a este valor<span class="inv-pay-opt__d">O saldo não pago volta ao remaining balance do job/orçamento; a fatura fica quitada</span></span>
+            </label>
+            <label class="inv-pay-opt">
+              <input type="radio" name="payRemainder" value="keep_open" checked />
+              <span class="inv-pay-opt__t">Manter em aberto neste invoice<span class="inv-pay-opt__d">O restante continua cobrável nesta fatura; o recibo só é enviado ao quitar o total</span></span>
+            </label>
+          </div>
+        </fieldset>
         <p class="inv-after" id="payAfter" hidden></p>
 
         <div class="inv-row2">
@@ -393,7 +406,7 @@
   <script src="crm-shell.js?v=20261102-ptr1"></script>
   <script src="om-gestures.js?v=20261102-ptr1"></script>
   <script src="crm-pdf-viewer.js?v=20261027-pdf1"></script>
-  <script src="invoice-page.js?v=20261102-invdisc1"></script>
-  <script src="invoices-page.js?v=20261102-invdisc1"></script>
+  <script src="invoice-page.js?v=20261102-payrem1"></script>
+  <script src="invoices-page.js?v=20261102-payrem1"></script>
 </body>
 </html>

@@ -35,6 +35,12 @@
 .inv-btn--icon { width: 38px; padding: 0; display: inline-grid; place-items: center; }
 .inv-btn--icon svg { width: 16px; height: 16px; }
 .inv-pay-opts { display: grid; gap: 8px; }
+.inv-pay-opts--stack .inv-pay-opt { align-items: flex-start; }
+.inv-summary__quick {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
 .inv-pay-opt {
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center;
   padding: 10px 12px; border-radius: 14px; box-shadow: 0 0 0 1px var(--inv-line); background: #fff; cursor: pointer;

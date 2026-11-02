@@ -1254,6 +1254,8 @@ const paymentSchema = z.object({
   email_to: z.string().max(200).optional().nullable(),
   external_payment_id: z.string().max(200).optional().nullable(),
   processor: z.string().max(40).optional().nullable(),
+  /** keep_open = leave balance on invoice; reduce_invoice = shrink amount to paid total */
+  remainder_mode: z.enum(["keep_open", "reduce_invoice"]).optional().nullable(),
 });
 
 function filledShareMessage(
@@ -1489,6 +1491,9 @@ invoicesCrmRouter.post(
         const m = computeInvoiceMoney(inv);
         const resolved = resolvePaymentAmount({ mode: b.mode, amount: b.amount, balance: m.balance });
         if (!resolved.ok) return { error: resolved.error, status: 422 } as const;
+        const settles = Math.abs(m.balance - resolved.amount) < 0.005;
+        const remainderMode =
+          !settles && b.remainder_mode === "reduce_invoice" ? "reduce_invoice" : "keep_open";
         const receipt = await recordInvoicePayment(tx, {
           organizationId: req.organizationId!,
           invoiceId: id,
@@ -1500,14 +1505,25 @@ invoicesCrmRouter.post(
           actorId: req.user!.id,
           externalPaymentId: b.external_payment_id || null,
           processor: b.processor || null,
+          remainderMode,
         });
         const updated = await syncInvoiceStatus(tx, id);
-        return { receipt, invoicePaid: updated.status === "paid" } as const;
+        return {
+          receipt,
+          invoicePaid: updated.status === "paid",
+          remainderMode,
+          settles,
+        } as const;
       });
       if ("error" in out) return fail(res, out.status ?? 400, out.error!);
 
+      // keep_open partials: receipt e-mail only when the invoice is fully paid.
+      const shouldEmail =
+        !!b.send_email && (out.settles || out.remainderMode === "reduce_invoice" || out.invoicePaid);
+      const receiptEmailDeferred =
+        !!b.send_email && !shouldEmail && out.remainderMode === "keep_open" && !out.settles;
       let email: { ok: boolean; to?: string; error?: string } | null = null;
-      if (b.send_email) email = await emailReceipt(req, id, out.receipt.id, b.email_to);
+      if (shouldEmail) email = await emailReceipt(req, id, out.receipt.id, b.email_to);
 
       const data = await withTenantTransaction(req.organizationId!, async (tx) => {
         const fresh = await loadDetail(tx, id);
@@ -1543,6 +1559,8 @@ invoicesCrmRouter.post(
           method: out.receipt.method,
         },
         invoice_paid: out.invoicePaid,
+        remainder_mode: out.remainderMode,
+        receipt_email_deferred: receiptEmailDeferred,
         invoice: data,
         balance,
         email,
