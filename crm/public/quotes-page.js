@@ -247,6 +247,74 @@
     }).join('');
     renderTiles();
   }
+  function sortByClient(rows) {
+    return rows.slice().sort((a, b) =>
+      clientOf(a).localeCompare(clientOf(b), 'pt-BR', { sensitivity: 'base' }),
+    );
+  }
+  function ymd(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  function sod(d) {
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+  function weekSunday(d) {
+    const x = sod(d);
+    x.setDate(x.getDate() - x.getDay());
+    return x;
+  }
+  function weekTitle(sunday) {
+    const end = new Date(sunday.getFullYear(), sunday.getMonth(), sunday.getDate() + 6);
+    const a = `${sunday.getDate()} ${MO[sunday.getMonth()]}`;
+    const b = `${end.getDate()} ${MO[end.getMonth()]}`;
+    return `${a} – ${b}`;
+  }
+  /** Approval date for grouping Approved quotes (signed → updated → created). */
+  function approveAnchor(q) {
+    const iso = q.signed_at || q.updated_at || q.created_at;
+    if (!iso) return null;
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  function bandHtml(label, rows, tone) {
+    return `<section class="qs-band qs-band--${tone}"><div class="qs-grp"><span>${esc(label)}</span><em>${rows.length}</em></div>${rows.map(rowHtml).join('')}</section>`;
+  }
+  /** Approved quotes: chronological by week (newest first), alternating colors like Jobs. */
+  function approvedBandsHtml(rows, startIdx, prefix) {
+    const weeks = new Map();
+    const undated = [];
+    rows.forEach((q) => {
+      const d = approveAnchor(q);
+      if (!d) {
+        undated.push(q);
+        return;
+      }
+      const key = ymd(weekSunday(d));
+      if (!weeks.has(key)) weeks.set(key, []);
+      weeks.get(key).push(q);
+    });
+    const keys = [...weeks.keys()].sort((a, b) => b.localeCompare(a));
+    let html = '';
+    let i = startIdx;
+    keys.forEach((key) => {
+      const g = weeks.get(key).slice().sort((a, b) => {
+        const da = approveAnchor(a)?.getTime() || 0;
+        const db = approveAnchor(b)?.getTime() || 0;
+        if (db !== da) return db - da;
+        return clientOf(a).localeCompare(clientOf(b), 'pt-BR', { sensitivity: 'base' });
+      });
+      const [yy, mm, dd] = key.split('-').map(Number);
+      const title = weekTitle(new Date(yy, mm - 1, dd));
+      const label = prefix ? `${prefix} · ${title}` : title;
+      html += bandHtml(label, g, i % 2 ? 'b' : 'a');
+      i += 1;
+    });
+    if (undated.length) {
+      html += bandHtml(prefix ? `${prefix} · Sem data` : 'Sem data', sortByClient(undated), i % 2 ? 'b' : 'a');
+      i += 1;
+    }
+    return { html, next: i };
+  }
   function renderList() {
     const box = $('qsRows');
     const q = st.q.toLowerCase();
@@ -259,13 +327,20 @@
     }
     const by = {};
     rows.forEach((r) => (by[groupOf(r)] = by[groupOf(r)] || []).push(r));
-    box.innerHTML =
-      GROUPS.filter(([k]) => by[k])
-        .map(
-          ([k, label], i) =>
-            `<section class="qs-band qs-band--${i % 2 ? 'b' : 'a'}"><div class="qs-grp"><span>${label}</span><em>${by[k].length}</em></div>${by[k].map(rowHtml).join('')}</section>`,
-        )
-        .join('') + archLink();
+    let html = '';
+    let bandIdx = 0;
+    const onlyApproved = st.seg === 'approved' && !st.archived;
+    GROUPS.filter(([k]) => by[k]).forEach(([k, label]) => {
+      if (k === 'approved') {
+        const out = approvedBandsHtml(by[k], bandIdx, onlyApproved ? '' : label);
+        html += out.html;
+        bandIdx = out.next;
+        return;
+      }
+      html += bandHtml(label, sortByClient(by[k]), bandIdx % 2 ? 'b' : 'a');
+      bandIdx += 1;
+    });
+    box.innerHTML = html + archLink();
   }
   function archLink() {
     return `<button type="button" class="qs-arch" data-arch>${st.archived ? '‹ Voltar aos quotes' : 'Ver arquivados'}</button>`;
@@ -597,7 +672,7 @@
       bar.innerHTML = `<button type="button" class="qs-btn qs-btn--sq" data-qs-pdf="${esc(q.id)}" data-qs-pdf-name="${esc(q.quote_number || 'quote')}" aria-label="PDF">${ico('pdf')}</button>
         <a class="qs-btn" href="quote-builder.html?id=${encodeURIComponent(q.id)}&services=1">Serviços</a>
         ${fat}
-        <a class="qs-btn qs-btn--pri" href="quote-builder.html?id=${encodeURIComponent(q.id)}">Editar orçamento</a>`;
+        <a class="qs-btn qs-btn--pri" href="quote-builder.html?id=${encodeURIComponent(q.id)}">Editar</a>`;
       bar.hidden = false;
     } else {
       bar.hidden = true;

@@ -287,6 +287,12 @@ async function quotePdfInputForCrm(organizationId: string, quoteId: string) {
     (isBuilder ? quote.builder?.email : null) || quote.customer?.email || null;
   const customerPhone =
     (isBuilder ? quote.builder?.phone : null) || quote.customer?.phone || null;
+  const payload =
+    quote.payload && typeof quote.payload === "object" && !Array.isArray(quote.payload)
+      ? (quote.payload as Record<string, unknown>)
+      : {};
+  const jobName = String(payload.job_name || "").trim();
+  const jobAddress = String(payload.job_address || "").trim();
   const street = quote.property
     ? [quote.property.line1, quote.property.line2].filter(Boolean).join(", ")
     : null;
@@ -323,8 +329,9 @@ async function quotePdfInputForCrm(organizationId: string, quoteId: string) {
     customerEmail,
     customerPhone,
     quoteParty: isBuilder ? "builder" : "customer",
-    projectName: quote.property?.label || quote.title,
-    projectAddress: street,
+    // JOB SITE: property label → quote "ID do cliente" (payload.job_name) → title
+    projectName: quote.property?.label || jobName || quote.title,
+    projectAddress: street || jobAddress || null,
     projectCityLine: cityLine,
     validUntil: quote.validUntil,
     terms: quote.terms,

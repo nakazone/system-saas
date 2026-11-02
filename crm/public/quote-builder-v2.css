@@ -230,21 +230,20 @@ body.qb-dashboard-inner .qb-sidebar-footer { border: 0 !important; padding: 0 !i
   body.qb-dashboard-inner .qb-action-bar .qb-action-bar__more { order: 3; font-size: 20px; }
   body.qb-dashboard-inner .qb-action-bar .btn { border-bottom: 0 !important; min-height: 56px; font-weight: 800; font-size: 15px; }
   /*
-   * Quote focus mode hides the om-tabbar (see obramate-app.css). Keep the action bar
-   * pinned to the real bottom — do not reserve tabbar height or it floats with a gap.
-   * When the soft keyboard is open, JS sets data-kb-hidden so the bar does not cover inputs.
+   * Quote focus mode hides the om-tabbar. Keep the action bar pinned to the real bottom
+   * (v3 paints the floating card). Soft keyboard: JS sets data-kb-hidden.
    */
   body.qb-dashboard-inner .qb-action-bar[data-kb-hidden="1"] {
     visibility: hidden !important;
     pointer-events: none !important;
   }
-  body.qb-dashboard-inner .qb-action-bar {
+  body.qb-dashboard-inner:not(.qb-v3) .qb-action-bar {
     left: 0 !important;
     bottom: 0 !important;
     padding-bottom: env(safe-area-inset-bottom, 0px) !important;
   }
-  body.qb-dashboard-inner,
-  body.qb-dashboard-inner .qb-page {
+  body.qb-dashboard-inner:not(.qb-v3),
+  body.qb-dashboard-inner:not(.qb-v3) .qb-page {
     padding-bottom: calc(3.75rem + env(safe-area-inset-bottom, 0px)) !important;
   }
 }

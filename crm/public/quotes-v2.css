@@ -194,16 +194,23 @@
   .qs-split.is-detail .qs-main { display: block; }
   .qs-back { display: inline-flex; }
   .qs-side { position: static; }
+  /* Detail focus: hide the tab menu so the quote action bar sits on the real bottom. */
+  html body.dashboard-app-body.om-device-mobile.qs-detail-open .om-tabbar,
+  html body.dashboard-app-body.om-device-mobile.qs-detail-open .om-tabbar.om-tabbar--ios,
+  html body.dashboard-app-body.om-device-mobile.qs-detail-open .om-tabbar-search { display: none !important; }
   body.qs-detail-open .qs-mbar:not([hidden]) {
-    display: flex; gap: 8px; position: fixed; left: 12px; right: 12px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); z-index: 60;
+    display: flex; align-items: center; gap: 8px; position: fixed; left: 12px; right: 12px;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px)); z-index: 60;
     padding: 8px; border-radius: 20px; background: rgba(255, 255, 255, .94); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
     box-shadow: 0 0 0 1px #E5E7EB, 0 14px 30px -14px rgba(16, 24, 40, .35); font-family: Geist, "Plus Jakarta Sans", system-ui, sans-serif;
   }
-  .qs-mbar .qs-btn { flex: 1; height: 46px; font-size: 15px; }
+  .qs-mbar .qs-btn { flex: 1 1 0; min-width: 0; height: 46px; font-size: 14px; padding: 0 10px; }
   .qs-mbar .qs-btn--sq { flex: none; width: 46px; padding: 0; }
   .qs-mbar .qs-btn--sq svg { width: 18px; height: 18px; }
-  body.qs-detail-open .qs-main { padding-bottom: 90px; }
+  .qs-mbar .qs-btn--pri { flex: 1.35 1 0; }
+  body.qs-detail-open .qs-main { padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
   body.qs-detail-open .qs-acts { display: none; }
+  body.qs-detail-open.om-has-tabbar .dashboard-main { padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important; }
 }
 @media (max-width: 760px) {
   .qs-page-head { gap: 10px; margin-bottom: 12px; }
@@ -218,7 +225,4 @@
   .qs-head { padding: 16px; }
   .qs-head h2 { font-size: 24px; }
   .qs-paper__bar .qs-btn { display: none; }
-  html body.dashboard-app-body.om-device-mobile.qs-detail-open .om-tabbar.om-tabbar--ios,
-  html body.dashboard-app-body.om-device-mobile.qs-detail-open .om-tabbar-search { display: none !important; }
-  body.qs-detail-open .qs-mbar:not([hidden]) { bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
 }
