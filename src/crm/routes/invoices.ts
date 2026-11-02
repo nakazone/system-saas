@@ -93,6 +93,11 @@ const listInclude = {
       quoteNumber: true,
       number: true,
       builderId: true,
+      total: true,
+      subtotal: true,
+      taxTotal: true,
+      discountType: true,
+      discountValue: true,
       payload: true,
       builder: { select: { company: true, firstName: true, lastName: true, email: true } },
     },
@@ -111,6 +116,22 @@ const listInclude = {
 } as const;
 
 type ListRow = Prisma.QuoteInvoiceGetPayload<{ include: typeof listInclude }>;
+
+/**
+ * Same amount heal as loadDetail: when the quote has a discount, unpaid invoices still
+ * holding the pre-discount total are written down so the side list matches the paper.
+ */
+async function healListInvoiceAmount(tx: TenantPrisma, inv: ListRow): Promise<ListRow> {
+  if (!inv.quote) return inv;
+  if (["void", "paid", "partially_paid"].includes(inv.status)) return inv;
+  if (inv.receipts.length > 0) return inv;
+  const net = quoteContractTotal(inv.quote);
+  const current = Number(inv.amount);
+  if (!(net > 0) || !(current > net + 0.009)) return inv;
+  const amount = new Prisma.Decimal(net.toFixed(2));
+  await tx.quoteInvoice.update({ where: { id: inv.id }, data: { amount } });
+  return { ...inv, amount };
+}
 
 function builderDisplayName(b: {
   company: string | null;
@@ -427,19 +448,22 @@ async function listInvoices(req: AuthedRequest, res: Response, next: (e: unknown
 
     const include = listInclude;
 
-    const [total, rows, all] = await withTenantTransaction(req.organizationId!, async (tx) => [
-      await tx.quoteInvoice.count({ where }),
-      await tx.quoteInvoice.findMany({
+    const { total, rows, summaryRows } = await withTenantTransaction(req.organizationId!, async (tx) => {
+      const totalCount = await tx.quoteInvoice.count({ where });
+      const pageRows = await tx.quoteInvoice.findMany({
         where,
         include,
         orderBy: [{ createdAt: "desc" }],
         skip: (page - 1) * limit,
         take: limit,
-      }),
+      });
+      const healed: ListRow[] = [];
+      for (const r of pageRows) healed.push(await healListInvoiceAmount(tx, r));
       // Summary covers every invoice (respecting search / client filters, not the status tab).
-      await tx.quoteInvoice.findMany({
+      const all = await tx.quoteInvoice.findMany({
         where: { ...base, status: { not: "void" } },
         select: {
+          id: true,
           status: true,
           amount: true,
           dueDate: true,
@@ -447,8 +471,16 @@ async function listInvoices(req: AuthedRequest, res: Response, next: (e: unknown
           receipts: { select: { amount: true, paidAt: true } },
         },
         take: 5000,
-      }),
-    ]);
+      });
+      const healedById = new Map(healed.map((r) => [r.id, r.amount]));
+      return {
+        total: totalCount,
+        rows: healed,
+        summaryRows: all.map((inv) =>
+          healedById.has(inv.id) ? { ...inv, amount: healedById.get(inv.id)! } : inv,
+        ),
+      };
+    });
 
     const since30 = now.getTime() - 30 * 86400000;
     const summary = {
@@ -458,7 +490,7 @@ async function listInvoices(req: AuthedRequest, res: Response, next: (e: unknown
       draft_amount: 0,
       received_30d: 0,
     };
-    for (const inv of all) {
+    for (const inv of summaryRows) {
       const m = computeInvoiceMoney({ ...inv, receipts: inv.receipts }, now);
       summary.count.all += 1;
       if (m.displayStatus === "draft") {
@@ -666,17 +698,20 @@ invoicesCrmRouter.get(
       const quoteId = String(req.params.id);
       if (!UUID_RE.test(quoteId)) return badId(res);
       const now = new Date();
-      const { quote, rows } = await withTenantTransaction(req.organizationId!, async (tx) => ({
-        quote: await tx.quote.findFirst({
+      const { quote, rows } = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const quoteRow = await tx.quote.findFirst({
           where: { id: quoteId },
           select: { total: true, subtotal: true, taxTotal: true, discountType: true, discountValue: true, payload: true },
-        }),
-        rows: await tx.quoteInvoice.findMany({
+        });
+        const pageRows = await tx.quoteInvoice.findMany({
           where: { quoteId },
           orderBy: { createdAt: "asc" },
           include: listInclude,
-        }),
-      }));
+        });
+        const healed: ListRow[] = [];
+        for (const r of pageRows) healed.push(await healListInvoiceAmount(tx, r));
+        return { quote: quoteRow, rows: healed };
+      });
       if (!quote) return fail(res, 404, "Orçamento não encontrado");
       const data = rows.map((r) => listItem(r, now));
       const quoteTotal = quoteContractTotal(quote);

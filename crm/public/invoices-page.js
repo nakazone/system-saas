@@ -407,22 +407,38 @@
     return { rows: out, summary: sum };
   }
 
-  let loading = null;
+  let loadSeq = 0;
   async function load() {
-    if (loading) return loading;
-    loading = (async () => {
-      try {
-        const r = await fetchAll();
-        all = r.rows;
-        summary = r.summary;
-        renderAll();
-      } catch (err) {
-        $('invRows').innerHTML = `<p class="ix-empty"><b>Não foi possível carregar</b><br>${esc(err.message)}</p>`;
-      } finally {
-        loading = null;
+    const seq = ++loadSeq;
+    try {
+      const r = await fetchAll();
+      if (seq !== loadSeq) return; // superseded by a newer reload (e.g. after discount/edit)
+      all = r.rows;
+      summary = r.summary;
+      // Keep the open invoice row aligned with the detail paper if it just healed the amount.
+      const cur = typeof window.InvoicePage?.current === 'function' ? window.InvoicePage.current() : null;
+      if (cur && cur.id) {
+        const i = all.findIndex((x) => String(x.id) === String(cur.id));
+        if (i >= 0) {
+          Object.assign(all[i], {
+            display_status: cur.display_status,
+            status: cur.status,
+            paid_amount: cur.paid_amount,
+            remaining_amount: cur.remaining_amount,
+            percent_paid: cur.percent_paid,
+            days_overdue: cur.days_overdue,
+            viewed_at: cur.viewed_at,
+            issued_at: cur.issued_at,
+            amount: cur.amount,
+            due_date: cur.due_date,
+          });
+        }
       }
-    })();
-    return loading;
+      renderAll();
+    } catch (err) {
+      if (seq !== loadSeq) return;
+      $('invRows').innerHTML = `<p class="ix-empty"><b>Não foi possível carregar</b><br>${esc(err.message)}</p>`;
+    }
   }
 
   async function loadBillableTotal() {
@@ -698,9 +714,9 @@
     let rt = null;
     window.addEventListener('invoice:changed', (e) => {
       const d = e.detail;
-      const i = d && all.findIndex((x) => x.id === d.id);
+      const i = d && all.findIndex((x) => String(x.id) === String(d.id));
       if (i >= 0 && d) {
-        // mantém a linha em dia na hora; os totais vêm do servidor logo depois
+        // Keep the side list in sync immediately (amount after discount / payment).
         Object.assign(all[i], {
           display_status: d.display_status,
           status: d.status,
@@ -714,6 +730,8 @@
           due_date: d.due_date,
         });
         renderList();
+        renderSum();
+        renderTiles();
       }
       clearTimeout(rt);
       rt = setTimeout(() => load(), 600);
