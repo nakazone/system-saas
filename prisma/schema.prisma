@@ -794,6 +794,7 @@ model Organization {
   partnerJobRequests       PartnerJobRequest[]
   jobPartnerMessages       JobPartnerMessage[]
   stainSampleRounds        StainSampleRound[]
+  jobPhases                JobPhase[]
   stainSamples             StainSample[]
   stainApprovals           StainApproval[]
   builders                 Builder[]
@@ -1178,6 +1179,39 @@ model JobPartnerMessage {
 }
 
 /// Samples de stain: one round of samples the sanding crew applied on the floor, sent to the client to pick and sign.
+/// One row per phase of a job for trades with more than the Hardwood columns
+/// (src/lib/trades/job-phases.ts). Hardwood keeps installationDoneAt / sandDoneAt on WorkOrder.
+model JobPhase {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workOrderId    String       @db.Uuid
+  workOrder      WorkOrder    @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  /// Trade pack id and phase key (tile: prep, waterproofing, flood_test, setting, grout, seal_clean)
+  trade          String
+  phaseKey       String
+  sortOrder      Int
+  /// pending | scheduled | in_progress | done | skipped
+  status         String       @default("pending")
+  scheduledStart DateTime?
+  scheduledEnd   DateTime?
+  /// Earliest start: the previous phase's done time plus its wait (cure, flood test)
+  readyAt        DateTime?
+  startedAt      DateTime?
+  doneAt         DateTime?
+  doneById       String?      @db.Uuid
+  doneByName     String?
+  /// Evidence recorded for the phase's requirements: { "<requirement key>": { at, by, value?, mediaId? } }
+  evidence       Json         @default("{}")
+  notes          String?      @db.Text
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([workOrderId, phaseKey])
+  @@index([organizationId, workOrderId])
+  @@index([organizationId, scheduledStart])
+}
+
 model StainSampleRound {
   id                String       @id @default(uuid()) @db.Uuid
   organizationId    String       @db.Uuid
@@ -2763,6 +2797,7 @@ model WorkOrder {
   partnerRequests    PartnerJobRequest[]
   partnerMessages    JobPartnerMessage[]
   stainRounds        StainSampleRound[]
+  phases             JobPhase[]
   stainApprovals     StainApproval[]
   inspections        JobInspection[]
   measurements       JobMeasurement[]

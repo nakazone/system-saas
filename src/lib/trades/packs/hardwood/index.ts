@@ -26,6 +26,7 @@ export const hardwood: TradePack = {
     { key: "sand_finish", label: { "pt-BR": "Lixa", "en-US": "Sand & Finish" }, doneAtField: "sandDoneAt" },
   ],
   combinedPhaseKey: "both",
+  phaseStorage: "columns",
   takeoff: HARDWOOD_TAKEOFF,
   ai: {
     companyKind: "flooring installation companies",

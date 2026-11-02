@@ -21,7 +21,7 @@ export const DEFAULT_PHASE: string = PHASE_KEYS[0]!;
 export const PHASES: readonly PhaseDef[] = pack.phases;
 
 /** Done-at columns in phase order (hardwood: installationDoneAt, sandDoneAt). */
-export const PHASE_DONE_FIELDS: readonly PhaseDoneField[] = pack.phases.map((p) => p.doneAtField);
+export const PHASE_DONE_FIELDS: readonly PhaseDoneField[] = pack.phases.map((p) => p.doneAtField).filter((f): f is PhaseDoneField => !!f);
 
 /** True for a single phase key (not the combined key, not "all"). */
 export function isPhaseKey(v: unknown): boolean {

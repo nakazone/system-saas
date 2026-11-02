@@ -29,12 +29,26 @@ export type QuoteSectionDef = { key: string; label: string };
 /** WorkOrder columns that record when a phase was closed. */
 export type PhaseDoneField = "installationDoneAt" | "sandDoneAt";
 
+/** Something a phase must have recorded before it can close (flood test, photo, signature…). */
+export type PhaseRequirement = {
+  key: string;
+  kind: "photo" | "test" | "signature" | "checklist";
+  label: { "pt-BR": string; "en-US": string };
+};
+
 /** A job phase that has its own crew, calendar and payroll period (hardwood: Instalação / Lixa). */
 export type PhaseDef = {
   key: string;
   label: { "pt-BR": string; "en-US": string };
-  /** Column that stores when this phase was closed on a job that runs all phases. */
-  doneAtField: PhaseDoneField;
+  /**
+   * Column that stores when this phase was closed (packs that keep phases on WorkOrder columns,
+   * i.e. Hardwood). Packs that store phases in the JobPhase table leave it out.
+   */
+  doneAtField?: PhaseDoneField;
+  /** Hours the next phase must wait after this one closes (cure time, flood test…). */
+  waitAfterHours?: number;
+  /** Evidence required to close this phase. */
+  requires?: readonly PhaseRequirement[];
 };
 
 /** What the ObraBuilder plan takeoff measures for this trade (keys are plan legend kinds). */
@@ -64,6 +78,11 @@ export type TradePack = {
    * it runs all phases in sequence (hardwood: "both").
    */
   phases: readonly PhaseDef[];
+  /**
+   * Where a job's phases live: "columns" = WorkOrder.installationDoneAt / sandDoneAt (Hardwood, as
+   * the app always did); "table" = one JobPhase row per phase (trades with more phases).
+   */
+  phaseStorage: "columns" | "table";
   takeoff: PackTakeoff;
   combinedPhaseKey: string;
   ai: {
