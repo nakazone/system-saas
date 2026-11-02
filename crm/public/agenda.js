@@ -1143,6 +1143,19 @@
     (m.temp_workers || []).forEach((x) => x.name && names.push(x.name + ' (temporário)'));
     return names;
   }
+  /** User ids on the job ticket (members + responsável). */
+  function teamIdsOf(e) {
+    const m = (e && e.meta) || {};
+    const ids = new Set();
+    const lead = m.assigned_user_id || (m.assigned_user && m.assigned_user.id);
+    if (lead) ids.add(String(lead));
+    (m.members || []).forEach((x) => x.user_id && ids.add(String(x.user_id)));
+    return ids;
+  }
+  function teamLabelOf(e) {
+    const names = peopleOf(e);
+    return names.length ? names.join(', ') : '—';
+  }
 
   function detailHtml(e, phone) {
     const w = whenText(e);
@@ -1213,7 +1226,11 @@
     const statusInner = `<b>${esc(statusText(e))}</b>`;
     const sectorInner =
       e.type === 'job' ? `<b>${esc(SECTOR_LBL[e.meta.sector] || e.meta.sector || 'Geral')}</b>` : '';
-    const assigneeInner = `<b>${esc(ppl.join(', ') || '—')}</b>`;
+    const assigneeName =
+      (e.meta.assigned_user && e.meta.assigned_user.name) ||
+      (ppl.length ? ppl[0] : '—');
+    const assigneeInner = `<b>${esc(assigneeName)}</b>`;
+    const teamInner = `<b>${esc(teamLabelOf(e))}</b>`;
 
     return `<div class="ag-dtl" style="${evStyle(e)}" data-ag-detail="${esc(e.id)}" data-ag-type="${esc(e.type)}">
       <div class="ag-dtl__head">${
@@ -1262,6 +1279,11 @@
         }
         <div><span>Responsável</span>${canEdit ? tap('assigned_user_id', assigneeInner) : assigneeInner}</div>
         ${
+          e.type === 'job'
+            ? `<div><span>Equipe</span>${canEdit ? tap('members', teamInner) : teamInner}</div>`
+            : ''
+        }
+        ${
           e.type === 'job' && e.meta.related_work_order
             ? `<div><span>Job ligado</span><b><a class="ag-link" href="jobs.html?id=${encodeURIComponent(e.meta.related_work_order.id)}">#${esc(
                 e.meta.related_work_order.number != null ? e.meta.related_work_order.number : '—'
@@ -1278,7 +1300,6 @@
                 .join('<br>')}</b></div>`
             : ''
         }
-        ${ppl.length && !canEdit ? `<div><span>Equipe</span><b>${esc(ppl.join(', '))}</b></div>` : ''}
         ${e.type === 'job' && e.meta.services_total ? `<div><span>Serviços</span><b>${esc(new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(e.meta.services_total))}</b></div>` : ''}
       </div>
       ${notesBlock}
@@ -1287,11 +1308,9 @@
           ? `<button type="button" class="ag-btn" data-ag-device-cal="${esc(e.id)}">Adicionar ao Apple Calendar</button>`
           : ''
       }${
-        canEdit && e.type === 'job'
-          ? `<a class="ag-btn" href="jobs.html?id=${encodeURIComponent(String(e.id).replace(/:(sand|installation|main)$/i, ''))}">Editar Job</a>`
+        canEdit
+          ? `<button type="button" class="ag-btn" data-ag-edit="${esc(e.id)}">${e.type === 'job' ? 'Editar Job' : 'Editar'}</button>`
           : ''
-      }${
-        canEdit ? `<button type="button" class="ag-btn" data-ag-edit="${esc(e.id)}">Editar</button>` : ''
       }${
         canEdit && e.type === 'job' && e.meta.sector === 'installation'
           ? `<button type="button" class="ag-btn" data-ag-lixa="${esc(e.id)}">Agendar Lixa</button>`
@@ -1372,6 +1391,20 @@
         .map((u) => `<option value="${esc(u.id)}" ${String(u.id) === String(assigneeId) ? 'selected' : ''}>${esc(u.name || u.email)}</option>`)
         .join('')}</select>`;
     }
+    if (field === 'members') {
+      const on = teamIdsOf(e);
+      if (!users.length) return `<p class="ag-dtl__team-empty" ${common}>Nenhum usuário disponível.</p>`;
+      return `<div class="ag-dtl__team" ${common} role="group" aria-label="Equipe do job">${users
+        .map((u) => {
+          const id = String(u.id);
+          const selected = on.has(id);
+          const lead = String(assigneeId) === id;
+          return `<button type="button" class="ag-team-chip${selected ? ' is-on' : ''}" data-ag-team-uid="${esc(id)}" aria-pressed="${selected ? 'true' : 'false'}">${esc(
+            u.name || u.email,
+          )}${lead ? '<small> · resp.</small>' : ''}</button>`;
+        })
+        .join('')}</div>`;
+    }
     return '';
   }
 
@@ -1412,6 +1445,22 @@
       const card = tapEl.closest('.ag-dtl__addr') || tapEl;
       card.replaceWith(wrap);
       wrap.classList.add('ag-card', 'ag-dtl__editing--addr');
+      wrap.insertAdjacentHTML(
+        'beforeend',
+        `<button type="button" class="ag-dtl__done" data-ag-edit-done aria-label="Confirmar" title="Confirmar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>`,
+      );
+    } else if (field === 'members') {
+      const cell = tapEl.closest('.ag-dtl__kv > div') || tapEl.parentNode;
+      if (cell && cell !== tapEl) {
+        const label = cell.querySelector(':scope > span');
+        Array.from(cell.children).forEach((ch) => {
+          if (ch !== label) ch.remove();
+        });
+        cell.appendChild(wrap);
+      } else {
+        tapEl.replaceWith(wrap);
+      }
+      wrap.classList.add('ag-dtl__editing--team');
       wrap.insertAdjacentHTML(
         'beforeend',
         `<button type="button" class="ag-dtl__done" data-ag-edit-done aria-label="Confirmar" title="Confirmar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>`,
@@ -1519,6 +1568,17 @@
       const cur = String(ev.meta.assigned_user_id || (ev.meta.assigned_user && ev.meta.assigned_user.id) || '');
       if (valOf('assigned_user_id') === cur) return;
     }
+    if (field === 'members') {
+      const box = detail.querySelector(`[data-ag-inline="members"][data-ag-id="${CSS.escape(id)}"]`);
+      const next = box
+        ? [...box.querySelectorAll('.ag-team-chip.is-on')].map((b) => String(b.getAttribute('data-ag-team-uid') || '')).filter(Boolean).sort()
+        : [];
+      const cur = [...teamIdsOf(ev)].sort();
+      if (next.join(',') === cur.join(',')) {
+        openDetail(id, $(`[data-ag-ev="${CSS.escape(id)}"]`));
+        return;
+      }
+    }
     if (field === 'calendar') {
       if (type === 'job') {
         const sel = detail.querySelector(`[data-ag-inline="calendar"][data-ag-id="${CSS.escape(id)}"]`);
@@ -1564,7 +1624,15 @@
         else if (field === 'sector') body.sector = valOf('sector') || null;
         else if (field === 'address') body.address = valOf('address') || null;
         else if (field === 'assigned_user_id') body.assigned_user_id = valOf('assigned_user_id') || null;
-        else if (field === 'calendar') {
+        else if (field === 'members') {
+          const box = detail.querySelector(`[data-ag-inline="members"][data-ag-id="${CSS.escape(id)}"]`);
+          const ids = box
+            ? [...box.querySelectorAll('.ag-team-chip.is-on')].map((b) => String(b.getAttribute('data-ag-team-uid') || '')).filter(Boolean)
+            : [];
+          const lead = String(ev.meta.assigned_user_id || (ev.meta.assigned_user && ev.meta.assigned_user.id) || '');
+          if (lead && !ids.includes(lead)) ids.push(lead);
+          body.member_user_ids = ids;
+        } else if (field === 'calendar') {
           const sel = detail.querySelector(`[data-ag-inline="calendar"][data-ag-id="${CSS.escape(id)}"]`);
           const opt = sel && sel.selectedOptions && sel.selectedOptions[0];
           const sector = opt ? String(opt.getAttribute('data-sector') || 'all') : 'all';
@@ -2919,10 +2987,24 @@
         if (url) setTimeout(() => { window.location.href = url; }, 60);
         return;
       }
+      if ((el = t.closest('[data-ag-team-uid]'))) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const on = !el.classList.contains('is-on');
+        el.classList.toggle('is-on', on);
+        el.setAttribute('aria-pressed', on ? 'true' : 'false');
+        return;
+      }
       if ((el = t.closest('[data-ag-edit-done]'))) {
         ev.preventDefault();
         ev.stopPropagation();
         const detail = el.closest('[data-ag-detail]');
+        const editing = detail && detail.querySelector('[data-ag-editing]');
+        if (editing && editing.getAttribute('data-ag-editing') === 'members') {
+          const box = editing.querySelector('[data-ag-inline="members"]') || editing;
+          void applyInlinePatch(box);
+          return;
+        }
         if (detail) dismissFieldEdit(detail);
         return;
       }

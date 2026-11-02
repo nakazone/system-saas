@@ -424,6 +424,45 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
   align-items: center;
   gap: 10px;
 }
+.ag-dtl__editing--team {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  width: 100%;
+  max-width: none;
+}
+.ag-dtl__editing--team .ag-dtl__done { align-self: flex-end; }
+.ag-dtl__team {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+  max-width: 100%;
+}
+.ag-dtl__team-empty { margin: 0; font-size: 13px; font-weight: 600; color: var(--ink2); }
+.ag-team-chip {
+  appearance: none;
+  border: 0;
+  margin: 0;
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: #F1F3F5;
+  color: #221E1A;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+  box-shadow: 0 0 0 1px #E5E7EB;
+}
+.ag-team-chip small { font-weight: 600; color: #667085; }
+.ag-team-chip.is-on {
+  background: #221E1A;
+  color: #fff;
+  box-shadow: none;
+}
+.ag-team-chip.is-on small { color: #98A2B3; }
+.ag-team-chip:active { transform: scale(.97); }
 .ag-dtl__editing--addr .ag-dtl__in--addr {
   flex: 1 1 auto;
   min-width: 0;
