@@ -199,6 +199,33 @@
   color: #fff;
 }
 
+.chat-job-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--chat-soft, #F1F3F5);
+}
+.chat-job-seg {
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 650;
+  height: 30px;
+  border-radius: 9px;
+  color: var(--chat-muted);
+  cursor: pointer;
+}
+.chat-job-seg:hover { color: var(--chat-ink); }
+.chat-job-seg.is-active {
+  background: #fff;
+  color: var(--chat-ink);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+}
+
 .chat-list-scroll {
   flex: 1;
   overflow-y: auto;

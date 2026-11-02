@@ -15,9 +15,7 @@
     jobsSearchTimer: null,
     filter: "all",
     listQuery: "",
-    jobStatus: "active",
-    jobFrom: "",
-    jobTo: "",
+    jobStatus: "active", // active = Andamento · completed = Finalizados
     activeId: null,
     messages: [],
     hasMore: false,
@@ -209,13 +207,6 @@
     return d.toLocaleDateString(undefined, { day: "2-digit", month: "short" });
   }
 
-  function toLocalDateInputValue(d) {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-  }
-
   function initialsFrom(name) {
     const parts = String(name || "")
       .trim()
@@ -288,6 +279,21 @@
     );
   }
 
+  function syncJobFilterUi() {
+    const filters = $("chatJobFilters");
+    const search = $("chatListSearch");
+    const onJobs = state.filter === "job";
+    if (filters) filters.hidden = !onJobs;
+    if (search) {
+      search.placeholder = onJobs ? "Buscar jobs…" : "Buscar conversas…";
+    }
+    document.querySelectorAll("[data-job-status]").forEach((btn) => {
+      const on = btn.getAttribute("data-job-status") === (state.jobStatus || "active");
+      btn.classList.toggle("is-active", on);
+      btn.setAttribute("aria-selected", on ? "true" : "false");
+    });
+  }
+
   function filteredConversations() {
     const q = state.listQuery.trim().toLowerCase();
     const rows = realConversations().filter((c) => {
@@ -344,7 +350,78 @@
     </button>`;
   }
 
+  function jobRowHtml(job) {
+    const active =
+      job.conversation_id && job.conversation_id === state.activeId ? " is-active" : "";
+    const unread = (job.unread_count || 0) > 0;
+    const badge = unread
+      ? `<span class="chat-conv__badge">${job.unread_count > 99 ? "99+" : job.unread_count}</span>`
+      : "";
+    const company = jobCompanyFrom(job);
+    const addr = jobAddressFrom(job);
+    const preview = job.last_message
+      ? humanizePreview(job.last_message.body, null)
+      : job.assigned_user?.name
+        ? `Resp. ${job.assigned_user.name}`
+        : "Abrir canal do job";
+    const time = job.last_message?.created_at
+      ? fmtTime(job.last_message.created_at)
+      : fmtJobSchedule(job.scheduled_start);
+    const status = jobStatusLabel(job.status);
+    return `<button type="button" class="chat-conv chat-conv--job${active}${unread ? " is-unread" : ""}" data-work-order-id="${escapeHtml(
+      job.id,
+    )}"${job.conversation_id ? ` data-id="${escapeHtml(job.conversation_id)}"` : ""}>
+      <span class="chat-ava chat-ava--job" aria-hidden="true">${SVG.building}</span>
+      <span class="chat-conv__body">
+        <span class="chat-conv__top">
+          <span class="chat-conv__title">${escapeHtml(company)}</span>
+          <span class="chat-conv__time">${escapeHtml(time)}</span>
+        </span>
+        ${
+          addr || status
+            ? `<span class="chat-conv__addr">${escapeHtml([status, addr].filter(Boolean).join(" · "))}</span>`
+            : ""
+        }
+        <span class="chat-conv__bottom">
+          <span class="chat-conv__preview">${escapeHtml(String(preview || "").slice(0, 100))}</span>
+          ${badge}
+        </span>
+      </span>
+    </button>`;
+  }
+
+  function renderJobsList() {
+    const empty = $("chatListEmpty");
+    const root = $("chatListSections");
+    if (state.jobsLoading && !state.jobs.length) {
+      empty.hidden = false;
+      empty.textContent = "Carregando jobs…";
+      root.hidden = true;
+      root.innerHTML = "";
+      return;
+    }
+    if (!state.jobs.length) {
+      empty.hidden = false;
+      empty.textContent =
+        state.jobStatus === "completed"
+          ? "Nenhum job finalizado."
+          : "Nenhum job em andamento.";
+      root.hidden = true;
+      root.innerHTML = "";
+      return;
+    }
+    empty.hidden = true;
+    root.hidden = false;
+    const label = state.jobStatus === "completed" ? "Finalizados" : "Em andamento";
+    root.innerHTML = `<p class="chat-section">${label}</p>${state.jobs.map(jobRowHtml).join("")}`;
+  }
+
   function renderList() {
+    syncJobFilterUi();
+    if (state.filter === "job") {
+      renderJobsList();
+      return;
+    }
     const empty = $("chatListEmpty");
     const root = $("chatListSections");
     const rows = filteredConversations();
@@ -379,6 +456,42 @@
     root.innerHTML = rows.map(convRowHtml).join("");
   }
 
+  async function loadJobsList() {
+    if (state.filter !== "job") return;
+    const seq = ++state.jobsLoadSeq;
+    state.jobsLoading = true;
+    renderJobsList();
+    try {
+      const params = new URLSearchParams();
+      params.set("status", state.jobStatus === "completed" ? "completed" : "active");
+      if (state.listQuery.trim()) params.set("q", state.listQuery.trim());
+      const j = await api(`/api/chat/jobs?${params.toString()}`);
+      if (seq !== state.jobsLoadSeq) return;
+      state.jobs = j.data || [];
+      state.jobs.forEach((job) => {
+        state.jobLabelCache[job.id] = job;
+      });
+    } catch (err) {
+      if (seq !== state.jobsLoadSeq) return;
+      state.jobs = [];
+      notify(err.message || "Falha ao carregar jobs", "error");
+    } finally {
+      if (seq === state.jobsLoadSeq) {
+        state.jobsLoading = false;
+        renderJobsList();
+      }
+    }
+  }
+
+  function scheduleJobsReload(immediate) {
+    if (state.jobsSearchTimer) clearTimeout(state.jobsSearchTimer);
+    if (immediate) {
+      loadJobsList();
+      return;
+    }
+    state.jobsSearchTimer = setTimeout(() => loadJobsList(), 280);
+  }
+
   async function openJobChannel(workOrderId) {
     const j = await api(`/api/chat/jobs/${encodeURIComponent(workOrderId)}/ensure-channel`, {
       method: "POST",
@@ -387,6 +500,7 @@
     const conversationId = j.data?.conversationId || j.data?.conversation_id;
     if (!conversationId) throw new Error("Canal do job não disponível");
     await loadConversations();
+    if (state.filter === "job") await loadJobsList();
     await openConversation(conversationId);
   }
 
@@ -1356,13 +1470,26 @@
         document.querySelectorAll(".chat-list-tab").forEach((t) => t.classList.remove("is-active"));
         tab.classList.add("is-active");
         state.filter = tab.getAttribute("data-filter");
-        renderList();
+        syncJobFilterUi();
+        if (state.filter === "job") scheduleJobsReload(true);
+        else renderList();
       });
     });
 
     $("chatListSearch").addEventListener("input", (e) => {
       state.listQuery = e.target.value;
-      renderList();
+      if (state.filter === "job") scheduleJobsReload(false);
+      else renderList();
+    });
+
+    $("chatJobFilters")?.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-job-status]");
+      if (!btn) return;
+      const next = btn.getAttribute("data-job-status") === "completed" ? "completed" : "active";
+      if (next === state.jobStatus) return;
+      state.jobStatus = next;
+      syncJobFilterUi();
+      scheduleJobsReload(true);
     });
 
     $("chatBackBtn").addEventListener("click", () => {
