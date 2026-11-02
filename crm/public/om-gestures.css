@@ -1,6 +1,25 @@
 /**
  * Shared gesture styles — pull-to-refresh, swipe rows, dock padding.
+ *
+ * Scroll-to-reload is home-only. Off-home we also kill the browser's native
+ * pull-to-refresh so scrolling a Quote/Job form never reloads the page.
  */
+@media (max-width: 1024px), (pointer: coarse) {
+  /* Default: block native browser PTR (Quote/Jobs scroll must not reload). */
+  html,
+  body {
+    overscroll-behavior-y: none;
+  }
+  /* Home only: allow controlled pull for our custom reload. */
+  html.om-ptr-home,
+  html.om-ptr-home body {
+    overscroll-behavior-y: contain;
+  }
+  html.om-no-ptr .om-ptr:not(.om-ptr--rl) {
+    display: none !important;
+  }
+}
+
 .om-ptr {
   display: none;
   align-items: center;

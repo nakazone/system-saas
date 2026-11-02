@@ -1186,25 +1186,25 @@
       if (!window.__omMobileNav && !document.querySelector('script[src*="om-mobile-nav.js"]')) {
         ensureStylesheet(`om-mobile-nav.css?v=${SHELL_VER}`);
         ensureStylesheet(`om-native-app.css?v=${SHELL_VER}`);
-        ensureStylesheet(`om-gestures.css?v=${SHELL_VER}`);
+        ensureStylesheet(`om-gestures.css?v=20261102-ptr1`);
         jobs.push(ensureScript(`om-mobile-nav.js?v=${SHELL_VER}`).catch(() => {}));
-        jobs.push(ensureScript("om-gestures.js?v=20261028-ptrhome").catch(() => {}));
+        jobs.push(ensureScript("om-gestures.js?v=20261102-ptr1").catch(() => {}));
       } else {
         ensureStylesheet(`om-mobile-nav.css?v=${SHELL_VER}`);
         ensureStylesheet(`om-native-app.css?v=${SHELL_VER}`);
-        ensureStylesheet(`om-gestures.css?v=${SHELL_VER}`);
+        ensureStylesheet(`om-gestures.css?v=20261102-ptr1`);
         if (!document.querySelector('script[src*="om-gestures.js"]')) {
-          jobs.push(ensureScript("om-gestures.js?v=20261028-ptrhome").catch(() => {}));
+          jobs.push(ensureScript("om-gestures.js?v=20261102-ptr1").catch(() => {}));
         }
       }
       if (!window.__omNovoLeadSheet && !document.querySelector('script[src*="novo-lead-sheet.js"]')) {
         jobs.push(ensureScript(`novo-lead-sheet.js?v=${SHELL_VER}`).catch(() => {}));
       }
     } else if (wantGestures) {
-      // Tablets: pull-to-refresh / swipe without the phone tab bar.
-      ensureStylesheet(`om-gestures.css?v=${SHELL_VER}`);
+      // Tablets: swipe rows; pull-to-refresh only on home (om-gestures.js).
+      ensureStylesheet(`om-gestures.css?v=20261102-ptr1`);
       if (!document.querySelector('script[src*="om-gestures.js"]')) {
-        jobs.push(ensureScript("om-gestures.js?v=20261028-ptrhome").catch(() => {}));
+        jobs.push(ensureScript("om-gestures.js?v=20261102-ptr1").catch(() => {}));
       }
     }
     if (!window.sfBootCrmAddressAutocomplete && !document.querySelector('script[src*="crm-address-autocomplete.js"]')) {

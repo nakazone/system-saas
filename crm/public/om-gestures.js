@@ -7,20 +7,38 @@
 (function (global) {
   "use strict";
 
-  const VER = "20261028-ptrhome";
+  const VER = "20261102-ptr1";
 
-  /** Pull-to-refresh only on the office home (desktop dashboard and mobile home). */
+  /**
+   * Pull-to-refresh ONLY on the system home:
+   * - phone: home.html
+   * - tablet/desktop CRM: /dashboard (no ?page=)
+   * Other pages keep the topbar "Atualizar" button — never the scroll gesture
+   * (avoids wiping a Quote mid-edit when the user scrolls).
+   */
   function isAppHome() {
     try {
       const path = String(location.pathname || "/").replace(/\/+$/, "") || "/";
       const base = path.split("/").pop() || "";
-      if (base === "home.html" || base === "pipeline-lab.html") return true;
+      if (base === "home.html") return true;
       if (path === "/dashboard" || base === "dashboard" || base === "dashboard.html") {
         return !new URLSearchParams(location.search).get("page");
       }
       return false;
     } catch (_) {
       return false;
+    }
+  }
+
+  /** Mark html so CSS can kill native browser PTR off-home. */
+  function syncPtrModeClass() {
+    try {
+      const root = document.documentElement;
+      const home = isAppHome();
+      root.classList.toggle("om-ptr-home", home);
+      root.classList.toggle("om-no-ptr", !home);
+    } catch (_) {
+      /* ignore */
     }
   }
 
@@ -70,9 +88,7 @@
    */
   function initPullToRefresh(opts) {
     if (!opts || typeof opts.refresh !== "function") return;
-    const key = opts.key || "default";
-    if (!global.__omPtrRegistry) global.__omPtrRegistry = Object.create(null);
-    global.__omPtrRegistry[key] = opts;
+    syncPtrModeClass();
 
     // Hide legacy “Puxe/Solte para atualizar” chips when brand reload is available.
     try {
@@ -82,10 +98,22 @@
           : opts.indicator;
       if (ind && global.OmReload && typeof global.OmReload.ptrInit === "function") {
         global.OmReload.ptrInit(ind);
+      } else if (ind && !isAppHome()) {
+        // Off-home: never show the chip — refresh is the topbar button only.
+        ind.setAttribute("hidden", "");
+        ind.setAttribute("aria-hidden", "true");
+        ind.classList.remove("om-ptr-visible", "is-ready", "is-busy");
       }
     } catch (_) {
       /* ignore */
     }
+
+    // Scroll-to-reload is home-only (mobile + tablet). Other pages: button only.
+    if (!isAppHome()) return;
+
+    const key = opts.key || "default";
+    if (!global.__omPtrRegistry) global.__omPtrRegistry = Object.create(null);
+    global.__omPtrRegistry[key] = opts;
 
     if (document.documentElement.dataset.omPtrBound === "1") return;
     document.documentElement.dataset.omPtrBound = "1";
@@ -119,6 +147,11 @@
       "touchstart",
       (e) => {
         if (!isAppHome() || !isTouchViewport()) return;
+        // Don't steal pull when the user is typing / editing a form field.
+        const t = e.target;
+        if (t && t.closest && t.closest("input, textarea, select, [contenteditable='true'], .qpe-root, .qb-modal, .jm")) {
+          return;
+        }
         const hit = activeOpts();
         if (!hit || !e.touches || !e.touches.length) return;
         const root = findScrollRoot(e.target);
@@ -134,7 +167,7 @@
     document.addEventListener(
       "touchmove",
       (e) => {
-        if (!isTouchViewport() || !pulling || !armed || !activeKey) return;
+        if (!isAppHome() || !isTouchViewport() || !pulling || !armed || !activeKey) return;
         const o = global.__omPtrRegistry[activeKey];
         const ind = indEl(o);
         if (!ind || !e.touches || !e.touches.length) return;
@@ -178,9 +211,10 @@
     );
 
     const end = async () => {
-      if (!pulling || !activeKey) {
+      if (!pulling || !activeKey || !isAppHome()) {
         pulling = false;
         armed = false;
+        activeKey = null;
         return;
       }
       const o = global.__omPtrRegistry[activeKey];
@@ -408,11 +442,13 @@
   }
 
   /**
-   * Global pull-to-refresh for mobile/tablet pages that don't register their own.
+   * Global pull-to-refresh — home only (mobile + tablet).
    * Pages can set window.__omPullRefresh = () => Promise to soft-refresh instead of reload.
+   * Off-home, use the topbar Atualizar button.
    */
   function ensureGlobalPullToRefresh() {
-    if (!isTouchViewport() || document.documentElement.dataset.omPtrGlobal === "1") return;
+    syncPtrModeClass();
+    if (!isAppHome() || !isTouchViewport() || document.documentElement.dataset.omPtrGlobal === "1") return;
     document.documentElement.dataset.omPtrGlobal = "1";
     let ind = document.getElementById("omPtrGlobal");
     if (!ind) {
@@ -426,8 +462,9 @@
     initPullToRefresh({
       key: "global",
       indicator: ind,
-      enabled: () => isTouchViewport(),
+      enabled: () => isAppHome() && isTouchViewport(),
       refresh: async () => {
+        if (!isAppHome()) return;
         const fn = global.__omPullRefresh;
         if (typeof fn === "function") {
           await Promise.resolve(fn());
@@ -449,15 +486,19 @@
   }
 
   function bootGestures() {
-    ensureGlobalPullToRefresh();
+    syncPtrModeClass();
+    if (isAppHome()) ensureGlobalPullToRefresh();
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bootGestures);
   else bootGestures();
+  window.addEventListener("popstate", syncPtrModeClass);
+  window.addEventListener("pageshow", syncPtrModeClass);
 
   global.OmGestures = {
     VER,
     isAppHome,
     isTouchViewport,
+    syncPtrModeClass,
     initPullToRefresh,
     bindSwipeRow,
     ensureDockPadding,
