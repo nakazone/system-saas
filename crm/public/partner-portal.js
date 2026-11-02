@@ -4811,8 +4811,7 @@
     const st = s.steps[i]; const locked = m.status === 'used';
     const chip = (path, v, label, on) => `<button type="button" data-tf="${path}" data-v="${esc(v)}" aria-pressed="${on}" ${locked ? 'disabled' : ''}>${esc(label)}</button>`;
     const open = st.open || 'none';
-    return `<div class="pp-tread3d">
-      <div class="pp-tread3d-stage" data-tread3d="${si}:${i}"><span class="pp-tread3d-wait">Building the tread…</span></div>
+    return `<div class="pp-tread3d pp-tread3d--opts">
       <div class="pp-tread3d-opts">
         <div class="pp-tf-row"><span>1 · Open side</span><div class="pp-tf">${OPEN_OPTS.map(([k, l]) => chip(`stairs.${si}.steps.${i}.open`, k, l, open === k)).join('')}</div></div>
         <div class="pp-tf-row"><span>2 · Return</span>${open !== 'none' ? `<div class="pp-tf">${RET_OPTS.map(([k, l]) => chip(`stairs.${si}.steps.${i}.ret`, k, l, (st.ret || '45') === k)).join('')}</div>` : '<p class="pp-tf-none">Closed on both sides — no return.</p>'}</div>
@@ -4821,6 +4820,15 @@
         <div class="pp-tf-row"><span>5 · Riser</span><div class="pp-tf">${chip(`stairs.${si}.riser_material`, 'same', 'Wood', !s.riser_material || s.riser_material === 'same')}${chip(`stairs.${si}.riser_material`, 'primed', 'White', s.riser_material === 'primed' || s.riser_material === 'paint_grade')}</div></div>
       </div>
     </div>`;
+  }
+
+  /** The selected tread in 3D (right column). */
+  function treadStageHtml(s, si, i) {
+    const st = (s.steps || [])[i];
+    if (!st || st.kind === 'riser' || !window.ObPlan3D) return '';
+    const n = treadSteps(s).findIndex((x) => x.id === st.id) + 1;
+    return `<section class="pp-3dcard pp-3dcard--tread"><div class="pp-3dcard-head"><strong>Tread ${n}</strong><small>${esc([fmtIn(st.tread_w) && fmtIn(st.tread_d) ? `${fmtIn(st.tread_w)}" × ${fmtIn(st.tread_d)}"` : '', openText(st.open || 'none', st.ret || '45'), s.species].filter(Boolean).join(' · '))}</small></div>
+      <div class="pp-tread3d-stage" data-tread3d="${si}:${i}"><span class="pp-tread3d-wait">Building the tread…</span></div></section>`;
   }
 
   function stairVizHtml(m, s, si) {
@@ -5006,14 +5014,15 @@
         ${lowerFlight ? '<p class="pp-stair-from-landing">Starts from the landing on <strong>' + esc(lowerFlight.name || 'Stair') + '</strong>.</p>' : ''}
         </div></div>
       </details>
-      <div class="pp-stair-workspace" role="group" aria-label="Stair drawing and measurements">
-        <div class="pp-stair-workspace-visual">${stairVizHtml(m, s, si)}</div>
+      <div class="pp-stair-split">
+      <div class="pp-stair-info">
+      <div class="pp-stair-workspace" role="group" aria-label="Stair measurements">
         <div class="pp-stair-workspace-measures">
           <div class="pp-stair-measure-card">
             <div class="pp-component-editor-head"><div><small>COMPONENT ${selectedStep ? String(selStep + 1).padStart(2, '0') : '—'} OF ${(s.steps || []).length}</small><strong>${esc(selectedLabel)}</strong><span>${esc(s.name || 'Stair')} · ${esc(s.species || 'Wood not selected')}${s.finish ? ' · ' + esc(s.finish) : ''}</span></div>
               <div class="pp-component-nav"><button type="button" class="pp-q-ic" data-viz-prev="${si}" aria-label="Previous component" ${(s.steps || []).length < 2 || selStep <= 0 ? 'disabled' : ''}>‹</button><button type="button" class="pp-q-ic" data-viz-next="${si}" aria-label="Next component" ${selStep >= (s.steps || []).length - 1 ? 'disabled' : ''}>›</button></div></div>
             ${stepStripHtml(m, s, si, selStep)}
-            ${selectedStep && selectedStep.kind !== 'riser' && window.ObPlan3D ? treadDetailHtml(m, s, si, selStep) : ''}
+            ${selectedStep && selectedStep.kind !== 'riser' ? treadDetailHtml(m, s, si, selStep) : ''}
             <div class="pp-selected-editor">${selectedRow || '<p class="pp-q-empty">Add a tread or riser to start measuring this flight.</p>'}</div>
             ${locked ? '' : '<div class="pp-stair-add"><button type="button" class="pp-q-add" data-step-add="' + si + '">+ Step (tread + riser)</button><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-riser-add="' + si + '"' + (s.riser_material === 'none' ? ' disabled' : '') + '>+ Riser only</button>'
             + ((s.steps || []).length ? '<span class="pp-stair-many"><label for="ppMany-' + si + '">Add</label><input id="ppMany-' + si + '" type="number" min="1" max="40" value="5" /><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-step-many="' + si + '">equal steps</button></span>' : '') + '</div>'}
@@ -5027,6 +5036,12 @@
       <details class="pp-stair-secondary" data-stair-panel="${esc(s.id)}:nosings" ${m.stairPanelExpanded && m.stairPanelExpanded[s.id + ':nosings'] ? 'open' : ''}><summary><span>Nosings</span><small>${(s.nosings || []).length}</small><i aria-hidden="true"></i></summary><div class="pp-stair-secondary-body">${nos || '<p class="pp-muted" style="margin:0;font-size:13px">Add a nosing and choose the tread or landing edge it belongs to.</p>'}${locked ? '' : '<button type="button" class="pp-link" data-nos-add="' + si + '">+ Nosing</button>'}</div></details>
       <details class="pp-stair-secondary" data-stair-panel="${esc(s.id)}:photos" ${m.stairPanelExpanded && m.stairPanelExpanded[s.id + ':photos'] ? 'open' : ''}><summary><span>Photos</span><small>${(s.photos || []).length}</small><i aria-hidden="true"></i></summary><div class="pp-stair-secondary-body">${photoStrip(m, s.photos, p + '.photos')}</div></details>
       <details class="pp-stair-secondary" data-stair-panel="${esc(s.id)}:notes" ${m.stairPanelExpanded && m.stairPanelExpanded[s.id + ':notes'] ? 'open' : ''}><summary><span>Flight notes</span><small>${s.note ? 'Added' : 'Optional'}</small><i aria-hidden="true"></i></summary><div class="pp-stair-secondary-body"><textarea data-txt="${p}.note" maxlength="500" placeholder="e.g. right wall out of square, existing skirt board" ${locked ? 'disabled' : ''}>${esc(s.note)}</textarea></div></details>
+      </div>
+      <aside class="pp-stair-3dcol" aria-label="Stair in 3D">
+        <section class="pp-3dcard pp-3dcard--stair">${stairVizHtml(m, s, si)}</section>
+        ${treadStageHtml(s, si, selStep)}
+      </aside>
+      </div>
     </section>`;
   }
 

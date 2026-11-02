@@ -3133,3 +3133,39 @@ a.pp-lb-btn, a.pp-lb-btn:visited { color: #fff; }
   .ob3d-tools-views button:not([data-v3="front"]):not([data-v3="corner"]):not([data-v3="top"]) { display: none; }
   .ob3d-tools-views { flex-wrap: nowrap; }
 }
+
+/* ═══ Stairs: information on the left, 3D on the right ═══ */
+.pp-stair-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 0; align-items: start; border-top: 1px solid var(--pp-border); }
+.pp-stair-info { min-width: 0; border-right: 1px solid var(--pp-border); }
+.pp-stair-info .pp-stair-workspace { border-top: 0; }
+.pp-stair-info .pp-selected-editor, .pp-stair-info .pp-stair-add, .pp-stair-info .pp-stair-measurements { max-width: none; }
+.pp-stair-info .pp-tread3d--opts { padding: 12px; margin: 4px 0 12px; }
+.pp-stair-info .pp-tread3d-opts { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+.pp-stair-3dcol { position: sticky; top: 132px; display: grid; grid-template-rows: minmax(0, 1.25fr) minmax(0, 1fr); gap: 12px; height: calc(100vh - 150px); min-height: 520px; padding: 12px; min-width: 0; }
+.pp-stair-3dcol:not(:has(.pp-3dcard--tread)) { grid-template-rows: minmax(0, 1fr); }
+.pp-3dcard { display: flex; flex-direction: column; min-height: 0; border-radius: 18px; background: #fff; border: 1px solid var(--pp-border); overflow: hidden; }
+.pp-3dcard-head { display: flex; align-items: baseline; gap: 10px; padding: 10px 14px 6px; }
+.pp-3dcard-head strong { font-size: 14px; }
+.pp-3dcard-head small { font-size: 12.5px; color: var(--pp-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-3dcard--stair .pp-viz, .pp-3dcard--stair .pp-viz-3d { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 0; border: 0; background: none; }
+.pp-3dcard--stair .pp-viz-bar { padding: 10px 14px 4px; }
+.pp-3dcard--stair .pp-turn { padding: 0 14px 6px; margin: 0; }
+.pp-3dcard--stair .pp-viz-box { flex: 1; min-height: 0; padding: 0 10px; border: 0; background: none; }
+.pp-3dcard--stair .pp-stair3d { aspect-ratio: auto !important; height: 100%; max-height: none !important; min-height: 220px; }
+.pp-3dcard--stair .pp-viz-hint { padding: 6px 14px 10px; margin: 0; font-size: 12px; }
+.pp-3dcard--tread .pp-tread3d-stage { flex: 1; aspect-ratio: auto !important; max-height: none !important; min-height: 180px; margin: 0 10px 10px; border-radius: 12px; }
+@media (max-width: 1023px) {
+  .pp-stair-split { grid-template-columns: minmax(0, 1fr); }
+  .pp-stair-3dcol { order: -1; position: static; height: auto; min-height: 0; grid-template-rows: auto; padding: 10px 0; }
+  .pp-stair-info { border-right: 0; }
+  .pp-3dcard--stair .pp-stair3d { height: auto; aspect-ratio: 4 / 3 !important; }
+  .pp-3dcard--tread .pp-tread3d-stage { aspect-ratio: 16 / 9 !important; }
+  .pp-stair-info .pp-tread3d-opts { grid-template-columns: 1fr !important; }
+}
+@media (min-width: 1024px) and (max-width: 1280px) { .pp-stair-info .pp-tread3d-opts { grid-template-columns: 1fr !important; } }
+.ob3d-tools-views { flex-wrap: nowrap !important; max-width: none !important; }
+.pp-3dcard--stair .pp-turn { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+.pp-3dcard--stair .pp-turn > span { font-size: 11px; white-space: nowrap; margin-right: 4px; }
+.pp-3dcard--stair .pp-turn button { flex: none; min-height: 32px; padding: 0 9px; }
+.pp-3dcard--stair .pp-turn button span { display: none; }
+.pp-3dcard--stair .pp-viz-bar { display: flex; align-items: center; justify-content: space-between; }
