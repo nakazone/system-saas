@@ -11,8 +11,8 @@
   if (window.__crmJobModal) return;
 
   const CSS_HREF = "crm-job-modal.css?v=20261028-jobs4";
-  const QPE_CSS = "quote-services-popup.css?v=20261029-tbl1";
-  const QPE_JS = "quote-services-popup.js?v=20261029-tbl1";
+  const QPE_CSS = "quote-services-popup.css?v=20261102-svc2";
+  const QPE_JS = "quote-services-popup.js?v=20261102-svc2";
   const PAPER_CSS = "quote-paper.css?v=20261027-om1";
   const PAPER_JS = "quote-paper.js?v=20261028-addon";
   let prevQBBridge = null;
@@ -1060,7 +1060,7 @@
     return "Installation";
   }
 
-  /** Fold & / and / accents so "Sand & Finish" hits sand_finish / Lixamento / Sand & Finishing. */
+  /** Fold & / and / accents so name search treats "Sand & Finish" ≈ "Sand and Finish". */
   function catalogSearchNorm(s) {
     return String(s || "")
       .toLowerCase()
@@ -1073,27 +1073,34 @@
       .trim();
   }
 
-  function catalogSearchAliases(category) {
-    const norm = normalizeServiceType(category);
-    if (norm === "Sand & Finishing") {
-      return ["sand finish", "sand finishing", "sand and finish", "lixa", "lixamento", "acabamento", "sand finish"];
-    }
-    if (norm === "Supply") return ["supply", "material", "fornecimento"];
-    if (norm === "Installation") return ["installation", "instalacao", "instalação"];
-    return [];
-  }
-
-  function catalogSearchHay(p) {
-    const rawCat = p.category || p.category_label || "";
-    const norm = normalizeServiceType(rawCat);
-    return [p.name, p.unit || p.unit_type, rawCat, norm, ...catalogSearchAliases(rawCat)].filter(Boolean).join(" ");
-  }
-
-  function catalogMatchesQuery(p, q) {
+  /** Rank by service name (not category). Higher = better; -1 = no match. */
+  function catalogNameRank(p, q) {
     const needle = catalogSearchNorm(q);
-    if (!needle) return true;
-    const hay = catalogSearchNorm(catalogSearchHay(p));
-    return needle.split(" ").every((tok) => tok && hay.includes(tok));
+    if (!needle) return 0;
+    const name = catalogSearchNorm(p.name);
+    if (!name) return -1;
+    if (name === needle) return 300;
+    if (name.startsWith(needle + " ") || name.startsWith(needle)) return 200;
+    if (name.includes(needle)) return 100;
+    const toks = needle.split(" ").filter(Boolean);
+    if (toks.length > 1 && toks.every((t) => name.includes(t))) return 70;
+    const notes = catalogSearchNorm(p.notes || p.default_description || "");
+    if (notes) {
+      if (notes.includes(needle)) return 40;
+      if (toks.length > 1 && toks.every((t) => notes.includes(t))) return 30;
+    }
+    return -1;
+  }
+
+  function filterCatalogByName(rows, q, emptyLimit) {
+    const list = Array.isArray(rows) ? rows : [];
+    const query = String(q || "").trim();
+    if (!query) return list.slice(0, emptyLimit != null ? emptyLimit : 40);
+    return list
+      .map((p) => ({ p, r: catalogNameRank(p, query) }))
+      .filter((x) => x.r >= 0)
+      .sort((a, b) => b.r - a.r || String(a.p.name || "").localeCompare(String(b.p.name || ""), undefined, { sensitivity: "base" }))
+      .map((x) => x.p);
   }
 
   function lineAmount(q, r) {
@@ -1256,9 +1263,8 @@
       },
       catalog: () => pricingAsCatalog(),
       filterCatalog(q) {
-        const rows = pricingAsCatalog();
-        if (!String(q || "").trim()) return rows.slice(0, 12);
-        return rows.filter((p) => catalogMatchesQuery(p, q)).slice(0, 12);
+        // Name search only — return every match (UI scrolls). Empty query = short starter list.
+        return filterCatalogByName(pricingAsCatalog(), q, 40);
       },
       rateFor: (row) => priceFor(row),
       descFor: (row, name) => descBodyWithoutTitle(name || (row && row.name) || "", (row && (row.default_description || row.notes)) || ""),
@@ -1342,8 +1348,7 @@
   }
 
   function filterPricing(q) {
-    if (!String(q || "").trim()) return pricing.slice(0, 12);
-    return pricing.filter((p) => catalogMatchesQuery(p, q)).slice(0, 12);
+    return filterCatalogByName(pricing, q, 40);
   }
 
   function blankSvcPanel(opts) {

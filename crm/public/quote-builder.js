@@ -1094,9 +1094,9 @@
     return (Array.isArray(rows) ? rows : [])
       .filter((r) => {
         if (!r) return false;
+        // Office catalog: active rows only. is_visible is for the builder portal.
         const active = r.active === undefined || r.active === null ? 1 : Number(r.active);
-        const visible = r.is_visible === undefined || r.is_visible === null ? 1 : Number(r.is_visible);
-        return active !== 0 && visible !== 0 && Number.isFinite(active) && Number.isFinite(visible);
+        return active !== 0 && Number.isFinite(active);
       })
       .map((r) => {
         const particular = Number(r.price_particular) || Number(r.price_max) || Number(r.price) || 0;
@@ -1912,31 +1912,34 @@
       .trim();
   }
 
-  function catalogSearchHay(row) {
-    const rawCat = row.category || row.category_label || row.service_type || '';
-    const norm = normalizeServiceType(rawCat);
-    const aliases =
-      norm === 'Sand & Finishing'
-        ? ['sand finish', 'sand finishing', 'lixa', 'lixamento', 'acabamento', 'sand_finish']
-        : norm === 'Supply'
-          ? ['supply', 'material', 'fornecimento']
-          : norm === 'Installation'
-            ? ['installation', 'instalacao', 'instalação']
-            : [];
-    return [row.name, row.unit_type || row.unit, rawCat, norm, ...aliases].filter(Boolean).join(' ');
+  /** Rank by service name (not category). Higher = better; -1 = no match. */
+  function catalogNameRank(row, q) {
+    const needle = catalogSearchNorm(q);
+    if (!needle) return 0;
+    const name = catalogSearchNorm(row.name);
+    if (!name) return -1;
+    if (name === needle) return 300;
+    if (name.startsWith(needle + ' ') || name.startsWith(needle)) return 200;
+    if (name.includes(needle)) return 100;
+    const toks = needle.split(' ').filter(Boolean);
+    if (toks.length > 1 && toks.every((t) => name.includes(t))) return 70;
+    const notes = catalogSearchNorm(row.default_description || row.notes_customer || row.notes || '');
+    if (notes) {
+      if (notes.includes(needle)) return 40;
+      if (toks.length > 1 && toks.every((t) => notes.includes(t))) return 30;
+    }
+    return -1;
   }
 
   function filterCatalogForServiceSearch(query) {
     const q = String(query || '').trim();
-    const list = !q
-      ? catalog.slice(0, 40)
-      : catalog.filter((row) => {
-          const needle = catalogSearchNorm(q);
-          if (!needle) return true;
-          const hay = catalogSearchNorm(catalogSearchHay(row));
-          return needle.split(' ').every((tok) => tok && hay.includes(tok));
-        });
-    return list.slice(0, 40);
+    if (!q) return catalog.slice(0, 40);
+    // Every name match — no hard cap (popup list scrolls).
+    return catalog
+      .map((row) => ({ row, r: catalogNameRank(row, q) }))
+      .filter((x) => x.r >= 0)
+      .sort((a, b) => b.r - a.r || String(a.row.name || '').localeCompare(String(b.row.name || ''), undefined, { sensitivity: 'base' }))
+      .map((x) => x.row);
   }
 
   function updateItemsCountLabel() {

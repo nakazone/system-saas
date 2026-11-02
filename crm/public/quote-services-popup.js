@@ -332,7 +332,7 @@
   /* ---------- busca na Tabela de Valor (linhas da folha) ---------- */
   function openDD(input, k) {
     const q = String(input.value || '').trim();
-    const rows = B().filterCatalog(q).slice(0, 7);
+    const rows = B().filterCatalog(q);
     if (!rows.length) {
       hideDD();
       return;
@@ -599,9 +599,15 @@
   }
 
   function optsHtml(q) {
-    const rows = B().filterCatalog(q).slice(0, 8);
-    const exact = rows.some((r) => String(r.name || '').trim().toLowerCase() === String(q || '').trim().toLowerCase());
+    const rows = B().filterCatalog(q);
+    const qNorm = String(q || '').trim().toLowerCase();
+    const exact = rows.some((r) => String(r.name || '').trim().toLowerCase() === qNorm);
+    const more =
+      String(q || '').trim() && rows.length
+        ? `<p class="qpe-opts__n">${rows.length} serviço${rows.length === 1 ? '' : 's'} na tabela</p>`
+        : '';
     return (
+      more +
       (rows
         .map(
           (r) => `<button type="button" class="qpe-opt${draft.row === r ? ' is-on' : ''}" data-pick="${esc(String(r.id))}">
