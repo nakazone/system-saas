@@ -4868,19 +4868,18 @@
       activeIndex = Math.max(0, stairs.findIndex((st) => !st.starts_on_landing_of || !stairs.some((x) => x.id === st.starts_on_landing_of)));
       activeId = stairs[activeIndex].id; m.activeStairId = activeId;
     }
-    const tabs = stairs.map((stair, index) => {
-      const counts = measCounts({ stairs: [stair], vents: [] });
-      const linked = Boolean(stair.starts_on_landing_of || stairs.some((flight) => flight.starts_on_landing_of === stair.id));
-      const chain = stairChainFor(m.data, stair.id);
-      const flightIndex = chain.findIndex((flight) => flight.id === stair.id);
-      const title = chain.length > 1 ? 'Flight ' + (flightIndex + 1) : stair.name || 'Stair ' + (index + 1);
-      const upperFlight = stairs.find((flight) => flight.starts_on_landing_of === stair.id);
-      const landing = stair.landing && stair.landing.enabled
-        ? '<span class="pp-flight-landing-chip"><small>LANDING</small><strong>' + esc(fmtIn(stair.landing.width) || '—') + ' × ' + esc(fmtIn(stair.landing.depth) || '—') + ' in</strong></span>'
-        : '';
-      return '<button type="button" class="pp-flight-tab' + (stair.id === activeId ? ' is-active' : '') + '" data-stair-activate="' + esc(stair.id) + '" role="tab" aria-selected="' + (stair.id === activeId) + '">'
-        + '<span class="pp-flight-tab-index">' + String(index + 1).padStart(2, '0') + '</span><span class="pp-flight-tab-copy"><strong>' + esc(title) + '</strong><small>' + counts.treads + ' treads · ' + counts.risers + ' risers' + (stair.plan_ref && m.data.plan && (m.data.plan.stairs || []).some((x) => x.id === stair.plan_ref) ? ' · on the plan' : '') + '</small></span>'
-        + (linked ? '<span class="pp-flight-tab-link" aria-label="Connected by landing">⌁</span>' : '') + '</button>' + (upperFlight ? landing : '');
+    const roots = stairs.filter((st) => !st.starts_on_landing_of || !stairs.some((x) => x.id === st.starts_on_landing_of));
+    const tabs = roots.map((root, k) => {
+      const chain = stairChainFor(m.data, root.id);
+      const flights = chain.length ? chain : [root];
+      const on = flights.some((f) => f.id === activeId);
+      const c = flights.reduce((a, f) => { const x = measCounts({ stairs: [f], vents: [] }); return { t: a.t + x.treads, r: a.r + x.risers }; }, { t: 0, r: 0 });
+      const plan = flights.some((f) => f.plan_ref && m.data.plan && (m.data.plan.stairs || []).some((x) => x.id === f.plan_ref || x.stair_id === f.id));
+      const landing = flights.find((f) => f.landing && f.landing.enabled);
+      const title = flights.length > 1 ? `Stair ${k + 1}` : (root.name || `Stair ${k + 1}`);
+      const sub = [flights.length > 1 ? `${flights.length} flights` : '', `${c.t} treads · ${c.r} risers`, landing ? `landing ${fmtIn(landing.landing.width) || '—'}×${fmtIn(landing.landing.depth) || '—'}` : '', plan ? 'on the plan' : ''].filter(Boolean).join(' · ');
+      return '<button type="button" class="pp-flight-tab' + (on ? ' is-active' : '') + '" data-stair-activate="' + esc(on ? activeId : flights[0].id) + '" role="tab" aria-selected="' + on + '">'
+        + '<span class="pp-flight-tab-index">' + String(k + 1).padStart(2, '0') + '</span><span class="pp-flight-tab-copy"><strong>' + esc(title) + '</strong><small>' + esc(sub) + '</small></span></button>';
     }).join('');
     return '<div class="pp-flight-switcher" role="tablist" aria-label="Stairs and flights">' + tabs + '</div>' + stairHtml(m, stairs[activeIndex], activeIndex);
   }
@@ -5978,12 +5977,16 @@
     };
     const markBtns = locked ? '' : `<div class="pp-pst-mark">${plan.levels.filter((l) => l.preview).map((l) => `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-pst-mark="${esc(l.id)}">${icon('ruler')}Mark a stair on ${esc(l.name)}</button>`).join('')}</div>`;
     const dismissed = (plan.stairs || []).filter((s) => s.dismissed).length;
-    return `<section class="pp-card pp-block pp-pst-card">
-      <div class="pp-block-head"><h3>Stairs on the plans${list.length ? ` · ${list.length}` : ''}</h3><span class="pp-muted">${list.length ? 'Build each stair from the plan, or link it to a stair measured on site' : 'No stair found on the plans — mark it by hand'}</span></div>
+    const linked = list.filter((x) => x.stair_id || x.same_as).length;
+    const todo = list.length - linked;
+    const open = m.pstOpen != null ? m.pstOpen : todo > 0 || !list.length;
+    return `<details class="pp-card pp-block pp-pst-card" data-pst-panel ${open ? 'open' : ''}>
+      <summary class="pp-pst-sum"><span><strong>Stairs on the plans${list.length ? ` · ${list.length}` : ''}</strong><small>${list.length ? `${linked} linked${todo ? ` · <b>${todo} to check</b>` : ' · all set'}` : 'No stair found on the plans — mark it by hand'}</small></span><i aria-hidden="true"></i></summary>
+      <p class="pp-muted pp-pst-hint">Build each stair from the plan, or link it to a stair measured on site.</p>
       ${list.map(row).join('')}
       ${markBtns}
       ${dismissed && !locked ? `<button type="button" class="pp-link pp-pst-restore" data-pst-restore>Show ${dismissed} hidden</button>` : ''}
-    </section>`;
+    </details>`;
   }
   /** A stair in the measurement from what the plan shows: N treads, width, depth, one more riser. */
   function buildStairFromPlan(m, ps) {
@@ -6416,6 +6419,7 @@
       delete ps.stair_id; save(); redraw();
     }));
     view.querySelectorAll('[data-pst-flip]').forEach((b) => b.addEventListener('click', () => { const ps = pst('data-pst-flip', b); if (ps) { ps.flip = !ps.flip; save(); redraw(); } }));
+    view.querySelectorAll('[data-pst-panel]').forEach((d) => d.addEventListener('toggle', () => { m.pstOpen = d.open; }));
     view.querySelectorAll('[data-pst-3d]').forEach((b) => b.addEventListener('click', () => { const ps = pst('data-pst-3d', b); m.floorView = '3d'; if (ps && ps.level_id && (plan.levels || []).some((l) => l.id === ps.level_id && l.include && l.rooms.length)) m.plan3dLevel = ps.level_id; redraw(); }));
     view.querySelectorAll('[data-pst-dismiss]').forEach((b) => b.addEventListener('click', () => { const ps = pst('data-pst-dismiss', b); if (ps) { ps.dismissed = true; save(); redraw(); } }));
     view.querySelectorAll('[data-pst-restore]').forEach((b) => b.addEventListener('click', () => { (plan.stairs || []).forEach((x) => { delete x.dismissed; }); save(); redraw(); }));

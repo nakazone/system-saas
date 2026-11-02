@@ -3102,3 +3102,34 @@ a.pp-lb-btn, a.pp-lb-btn:visited { color: #fff; }
 .pp-tread3d-stage { justify-self: center; width: 100%; }
 .pp-tread3d-opts { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)) !important; }
 @media (max-width: 640px) { .pp-tread3d-opts { grid-template-columns: 1fr !important; } }
+
+/* ═══ Measure UX pass 2 ═══ */
+/* Stairs: nothing wider than the screen */
+.pp-stair-workspace, .pp-stair-workspace > *, .pp-stair-measure-card, .pp-selected-editor, .pp-tread3d, .pp-tread3d-opts, .pp-tf-row, .pp-viz, .pp-viz-3d, .pp-stair-card, .pp-mpanel { min-width: 0; max-width: 100%; }
+.pp-tf { min-width: 0; }
+.pp-sstrip { min-width: 0; }
+/* the row being edited stays a readable width on a wide screen */
+.pp-selected-editor { max-width: 760px; }
+.pp-stair-add, .pp-stair-measurements { max-width: 760px; }
+/* camera tools fit narrow boxes */
+.ob3d-tools-views { flex-wrap: wrap; justify-content: flex-end; max-width: calc(100% - 12px); }
+/* Floor Plan: stairs on the plans fold away when they're all set */
+.pp-pst-card > summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.pp-pst-card > summary::-webkit-details-marker { display: none; }
+.pp-pst-sum strong { display: block; font-size: 16px; }
+.pp-pst-sum small { display: block; margin-top: 2px; font-size: 13px; color: var(--pp-muted); }
+.pp-pst-sum small b { color: #A64C14; }
+.pp-pst-sum i { flex: none; width: 10px; height: 10px; border-right: 2px solid var(--pp-muted); border-bottom: 2px solid var(--pp-muted); transform: rotate(45deg); transition: transform 160ms; margin-right: 6px; }
+.pp-pst-card[open] .pp-pst-sum i { transform: rotate(-135deg); }
+.pp-pst-hint { margin: 8px 0 10px; font-size: 13px; }
+@media (max-width: 640px) {
+  .pp-stair-workspace .pp-step { grid-template-columns: 26px minmax(0, 1fr) 28px !important; grid-template-areas: "n tread act" "n riser act" "n side side" "n ret ret" !important; }
+  .pp-stair-workspace .pp-step input, .pp-stair-workspace .pp-step select { min-width: 0; width: 100%; }
+  .pp-flight-switcher { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .pp-flight-tab { flex: none; }
+}
+@media (max-width: 640px) { .pp-stair-workspace .pp-step .pp-q-ic { width: 28px; height: 28px; min-width: 28px; } .pp-stair-workspace .pp-step-act { width: 28px; } }
+@media (max-width: 640px) {
+  .ob3d-tools-views button:not([data-v3="front"]):not([data-v3="corner"]):not([data-v3="top"]) { display: none; }
+  .ob3d-tools-views { flex-wrap: nowrap; }
+}
