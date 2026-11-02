@@ -3100,3 +3100,5 @@ a.pp-lb-btn, a.pp-lb-btn:visited { color: #fff; }
 @media (max-width: 1100px) { .pp-tread3d-opts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px) { .pp-tread3d-opts { grid-template-columns: 1fr; } }
 .pp-tread3d-stage { justify-self: center; width: 100%; }
+.pp-tread3d-opts { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)) !important; }
+@media (max-width: 640px) { .pp-tread3d-opts { grid-template-columns: 1fr !important; } }

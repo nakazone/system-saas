@@ -4818,6 +4818,7 @@
         <div class="pp-tf-row"><span>2 · Return</span>${open !== 'none' ? `<div class="pp-tf">${RET_OPTS.map(([k, l]) => chip(`stairs.${si}.steps.${i}.ret`, k, l, (st.ret || '45') === k)).join('')}</div>` : '<p class="pp-tf-none">Closed on both sides — no return.</p>'}</div>
         <div class="pp-tf-row"><span>3 · Wood</span><div class="pp-tf">${SPECIES.map((w) => chip(`stairs.${si}.species`, w, w, s.species === w)).join('')}</div></div>
         <div class="pp-tf-row"><span>4 · Finish</span><div class="pp-tf">${FINISHES.map((f) => chip(`stairs.${si}.finish`, f, f.replace(' (site finished)', ' · site finished'), s.finish === f)).join('')}</div></div>
+        <div class="pp-tf-row"><span>5 · Riser</span><div class="pp-tf">${chip(`stairs.${si}.riser_material`, 'same', 'Wood', !s.riser_material || s.riser_material === 'same')}${chip(`stairs.${si}.riser_material`, 'primed', 'White', s.riser_material === 'primed' || s.riser_material === 'paint_grade')}</div></div>
       </div>
     </div>`;
   }
