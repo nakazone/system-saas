@@ -12,7 +12,7 @@ import { catalogRefs, mateAiChatModel, todayInTimezone, validDueDate } from "./i
 import { foldText, interpretLocally, parseSpokenDate, type LocalCustomer } from "./local.js";
 import type { ActionDef } from "./actions/types.js";
 import { LOOKUP_TOOLS } from "./lookups.js";
-import { productLine, productSentence } from "../trades/index.js";
+import { primaryPack, productLine, productSentence } from "../trades/index.js";
 
 /* ───────────────────────── registry ───────────────────────── */
 
@@ -100,10 +100,10 @@ export type AgentPersona = {
   reminders?: string[];
 };
 
-function personaLines(persona: AgentPersona, userName?: string): string[] {
+function personaLines(persona: AgentPersona, userName?: string, trades?: unknown): string[] {
   const first = (userName || "").trim().split(/\s+/)[0] || "";
   return [
-    `You are ${persona.name}, ${persona.title} (${persona.department}) on the team of ${persona.company || "this company"}, inside ObraMate's virtual office. ${productSentence()}`,
+    `You are ${persona.name}, ${persona.title} (${persona.department}) on the team of ${persona.company || "this company"}, inside ObraMate's virtual office. ${productSentence(primaryPack(trades))}`,
     "You are an AI assistant with a name and a face. If someone asks whether you are a real person, say plainly that you are the company's AI assistant.",
     `Talk like a friendly coworker at the next desk: casual, warm and natural, first person, 1–3 short sentences, no lists unless asked, no emojis.${first ? ` The user is ${first}; use the name now and then.` : ""}`,
     "Answer in the user's language. In Portuguese use everyday Brazilian Portuguese (\"oi\", \"tudo certo\", \"pode deixar\", \"bora\").",
@@ -155,6 +155,8 @@ export function buildAgentPrompt(p: {
   pending?: Pending;
   tools?: boolean;
   persona?: AgentPersona;
+  /** The company's trades (Organization.tradePacks): how Mate describes the product. Default Hardwood. */
+  trades?: unknown;
 }): string {
   const refs = catalogRefs(p.catalog)
     .map(({ ref, item }) => `${ref} | ${item.name.slice(0, 80)} | ${normalizeMateAiUnit(item.unit) || item.unit}`)
@@ -166,7 +168,7 @@ export function buildAgentPrompt(p: {
     ? p.memory.map((m) => `${m.role === "user" ? "User" : "Mate"}: ${m.text}${m.entity ? ` [${m.entity.type} ${m.entity.id}]` : ""}`).join("\n")
     : "(start of conversation)";
   return [
-    ...(p.persona ? personaLines(p.persona, p.userName) : [`You are Mate AI, the assistant inside ${productLine()}.`]),
+    ...(p.persona ? personaLines(p.persona, p.userName, p.trades) : [`You are Mate AI, the assistant inside ${productLine(primaryPack(p.trades))}.`]),
     "People talk to you by voice or text in Portuguese, English or Spanish, often mixed, with transcription errors.",
     p.persona
       ? "When the user asks for work, pick exactly ONE action from the list and fill its args from what they said; for conversation, reply."
@@ -356,6 +358,8 @@ export type AgentCtx = {
   lookup?: (name: string, args: Record<string, unknown>) => Promise<unknown>;
   /** Set when the user talks to a named office employee. */
   persona?: AgentPersona;
+  /** The company's trades (Organization.tradePacks). */
+  trades?: unknown;
 };
 
 const MAX_TOOL_ROUNDS = 4;
@@ -419,7 +423,7 @@ function finish(action: string, args: Record<string, unknown>, ctx: AgentCtx, to
 
 /** Conversation with read-only lookups; ends in one proposed action or a reply. */
 async function converseWithTools(text: string, ctx: AgentCtx, today: string, weekday: string, model: string): Promise<AgentPick | { error: string; status?: number }> {
-  const system = buildAgentPrompt({ actions: ctx.actions, catalog: ctx.catalog, today, weekday, timezone: ctx.timezone, screen: ctx.screen, memory: [], userName: ctx.userName, pending: ctx.pending, tools: true, persona: ctx.persona });
+  const system = buildAgentPrompt({ actions: ctx.actions, catalog: ctx.catalog, today, weekday, timezone: ctx.timezone, screen: ctx.screen, memory: [], userName: ctx.userName, pending: ctx.pending, tools: true, persona: ctx.persona, trades: ctx.trades });
   const tools = [...LOOKUP_TOOLS, ...terminalTools(ctx.actions)];
   const messages: AiTurn[] = [{ role: "system", content: system }, ...historyTurns(ctx.memory), { role: "user", content: text }];
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
@@ -459,7 +463,7 @@ async function converseWithTools(text: string, ctx: AgentCtx, today: string, wee
 
 /** Older single-shot JSON mode (models/providers without tools). */
 async function pickWithJson(text: string, ctx: AgentCtx, today: string, weekday: string, model: string): Promise<AgentPick | { error: string; status?: number }> {
-  const system = buildAgentPrompt({ actions: ctx.actions, catalog: ctx.catalog, today, weekday, timezone: ctx.timezone, screen: ctx.screen, memory: ctx.memory, userName: ctx.userName, pending: ctx.pending, persona: ctx.persona });
+  const system = buildAgentPrompt({ actions: ctx.actions, catalog: ctx.catalog, today, weekday, timezone: ctx.timezone, screen: ctx.screen, memory: ctx.memory, userName: ctx.userName, pending: ctx.pending, persona: ctx.persona, trades: ctx.trades });
   const ai = await aiChatJson({ system, user: text, timeoutMs: 30_000, model });
   if (!ai.ok) return { error: ai.error, status: ai.status };
   const parsed = pickSchema.safeParse(parseArgs(ai.text));

@@ -408,8 +408,22 @@
         const m = li.meta && typeof li.meta === 'object' ? li.meta : {};
         return m;
       }
+      const rules = (typeof quoteRules !== 'undefined' && quoteRules) ? quoteRules : null;
       function sectionKey(li) {
         const t = String(li.itemType || '').toLowerCase();
+        if (rules) {
+          // Trades with word rules (Tile): name first, then service type, then description — like the PDF.
+          const meta0 = lineMeta(li);
+          const has = (k) => rules.sections.some((s) => s.key === k);
+          if (t === 'product' && has('supply')) return 'supply';
+          for (const field of [li.name, meta0.service_type || meta0.serviceType || quote.serviceType, li.description]) {
+            const text = String(field || '').toLowerCase();
+            if (!text) continue;
+            const hit = rules.match.find((r) => has(r.section) && r.words.some((w) => text.includes(w)));
+            if (hit) return hit.section;
+          }
+          return rules.fallback || 'installation';
+        }
         if (t === 'product') return 'supply';
         const meta = lineMeta(li);
         const st = String(meta.service_type || meta.serviceType || quote.serviceType || '').toLowerCase();
@@ -417,12 +431,12 @@
         if (st.includes('sand') || st.includes('finish') || st.includes('lix') || st.includes('acab')) return 'sand_finish';
         return 'installation';
       }
-      const sectionDefs = [
+      const sectionDefs = rules ? rules.sections.map((s) => ({ key: s.key, label: s.label })) : [
         { key: 'supply', label: 'SUPPLY' },
         { key: 'installation', label: 'INSTALLATION' },
         { key: 'sand_finish', label: 'SAND & FINISH' },
       ];
-      const buckets = { supply: [], installation: [], sand_finish: [] };
+      const buckets = Object.fromEntries(sectionDefs.map((d) => [d.key, []]));
       const optionalItems = [];
       (quote.lineItems || []).forEach((li) => {
         if (li.isOptional) {

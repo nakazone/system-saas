@@ -244,3 +244,153 @@ describe.skipIf(!privileged)("Job phases API — a Tile company and a Hardwood c
     expect(w.status).toBe(404);
   });
 });
+
+describe("Tile quote on screen groups lines like the PDF (delivery 2)", () => {
+  const LINES = [
+    { name: "Floor Tile Installation", serviceType: "installation", description: "Owner's bath floor", amount: 576 },
+    { name: "Shower Walls Installation", serviceType: "installation", description: "To the ceiling", amount: 1248 },
+    { name: "Shower Niche", serviceType: "installation", description: "12x24", amount: 250 },
+    { name: "Tile Demo & Haul Away", serviceType: "custom", description: "Existing tile floor and shower walls", amount: 490 },
+    { name: "Cement Backer Board", serviceType: "custom", description: "Shower walls", amount: 216 },
+    { name: "Supply: Tile", serviceType: "supply", description: "Porcelain", amount: 630 },
+    { name: "Porcelain 12x24", itemType: "product", serviceType: "", description: "", amount: 600 },
+    { name: "Metal Edge Profile / Trim", serviceType: "installation", description: "Brushed nickel", amount: 216 },
+    { name: "Add on grout sealing", serviceType: "add on", description: "", amount: 40 },
+  ];
+  const pdfKeys = (pack: typeof tile) => {
+    const out: Record<string, string> = {};
+    for (const g of groupItemsForPdf(LINES as never, pack)) for (const it of g.items) out[it.name!] = g.key;
+    return out;
+  };
+  async function loadPaper(win: Record<string, unknown>, src?: string) {
+    const fs = await import("node:fs");
+    const code = src ?? fs.readFileSync("crm/public/quote-paper.js", "utf8");
+    new Function("window", code)(win);
+    return (win as { OmQuotePaper: { SECTIONS: { key: string; label: string }[]; sectionOf: (...a: unknown[]) => string } }).OmQuotePaper;
+  }
+
+  it("quotes / builder screen (quote-paper.js): Tile sections and the PDF's line sorting", async () => {
+    const paper = await loadPaper({ __OM_TRADE: boot(["tile"]) });
+    expect(paper.SECTIONS.map((s) => [s.key, s.label])).toEqual(tile.quote.sections.map((s) => [s.key, s.label]));
+    const screen = Object.fromEntries(LINES.map((l) => [l.name, paper.sectionOf(l.itemType, l.serviceType, l.name, l.description)]));
+    expect(screen).toEqual(pdfKeys(tile));
+  });
+
+  it("quotes / builder screen: Hardwood sorts exactly like the version on main", async () => {
+    const { execSync } = await import("node:child_process");
+    const before = execSync("git show origin/main:crm/public/quote-paper.js", { encoding: "utf8" });
+    const oldPaper = await loadPaper({}, before);
+    const newPaper = await loadPaper({ __OM_TRADE: boot(["hardwood"]) });
+    const wood = [
+      ...LINES,
+      { name: "Sand & finish (3 coats)", serviceType: "Sand & Finishing", description: "", amount: 1 },
+      { name: "Lixa extra", serviceType: "Lixamento", description: "", amount: 1 },
+      { name: "Add-on stain", serviceType: "finish", description: "", amount: 1 },
+      { name: "Delivery Fee", serviceType: "", description: "", amount: 1 },
+    ];
+    for (const l of wood) {
+      expect(newPaper.sectionOf(l.itemType, l.serviceType, l.name, l.description), l.name).toBe(oldPaper.sectionOf(l.itemType, l.serviceType, l.name));
+    }
+    expect(newPaper.SECTIONS.map((s) => s.key)).toEqual(oldPaper.SECTIONS.map((s) => s.key));
+  });
+
+  it("customer page (quote-public.js): Tile sections and the PDF's line sorting", async () => {
+    const fs = await import("node:fs");
+    const src = fs.readFileSync("crm/public/quote-public.js", "utf8");
+    // Two pieces of the page: the sections (with the pack's relabeling) and the line grouping.
+    const a0 = src.indexOf("  const COMPANY = {");
+    const a1 = src.indexOf("\n  const money = ", a0);
+    const b0 = src.indexOf("  /** Same section logic / order as the PDF");
+    const b1 = src.indexOf("  function isClientSigned(q)");
+    expect(Math.min(a0, a1, b0, b1)).toBeGreaterThan(0);
+    const code = `${src.slice(a0, a1)}\n${src.slice(b0, b1)}`;
+    const fn = new Function("window", "location", "document", `${code}\nreturn { groupItems, SECTION_DEFS, COMPANY };`);
+    const run = (win: Record<string, unknown>) => fn(win, { pathname: "/", search: "", origin: "http://x" }, { getElementById: () => null, querySelector: () => null });
+    const items = LINES.map((l) => ({ name: l.name, service_type: l.serviceType, item_type: l.itemType, description: l.description, amount: l.amount }));
+    const t = run({ __OM_TRADE: boot(["tile"]) });
+    const groups = t.groupItems(items) as { label: string; items: { name: string }[] }[];
+    const byLabel = Object.fromEntries(tile.quote.sections.map((s) => [s.label, s.key]));
+    const screen: Record<string, string> = {};
+    for (const g of groups) for (const it of g.items) screen[it.name] = byLabel[g.label]!;
+    expect(screen).toEqual(pdfKeys(tile));
+    expect(t.COMPANY.tagline).toBe("Tile · Showers · Backsplashes");
+    // Hardwood: no rules sent, so the page keeps its own sections.
+    const h = run({ __OM_TRADE: boot(["hardwood"]) });
+    expect(h.SECTION_DEFS.map((d: { key: string }) => d.key)).toEqual(["supply", "installation", "sand_finish", "add_on"]);
+  });
+
+  it("default “what's included”: Tile has its own list, Hardwood keeps the old one", async () => {
+    const { DEFAULT_QUOTE_INCLUSIONS } = await import("../src/lib/quotes/client-document.js");
+    expect(hardwood.quote.inclusions).toEqual(DEFAULT_QUOTE_INCLUSIONS);
+    expect(tile.quote.inclusions.join(" ")).not.toMatch(/hardwood|sanding/i);
+    expect(tile.quote.inclusions.join(" ")).toMatch(/flood test/i);
+  });
+});
+
+describe("customer quote page rendered by the server (quotes/public.ejs)", () => {
+  async function render(file: string, locals: Record<string, unknown>) {
+    const { createRequire } = await import("node:module");
+    const ejs = createRequire(import.meta.url)("ejs") as { renderFile: (f: string, d: object) => Promise<string> };
+    return ejs.renderFile(file, locals);
+  }
+  const quote = {
+    title: "Owner's bath", number: 42, status: "sent", total: 1316, subtotal: 1316, taxTotal: 0, discountTotal: 0, serviceType: "",
+    lineItems: [
+      { name: "Tile Demo & Haul Away", description: "Existing tile floor and shower walls", amount: 490, quantity: 140, unit: "sq ft", unitPrice: 3.5, meta: { service_type: "custom" } },
+      { name: "Shower Niche", description: "12x24", amount: 250, quantity: 1, unit: "unit", unitPrice: 250, meta: { service_type: "installation" } },
+      { name: "Floor Tile Installation", description: "", amount: 576, quantity: 64, unit: "sq ft", unitPrice: 9, meta: { service_type: "installation" } },
+      { name: "Sand & finish", description: "", amount: 100, quantity: 1, unit: "fixed", unitPrice: 100, meta: { service_type: "sand_finish" } },
+    ],
+    customer: { name: "Jane" }, property: null, paymentSchedule: null, organization: { name: "Peak Line" },
+  };
+  const base = {
+    tour: null, title: "x", organization: { name: "Peak Line" }, organizationAddress: null, organizationLicense: null, organizationWebsite: null,
+    ownerSignature: null, quote, token: "t", clientView: { showQuantities: true, showUnitPrices: true, showLineTotals: true }, readOnly: false,
+  };
+  const titles = (html: string) => [...html.matchAll(/class="qp-section-title"[^>]*>([^<]+)</g)].map((m) => m[1]!.trim());
+
+  it("a Tile company's page uses the Tile sections and inclusions", async () => {
+    const t = tile.quote;
+    const html = await render("src/views/quotes/public.ejs", {
+      ...base,
+      inclusions: [...t.inclusions],
+      quoteRules: { sections: t.sections, match: t.match, fallback: t.fallbackSection },
+    });
+    expect(titles(html)).toEqual(["PREP &amp; DEMO", "INSTALLATION", "SHOWERS", "Optional add-ons"]);
+    expect(html).toContain("Waterproofing and flood test before tile");
+  });
+
+  it("a Hardwood company's page is byte-for-byte what main renders", async () => {
+    const fs = await import("node:fs");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const { execSync } = await import("node:child_process");
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ejs-main-"));
+    const oldFile = path.join(dir, "public.ejs");
+    fs.writeFileSync(oldFile, execSync("git show origin/main:src/views/quotes/public.ejs", { encoding: "utf8" }));
+    for (const p of execSync("git ls-tree --name-only origin/main src/views/quotes/", { encoding: "utf8" }).split("\n").filter((f) => f.endsWith(".ejs"))) {
+      fs.writeFileSync(path.join(dir, path.basename(p)), execSync(`git show origin/main:${p}`, { encoding: "utf8" }));
+    }
+    const locals = { ...base, inclusions: [...hardwood.quote.inclusions], quoteRules: null };
+    const now = await render("src/views/quotes/public.ejs", locals);
+    const before = await render(oldFile, locals);
+    expect(titles(now)).toEqual(["INSTALLATION", "SAND &amp; FINISH", "Optional add-ons"]);
+    expect(now).toBe(before);
+  });
+});
+
+describe("Mate describes the product by the company's trade", () => {
+  it("agent and interpreter prompts", async () => {
+    const { buildAgentPrompt } = await import("../src/lib/mate-ai/agent.js");
+    const { buildInterpretSystemPrompt } = await import("../src/lib/mate-ai/interpret.js");
+    const base = { actions: [], catalog: [], today: "2026-11-02", weekday: "Monday", timezone: "America/Denver", screen: null, memory: [] };
+    expect(buildAgentPrompt({ ...base, trades: ["tile"] })).toContain("ObraMate, a CRM for tile installation companies in the USA");
+    expect(buildAgentPrompt(base)).toContain("ObraMate, a CRM for flooring installation companies in the USA");
+    expect(buildAgentPrompt(base)).toBe(buildAgentPrompt({ ...base, trades: ["hardwood"] }));
+    const persona = { name: "Marina", title: "Gerente financeira", department: "Financeiro", company: "Peak Line Tile", colleagues: [], desk: [] } as never;
+    expect(buildAgentPrompt({ ...base, persona, trades: ["tile"] })).toContain("ObraMate is a CRM for tile installation companies in the USA.");
+    const ip = { today: "2026-11-02", weekday: "Monday", timezone: "America/Denver", refs: [] };
+    expect(buildInterpretSystemPrompt({ ...ip, trades: ["tile"] })).toContain("CRM for tile installation companies");
+    expect(buildInterpretSystemPrompt(ip)).toBe(buildInterpretSystemPrompt({ ...ip, trades: ["hardwood"] }));
+  });
+});

@@ -80,6 +80,8 @@ export type TradePack = {
      */
     match?: readonly { section: string; words: readonly string[] }[];
     fallbackSection?: string;
+    /** "What's included" on the quote when the company hasn't written its own list. */
+    inclusions: readonly string[];
   };
   /**
    * Job phases. The first is the default phase; `combinedKey` is the value a job uses when

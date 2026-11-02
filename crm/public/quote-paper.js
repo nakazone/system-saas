@@ -24,6 +24,25 @@
     }
   }
   const DEFAULT_TAGLINE = (TRADE_QUOTE && TRADE_QUOTE.tagline) || 'Hardwood · LVP · Refinishing';
+  // Packs with word rules (Tile) bring their own sections and sort lines like the PDF does:
+  // the service name first, then its type, then the description. Hardwood keeps sectionOf below.
+  const TRADE_RULES = TRADE_QUOTE && Array.isArray(TRADE_QUOTE.match) && Array.isArray(TRADE_QUOTE.sections) ? TRADE_QUOTE : null;
+  if (TRADE_RULES) {
+    const title = (t) => String(t || '').toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase());
+    SECTIONS.length = 0;
+    for (const s of TRADE_RULES.sections) SECTIONS.push({ key: s.key, label: s.label, name: title(s.label), st: title(s.label) });
+  }
+  function sectionByRules(itemType, serviceType, name, description) {
+    const has = (k) => SECTIONS.some((s) => s.key === k);
+    if (String(itemType || '').toLowerCase() === 'product' && has('supply')) return 'supply';
+    for (const field of [name, serviceType, description]) {
+      const text = String(field || '').toLowerCase();
+      if (!text) continue;
+      const hit = TRADE_RULES.match.find((r) => has(r.section) && (r.words || []).some((w) => text.includes(w)));
+      if (hit) return hit.section;
+    }
+    return TRADE_RULES.fallback || 'installation';
+  }
 
   function esc(s) {
     return String(s == null ? '' : s)
@@ -62,7 +81,8 @@
     return (String(name || 'OM').replace(/[^A-Za-z0-9]/g, '').slice(0, 2) || 'OM').toUpperCase();
   }
   /** Mesmo agrupamento do PDF: produto → Supply; sem tipo → Installation. */
-  function sectionOf(itemType, serviceType, name) {
+  function sectionOf(itemType, serviceType, name, description) {
+    if (TRADE_RULES) return sectionByRules(itemType, serviceType, name, description);
     if (String(itemType || '').toLowerCase() === 'product') return 'supply';
     const st = String(serviceType || '')
       .trim()
@@ -121,7 +141,7 @@
         unit: l.unit,
         rate: Number(l.unitPrice) || 0,
         amount: Number(l.amount) || 0,
-        section: sectionOf(l.itemType, l.serviceType, l.name),
+        section: sectionOf(l.itemType, l.serviceType, l.name, l.description),
       }));
     const prepared = d.preparedBy || {};
     return {
@@ -217,8 +237,9 @@
   }
 
   function group(lines) {
-    const by = { supply: [], installation: [], sand_finish: [], add_on: [] };
-    for (const l of lines) (by[l.section] || by.installation).push(l);
+    const by = Object.fromEntries(SECTIONS.map((s) => [s.key, []]));
+    const fallback = by.installation || by[SECTIONS[0].key];
+    for (const l of lines) (by[l.section] || fallback).push(l);
     return SECTIONS.map((s) => ({
       ...s,
       lines: by[s.key],

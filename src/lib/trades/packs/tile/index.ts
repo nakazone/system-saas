@@ -32,6 +32,12 @@ export const tile: TradePack = {
       { section: "prep", words: ["demo", "haul", "removal", "level", "backer", "uncoupling", "crack isolation", "heated floor", "prep", "minimum charge"] },
     ],
     fallbackSection: "installation",
+    inclusions: [
+      "Tile installation as listed, to the layout approved before setting",
+      "Waterproofing and flood test before tile in showers and wet areas",
+      "Grout, and flexible caulk at corners and changes of plane",
+      "Clean-up, with extra tile left on site for future repairs",
+    ],
   },
   phases: [
     {

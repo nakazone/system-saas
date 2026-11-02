@@ -3,6 +3,7 @@
  * Every value here is what the app used before Trade Packs existed (Phase 0: no behavior change).
  */
 import type { TradePack } from "../../types.js";
+import { DEFAULT_QUOTE_INCLUSIONS } from "../../../quotes/client-document.js";
 import { HARDWOOD_SERVICES } from "./services.js";
 import { HARDWOOD_TAKEOFF } from "./takeoff.js";
 import { HARDWOOD_WORK_ORDER_PROMPT } from "./work-order-prompt.js";
@@ -20,6 +21,7 @@ export const hardwood: TradePack = {
       { key: "sand_finish", label: "SAND & FINISH" },
       { key: "add_on", label: "ADD ON" },
     ],
+    inclusions: DEFAULT_QUOTE_INCLUSIONS,
   },
   phases: [
     { key: "installation", label: { "pt-BR": "Instalação", "en-US": "Installation" }, doneAtField: "installationDoneAt" },

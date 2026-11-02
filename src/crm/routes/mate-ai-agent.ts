@@ -667,6 +667,7 @@ mateAiAgentRouter.post("/api/mate-ai/act", requireCrmAuth, async (req: AuthedReq
         pending,
         userName: user.name || undefined,
         persona,
+        trades: req.organization?.tradePacks,
         lookup: (name, a) =>
           withTenantTransaction(organizationId, (tx) => runLookup({ tx, timezone, catalog: prepared.catalog }, name, a)),
       });

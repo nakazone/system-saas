@@ -695,7 +695,7 @@ mateAiRouter.post(
       } else {
         // Run the interpreter inside the tenant context so AI usage is counted for this company.
         const interpreted = await runWithTenant(organizationId, () =>
-          interpretMateAiCommand(body.data.command!, { timezone: context.timezone, catalog: context.catalog, customers: context.customers }),
+          interpretMateAiCommand(body.data.command!, { timezone: context.timezone, catalog: context.catalog, customers: context.customers, trades: req.organization?.tradePacks }),
         );
         if (!interpreted.ok) {
           res.status(422).json({ success: false, error: messageForParseError(interpreted.error), interpreted_by: interpreted.source });

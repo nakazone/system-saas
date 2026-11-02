@@ -101,12 +101,27 @@
     return 'installation';
   }
 
+  // Packs with word rules (Tile): their sections, and lines sorted like the PDF (name, type, description).
+  const TRADE_RULES = TRADE_QUOTE && Array.isArray(TRADE_QUOTE.match) && Array.isArray(TRADE_QUOTE.sections) ? TRADE_QUOTE : null;
+  if (TRADE_RULES) SECTION_DEFS.splice(0, SECTION_DEFS.length, ...TRADE_RULES.sections.map((s) => ({ key: s.key, label: s.label })));
+  function lineSectionByRules(it) {
+    const has = (k) => SECTION_DEFS.some((d) => d.key === k);
+    if (String(it.item_type || '').toLowerCase() === 'product' && has('supply')) return 'supply';
+    for (const field of [it.name, it.service_type, it.description]) {
+      const text = String(field || '').toLowerCase();
+      if (!text) continue;
+      const hit = TRADE_RULES.match.find((r) => has(r.section) && (r.words || []).some((w) => text.includes(w)));
+      if (hit) return hit.section;
+    }
+    return TRADE_RULES.fallback || 'installation';
+  }
+
   function groupItems(items) {
-    const buckets = { supply: [], installation: [], sand_finish: [], add_on: [] };
+    const buckets = Object.fromEntries(SECTION_DEFS.map((d) => [d.key, []]));
     for (const it of items || []) {
-      const k = lineSection(it);
+      const k = TRADE_RULES ? lineSectionByRules(it) : lineSection(it);
       if (buckets[k]) buckets[k].push(it);
-      else buckets.installation.push(it);
+      else (buckets.installation || buckets[SECTION_DEFS[0].key]).push(it);
     }
     return SECTION_DEFS.filter((d) => buckets[d.key].length > 0).map((d) => ({
       label: d.label,

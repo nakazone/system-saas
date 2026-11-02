@@ -10,7 +10,7 @@ import { z } from "zod";
 import { aiChatJson, isAiConfigured } from "../ai/client.js";
 import { normalizeMateAiUnit, parseMateAiCommand, type MateAiCatalogItem } from "./command.js";
 import { interpretLocally, type LocalCustomer } from "./local.js";
-import { productLine } from "../trades/index.js";
+import { primaryPack, productLine } from "../trades/index.js";
 
 export const MATE_AI_UNITS = ["sq_ft", "linear_ft", "fixed", "each", "box", "step", "hour"] as const;
 export const MATE_AI_INVOICE_TYPES = ["auto", "full", "final", "deposit", "progress", "custom"] as const;
@@ -69,6 +69,8 @@ export type InterpretContext = {
   catalog: MateAiCatalogItem[];
   /** Company customers, used by the local reader to find names inside the sentence. */
   customers?: LocalCustomer[];
+  /** The company's trades (Organization.tradePacks): how Mate describes the product. */
+  trades?: unknown;
 };
 
 /* ───────────────────────── dates ───────────────────────── */
@@ -105,7 +107,7 @@ export function catalogRefs(catalog: MateAiCatalogItem[]): Array<{ ref: string; 
   return catalog.slice(0, MAX_CATALOG_IN_PROMPT).map((item, index) => ({ ref: "S" + (index + 1), item }));
 }
 
-export function buildInterpretSystemPrompt(ctx: { today: string; weekday: string; timezone: string; refs: Array<{ ref: string; item: MateAiCatalogItem }> }): string {
+export function buildInterpretSystemPrompt(ctx: { today: string; weekday: string; timezone: string; refs: Array<{ ref: string; item: MateAiCatalogItem }>; trades?: unknown }): string {
   const catalogLines = ctx.refs
     .map(({ ref, item }) => {
       const unit = normalizeMateAiUnit(item.unit) || item.unit;
@@ -115,7 +117,7 @@ export function buildInterpretSystemPrompt(ctx: { today: string; weekday: string
     .join("\n");
 
   return [
-    `You are Mate AI, the assistant inside ${productLine()}.`,
+    `You are Mate AI, the assistant inside ${productLine(primaryPack(ctx.trades))}.`,
     "Users speak Portuguese, English, Spanish or a mix, usually by voice, so expect transcription errors, missing accents and spelled-out numbers.",
     "Read ONE command and return ONLY a JSON object describing the action. Never invent prices, customers or IDs.",
     "",
@@ -335,7 +337,7 @@ export async function interpretMateAiCommand(command: string, ctx: InterpretCont
   }
 
   const refs = catalogRefs(ctx.catalog);
-  const system = buildInterpretSystemPrompt({ today: date, weekday, timezone: ctx.timezone, refs });
+  const system = buildInterpretSystemPrompt({ today: date, weekday, timezone: ctx.timezone, refs, trades: ctx.trades });
   let ai = await aiChatJson({ system, user: text, timeoutMs: 30_000, model: mateAiChatModel() });
   if (!ai.ok && ai.status && [400, 403, 404].includes(ai.status) && /model/i.test(ai.error)) {
     // Model not available for this key/provider: use the account's default chat model.

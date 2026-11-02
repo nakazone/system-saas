@@ -14,7 +14,6 @@ import {
 } from "../../lib/quotes/public-token.js";
 import { buildQuotePdf, imageContentType, loadLogoBuffer, pdfLinesFromDbItems, pdfPaymentItemsFromSchedule } from "../../lib/quotes/pdf.js";
 import {
-  DEFAULT_QUOTE_INCLUSIONS,
   resolveQuoteTermsItems,
 } from "../../lib/quotes/client-document.js";
 import { documentAddressLine, documentLicenseLine } from "../../lib/settings/organization.js";
@@ -30,6 +29,7 @@ import { moveLeadForQuoteEvent } from "../../lib/pipeline/move.js";
 import { formatPersonName } from "../../lib/name.js";
 import { buildFieldQuoteTour, tourDeposit, type Tour } from "../../lib/field-quote/tour.js";
 import { publishAppNotification, quoteLabel, usd } from "../../lib/notifications/publish.js";
+import { primaryPack } from "../../lib/trades/index.js";
 
 export const publicQuotesRouter = Router();
 
@@ -222,10 +222,12 @@ publicQuotesRouter.get("/quotes/:token", async (req, res, next) => {
     const readOnly = !isClientSignableQuoteStatus(quote.status);
     const orgFull = await prisma.organization.findUnique({
       where: { id: ref.organizationId },
-      select: { quoteSettings: true, website: true },
+      select: { quoteSettings: true, website: true, tradePacks: true },
     });
     const qs = parseQuoteSettings(orgFull?.quoteSettings);
     const tour = await loadPublicTour(ref.organizationId, quote);
+    // The company's trade decides the sections and the default "what's included" (Hardwood when unknown).
+    const pack = primaryPack(orgFull?.tradePacks);
 
     res.render("quotes/public", {
       tour,
@@ -238,7 +240,11 @@ publicQuotesRouter.get("/quotes/:token", async (req, res, next) => {
       quote,
       token,
       clientView: clientViewFlags(quote.clientView),
-      inclusions: qs.inclusions?.length ? qs.inclusions : [...DEFAULT_QUOTE_INCLUSIONS],
+      inclusions: qs.inclusions?.length ? qs.inclusions : [...pack.quote.inclusions],
+      // Word rules for trades that have them (Tile); null keeps the page's Hardwood sections.
+      quoteRules: pack.quote.match
+        ? { sections: pack.quote.sections, match: pack.quote.match, fallback: pack.quote.fallbackSection || pack.quote.sections[0]?.key }
+        : null,
       termsItems: resolveQuoteTermsItems(quote.terms),
       readOnly,
       error: typeof req.query.error === "string" ? req.query.error : null,

@@ -22,7 +22,12 @@ export function tradeInject(tradePacks: unknown): string {
       waitAfterHours: p.waitAfterHours ?? 0,
       requires: (p.requires ?? []).map((r) => ({ key: r.key, kind: r.kind, label: r.label })),
     })),
-    quote: { tagline: pack.quote.tagline, sections: pack.quote.sections.map((s) => ({ key: s.key, label: s.label })) },
+    quote: {
+      tagline: pack.quote.tagline,
+      sections: pack.quote.sections.map((s) => ({ key: s.key, label: s.label })),
+      // Packs with word rules (Tile) sort quote lines with them; Hardwood keeps the screens' own logic.
+      ...(pack.quote.match ? { match: pack.quote.match, fallback: pack.quote.fallbackSection || pack.quote.sections[0]?.key } : {}),
+    },
     takeoff: {
       measuredKinds: pack.takeoff.measuredKinds,
       specFields: pack.takeoff.specFields,

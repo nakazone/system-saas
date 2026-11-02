@@ -4,10 +4,7 @@ import { fileURLToPath } from "url";
 import PDFDocument from "pdfkit";
 import { getLocalFileStorage } from "../storage/index.js";
 import { readStoredObject, storageKeyFromAnyUrl } from "../storage/resolve.js";
-import {
-  DEFAULT_QUOTE_INCLUSIONS,
-  resolveQuoteTermsItems,
-} from "./client-document.js";
+import { resolveQuoteTermsItems } from "./client-document.js";
 import { getPack, primaryPack, type TradePack } from "../trades/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -765,7 +762,7 @@ export async function buildQuotePdf(input: QuotePdfInput): Promise<Buffer> {
             },
           ];
 
-    const inclusions = input.inclusions?.length ? input.inclusions : [...DEFAULT_QUOTE_INCLUSIONS];
+    const inclusions = input.inclusions?.length ? input.inclusions : [...pack.quote.inclusions];
     const termItems = termsToItems(input.terms);
     const prepared = input.preparedBy || input.ownerSignature || {};
 
