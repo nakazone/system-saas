@@ -460,6 +460,11 @@
       return;
     }
     let doneToast = status === "completed" ? "Job concluído" : "Job iniciado";
+    if (status === "completed" && window.__OM_TRADE && window.__OM_TRADE.phaseStorage === "table") {
+      // Trades with per-job phases (Tile): the job closes with its last phase, on the job page.
+      location.href = `job-detail.html?id=${encodeURIComponent(id)}#fases`;
+      return;
+    }
     if (status === "completed") {
       const wo = allJobs.find((w) => String(w.id) === String(id));
       const nxt = wo && window.JobsInfo?.nextFinish ? window.JobsInfo.nextFinish(wo) : null;

@@ -25,7 +25,7 @@
     const l = document.createElement("link");
     l.id = CSS_ID;
     l.rel = "stylesheet";
-    l.href = "job-phases.css?v=20261102-fases1";
+    l.href = "/job-phases.css?v=20261102-fases2";
     document.head.appendChild(l);
   }
 
@@ -245,11 +245,11 @@
     });
   }
 
+  /** "3/7" on the tab (job page: #jdTabFases; field ticket: [data-phases-badge]). */
   function badge(d) {
-    const el = document.getElementById("jdTabFases");
-    if (!el || !d) return;
+    if (!d) return;
     const s = shape(d, new Date());
-    el.textContent = `${s.done}/${s.total}`;
+    document.querySelectorAll("#jdTabFases, [data-phases-badge]").forEach((el) => (el.textContent = `${s.done}/${s.total}`));
   }
 
   async function summary(jobId) {
@@ -264,7 +264,7 @@
   }
 
   /**
-   * ctx: { jobId, notify, compact, canAct (default true), address, onChange(data) }
+   * ctx: { jobId, notify, compact, canAct (default true), address, deviceLabel, onChange(data) }
    */
   function mount(box, ctx) {
     if (!box) return;
@@ -299,13 +299,14 @@
     };
     const evidence = (phase, req, body) => api(`${base}/${encodeURIComponent(phase)}/evidence/${encodeURIComponent(req)}`, { method: "POST", body: JSON.stringify(body) });
 
-    box.innerHTML = '<div class="jd-card"><p class="jd-empty">A carregar fases…</p></div>';
+    const note = (t) => `<div class="jp${st.compact ? " jp--compact" : ""}"><div class="jd-card"><p class="jd-empty">${esc(t)}</p></div></div>`;
+    box.innerHTML = note("A carregar fases…");
     api(base)
       .then((d) => {
         took(d);
         paint();
       })
-      .catch((e) => (box.innerHTML = `<div class="jd-card"><p class="jd-empty">${esc(e.message)}</p></div>`));
+      .catch((e) => (box.innerHTML = note(navigator.onLine === false ? "Sem internet. As fases abrem quando a conexão voltar." : e.message)));
 
     box.onclick = (e) => {
       const req = e.target.closest("[data-req]");
@@ -328,7 +329,7 @@
                   taken_at_device: new Date(file.lastModified || Date.now()).toISOString(),
                   address: ctx.address || null,
                   client_upload_id: window.crypto?.randomUUID ? crypto.randomUUID() : `phase-${Date.now()}`,
-                  device_label: "Office web",
+                  device_label: ctx.deviceLabel || "Office web",
                   is_public: false,
                 }),
               });

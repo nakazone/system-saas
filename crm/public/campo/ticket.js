@@ -2,7 +2,7 @@
  * Campo · Ticket — status, checklist, job media (photo proof)
  */
 (function () {
-  const VER = "20261006-photoview1";
+  const VER = "20261102-fases2";
   const $ = (id) => document.getElementById(id);
   const STAGE_LABEL = { before: "Antes", during: "Durante", after: "Depois" };
 
@@ -435,8 +435,27 @@
     showTab(tab);
   }
 
+  /** Trades with per-job phases (Tile) get a Fases tab; Stain samples are Hardwood only. */
+  function hasPhases() {
+    return Boolean(window.JobPhases && window.JobPhases.available());
+  }
+  function stainOff() {
+    return Boolean(window.__OM_TRADE && window.__OM_TRADE.id && window.__OM_TRADE.id !== "hardwood");
+  }
+
   function showTab(name) {
+    if (name === "phases" && !hasPhases()) name = "details";
+    const opening = name === "phases" && tab !== "phases";
     tab = name;
+    if (opening) {
+      window.JobPhases.mount($("cmPhases"), {
+        jobId,
+        compact: true,
+        address: ticket?.address || null,
+        deviceLabel: deviceLabel(),
+        notify: (m) => toast(m),
+      });
+    }
     document.querySelectorAll(".cm-ticket-tabs__btn").forEach((btn) => {
       const on = btn.getAttribute("data-tab") === name;
       btn.classList.toggle("is-active", on);
@@ -1283,6 +1302,10 @@
           return;
         }
         apply(json.data);
+        // Visit done but the job still has phases open (Tile): it stays in progress.
+        if (hasPhases() && json.data && json.data.field_status === "scheduled" && json.data.raw_status !== "completed") {
+          toast("Visita concluída. O job segue aberto até a última fase.");
+        }
       } catch (err) {
         toast(err.message || "Falha ao atualizar status");
       }
@@ -1439,8 +1462,12 @@
       return;
     }
     bind();
+    const phasesTab = $("cmTabPhases");
+    if (phasesTab) phasesTab.hidden = !hasPhases();
+    if (hasPhases()) window.JobPhases.summary(jobId);
     const stainLink = $("cmStainLink");
-    if (stainLink) {
+    if (stainLink && stainOff()) stainLink.style.display = "none";
+    else if (stainLink) {
       stainLink.href = `stain.html?id=${encodeURIComponent(jobId)}`;
       fetch(`/api/work-orders/${encodeURIComponent(jobId)}/stain`, { credentials: "same-origin" })
         .then((r) => r.json())

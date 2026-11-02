@@ -11,6 +11,7 @@ import { publicBaseUrl } from "../../lib/http/public-url.js";
 import { ensureTempShareToken } from "../../lib/work-orders/temp-share.js";
 import { alignLinkedJobAndQuote, ensureQuoteDiscountOnJob, ensureQuoteDiscountsOnJobs, syncLinkedJobFromQuote, syncLinkedQuoteFromJob } from "../../lib/work-orders/from-quote.js";
 import { sectorFinishPatch } from "../../lib/work-orders/sector-finish.js";
+import { openJobPhases, openPhasesMessage } from "../../lib/trades/job-phases-db.js";
 import { notifyJobTeamPush } from "../../lib/push/notify.js";
 import { param } from "../../lib/http/params.js";
 import { myJobAccessWhere, parseChecklist } from "../lib/campo-shared.js";
@@ -1398,6 +1399,15 @@ scheduleJobsRouter.put(
       const scheduleChanged =
         d.scheduled_start !== undefined &&
         (existing.scheduledStart?.getTime() ?? null) !== (start?.getTime() ?? null);
+
+      // Trades with per-job phases (Tile): the job completes by closing its last phase.
+      if (d.status === "completed" && existing.status !== "completed") {
+        const open = await withTenantTransaction(req.organizationId!, (tx) => openJobPhases(tx, req.organizationId!, existing.id));
+        if (open.length) {
+          res.status(409).json({ success: false, code: "phases_open", error: openPhasesMessage(open), open_phases: open });
+          return;
+        }
+      }
 
       const finish = d.status !== undefined ? sectorFinishPatch(existing, d.status) : null;
       let managerId: string | null | undefined = undefined;

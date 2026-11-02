@@ -50,6 +50,7 @@
 
     <div class="cm-ticket-tabs" role="tablist">
       <button type="button" class="cm-ticket-tabs__btn is-active" data-tab="details" role="tab" aria-selected="true">Detalhes</button>
+      <button type="button" class="cm-ticket-tabs__btn" data-tab="phases" role="tab" aria-selected="false" id="cmTabPhases" hidden>Fases <span data-phases-badge translate="no"></span></button>
       <button type="button" class="cm-ticket-tabs__btn" data-tab="checklist" role="tab" aria-selected="false" id="cmTabChecklist">Checklist</button>
       <button type="button" class="cm-ticket-tabs__btn" data-tab="photos" role="tab" aria-selected="false" id="cmTabPhotos">Fotos</button>
     </div>
@@ -75,6 +76,11 @@
         <span class="cm-stain-link__txt"><strong>Samples de stain</strong><small id="cmStainLinkSub">Foto de cada sample e aprovação da cliente</small></span>
         <svg class="cm-stain-link__chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
       </a>
+    </div>
+
+    <!-- Fases do job (Tile): provas na obra; a equipe não libera espera de cura -->
+    <div class="cm-ticket-panel" id="cmPanelPhases" data-panel="phases" hidden>
+      <div id="cmPhases"></div>
     </div>
 
     <div class="cm-ticket-panel" id="cmPanelChecklist" data-panel="checklist" hidden>
@@ -227,7 +233,8 @@
   <script src="/om-offline.js?v=20261013-off1"></script>
   <script src="campo-nav.js?v=20261013-off1"></script>
   <script src="campo-media-queue.js?v=20260928-media1"></script>
-  <script src="ticket.js?v=20261030-stain1"></script>
+  <script src="/job-phases.js?v=20261102-fases2"></script>
+  <script src="ticket.js?v=20261102-fases2"></script>
   <link rel="stylesheet" href="/mate-panel.css?v=20261027-m2" />
   <script src="/mate-panel.js?v=20261027-m2"></script>
 </body>

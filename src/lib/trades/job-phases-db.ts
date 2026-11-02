@@ -14,6 +14,7 @@ import {
   type JobPhaseRow,
 } from "./job-phases.js";
 import type { TradePack } from "./types.js";
+import { primaryPack } from "./index.js";
 
 type Tx = TenantPrisma;
 
@@ -75,4 +76,26 @@ export async function closeJobPhase(
   }
   await tx.workOrder.update({ where: { id: workOrderId }, data: { status: result.jobStatus } });
   return result;
+}
+
+/**
+ * Phases still open on a job, for companies whose trade keeps phases per job (Tile).
+ * Empty for Hardwood (its phases follow the job status) and for jobs whose phases were never opened.
+ * Used to stop a job being marked completed while phases are open.
+ */
+export async function openJobPhases(tx: Tx, organizationId: string, workOrderId: string): Promise<Array<{ key: string; label: string }>> {
+  const org = await tx.organization.findUnique({ where: { id: organizationId }, select: { tradePacks: true } });
+  const pack = primaryPack(org?.tradePacks);
+  if (pack.phaseStorage !== "table") return [];
+  const all = await tx.jobPhase.findMany({ where: { workOrderId }, orderBy: { sortOrder: "asc" }, select: { phaseKey: true, status: true } });
+  // Rows are created when the phases are first opened; until then every phase is still open.
+  const rows = all.length ? all.filter((r) => r.status !== "done" && r.status !== "skipped") : pack.phases.map((p) => ({ phaseKey: p.key }));
+  return rows.map((r) => ({ key: r.phaseKey, label: pack.phases.find((p) => p.key === r.phaseKey)?.label["pt-BR"] ?? r.phaseKey }));
+}
+
+/** "Faltam 3 fases: Teste de estanqueidade, Assentamento e Rejunte." */
+export function openPhasesMessage(open: ReadonlyArray<{ label: string }>): string {
+  const names = open.map((p) => p.label);
+  const list = names.length > 1 ? `${names.slice(0, -1).join(", ")} e ${names[names.length - 1]}` : names[0] ?? "";
+  return `Este job ainda tem ${open.length === 1 ? "1 fase aberta" : `${open.length} fases abertas`}: ${list}. Conclua na aba Fases.`;
 }

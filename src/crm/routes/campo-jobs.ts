@@ -39,6 +39,7 @@ import {
 } from "../../lib/job-media/index.js";
 import { isJobChecklistEnabled } from "../../lib/settings/jobs.js";
 import { sectorFinishPatch } from "../../lib/work-orders/sector-finish.js";
+import { openJobPhases } from "../../lib/trades/job-phases-db.js";
 import {
   JOB_REPORT_TEMPLATES,
   generateJobReportDraft,
@@ -443,11 +444,18 @@ campoJobsRouter.post(
           }
         }
         if (next === "completed") {
-          const finish = sectorFinishPatch(wo, "completed");
-          officePatch.status = finish.status;
-          if ("installationDoneAt" in finish) officePatch.installationDoneAt = finish.installationDoneAt ?? null;
-          if ("sandDoneAt" in finish) officePatch.sandDoneAt = finish.sandDoneAt ?? null;
-          if (finish.status !== "completed") officePatch.fieldStatus = "scheduled";
+          // Trades with per-job phases (Tile): the visit ends, the job stays open until its last phase closes.
+          const openPhases = await openJobPhases(tx, req.organizationId!, wo.id);
+          if (openPhases.length) {
+            officePatch.status = wo.status === "completed" ? "completed" : "in_progress";
+            officePatch.fieldStatus = "scheduled";
+          } else {
+            const finish = sectorFinishPatch(wo, "completed");
+            officePatch.status = finish.status;
+            if ("installationDoneAt" in finish) officePatch.installationDoneAt = finish.installationDoneAt ?? null;
+            if ("sandDoneAt" in finish) officePatch.sandDoneAt = finish.sandDoneAt ?? null;
+            if (finish.status !== "completed") officePatch.fieldStatus = "scheduled";
+          }
         }
 
         const updated = await tx.workOrder.update({

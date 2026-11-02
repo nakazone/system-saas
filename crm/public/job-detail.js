@@ -205,6 +205,8 @@
       if (undated) return { label: "Schedule Job", act: "edit" };
       if (!job.line_items?.length) return { label: "Adicionar serviços", act: "services" };
       if (job.status === "draft" || job.status === "scheduled") return { label: "Iniciar job", act: "start" };
+      // Trades with per-job phases (Tile): the job closes with its last phase.
+      if (job.status === "in_progress" && !tabOff("fases")) return { label: "Ver fases", act: "phases" };
       if (job.status === "in_progress") {
         const nxt = window.JobsInfo?.nextFinish?.(job);
         return { label: nxt ? nxt.label : "Concluir job", act: "complete" };
@@ -240,6 +242,7 @@
     if (act === "schedule") return openSection("schedule");
     if (act === "start") return setStatus("in_progress", "Job iniciado.");
     if (act === "complete") return finishJob();
+    if (act === "phases") return setTab("fases");
   }
   async function setStatus(status, msg) {
     const j = await api(`/api/work-orders/${jobId}`, { method: "PUT", body: JSON.stringify({ status }) });
@@ -250,6 +253,11 @@
   }
 
   async function finishJob() {
+    if (!tabOff("fases")) {
+      setTab("fases");
+      notify("O job conclui quando a última fase for concluída.", "info");
+      return;
+    }
     const J = window.JobsInfo;
     const nxt = J?.nextFinish?.(job);
     const label = job?.title || clientName();

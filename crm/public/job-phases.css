@@ -54,3 +54,12 @@
   .jp-left--inline { display: inline; }
   .jp-b--pri { flex: 1; }
 }
+
+/* Compact (phone overlay and field ticket): self-contained card, the field app does not load the job page styles */
+.jp--compact .jd-card { background: #fff; border: 1px solid #EAECF0; border-radius: 16px; padding: 14px 14px 10px; min-width: 0; }
+.jp--compact .jd-ch { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
+.jp--compact .jd-ch h2 { margin: 0; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; font-weight: 800; color: #221E1A; }
+.jp--compact .jd-empty { margin: 0; font-size: 14px; color: #667085; }
+.jp--compact .jp-form { grid-template-columns: minmax(0, 1fr); padding-left: 0; }
+.jp--compact .jp-b--pri { flex: 1; min-height: 46px; }
+.jp--compact .jp-b { min-height: 40px; }

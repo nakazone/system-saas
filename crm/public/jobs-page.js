@@ -1298,6 +1298,11 @@
   }
 
   async function finishCurrent(wo) {
+    // Trades with per-job phases (Tile): the job closes with its last phase, on the job page.
+    if (window.__OM_TRADE && window.__OM_TRADE.phaseStorage === "table" && wo) {
+      location.href = `job-detail.html?id=${encodeURIComponent(wo.id)}#fases`;
+      return;
+    }
     const J = I();
     const nxt = J.nextFinish(wo);
     const label = wo?.title || (wo ? J.client(wo) : "");

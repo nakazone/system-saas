@@ -569,7 +569,7 @@
       }
       // Fases: trades with per-job phases (Tile). Stain: hardwood only.
       if (key === "fases" || key === "stain") {
-        const off = key === "fases" ? !(window.JobPhases && window.JobPhases.available()) : Boolean(window.__OM_TRADE && window.__OM_TRADE.id && window.__OM_TRADE.id !== "hardwood");
+        const off = key === "fases" ? !hasPhases() : Boolean(window.__OM_TRADE && window.__OM_TRADE.id && window.__OM_TRADE.id !== "hardwood");
         btn.hidden = off;
         if (off && detTab === key) detTab = "visitas";
       }
@@ -735,6 +735,10 @@
     }
   }
 
+  function hasPhases() {
+    return Boolean(window.JobPhases && window.JobPhases.available());
+  }
+
   function restoreVisitCta() {
     const wo = job;
     const cta = $("jobMobCta");
@@ -754,12 +758,17 @@
       cta.textContent = "Iniciar job";
       cta.className = "jcm-foot__btn jcm-foot__btn--primary";
       cta.dataset.action = "start";
-      if (sec) {
+      if (sec && !hasPhases()) {
         sec.hidden = false;
         sec.textContent = "Já concluído";
         sec.className = "jcm-foot__btn jcm-foot__btn--ghost";
         sec.dataset.action = "complete";
       }
+    } else if (canManage && wo.status === "in_progress" && hasPhases()) {
+      // Trades with per-job phases (Tile): the job closes with its last phase.
+      cta.textContent = "Ver fases";
+      cta.className = "jcm-foot__btn jcm-foot__btn--primary";
+      cta.dataset.action = "phases";
     } else if (canManage && wo.status === "in_progress") {
       const nxt = window.JobsInfo?.nextFinish?.(wo);
       cta.textContent = nxt ? nxt.label : "Concluir job";
@@ -798,7 +807,18 @@
     render();
   }
 
+  function openPhases() {
+    detTab = "fases";
+    render();
+    document.querySelector("[data-jd-tab='fases']")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   async function finishMobJob() {
+    if (hasPhases()) {
+      openPhases();
+      window.crmToast?.show?.("O job conclui quando a última fase for concluída.", { type: "info" });
+      return;
+    }
     const J = window.JobsInfo;
     const nxt = J?.nextFinish?.(job);
     const label = job?.title || (J && job ? J.client(job) : "");
@@ -918,6 +938,8 @@
         if (action === "start") {
           await setStatus("in_progress");
           window.crmToast?.success?.("Job iniciado");
+        } else if (action === "phases") {
+          openPhases();
         } else if (action === "complete") {
           await finishMobJob();
         } else if (action === "schedule") {

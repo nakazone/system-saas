@@ -251,6 +251,44 @@ describe.skipIf(!privileged)("Job phases API — a Tile company and a Hardwood c
     expect(rows).toBe(0);
   });
 
+  it("a Tile job completes with its last phase: the office and the crew can't close it early", async () => {
+    const { withTenantTransaction } = await import("../src/lib/tenant/prisma-tenant.js");
+    const id = orgs.tile!.id;
+    const admin = await prisma.user.findFirst({ where: { email: orgs.tile!.email }, select: { id: true } });
+    // A job nobody opened the phases of yet: every phase still counts as open.
+    const job = (await withTenantTransaction(id, (tx) => tx.workOrder.create({ data: { organizationId: id, title: "Kitchen backsplash", status: "in_progress", assignedUserId: admin!.id } }))).id;
+
+    const office = await call("tile", "PUT", `/api/work-orders/${job}`, { status: "completed" });
+    expect(office.status).toBe(409);
+    expect(office.json.code).toBe("phases_open");
+    expect(office.json.open_phases).toHaveLength(tile.phases.length);
+    expect(office.json.error).toContain("Conclua na aba Fases");
+
+    // The crew finishes today's visit: the job stays in progress, ready for the next visit.
+    const visit = await call("tile", "POST", `/api/campo/jobs/${job}/field-status`, { field_status: "completed" });
+    expect(visit.status).toBe(200);
+    const after = await withTenantTransaction(id, (tx) => tx.workOrder.findUnique({ where: { id: job }, select: { status: true, fieldStatus: true } }));
+    expect(after).toEqual({ status: "in_progress", fieldStatus: "scheduled" });
+
+    // Other changes on the job still save.
+    expect((await call("tile", "PUT", `/api/work-orders/${job}`, { title: "Kitchen backsplash (white subway)" })).status).toBe(200);
+
+    // With every phase done the job is completed (and saving "completed" again is fine).
+    await withTenantTransaction(id, async (tx) => {
+      const { ensureJobPhases } = await import("../src/lib/trades/job-phases-db.js");
+      await ensureJobPhases(tx, id, job, tile);
+      await tx.jobPhase.updateMany({ where: { workOrderId: job }, data: { status: "done", doneAt: new Date() } });
+    });
+    expect((await call("tile", "PUT", `/api/work-orders/${job}`, { status: "completed" })).status).toBe(200);
+  });
+
+  it("a Hardwood job still completes from the status, as before", async () => {
+    const r = await call("wood", "PUT", `/api/work-orders/${orgs.wood!.job}`, { status: "completed" });
+    expect(r.status).toBe(200);
+    // "both" job: the first save closes Installation, the job goes on with Sand & Finish.
+    expect(r.json.data.status).toBe("in_progress");
+  });
+
   it("one company cannot reach the other's job phases", async () => {
     const r = await call("wood", "GET", `/api/work-orders/${orgs.tile!.job}/phases`);
     expect(r.status).toBe(404);
