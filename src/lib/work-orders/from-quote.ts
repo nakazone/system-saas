@@ -156,7 +156,7 @@ async function loadQuoteForJob(tx: TenantPrisma, quoteId: string) {
     where: { id: quoteId },
     include: {
       property: true,
-      customer: { select: { id: true, name: true, customerType: true } },
+      customer: { select: { id: true, name: true, customerType: true, address: true } },
       builder: { select: { id: true, company: true, firstName: true, lastName: true, type: true } },
       lineItems: { orderBy: { sortOrder: "asc" } },
     },
@@ -197,7 +197,12 @@ function jobIdentityFromQuote(quote: QuoteForJob, personName: string) {
   const party = String(payload.quote_party || sourceType || "").toLowerCase();
   const siteFirst = party === "builder" || party === "contractor" || party === "loja";
   const property = formatPropertyAddress(quote.property);
-  const address = siteFirst ? jobAddress || property : property || jobAddress || null;
+  // Particulars store the site on the customer (or property), not payload.job_address —
+  // the quote builder only writes job_address for builder/contractor/loja parties.
+  const customerAddress = String(quote.customer?.address || "").trim();
+  const address = siteFirst
+    ? jobAddress || property || null
+    : property || customerAddress || jobAddress || null;
   return {
     title: title || "Job",
     address,
@@ -627,11 +632,13 @@ export async function alignLinkedJobAndQuote(
   if (!quote) return;
   const job = await tx.workOrder.findFirst({
     where: { id: params.workOrderId },
-    select: { updatedAt: true },
+    select: { updatedAt: true, address: true },
   });
   if (!job) return;
   try {
-    if (quote.updatedAt.getTime() >= job.updatedAt.getTime()) {
+    // Prefer quote→job when the quote is newer, or when the job still has no site address
+    // (particulars used to convert without copying the customer address).
+    if (quote.updatedAt.getTime() >= job.updatedAt.getTime() || !String(job.address || "").trim()) {
       await syncLinkedJobFromQuote(tx, { organizationId: params.organizationId, quoteId: quote.id });
     } else {
       await syncLinkedQuoteFromJob(tx, params);

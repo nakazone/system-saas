@@ -31,7 +31,13 @@ describe("quote approve → job", () => {
 
     const seeded = await withTenantTransaction(orgId, async (tx) => {
       const customer = await tx.customer.create({
-        data: { organizationId: orgId, name: "Job Customer", email: "jobc@example.com" },
+        data: {
+          organizationId: orgId,
+          name: "Job Customer",
+          email: "jobc@example.com",
+          address: "123 Oak St, Denver, CO",
+          customerType: "particular",
+        },
       });
       const quote = await tx.quote.create({
         data: {
@@ -41,7 +47,8 @@ describe("quote approve → job", () => {
           status: "approved",
           customerId: customer.id,
           total: 2500,
-          payload: { job_address: "123 Oak St, Denver, CO" },
+          // Particulars do not store job_address in payload — site lives on the customer.
+          payload: { quote_party: "particular" },
           lineItems: {
             create: [
               {

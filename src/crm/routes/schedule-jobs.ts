@@ -269,7 +269,8 @@ function mapWorkOrder(wo: {
     customer_id: wo.customerId,
     customer_type: wo.customer?.customerType || null,
     builder_id: wo.builderId,
-    address: wo.address,
+    // Particular quote→job used to leave address empty; fall back to the customer site.
+    address: (wo.address && String(wo.address).trim()) || wo.customer?.address || null,
     client_ref: (wo.clientRef && String(wo.clientRef).trim()) || quoteNote || null,
     manager_id: wo.managerId || null,
     manager_name: managerName(wo.customer?.managers, wo.managerId),
@@ -447,7 +448,20 @@ const relatedWoSelect = {
 } as const;
 
 const woInclude = {
-  customer: { select: { id: true, name: true, company: true, nickname: true, clientCode: true, customerType: true, email: true, phone: true, managers: true } },
+  customer: {
+    select: {
+      id: true,
+      name: true,
+      company: true,
+      nickname: true,
+      clientCode: true,
+      customerType: true,
+      email: true,
+      phone: true,
+      address: true,
+      managers: true,
+    },
+  },
   builder: { select: { id: true, firstName: true, lastName: true, company: true, email: true, nickname: true } },
   assignedUser: { select: { id: true, name: true } },
   crew: { select: { id: true, name: true, color: true } },
@@ -898,6 +912,20 @@ scheduleJobsRouter.get(
       }
       if (canSeeBilling(req.user)) {
         await withTenantTransaction(req.organizationId!, (tx) => foldUnlinkedQuoteInvoices(tx, rows));
+      }
+      // Particular quote→job left address blank; copy the customer site onto the job once.
+      const addressHeals = rows.filter(
+        (row) => !String(row.address || "").trim() && String(row.customer?.address || "").trim(),
+      );
+      if (addressHeals.length) {
+        await withTenantTransaction(req.organizationId!, async (tx) => {
+          for (const row of addressHeals) {
+            const next = String(row.customer?.address || "").trim();
+            if (!next) continue;
+            await tx.workOrder.update({ where: { id: row.id }, data: { address: next } });
+            row.address = next;
+          }
+        });
       }
       const leadNames = await leadNamesById(req.organizationId!, rows);
       let data = rows.map((row) => ({
