@@ -106,7 +106,28 @@
   // ---------------------------------------------------------------- lista
   function jobHit(j) {
     if (!q) return true;
-    return norm([j.number, j.title, j.address, j.client_name, statusLabel(j.status), ...(j.photos || []).map((p) => p.author_name)].filter(Boolean).join(" ")).includes(q);
+    const who = listWho(j);
+    return norm(
+      [j.number, j.title, j.address, j.client_name, j.client_ref, who, j.builder?.nickname, j.builder?.company, statusLabel(j.status), ...(j.photos || []).map((p) => p.author_name)]
+        .filter(Boolean)
+        .join(" "),
+    ).includes(q);
+  }
+
+  /** Same identity line as Jobs: Nickname/Builder - Client ID. */
+  function listWho(j) {
+    if (window.JobsInfo?.client) return window.JobsInfo.client(j);
+    const nick = String(j.builder?.nickname || j.customer?.nickname || "").trim();
+    const base = String(
+      nick || j.customer?.name || j.customer?.company || j.builder?.company || j.builder?.name || j.client_name || j.source_name || "",
+    ).trim();
+    const ref = String(j.client_ref || j.customer?.client_code || "").trim();
+    if (ref) {
+      if (!base) return ref;
+      if (base.toLowerCase().includes(ref.toLowerCase())) return base;
+      return `${base} - ${ref}`;
+    }
+    return base || "";
   }
 
   function rowSub(j) {
@@ -115,16 +136,78 @@
     return { text: `${st} · última ${ago(j.last_photo.created_at)}`, hot: needsPhoto(j) };
   }
 
+  function useSwipeDelete() {
+    return canManage && window.matchMedia("(max-width: 1024px), (pointer: coarse)").matches;
+  }
+
   function rowHtml(j) {
     const last = j.last_photo;
     const th = last ? `<span class="cam-row__th" style="background-image:url('${esc(last.url)}')"></span>` : `<span class="cam-row__th is-empty">${SVG.cam}</span>`;
     const sub = rowSub(j);
     const n = j.photo_count != null ? j.photo_count : (j.photos || []).length;
-    return `<a class="cam-row${String(j.id) === String(selId) && mode !== "photos" ? " is-on" : ""}" href="job-detail.html?id=${encodeURIComponent(j.id)}#fotos" data-cam-id="${esc(j.id)}">
+    const who = listWho(j);
+    const head = who && who !== "Sem cliente" ? who : j.title || "Job";
+    const href = `job-detail.html?id=${encodeURIComponent(j.id)}#fotos`;
+    const addr = j.address
+      ? `<span class="cam-row__addr">${SVG.pin}<span>${esc(j.address)}</span></span>`
+      : "";
+    const body = `<a class="cam-row${String(j.id) === String(selId) && mode !== "photos" ? " is-on" : ""}" href="${href}" data-cam-id="${esc(j.id)}">
       ${th}
-      <span class="cam-row__b"><b>${esc(j.title || "Job")}</b><small class="${sub.hot ? "is-hot" : ""}">${esc(sub.text)}</small></span>
+      <span class="cam-row__b">
+        <span class="cam-row__l1"><b>${esc(head)}</b></span>
+        ${addr}
+        <small class="${sub.hot ? "is-hot" : ""}">${esc(sub.text)}</small>
+      </span>
       ${n ? `<em>${n} foto${n === 1 ? "" : "s"}</em>` : ""}
     </a>`;
+    if (useSwipeDelete() && j.status !== "canceled") {
+      return `<article class="om-swipe cam-swipe" data-cam-swipe="${esc(j.id)}">
+        <div class="om-swipe__actions" aria-hidden="true">
+          <a class="om-swipe__act--edit" href="jobs.html?id=${encodeURIComponent(j.id)}">Abrir</a>
+          <button type="button" class="om-swipe__act--delete" data-cam-delete="${esc(j.id)}" data-cam-label="${esc(head)}">Excluir</button>
+        </div>
+        <div class="om-swipe__body">${body}</div>
+      </article>`;
+    }
+    return body;
+  }
+
+  async function deleteJob(id, label, btn) {
+    if (!id || !canManage) return;
+    if (!confirm(`Excluir o job “${label || id}”?\n\nO job será cancelado e sai da lista ativa.`)) return;
+    const prev = btn?.textContent;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "…";
+    }
+    try {
+      await api(`/api/work-orders/${encodeURIComponent(id)}`, { method: "DELETE" });
+      if (window.crmToast?.success) window.crmToast.success("Job excluído.");
+      jobs = jobs.filter((j) => String(j.id) !== String(id));
+      delete mediaCache[id];
+      delete metaCache[id];
+      if (String(selId) === String(id)) {
+        selId = null;
+        document.body.classList.remove("cam-detail-open");
+        $("camSplit")?.classList.remove("is-detail");
+      }
+      renderList();
+      if (window.OmGestures) window.OmGestures.bindSwipeRow?.($("camRows"));
+      if (isWide()) {
+        selId = firstVisibleId();
+        renderList();
+        if (selId) renderRight();
+        else $("camDetail").innerHTML = `<div class="cam-blank">Escolha um job na lista.</div>`;
+      } else if (!selId) {
+        $("camDetail").innerHTML = "";
+      }
+    } catch (err) {
+      if (window.crmToast?.error) window.crmToast.error(err.message || "Não foi possível excluir");
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = prev || "Excluir";
+      }
+    }
   }
 
   function groups() {
@@ -161,6 +244,7 @@
       .map(([label, rows]) => `<p class="cam-grp"><span>${label}</span><em>${rows.length}</em></p>${rows.map(rowHtml).join("")}`)
       .join("");
     $("camRows").innerHTML = html || `<p class="cam-empty">${q ? "Nenhum job com essa busca." : mode === "done" ? "Nenhum job concluído." : "Nenhum job ativo."}</p>`;
+    if (window.OmGestures) window.OmGestures.bindSwipeRow?.($("camRows"));
   }
 
   /** Abre primeiro um job que tenha fotos (senão o primeiro da lista). */
@@ -239,7 +323,8 @@
     const authors = list ? [...new Set(list.map((p) => p.author_name).filter(Boolean))] : [];
     const st = j.status === "in_progress" ? "dk" : j.status === "completed" ? "ol" : "";
     const lastTxt = j.last_photo ? `Última foto ${ago(j.last_photo.created_at)}` : "Nenhuma foto";
-    const meta = [j.client_name ? esc(j.client_name) : "", `${n} foto${n === 1 ? "" : "s"}`, authors.length ? `por ${esc(authors.slice(0, 3).join(", "))}` : ""].filter(Boolean);
+    const who = listWho(j);
+    const meta = [who && who !== "Sem cliente" ? esc(who) : "", `${n} foto${n === 1 ? "" : "s"}`, authors.length ? `por ${esc(authors.slice(0, 3).join(", "))}` : ""].filter(Boolean);
     const addr = j.address
       ? `<a class="cam-addr" href="${esc(mapsHref(j.address))}" target="_blank" rel="noopener"><span class="cam-addr__ic" aria-hidden="true">${SVG.pin}</span><span class="cam-addr__txt"><strong>${esc(j.address)}</strong><small>Abrir no mapa</small></span></a>`
       : `<p class="cam-addr cam-addr--empty"><span class="cam-addr__ic" aria-hidden="true">${SVG.pin}</span><span class="cam-addr__txt"><strong>Sem endereço</strong><small>Edite o job para informar o local</small></span></p>`;
@@ -247,7 +332,7 @@
       <div class="cam-dh">
         <div class="cam-dh__t">
           <div class="cam-chips"><span class="cam-pill${st ? ` cam-pill--${st}` : ""}">${esc(statusLabel(j.status))}</span><span class="cam-pill${needsPhoto(j) ? " cam-pill--hot" : ""}">${esc(lastTxt)}</span>${j.number != null ? `<span class="cam-num">Job #${esc(j.number)}</span>` : ""}</div>
-          <h2><a href="job-detail.html?id=${encodeURIComponent(j.id)}">${esc(j.title || "Job")}</a></h2>
+          <h2><a href="job-detail.html?id=${encodeURIComponent(j.id)}">${esc(who && who !== "Sem cliente" ? who : j.title || "Job")}</a></h2>
           <p class="cam-dmeta">${meta.map((x) => `<span>${x}</span>`).join("")}</p>
           ${addr}
         </div>
@@ -529,6 +614,14 @@
       }
     });
     $("camRows").addEventListener("click", (e) => {
+      const del = e.target.closest("[data-cam-delete]");
+      if (del) {
+        e.preventDefault();
+        e.stopPropagation();
+        void deleteJob(del.getAttribute("data-cam-delete"), del.getAttribute("data-cam-label"), del);
+        return;
+      }
+      if (e.target.closest(".om-swipe__actions")) return;
       const a = e.target.closest("[data-cam-id]");
       if (!a || e.metaKey || e.ctrlKey) return;
       e.preventDefault();
@@ -569,6 +662,9 @@
   }
 
   function boardJobFromWo(wo) {
+    const builderName = wo.builder
+      ? [wo.builder.first_name || wo.builder.firstName, wo.builder.last_name || wo.builder.lastName].filter(Boolean).join(" ").trim()
+      : "";
     return {
       id: wo.id,
       number: wo.number,
@@ -576,7 +672,24 @@
       status: wo.status,
       field_status: wo.field_status || null,
       address: wo.address || null,
-      client_name: wo.customer?.name || wo.source_name || null,
+      client_ref: wo.client_ref || null,
+      client_name: wo.customer?.name || wo.builder?.company || builderName || wo.source_name || null,
+      customer: wo.customer
+        ? {
+            name: wo.customer.name,
+            company: wo.customer.company,
+            nickname: wo.customer.nickname,
+            client_code: wo.customer.client_code || wo.customer.clientCode || null,
+          }
+        : null,
+      builder: wo.builder
+        ? {
+            company: wo.builder.company || null,
+            name: builderName || wo.builder.name || null,
+            nickname: wo.builder.nickname || null,
+          }
+        : null,
+      source_name: wo.source_name || null,
       photo_count: 0,
       scheduled_start: wo.scheduled_start || null,
       geo_lat: null,

@@ -75,10 +75,16 @@
 .cam-row__th { width: 46px; height: 46px; border-radius: 11px; flex: none; background-size: cover; background-position: center; background-color: var(--cam-sur); display: grid; place-items: center; color: var(--cam-ink3); }
 .cam-row.is-on .cam-row__th.is-empty { background-color: #fff; }
 .cam-row__b { flex: 1; min-width: 0; display: block; }
-.cam-row__b b { display: block; font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cam-row__b small { display: block; margin-top: 1px; font-size: 12px; color: var(--cam-ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cam-row__l1 { display: flex; align-items: baseline; min-width: 0; }
+.cam-row__l1 b { flex: 1; min-width: 0; display: block; font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cam-row__addr { display: flex; align-items: flex-start; gap: 6px; margin-top: 4px; font-size: 12.5px; color: var(--cam-ink2); }
+.cam-row__addr span { min-width: 0; white-space: normal; line-height: 1.35; }
+.cam-row__addr svg { width: 14px; height: 14px; margin-top: 1px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.cam-row__b small { display: block; margin-top: 4px; font-size: 12px; color: var(--cam-ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cam-row__b small.is-hot { color: var(--cam-deep); font-weight: 600; }
 .cam-row em { font-style: normal; font-size: 12px; font-weight: 600; color: var(--cam-ink2); white-space: nowrap; }
+.cam-swipe { margin: 0 0 2px; border-radius: 14px; }
+.cam-swipe .cam-row { margin: 0; background: transparent; }
 .cam-empty { margin: 0; padding: 24px 10px; text-align: center; font-size: 13.5px; color: var(--cam-ink2); }
 
 /* lado direito */
@@ -185,8 +191,10 @@
   .cam-rows .cam-grp + .cam-row:last-child, .cam-rows .cam-grp + .cam-row:has(+ .cam-grp) { border-radius: 18px; }
   .cam-row.is-on { background: #fff; }
   .cam-row__th { width: 52px; height: 52px; border-radius: 12px; }
-  .cam-row__b b { font-size: 15px; font-weight: 650; }
+  .cam-row__l1 b { font-size: 15px; font-weight: 650; }
   .cam-row__b small { font-size: 12.5px; }
+  .cam-swipe { margin: 0 0 8px; border-radius: 18px; }
+  .cam-swipe .cam-row { box-shadow: none; border-radius: 0; }
 
   .cam-dh { background: transparent; box-shadow: none; padding: 0; margin-bottom: 12px; }
   .cam-dh h2 { font-size: 27px; }

@@ -32,8 +32,10 @@
   function client(wo) {
     const lead = String(wo.lead_name || "").trim();
     const ref = String(wo.client_ref || "").trim();
+    const nick = String(wo.builder?.nickname || wo.customer?.nickname || "").trim();
     const base = String(
-      (wo.customer && (wo.customer.name || wo.customer.company)) ||
+      nick ||
+        (wo.customer && (wo.customer.name || wo.customer.company)) ||
         wo.builder?.company ||
         wo.builder?.name ||
         lead ||
@@ -49,7 +51,9 @@
   }
 
   function builderName(wo) {
-    return String(wo.builder?.company || wo.builder?.name || wo.source_name || "").trim();
+    return String(
+      wo.builder?.nickname || wo.builder?.company || wo.builder?.name || wo.source_name || "",
+    ).trim();
   }
 
   /** One line that identifies the job: builder, quote number, job number, address. */

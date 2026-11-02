@@ -2229,7 +2229,6 @@ scheduleJobsRouter.get(
           const sector = sand ? "sand_finish" : wo.sector === "both" ? "installation" : wo.sector;
           const jobCal = resolveJobCalendar(sched, sector);
           const endIso = new Date(at.getTime() + 24 * 60 * 60 * 1000).toISOString();
-          const sectorLabel = sand ? "Sand & Finish" : wo.sector === "both" ? "Installation" : "";
           const quote = wo.quotes?.[0];
           const lead = quote?.leadId ? originByLead.get(quote.leadId) : undefined;
           const clientRef =
@@ -2255,7 +2254,8 @@ scheduleJobsRouter.get(
                 })),
               )
             : { nickname: directNick, company: wo.builder?.company || wo.customer?.company || null };
-          const base = jobCalendarTitle({
+          // Color (calendar) already shows Installation vs Sand — do not append sector text.
+          const calendarName = jobCalendarTitle({
             sourceType: wo.sourceType,
             builderId: wo.builderId,
             title: wo.title,
@@ -2269,7 +2269,6 @@ scheduleJobsRouter.get(
             builderName,
             origin: originFromLeadRecord(lead),
           });
-          const calendarName = sectorLabel ? `${base} · ${sectorLabel}` : base;
           return {
             id: sand ? `${wo.id}:sand` : wo.id,
             type: "job" as const,

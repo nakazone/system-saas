@@ -468,16 +468,43 @@
   /** Jobs stay on the grid without a clock. Meetings and visits show the time. */
   const showClock = (e) => e.type !== 'job' && !e.allDay;
   const clockHtml = (e) => (showClock(e) ? `<time>${esc(fmtTime(e.start))}</time>` : '');
+  /** Number + first street word — "840 S Race St, Denver" → "840 Race". */
+  function streetChip(address) {
+    const SUFFIX = new Set(['st', 'street', 'ave', 'avenue', 'rd', 'road', 'dr', 'drive', 'blvd', 'boulevard', 'ln', 'lane', 'way', 'ct', 'court', 'pl', 'place', 'cir', 'circle', 'pkwy', 'parkway', 'trl', 'trail']);
+    const DIR = new Set(['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw', 'north', 'south', 'east', 'west']);
+    const line = String(address || '').split(',')[0].trim();
+    const tokens = line.split(/\s+/).filter(Boolean);
+    if (!tokens.length) return '';
+    let i = 0;
+    let number = '';
+    if (/^\d/.test(tokens[0])) {
+      number = tokens[0];
+      i = 1;
+    }
+    const key = (t) => String(t || '').toLowerCase().replace(/\./g, '');
+    while (i < tokens.length && DIR.has(key(tokens[i]))) i += 1;
+    let street = '';
+    if (i < tokens.length && !SUFFIX.has(key(tokens[i]))) street = tokens[i];
+    const chip = [number, street].filter(Boolean).join(' ');
+    return chip || tokens.slice(0, 2).join(' ');
+  }
+  /** Nickname - Client ID, or Nickname - 840 Race when there is no Client ID. */
   function ticketTitle(e) {
-    const label = String((e && e.label) || '').trim();
+    const raw = String((e && e.label) || '').trim();
+    // Drop legacy " · Installation / Sand & Finish" — color already shows the sector.
+    const label = raw.replace(/\s*[·•]\s*(Installation|Sand\s*&\s*Finish|Instala[cç][aã]o|Lixa|Sand)\s*$/i, '').trim();
     if (label) return label;
-    const b = (e.meta && e.meta.builder) || {};
-    const nick = String(b.nickname || '').trim();
-    const company = String(b.company || '').trim();
-    const text = String(e.title || '');
-    if (!nick || !company) return text;
-    const re = new RegExp(company.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'ig');
-    return re.test(text) ? text.replace(re, nick) : text;
+    const m = (e && e.meta) || {};
+    const b = m.builder || {};
+    const c = m.customer || {};
+    const who =
+      String(b.nickname || c.nickname || '').trim() ||
+      String(b.company || c.company || c.name || m.source_name || e.title || '').trim();
+    const clientId = String(m.client_ref || c.client_code || '').trim();
+    const street = streetChip(e.address || m.address);
+    const suffix = clientId || street;
+    if (who && suffix) return `${who} - ${suffix}`;
+    return who || suffix || String(e.title || 'Job');
   }
   const typeIcon = (e) =>
     e.type === 'job'
@@ -1261,7 +1288,7 @@
           : ''
       }${
         canEdit && e.type === 'job'
-          ? `<a class="ag-btn" href="campo/ticket.html?id=${encodeURIComponent(e.id)}">Editar ticket</a>`
+          ? `<a class="ag-btn" href="jobs.html?id=${encodeURIComponent(String(e.id).replace(/:(sand|installation|main)$/i, ''))}">Editar Job</a>`
           : ''
       }${
         canEdit ? `<button type="button" class="ag-btn" data-ag-edit="${esc(e.id)}">Editar</button>` : ''

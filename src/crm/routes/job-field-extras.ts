@@ -88,7 +88,9 @@ jobFieldExtrasRouter.get(
             geoLat: true,
             geoLng: true,
             sourceName: true,
-            customer: { select: { name: true } },
+            clientRef: true,
+            customer: { select: { name: true, company: true, nickname: true, clientCode: true } },
+            builder: { select: { company: true, firstName: true, lastName: true, nickname: true } },
             media: {
               where: { deletedAt: null },
               orderBy: [{ createdAt: "desc" }],
@@ -148,6 +150,9 @@ jobFieldExtrasRouter.get(
               return { ...mapped, ...photoDistanceFields(mapped, jobGeo) };
             });
             const lastMapped = photos[0] || null;
+            const builderName = wo.builder
+              ? [wo.builder.firstName, wo.builder.lastName].filter(Boolean).join(" ").trim()
+              : "";
             return {
               id: wo.id,
               number: wo.number,
@@ -155,7 +160,29 @@ jobFieldExtrasRouter.get(
               status: wo.status,
               field_status: wo.fieldStatus,
               address: wo.address,
-              client_name: wo.customer?.name || wo.sourceName || null,
+              client_ref: (wo.clientRef && String(wo.clientRef).trim()) || null,
+              client_name:
+                wo.customer?.name ||
+                wo.builder?.company ||
+                builderName ||
+                wo.sourceName ||
+                null,
+              customer: wo.customer
+                ? {
+                    name: wo.customer.name,
+                    company: wo.customer.company,
+                    nickname: wo.customer.nickname,
+                    client_code: wo.customer.clientCode,
+                  }
+                : null,
+              builder: wo.builder
+                ? {
+                    company: wo.builder.company,
+                    name: builderName || null,
+                    nickname: wo.builder.nickname,
+                  }
+                : null,
+              source_name: wo.sourceName || null,
               photo_count: wo._count.media,
               scheduled_start: wo.scheduledStart?.toISOString() ?? null,
               geo_lat: jobGeo?.lat ?? null,
