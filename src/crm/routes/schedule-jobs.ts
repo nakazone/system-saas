@@ -211,7 +211,16 @@ function mapWorkOrder(wo: {
   allDay?: boolean;
   createdAt: Date;
   updatedAt: Date;
-  customer?: { id: string; name: string; clientCode?: string | null; customerType?: string | null; email?: string | null; phone?: string | null; managers?: unknown } | null;
+  customer?: {
+    id: string;
+    name: string;
+    clientCode?: string | null;
+    customerType?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    address?: string | null;
+    managers?: unknown;
+  } | null;
   builder?: { id: string; firstName: string; lastName: string; company: string | null; nickname?: string | null } | null;
   assignedUser?: { id: string; name: string } | null;
   crew?: { id: string; name: string; color: string | null } | null;
