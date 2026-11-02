@@ -4790,6 +4790,22 @@
     </svg>`;
   }
 
+  /** Flight buttons and one button per step, from the bottom of the stair to the top. */
+  function stepStripHtml(m, s, si, selStep) {
+    const steps = s.steps || [];
+    const chain = stairChainFor(m.data, s.id);
+    const flights = chain.length > 1 ? `<div class="pp-fly" role="group" aria-label="Flights">${chain.map((f, k) => `<button type="button" data-stair-activate="${esc(f.id)}" data-fly-bottom aria-pressed="${f.id === s.id}">Fly ${k + 1}<small>${treadSteps(f).length} treads</small></button>`).join('')}</div>` : '';
+    if (!steps.length) return flights;
+    let tread = 0;
+    const btns = steps.map((st, i) => {
+      const riser = st.kind === 'riser';
+      if (!riser) tread += 1;
+      const done = riser ? (st.riser_w && st.riser_h) : (st.tread_w && st.tread_d && st.riser_h);
+      return `<button type="button" class="pp-sstep${i === selStep ? ' is-on' : ''}${done ? ' is-done' : ''}${riser ? ' is-riser' : ''}" data-step-select="${si}:${i}" aria-pressed="${i === selStep}" title="${riser ? `Riser only ${i + 1}` : `Tread ${tread}`}${done ? '' : ' · sizes missing'}"><b>${riser ? 'R' : tread}</b></button>`;
+    }).join('');
+    return `${flights}<div class="pp-sstrip"><span class="pp-sstrip-end">Bottom</span><div class="pp-sstrip-row" role="group" aria-label="Steps from the bottom">${btns}</div><span class="pp-sstrip-end">Top</span></div>`;
+  }
+
   /** The selected tread up close in 3D, with the wood, finish and returns to pick. */
   function treadDetailHtml(m, s, si, i) {
     const st = s.steps[i]; const locked = m.status === 'used';
@@ -4798,10 +4814,10 @@
     return `<div class="pp-tread3d">
       <div class="pp-tread3d-stage" data-tread3d="${si}:${i}"><span class="pp-tread3d-wait">Building the tread…</span></div>
       <div class="pp-tread3d-opts">
-        <div class="pp-tf-row"><span>Wood</span><div class="pp-tf">${SPECIES.map((w) => chip(`stairs.${si}.species`, w, w, s.species === w)).join('')}</div></div>
-        <div class="pp-tf-row"><span>Finish</span><div class="pp-tf">${FINISHES.map((f) => chip(`stairs.${si}.finish`, f, f.replace(' (site finished)', ' · site finished'), s.finish === f)).join('')}</div></div>
-        <div class="pp-tf-row"><span>Open sides</span><div class="pp-tf">${OPEN_OPTS.map(([k, l]) => chip(`stairs.${si}.steps.${i}.open`, k, l, open === k)).join('')}</div></div>
-        ${open !== 'none' ? `<div class="pp-tf-row"><span>Return</span><div class="pp-tf">${RET_OPTS.map(([k, l]) => chip(`stairs.${si}.steps.${i}.ret`, k, l, (st.ret || '45') === k)).join('')}</div></div>` : ''}
+        <div class="pp-tf-row"><span>1 · Open side</span><div class="pp-tf">${OPEN_OPTS.map(([k, l]) => chip(`stairs.${si}.steps.${i}.open`, k, l, open === k)).join('')}</div></div>
+        <div class="pp-tf-row"><span>2 · Return</span>${open !== 'none' ? `<div class="pp-tf">${RET_OPTS.map(([k, l]) => chip(`stairs.${si}.steps.${i}.ret`, k, l, (st.ret || '45') === k)).join('')}</div>` : '<p class="pp-tf-none">Closed on both sides — no return.</p>'}</div>
+        <div class="pp-tf-row"><span>3 · Wood</span><div class="pp-tf">${SPECIES.map((w) => chip(`stairs.${si}.species`, w, w, s.species === w)).join('')}</div></div>
+        <div class="pp-tf-row"><span>4 · Finish</span><div class="pp-tf">${FINISHES.map((f) => chip(`stairs.${si}.finish`, f, f.replace(' (site finished)', ' · site finished'), s.finish === f)).join('')}</div></div>
       </div>
     </div>`;
   }
@@ -4846,7 +4862,11 @@
     if (!stairs.length) return '<div class="pp-card pp-empty">' + mate('head-thinking', 56) + '<strong>No stairs yet</strong>Add a stair and measure it step by step.</div>';
     let activeId = m.activeStairId;
     let activeIndex = stairs.findIndex((stair) => stair.id === activeId);
-    if (activeIndex < 0) { activeIndex = 0; activeId = stairs[0].id; m.activeStairId = activeId; }
+    if (activeIndex < 0) {
+      // start at the bottom: the first flight that doesn't start on another flight's landing
+      activeIndex = Math.max(0, stairs.findIndex((st) => !st.starts_on_landing_of || !stairs.some((x) => x.id === st.starts_on_landing_of)));
+      activeId = stairs[activeIndex].id; m.activeStairId = activeId;
+    }
     const tabs = stairs.map((stair, index) => {
       const counts = measCounts({ stairs: [stair], vents: [] });
       const linked = Boolean(stair.starts_on_landing_of || stairs.some((flight) => flight.starts_on_landing_of === stair.id));
@@ -4992,6 +5012,7 @@
           <div class="pp-stair-measure-card">
             <div class="pp-component-editor-head"><div><small>COMPONENT ${selectedStep ? String(selStep + 1).padStart(2, '0') : '—'} OF ${(s.steps || []).length}</small><strong>${esc(selectedLabel)}</strong><span>${esc(s.name || 'Stair')} · ${esc(s.species || 'Wood not selected')}${s.finish ? ' · ' + esc(s.finish) : ''}</span></div>
               <div class="pp-component-nav"><button type="button" class="pp-q-ic" data-viz-prev="${si}" aria-label="Previous component" ${(s.steps || []).length < 2 || selStep <= 0 ? 'disabled' : ''}>‹</button><button type="button" class="pp-q-ic" data-viz-next="${si}" aria-label="Next component" ${selStep >= (s.steps || []).length - 1 ? 'disabled' : ''}>›</button></div></div>
+            ${stepStripHtml(m, s, si, selStep)}
             ${selectedStep && selectedStep.kind !== 'riser' && window.ObPlan3D ? treadDetailHtml(m, s, si, selStep) : ''}
             <div class="pp-selected-editor">${selectedRow || '<p class="pp-q-empty">Add a tread or riser to start measuring this flight.</p>'}</div>
             ${locked ? '' : '<div class="pp-stair-add"><button type="button" class="pp-q-add" data-step-add="' + si + '">+ Step (tread + riser)</button><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-riser-add="' + si + '"' + (s.riser_material === 'none' ? ' disabled' : '') + '>+ Riser only</button>'
@@ -6824,6 +6845,7 @@
     }));
     view.querySelectorAll('[data-stair-activate]').forEach((button) => button.addEventListener('click', () => {
       m.activeStairId = button.getAttribute('data-stair-activate');
+      if (button.hasAttribute('data-fly-bottom')) { const fi = m.data.stairs.findIndex((x) => x.id === m.activeStairId); if (fi >= 0) m.vizSel[fi] = 0; }
       redraw();
     }));
     view.querySelectorAll('[data-mtab]').forEach((b) => b.addEventListener('click', () => {

@@ -1422,7 +1422,7 @@
     const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
     // same size on screen however close the camera is
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true, sizeAttenuation: false }));
-    const h = 0.05; sp.scale.set((h * w) / cv.height, h, 1); sp.renderOrder = 20;
+    const h = 0.034; sp.scale.set((h * w) / cv.height, h, 1); sp.renderOrder = 20;
     return sp;
   }
   function dimLine(THREE, a, b, mat) {
