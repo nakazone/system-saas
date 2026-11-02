@@ -100,7 +100,10 @@ describe.skipIf(!privileged)("Entrar como suporte", () => {
 
     const tab = await enter(s.url);
     expect(tab.status).toBe(303);
-    expect(sent.some((m) => m.to === adminEmail && /support accessed your workspace/.test(m.subject) && m.text.includes("Conferir fatura sumida"))).toBe(true);
+    // The company notice is sent in the background (entering must not wait for e-mail), so wait for it.
+    const noticeSent = () => sent.some((m) => m.to === adminEmail && /support accessed your workspace/.test(m.subject) && m.text.includes("Conferir fatura sumida"));
+    for (let i = 0; i < 50 && !noticeSent(); i++) await new Promise((r) => setTimeout(r, 100));
+    expect(noticeSent()).toBe(true);
 
     const st = await req("GET", "/api/account/status", tab.cookie);
     expect(st.status).toBe(200);
