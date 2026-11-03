@@ -10,7 +10,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261103-jobsame1";
+  const CSS_HREF = "crm-job-modal.css?v=20261103-team1";
   const QPE_CSS = "quote-services-popup.css?v=20261102-svc2";
   const QPE_JS = "quote-services-popup.js?v=20261102-qfix";
   const PAPER_CSS = "quote-paper.css?v=20261027-om1";
@@ -21,9 +21,9 @@
   const SECTION_TITLES = {
     details: "Cliente e endereço",
     schedule: "Start",
-    team: "Equipe & funcionário extra",
+    team: "Equipe",
     services: "Serviços do job",
-    campo: "Atenção e checklist do campo",
+    campo: "Checklist do campo",
     notes: "Notas",
   };
   /** Quick-start lists the office can drop into a job's checklist (appended, duplicates skipped). */
@@ -103,6 +103,8 @@
       pendingTemps: [],
       pickerOpen: true,
       pickerQuery: "",
+      teamMenuOpen: false,
+      teamQuery: "",
       moreOpen: false,
       busy: false,
       /** Job acabou de nascer do Quote (mensagem de setup). */
@@ -130,9 +132,9 @@
   let openQuotesFetchSeq = 0;
 
   const SECTOR_OPTS = [
-    { id: "installation", label: "Installation" },
-    { id: "sand_finish", label: "Sand & Finish" },
-    { id: "both", label: "Installation + Sand & Finish" },
+    { id: "installation", label: "Installation", chip: "Installation" },
+    { id: "sand_finish", label: "Sand & Finish", chip: "Sand & Finish" },
+    { id: "both", label: "Installation + Sand & Finish", chip: "Install + Sand" },
   ];
   const sectorLabel = (s) => SECTOR_OPTS.find((o) => o.id === (s || ""))?.label || "—";
 
@@ -884,14 +886,14 @@
         <section class="jm-sec" data-job-section="schedule">
           <h3 class="jm-sec__t"><span class="jm-n">2</span>Start</h3>
           <div class="jm-when">
-            <label class="jm-field">Setor
-              <select id="jmSector" class="jm-in">
-                <option value="">Escolher</option>
-                <option value="installation">Installation</option>
-                <option value="sand_finish">Sand & Finish</option>
-                <option value="both">Installation + Sand & Finish</option>
-              </select>
-            </label>
+            <div class="jm-field">Setor
+              <div class="jm-sector" id="jmSectorChips" role="radiogroup" aria-label="Setor">
+                ${SECTOR_OPTS.map(
+                  (o) =>
+                    `<button type="button" class="jm-sector__opt" role="radio" data-act="sector" data-id="${o.id}" aria-checked="false" title="${esc(o.label)}">${esc(o.chip)}</button>`,
+                ).join("")}
+              </div>
+            </div>
           </div>
           <div class="jm-when" style="margin-top:10px">
             <label class="jm-field" id="jmDateLabel">Data de início<input type="date" id="jmDate" class="jm-in" /></label>
@@ -937,10 +939,6 @@
 
         <section class="jm-sec" data-job-section="campo">
           <h3 class="jm-sec__t"><span class="jm-n">5</span>Para o campo</h3>
-          <label class="jm-field">Atenção
-            <textarea id="jmAttention" class="jm-in jm-ta jm-ta--sm" rows="2" maxlength="2000" placeholder="Ex.: Proteger os degraus com papelão antes de começar."></textarea>
-          </label>
-          <p class="jm-hint">Aparece em destaque no ticket do funcionário e no Campo.</p>
           <div class="jm-ck" id="jmCk"></div>
         </section>
 
@@ -1191,8 +1189,14 @@
     if (sandWrap) sandWrap.hidden = st.sector !== "both";
     if ($("jmSandDate")) $("jmSandDate").value = st.sandDate || "";
     st.allDay = true;
-    const sec = $("jmSector");
-    if (sec) sec.value = st.sector || "";
+    const chips = $("jmSectorChips");
+    if (chips) {
+      chips.querySelectorAll("[data-act='sector']").forEach((btn) => {
+        const on = btn.getAttribute("data-id") === (st.sector || "");
+        btn.classList.toggle("is-on", on);
+        btn.setAttribute("aria-checked", on ? "true" : "false");
+      });
+    }
     const done = $("jmCompleteInfo");
     if (done) {
       if (st.status === "completed") {
@@ -1666,21 +1670,67 @@
     if (cnt) cnt.innerHTML = st.lines.length ? `${st.lines.length} serviço${st.lines.length > 1 ? "s" : ""} · <b>${money(linesTotal())}</b>` : "";
   }
 
+  function isTeamMember(u) {
+    return st.members.has(String(u.id)) || String(st.assigneeId) === String(u.id);
+  }
+
   function renderTeam() {
     const box = $("jmTeam");
-    if (!users.length) {
-      box.innerHTML = '<p class="jm-empty">Nenhum usuário disponível.</p>';
-    } else {
-      box.innerHTML = users
-        .map((u) => {
-          const lead = String(st.assigneeId) === String(u.id);
-          const on = lead || st.members.has(String(u.id));
-          return `<button type="button" class="jm-chip jm-chip--user${on ? " is-on" : ""}" data-act="user" data-id="${esc(u.id)}" aria-pressed="${on}">
-            <span class="jm-dot">${esc(initials(u.name || u.email))}</span>${esc(u.name || u.email)}${lead ? '<small> · responsável</small>' : ""}</button>`;
-        })
-        .join("");
-    }
-    const team = users.filter((u) => st.members.has(String(u.id)) || String(st.assigneeId) === String(u.id));
+    const team = users.filter((u) => isTeamMember(u));
+    const q = String(st.teamQuery || "")
+      .trim()
+      .toLowerCase();
+    const available = users.filter((u) => {
+      if (isTeamMember(u)) return false;
+      if (!q) return true;
+      const hay = `${u.name || ""} ${u.email || ""}`.toLowerCase();
+      return hay.includes(q);
+    });
+    const picked =
+      team.length > 0
+        ? `<div class="jm-team__picked">${team
+            .map((u) => {
+              const lead = String(st.assigneeId) === String(u.id);
+              return `<button type="button" class="jm-team__chip" data-act="user" data-id="${esc(u.id)}" title="Remover">
+                <span class="jm-dot">${esc(initials(u.name || u.email))}</span>
+                <span class="jm-team__chip-name">${esc(u.name || u.email)}</span>
+                ${lead ? '<small>resp.</small>' : ""}
+                <span class="jm-team__chip-x" aria-hidden="true">×</span>
+              </button>`;
+            })
+            .join("")}</div>`
+        : `<p class="jm-hint jm-team__empty">Ninguém na equipe ainda.</p>`;
+    const listRows = !users.length
+      ? `<p class="jm-empty">Nenhum usuário disponível.</p>`
+      : available.length
+        ? available
+            .map(
+              (u) => `<button type="button" class="jm-team__opt" data-act="user" data-id="${esc(u.id)}">
+                <span class="jm-dot">${esc(initials(u.name || u.email))}</span>
+                <span class="jm-team__opt-txt"><b>${esc(u.name || u.email)}</b>${u.email && u.name ? `<small>${esc(u.email)}</small>` : ""}</span>
+                <span class="jm-team__opt-add">+</span>
+              </button>`,
+            )
+            .join("")
+        : `<p class="jm-empty">${q ? "Nenhum resultado." : "Todos já estão na equipe."}</p>`;
+    const trigLbl = team.length
+      ? `Adicionar · ${team.length} na equipe`
+      : users.length
+        ? `Adicionar equipe`
+        : "Sem usuários";
+    box.innerHTML = `<div class="jm-team">
+      ${picked}
+      <div class="jm-team__dd${st.teamMenuOpen ? " is-open" : ""}">
+        <button type="button" class="jm-team__trig" data-act="team-toggle" aria-expanded="${st.teamMenuOpen ? "true" : "false"}"${users.length ? "" : " disabled"}>
+          <span>${esc(trigLbl)}</span>
+          <span class="jm-team__chev" aria-hidden="true"></span>
+        </button>
+        <div class="jm-team__panel" ${st.teamMenuOpen ? "" : "hidden"}>
+          <input type="search" id="jmTeamQ" class="jm-in jm-in--sm" value="${esc(st.teamQuery || "")}" placeholder="Buscar nome…" autocomplete="off" />
+          <div class="jm-team__list">${listRows}</div>
+        </div>
+      </div>
+    </div>`;
     const leadPick =
       team.length > 1
         ? `<label class="jm-lead">Responsável <select id="jmLead" class="jm-in jm-in--sm">${team
@@ -1710,7 +1760,7 @@
           )
           .join("");
     temps.innerHTML = `${leadPick}<div class="jm-temps">
-      <p class="jm-grp">Funcionário extra / temporário (link por WhatsApp/SMS)</p>
+      <p class="jm-grp">Extra Worker</p>
       ${tempRows}
       <div class="jm-temp-add">
         <input type="text" id="tempName" class="jm-in jm-in--sm" maxlength="200" placeholder="Nome *" />
@@ -1719,7 +1769,7 @@
       </div>
       ${
         st.id
-          ? ""
+          ? '<p class="jm-hint">Envie o link por WhatsApp ou SMS depois de cadastrar.</p>'
           : '<p class="jm-hint">Cadastre aqui na criação do job. O link de acesso é gerado ao salvar.</p>'
       }
     </div>`;
@@ -1917,7 +1967,6 @@
     renderServices();
     renderTeam();
     $("jobNotes").value = st.notes;
-    $("jmAttention").value = st.attention;
     if ($("jmNeedsDelivery")) $("jmNeedsDelivery").checked = Boolean(st.needsDelivery);
     renderDeliveryBox();
     renderChecklist();
@@ -1932,8 +1981,15 @@
     const all = st.section === "all";
     modal.dataset.section = st.section;
     document.querySelectorAll("#jobModalMain [data-job-section]").forEach((el) => {
-      el.hidden = !all && el.getAttribute("data-job-section") !== st.section;
+      const key = el.getAttribute("data-job-section");
+      if (key === "campo" && !checklistEnabled) {
+        el.hidden = true;
+        return;
+      }
+      el.hidden = !all && key !== st.section;
     });
+    const notesN = document.querySelector('#jobModalMain [data-job-section="notes"] .jm-n');
+    if (notesN) notesN.textContent = checklistEnabled ? "6" : "5";
     $("jmSide").hidden = !all;
     $("jobModalTitle").textContent = all
       ? st.id
@@ -2520,7 +2576,12 @@
           st.time = "";
         }
       }
-      notify("Job criado a partir do orçamento. Complete Start, Setor, Equipe, Campo e Notas.", "success");
+      notify(
+        checklistEnabled
+          ? "Job criado a partir do orçamento. Complete Start, Setor, Equipe, Campo e Notas."
+          : "Job criado a partir do orçamento. Complete Start, Setor, Equipe e Notas.",
+        "success",
+      );
     }
     open();
   }
@@ -2542,7 +2603,6 @@
       client_ref: String(st.clientRef || "").trim() || null,
       manager_id: st.managerId || null,
       notes: st.notes.trim() || null,
-      campo_attention: st.attention.trim() || null,
       needs_delivery: Boolean(st.needsDelivery),
       delivery_pickup_address: st.needsDelivery ? st.deliveryPickupAddress.trim() || null : null,
       delivery_notes: st.needsDelivery ? st.deliveryNotes.trim() || null : null,
@@ -2596,11 +2656,11 @@
       ],
       services: ["line_items"],
       team: ["assigned_user_id", "member_user_ids"],
-      campo: checklistEnabled ? ["campo_attention", "campo_checklist"] : ["campo_attention"],
+      campo: checklistEnabled ? ["campo_checklist"] : [],
       notes: ["notes"],
     }[st.section];
     const out = {};
-    pick.forEach((k) => {
+    (pick || []).forEach((k) => {
       if (full[k] !== undefined) out[k] = full[k];
     });
     // Scheduling a draft from the agenda section moves it to "scheduled".
@@ -2989,6 +3049,20 @@
         scheduleQuotePriceSync();
         break;
       }
+      case "sector": {
+        const id = btn.getAttribute("data-id");
+        st.sector = id === "installation" || id === "sand_finish" || id === "both" ? id : null;
+        if (st.sector !== "both") st.sandDate = "";
+        renderWhen();
+        renderSide();
+        renderFoot();
+        break;
+      }
+      case "team-toggle":
+        st.teamMenuOpen = !st.teamMenuOpen;
+        renderTeam();
+        if (st.teamMenuOpen) setTimeout(() => $("jmTeamQ")?.focus(), 20);
+        break;
       case "user": {
         const id = String(btn.getAttribute("data-id"));
         if (st.members.has(id) || String(st.assigneeId) === id) {
@@ -3037,8 +3111,18 @@
       return;
     }
     switch (t.id) {
-      case "jmAttention":
-        st.attention = t.value;
+      case "jmTeamQ":
+        st.teamQuery = t.value;
+        renderTeam();
+        setTimeout(() => {
+          const inp = $("jmTeamQ");
+          if (!inp) return;
+          inp.focus();
+          const n = inp.value.length;
+          try {
+            inp.setSelectionRange(n, n);
+          } catch (_) {}
+        }, 0);
         return;
       case "jmNeedsDelivery":
         st.needsDelivery = Boolean(t.checked);
@@ -3208,13 +3292,6 @@
       case "jmManager":
         st.managerId = t.value || null;
         renderSide();
-        return;
-      case "jmSector":
-        st.sector = t.value === "installation" || t.value === "sand_finish" || t.value === "both" ? t.value : null;
-        if (st.sector !== "both") st.sandDate = "";
-        renderWhen();
-        renderSide();
-        renderFoot();
         return;
       case "jmRelated":
         st.relatedWorkOrderId = t.value || null;
@@ -3470,9 +3547,14 @@
     document.addEventListener("pointerdown", (e) => {
       if (!st || !modal.classList.contains("is-open")) return;
       if (e.target.closest(".jm-svc-pick")) return;
-      if (!st.svcPanel?.open) return;
-      st.svcPanel.open = false;
-      renderServices();
+      if (st.svcPanel?.open) {
+        st.svcPanel.open = false;
+        renderServices();
+      }
+      if (st.teamMenuOpen && !e.target.closest(".jm-team__dd")) {
+        st.teamMenuOpen = false;
+        renderTeam();
+      }
     });
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && $("jmSaveRateModal") && !$("jmSaveRateModal").classList.contains("hidden")) {
@@ -3486,6 +3568,12 @@
         return;
       }
       if (e.key === "Escape" && st && modal.classList.contains("is-open")) {
+        if (st.teamMenuOpen) {
+          st.teamMenuOpen = false;
+          renderTeam();
+          e.stopPropagation();
+          return;
+        }
         if (st.svcPanel?.open) {
           st.svcPanel.open = false;
           renderServices();
