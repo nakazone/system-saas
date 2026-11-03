@@ -49,10 +49,25 @@
     return /^\s*add[\s-]*ons?\b/i.test(String(name || ''));
   }
 
+  /**
+   * Trades with their own quote sections (Tile: Supply · Prep & Demo · Installation · Showers ·
+   * Add On) group the lines like the PDF and the client page do (OmQuotePaper.sectionOf: name,
+   * then type, then description). Hardwood keeps the sections below.
+   */
+  const QP = window.OmQuotePaper || null;
+  const TRADE_SECTIONED = Boolean(QP && QP.sectionOf && window.__OM_TRADE && window.__OM_TRADE.quote && Array.isArray(window.__OM_TRADE.quote.match));
+  /** A line's section key in a sectioned trade (products go to Supply, like the PDF). */
+  const tradeSection = (it) => QP.sectionOf(it.item_type, it.service_type, it.name, it.description);
+
   /** Map Tabela de Valores keys/labels (and quote service_type) → QB category values. */
   function normalizeServiceType(st) {
     const s = String(st || '').trim();
     if (!s) return 'Installation';
+    // The trade's own sections ("Showers", "Prep & Demo") stay as they are.
+    if (TRADE_SECTIONED) {
+      const own = QP.SECTIONS.find((x) => !['installation', 'supply', 'add_on'].includes(x.key) && x.st.toLowerCase() === s.toLowerCase());
+      if (own) return own.st;
+    }
     const lower = s
       .toLowerCase()
       .replace(/&/g, ' ')
@@ -2503,7 +2518,7 @@
   function qbUpdateExtras(total) {
     const sums = {};
     for (const it of items) {
-      const key = it.item_type === 'product' ? 'products' : normalizeServiceType(it.service_type);
+      const key = TRADE_SECTIONED ? tradeSection(it) : it.item_type === 'product' ? 'products' : normalizeServiceType(it.service_type);
       sums[key] = (sums[key] || 0) + lineAmount(Number(it.quantity) || 0, Number(it.rate) || 0);
     }
     document.querySelectorAll('[data-cat-sum]').forEach((el) => {
@@ -5216,7 +5231,7 @@
       const unit = w.unit === 'each' ? 'fixed' : w.unit;
       if (prev) return { ...prev, name: w.name, description: w.description, quantity: w.quantity, unit_type: unit };
       const pr = showerRate(w.item);
-      return { ...emptyLine(), name: w.name, description: w.description, quantity: w.quantity, unit_type: unit, rate: pr.rate, sell_price: pr.rate, pricing_item_id: pr.pricing_item_id, service_type: 'Installation', shower_id: w.shower_id, shower_item: w.item };
+      return { ...emptyLine(), name: w.name, description: w.description, quantity: w.quantity, unit_type: unit, rate: pr.rate, sell_price: pr.rate, pricing_item_id: pr.pricing_item_id, service_type: TRADE_SECTIONED && QP.SECTIONS.some((x) => x.key === 'showers') ? 'Showers' : 'Installation', shower_id: w.shower_id, shower_item: w.item };
     });
     const pos = at >= 0 ? Math.min(at, rest.length) : rest.length;
     items = [...rest.slice(0, pos), ...fresh, ...rest.slice(pos)].filter((it) => !isBlankLine(it));
@@ -5317,6 +5332,41 @@
     draw();
   }
 
+  /** Sections of a sectioned trade (Tile), in the PDF's order; Add On stays as a drop target. */
+  function renderTradeSections(list) {
+    const by = Object.fromEntries(QP.SECTIONS.map((x) => [x.key, []]));
+    items.forEach((it, idx) => (by[tradeSection(it)] || by.installation || by[QP.SECTIONS[0].key]).push(idx));
+    if (items.length) {
+      const headRow = document.createElement('div');
+      headRow.className = 'qb-rows-head';
+      headRow.setAttribute('aria-hidden', 'true');
+      headRow.innerHTML = '<span></span><span>Serviço</span><span class="r">Qtd</span><span>Un.</span><span class="r">Preço</span><span class="r">Total</span><span></span>';
+      list.appendChild(headRow);
+    }
+    QP.SECTIONS.forEach((sec) => {
+      const indices = by[sec.key] || [];
+      if (!indices.length && sec.key !== 'add_on') return;
+      const section = document.createElement('div');
+      section.className = 'qb-cat-section';
+      // Dropping a line here gives it this section's type (syncItemsOrderFromDom).
+      section.setAttribute('data-category-value', sec.st);
+      section.setAttribute('data-section-key', sec.key);
+      const head = document.createElement('div');
+      head.className = 'qb-cat-section__head';
+      head.innerHTML = `<span>${escapeHtmlText(sec.name)}</span><em class="qb-cat-section__sum" data-cat-sum="${escapeHtmlText(sec.key)}"></em>`;
+      section.appendChild(head);
+      const catList = document.createElement('div');
+      catList.className = 'qb-cat-items';
+      catList.setAttribute('data-category-value', sec.st);
+      indices.forEach((idx) => catList.appendChild(createItemCard(items[idx], idx)));
+      section.appendChild(catList);
+      list.appendChild(section);
+    });
+    recalc();
+    initItemsSortable();
+    dockAddItemPanel();
+  }
+
   function renderItems() {
     const list = $('itemsList');
     if (!list) return;
@@ -5327,6 +5377,7 @@
     updateItemsCountLabel();
     renderShowersStrip();
 
+    if (TRADE_SECTIONED) return renderTradeSections(list);
     const buckets = { Supply: [], Installation: [], 'Sand & Finishing': [], 'Add On': [], products: [] };
     items.forEach((it, idx) => {
       if (it.item_type === 'product') buckets.products.push(idx);
