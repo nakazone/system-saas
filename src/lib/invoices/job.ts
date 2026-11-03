@@ -177,7 +177,7 @@ export function isJobExtraLine(li: { notes?: string | null }): boolean {
 }
 
 /** Contract + extras that should appear on a client invoice. */
-export function invoiceableJobLines(lineItems: JobLine[]): JobLine[] {
+export function invoiceableJobLines<T extends { notes?: string | null }>(lineItems: T[]): T[] {
   return (lineItems || []).filter((li) => {
     const extra = parseJobExtraNote(li.notes);
     if (!extra) return true;
@@ -185,7 +185,9 @@ export function invoiceableJobLines(lineItems: JobLine[]): JobLine[] {
   });
 }
 
-export function invoiceableJobServicesTotal(lineItems: JobLine[]): number {
+export function invoiceableJobServicesTotal(
+  lineItems: { notes?: string | null; lineTotal: unknown }[],
+): number {
   return money(
     invoiceableJobLines(lineItems).reduce((sum, li) => sum + cents(li.lineTotal), 0),
   );

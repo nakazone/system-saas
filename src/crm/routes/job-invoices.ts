@@ -5,7 +5,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import type { AuthedRequest } from "../../middleware/auth.js";
-import { requireCrmAuth, requireCrmPermission, dec } from "../http.js";
+import { requireCrmAuth, requireCrmPermission } from "../http.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { computeInvoiceMoney, invoiceKindLabel } from "../../lib/invoices/core.js";
 import {
