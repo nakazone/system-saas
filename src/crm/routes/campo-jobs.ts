@@ -17,7 +17,6 @@ import {
   clientLabel,
   FIELD_STATUSES,
   fieldStatusLabel,
-  hhmm,
   mapJobCard,
   myJobAccessWhere,
   nextFieldStatus,
@@ -184,11 +183,16 @@ function mapTicket(wo: Awaited<ReturnType<typeof assertMyJobTicket>>) {
   }));
   const today = ymdLocal(new Date());
   const startYmd = wo.scheduledStart ? ymdLocal(wo.scheduledStart) : null;
-  let whenLabel = "Sem horário";
+  let whenLabel = "Sem data";
   if (wo.scheduledStart) {
-    const dayPart = startYmd === today ? "Hoje" : startYmd || "";
-    const range = `${hhmm(wo.scheduledStart)}${wo.scheduledEnd ? ` – ${hhmm(wo.scheduledEnd)}` : ""}`;
-    whenLabel = dayPart ? `${dayPart} · ${range}` : range;
+    if (startYmd === today) whenLabel = "Hoje";
+    else {
+      whenLabel = wo.scheduledStart.toLocaleDateString("pt-BR", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+      });
+    }
   }
 
   const attention =
@@ -214,8 +218,8 @@ function mapTicket(wo: Awaited<ReturnType<typeof assertMyJobTicket>>) {
     field_status_label: fieldStatusLabel(field),
     raw_status: wo.status,
     when_label: whenLabel,
-    start: wo.scheduledStart ? hhmm(wo.scheduledStart) : null,
-    end: wo.scheduledEnd ? hhmm(wo.scheduledEnd) : null,
+    start: null,
+    end: null,
     scheduled_start: wo.scheduledStart?.toISOString() ?? null,
     scheduled_end: wo.scheduledEnd?.toISOString() ?? null,
     team: teamLabel(wo),

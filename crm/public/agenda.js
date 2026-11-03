@@ -206,6 +206,7 @@
     if (e.type === 'job') {
       const role = String((e.meta && e.meta.date_role) || '').toLowerCase();
       const cal = calOf(e);
+      if (role === 'delivery') return (cal && cal.name) || 'Delivery';
       if (role === 'sand') return (cal && cal.name) || SECTOR_LBL.sand_finish;
       if (role === 'main') return (cal && cal.name) || SECTOR_LBL.installation;
       if (cal && cal.name) return cal.name;
@@ -215,8 +216,13 @@
     const cal = calOf(e);
     return (cal && cal.name) || typeInfo(e.type).one;
   }
+
+  function jobIdOf(e) {
+    return String((e && e.id) || '').replace(/:(sand|delivery|installation|main)$/i, '');
+  }
   const CAL_KINDS = [
     { id: 'jobs', label: 'Jobs' },
+    { id: 'delivery', label: 'Delivery' },
     { id: 'visits', label: 'Visitas' },
     { id: 'meetings', label: 'Meetings' },
     { id: 'custom', label: 'Extra' },
@@ -400,6 +406,7 @@
     if (e.type === 'job') {
       const role = String((e.meta && e.meta.date_role) || '').toLowerCase();
       const sector = String((e.meta && e.meta.sector) || '').toLowerCase();
+      if (role === 'delivery') return 3;
       if (role === 'sand' || sector === 'sand_finish') return 1;
       if (role === 'main' || sector === 'installation' || sector === 'both') return 0;
       return 2;
@@ -819,6 +826,7 @@
     const groupLabel = (e) => {
       if (e.type !== 'job') return e.type === 'visit' ? 'Visitas' : 'Compromissos';
       const k = daySortKey(e);
+      if (k === 3) return 'Delivery';
       if (k === 1) return SECTOR_LBL.sand_finish;
       if (k === 0) return SECTOR_LBL.installation;
       return 'Jobs';
@@ -1239,7 +1247,7 @@
         c.name ||
         (m.builder && (m.builder.company || m.builder.name)) ||
         m.source_name;
-      const jobHrefId = String(e.id).replace(/:(sand|installation|main)$/i, '');
+      const jobHrefId = jobIdOf(e);
       return { name, phone: c.phone, email: c.email, href: `jobs.html?id=${encodeURIComponent(jobHrefId)}`, hrefLabel: `Abrir job${m.number ? ' #' + m.number : ''}` };
     }
     const c = m.customer;
@@ -1765,13 +1773,16 @@
           const start = parseLocalDateTime(date, '00:00');
           if (!start) throw new Error('Data inválida.');
           if (ev.meta && ev.meta.date_role === 'sand') body.sand_scheduled_start = start.toISOString();
-          else {
+          else if (ev.meta && ev.meta.date_role === 'delivery') {
+            body.needs_delivery = true;
+            body.delivery_scheduled_start = start.toISOString();
+          } else {
             body.scheduled_start = start.toISOString();
             body.scheduled_end = null;
           }
           body.all_day = true;
         }
-        await api('/api/work-orders/' + encodeURIComponent(String(id).replace(/:sand$/, '')), { method: 'PUT', body });
+        await api('/api/work-orders/' + encodeURIComponent(jobIdOf({ id })), { method: 'PUT', body });
       } else {
         const body = {};
         if (field === 'title' && type === 'meeting') {
@@ -2178,7 +2189,7 @@
       if (!window.__crmJobModal) return toast('Editor de job indisponível.', 'error');
       closePop();
       closeSheet();
-      if (ev) window.__crmJobModal.openEdit(String(ev.id).replace(/:sand$/, '')).catch((e) => toast(e.message, 'error'));
+      if (ev) window.__crmJobModal.openEdit(jobIdOf({ id: ev.id })).catch((e) => toast(e.message, 'error'));
       else {
         const createOpts = when ? { start: when instanceof Date ? when : new Date(when), allDay: true } : { allDay: true };
         if (opts.sector === 'installation' || opts.sector === 'sand_finish' || opts.sector === 'both') createOpts.sector = opts.sector;
@@ -2607,15 +2618,18 @@
       : new Date(day.getFullYear(), day.getMonth(), day.getDate(), e.start.getHours(), e.start.getMinutes(), 0, 0);
     if (e.type !== 'job' && !e.allDay && !e.start.getHours() && !e.start.getMinutes()) start.setHours(9, 0, 0, 0);
     const end = new Date(start.getTime() + (e.type === 'job' ? 86400000 : ms));
-    const sand = e.type === 'job' && e.meta && e.meta.date_role === 'sand';
-    const body = sand
-      ? { sand_scheduled_start: start.toISOString(), all_day: true }
-      : e.type === 'job'
-        ? { scheduled_start: start.toISOString(), scheduled_end: null, all_day: true }
-        : { scheduled_start: start.toISOString(), scheduled_end: end.toISOString() };
+    const role = e.type === 'job' ? String((e.meta && e.meta.date_role) || '').toLowerCase() : '';
+    const body =
+      role === 'sand'
+        ? { sand_scheduled_start: start.toISOString(), all_day: true }
+        : role === 'delivery'
+          ? { needs_delivery: true, delivery_scheduled_start: start.toISOString(), all_day: true }
+          : e.type === 'job'
+            ? { scheduled_start: start.toISOString(), scheduled_end: null, all_day: true }
+            : { scheduled_start: start.toISOString(), scheduled_end: end.toISOString() };
     try {
       if (e.type === 'job') {
-        await api('/api/work-orders/' + encodeURIComponent(String(e.id).replace(/:sand$/, '')), { method: 'PUT', body });
+        await api('/api/work-orders/' + encodeURIComponent(jobIdOf({ id: e.id })), { method: 'PUT', body });
       } else {
         await api('/api/meetings/' + encodeURIComponent(e.id), { method: 'PUT', body });
       }
@@ -3050,7 +3064,7 @@
         const m = e.meta || {};
         window.__crmJobModal
           .openScheduleLixa({
-            id: String(e.id).replace(/:sand$/, ''),
+            id: jobIdOf({ id: e.id }),
             number: m.number,
             title: e.title,
             sector: m.sector,
@@ -3077,7 +3091,7 @@
         const e = findEv(el.dataset.agDelOk);
         el.disabled = true;
         try {
-          await api(e.type === 'job' ? '/api/work-orders/' + encodeURIComponent(String(e.id).replace(/:sand$/, '')) : '/api/meetings/' + encodeURIComponent(e.id), { method: 'DELETE' });
+          await api(e.type === 'job' ? '/api/work-orders/' + encodeURIComponent(jobIdOf({ id: e.id })) : '/api/meetings/' + encodeURIComponent(e.id), { method: 'DELETE' });
           closeSheet();
           toast('Cancelado', 'success');
           await reload();
@@ -3192,7 +3206,7 @@
         try {
           const notes = String(ta.value || '').trim() || null;
           if (kind === 'job') {
-            await api('/api/work-orders/' + encodeURIComponent(String(id).replace(/:sand$/, '')), { method: 'PUT', body: { notes } });
+            await api('/api/work-orders/' + encodeURIComponent(jobIdOf({ id: id })), { method: 'PUT', body: { notes } });
             const evn = findEv(id);
             if (evn) evn.meta.notes = notes;
           } else if (kind === 'meeting') {

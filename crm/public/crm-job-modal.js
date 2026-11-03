@@ -92,6 +92,7 @@
       needsDelivery: false,
       deliveryPickupAddress: "",
       deliveryNotes: "",
+      deliveryDate: "",
       deliveryAttachment: null,
       deliveryAttachmentPending: null,
       clearDeliveryAttachment: false,
@@ -898,6 +899,28 @@
           </div>
           <p class="jm-hint" id="jmCompleteInfo"></p>
           <p class="jm-hint">Jobs são sempre o dia inteiro, sem horário. Em Installation + Sand & Finish as duas datas podem ser iguais.</p>
+          <label class="jm-check" style="margin-top:12px">
+            <input type="checkbox" id="jmNeedsDelivery" />
+            <span><strong>Delivery</strong> — retirar material da obra</span>
+          </label>
+          <div class="jm-delivery" id="jmDeliveryBox" hidden>
+            <label class="jm-field">Data do Delivery
+              <input type="date" id="jmDeliveryDate" class="jm-in" required />
+            </label>
+            <label class="jm-field">Endereço da retirada
+              <span class="jm-inwrap"><input type="text" id="jmDeliveryPickup" class="jm-in" maxlength="500" autocomplete="off" placeholder="Onde pegar o material (pode ser diferente do job)" /></span>
+            </label>
+            <label class="jm-field">Notas / nº do PO
+              <textarea id="jmDeliveryNotes" class="jm-in jm-ta jm-ta--sm" rows="2" maxlength="4000" placeholder="Ex.: PO 45821 — retirar sobras de madeira"></textarea>
+            </label>
+            <div class="jm-delivery__file">
+              <label class="jm-btn jm-btn--sm" for="jmDeliveryFile">Anexar arquivo</label>
+              <input type="file" id="jmDeliveryFile" class="jm-sr" accept="image/*,application/pdf,.pdf,.png,.jpg,.jpeg,.webp" />
+              <span class="jm-delivery__file-name" id="jmDeliveryFileName">Nenhum arquivo</span>
+              <button type="button" class="jm-btn jm-btn--ghost jm-btn--sm" id="jmDeliveryFileClear" hidden>Remover</button>
+            </div>
+            <p class="jm-hint">A data aparece na agenda Delivery. PDF ou foto do PO / packing list vão para o Campo.</p>
+          </div>
         </section>
 
         <section class="jm-sec" data-job-section="services">
@@ -918,25 +941,6 @@
             <textarea id="jmAttention" class="jm-in jm-ta jm-ta--sm" rows="2" maxlength="2000" placeholder="Ex.: Proteger os degraus com papelão antes de começar."></textarea>
           </label>
           <p class="jm-hint">Aparece em destaque no ticket do funcionário e no Campo.</p>
-          <label class="jm-check">
-            <input type="checkbox" id="jmNeedsDelivery" />
-            <span><strong>Delivery</strong> — retirar material da obra</span>
-          </label>
-          <div class="jm-delivery" id="jmDeliveryBox" hidden>
-            <label class="jm-field">Endereço da retirada
-              <span class="jm-inwrap"><input type="text" id="jmDeliveryPickup" class="jm-in" maxlength="500" autocomplete="off" placeholder="Onde pegar o material (pode ser diferente do job)" /></span>
-            </label>
-            <label class="jm-field">Notas / nº do PO
-              <textarea id="jmDeliveryNotes" class="jm-in jm-ta jm-ta--sm" rows="2" maxlength="4000" placeholder="Ex.: PO 45821 — retirar sobras de madeira"></textarea>
-            </label>
-            <div class="jm-delivery__file">
-              <label class="jm-btn jm-btn--sm" for="jmDeliveryFile">Anexar arquivo</label>
-              <input type="file" id="jmDeliveryFile" class="jm-sr" accept="image/*,application/pdf,.pdf,.png,.jpg,.jpeg,.webp" />
-              <span class="jm-delivery__file-name" id="jmDeliveryFileName">Nenhum arquivo</span>
-              <button type="button" class="jm-btn jm-btn--ghost jm-btn--sm" id="jmDeliveryFileClear" hidden>Remover</button>
-            </div>
-            <p class="jm-hint">PDF ou foto do PO / packing list. Aparece no ticket do Campo.</p>
-          </div>
           <div class="jm-ck" id="jmCk"></div>
         </section>
 
@@ -1868,10 +1872,11 @@
     if (!box) return;
     const on = Boolean(st.needsDelivery);
     box.hidden = !on;
-    ["jmDeliveryPickup", "jmDeliveryNotes", "jmDeliveryFile"].forEach((id) => {
+    ["jmDeliveryDate", "jmDeliveryPickup", "jmDeliveryNotes", "jmDeliveryFile"].forEach((id) => {
       const el = $(id);
       if (el) el.disabled = !on;
     });
+    if ($("jmDeliveryDate")) $("jmDeliveryDate").value = st.deliveryDate || "";
     if ($("jmDeliveryPickup")) $("jmDeliveryPickup").value = st.deliveryPickupAddress || "";
     if ($("jmDeliveryNotes")) $("jmDeliveryNotes").value = st.deliveryNotes || "";
     const nameEl = $("jmDeliveryFileName");
@@ -1948,11 +1953,25 @@
   }
 
   // ---------------------------------------------------------------- client selection
-  function isOpenQuoteRow(q) {
-    if (!q || q.work_order_id) return false;
+  /** Open quote, or quote already converted to a draft job the user abandoned mid-setup. */
+  function isImportableQuoteRow(q) {
+    if (!q) return false;
+    const woId = q.work_order_id;
+    const woStatus = String(q.work_order_status || "").toLowerCase();
+    if (woId) {
+      // Job was created from the quote but never finished (closed without Save).
+      return !woStatus || woStatus === "draft";
+    }
     const raw = String(q.status_raw || "").toLowerCase();
     const norm = String(q.status || "").toLowerCase();
     return OPEN_QUOTE_STATUSES.has(raw) || OPEN_QUOTE_STATUSES.has(norm);
+  }
+
+  function quoteImportStatusLabel(q) {
+    const woId = q && q.work_order_id;
+    const woStatus = String((q && q.work_order_status) || "").toLowerCase();
+    if (woId && (!woStatus || woStatus === "draft")) return "Continuar job";
+    return OPEN_QUOTE_STATUS_LBL[String(q.status_raw || q.status || "").toLowerCase()] || "Aberto";
   }
 
   function openQuotesHtml() {
@@ -1963,17 +1982,29 @@
     const list = Array.isArray(st.openQuotes) ? st.openQuotes : [];
     if (!list.length) return "";
     return `<div class="jm-quote-import">
-      <p class="jm-quote-import__hd"><b>${list.length === 1 ? "1 orçamento em aberto" : `${list.length} orçamentos em aberto`}</b>
-        <span>Importe para puxar serviços e dados do cliente.</span></p>
+      <p class="jm-quote-import__hd"><b>${list.length === 1 ? "1 orçamento disponível" : `${list.length} orçamentos disponíveis`}</b>
+        <span>Importe ou continue um job em rascunho a partir do orçamento.</span></p>
       <div class="jm-quote-import__list">${list
         .map((q) => {
           const num = q.quote_number || (q.number != null ? `#${q.number}` : "Orçamento");
+          const who =
+            String(q.customer_name || q.builder_name || q.builder_company || "").trim() ||
+            String(q.job_name || q.title || "").trim() ||
+            "Cliente";
+          const addr = String(q.job_address || q.customer_address || q.property_label || "").trim();
           const title = String(q.job_name || q.title || "").trim();
-          const stLbl = OPEN_QUOTE_STATUS_LBL[String(q.status_raw || q.status || "").toLowerCase()] || "Aberto";
+          const stLbl = quoteImportStatusLabel(q);
           const tot = Number(q.total ?? q.total_amount ?? 0);
           return `<button type="button" class="jm-quote-import__row" data-act="import-quote" data-id="${esc(q.id)}">
-            <span class="jm-quote-import__main"><b>${esc(num)}</b>${title ? ` · ${esc(title)}` : ""}</span>
-            <small>${esc(stLbl)}${tot > 0 ? ` · ${esc(money(tot))}` : ""}</small>
+            <span class="jm-quote-import__body">
+              <span class="jm-quote-import__l1"><b>${esc(who)}</b></span>
+              ${addr ? `<span class="jm-quote-import__addr">${esc(addr)}</span>` : ""}
+              <span class="jm-quote-import__l3">${esc(num)}${title && title !== who ? ` · ${esc(title)}` : ""}</span>
+            </span>
+            <span class="jm-quote-import__side">
+              ${tot > 0 ? `<span class="jm-quote-import__when">${esc(money(tot))}</span>` : ""}
+              <span class="jm-quote-import__st">${esc(stLbl)}</span>
+            </span>
           </button>`;
         })
         .join("")}</div>
@@ -2012,7 +2043,7 @@
       const j = await api(`/api/quotes?${params.toString()}`);
       if (!st || seq !== openQuotesFetchSeq) return;
       if (String(st.customerId || "") !== String(customerSnap || "") || String(st.builderId || "") !== String(builderSnap || "")) return;
-      st.openQuotes = (j.data || []).filter(isOpenQuoteRow).slice(0, 8);
+      st.openQuotes = (j.data || []).filter(isImportableQuoteRow).slice(0, 8);
     } catch (_) {
       if (!st || seq !== openQuotesFetchSeq) return;
       st.openQuotes = [];
@@ -2031,14 +2062,26 @@
     showErr("");
     renderFoot();
     try {
-      const j = await api(`/api/quotes/${encodeURIComponent(quoteId)}/status`, {
-        method: "POST",
-        body: JSON.stringify({ status: "approved" }),
-      });
-      let jobId = j.created_job_id || (j.data && j.data.work_order_id) || null;
+      // Resume an existing draft job if this quote was already converted (user closed without Save).
+      const existing = await api(`/api/quotes/${encodeURIComponent(quoteId)}`);
+      let jobId = existing.data?.work_order_id || null;
+      const woStatus = String(existing.data?.work_order_status || "").toLowerCase();
+      if (jobId && woStatus && woStatus !== "draft" && woStatus !== "canceled") {
+        close();
+        await openEdit(jobId, { prefDate });
+        notify("Este orçamento já tem um job. Abrindo o job existente.", "info");
+        return;
+      }
       if (!jobId) {
-        const fresh = await api(`/api/quotes/${encodeURIComponent(quoteId)}`);
-        jobId = fresh.data?.work_order_id || null;
+        const j = await api(`/api/quotes/${encodeURIComponent(quoteId)}/status`, {
+          method: "POST",
+          body: JSON.stringify({ status: "approved" }),
+        });
+        jobId = j.created_job_id || (j.data && j.data.work_order_id) || null;
+        if (!jobId) {
+          const fresh = await api(`/api/quotes/${encodeURIComponent(quoteId)}`);
+          jobId = fresh.data?.work_order_id || null;
+        }
       }
       if (!jobId) throw new Error("Não foi possível criar o job a partir do orçamento.");
       close();
@@ -2443,6 +2486,10 @@
     st.needsDelivery = Boolean(wo.needs_delivery);
     st.deliveryPickupAddress = wo.delivery_pickup_address || "";
     st.deliveryNotes = wo.delivery_notes || "";
+    {
+      const del = wo.delivery_scheduled_start ? new Date(wo.delivery_scheduled_start) : null;
+      st.deliveryDate = del && !Number.isNaN(del.getTime()) ? ymd(del) : "";
+    }
     st.deliveryAttachment = wo.delivery_attachment || null;
     st.deliveryAttachmentPending = null;
     st.clearDeliveryAttachment = false;
@@ -2499,6 +2546,8 @@
       needs_delivery: Boolean(st.needsDelivery),
       delivery_pickup_address: st.needsDelivery ? st.deliveryPickupAddress.trim() || null : null,
       delivery_notes: st.needsDelivery ? st.deliveryNotes.trim() || null : null,
+      delivery_scheduled_start:
+        st.needsDelivery && dayFromYmd(st.deliveryDate) ? dayFromYmd(st.deliveryDate).toISOString() : null,
       clear_delivery_attachment: Boolean(st.clearDeliveryAttachment),
       assigned_user_id: st.assigneeId || null,
       member_user_ids: members,
@@ -2533,12 +2582,21 @@
     if (st.section === "all") return full;
     const pick = {
       details: ["title", "source_type", "source_name", "customer_id", "builder_id", "manager_id", "address", "status"],
-      schedule: ["scheduled_start", "scheduled_end", "sand_scheduled_start", "all_day", "sector"],
+      schedule: [
+        "scheduled_start",
+        "scheduled_end",
+        "sand_scheduled_start",
+        "all_day",
+        "sector",
+        "needs_delivery",
+        "delivery_pickup_address",
+        "delivery_notes",
+        "delivery_scheduled_start",
+        "clear_delivery_attachment",
+      ],
       services: ["line_items"],
       team: ["assigned_user_id", "member_user_ids"],
-      campo: checklistEnabled
-        ? ["campo_attention", "campo_checklist", "needs_delivery", "delivery_pickup_address", "delivery_notes", "clear_delivery_attachment"]
-        : ["campo_attention", "needs_delivery", "delivery_pickup_address", "delivery_notes", "clear_delivery_attachment"],
+      campo: checklistEnabled ? ["campo_attention", "campo_checklist"] : ["campo_attention"],
       notes: ["notes"],
     }[st.section];
     const out = {};
@@ -2557,6 +2615,9 @@
     }
     if ((all || st.section === "schedule") && body.scheduled_start && body.scheduled_end) {
       if (new Date(body.scheduled_end) <= new Date(body.scheduled_start)) return "O fim precisa ser depois do início.";
+    }
+    if ((all || st.section === "schedule") && st.needsDelivery && !String(st.deliveryDate || "").trim()) {
+      return "Informe a data do Delivery.";
     }
     if (all || st.section === "services") {
       const bad = st.lines.find((l) => (l.pricingId || String(l.name || "").trim()) && !(Number(l.qty) > 0));
@@ -2984,9 +3045,15 @@
         if (!st.needsDelivery) {
           st.clearDeliveryAttachment = true;
           st.deliveryAttachmentPending = null;
+          st.deliveryDate = "";
+        } else if (!st.deliveryDate && st.date) {
+          st.deliveryDate = st.date;
         }
         renderDeliveryBox();
         renderSide();
+        return;
+      case "jmDeliveryDate":
+        st.deliveryDate = t.value || "";
         return;
       case "jmDeliveryPickup":
         // Address autocomplete writes the value without an input event.
@@ -3102,11 +3169,18 @@
         st.sandDate = t.value;
         renderSide();
         return;
+      case "jmDeliveryDate":
+        st.deliveryDate = t.value || "";
+        renderSide();
+        return;
       case "jmNeedsDelivery":
         st.needsDelivery = Boolean(t.checked);
         if (!st.needsDelivery) {
           st.clearDeliveryAttachment = true;
           st.deliveryAttachmentPending = null;
+          st.deliveryDate = "";
+        } else if (!st.deliveryDate && st.date) {
+          st.deliveryDate = st.date;
         }
         renderDeliveryBox();
         renderSide();

@@ -2703,6 +2703,8 @@ model WorkOrder {
   deliveryPickupAddress                String?
   /// Delivery notes (PO number, instructions, etc.)
   deliveryNotes                        String?      @db.Text
+  /// Day the crew should pick up leftover material (all-day Delivery calendar event).
+  deliveryScheduledStart               DateTime?
   deliveryAttachmentUrl                String?
   deliveryAttachmentKey                String?
   deliveryAttachmentName               String?

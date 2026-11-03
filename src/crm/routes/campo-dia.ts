@@ -122,8 +122,12 @@ function mapJob(wo: JobRow, tz: string, photos: number, dayStart?: Date) {
     needs_delivery: Boolean(wo.needsDelivery),
     delivery_pickup_address: wo.deliveryPickupAddress || null,
     scheduled_start: wo.scheduledStart?.toISOString() ?? null,
-    /** Multi-day job that started on an earlier day: no start time today. */
-    start_label: continuing ? null : timeLabel(wo.scheduledStart, tz),
+    /** Jobs are all-day for the crew — show date only, never a clock time. */
+    start_label: continuing
+      ? null
+      : wo.scheduledStart
+        ? new Intl.DateTimeFormat("pt-BR", { timeZone: tz, day: "numeric", month: "short" }).format(wo.scheduledStart)
+        : null,
     continuing,
     photos_today: photos,
   };

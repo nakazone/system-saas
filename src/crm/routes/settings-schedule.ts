@@ -46,6 +46,10 @@ settingsScheduleRouter.get(
         select: { scheduleSettings: true },
       });
       let settings = parseScheduleSettings(org.scheduleSettings);
+      const rawCals = Array.isArray((org.scheduleSettings as { calendars?: unknown } | null)?.calendars)
+        ? ((org.scheduleSettings as { calendars: unknown[] }).calendars as { kind?: string; id?: string }[])
+        : [];
+      const storedDelivery = rawCals.some((c) => c && (c.kind === "delivery" || c.id === "delivery"));
 
       // Register custom agendas already used on meetings but missing from settings.
       const used = await prisma.meeting.findMany({
@@ -60,8 +64,8 @@ settingsScheduleRouter.get(
         settings,
         used.map((r) => r.calendarId),
       );
-      if (merged.added) {
-        settings = merged.settings;
+      settings = merged.settings;
+      if (merged.added || !storedDelivery) {
         const payload = serializeScheduleSettings(settings);
         await prisma.organization.update({
           where: { id: req.organizationId! },

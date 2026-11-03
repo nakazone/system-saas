@@ -172,14 +172,32 @@ select.jm-in { appearance: none; padding-right: 30px; background: #fff url("data
   padding: 10px 12px;
   text-align: left;
   cursor: pointer;
-  display: grid;
-  gap: 2px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
   color: var(--jm-ink);
 }
 .jm-quote-import__row:hover { box-shadow: 0 0 0 1.5px var(--jm-terra); }
-.jm-quote-import__main { font-size: 13.5px; line-height: 1.3; }
-.jm-quote-import__main b { font-weight: 700; }
-.jm-quote-import__row small { color: var(--jm-muted); font-size: 12px; }
+.jm-quote-import__body { min-width: 0; flex: 1; display: grid; gap: 2px; }
+.jm-quote-import__l1 { font-size: 14px; line-height: 1.25; }
+.jm-quote-import__l1 b { font-weight: 700; }
+.jm-quote-import__addr {
+  font-size: 12.5px;
+  color: var(--jm-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.jm-quote-import__l3 { font-size: 12px; color: var(--jm-ink-2); }
+.jm-quote-import__side {
+  flex: none;
+  display: grid;
+  gap: 2px;
+  justify-items: end;
+  text-align: right;
+}
+.jm-quote-import__when { font-size: 12.5px; font-weight: 700; color: var(--jm-ink); }
+.jm-quote-import__st { font-size: 11.5px; font-weight: 650; color: var(--jm-muted); }
 .jm-quote-import__skip { justify-self: start; padding: 2px 0 0; }
 .jm-av { width: 38px; height: 38px; border-radius: 10px; background: var(--jm-ink); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 13px; flex: none; }
 .jm-av--sm { width: 30px; height: 30px; border-radius: 8px; font-size: 11px; }

@@ -20,6 +20,8 @@ import { foldUnlinkedQuoteInvoices, jobBilling, jobBillingLabel } from "../../li
 import { isJobChecklistEnabled } from "../../lib/settings/jobs.js";
 import {
   parseScheduleSettings,
+  resolveDeliveryCalendar,
+  resolveDeliveryColor,
   resolveJobCalendar,
   resolveJobColor,
   resolveMeetingColor,
@@ -49,12 +51,12 @@ function normalizeWoSector(raw: unknown): string | null {
 }
 
 /**
- * Calendar emits `${workOrderId}:sand` for the Sand date of sector=both jobs.
- * Strip that suffix (and legacy :installation/:main) before Prisma UUID lookups.
+ * Calendar emits `${workOrderId}:sand` / `:delivery` for secondary dates.
+ * Strip those suffixes (and legacy :installation/:main) before Prisma UUID lookups.
  */
 function workOrderIdParam(req: AuthedRequest, name = "id"): string {
   return String(param(req, name) || "")
-    .replace(/:(sand|installation|main)$/i, "")
+    .replace(/:(sand|delivery|installation|main)$/i, "")
     .trim();
 }
 
@@ -194,6 +196,7 @@ function mapWorkOrder(wo: {
   needsDelivery?: boolean;
   deliveryPickupAddress?: string | null;
   deliveryNotes?: string | null;
+  deliveryScheduledStart?: Date | null;
   deliveryAttachmentUrl?: string | null;
   deliveryAttachmentKey?: string | null;
   deliveryAttachmentName?: string | null;
@@ -290,6 +293,7 @@ function mapWorkOrder(wo: {
     needs_delivery: Boolean(wo.needsDelivery),
     delivery_pickup_address: wo.deliveryPickupAddress || null,
     delivery_notes: wo.deliveryNotes || null,
+    delivery_scheduled_start: wo.deliveryScheduledStart?.toISOString() ?? null,
     delivery_attachment: wo.deliveryAttachmentUrl
       ? {
           url: wo.deliveryAttachmentUrl,
@@ -333,7 +337,7 @@ function mapWorkOrder(wo: {
     sand_scheduled_start: wo.sandScheduledStart?.toISOString() ?? null,
     installation_done_at: wo.installationDoneAt?.toISOString() ?? null,
     sand_done_at: wo.sandDoneAt?.toISOString() ?? null,
-    all_day: Boolean(wo.scheduledStart || wo.sandScheduledStart),
+    all_day: Boolean(wo.scheduledStart || wo.sandScheduledStart || wo.deliveryScheduledStart),
     created_at: wo.createdAt.toISOString(),
     updated_at: wo.updatedAt.toISOString(),
     customer: wo.customer
@@ -1123,6 +1127,7 @@ const workOrderBody = z.object({
   needs_delivery: z.boolean().optional(),
   delivery_pickup_address: z.string().max(500).optional().nullable(),
   delivery_notes: z.string().max(4000).optional().nullable(),
+  delivery_scheduled_start: z.string().datetime().optional().nullable(),
   clear_delivery_attachment: z.boolean().optional(),
   /** Checklist set by the office; done/photos already recorded by the crew are kept by id. */
   campo_checklist: z
@@ -1248,6 +1253,10 @@ scheduleJobsRouter.post(
           needsDelivery: d.needs_delivery === true,
           deliveryPickupAddress: d.needs_delivery === true ? d.delivery_pickup_address?.trim() || null : null,
           deliveryNotes: d.needs_delivery === true ? d.delivery_notes?.trim() || null : null,
+          deliveryScheduledStart:
+            d.needs_delivery === true && d.delivery_scheduled_start
+              ? new Date(d.delivery_scheduled_start)
+              : null,
           ...(d.campo_checklist?.length ? { campoChecklist: mergeOfficeChecklist(null, d.campo_checklist) } : {}),
           assignedUserId: d.assigned_user_id || null,
           crewId: d.crew_id || null,
@@ -1445,6 +1454,7 @@ scheduleJobsRouter.put(
             ? {
                 deliveryPickupAddress: null,
                 deliveryNotes: null,
+                deliveryScheduledStart: null,
                 deliveryAttachmentUrl: null,
                 deliveryAttachmentKey: null,
                 deliveryAttachmentName: null,
@@ -1455,6 +1465,13 @@ scheduleJobsRouter.put(
                   ? { deliveryPickupAddress: d.delivery_pickup_address?.trim() || null }
                   : {}),
                 ...(d.delivery_notes !== undefined ? { deliveryNotes: d.delivery_notes?.trim() || null } : {}),
+                ...(d.delivery_scheduled_start !== undefined
+                  ? {
+                      deliveryScheduledStart: d.delivery_scheduled_start
+                        ? new Date(d.delivery_scheduled_start)
+                        : null,
+                    }
+                  : {}),
                 ...(d.clear_delivery_attachment
                   ? { deliveryAttachmentUrl: null, deliveryAttachmentKey: null, deliveryAttachmentName: null, deliveryAttachmentSharedWithPartners: false }
                   : {}),
@@ -2235,6 +2252,7 @@ scheduleJobsRouter.get(
                     OR: [{ scheduledEnd: null }, { scheduledEnd: { gte: from } }],
                   },
                   { sandScheduledStart: { gte: from, lte: to } },
+                  { deliveryScheduledStart: { gte: from, lte: to } },
                 ],
               },
               ...(shouldScopeJobsToSelf(req.user) && req.user?.id ? [myJobAccessWhere(req.user.id)] : []),
@@ -2281,14 +2299,19 @@ scheduleJobsRouter.get(
         : [];
       const originByLead = new Map(originLeads.map((lead) => [lead.id, lead]));
       const jobEvents = workOrders.flatMap((wo) => {
-        const slots: Array<{ at: Date; sand: boolean }> = [];
+        const slots: Array<{ at: Date; role: "main" | "sand" | "delivery" }> = [];
         const awaitingSand =
           wo.sector === "both" && Boolean(wo.installationDoneAt) && !wo.sandDoneAt && wo.status !== "canceled";
-        if (wo.scheduledStart && !awaitingSand) slots.push({ at: wo.scheduledStart, sand: false });
-        if (wo.sector === "both" && wo.sandScheduledStart) slots.push({ at: wo.sandScheduledStart, sand: true });
-        return slots.map(({ at, sand }) => {
+        if (wo.scheduledStart && !awaitingSand) slots.push({ at: wo.scheduledStart, role: "main" });
+        if (wo.sector === "both" && wo.sandScheduledStart) slots.push({ at: wo.sandScheduledStart, role: "sand" });
+        if (wo.needsDelivery && wo.deliveryScheduledStart) {
+          slots.push({ at: wo.deliveryScheduledStart, role: "delivery" });
+        }
+        return slots.map(({ at, role }) => {
+          const sand = role === "sand";
+          const delivery = role === "delivery";
           const sector = sand ? "sand_finish" : wo.sector === "both" ? "installation" : wo.sector;
-          const jobCal = resolveJobCalendar(sched, sector);
+          const jobCal = delivery ? resolveDeliveryCalendar(sched) : resolveJobCalendar(sched, sector);
           const endIso = new Date(at.getTime() + 24 * 60 * 60 * 1000).toISOString();
           const quote = wo.quotes?.[0];
           const lead = quote?.leadId ? originByLead.get(quote.leadId) : undefined;
@@ -2315,12 +2338,12 @@ scheduleJobsRouter.get(
                 })),
               )
             : { nickname: directNick, company: wo.builder?.company || wo.customer?.company || null };
-          // Color (calendar) already shows Installation vs Sand — do not append sector text.
+          // Color (calendar) already shows Installation vs Sand / Delivery — do not append sector text.
           const calendarName = jobCalendarTitle({
             sourceType: wo.sourceType,
             builderId: wo.builderId,
             title: wo.title,
-            address: wo.address,
+            address: delivery ? wo.deliveryPickupAddress || wo.address : wo.address,
             clientRef,
             sourceName: wo.sourceName,
             customerName: wo.customer?.name,
@@ -2331,7 +2354,7 @@ scheduleJobsRouter.get(
             origin: originFromLeadRecord(lead),
           });
           return {
-            id: sand ? `${wo.id}:sand` : wo.id,
+            id: sand ? `${wo.id}:sand` : delivery ? `${wo.id}:delivery` : wo.id,
             type: "job" as const,
             title: wo.title,
             label: calendarName,
@@ -2340,8 +2363,10 @@ scheduleJobsRouter.get(
             end: endIso,
             all_day: true,
             calendar_id: jobCal.id,
-            color: resolveJobColor(sched, wo.crew?.color || null, sector),
-            meta: { ...mapWorkOrder(wo), date_role: sand ? "sand" : "main" },
+            color: delivery
+              ? resolveDeliveryColor(sched)
+              : resolveJobColor(sched, wo.crew?.color || null, sector),
+            meta: { ...mapWorkOrder(wo), date_role: role },
           };
         });
       });
