@@ -10,7 +10,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261103-extras1";
+  const CSS_HREF = "crm-job-modal.css?v=20261103-team3";
   const QPE_CSS = "quote-services-popup.css?v=20261102-svc2";
   const QPE_JS = "quote-services-popup.js?v=20261102-qfix";
   const PAPER_CSS = "quote-paper.css?v=20261027-om1";
@@ -1871,10 +1871,10 @@
     if (!available.length) return `<p class="jm-empty">${q ? "Nenhum resultado." : "Todos já estão na equipe."}</p>`;
     return available
       .map(
-        (u) => `<button type="button" class="jm-team__opt" data-act="user" data-id="${esc(u.id)}" tabindex="-1">
+        (u) => `<button type="button" class="jm-team__opt" data-act="user" data-id="${esc(u.id)}">
           <span class="jm-dot">${esc(initials(u.name || u.email))}</span>
           <span class="jm-team__opt-txt"><b>${esc(u.name || u.email)}</b>${u.email && u.name ? `<small>${esc(u.email)}</small>` : ""}</span>
-          <span class="jm-team__opt-add">+</span>
+          <span class="jm-team__opt-add" aria-hidden="true">+</span>
         </button>`,
       )
       .join("");
@@ -1905,36 +1905,15 @@
   function focusTeamSearch(caret) {
     const q = $("jmTeamQ");
     if (!q || !st?.teamMenuOpen) return;
-    q.focus({ preventScroll: true });
+    try {
+      q.focus({ preventScroll: true });
+    } catch (_) {
+      q.focus();
+    }
     try {
       const n = typeof caret === "number" ? caret : String(q.value || "").length;
       q.setSelectionRange(n, n);
     } catch (_) {}
-  }
-
-  function positionTeamPanel() {
-    const panel = $("jmTeam")?.querySelector(".jm-team__panel");
-    const trig = $("jmTeam")?.querySelector(".jm-team__trig");
-    if (!panel || !trig || panel.hasAttribute("hidden")) return;
-    const r = trig.getBoundingClientRect();
-    const gap = 6;
-    const maxH = Math.min(380, Math.max(180, window.innerHeight - 48));
-    const spaceBelow = window.innerHeight - r.bottom - gap - 16;
-    const spaceAbove = r.top - gap - 16;
-    const openUp = spaceBelow < 220 && spaceAbove > spaceBelow;
-    const height = Math.min(maxH, openUp ? spaceAbove : spaceBelow);
-    panel.style.position = "fixed";
-    panel.style.left = `${Math.max(12, Math.min(r.left, window.innerWidth - r.width - 12))}px`;
-    panel.style.width = `${Math.min(r.width, window.innerWidth - 24)}px`;
-    panel.style.right = "auto";
-    panel.style.maxHeight = `${Math.max(160, height)}px`;
-    if (openUp) {
-      panel.style.top = "auto";
-      panel.style.bottom = `${window.innerHeight - r.top + gap}px`;
-    } else {
-      panel.style.top = `${r.bottom + gap}px`;
-      panel.style.bottom = "auto";
-    }
   }
 
   function refreshTeamList() {
@@ -1948,10 +1927,9 @@
     const caret = typeof qEl?.selectionStart === "number" ? qEl.selectionStart : null;
     list.innerHTML = teamListHtml();
     if (hadFocus) focusTeamSearch(caret);
-    if (st?.teamMenuOpen) positionTeamPanel();
   }
 
-  /** Update chips + list + trigger without destroying the search field (avoids tablet flicker). */
+  /** Update chips + list + trigger without destroying the search field. */
   function softUpdateTeam() {
     const root = $("jmTeam")?.querySelector(".jm-team");
     if (!root) {
@@ -1967,7 +1945,6 @@
     const trig = root.querySelector(".jm-team__trig span:first-child");
     if (trig) trig.textContent = teamTriggerLabel();
     refreshTeamList();
-    // Keep lead select in sync via temps area below.
     const leadWrap = $("jmTemps");
     if (leadWrap) {
       const team = users.filter((u) => isTeamMember(u));
@@ -1983,7 +1960,6 @@
       }
     }
     if (hadFocus || st.teamMenuOpen) focusTeamSearch(caret);
-    if (st?.teamMenuOpen) positionTeamPanel();
   }
 
   function isTeamMember(u) {
@@ -1999,17 +1975,17 @@
     } else {
       st.members.add(sid);
       if (!st.assigneeId) st.assigneeId = sid;
+      // Keep the list open; clear search so the next person is easy to find.
       if (st.teamMenuOpen) st.teamQuery = "";
     }
-    if (st.teamMenuOpen) {
-      softUpdateTeam();
-      focusTeamSearch();
-    } else renderTeam();
+    if (st.teamMenuOpen) softUpdateTeam();
+    else renderTeam();
     renderSide();
   }
 
   function renderTeam() {
     const box = $("jmTeam");
+    if (!box || !st) return;
     const team = users.filter((u) => isTeamMember(u));
     const trigLbl = teamTriggerLabel();
     box.innerHTML = `<div class="jm-team">
@@ -2019,18 +1995,13 @@
           <span>${esc(trigLbl)}</span>
           <span class="jm-team__chev" aria-hidden="true"></span>
         </button>
-        <div class="jm-team__panel" ${st.teamMenuOpen ? "" : "hidden"}>
+        <div class="jm-team__panel"${st.teamMenuOpen ? "" : " hidden"}>
           <input type="text" id="jmTeamQ" class="jm-in jm-in--sm" value="${esc(st.teamQuery || "")}" placeholder="Buscar nome…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
           <div class="jm-team__list" id="jmTeamList">${teamListHtml()}</div>
         </div>
       </div>
     </div>`;
-    if (st.teamMenuOpen) {
-      requestAnimationFrame(() => {
-        positionTeamPanel();
-        focusTeamSearch();
-      });
-    }
+    if (st.teamMenuOpen) setTimeout(() => focusTeamSearch(), 30);
     const leadPick =
       team.length > 1
         ? `<label class="jm-lead">Responsável <select id="jmLead" class="jm-in jm-in--sm">${team
@@ -2807,7 +2778,7 @@
   async function loadLookups() {
     if (lookupsReady) return;
     const [u, c, b, p] = await Promise.all([
-      api("/api/users?limit=100").catch(() => ({ data: [] })),
+      api("/api/users?limit=200").catch(() => ({ data: [] })),
       api("/api/customers?limit=200").catch(() => ({ data: [] })),
       api("/api/builders?limit=100").catch(() => api("/api/builders/select").catch(() => ({ data: [] }))),
       api("/api/work-orders/pricing-catalog").catch(() => ({ data: [] })),
@@ -3723,6 +3694,12 @@
         st.teamMenuOpen = !st.teamMenuOpen;
         if (!st.teamMenuOpen) st.teamQuery = "";
         renderTeam();
+        if (st.teamMenuOpen) {
+          setTimeout(() => {
+            $("jmTeam")?.querySelector(".jm-team__panel")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+            focusTeamSearch();
+          }, 40);
+        }
         break;
       case "delivery-add": {
         ensureDeliveryStops();
@@ -3766,12 +3743,9 @@
         renderSide();
         break;
       }
-      case "user": {
-        // List options are handled on pointerup (tablet). Chips still use click.
-        if (btn.classList.contains("jm-team__opt")) break;
+      case "user":
         toggleTeamUser(btn.getAttribute("data-id"));
         break;
-      }
       case "cancel-job":
         cancelJob();
         break;
@@ -4298,26 +4272,6 @@
     modal.addEventListener("click", onClick);
     modal.addEventListener("input", onInput);
     modal.addEventListener("change", onChange);
-    // Tablet: select on pointerup so preventDefault does not kill click; keep search focused.
-    modal.addEventListener(
-      "pointerup",
-      (e) => {
-        if (!st?.teamMenuOpen) return;
-        const opt = e.target.closest?.(".jm-team__opt");
-        if (!opt || !modal.contains(opt)) return;
-        e.preventDefault();
-        e.stopPropagation();
-        toggleTeamUser(opt.getAttribute("data-id"));
-      },
-      { passive: false },
-    );
-    window.addEventListener(
-      "resize",
-      () => {
-        if (st?.teamMenuOpen) positionTeamPanel();
-      },
-      { passive: true },
-    );
     modal.addEventListener("focusin", (e) => {
       if (!st) return;
       const t = e.target;
@@ -4370,8 +4324,11 @@
         st.svcPanel.open = false;
         renderServices();
       }
-      if (st.teamMenuOpen && !e.target.closest(".jm-team")) {
+      // Close team picker only on outside taps — use closest on the whole team block
+      // (panel is in-flow, so list taps stay inside .jm-team).
+      if (st.teamMenuOpen && !e.target.closest?.("#jmTeam, .jm-team")) {
         st.teamMenuOpen = false;
+        st.teamQuery = "";
         renderTeam();
       }
     });
