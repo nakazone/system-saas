@@ -10,7 +10,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261103-team3";
+  const CSS_HREF = "crm-job-modal.css?v=20261103-cal5";
   const QPE_CSS = "quote-services-popup.css?v=20261102-svc2";
   const QPE_JS = "quote-services-popup.js?v=20261102-qfix";
   const PAPER_CSS = "quote-paper.css?v=20261027-om1";
@@ -78,6 +78,8 @@
       addressTouched: false,
       /** Client ID for this job only. Comes from the quote note. */
       clientRef: "",
+      /** Last Client ID we already prompted about (avoid repeat dialogs). */
+      clientRefPrompted: "",
       date: "",
       time: "07:30",
       /** Jobs are always all-day. The second date is the Sand & Finish start. */
@@ -2971,6 +2973,121 @@
     return false;
   }
 
+  function ensureClientRefDialog() {
+    if ($("jmClientRefBox")) return;
+    const wrap = document.createElement("div");
+    wrap.innerHTML = `<div class="jm-start" id="jmClientRefBox" hidden>
+      <div class="jm-start__panel" role="dialog" aria-modal="true" aria-labelledby="jmClientRefHeading">
+        <button type="button" class="jm-start__x" id="jmClientRefClose" aria-label="Fechar">×</button>
+        <h2 id="jmClientRefHeading">ID do cliente já existe</h2>
+        <p class="jm-hint" id="jmClientRefMsg"></p>
+        <div class="jm-start__acts">
+          <button type="button" class="jm-btn" id="jmClientRefNew">Criar um novo</button>
+          <button type="button" class="jm-btn jm-btn--pri" id="jmClientRefUse">Utilizar o existente</button>
+        </div>
+      </div>
+    </div>`;
+    document.body.appendChild(wrap.firstElementChild);
+    const close = () => {
+      $("jmClientRefBox").hidden = true;
+      st._clientRefChoice = null;
+    };
+    $("jmClientRefClose").addEventListener("click", close);
+    $("jmClientRefNew").addEventListener("click", () => {
+      const choice = st._clientRefChoice;
+      close();
+      if (!choice) return;
+      st.clientRefPrompted = choice.code;
+      st.clientRef = choice.code;
+      notify(
+        choice.kind === "job" ? "Continuando com um job novo neste ID." : "Mantendo o ID sem trocar o cliente.",
+        "info",
+      );
+      if (st.id) {
+        void api(`/api/work-orders/${encodeURIComponent(st.id)}`, {
+          method: "PUT",
+          body: JSON.stringify({ client_ref: choice.code || null }),
+        }).catch((err) => notify(err.message || "Não foi possível salvar o ID do cliente", "error"));
+      }
+    });
+    $("jmClientRefUse").addEventListener("click", () => {
+      const choice = st._clientRefChoice;
+      close();
+      if (!choice) return;
+      st.clientRefPrompted = choice.code;
+      if (choice.kind === "job" && choice.jobId) {
+        void openEdit(choice.jobId)
+          .then(() => notify("Job existente aberto.", "success"))
+          .catch((err) => notify(err.message || "Não foi possível abrir o job.", "error"));
+        return;
+      }
+      if (choice.kind === "customer" && choice.customerId) {
+        setClient("customer", choice.customerId);
+        st.clientRef = choice.code;
+        const input = $("jmClientCode");
+        if (input) input.value = choice.code;
+        renderClient();
+        renderSide();
+        notify("Cliente existente selecionado.", "success");
+        if (st.id) {
+          void api(`/api/work-orders/${encodeURIComponent(st.id)}`, {
+            method: "PUT",
+            body: JSON.stringify({ client_ref: choice.code || null, customer_id: choice.customerId }),
+          }).catch((err) => notify(err.message || "Não foi possível salvar", "error"));
+        }
+      }
+    });
+  }
+
+  function askClientRefChoice(payload) {
+    ensureClientRefDialog();
+    st._clientRefChoice = payload;
+    const msg = $("jmClientRefMsg");
+    if (payload.kind === "job") {
+      msg.textContent = `Já existe o job #${payload.number || "—"} (${payload.title || "sem título"}) com o ID “${payload.code}”. Abrir o existente ou continuar criando um novo?`;
+    } else {
+      msg.textContent = `Já existe o cliente “${payload.name || "Cliente"}” com o ID “${payload.code}”. Utilizar este cliente ou criar um novo job com o mesmo ID?`;
+    }
+    $("jmClientRefBox").hidden = false;
+  }
+
+  async function lookupClientRefConflict(code) {
+    const norm = String(code || "").trim().toLowerCase();
+    if (!norm) return null;
+    try {
+      const [jobsRes, custRes] = await Promise.all([
+        api(`/api/work-orders?q=${encodeURIComponent(code)}&limit=40`).catch(() => null),
+        api(`/api/customers?q=${encodeURIComponent(code)}&limit=40`).catch(() => null),
+      ]);
+      const jobs = (jobsRes?.data || jobsRes?.items || []).filter((w) => {
+        if (!w || !w.id) return false;
+        if (st.id && String(w.id) === String(st.id)) return false;
+        return String(w.client_ref || "").trim().toLowerCase() === norm;
+      });
+      if (jobs.length) {
+        const w = jobs[0];
+        return {
+          kind: "job",
+          code,
+          jobId: w.id,
+          number: w.number,
+          title: w.title || w.customer_name || "",
+        };
+      }
+      const customersList = custRes?.data || custRes?.items || [];
+      const hit = customersList.find((c) => String(c.client_code || "").trim().toLowerCase() === norm);
+      if (hit && (!st.customerId || String(hit.id) !== String(st.customerId))) {
+        return {
+          kind: "customer",
+          code,
+          customerId: hit.id,
+          name: hit.display_name || hit.name || hit.company || "Cliente",
+        };
+      }
+    } catch (_) {}
+    return null;
+  }
+
   async function saveClientCode(raw) {
     const code = String(raw || "").trim().slice(0, 120);
     st.clientRef = code;
@@ -2987,6 +3104,16 @@
       try {
         input.setSelectionRange(selStart, selEnd ?? selStart);
       } catch (_) {}
+    }
+    if (code && code !== st.clientRefPrompted) {
+      const conflict = await lookupClientRefConflict(code);
+      if (conflict) {
+        askClientRefChoice(conflict);
+        return;
+      }
+      st.clientRefPrompted = code;
+    } else if (!code) {
+      st.clientRefPrompted = "";
     }
     if (!st.id) return;
     try {

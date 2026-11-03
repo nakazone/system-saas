@@ -401,18 +401,19 @@
     return true;
   }
   const evs = () => S.events.filter(visible);
-  /** Keep same sector/color stacked: Installation together, then Lixa, then visits/meetings. */
+  /** Day order: Meeting → Delivery → Instalação → Lixa (visits with meetings). */
   function daySortKey(e) {
+    if (e.type === 'meeting') return 0;
+    if (e.type === 'visit') return 1;
     if (e.type === 'job') {
       const role = String((e.meta && e.meta.date_role) || '').toLowerCase();
       const sector = String((e.meta && e.meta.sector) || '').toLowerCase();
-      if (role === 'delivery') return 3;
-      if (role === 'sand' || sector === 'sand_finish') return 1;
-      if (role === 'main' || sector === 'installation' || sector === 'both') return 0;
-      return 2;
+      if (role === 'delivery') return 2;
+      if (role === 'main' || sector === 'installation' || sector === 'both') return 3;
+      if (role === 'sand' || sector === 'sand_finish') return 4;
+      return 5;
     }
-    if (e.type === 'visit') return 10;
-    return 20;
+    return 9;
   }
   function sortDayEvents(list) {
     return list.slice().sort((a, b) => {
@@ -801,15 +802,15 @@
     return `<button type="button" class="${cls || 'ag-btn ag-btn--dark ag-btn--block'}" data-ag-day-route="${esc(ymd(d))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6-5.3-6-10a6 6 0 0112 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg>Rota do dia · ${n} ${n === 1 ? 'parada' : 'paradas'}</button>`;
   }
 
-  /** Painel do dia (computador / iPad): jobs agrupados por Instalação → Lixa. */
+  /** Painel do dia: Meeting → Delivery → Instalação → Lixa. */
   function dayPanelHtml(d) {
     const list = eventsOnDay(d);
     const by = { job: 0, visit: 0, meeting: 0 };
     list.forEach((e) => (by[e.type] = (by[e.type] || 0) + 1));
     const parts = [];
-    if (by.job) parts.push(`${by.job} ${by.job === 1 ? 'job' : 'jobs'}`);
-    if (by.visit) parts.push(`${by.visit} ${by.visit === 1 ? 'visita' : 'visitas'}`);
     if (by.meeting) parts.push(`${by.meeting} ${by.meeting === 1 ? 'compromisso' : 'compromissos'}`);
+    if (by.visit) parts.push(`${by.visit} ${by.visit === 1 ? 'visita' : 'visitas'}`);
+    if (by.job) parts.push(`${by.job} ${by.job === 1 ? 'job' : 'jobs'}`);
     const isT = sameDay(d, new Date());
     const sub = (e) => {
       const bits = [];
@@ -824,11 +825,12 @@
       return bits.join(' · ');
     };
     const groupLabel = (e) => {
-      if (e.type !== 'job') return e.type === 'visit' ? 'Visitas' : 'Compromissos';
+      if (e.type === 'meeting') return 'Compromissos';
+      if (e.type === 'visit') return 'Visitas';
       const k = daySortKey(e);
-      if (k === 3) return 'Delivery';
-      if (k === 1) return SECTOR_LBL.sand_finish;
-      if (k === 0) return SECTOR_LBL.installation;
+      if (k === 2) return 'Delivery';
+      if (k === 3) return SECTOR_LBL.installation;
+      if (k === 4) return SECTOR_LBL.sand_finish;
       return 'Jobs';
     };
     let lastGroup = '';
@@ -1840,8 +1842,11 @@
       return toast('Sem eventos neste dia.', 'info');
     }
     if (list.length === 1) return openDetail(list[0].id);
+    const addBtn = S.canManage
+      ? `<button type="button" class="ag-round ag-round--add" data-ag-dp-new="${esc(ymd(d))}" aria-label="Adicionar neste dia"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>`
+      : `<span></span>`;
     openSheet(
-      `<header class="ag-sheet__bar"><button type="button" class="ag-round" data-ag-close aria-label="Fechar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button><h2>${esc(fmtDateShort(d))}</h2><span></span></header>
+      `<header class="ag-sheet__bar"><button type="button" class="ag-round" data-ag-close aria-label="Fechar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button><h2>${esc(fmtDateShort(d))}</h2>${addBtn}</header>
        <div class="ag-sheet__body"><div class="ag-card" style="padding:6px">${list
          .map(
            (e) =>
@@ -3399,7 +3404,10 @@
       }
       if ((el = t.closest('[data-ag-dp-new]'))) {
         const r = el.getBoundingClientRect();
-        return newMenu(r.left, r.bottom + 4, parseYmd(el.dataset.agDpNew));
+        const when = parseYmd(el.dataset.agDpNew);
+        // + inside the multi-event day sheet: close sheet so the create menu sits on top.
+        if (el.closest('#agSheet')) closeSheet();
+        return newMenu(r.left, r.bottom + 4, when);
       }
       if ((el = t.closest('[data-ag-col]')) && !t.closest('.ag-blk')) {
         if (!S.canManage) return;

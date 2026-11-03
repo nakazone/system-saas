@@ -750,7 +750,10 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
 .ag-sheet__bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 14px 8px; flex: none; }
 .ag-sheet__bar h2 { margin: 0; font-size: 16px; font-weight: 800; flex: 1; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ag-sheet__body { padding: 6px 16px 22px; overflow-y: auto; display: grid; gap: 12px; align-content: start; }
-.ag-round { appearance: none; border: 0; width: 44px; height: 44px; border-radius: 50%; background: #fff; box-shadow: 0 2px 10px rgba(33, 29, 26, .1); display: grid; place-items: center; }
+.ag-round { appearance: none; border: 0; width: 44px; height: 44px; border-radius: 50%; background: #fff; box-shadow: 0 2px 10px rgba(33, 29, 26, .1); display: grid; place-items: center; cursor: pointer; }
+.ag-round svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
+.ag-round--add { background: var(--terra, #C1652F); color: #fff; box-shadow: 0 2px 10px rgba(193, 101, 47, .35); }
+.ag-round--add:hover { filter: brightness(1.05); }
 .ag-pillbtn { appearance: none; border: 0; height: 40px; padding: 0 18px; border-radius: 999px; background: #fff; box-shadow: 0 2px 10px rgba(33, 29, 26, .1); font-size: 15px; font-weight: 800; }
 .ag-pillbtn--pri { background: var(--terra); color: #fff !important; }
 .ag-pillbtn--ghost { box-shadow: none; background: transparent; color: var(--ink2) !important; }

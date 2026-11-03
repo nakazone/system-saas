@@ -96,7 +96,7 @@
       icon: "job",
       desc: "Agenda, Jobs e Folha",
       subs: [
-        { id: "agenda", label: "Agenda e calendários", section: "agenda", perm: "settings.manage", desc: "Calendários da agenda e o link para o Calendário do iPhone.", keywords: "agenda calendário schedule meeting job cor cores visita apple ics assinatura iphone sync" },
+        { id: "agenda", label: "Agenda e calendários", section: "agenda", perm: "settings.manage", desc: "Calendários da agenda, mensagens automáticas e o link para o Calendário do iPhone.", keywords: "agenda calendário schedule meeting job cor cores visita apple ics assinatura iphone sync mensagem automática lembrete push" },
         { id: "jobs", label: "Jobs e Campo", section: "jobs", perm: "settings.manage", desc: "Opções do job no escritório e no Campo.", keywords: "job checklist campo ticket lista exibir desativar" },
         { id: "folha", label: "Folha de pagamento", section: "folha", perm: "settings.manage", desc: "Quando o período fecha, em que dia a empresa paga e onde cai o reembolso.", keywords: "folha pagamento ciclo semana quinzena mes sabado domingo fechamento reembolso" },
         { id: "formas", label: "Formas de pagamento", section: "folha", perm: "settings.manage", desc: "Como o dinheiro chega ao funcionário (Zelle, cheque, dinheiro…).", keywords: "zelle pix forma pagamento cheque dinheiro ach" },
@@ -174,6 +174,9 @@
     ["Cores da agenda Jobs", "agenda", "schedCalList"],
     ["Cores da agenda Meetings", "agenda", "schedCalList"],
     ["Criar agenda personalizada", "agenda", "btnAddSchedCal"],
+    ["Mensagens automáticas da agenda", "agenda", "ca_job_before"],
+    ["Lembrete antes do job", "agenda", "ca_job_before"],
+    ["Lembrete de visita", "agenda", "ca_visit"],
     ["Numeração dos orçamentos", "orcamentos", "q_number_prefix"],
     ["Validade do orçamento", "orcamentos", "q_validity_days"],
     ["Imposto padrão", "orcamentos", "q_tax_rate"],
@@ -270,6 +273,7 @@
     rules: { loaded: false, snapshot: null },
     brand: { loaded: false, snapshot: null, logoDataUrl: null, clearLogo: false, logoUrl: null, name: "" },
     schedule: { loaded: false, snapshot: null, draft: null },
+    calAuto: { loaded: false, snapshot: null },
   };
 
   const $ = (id) => document.getElementById(id);
@@ -414,7 +418,7 @@
 
   function dirtyCount(id) {
     if (id === "empresa") return companyDirtyKeys().length;
-    if (id === "agenda") return scheduleDirty() ? 1 : 0;
+    if (id === "agenda") return (scheduleDirty() ? 1 : 0) + (calAutoDirty() ? 1 : 0);
     if (id === "marca") return brandDirty() ? 1 : 0;
     if (id === "orcamentos") return quotesDirtyKeys().length + (sigDirty() ? 1 : 0);
     if (id === "mensagens-orcamento") return shareMessagesDirty() ? 1 : 0;
@@ -665,7 +669,11 @@
 
   async function saveCurrent() {
     if (state.current === "empresa") return saveCompany();
-    if (state.current === "agenda") return saveSchedule();
+    if (state.current === "agenda") {
+      const okSched = scheduleDirty() ? await saveSchedule() : true;
+      const okAuto = calAutoDirty() ? await saveCalAutomations() : true;
+      return okSched && okAuto;
+    }
     if (state.current === "marca") return saveBrand();
     if (state.current === "orcamentos") return saveQuotes();
     if (state.current === "mensagens-orcamento") return saveQuoteShareMessages();
@@ -682,7 +690,10 @@
 
   function discardCurrent() {
     if (state.current === "empresa") fillCompany(state.company.snapshot);
-    if (state.current === "agenda") discardSchedule();
+    if (state.current === "agenda") {
+      discardSchedule();
+      discardCalAutomations();
+    }
     if (state.current === "marca") resetBrandToSnapshot();
     if (state.current === "orcamentos") discardQuotes();
     if (state.current === "mensagens-orcamento") discardQuoteShareMessages();
@@ -1350,7 +1361,9 @@
       renderScheduleCals();
       bindScheduleCalsOnce();
       bindCalFeedOnce();
+      bindCalAutomationsUi();
       void loadCalFeed();
+      void loadCalAutomations(false);
       return;
     }
     try {
@@ -1362,11 +1375,117 @@
       renderScheduleCals();
       bindScheduleCalsOnce();
       bindCalFeedOnce();
+      bindCalAutomationsUi();
       void loadCalFeed();
+      void loadCalAutomations(force);
       updateSavebar();
     } catch (err) {
       notify(err.status === 403 ? "Sem permissão para gerir agendas." : "Não foi possível carregar as agendas.", "error");
     }
+  }
+
+  function readCalAutomations() {
+    const minRaw = Number(String($("ca_job_minutes")?.value || "").trim());
+    const hrsRaw = Number(String($("ca_visit_hours")?.value || "").trim());
+    return {
+      jobStartReminderEnabled: !!$("ca_job_before")?.checked,
+      jobStartReminderMinutesBefore: Number.isFinite(minRaw)
+        ? Math.min(1440, Math.max(0, Math.floor(minRaw)))
+        : 30,
+      jobStartAtTimeNudgeEnabled: !!$("ca_job_at")?.checked,
+      jobStartAutoOfficeStatus: !!$("ca_job_status")?.checked,
+      visitReminderEnabled: !!$("ca_visit")?.checked,
+      visitReminderHours: Number.isFinite(hrsRaw) ? Math.min(168, Math.max(0, Math.floor(hrsRaw))) : 24,
+    };
+  }
+
+  function fillCalAutomations(data) {
+    if ($("ca_job_before")) $("ca_job_before").checked = !!data?.jobStartReminderEnabled;
+    if ($("ca_job_minutes")) $("ca_job_minutes").value = String(data?.jobStartReminderMinutesBefore ?? 30);
+    if ($("ca_job_at")) $("ca_job_at").checked = !!data?.jobStartAtTimeNudgeEnabled;
+    if ($("ca_job_status")) $("ca_job_status").checked = !!data?.jobStartAutoOfficeStatus;
+    if ($("ca_visit")) $("ca_visit").checked = !!data?.visitReminderEnabled;
+    if ($("ca_visit_hours")) $("ca_visit_hours").value = String(data?.visitReminderHours ?? 24);
+  }
+
+  function calAutoDirty() {
+    if (!state.calAuto.snapshot) return false;
+    const cur = readCalAutomations();
+    const snap = state.calAuto.snapshot;
+    return (
+      !!cur.jobStartReminderEnabled !== !!snap.jobStartReminderEnabled ||
+      Number(cur.jobStartReminderMinutesBefore) !== Number(snap.jobStartReminderMinutesBefore) ||
+      !!cur.jobStartAtTimeNudgeEnabled !== !!snap.jobStartAtTimeNudgeEnabled ||
+      !!cur.jobStartAutoOfficeStatus !== !!snap.jobStartAutoOfficeStatus ||
+      !!cur.visitReminderEnabled !== !!snap.visitReminderEnabled ||
+      Number(cur.visitReminderHours) !== Number(snap.visitReminderHours)
+    );
+  }
+
+  function discardCalAutomations() {
+    if (!state.calAuto.snapshot) return;
+    fillCalAutomations(state.calAuto.snapshot);
+  }
+
+  async function loadCalAutomations(force) {
+    if (state.calAuto.loaded && !force) {
+      fillCalAutomations(state.calAuto.snapshot);
+      return;
+    }
+    try {
+      const j = await api("/api/settings/lead-automations");
+      const d = j.data || {};
+      state.calAuto.snapshot = {
+        jobStartReminderEnabled: d.jobStartReminderEnabled !== false,
+        jobStartReminderMinutesBefore: Number(d.jobStartReminderMinutesBefore ?? 30),
+        jobStartAtTimeNudgeEnabled: d.jobStartAtTimeNudgeEnabled !== false,
+        jobStartAutoOfficeStatus: d.jobStartAutoOfficeStatus !== false,
+        visitReminderEnabled: d.visitReminderEnabled !== false,
+        visitReminderHours: Number(d.visitReminderHours ?? 24),
+      };
+      state.calAuto.loaded = true;
+      fillCalAutomations(state.calAuto.snapshot);
+      updateSavebar();
+    } catch (err) {
+      notify(err.message || "Não foi possível carregar as mensagens automáticas.", "error");
+    }
+  }
+
+  async function saveCalAutomations() {
+    const body = readCalAutomations();
+    setSaving(true);
+    try {
+      const j = await api("/api/settings/lead-automations", {
+        method: "PUT",
+        body: JSON.stringify(body),
+      });
+      const d = j.data || body;
+      state.calAuto.snapshot = {
+        jobStartReminderEnabled: !!d.jobStartReminderEnabled,
+        jobStartReminderMinutesBefore: Number(d.jobStartReminderMinutesBefore ?? body.jobStartReminderMinutesBefore),
+        jobStartAtTimeNudgeEnabled: !!d.jobStartAtTimeNudgeEnabled,
+        jobStartAutoOfficeStatus: !!d.jobStartAutoOfficeStatus,
+        visitReminderEnabled: !!d.visitReminderEnabled,
+        visitReminderHours: Number(d.visitReminderHours ?? body.visitReminderHours),
+      };
+      fillCalAutomations(state.calAuto.snapshot);
+      notify("Mensagens automáticas salvas.", "success");
+      updateSavebar();
+      return true;
+    } catch (err) {
+      notify(err.message || "Não foi possível salvar as mensagens automáticas.", "error");
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function bindCalAutomationsUi() {
+    const form = $("calAutoForm");
+    if (!form || form.dataset.bound === "1") return;
+    form.dataset.bound = "1";
+    form.addEventListener("input", () => updateSavebar());
+    form.addEventListener("change", () => updateSavebar());
   }
 
   // ---------------------------------------------------------------- calendar feed (ICS / Apple Calendar)

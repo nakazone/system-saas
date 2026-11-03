@@ -318,12 +318,33 @@
       t.homeowner_name || t.homeowner_phone
         ? `<div class="cm-delivery"><span class="job-delivery-badge">HomeOwner</span><div class="cm-delivery__row"><small>Contato</small><span>${escapeHtml([t.homeowner_name, t.homeowner_phone].filter(Boolean).join(" · "))}</span></div></div>`
         : "";
-    const text = t.notes && !t.attention ? stripLockboxText(t.notes) : "";
-    if (lockbox || delivery || homeowner || text) {
+    const text = t.notes && !t.attention ? stripLockboxText(t.notes).trim() : "";
+    const cue = $("cmNoteCue");
+    const cueText = $("cmNoteCueText");
+    if (cue) {
+      if (text) {
+        cue.hidden = false;
+        if (cueText) cueText.textContent = text;
+      } else {
+        cue.hidden = true;
+        if (cueText) cueText.textContent = "";
+      }
+    }
+    const tabDetails = $("cmTabDetails");
+    if (tabDetails) {
+      tabDetails.classList.toggle("has-note", Boolean(text));
+      tabDetails.setAttribute("data-note", text ? "1" : "0");
+      const base = "Detalhes";
+      tabDetails.innerHTML = text
+        ? `${base}<span class="cm-ticket-tabs__dot" aria-label="Tem nota" title="Tem nota do escritório"></span>`
+        : base;
+    }
+    if (lockbox || delivery || homeowner) {
       notes.hidden = false;
-      notes.innerHTML = `${lockbox}${homeowner}${delivery}${text ? `<div class="cm-notes__text">${escapeHtml(text)}</div>` : ""}`;
+      notes.innerHTML = `${lockbox}${homeowner}${delivery}`;
     } else {
       notes.hidden = true;
+      notes.innerHTML = "";
     }
   }
 

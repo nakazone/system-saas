@@ -261,6 +261,49 @@
                 </div>
                 <div id="cfgCalFeedList" class="cfg-calfeed-list" hidden style="margin-top:14px"></div>
               </article>
+              <form id="calAutoForm" class="cfg-form" novalidate autocomplete="off" data-form="cal-auto">
+                <article class="cfg-card">
+                  <h3 class="cfg-card__title">Mensagens automáticas da agenda</h3>
+                  <p class="cfg-card__desc">Avisos push para a equipe do job e lembretes de visita. Só dispara quando o item está agendado.</p>
+                  <label class="cfg-check" style="display:flex;align-items:flex-start;gap:0.65rem;margin-top:0.85rem">
+                    <input type="checkbox" id="ca_job_before" style="margin-top:0.2rem" />
+                    <span>
+                      <strong style="display:block;font-weight:800">Lembrete antes do job</strong>
+                      <span class="cfg-hint" style="display:block;margin:0.2rem 0 0">Notifica a equipe X minutos antes do início.</span>
+                    </span>
+                  </label>
+                  <div class="cfg-field" style="max-width:12rem;margin-top:0.65rem">
+                    <label for="ca_job_minutes">Minutos antes</label>
+                    <input id="ca_job_minutes" type="number" min="0" max="1440" step="5" />
+                  </div>
+                  <label class="cfg-check" style="display:flex;align-items:flex-start;gap:0.65rem;margin-top:1rem">
+                    <input type="checkbox" id="ca_job_at" style="margin-top:0.2rem" />
+                    <span>
+                      <strong style="display:block;font-weight:800">Aviso na hora do início</strong>
+                      <span class="cfg-hint" style="display:block;margin:0.2rem 0 0">Segundo push quando chega o horário agendado.</span>
+                    </span>
+                  </label>
+                  <label class="cfg-check" style="display:flex;align-items:flex-start;gap:0.65rem;margin-top:0.85rem">
+                    <input type="checkbox" id="ca_job_status" style="margin-top:0.2rem" />
+                    <span>
+                      <strong style="display:block;font-weight:800">Marcar job em andamento no horário</strong>
+                      <span class="cfg-hint" style="display:block;margin:0.2rem 0 0">No escritório: Agendado → Em andamento. O status no Campo (a caminho / no local) continua com a equipe.</span>
+                    </span>
+                  </label>
+                  <hr style="border:0;border-top:1px solid rgba(33,29,26,.08);margin:1.25rem 0" />
+                  <label class="cfg-check" style="display:flex;align-items:flex-start;gap:0.65rem">
+                    <input type="checkbox" id="ca_visit" style="margin-top:0.2rem" />
+                    <span>
+                      <strong style="display:block;font-weight:800">Lembrete de visita</strong>
+                      <span class="cfg-hint" style="display:block;margin:0.2rem 0 0">Avisa quem está na visita antes do horário.</span>
+                    </span>
+                  </label>
+                  <div class="cfg-field" style="max-width:12rem;margin-top:0.65rem">
+                    <label for="ca_visit_hours">Horas antes</label>
+                    <input id="ca_visit_hours" type="number" min="0" max="168" step="1" />
+                  </div>
+                </article>
+              </form>
             </section>
 
             <!-- ---------- Marca e aparência ---------- -->
@@ -1294,6 +1337,6 @@
   <script src="crm-address-autocomplete.js?v=20261028-pac"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
   <script src="cfg-meu-perfil.js?v=20261019-i18n2"></script>
-  <script src="configuracoes.js?v=20261103-extras1"></script>
+  <script src="configuracoes.js?v=20261103-cal5"></script>
 </body>
 </html>

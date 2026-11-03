@@ -30,7 +30,27 @@ const putSchema = z.object({
   quoteSentAutoFollowUpStageEnabled: z.boolean().optional(),
   quoteFollowUpDays: z.coerce.number().int().min(0).max(90).optional(),
   quoteFollowUpEnabled: z.boolean().optional(),
+  visitReminderEnabled: z.boolean().optional(),
+  visitReminderHours: z.coerce.number().int().min(0).max(168).optional(),
+  jobStartReminderEnabled: z.boolean().optional(),
+  jobStartReminderMinutesBefore: z.coerce.number().int().min(0).max(1440).optional(),
+  jobStartAtTimeNudgeEnabled: z.boolean().optional(),
+  jobStartAutoOfficeStatus: z.boolean().optional(),
 });
+
+function publicAutomationSlice(settings: ReturnType<typeof parseAutomationSettings>) {
+  return {
+    quoteSentAutoFollowUpStageEnabled: settings.quoteSentAutoFollowUpStageEnabled,
+    quoteFollowUpDays: settings.quoteFollowUpDays,
+    quoteFollowUpEnabled: settings.quoteFollowUpEnabled,
+    visitReminderEnabled: settings.visitReminderEnabled,
+    visitReminderHours: settings.visitReminderHours,
+    jobStartReminderEnabled: settings.jobStartReminderEnabled,
+    jobStartReminderMinutesBefore: settings.jobStartReminderMinutesBefore,
+    jobStartAtTimeNudgeEnabled: settings.jobStartAtTimeNudgeEnabled,
+    jobStartAutoOfficeStatus: settings.jobStartAutoOfficeStatus,
+  };
+}
 
 settingsLeadAutomationsRouter.get(
   "/api/settings/lead-automations",
@@ -48,11 +68,7 @@ settingsLeadAutomationsRouter.get(
       const settings = parseAutomationSettings(org.automationSettings);
       res.json({
         success: true,
-        data: {
-          quoteSentAutoFollowUpStageEnabled: settings.quoteSentAutoFollowUpStageEnabled,
-          quoteFollowUpDays: settings.quoteFollowUpDays,
-          quoteFollowUpEnabled: settings.quoteFollowUpEnabled,
-        },
+        data: publicAutomationSlice(settings),
       });
     } catch (error) {
       next(error);
@@ -81,17 +97,32 @@ settingsLeadAutomationsRouter.put(
         select: { automationSettings: true },
       });
       const current = parseAutomationSettings(org.automationSettings);
+      const patch = parsed.data;
       const next = {
         ...DEFAULT_AUTOMATION_SETTINGS,
         ...current,
-        ...(parsed.data.quoteSentAutoFollowUpStageEnabled !== undefined
-          ? { quoteSentAutoFollowUpStageEnabled: parsed.data.quoteSentAutoFollowUpStageEnabled }
+        ...(patch.quoteSentAutoFollowUpStageEnabled !== undefined
+          ? { quoteSentAutoFollowUpStageEnabled: patch.quoteSentAutoFollowUpStageEnabled }
           : {}),
-        ...(parsed.data.quoteFollowUpDays !== undefined
-          ? { quoteFollowUpDays: parsed.data.quoteFollowUpDays }
+        ...(patch.quoteFollowUpDays !== undefined ? { quoteFollowUpDays: patch.quoteFollowUpDays } : {}),
+        ...(patch.quoteFollowUpEnabled !== undefined
+          ? { quoteFollowUpEnabled: patch.quoteFollowUpEnabled }
           : {}),
-        ...(parsed.data.quoteFollowUpEnabled !== undefined
-          ? { quoteFollowUpEnabled: parsed.data.quoteFollowUpEnabled }
+        ...(patch.visitReminderEnabled !== undefined
+          ? { visitReminderEnabled: patch.visitReminderEnabled }
+          : {}),
+        ...(patch.visitReminderHours !== undefined ? { visitReminderHours: patch.visitReminderHours } : {}),
+        ...(patch.jobStartReminderEnabled !== undefined
+          ? { jobStartReminderEnabled: patch.jobStartReminderEnabled }
+          : {}),
+        ...(patch.jobStartReminderMinutesBefore !== undefined
+          ? { jobStartReminderMinutesBefore: patch.jobStartReminderMinutesBefore }
+          : {}),
+        ...(patch.jobStartAtTimeNudgeEnabled !== undefined
+          ? { jobStartAtTimeNudgeEnabled: patch.jobStartAtTimeNudgeEnabled }
+          : {}),
+        ...(patch.jobStartAutoOfficeStatus !== undefined
+          ? { jobStartAutoOfficeStatus: patch.jobStartAutoOfficeStatus }
           : {}),
       };
 
@@ -114,11 +145,7 @@ settingsLeadAutomationsRouter.put(
 
       res.json({
         success: true,
-        data: {
-          quoteSentAutoFollowUpStageEnabled: next.quoteSentAutoFollowUpStageEnabled,
-          quoteFollowUpDays: next.quoteFollowUpDays,
-          quoteFollowUpEnabled: next.quoteFollowUpEnabled,
-        },
+        data: publicAutomationSlice(next),
       });
     } catch (error) {
       next(error);
