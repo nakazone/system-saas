@@ -523,8 +523,21 @@
     const side = $('#agSide');
     side.hidden = phone || !S.sidebar;
     if (!side.hidden) renderSide();
-    $$('[data-ag-act="toggle-side"]').forEach((b) => b.classList.toggle('is-on', !!S.sidebar && !phone));
-    $$('[data-ag-act="toggle-day"]').forEach((b) => b.classList.toggle('is-on', !!S.dayPanel && !phone));
+    const railL = $('#agRailLeft');
+    const railR = $('#agRailRight');
+    if (railL) {
+      railL.hidden = phone;
+      railL.classList.toggle('is-open', !!S.sidebar && !phone);
+      railL.setAttribute('aria-pressed', S.sidebar && !phone ? 'true' : 'false');
+      railL.title = S.sidebar ? 'Recolher calendários' : 'Mostrar calendários';
+    }
+    if (railR) {
+      const dayOk = !phone && (S.view === 'month' || S.view === 'week' || S.view === 'day');
+      railR.hidden = !dayOk;
+      railR.classList.toggle('is-open', !!S.dayPanel && dayOk);
+      railR.setAttribute('aria-pressed', S.dayPanel && dayOk ? 'true' : 'false');
+      railR.title = S.dayPanel ? 'Recolher painel do dia' : 'Mostrar painel do dia';
+    }
     renderTitle();
     if (phone) {
       if (S.view === 'year') renderYear();
@@ -534,7 +547,7 @@
     else if (S.view === 'week') renderTimeGrid(7);
     else if (S.view === 'year') renderYear();
     else if (S.view === 'list') renderList();
-    else renderMonth();
+    else renderMMonth(); // continuous month scroll (Apple-style) on desktop/tablet too
     renderDayPanel();
   }
 
@@ -671,10 +684,16 @@
     const first = new Date(month.getFullYear(), month.getMonth(), 1);
     const gs = startOfWeek(first);
     const today = sod(new Date());
-    const counts = {};
+    const colorsByDay = {};
     if (opts && opts.dots)
       evs().forEach((e) => {
-        for (let d = sod(e.start); d <= e.lastDay; d = addDays(d, 1)) counts[ymd(d)] = (counts[ymd(d)] || 0) + 1;
+        if (e.status === 'canceled') return;
+        const color = String(e.color || typeInfo(e.type).color || '#98a2b3').toLowerCase();
+        for (let d = sod(e.start); d <= e.lastDay; d = addDays(d, 1)) {
+          const k = ymd(d);
+          if (!colorsByDay[k]) colorsByDay[k] = [];
+          if (!colorsByDay[k].includes(color)) colorsByDay[k].push(color);
+        }
       });
     let html = `<div class="ag-mini${opts && opts.cls ? ' ' + opts.cls : ''}">${opts && opts.title !== false ? `<button type="button" class="ag-mini__t" data-ag-gomonth="${ymd(first)}">${opts && opts.short ? MONTHS[month.getMonth()].slice(0, 3) : MONTHS[month.getMonth()] + (opts && opts.year ? ' ' + month.getFullYear() : '')}</button>` : ''}<div class="ag-mini__g">${WD1.map((w) => `<span class="ag-mini__wd">${w}</span>`).join('')}`;
     for (let i = 0; i < 42; i++) {
@@ -682,7 +701,12 @@
       if (i >= 35 && d.getMonth() !== month.getMonth()) break;
       const out = d.getMonth() !== month.getMonth();
       const k = ymd(d);
-      html += `<button type="button" class="ag-mini__d${out ? ' is-out' : ''}${sameDay(d, today) ? ' is-today' : ''}${sameDay(d, S.selected) && !out ? ' is-sel' : ''}${counts[k] && !out ? ' has-ev' : ''}" data-ag-goday="${k}">${out && opts && opts.hideOut ? '' : d.getDate()}</button>`;
+      const colors = !out && colorsByDay[k] ? colorsByDay[k].slice(0, 4) : [];
+      const dots =
+        colors.length > 0
+          ? `<span class="ag-mini__dots" aria-hidden="true">${colors.map((c) => `<i style="background:${esc(c)}"></i>`).join('')}</span>`
+          : '';
+      html += `<button type="button" class="ag-mini__d${out ? ' is-out' : ''}${sameDay(d, today) ? ' is-today' : ''}${sameDay(d, S.selected) && !out ? ' is-sel' : ''}${colors.length ? ' has-ev' : ''}" data-ag-goday="${k}">${out && opts && opts.hideOut ? '' : d.getDate()}${dots}</button>`;
     }
     return html + '</div></div>';
   }
@@ -742,7 +766,6 @@
       return bits.join(' · ');
     };
     return `<div class="ag-dp__hd"><h3>${isT ? 'Hoje · ' : ''}${esc(WDL[d.getDay()])}, ${d.getDate()} ${esc(MON3[d.getMonth()])}</h3>
-        <button type="button" class="ag-dp__collapse" data-ag-act="toggle-day">Recolher</button>
         <p>${parts.length ? esc(parts.join(' · ')) : 'Nada agendado'}</p>
         ${dayRouteBtnHtml(d)}
         ${S.canManage ? `<button type="button" class="ag-dp__add" data-ag-dp-new="${ymd(d)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Agendar neste dia</button>` : ''}
@@ -842,7 +865,7 @@
     const tc = (t) => td.filter((e) => e.type === t).length;
     const todayBlk = `<button type="button" class="ag-today-blk" data-ag-goday="${ymd(sod(new Date()))}" title="Abrir o dia de hoje"><span class="ag-today-blk__t">Hoje · ${esc(WD[new Date().getDay()].toLowerCase())} ${new Date().getDate()}</span>
       <span class="ag-today-blk__g"><span><b>${tc('job')}</b>${tc('job') === 1 ? 'job' : 'jobs'}</span><span><b>${tc('visit')}</b>${tc('visit') === 1 ? 'visita' : 'visitas'}</span><span><b>${tc('meeting')}</b>${tc('meeting') === 1 ? 'compromisso' : 'compromissos'}</span></span></button>`;
-    $('#agSide').innerHTML = `<button type="button" class="ag-side__collapse" data-ag-act="toggle-side">Recolher</button>${miniMonthHtml(S.cursor, { dots: true, year: true })}${todayBlk}
+    $('#agSide').innerHTML = `${miniMonthHtml(S.cursor, { dots: true, year: true })}${todayBlk}
       <div class="ag-side__sec"><h3>Calendários ${
         canEditCals() ? '<button type="button" class="ag-link" data-ag-act="mcal" data-ag-cal-open="edit">Editar</button>' : ''
       }</h3>${calList()
@@ -908,8 +931,21 @@
         const show = timed.slice(0, room);
         const more = timed.length - show.length + bars.filter((b) => b.lane >= maxLanes && b.s <= i && b.en >= i).length;
         void laneCount;
-        const routeBtn = '';
-        html += `<div class="ag-md${i === 0 || i === 6 ? ' is-we' : ''}" data-ag-mday="${ymd(d)}" role="button" tabindex="0"><span class="ag-md__top"><span class="ag-md__n${sameDay(d, today) ? ' is-today' : ''}">${d.getDate()}</span>${routeBtn}</span>
+        const dayEvs = eventsOnDay(d).filter((e) => e.status !== 'canceled');
+        const colorSet = [];
+        dayEvs.forEach((e) => {
+          const c = String(e.color || typeInfo(e.type).color || '#98a2b3').toLowerCase();
+          if (!colorSet.includes(c)) colorSet.push(c);
+        });
+        const dots =
+          colorSet.length > 0
+            ? `<span class="ag-md__dots" aria-hidden="true">${colorSet
+                .slice(0, 4)
+                .map((c) => `<i style="background:${esc(c)}"></i>`)
+                .join('')}</span>`
+            : '';
+        const sel = sameDay(d, S.selected);
+        html += `<div class="ag-md${i === 0 || i === 6 ? ' is-we' : ''}${sel ? ' is-sel' : ''}" data-ag-mday="${ymd(d)}" data-ag-day="${ymd(d)}" role="button" tabindex="0"><span class="ag-md__top"><span class="ag-md__n${sameDay(d, today) ? ' is-today' : ''}">${d.getDate()}</span>${dots}</span>
           <span class="ag-md__list" style="margin-top:${Math.min(lanesAll, maxLanes) * 19}px">${show
             .map((e) => `<button type="button" class="ag-pill ${toneCls(e)}" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i>${typeIcon(e)}</i><span>${esc(ticketTitle(e))}</span>${showClock(e) ? `<small>${esc(fmtTime(e.start))}</small>` : ''}</button>`)
             .join('')}${more > 0 ? `<button type="button" class="ag-pill ag-pill--more" data-ag-daylist="${ymd(d)}">+${more}</button>` : ''}</span></div>`;
@@ -937,10 +973,11 @@
   }
 
   const relTop = (el, sc) => el.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop;
-  let mScrollBound = null;
+  let mScrollBusy = null;
   function bindMScroll() {
     const sc = $('#agMScroll');
-    if (!sc) return;
+    if (!sc || sc.dataset.agScrollBound === '1') return;
+    sc.dataset.agScrollBound = '1';
     let ticking = false;
     sc.addEventListener('scroll', () => {
       if (ticking) return;
@@ -959,21 +996,22 @@
           if (d && (d.getMonth() !== S.cursor.getMonth() || d.getFullYear() !== S.cursor.getFullYear())) {
             S.cursor = d;
             renderTitle();
+            if (!isPhone() && S.sidebar) renderSide();
           }
         }
-        if (mScrollBound) return;
+        if (mScrollBusy) return;
         if (sc.scrollTop < 300) {
-          mScrollBound = true;
+          mScrollBusy = true;
           S.mRange.from = addMonths(S.mRange.from, -6);
           await ensureRange(S.mRange.from, addMonths(S.mRange.to, 1)).catch(() => {});
           renderMMonth('prepend');
-          mScrollBound = null;
+          mScrollBusy = null;
         } else if (sc.scrollTop + sc.clientHeight > sc.scrollHeight - 400) {
-          mScrollBound = true;
+          mScrollBusy = true;
           S.mRange.to = addMonths(S.mRange.to, 6);
           await ensureRange(S.mRange.from, addMonths(S.mRange.to, 1)).catch(() => {});
           renderMMonth(true);
-          mScrollBound = null;
+          mScrollBusy = null;
         }
       });
     });
@@ -1044,12 +1082,12 @@
   // ---------------------------------------------------------------- navigation
   function rangeFor() {
     const c = S.cursor;
-    if (isPhone()) {
-      if (S.view === 'year') return [new Date(c.getFullYear(), 0, 1), new Date(c.getFullYear() + 1, 0, 1)];
+    if (S.view === 'year') return [new Date(c.getFullYear(), 0, 1), new Date(c.getFullYear() + 1, 0, 1)];
+    // Continuous month scroll (phone + desktop/tablet month view).
+    if ((isPhone() && S.view !== 'year') || S.view === 'month') {
       const r = S.mRange || { from: addMonths(c, -3), to: addMonths(c, 9) };
       return [startOfWeek(r.from), addDays(addMonths(r.to, 1), 7)];
     }
-    if (S.view === 'year') return [new Date(c.getFullYear(), 0, 1), new Date(c.getFullYear() + 1, 0, 1)];
     if (S.view === 'list') return [sod(new Date()), addDays(sod(new Date()), 61)];
     const first = new Date(c.getFullYear(), c.getMonth(), 1);
     return [addDays(startOfWeek(first), -7), addDays(startOfWeek(addMonths(first, 1)), 14)];
@@ -1073,6 +1111,16 @@
     else if (S.view === 'year') S.cursor = new Date(c.getFullYear() + dir, c.getMonth(), 1);
     else S.cursor = addMonths(c, dir);
     if (S.view === 'day') S.selected = S.cursor;
+    // Month continuous scroll: glide to the target month when it is already mounted.
+    if (S.view === 'month' && $('#agMScroll')) {
+      const target = new Date(S.cursor.getFullYear(), S.cursor.getMonth(), 1);
+      const has = $('#agMScroll').querySelector(`[data-ag-month="${ymd(target)}"]`);
+      if (has) {
+        renderTitle();
+        if (!isPhone() && S.sidebar) renderSide();
+        return scrollMMonthTo(S.cursor, true);
+      }
+    }
     go();
   }
 
@@ -3094,8 +3142,10 @@
           S.cursor = sod(new Date());
           S.selected = sod(new Date());
           if (isPhone() && S.view === 'year') S.view = 'month';
-          if (isPhone() && S.mmode === 'month' && $('#agMScroll')) {
+          if (S.view === 'month' && (isPhone() ? S.mmode === 'month' : true) && $('#agMScroll')) {
             renderTitle();
+            renderDayPanel();
+            if (!isPhone() && S.sidebar) renderSide();
             return scrollMMonthTo(S.cursor, true);
           }
           return go();
@@ -3188,9 +3238,19 @@
         return openDayEventsSheet(el.dataset.agDaylist);
       }
       if ((el = t.closest('[data-ag-mday]'))) {
-        // Month phone: open event card / day list — never enter day view.
-        if (t.closest('[data-ag-ev], [data-ag-day-route]')) return;
-        return openDayEventsSheet(el.dataset.agMday);
+        if (t.closest('[data-ag-ev], [data-ag-day-route], [data-ag-daylist]')) return;
+        const day = parseYmd(el.dataset.agMday);
+        if (!day) return;
+        if (isPhone()) {
+          // Month phone: open event card / day list — never enter day view.
+          return openDayEventsSheet(el.dataset.agMday);
+        }
+        S.selected = day;
+        $$('.ag-md.is-sel, .ag-day.is-sel').forEach((x) => x.classList.remove('is-sel'));
+        el.classList.add('is-sel');
+        renderDayPanel();
+        if (S.sidebar) renderSide();
+        return;
       }
       if ((el = t.closest('[data-ag-strip]'))) return goDay(parseYmd(el.dataset.agStrip));
       if ((el = t.closest('[data-ag-users-all]'))) {
@@ -3200,9 +3260,10 @@
       }
       if ((el = t.closest('[data-ag-day]')) && !isPhone()) {
         S.selected = parseYmd(el.dataset.agDay);
-        $$('.ag-day.is-sel').forEach((x) => x.classList.remove('is-sel'));
+        $$('.ag-day.is-sel, .ag-md.is-sel').forEach((x) => x.classList.remove('is-sel'));
         el.classList.add('is-sel');
         renderDayPanel();
+        if (S.sidebar) renderSide();
         return;
       }
       if ((el = t.closest('[data-ag-dp-new]'))) {
@@ -3217,8 +3278,14 @@
     });
 
     document.addEventListener('dblclick', (ev) => {
-      const el = ev.target.closest('[data-ag-day]');
-      if (el && !ev.target.closest('[data-ag-ev], [data-ag-day-route]')) newMenu(ev.clientX, ev.clientY, parseYmd(el.dataset.agDay));
+      const el = ev.target.closest('[data-ag-day], [data-ag-mday]');
+      if (el && !ev.target.closest('[data-ag-ev], [data-ag-day-route], [data-ag-daylist]')) {
+        const day = parseYmd(el.dataset.agDay || el.dataset.agMday);
+        if (day) {
+          S.selected = day;
+          newMenu(ev.clientX, ev.clientY, day);
+        }
+      }
     });
 
     document.addEventListener('input', (ev) => {
@@ -3538,7 +3605,11 @@
 
   function openNewMenu(anchorEl) {
     if (!S.canManage) return toast('Sem permissão para agendar.', 'error');
-    const base = isPhone() && S.mmode === 'day' ? new Date(S.selected) : S.view === 'day' ? new Date(S.cursor) : null;
+    // Prefer the day the user selected (or the day view cursor) so Novo opens on that date.
+    let base = null;
+    if (isPhone() && S.mmode === 'day') base = new Date(S.selected);
+    else if (S.view === 'day') base = new Date(S.cursor);
+    else if (S.selected) base = new Date(S.selected);
     if (anchorEl && anchorEl.getBoundingClientRect) {
       const r = anchorEl.getBoundingClientRect();
       return newMenu(r.left, r.bottom + 8, base);

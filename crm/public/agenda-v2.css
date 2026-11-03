@@ -29,13 +29,7 @@
 .ag-pill.is-timed:hover,
 .ag-blk.is-timed:hover,
 .ag-li.is-timed:hover { background: transparent !important; }
-.ag-side__collapse,
-.ag-dp__collapse {
-  appearance: none; border: 0; background: none; color: var(--ink2); font-size: 12px; font-weight: 650;
-  cursor: pointer; padding: 0 0 8px; text-align: left;
-}
 .ag-dp__hd { position: relative; }
-.ag-dp__collapse { position: absolute; top: 16px; right: 14px; padding: 0; }
 .ag-row:hover, .ag-row.is-active-ev { background: var(--ev-bg2, #F1F3F5); }
 .ag-bar { background: var(--ev-bg, #F1F3F5); color: var(--ev-ink, var(--ink)); box-shadow: inset 3px 0 0 var(--ev); padding-left: 7px; font-weight: 650; }
 .ag-bar.cont-l { box-shadow: none; }
@@ -212,6 +206,7 @@ html body.dashboard-app-body .ag .ag-md__n.is-today {
 /* telas menores que 1280: painel só no Dia */
 @media (min-width: 768px) and (max-width: 1279px) {
   .ag:not([data-view="day"]) .ag-dp { display: none; }
+  .ag:not([data-view="day"]) .ag-rail--right { display: none; }
   .ag:not(.is-phone) .ag-search { width: 160px; }
 }
 @media (min-width: 768px) and (max-width: 1024px) {

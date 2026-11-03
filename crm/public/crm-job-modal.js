@@ -10,7 +10,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261102-jobs-desc";
+  const CSS_HREF = "crm-job-modal.css?v=20261103-jobsame1";
   const QPE_CSS = "quote-services-popup.css?v=20261102-svc2";
   const QPE_JS = "quote-services-popup.js?v=20261102-qfix";
   const PAPER_CSS = "quote-paper.css?v=20261027-om1";
@@ -341,7 +341,13 @@
     const seenBuilder = new Set();
     builders.forEach((b) => builderDupKeys(b).forEach((k) => seenBuilder.add(k)));
     const bRows = builders
-      .filter((b) => match(builderName(b)) || match(b.email) || match([b.first_name, b.last_name].join(" ")))
+      .filter(
+        (b) =>
+          match(builderName(b)) ||
+          match(b.nickname) ||
+          match(b.email) ||
+          match([b.first_name, b.last_name].join(" ")),
+      )
       .map((b) => {
         let type = String(b.type || "builder").toLowerCase();
         if (type === "contractor") type = "builder";
@@ -350,12 +356,23 @@
           id: b.id,
           name: builderName(b),
           type,
-          sub: [b.first_name, b.last_name].filter(Boolean).join(" ") || b.email || "",
+          sub: [b.nickname, b.first_name, b.last_name].filter(Boolean).join(" · ") || b.email || "",
         };
       });
     const cRows = customers
       .filter((c) => {
-        if (!(match(c.name) || match(c.company) || match(c.email) || match(c.phone) || match(c.client_code) || match(c.display_name))) return false;
+        if (
+          !(
+            match(c.name) ||
+            match(c.nickname) ||
+            match(c.company) ||
+            match(c.email) ||
+            match(c.phone) ||
+            match(c.client_code) ||
+            match(c.display_name)
+          )
+        )
+          return false;
         let type = String(c.customer_type || "particular").toLowerCase();
         if (type === "contractor") type = "builder";
         // Builder/loja customers mirrored from the Builders module — keep Builder row only.
@@ -375,7 +392,7 @@
           id: c.id,
           name: c.name || c.company || "Cliente",
           type,
-          sub: [c.address, c.phone].filter(Boolean)[0] || "",
+          sub: [c.nickname, c.address, c.phone].filter(Boolean)[0] || "",
           raw: c,
         };
       });
@@ -865,7 +882,7 @@
             <label class="jm-field" id="jmSandWrap" hidden>Início Sand & Finish<input type="date" id="jmSandDate" class="jm-in" /></label>
           </div>
           <p class="jm-hint" id="jmCompleteInfo"></p>
-          <p class="jm-hint">Jobs são sempre o dia inteiro, sem horário. Só Installation + Sand & Finish pede duas datas.</p>
+          <p class="jm-hint">Jobs são sempre o dia inteiro, sem horário. Em Installation + Sand & Finish as duas datas podem ser iguais.</p>
         </section>
 
         <section class="jm-sec" data-job-section="services">
@@ -1123,28 +1140,11 @@
 
   function renderMore() {
     const box = $("jmMore");
-    const isEdit = Boolean(st.id);
-    const auto = autoTitle();
-    const titleShown = st.titleTouched ? st.title : st.title || auto;
-    const srcUi = sourceTypeUi(st.sourceType);
-    if (!st.moreOpen) {
-      const bits = [
-        `<span><em>Título</em> ${esc(titleShown || "automático")}</span>`,
-        `<span><em>Origem</em> ${esc(SRC_OPTS.find((o) => o[0] === srcUi)?.[1] || srcUi)}</span>`,
-        isEdit ? `<span><em>Status</em> ${esc(STATUS_OPTS.find((o) => o[0] === st.status)?.[1] || st.status)}</span>` : "",
-      ].join("");
-      box.innerHTML = `<button type="button" class="jm-more__toggle" data-act="more">${bits}<b>Editar</b></button>`;
-      return;
-    }
-    box.innerHTML = `<div class="jm-more__panel">
-      <label class="jm-field jm-field--wide">Título do job
-        <input type="text" id="jobTitle" class="jm-in" maxlength="200" value="${esc(titleShown)}" placeholder="${esc(auto || "Ex.: Summit — Lot 14")}" />
-      </label>
-      ${isEdit ? `<label class="jm-field">Status<select id="jobStatus" class="jm-in">${STATUS_OPTS.map(([v, l]) => `<option value="${v}"${v === st.status ? " selected" : ""}>${l}</option>`).join("")}</select></label>` : ""}
-      <label class="jm-field">Origem (coluna de preço)<select id="jobSourceType" class="jm-in">${SRC_OPTS.map(([v, l]) => `<option value="${v}"${v === srcUi ? " selected" : ""}>${l}</option>`).join("")}</select></label>
-      <label class="jm-field jm-field--wide">Nome da origem<input type="text" id="jobSourceName" class="jm-in" maxlength="200" value="${esc(st.sourceName)}" placeholder="Empresa / contato" /></label>
-      <button type="button" class="jm-link" data-act="more">Fechar opções</button>
-    </div>`;
+    if (!box) return;
+    // Title / origem / status ficam automáticos — não exibir ao usuário.
+    box.hidden = true;
+    box.innerHTML = "";
+    st.moreOpen = false;
   }
 
   async function ensureInstallOptions() {
@@ -1967,6 +1967,14 @@
     renderAll();
     setTimeout(() => {
       if (!st) return;
+      const code = $("jmClientCode");
+      if (code) {
+        code.focus();
+        try {
+          code.select();
+        } catch (_) {}
+        return;
+      }
       if (!st.address.trim()) $("jobAddress")?.focus();
     }, 30);
   }
@@ -2386,10 +2394,7 @@
   function validate(body) {
     const all = st.section === "all";
     if ((all || st.section === "details") && !st.customerId && !st.builderId && !(st.titleTouched && st.title.trim())) {
-      return "Escolha para quem é o job (ou escreva um título em Editar).";
-    }
-    if ((all || st.section === "schedule") && st.sector === "both" && st.date && st.sandDate && st.date === st.sandDate) {
-      return "Installation e Sand & Finish precisam de datas diferentes.";
+      return "Escolha para quem é o job.";
     }
     if ((all || st.section === "schedule") && body.scheduled_start && body.scheduled_end) {
       if (new Date(body.scheduled_end) <= new Date(body.scheduled_start)) return "O fim precisa ser depois do início.";
@@ -3144,6 +3149,12 @@
     if (e.key === "Enter" && e.target.id === "jmClientQ") {
       e.preventDefault();
       $("jmClient").querySelector('[data-act="pick"]')?.click();
+      return;
+    }
+    if (e.key === "Enter" && e.target.id === "jmClientCode") {
+      e.preventDefault();
+      $("jobAddress")?.focus();
+      return;
     }
     if (e.key === "Enter" && e.target.id === "jmCkNew") {
       e.preventDefault();
@@ -3325,10 +3336,6 @@
     const both = wo.sector === "both";
     if (!date && !(both && sand)) {
       notify("Escolha a data de início.", "error");
-      return;
-    }
-    if (both && date && sand && date === sand) {
-      notify("Installation e Sand & Finish precisam de datas diferentes.", "error");
       return;
     }
     const start = date ? dayFromYmd(date) : null;
