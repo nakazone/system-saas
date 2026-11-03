@@ -2692,6 +2692,10 @@ model WorkOrder {
   address                              String?
   /// Client ID for this job only (the quote note). Not stored on the customer.
   clientRef                            String?
+  /// Homeowner name when the job is for a Builder (site contact).
+  homeownerName                        String?
+  /// Homeowner phone when the job is for a Builder (site contact).
+  homeownerPhone                       String?
   /// Manager of the builder company for this job (id inside Customer.managers).
   managerId                            String?      @db.Uuid
   notes                                String?      @db.Text
@@ -2705,6 +2709,9 @@ model WorkOrder {
   deliveryNotes                        String?      @db.Text
   /// Day the crew should pick up leftover material (all-day Delivery calendar event).
   deliveryScheduledStart               DateTime?
+  /// Extra / multiple delivery stops: [{ id, scheduled_start, pickup_address, location_id, location_name, hours, notes }]
+  /// The first stop stays mirrored on the scalar delivery* columns for calendar/Campo.
+  deliveries                           Json?
   deliveryAttachmentUrl                String?
   deliveryAttachmentKey                String?
   deliveryAttachmentName               String?

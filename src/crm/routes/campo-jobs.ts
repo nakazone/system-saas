@@ -37,6 +37,7 @@ import {
   sha256Buffer,
 } from "../../lib/job-media/index.js";
 import { isJobChecklistEnabled } from "../../lib/settings/jobs.js";
+import { resolveDeliveryStops } from "../../lib/work-orders/deliveries.js";
 import { sectorFinishPatch } from "../../lib/work-orders/sector-finish.js";
 import {
   JOB_REPORT_TEMPLATES,
@@ -207,9 +208,12 @@ function mapTicket(wo: Awaited<ReturnType<typeof assertMyJobTicket>>) {
     client_short: shortClient(client),
     address: wo.address || "",
     notes: wo.notes,
+    homeowner_name: (wo as { homeownerName?: string | null }).homeownerName || null,
+    homeowner_phone: (wo as { homeownerPhone?: string | null }).homeownerPhone || null,
     needs_delivery: Boolean(wo.needsDelivery),
     delivery_pickup_address: wo.deliveryPickupAddress || null,
     delivery_notes: wo.deliveryNotes || null,
+    deliveries: resolveDeliveryStops(wo as Parameters<typeof resolveDeliveryStops>[0]),
     delivery_attachment: wo.deliveryAttachmentUrl
       ? { url: wo.deliveryAttachmentUrl, name: wo.deliveryAttachmentName || "Anexo" }
       : null,

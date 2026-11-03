@@ -191,23 +191,44 @@
   }
 
   function deliveryBlockHtml(t) {
-    if (!t.needs_delivery) return "";
-    const bits = [];
-    bits.push(`<span class="job-delivery-badge">Delivery</span>`);
-    if (t.delivery_pickup_address) {
-      bits.push(
-        `<div class="cm-delivery__row"><small>Retirada</small><button type="button" class="cm-linkish" data-maps-addr="${escapeHtml(t.delivery_pickup_address)}">${escapeHtml(t.delivery_pickup_address)}</button></div>`,
-      );
-    }
-    if (t.delivery_notes) {
-      bits.push(`<div class="cm-delivery__row"><small>Notas / PO</small><span>${escapeHtml(t.delivery_notes)}</span></div>`);
-    }
+    const stops = Array.isArray(t.deliveries) && t.deliveries.length
+      ? t.deliveries
+      : t.needs_delivery
+        ? [
+            {
+              pickup_address: t.delivery_pickup_address,
+              location_name: null,
+              hours: null,
+              notes: t.delivery_notes,
+              scheduled_start: null,
+            },
+          ]
+        : [];
+    if (!stops.length && !(t.delivery_attachment && t.delivery_attachment.url)) return "";
+    const blocks = stops.map((stop, i) => {
+      const bits = [];
+      bits.push(`<span class="job-delivery-badge">Delivery${stops.length > 1 ? ` ${i + 1}` : ""}</span>`);
+      if (stop.location_name) {
+        bits.push(`<div class="cm-delivery__row"><small>Local</small><span>${escapeHtml(stop.location_name)}${stop.hours ? ` · ${escapeHtml(stop.hours)}` : ""}</span></div>`);
+      }
+      if (stop.pickup_address) {
+        bits.push(
+          `<div class="cm-delivery__row"><small>Retirada</small><button type="button" class="cm-linkish" data-maps-addr="${escapeHtml(stop.pickup_address)}">${escapeHtml(stop.pickup_address)}</button></div>`,
+        );
+      } else if (stop.hours) {
+        bits.push(`<div class="cm-delivery__row"><small>Horário</small><span>${escapeHtml(stop.hours)}</span></div>`);
+      }
+      if (stop.notes) {
+        bits.push(`<div class="cm-delivery__row"><small>Notas / PO</small><span>${escapeHtml(stop.notes)}</span></div>`);
+      }
+      return `<div class="cm-delivery">${bits.join("")}</div>`;
+    });
     if (t.delivery_attachment && t.delivery_attachment.url) {
-      bits.push(
-        `<div class="cm-delivery__row"><small>Arquivo</small><a href="${escapeHtml(t.delivery_attachment.url)}" target="_blank" rel="noopener">${escapeHtml(t.delivery_attachment.name || "Anexo")}</a></div>`,
+      blocks.push(
+        `<div class="cm-delivery"><div class="cm-delivery__row"><small>Arquivo</small><a href="${escapeHtml(t.delivery_attachment.url)}" target="_blank" rel="noopener">${escapeHtml(t.delivery_attachment.name || "Anexo")}</a></div></div>`,
       );
     }
-    return `<div class="cm-delivery">${bits.join("")}</div>`;
+    return blocks.join("");
   }
 
   function stripLockboxText(notes) {
@@ -293,10 +314,14 @@
     const notes = $("cmNotes");
     const lockbox = t.notes ? lockboxBadgeHtml(t.notes) : "";
     const delivery = deliveryBlockHtml(t);
+    const homeowner =
+      t.homeowner_name || t.homeowner_phone
+        ? `<div class="cm-delivery"><span class="job-delivery-badge">HomeOwner</span><div class="cm-delivery__row"><small>Contato</small><span>${escapeHtml([t.homeowner_name, t.homeowner_phone].filter(Boolean).join(" · "))}</span></div></div>`
+        : "";
     const text = t.notes && !t.attention ? stripLockboxText(t.notes) : "";
-    if (lockbox || delivery || text) {
+    if (lockbox || delivery || homeowner || text) {
       notes.hidden = false;
-      notes.innerHTML = `${lockbox}${delivery}${text ? `<div class="cm-notes__text">${escapeHtml(text)}</div>` : ""}`;
+      notes.innerHTML = `${lockbox}${homeowner}${delivery}${text ? `<div class="cm-notes__text">${escapeHtml(text)}</div>` : ""}`;
     } else {
       notes.hidden = true;
     }

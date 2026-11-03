@@ -10,7 +10,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261103-lock1";
+  const CSS_HREF = "crm-job-modal.css?v=20261103-deliv2";
   const QPE_CSS = "quote-services-popup.css?v=20261102-svc2";
   const QPE_JS = "quote-services-popup.js?v=20261102-qfix";
   const PAPER_CSS = "quote-paper.css?v=20261027-om1";
@@ -97,7 +97,13 @@
       attention: "",
       needsLockbox: false,
       lockboxCode: "",
+      homeownerName: "",
+      homeownerPhone: "",
       needsDelivery: false,
+      /** [{ id, date, pickup, locationId, locationName, hours, notes }] */
+      deliveries: [],
+      deliveryLocOpen: null,
+      deliveryLocQuery: "",
       deliveryPickupAddress: "",
       deliveryNotes: "",
       deliveryDate: "",
@@ -948,24 +954,7 @@
             <input type="checkbox" id="jmNeedsDelivery" />
             <span><strong>Delivery</strong> — retirar material da obra</span>
           </label>
-          <div class="jm-delivery" id="jmDeliveryBox" hidden>
-            <label class="jm-field">Data do Delivery
-              <input type="date" id="jmDeliveryDate" class="jm-in" required />
-            </label>
-            <label class="jm-field">Endereço da retirada
-              <span class="jm-inwrap"><input type="text" id="jmDeliveryPickup" class="jm-in" maxlength="500" autocomplete="off" placeholder="Onde pegar o material (pode ser diferente do job)" /></span>
-            </label>
-            <label class="jm-field">Notas / nº do PO
-              <textarea id="jmDeliveryNotes" class="jm-in jm-ta jm-ta--sm" rows="2" maxlength="4000" placeholder="Ex.: PO 45821 — retirar sobras de madeira"></textarea>
-            </label>
-            <div class="jm-delivery__file">
-              <label class="jm-btn jm-btn--sm" for="jmDeliveryFile">Anexar arquivo</label>
-              <input type="file" id="jmDeliveryFile" class="jm-sr" accept="image/*,application/pdf,.pdf,.png,.jpg,.jpeg,.webp" />
-              <span class="jm-delivery__file-name" id="jmDeliveryFileName">Nenhum arquivo</span>
-              <button type="button" class="jm-btn jm-btn--ghost jm-btn--sm" id="jmDeliveryFileClear" hidden>Remover</button>
-            </div>
-            <p class="jm-hint">A data aparece na agenda Delivery. PDF ou foto do PO / packing list vão para o Campo.</p>
-          </div>
+          <div class="jm-delivery" id="jmDeliveryBox" hidden></div>
           <label class="jm-check" style="margin-top:12px">
             <input type="checkbox" id="jmNeedsLockbox" />
             <span><strong>LockBox</strong> — código da caixa da casa</span>
@@ -1143,6 +1132,17 @@
                   .join("")}
               </select>
             </label>`
+          : ""
+      }
+      ${
+        isBuilderJob()
+          ? `<div class="jm-homeowner">
+              <p class="jm-grp">HomeOwner</p>
+              <div class="jm-when">
+                <label class="jm-field">Nome<input type="text" id="jmHomeownerName" class="jm-in" maxlength="200" value="${esc(st.homeownerName || "")}" placeholder="Nome do morador" autocomplete="name" /></label>
+                <label class="jm-field">Telefone<input type="tel" id="jmHomeownerPhone" class="jm-in" maxlength="40" value="${esc(st.homeownerPhone || "")}" placeholder="(555) 555-5555" autocomplete="tel" /></label>
+              </div>
+            </div>`
           : ""
       }`;
       return;
@@ -1720,6 +1720,43 @@
     if (cnt) cnt.innerHTML = st.lines.length ? `${st.lines.length} serviço${st.lines.length > 1 ? "s" : ""} · <b>${money(linesTotal())}</b>` : "";
   }
 
+  function teamAvailableRows() {
+    const q = String(st.teamQuery || "")
+      .trim()
+      .toLowerCase();
+    return users.filter((u) => {
+      if (isTeamMember(u)) return false;
+      if (!q) return true;
+      const hay = `${u.name || ""} ${u.email || ""}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }
+
+  function teamListHtml() {
+    const available = teamAvailableRows();
+    const q = String(st.teamQuery || "").trim();
+    if (!users.length) return `<p class="jm-empty">Nenhum usuário disponível.</p>`;
+    if (!available.length) return `<p class="jm-empty">${q ? "Nenhum resultado." : "Todos já estão na equipe."}</p>`;
+    return available
+      .map(
+        (u) => `<button type="button" class="jm-team__opt" data-act="user" data-id="${esc(u.id)}">
+          <span class="jm-dot">${esc(initials(u.name || u.email))}</span>
+          <span class="jm-team__opt-txt"><b>${esc(u.name || u.email)}</b>${u.email && u.name ? `<small>${esc(u.email)}</small>` : ""}</span>
+          <span class="jm-team__opt-add">+</span>
+        </button>`,
+      )
+      .join("");
+  }
+
+  function refreshTeamList() {
+    const list = $("jmTeamList");
+    if (!list) {
+      renderTeam();
+      return;
+    }
+    list.innerHTML = teamListHtml();
+  }
+
   function isTeamMember(u) {
     return st.members.has(String(u.id)) || String(st.assigneeId) === String(u.id);
   }
@@ -1727,15 +1764,6 @@
   function renderTeam() {
     const box = $("jmTeam");
     const team = users.filter((u) => isTeamMember(u));
-    const q = String(st.teamQuery || "")
-      .trim()
-      .toLowerCase();
-    const available = users.filter((u) => {
-      if (isTeamMember(u)) return false;
-      if (!q) return true;
-      const hay = `${u.name || ""} ${u.email || ""}`.toLowerCase();
-      return hay.includes(q);
-    });
     const picked =
       team.length > 0
         ? `<div class="jm-team__picked">${team
@@ -1750,19 +1778,6 @@
             })
             .join("")}</div>`
         : `<p class="jm-hint jm-team__empty">Ninguém na equipe ainda.</p>`;
-    const listRows = !users.length
-      ? `<p class="jm-empty">Nenhum usuário disponível.</p>`
-      : available.length
-        ? available
-            .map(
-              (u) => `<button type="button" class="jm-team__opt" data-act="user" data-id="${esc(u.id)}">
-                <span class="jm-dot">${esc(initials(u.name || u.email))}</span>
-                <span class="jm-team__opt-txt"><b>${esc(u.name || u.email)}</b>${u.email && u.name ? `<small>${esc(u.email)}</small>` : ""}</span>
-                <span class="jm-team__opt-add">+</span>
-              </button>`,
-            )
-            .join("")
-        : `<p class="jm-empty">${q ? "Nenhum resultado." : "Todos já estão na equipe."}</p>`;
     const trigLbl = team.length
       ? `Adicionar · ${team.length} na equipe`
       : users.length
@@ -1777,7 +1792,7 @@
         </button>
         <div class="jm-team__panel" ${st.teamMenuOpen ? "" : "hidden"}>
           <input type="search" id="jmTeamQ" class="jm-in jm-in--sm" value="${esc(st.teamQuery || "")}" placeholder="Buscar nome…" autocomplete="off" />
-          <div class="jm-team__list">${listRows}</div>
+          <div class="jm-team__list" id="jmTeamList">${teamListHtml()}</div>
         </div>
       </div>
     </div>`;
@@ -1826,6 +1841,7 @@
   }
 
   let checklistEnabled = true;
+  let deliveryLocations = [];
   let jobsSettingsLoaded = false;
 
   async function ensureJobsSettings() {
@@ -1833,10 +1849,70 @@
     try {
       const j = await api("/api/settings/jobs");
       checklistEnabled = j?.data?.checklist_enabled !== false;
+      deliveryLocations = Array.isArray(j?.data?.delivery_locations) ? j.data.delivery_locations : [];
     } catch (_) {
       checklistEnabled = true;
+      deliveryLocations = [];
     }
     jobsSettingsLoaded = true;
+  }
+
+  function blankDeliveryStop() {
+    return {
+      id: `d_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+      date: "",
+      pickup: "",
+      locationId: null,
+      locationName: "",
+      hours: "",
+      notes: "",
+    };
+  }
+
+  function ensureDeliveryStops() {
+    if (!st) return;
+    if (!Array.isArray(st.deliveries)) st.deliveries = [];
+    if (st.needsDelivery && !st.deliveries.length) {
+      const stop = blankDeliveryStop();
+      stop.date = st.deliveryDate || st.date || "";
+      stop.pickup = st.deliveryPickupAddress || "";
+      stop.notes = st.deliveryNotes || "";
+      st.deliveries = [stop];
+    }
+    if (!st.needsDelivery) st.deliveries = [];
+  }
+
+  function syncLegacyDeliveryFromStops() {
+    if (!st) return;
+    const first = (st.deliveries || [])[0];
+    if (!st.needsDelivery || !first) {
+      st.deliveryDate = "";
+      st.deliveryPickupAddress = "";
+      st.deliveryNotes = "";
+      return;
+    }
+    st.deliveryDate = first.date || "";
+    st.deliveryPickupAddress = first.pickup || "";
+    st.deliveryNotes = first.notes || "";
+  }
+
+  function deliveriesPayload() {
+    return (st.deliveries || []).map((d) => ({
+      id: d.id,
+      scheduled_start: dayFromYmd(d.date) ? dayFromYmd(d.date).toISOString() : null,
+      pickup_address: String(d.pickup || "").trim() || null,
+      location_id: d.locationId || null,
+      location_name: String(d.locationName || "").trim() || null,
+      hours: String(d.hours || "").trim() || null,
+      notes: String(d.notes || "").trim() || null,
+    }));
+  }
+
+  function isBuilderJob() {
+    if (!st) return false;
+    if (st.builderId) return true;
+    const t = String(st.sourceType || "").toLowerCase();
+    return t === "builder" || t === "contractor" || t === "loja";
   }
 
   function renderChecklist() {
@@ -1912,7 +1988,15 @@
         <div><dt>Preços</dt><dd>${esc(customRates() ? "Personalizada" : TYPE_LABEL[st.sourceType] || "Particular")}</dd></div>
         <div><dt>Start</dt><dd>${esc(whenLabel())}</dd></div>
         <div><dt>Setor</dt><dd>${esc(sectorLabel(st.sector))}</dd></div>
-        <div><dt>Delivery</dt><dd>${st.needsDelivery ? esc(st.deliveryPickupAddress || "Retirar material") : "—"}</dd></div>
+        <div><dt>Delivery</dt><dd>${
+          st.needsDelivery
+            ? esc(
+                (st.deliveries || []).length > 1
+                  ? `${st.deliveries.length} retiros`
+                  : st.deliveryPickupAddress || (st.deliveries?.[0]?.pickup) || "Retirar material",
+              )
+            : "—"
+        }</dd></div>
         <div><dt>LockBox</dt><dd>${st.needsLockbox && st.lockboxCode ? esc(st.lockboxCode) : st.needsLockbox ? "Sem código" : "—"}</dd></div>
         <div><dt>Equipe</dt><dd>${esc(assignee ? `${assignee.name || assignee.email}${others ? ` +${others}` : ""}` : "—")}</dd></div>
         <div><dt>Status</dt><dd>${esc(statusLbl)}</dd></div>
@@ -1986,12 +2070,31 @@
       </div>`;
   }
 
-  function attachDeliveryAddressAutocomplete() {
-    const el = $("jmDeliveryPickup");
+  function attachDeliveryAddressAutocomplete(el) {
     if (!el || !window.sfAttachAddressAutocomplete) return;
     try {
       window.sfAttachAddressAutocomplete(el, { map: { combined: el } });
     } catch (_) {}
+  }
+
+  function deliveryLocOptionsHtml(i, q) {
+    const needle = String(q || "").trim().toLowerCase();
+    const list = (deliveryLocations || []).filter((loc) => {
+      if (!needle) return true;
+      const hay = `${loc.name || ""} ${loc.address || ""} ${loc.hours || ""}`.toLowerCase();
+      return hay.includes(needle);
+    });
+    if (!list.length) {
+      return `<p class="jm-empty">${needle ? "Nenhum local salvo." : "Cadastre locais em Configurações › Jobs."}</p>`;
+    }
+    return list
+      .map(
+        (loc) => `<button type="button" class="jm-delivery__loc-opt" data-act="delivery-loc-pick" data-i="${i}" data-id="${esc(loc.id)}">
+          <b>${esc(loc.name)}</b>
+          <small>${esc(loc.address)}${loc.hours ? ` · ${esc(loc.hours)}` : ""}</small>
+        </button>`,
+      )
+      .join("");
   }
 
   function renderDeliveryBox() {
@@ -1999,30 +2102,66 @@
     if (!box) return;
     const on = Boolean(st.needsDelivery);
     box.hidden = !on;
-    ["jmDeliveryDate", "jmDeliveryPickup", "jmDeliveryNotes", "jmDeliveryFile"].forEach((id) => {
-      const el = $(id);
-      if (el) el.disabled = !on;
-    });
-    if ($("jmDeliveryDate")) $("jmDeliveryDate").value = st.deliveryDate || "";
-    if ($("jmDeliveryPickup")) $("jmDeliveryPickup").value = st.deliveryPickupAddress || "";
-    if ($("jmDeliveryNotes")) $("jmDeliveryNotes").value = st.deliveryNotes || "";
-    const nameEl = $("jmDeliveryFileName");
-    const clearBtn = $("jmDeliveryFileClear");
+    if (!on) {
+      box.innerHTML = "";
+      return;
+    }
+    ensureDeliveryStops();
+    syncLegacyDeliveryFromStops();
+    const stops = st.deliveries || [];
     const pending = st.deliveryAttachmentPending;
     const existing = st.deliveryAttachment;
+    let fileHtml = "";
     if (pending) {
-      if (nameEl) nameEl.textContent = pending.name || "Arquivo selecionado";
-      if (clearBtn) clearBtn.hidden = !on;
+      fileHtml = `<span class="jm-delivery__file-name">${esc(pending.name || "Arquivo selecionado")}</span>
+        <button type="button" class="jm-btn jm-btn--ghost jm-btn--sm" id="jmDeliveryFileClear">Remover</button>`;
     } else if (existing && existing.url && !st.clearDeliveryAttachment) {
-      if (nameEl) {
-        nameEl.innerHTML = `<a href="${esc(existing.url)}" target="_blank" rel="noopener">${esc(existing.name || "Anexo")}</a>`;
-      }
-      if (clearBtn) clearBtn.hidden = !on;
+      fileHtml = `<span class="jm-delivery__file-name"><a href="${esc(existing.url)}" target="_blank" rel="noopener">${esc(existing.name || "Anexo")}</a></span>
+        <button type="button" class="jm-btn jm-btn--ghost jm-btn--sm" id="jmDeliveryFileClear">Remover</button>`;
     } else {
-      if (nameEl) nameEl.textContent = "Nenhum arquivo";
-      if (clearBtn) clearBtn.hidden = true;
+      fileHtml = `<span class="jm-delivery__file-name">Nenhum arquivo</span>`;
     }
-    if (on) attachDeliveryAddressAutocomplete();
+    box.innerHTML = `${stops
+      .map((d, i) => {
+        const open = st.deliveryLocOpen === i;
+        const label = d.locationName
+          ? `${d.locationName}${d.hours ? ` · ${d.hours}` : ""}`
+          : "";
+        return `<div class="jm-delivery__stop" data-delivery-i="${i}">
+          <div class="jm-delivery__stop-hd">
+            <b>Delivery ${stops.length > 1 ? i + 1 : ""}</b>
+            ${stops.length > 1 ? `<button type="button" class="jm-link" data-act="delivery-del" data-i="${i}">Remover</button>` : ""}
+          </div>
+          <label class="jm-field">Data
+            <input type="date" class="jm-in" data-del-f="date" data-i="${i}" value="${esc(d.date || "")}" />
+          </label>
+          <div class="jm-field">
+            <span>Local / endereço de retirada</span>
+            <div class="jm-delivery__loc${open ? " is-open" : ""}">
+              <input type="text" class="jm-in" data-del-f="pickup" data-i="${i}" value="${esc(d.pickup || "")}" maxlength="500" autocomplete="off" placeholder="Pesquisar local salvo ou digitar endereço" />
+              ${label ? `<small class="jm-delivery__loc-meta">${esc(label)}</small>` : ""}
+              <div class="jm-delivery__loc-panel" ${open ? "" : "hidden"}>
+                <input type="search" class="jm-in jm-in--sm" data-del-f="loc-q" data-i="${i}" value="${esc(st.deliveryLocOpen === i ? st.deliveryLocQuery || "" : "")}" placeholder="Buscar nome do local…" />
+                <div class="jm-delivery__loc-list">${deliveryLocOptionsHtml(i, st.deliveryLocOpen === i ? st.deliveryLocQuery : "")}</div>
+              </div>
+            </div>
+          </div>
+          <label class="jm-field">Notas / nº do PO
+            <textarea class="jm-in jm-ta jm-ta--sm" rows="2" maxlength="4000" data-del-f="notes" data-i="${i}" placeholder="Ex.: PO 45821 — retirar sobras">${esc(d.notes || "")}</textarea>
+          </label>
+        </div>`;
+      })
+      .join("")}
+      <div class="jm-delivery__acts">
+        <button type="button" class="jm-btn jm-btn--sm" data-act="delivery-add"${stops.length >= 8 ? " disabled" : ""}>+ Delivery</button>
+      </div>
+      <div class="jm-delivery__file">
+        <label class="jm-btn jm-btn--sm" for="jmDeliveryFile">Anexar arquivo</label>
+        <input type="file" id="jmDeliveryFile" class="jm-sr" accept="image/*,application/pdf,.pdf,.png,.jpg,.jpeg,.webp" />
+        ${fileHtml}
+      </div>
+      <p class="jm-hint">Cada data aparece na agenda Delivery. Locais padrão ficam em Configurações › Jobs.</p>`;
+    box.querySelectorAll('[data-del-f="pickup"]').forEach((el) => attachDeliveryAddressAutocomplete(el));
   }
 
   function readFileAsDataUrl(file) {
@@ -2620,6 +2759,8 @@
     st.lockboxCode = parseJobLockbox(st.notes) || "";
     st.needsLockbox = Boolean(st.lockboxCode);
     st.attention = wo.campo_attention || "";
+    st.homeownerName = wo.homeowner_name || "";
+    st.homeownerPhone = wo.homeowner_phone || "";
     st.needsDelivery = Boolean(wo.needs_delivery);
     st.deliveryPickupAddress = wo.delivery_pickup_address || "";
     st.deliveryNotes = wo.delivery_notes || "";
@@ -2627,6 +2768,34 @@
       const del = wo.delivery_scheduled_start ? new Date(wo.delivery_scheduled_start) : null;
       st.deliveryDate = del && !Number.isNaN(del.getTime()) ? ymd(del) : "";
     }
+    {
+      const rawStops = Array.isArray(wo.deliveries) ? wo.deliveries : [];
+      st.deliveries = rawStops.length
+        ? rawStops.map((d) => {
+            const at = d.scheduled_start ? new Date(d.scheduled_start) : null;
+            return {
+              id: d.id || blankDeliveryStop().id,
+              date: at && !Number.isNaN(at.getTime()) ? ymd(at) : "",
+              pickup: d.pickup_address || "",
+              locationId: d.location_id || null,
+              locationName: d.location_name || "",
+              hours: d.hours || "",
+              notes: d.notes || "",
+            };
+          })
+        : st.needsDelivery
+          ? [
+              {
+                ...blankDeliveryStop(),
+                date: st.deliveryDate || "",
+                pickup: st.deliveryPickupAddress || "",
+                notes: st.deliveryNotes || "",
+              },
+            ]
+          : [];
+    }
+    st.deliveryLocOpen = null;
+    st.deliveryLocQuery = "";
     st.deliveryAttachment = wo.delivery_attachment || null;
     st.deliveryAttachmentPending = null;
     st.clearDeliveryAttachment = false;
@@ -2682,9 +2851,12 @@
       builder_id: st.builderId || null,
       address: st.address.trim() || null,
       client_ref: String(st.clientRef || "").trim() || null,
+      homeowner_name: isBuilderJob() ? String(st.homeownerName || "").trim() || null : null,
+      homeowner_phone: isBuilderJob() ? String(st.homeownerPhone || "").trim() || null : null,
       manager_id: st.managerId || null,
       notes: st.notes.trim() || null,
       needs_delivery: Boolean(st.needsDelivery),
+      deliveries: st.needsDelivery ? deliveriesPayload() : [],
       delivery_pickup_address: st.needsDelivery ? st.deliveryPickupAddress.trim() || null : null,
       delivery_notes: st.needsDelivery ? st.deliveryNotes.trim() || null : null,
       delivery_scheduled_start:
@@ -2722,7 +2894,19 @@
   function sectionPayload(full) {
     if (st.section === "all") return full;
     const pick = {
-      details: ["title", "source_type", "source_name", "customer_id", "builder_id", "manager_id", "address", "status"],
+      details: [
+        "title",
+        "source_type",
+        "source_name",
+        "customer_id",
+        "builder_id",
+        "manager_id",
+        "address",
+        "status",
+        "homeowner_name",
+        "homeowner_phone",
+        "client_ref",
+      ],
       schedule: [
         "scheduled_start",
         "scheduled_end",
@@ -2730,6 +2914,7 @@
         "all_day",
         "sector",
         "needs_delivery",
+        "deliveries",
         "delivery_pickup_address",
         "delivery_notes",
         "delivery_scheduled_start",
@@ -2757,8 +2942,10 @@
     if ((all || st.section === "schedule") && body.scheduled_start && body.scheduled_end) {
       if (new Date(body.scheduled_end) <= new Date(body.scheduled_start)) return "O fim precisa ser depois do início.";
     }
-    if ((all || st.section === "schedule") && st.needsDelivery && !String(st.deliveryDate || "").trim()) {
-      return "Informe a data do Delivery.";
+    if ((all || st.section === "schedule") && st.needsDelivery) {
+      ensureDeliveryStops();
+      const missing = (st.deliveries || []).some((d) => !String(d.date || "").trim());
+      if (missing || !(st.deliveries || []).length) return "Informe a data de cada Delivery.";
     }
     if (all || st.section === "services") {
       const bad = st.lines.find((l) => (l.pricingId || String(l.name || "").trim()) && !(Number(l.qty) > 0));
@@ -2771,6 +2958,10 @@
     e.preventDefault();
     if (!canManage || !st || st.busy) return;
     syncNotesFromLockbox();
+    if (st.needsDelivery) {
+      ensureDeliveryStops();
+      syncLegacyDeliveryFromStops();
+    }
     const full = payload();
     const err = validate(full);
     if (err) {
@@ -3145,6 +3336,48 @@
         renderTeam();
         if (st.teamMenuOpen) setTimeout(() => $("jmTeamQ")?.focus(), 20);
         break;
+      case "delivery-add": {
+        ensureDeliveryStops();
+        if ((st.deliveries || []).length >= 8) break;
+        const stop = blankDeliveryStop();
+        stop.date = st.date || "";
+        st.deliveries.push(stop);
+        syncLegacyDeliveryFromStops();
+        renderDeliveryBox();
+        renderSide();
+        break;
+      }
+      case "delivery-del": {
+        const i = Number(btn.getAttribute("data-i"));
+        if (!Number.isFinite(i) || i < 0) break;
+        st.deliveries.splice(i, 1);
+        if (!st.deliveries.length) {
+          st.needsDelivery = false;
+          if ($("jmNeedsDelivery")) $("jmNeedsDelivery").checked = false;
+        }
+        st.deliveryLocOpen = null;
+        syncLegacyDeliveryFromStops();
+        renderDeliveryBox();
+        renderSide();
+        break;
+      }
+      case "delivery-loc-pick": {
+        const i = Number(btn.getAttribute("data-i"));
+        const id = btn.getAttribute("data-id");
+        const loc = (deliveryLocations || []).find((x) => String(x.id) === String(id));
+        const stop = st.deliveries?.[i];
+        if (!loc || !stop) break;
+        stop.locationId = loc.id;
+        stop.locationName = loc.name || "";
+        stop.hours = loc.hours || "";
+        stop.pickup = loc.address || stop.pickup || "";
+        st.deliveryLocOpen = null;
+        st.deliveryLocQuery = "";
+        syncLegacyDeliveryFromStops();
+        renderDeliveryBox();
+        renderSide();
+        break;
+      }
       case "user": {
         const id = String(btn.getAttribute("data-id"));
         if (st.members.has(id) || String(st.assigneeId) === id) {
@@ -3192,19 +3425,40 @@
       if (c) c.text = t.value;
       return;
     }
+    if (t.hasAttribute && t.hasAttribute("data-del-f")) {
+      const i = Number(t.getAttribute("data-i"));
+      const stop = st.deliveries?.[i];
+      if (!stop) return;
+      const f = t.getAttribute("data-del-f");
+      if (f === "date") stop.date = t.value || "";
+      if (f === "pickup") {
+        stop.pickup = t.value;
+        stop.locationId = null;
+        stop.locationName = "";
+        stop.hours = "";
+        st.deliveryLocOpen = i;
+        st.deliveryLocQuery = t.value;
+        const panel = t.closest(".jm-delivery__loc")?.querySelector(".jm-delivery__loc-panel");
+        const list = t.closest(".jm-delivery__loc")?.querySelector(".jm-delivery__loc-list");
+        if (panel) panel.hidden = false;
+        if (list) list.innerHTML = deliveryLocOptionsHtml(i, st.deliveryLocQuery);
+      }
+      if (f === "notes") stop.notes = t.value;
+      if (f === "loc-q") {
+        st.deliveryLocQuery = t.value;
+        st.deliveryLocOpen = i;
+        const list = t.closest(".jm-delivery__loc")?.querySelector(".jm-delivery__loc-list");
+        if (list) list.innerHTML = deliveryLocOptionsHtml(i, st.deliveryLocQuery);
+        return;
+      }
+      syncLegacyDeliveryFromStops();
+      renderSide();
+      return;
+    }
     switch (t.id) {
       case "jmTeamQ":
         st.teamQuery = t.value;
-        renderTeam();
-        setTimeout(() => {
-          const inp = $("jmTeamQ");
-          if (!inp) return;
-          inp.focus();
-          const n = inp.value.length;
-          try {
-            inp.setSelectionRange(n, n);
-          } catch (_) {}
-        }, 0);
+        refreshTeamList();
         return;
       case "jmNeedsDelivery":
         st.needsDelivery = Boolean(t.checked);
@@ -3212,11 +3466,21 @@
           st.clearDeliveryAttachment = true;
           st.deliveryAttachmentPending = null;
           st.deliveryDate = "";
-        } else if (!st.deliveryDate && st.date) {
-          st.deliveryDate = st.date;
+          st.deliveries = [];
+          st.deliveryLocOpen = null;
+        } else {
+          ensureDeliveryStops();
+          if (st.deliveries[0] && !st.deliveries[0].date && st.date) st.deliveries[0].date = st.date;
         }
+        syncLegacyDeliveryFromStops();
         renderDeliveryBox();
         renderSide();
+        return;
+      case "jmHomeownerName":
+        st.homeownerName = t.value;
+        return;
+      case "jmHomeownerPhone":
+        st.homeownerPhone = t.value;
         return;
       case "jmNeedsLockbox":
         st.needsLockbox = Boolean(t.checked);
@@ -3380,9 +3644,13 @@
           st.clearDeliveryAttachment = true;
           st.deliveryAttachmentPending = null;
           st.deliveryDate = "";
-        } else if (!st.deliveryDate && st.date) {
-          st.deliveryDate = st.date;
+          st.deliveries = [];
+          st.deliveryLocOpen = null;
+        } else {
+          ensureDeliveryStops();
+          if (st.deliveries[0] && !st.deliveries[0].date && st.date) st.deliveries[0].date = st.date;
         }
+        syncLegacyDeliveryFromStops();
         renderDeliveryBox();
         renderSide();
         return;

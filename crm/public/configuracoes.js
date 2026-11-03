@@ -2594,20 +2594,71 @@
   }
 
   // ---------------------------------------------------------------- jobs settings
+  function newDeliveryLocId() {
+    if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+    return `loc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+  }
+
+  function renderJobsDeliveryLocs(list) {
+    const box = $("jobsDeliveryLocs");
+    if (!box) return;
+    const rows = Array.isArray(list) ? list : [];
+    if (!rows.length) {
+      box.innerHTML = `<p class="cfg-hint" style="margin:0">Nenhum local ainda. Adicione depósitos, lojas ou pontos de retirada.</p>`;
+      return;
+    }
+    box.innerHTML = rows
+      .map(
+        (row, i) => `<div class="cfg-delivery-loc" data-i="${i}" style="display:grid;gap:0.45rem;padding:0.75rem;border:1px solid var(--line,#E5E7EB);border-radius:12px;background:#fff">
+          <div style="display:flex;justify-content:space-between;gap:0.5rem;align-items:center">
+            <strong style="font-size:0.85rem">Local ${i + 1}</strong>
+            <button type="button" class="btn btn-ghost" data-jobs-loc-del="${i}" style="height:auto;padding:0.2rem 0.45rem">Remover</button>
+          </div>
+          <label class="cfg-field"><span>Nome</span><input type="text" data-jobs-loc="name" data-i="${i}" maxlength="120" value="${esc(row.name || "")}" placeholder="Ex.: Home Depot — Midtown" /></label>
+          <label class="cfg-field"><span>Endereço</span><input type="text" data-jobs-loc="address" data-i="${i}" maxlength="500" value="${esc(row.address || "")}" placeholder="Rua, cidade" /></label>
+          <label class="cfg-field"><span>Horário de funcionamento</span><input type="text" data-jobs-loc="hours" data-i="${i}" maxlength="200" value="${esc(row.hours || "")}" placeholder="Mon–Fri 7am–4pm" /></label>
+          <input type="hidden" data-jobs-loc="id" data-i="${i}" value="${esc(row.id || "")}" />
+        </div>`,
+      )
+      .join("");
+  }
+
+  function readJobsDeliveryLocs() {
+    const box = $("jobsDeliveryLocs");
+    if (!box) return [];
+    return Array.from(box.querySelectorAll(".cfg-delivery-loc"))
+      .map((row) => {
+        const get = (k) => row.querySelector(`[data-jobs-loc="${k}"]`)?.value?.trim() || "";
+        return {
+          id: get("id") || newDeliveryLocId(),
+          name: get("name"),
+          address: get("address"),
+          hours: get("hours"),
+        };
+      })
+      .filter((r) => r.name && r.address)
+      .slice(0, 40);
+  }
+
   function fillJobsSettings(d) {
     const el = $("jobs_checklist_enabled");
     if (el) el.checked = d?.checklist_enabled !== false;
+    renderJobsDeliveryLocs(d?.delivery_locations || []);
   }
 
   function readJobsSettings() {
-    return { checklist_enabled: !!$("jobs_checklist_enabled")?.checked };
+    return {
+      checklist_enabled: !!$("jobs_checklist_enabled")?.checked,
+      delivery_locations: readJobsDeliveryLocs(),
+    };
   }
 
   function jobsDirty() {
     if (!state.jobs.snapshot) return false;
-    return (
-      !!readJobsSettings().checklist_enabled !== !!state.jobs.snapshot.checklist_enabled
-    );
+    const cur = readJobsSettings();
+    const snap = state.jobs.snapshot;
+    if (!!cur.checklist_enabled !== !!snap.checklist_enabled) return true;
+    return JSON.stringify(cur.delivery_locations || []) !== JSON.stringify(snap.delivery_locations || []);
   }
 
   function discardJobsSettings() {
@@ -2621,7 +2672,10 @@
       return;
     }
     const j = await api("/api/settings/jobs");
-    state.jobs.snapshot = { checklist_enabled: j.data?.checklist_enabled !== false };
+    state.jobs.snapshot = {
+      checklist_enabled: j.data?.checklist_enabled !== false,
+      delivery_locations: Array.isArray(j.data?.delivery_locations) ? j.data.delivery_locations : [],
+    };
     state.jobs.loaded = true;
     fillJobsSettings(state.jobs.snapshot);
   }
@@ -2634,7 +2688,10 @@
         method: "PATCH",
         body: JSON.stringify(body),
       });
-      state.jobs.snapshot = { checklist_enabled: j.data?.checklist_enabled !== false };
+      state.jobs.snapshot = {
+        checklist_enabled: j.data?.checklist_enabled !== false,
+        delivery_locations: Array.isArray(j.data?.delivery_locations) ? j.data.delivery_locations : [],
+      };
       fillJobsSettings(state.jobs.snapshot);
       notify("Configurações de Jobs salvas.", "success");
       updateSavebar();
@@ -2651,7 +2708,28 @@
     const form = $("jobsSettingsForm");
     if (!form || form.dataset.bound === "1") return;
     form.dataset.bound = "1";
+    form.addEventListener("input", () => updateSavebar());
     form.addEventListener("change", () => updateSavebar());
+    form.addEventListener("click", (e) => {
+      const add = e.target.closest("#jobsDeliveryLocAdd");
+      if (add) {
+        e.preventDefault();
+        const cur = readJobsDeliveryLocs();
+        cur.push({ id: newDeliveryLocId(), name: "", address: "", hours: "" });
+        renderJobsDeliveryLocs(cur);
+        updateSavebar();
+        return;
+      }
+      const del = e.target.closest("[data-jobs-loc-del]");
+      if (del) {
+        e.preventDefault();
+        const i = Number(del.getAttribute("data-jobs-loc-del"));
+        const cur = readJobsDeliveryLocs();
+        if (Number.isFinite(i)) cur.splice(i, 1);
+        renderJobsDeliveryLocs(cur);
+        updateSavebar();
+      }
+    });
   }
 
   // ---------------------------------------------------------------- indicações
