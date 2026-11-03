@@ -769,6 +769,8 @@
       ensureAppTop();
       return;
     }
+    // ObraCalendar brings its own tabs (obracalendar.js).
+    if (window.__OM_CAL_APP) return;
 
     const field = await resolveFieldRole();
     if (field) {

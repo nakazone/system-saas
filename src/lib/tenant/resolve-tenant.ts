@@ -252,6 +252,11 @@ export async function resolveTenant(
       return;
     }
 
+    if (req.path === "/obracalendar") {
+      res.redirect("/login.html?app=obracalendar");
+      return;
+    }
+
     // CRM entry points without a session → login form (not find-workspace)
     if (
       req.path === "/dashboard.html" ||

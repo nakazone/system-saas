@@ -136,7 +136,7 @@
                         window.location.href = mobile ? '/campo/hoje.html' : '/funcionario.html';
                         return;
                     }
-                    window.location.href = '/dashboard.html';
+                    window.location.href = /[?&]app=obracalendar\b/.test(location.search) ? '/obracalendar' : '/dashboard.html';
                 }
             })
             .catch(() => {});
@@ -201,6 +201,7 @@
                     // (e.g. "/dashboard"); do NOT prefix "/" or browsers treat "//dashboard" as https://dashboard.
                     var home = (window.__omDevice && window.__omDevice.entryHref && window.__omDevice.entryHref()) || '/dashboard';
                     if (home.charAt(0) !== '/') home = '/' + home;
+                    if (/[?&]app=obracalendar\b/.test(location.search)) home = '/obracalendar';
                     var dest = u.must_change_password
                         ? '/change-password.html'
                         : (role === 'installer' || role === 'crew_lead' || role === 'subcontractor')

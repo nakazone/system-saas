@@ -3885,6 +3885,23 @@
   }
 
   window.__agendaOpenNew = () => openNewMenu(null);
+  // The ObraCalendar app (obracalendar.js) reuses the same data, sheets and month.
+  window.__agendaApp = {
+    eventsOnDay,
+    openDetail,
+    fmtTime,
+    typeInfo,
+    ticketTitle,
+    dayRouteBtnHtml,
+    contactOf,
+    showMonth() {
+      if (S.mmode === 'month' && S.view === 'month') return;
+      S.view = 'month';
+      S.mmode = 'month';
+      S.mRange = null;
+      go();
+    },
+  };
 
   // ---------------------------------------------------------------- boot
   async function boot() {

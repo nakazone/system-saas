@@ -11,7 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express, { type Request, type Response, type Router } from "express";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { crmAuthRouter } from "./auth-api.js";
 import { crmApiRouter } from "./api.js";
 import { i18nCrmRouter } from "../lib/i18n/routes.js";
@@ -116,6 +116,24 @@ export async function crmHtmlWithLanguage(req: Request, full: string): Promise<s
   return /<\/head>/i.test(html) ? html.replace(/<\/head>/i, `    ${extra}\n</head>`) : `${extra}\n${html}`;
 }
 
+/** The Calendar page dressed as the ObraCalendar app; everything else in it is shared with /schedule.html. */
+export function obraCalendarHtml(html: string): string {
+  const head = [
+    '<link rel="manifest" href="/obracalendar.webmanifest?v=1" />',
+    '<meta name="apple-mobile-web-app-title" content="ObraCalendar" />',
+    '<meta name="apple-mobile-web-app-capable" content="yes" />',
+    '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&display=swap" />',
+    '<link rel="stylesheet" href="/obracalendar.css?v=1" />',
+    "<script>window.__OM_CAL_APP=true</script>",
+  ].join("\n    ");
+  return html
+    .replace(/<title>[^<]*<\/title>/i, "<title>ObraCalendar</title>")
+    .replace(/<meta name="theme-color"[^>]*>/i, '<meta name="theme-color" content="#FFFFFF" />')
+    .replace(/<link rel="apple-touch-icon"[^>]*>/i, '<link rel="apple-touch-icon" href="/assets/obracalendar/apple-touch-icon.png?v=1" />')
+    .replace(/<\/head>/i, `    ${head}\n</head>`)
+    .replace(/<\/body>/i, '  <script src="/obracalendar.js?v=1"></script>\n</body>');
+}
+
 async function sendCrmHtml(req: Request, res: Response, filename: string) {
   const full = path.join(CRM_PUBLIC_DIR, filename);
   const html = await renderCrmHtml(req, full);
@@ -163,6 +181,25 @@ export function createCrmRouter(): Router {
       await sendCrmHtml(req, res, "pipeline-lab.html");
     } catch (error) {
       next(error);
+    }
+  });
+
+  // ObraCalendar: admins get the calendar as its own app; other roles see a short explanation.
+  router.get("/obracalendar", async (req: AuthedRequest, res, next) => {
+    try {
+      if (!req.user) {
+        res.redirect("/login.html?app=obracalendar");
+        return;
+      }
+      res.setHeader("Cache-Control", "no-store, max-age=0");
+      if (req.user.roleKey !== "admin") {
+        res.type("html").send(fs.readFileSync(path.join(CRM_PUBLIC_DIR, "obracalendar-sem-acesso.html"), "utf8"));
+        return;
+      }
+      const html = await renderCrmHtml(req, path.join(CRM_PUBLIC_DIR, "schedule.html"));
+      res.type("html").send(obraCalendarHtml(html));
+    } catch (e) {
+      next(e);
     }
   });
 

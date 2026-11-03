@@ -2760,6 +2760,7 @@
 
   /** First access: the Mate introduces himself once per person (14 days after joining). */
   function showWelcome(w) {
+    if (window.__OM_CAL_APP) return false;
     var key = 'welcome:' + location.hostname.split('.')[0] + ':' + (w.since || '');
     if (window.MateFace.wasSeen(key)) return false;
     return window.MateFace.celebrate({
