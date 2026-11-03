@@ -672,6 +672,115 @@ body.om-device-mobile .jm-sp { display: none; }
 body.om-device-mobile .jm-foot__tot { display: grid; }
 body.om-device-mobile .jm-btn--pri { flex: 1; height: 48px; }
 
+/* LockBox field under Delivery — animated pad + open digit slots */
+.jm-lockbox {
+  margin-top: 10px;
+  padding: 14px;
+  border: 1px solid #f3cfb1;
+  border-radius: 14px;
+  background: linear-gradient(165deg, #FDF0E6 0%, #fff 58%);
+  display: grid;
+  gap: 8px;
+}
+.jm-lockbox[hidden] { display: none !important; }
+.jm-lockbox__stage {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.jm-lockbox__pad {
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(160deg, #221E1A 0%, #3a342e 100%);
+  color: #E7792C;
+  flex: none;
+  box-shadow: 0 0 0 0 rgba(231, 121, 44, 0.45);
+}
+.jm-lockbox__pad.is-wait {
+  animation: jm-lockbox-bob 1.7s ease-in-out infinite, job-lockbox-pulse 2.2s ease-out infinite;
+}
+.jm-lockbox__pad.is-ready {
+  animation: job-lockbox-pulse 2.2s ease-out infinite;
+  color: #f8fafc;
+  background: linear-gradient(160deg, #1e293b 0%, #334155 100%);
+}
+.jm-lockbox__pad.is-ready .jm-lockbox__shackle { animation: none; }
+.jm-lockbox__shackle { transform-origin: 12px 8px; animation: jm-lockbox-shackle 1.7s ease-in-out infinite; }
+.jm-lockbox__main { display: grid; gap: 8px; min-width: 0; flex: 1; }
+.jm-lockbox__cells { display: flex; flex-wrap: wrap; gap: 6px; }
+.jm-lockbox__cell {
+  width: 34px;
+  height: 42px;
+  border-radius: 10px;
+  border: 1.5px dashed #D0D5DD;
+  background: rgba(255, 255, 255, 0.85);
+  display: grid;
+  place-items: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--jm-ink);
+}
+.jm-lockbox__cell.is-empty {
+  border-color: #E7792C;
+  background: rgba(253, 240, 230, 0.65);
+  animation: jm-lockbox-slot 1.6s ease-in-out infinite;
+}
+.jm-lockbox__cell.is-filled {
+  border-style: solid;
+  border-color: #221E1A;
+  background: #fff;
+  animation: jm-lockbox-pop 0.28s ease;
+}
+.jm-lockbox__input {
+  width: 100%;
+  min-width: 0;
+  height: 42px;
+  box-sizing: border-box;
+  border: 1px solid var(--jm-line);
+  border-radius: 10px;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: var(--jm-ink);
+  background: #fff;
+}
+.jm-lockbox__input:focus {
+  outline: none;
+  border-color: var(--jm-terra);
+  box-shadow: 0 0 0 3px rgba(232, 121, 44, 0.16);
+}
+@keyframes jm-lockbox-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+@keyframes jm-lockbox-shackle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1.5px); }
+}
+@keyframes jm-lockbox-slot {
+  0%, 100% { border-color: #E7792C; box-shadow: inset 0 0 0 0 rgba(231, 121, 44, 0.12); }
+  50% { border-color: #B4561A; box-shadow: inset 0 0 0 2px rgba(231, 121, 44, 0.1); }
+}
+@keyframes jm-lockbox-pop {
+  0% { transform: scale(0.92); }
+  70% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+@media (max-width: 900px) {
+  .jm-lockbox__cell { width: 38px; height: 46px; font-size: 17px; }
+  .jm-lockbox__input { height: 46px; font-size: 16px; }
+}
+body.om-device-mobile .jm-lockbox__cell { width: 38px; height: 46px; font-size: 17px; }
+body.om-device-mobile .jm-lockbox__input { height: 46px; font-size: 16px; }
+
 /* Lockbox code badge — pulse when notes contain /lockbox N */
 .job-lockbox-badge {
   display: inline-flex;
@@ -689,8 +798,24 @@ body.om-device-mobile .jm-btn--pri { flex: 1; height: 48px; }
   box-shadow: 0 0 0 0 rgba(232, 121, 44, 0.55);
   animation: job-lockbox-pulse 2.2s ease-out infinite;
 }
+.job-lockbox-badge--cells {
+  gap: 0.45rem;
+  padding: 0.35rem 0.55rem 0.35rem 0.45rem;
+  border-radius: 12px;
+}
 .job-lockbox-badge__icon { display: inline-flex; color: #fb923c; }
 .job-lockbox-badge__code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+.job-lockbox-badge__cells { display: inline-flex; gap: 3px; }
+.job-lockbox-badge__cell {
+  min-width: 1.05rem;
+  padding: 0.1rem 0.2rem;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.12);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-align: center;
+}
 .jm-lockbox-slot {
   display: inline-flex;
   margin-left: 0.45rem;

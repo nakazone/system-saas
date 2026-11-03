@@ -175,7 +175,19 @@
   function lockboxBadgeHtml(notes) {
     const code = parseLockbox(notes);
     if (!code) return "";
-    return `<span class="job-lockbox-badge" title="Lockbox ${escapeHtml(code)}" aria-label="Lockbox ${escapeHtml(code)}"><span class="job-lockbox-badge__icon" aria-hidden="true">🔐</span><span class="job-lockbox-badge__code">${escapeHtml(code)}</span></span>`;
+    const cells = [...String(code)]
+      .map((ch) => `<span class="job-lockbox-badge__cell">${escapeHtml(ch)}</span>`)
+      .join("");
+    return `<div class="cm-lockbox" title="LockBox ${escapeHtml(code)}" aria-label="LockBox ${escapeHtml(code)}">
+      <span class="cm-lockbox__pad" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="5" y="11" width="14" height="10" rx="2"/>
+          <path d="M8 11V8a4 4 0 018 0v3"/>
+          <circle cx="12" cy="16" r="1.2" fill="currentColor" stroke="none"/>
+        </svg>
+      </span>
+      <span class="cm-lockbox__cells">${cells}</span>
+    </div>`;
   }
 
   function deliveryBlockHtml(t) {

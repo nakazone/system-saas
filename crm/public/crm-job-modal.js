@@ -10,22 +10,28 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261103-team1";
+  const CSS_HREF = "crm-job-modal.css?v=20261103-lock1";
   const QPE_CSS = "quote-services-popup.css?v=20261102-svc2";
   const QPE_JS = "quote-services-popup.js?v=20261102-qfix";
   const PAPER_CSS = "quote-paper.css?v=20261027-om1";
   const PAPER_JS = "quote-paper.js?v=20261028-addon";
   let prevQBBridge = null;
   let qpeAssetsPromise = null;
-  const SECTIONS = ["details", "schedule", "services", "team", "campo", "notes"];
+  const SECTIONS = ["details", "schedule", "services", "team", "notes", "campo"];
   const SECTION_TITLES = {
     details: "Cliente e endereço",
     schedule: "Start",
     team: "Equipe",
     services: "Serviços do job",
-    campo: "Checklist do campo",
     notes: "Notas",
+    campo: "Checklist do campo",
   };
+  const LOCKBOX_PAD_SVG =
+    `<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">` +
+    `<rect x="5" y="11" width="14" height="10" rx="2"/>` +
+    `<path class="jm-lockbox__shackle" d="M8 11V8a4 4 0 018 0v3"/>` +
+    `<circle cx="12" cy="16" r="1.2" fill="currentColor" stroke="none"/>` +
+    `</svg>`;
   /** Quick-start lists the office can drop into a job's checklist (appended, duplicates skipped). */
   const CK_TEMPLATES = [
     { key: "pre", name: "Pré-instalação", items: [["Umidade medida e anotada", false], ["Contrapiso nivelado e limpo", true], ["Material aclimatado", false], ["Área livre de móveis", true]] },
@@ -89,6 +95,8 @@
       lines: [],
       notes: "",
       attention: "",
+      needsLockbox: false,
+      lockboxCode: "",
       needsDelivery: false,
       deliveryPickupAddress: "",
       deliveryNotes: "",
@@ -152,23 +160,58 @@
       .replace(/"/g, "&quot;");
   }
 
-  /** `/lockbox 4821` in internal notes → house lockbox code badge. */
+  /** `/lockbox 4821` in internal notes → house lockbox code (ticket + Campo). */
   function parseJobLockbox(notes) {
     const m = String(notes || "").match(/\/lockbox\s*[#:]?\s*([0-9A-Za-z-]{2,24})\b/i);
     return m ? m[1] : null;
   }
+  function stripLockboxFromNotes(notes) {
+    return String(notes || "")
+      .replace(/\/lockbox\s*[#:]?\s*[0-9A-Za-z-]{2,24}\b\s*[—–-]?\s*/gi, "")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+  function upsertLockboxInNotes(notes, code) {
+    const clean = String(code || "")
+      .replace(/[^0-9A-Za-z-]/g, "")
+      .slice(0, 24);
+    const rest = stripLockboxFromNotes(notes);
+    if (clean.length < 2) return rest;
+    return rest ? `/lockbox ${clean}\n${rest}` : `/lockbox ${clean}`;
+  }
+  function sanitizeLockboxCode(raw) {
+    return String(raw || "")
+      .replace(/[^0-9A-Za-z-]/g, "")
+      .slice(0, 24);
+  }
+  function syncNotesFromLockbox() {
+    if (!st) return;
+    if (st.needsLockbox && st.lockboxCode.length >= 2) {
+      st.notes = upsertLockboxInNotes(st.notes, st.lockboxCode);
+    } else if (!st.needsLockbox) {
+      st.notes = stripLockboxFromNotes(st.notes);
+    } else {
+      st.notes = stripLockboxFromNotes(st.notes);
+    }
+    if ($("jobNotes") && document.activeElement !== $("jobNotes")) {
+      $("jobNotes").value = st.notes;
+    }
+  }
   function jobLockboxBadgeHtml(notes) {
     const code = parseJobLockbox(notes);
     if (!code) return "";
+    const cells = [...String(code)]
+      .map((ch) => `<span class="job-lockbox-badge__cell">${esc(ch)}</span>`)
+      .join("");
     return (
-      `<span class="job-lockbox-badge" title="Código da caixa (lockbox)">` +
+      `<span class="job-lockbox-badge job-lockbox-badge--cells" title="LockBox ${esc(code)}" aria-label="LockBox ${esc(code)}">` +
       `<span class="job-lockbox-badge__icon" aria-hidden="true">` +
       `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">` +
       `<rect x="5" y="11" width="14" height="10" rx="2"/>` +
       `<path d="M8 11V8a4 4 0 018 0v3"/>` +
       `<circle cx="12" cy="16" r="1.2" fill="currentColor" stroke="none"/>` +
       `</svg></span>` +
-      `<span class="job-lockbox-badge__code">${esc(code)}</span>` +
+      `<span class="job-lockbox-badge__cells">${cells}</span>` +
       `</span>`
     );
   }
@@ -923,6 +966,14 @@
             </div>
             <p class="jm-hint">A data aparece na agenda Delivery. PDF ou foto do PO / packing list vão para o Campo.</p>
           </div>
+          <label class="jm-check" style="margin-top:12px">
+            <input type="checkbox" id="jmNeedsLockbox" />
+            <span><strong>LockBox</strong> — código da caixa da casa</span>
+          </label>
+          <div class="jm-lockbox" id="jmLockboxBox" hidden>
+            <div class="jm-lockbox__stage" id="jmLockboxStage"></div>
+            <p class="jm-hint">Aparece no ticket do job no Campo, com o cadeado e o código.</p>
+          </div>
         </section>
 
         <section class="jm-sec" data-job-section="services">
@@ -937,15 +988,14 @@
           <div id="jmTemps"></div>
         </section>
 
-        <section class="jm-sec" data-job-section="campo">
-          <h3 class="jm-sec__t"><span class="jm-n">5</span>Para o campo</h3>
-          <div class="jm-ck" id="jmCk"></div>
+        <section class="jm-sec" data-job-section="notes">
+          <h3 class="jm-sec__t"><span class="jm-n">5</span>Notas internas</h3>
+          <textarea id="jobNotes" class="jm-in jm-ta" rows="3" maxlength="8000" placeholder="Notas internas da equipe"></textarea>
         </section>
 
-        <section class="jm-sec" data-job-section="notes">
-          <h3 class="jm-sec__t"><span class="jm-n">6</span>Notas internas <span id="jmLockbox" class="jm-lockbox-slot" hidden></span></h3>
-          <textarea id="jobNotes" class="jm-in jm-ta" rows="3" maxlength="8000" placeholder="Ex.: /lockbox 4821 — código da caixa da casa"></textarea>
-          <p class="jm-hint">Escreva <code>/lockbox</code> e o código para mostrar o cadeado aqui nas notas.</p>
+        <section class="jm-sec" data-job-section="campo">
+          <h3 class="jm-sec__t"><span class="jm-n">6</span>Para o campo</h3>
+          <div class="jm-ck" id="jmCk"></div>
         </section>
       </div>
       <aside class="jm__side" id="jmSide" aria-label="Resumo"></aside>
@@ -1863,6 +1913,7 @@
         <div><dt>Start</dt><dd>${esc(whenLabel())}</dd></div>
         <div><dt>Setor</dt><dd>${esc(sectorLabel(st.sector))}</dd></div>
         <div><dt>Delivery</dt><dd>${st.needsDelivery ? esc(st.deliveryPickupAddress || "Retirar material") : "—"}</dd></div>
+        <div><dt>LockBox</dt><dd>${st.needsLockbox && st.lockboxCode ? esc(st.lockboxCode) : st.needsLockbox ? "Sem código" : "—"}</dd></div>
         <div><dt>Equipe</dt><dd>${esc(assignee ? `${assignee.name || assignee.email}${others ? ` +${others}` : ""}` : "—")}</dd></div>
         <div><dt>Status</dt><dd>${esc(statusLbl)}</dd></div>
       </dl>
@@ -1896,17 +1947,43 @@
     renderSide();
   }
 
-  function renderLockbox() {
-    const slot = $("jmLockbox");
-    if (!slot) return;
-    const html = jobLockboxBadgeHtml(st?.notes);
-    if (html) {
-      slot.innerHTML = html;
-      slot.hidden = false;
-    } else {
-      slot.innerHTML = "";
-      slot.hidden = true;
+  function lockboxCellsHtml(code) {
+    const chars = [...String(code || "")];
+    const slots = Math.max(4, Math.min(8, chars.length + (chars.length < 8 ? 1 : 0)));
+    const cells = [];
+    for (let i = 0; i < slots; i += 1) {
+      const ch = chars[i];
+      cells.push(
+        ch
+          ? `<span class="jm-lockbox__cell is-filled">${esc(ch)}</span>`
+          : `<span class="jm-lockbox__cell is-empty" aria-hidden="true"></span>`,
+      );
     }
+    return cells.join("");
+  }
+
+  function renderLockbox() {
+    const box = $("jmLockboxBox");
+    const chk = $("jmNeedsLockbox");
+    if (chk) chk.checked = Boolean(st?.needsLockbox);
+    if (!box) return;
+    if (!st?.needsLockbox) {
+      box.hidden = true;
+      const stage = $("jmLockboxStage");
+      if (stage) stage.innerHTML = "";
+      return;
+    }
+    box.hidden = false;
+    const code = String(st.lockboxCode || "");
+    const ready = code.length >= 2;
+    const stage = $("jmLockboxStage");
+    if (!stage) return;
+    stage.innerHTML = `
+      <div class="jm-lockbox__pad${ready ? " is-ready" : " is-wait"}" aria-hidden="true">${LOCKBOX_PAD_SVG}</div>
+      <div class="jm-lockbox__main">
+        <div class="jm-lockbox__cells" aria-hidden="true">${lockboxCellsHtml(code)}</div>
+        <input type="text" id="jmLockboxCode" class="jm-lockbox__input" maxlength="24" autocomplete="off" inputmode="text" spellcheck="false" placeholder="Digite o código" value="${esc(code)}" aria-label="Código LockBox" />
+      </div>`;
   }
 
   function attachDeliveryAddressAutocomplete() {
@@ -1969,8 +2046,8 @@
     $("jobNotes").value = st.notes;
     if ($("jmNeedsDelivery")) $("jmNeedsDelivery").checked = Boolean(st.needsDelivery);
     renderDeliveryBox();
-    renderChecklist();
     renderLockbox();
+    renderChecklist();
     renderSide();
     renderFoot();
     applySection();
@@ -1989,7 +2066,9 @@
       el.hidden = !all && key !== st.section;
     });
     const notesN = document.querySelector('#jobModalMain [data-job-section="notes"] .jm-n');
-    if (notesN) notesN.textContent = checklistEnabled ? "6" : "5";
+    const campoN = document.querySelector('#jobModalMain [data-job-section="campo"] .jm-n');
+    if (notesN) notesN.textContent = "5";
+    if (campoN) campoN.textContent = "6";
     $("jmSide").hidden = !all;
     $("jobModalTitle").textContent = all
       ? st.id
@@ -2538,6 +2617,8 @@
       }),
     );
     st.notes = wo.notes || "";
+    st.lockboxCode = parseJobLockbox(st.notes) || "";
+    st.needsLockbox = Boolean(st.lockboxCode);
     st.attention = wo.campo_attention || "";
     st.needsDelivery = Boolean(wo.needs_delivery);
     st.deliveryPickupAddress = wo.delivery_pickup_address || "";
@@ -2689,6 +2770,7 @@
   async function save(e) {
     e.preventDefault();
     if (!canManage || !st || st.busy) return;
+    syncNotesFromLockbox();
     const full = payload();
     const err = validate(full);
     if (err) {
@@ -3136,6 +3218,32 @@
         renderDeliveryBox();
         renderSide();
         return;
+      case "jmNeedsLockbox":
+        st.needsLockbox = Boolean(t.checked);
+        if (!st.needsLockbox) st.lockboxCode = "";
+        syncNotesFromLockbox();
+        renderLockbox();
+        renderSide();
+        if (st.needsLockbox) setTimeout(() => $("jmLockboxCode")?.focus(), 30);
+        return;
+      case "jmLockboxCode": {
+        const caret = typeof t.selectionStart === "number" ? t.selectionStart : null;
+        st.lockboxCode = sanitizeLockboxCode(t.value);
+        st.needsLockbox = true;
+        syncNotesFromLockbox();
+        renderLockbox();
+        renderSide();
+        setTimeout(() => {
+          const inp = $("jmLockboxCode");
+          if (!inp) return;
+          inp.focus();
+          const n = caret == null ? inp.value.length : Math.min(caret, inp.value.length);
+          try {
+            inp.setSelectionRange(n, n);
+          } catch (_) {}
+        }, 0);
+        return;
+      }
       case "jmDeliveryDate":
         st.deliveryDate = t.value || "";
         return;
@@ -3175,10 +3283,19 @@
         st.sourceName = t.value;
         st.sourceNameAuto = false;
         return;
-      case "jobNotes":
+      case "jobNotes": {
         st.notes = t.value;
+        const code = parseJobLockbox(st.notes);
+        if (code) {
+          st.lockboxCode = code;
+          st.needsLockbox = true;
+        } else if (st.needsLockbox && !code) {
+          // Keep checkbox on while typing empty slots; only clear code mirror.
+          st.lockboxCode = "";
+        }
         renderLockbox();
         return;
+      }
       default:
         break;
     }
@@ -3268,6 +3385,14 @@
         }
         renderDeliveryBox();
         renderSide();
+        return;
+      case "jmNeedsLockbox":
+        st.needsLockbox = Boolean(t.checked);
+        if (!st.needsLockbox) st.lockboxCode = "";
+        syncNotesFromLockbox();
+        renderLockbox();
+        renderSide();
+        if (st.needsLockbox) setTimeout(() => $("jmLockboxCode")?.focus(), 30);
         return;
       case "jmDeliveryFile": {
         const file = t.files && t.files[0];
