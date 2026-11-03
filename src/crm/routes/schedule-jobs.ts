@@ -984,6 +984,7 @@ scheduleJobsRouter.get(
             0;
           const priceContractor = dec(row.priceContractor) || priceBuilder;
           const priceLoja = dec(row.priceLoja) || dec(row.priceMin) || dec(row.price) || 0;
+          const notes = row.notes || row.description || null;
           return {
             id: row.id,
             name: row.name,
@@ -997,6 +998,9 @@ scheduleJobsRouter.get(
             price_min: priceLoja,
             price_max: priceParticular,
             partner_price: priceBuilder,
+            /** Same merge as /api/pricing — Job/Quote lines pull description from notes */
+            notes,
+            description: row.description || row.notes || null,
           };
         }),
       });

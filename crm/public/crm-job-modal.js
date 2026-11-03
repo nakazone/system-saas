@@ -10,7 +10,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261028-jobs4";
+  const CSS_HREF = "crm-job-modal.css?v=20261102-jobs-desc";
   const QPE_CSS = "quote-services-popup.css?v=20261102-svc2";
   const QPE_JS = "quote-services-popup.js?v=20261102-svc2";
   const PAPER_CSS = "quote-paper.css?v=20261027-om1";
@@ -484,14 +484,35 @@
   }
 
   let rateSavePending = null;
+  let descSavePending = null;
+  let pendingDescOffer = null;
   let priceEditCtx = null;
   /** Ignore the tap that opened the dialog. On a tablet that same touch hits the backdrop and closes it. */
   let rateBackdropIgnoreUntil = 0;
+
+  function normalizeDescText(s) {
+    return String(s || "")
+      .replace(/\r\n/g, "\n")
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim()
+      .toLowerCase();
+  }
+
+  function catalogDescriptionForItem(item) {
+    if (!item) return "";
+    return String(item.notes || item.description || item.default_description || "").trim();
+  }
 
   function closeSaveRateModal() {
     const root = $("jmSaveRateModal");
     if (root) root.classList.add("hidden");
     rateSavePending = null;
+    if (pendingDescOffer) {
+      const next = pendingDescOffer;
+      pendingDescOffer = null;
+      setTimeout(() => maybeOfferDescPersist(next), 40);
+    }
   }
 
   function openSaveRateModal(payload) {
@@ -654,6 +675,98 @@
     }
   }
 
+  function closeSaveDescModal() {
+    const root = $("jmSaveDescModal");
+    if (root) root.classList.add("hidden");
+    descSavePending = null;
+  }
+
+  function openSaveDescModal(payload) {
+    ensureDescModal();
+    const root = $("jmSaveDescModal");
+    if (!root) return;
+    descSavePending = payload;
+    const nameEl = $("jmSaveDescServiceName");
+    const oldEl = $("jmSaveDescOld");
+    const newEl = $("jmSaveDescNew");
+    if (nameEl) nameEl.textContent = payload.serviceName || "Serviço";
+    if (oldEl) {
+      const oldTxt = payload.tableDesc || "(sem descrição)";
+      oldEl.textContent = oldTxt.length > 160 ? `${oldTxt.slice(0, 157)}…` : oldTxt;
+    }
+    if (newEl) {
+      const newTxt = payload.newDesc || "(vazia)";
+      newEl.textContent = newTxt.length > 160 ? `${newTxt.slice(0, 157)}…` : newTxt;
+    }
+    root.classList.remove("hidden");
+  }
+
+  function maybeOfferDescPersist(opts) {
+    const o = opts || {};
+    const rateOpen = $("jmSaveRateModal") && !$("jmSaveRateModal").classList.contains("hidden");
+    if (rateOpen) {
+      pendingDescOffer = o;
+      return;
+    }
+    const descOpen = $("jmSaveDescModal") && !$("jmSaveDescModal").classList.contains("hidden");
+    if (descOpen) return;
+    ensureDescModal();
+    const pricingItemId = o.pricingItemId || null;
+    if (!pricingItemId) return;
+    const item = pricing.find((p) => String(p.id) === String(pricingItemId)) || o.row || null;
+    const tableDesc =
+      o.tableDesc != null ? String(o.tableDesc) : descBodyWithoutTitle((item && item.name) || o.serviceName || "", catalogDescriptionForItem(item));
+    const newDesc = o.newDesc != null ? String(o.newDesc) : "";
+    if (normalizeDescText(newDesc) === normalizeDescText(tableDesc)) return;
+    openSaveDescModal({
+      itemIdx: o.itemIdx,
+      serviceName: o.serviceName || (item && item.name) || "Serviço",
+      newDesc,
+      tableDesc,
+      pricingItemId: String(pricingItemId),
+    });
+  }
+
+  function patchLocalPricingDescription(pricingItemId, notes) {
+    const pid = String(pricingItemId);
+    const text = notes != null ? String(notes) : "";
+    for (const row of pricing) {
+      if (String(row.id) !== pid) continue;
+      row.notes = text || null;
+      row.description = text || null;
+      row.default_description = text || null;
+    }
+  }
+
+  async function persistDescToPricingTable() {
+    const p = descSavePending;
+    if (!p || !p.pricingItemId) return;
+    const ok = confirm(
+      "Atualizar a descrição deste serviço na Tabela de Valores?\n\n" +
+        "Isto altera a descrição do sistema para jobs e orçamentos futuros.",
+    );
+    if (!ok) return;
+    const btn = $("jmSaveDescTable");
+    if (btn) btn.disabled = true;
+    try {
+      await api(`/api/pricing/${encodeURIComponent(p.pricingItemId)}`, {
+        method: "PUT",
+        body: JSON.stringify({ notes: p.newDesc || null }),
+      });
+      patchLocalPricingDescription(p.pricingItemId, p.newDesc || "");
+      if (p.itemIdx != null && p.itemIdx >= 0 && st && st.lines[p.itemIdx]) {
+        st.lines[p.itemIdx].pricingId = p.pricingItemId;
+      }
+      notify("Descrição atualizada na Tabela de Valores.", "success");
+      closeSaveDescModal();
+      renderServices();
+    } catch (e) {
+      notify(e.message || "Erro ao atualizar a descrição.", "error");
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
   // ---------------------------------------------------------------- schedule (date + start only — duration stays open)
   function dayFromYmd(value) {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ""));
@@ -793,9 +906,46 @@
       while (wrap.firstChild) document.body.appendChild(wrap.firstChild);
     }
     ensureRateModal();
+    ensureDescModal();
   }
 
   let rateModalBound = false;
+  let descModalBound = false;
+
+  function ensureDescModal() {
+    let root = $("jmSaveDescModal");
+    if (!root) {
+      const wrap = document.createElement("div");
+      wrap.innerHTML = `
+<div class="jm-rate hidden" id="jmSaveDescModal" role="dialog" aria-modal="true" aria-labelledby="jmSaveDescTitle">
+  <div class="jm-rate__panel">
+    <button type="button" class="jm-rate__x" id="jmSaveDescClose" aria-label="Fechar">×</button>
+    <h2 id="jmSaveDescTitle" class="jm-rate__title">Gravar nova descrição?</h2>
+    <p class="jm-rate__sub">O serviço <strong id="jmSaveDescServiceName">—</strong> está ligado à Tabela de Valores.</p>
+    <div class="jm-rate__cmp">
+      <div><span>Na tabela</span><strong id="jmSaveDescOld">—</strong></div>
+      <div><span>Neste job</span><strong id="jmSaveDescNew">—</strong></div>
+    </div>
+    <div class="jm-rate__acts">
+      <button type="button" id="jmSaveDescTable" class="jm-btn jm-btn--pri">Atualizar Tabela de Valores</button>
+      <button type="button" id="jmSaveDescJobOnly" class="jm-btn">Só neste job</button>
+      <button type="button" id="jmSaveDescCancel" class="jm-btn jm-btn--ghost">Cancelar</button>
+    </div>
+  </div>
+</div>`;
+      while (wrap.firstChild) document.body.appendChild(wrap.firstChild);
+      root = $("jmSaveDescModal");
+    }
+    if (descModalBound) return;
+    descModalBound = true;
+    $("jmSaveDescTable")?.addEventListener("click", () => void persistDescToPricingTable());
+    $("jmSaveDescJobOnly")?.addEventListener("click", () => closeSaveDescModal());
+    $("jmSaveDescCancel")?.addEventListener("click", () => closeSaveDescModal());
+    $("jmSaveDescClose")?.addEventListener("click", () => closeSaveDescModal());
+    root?.addEventListener("click", (e) => {
+      if (e.target === root) closeSaveDescModal();
+    });
+  }
 
   function ensureRateModal() {
     let root = $("jmSaveRateModal");
@@ -1130,12 +1280,16 @@
   }
 
   function pricingAsCatalog() {
-    return (pricing || []).map((p) => ({
-      ...p,
-      category: normalizeServiceType(p.category || p.category_label || ""),
-      unit_type: p.unit || p.unit_type || "sq_ft",
-      default_description: p.notes != null ? String(p.notes).trim() || null : null,
-    }));
+    return (pricing || []).map((p) => {
+      const notes = catalogDescriptionForItem(p) || null;
+      return {
+        ...p,
+        category: normalizeServiceType(p.category || p.category_label || ""),
+        unit_type: p.unit || p.unit_type || "sq_ft",
+        notes,
+        default_description: notes,
+      };
+    });
   }
 
   function jobLineToQuoteItem(l) {
@@ -1267,7 +1421,8 @@
         return filterCatalogByName(pricingAsCatalog(), q, 40);
       },
       rateFor: (row) => priceFor(row),
-      descFor: (row, name) => descBodyWithoutTitle(name || (row && row.name) || "", (row && (row.default_description || row.notes)) || ""),
+      descFor: (row, name) =>
+        descBodyWithoutTitle(name || (row && row.name) || "", catalogDescriptionForItem(row)),
       catalogIds: (row) => ({ service_catalog_id: null, pricing_item_id: row ? row.id : null }),
       pricingLabel: () => pricingLabel(),
       normalizeServiceType,
@@ -1301,6 +1456,10 @@
       hasLinkedQuote: () => Boolean(st && st.quoteNumber),
       onRateCommitted() {
         scheduleQuotePriceSync();
+      },
+      offerDescriptionChange(opts) {
+        scheduleQuotePriceSync();
+        maybeOfferDescPersist(opts || {});
       },
       offerRateChange(opts) {
         const idx = opts && opts.itemIdx;
@@ -2511,12 +2670,24 @@
             note: String(p.note || "").trim(),
           }),
         };
+        const savedIdx = p.i != null && p.i >= 0 ? p.i : st.lines.length;
         if (p.i != null && p.i >= 0) st.lines[p.i] = row;
         else st.lines.push(row);
         st.svcPanel = null;
         renderServices();
         refreshNumbers();
         scheduleQuotePriceSync();
+        const descOffer = {
+          itemIdx: savedIdx,
+          pricingItemId: row.pricingId,
+          serviceName: row.name,
+          newDesc: row.note || "",
+          tableDesc: descBodyWithoutTitle(row.name, catalogDescriptionForItem(pricingItemForLine(row))),
+        };
+        void (async () => {
+          await maybeOfferRatePersist(savedIdx);
+          maybeOfferDescPersist(descOffer);
+        })();
         break;
       }
       case "panel-pick": {
@@ -2529,6 +2700,7 @@
         st.svcPanel.name = item.name;
         st.svcPanel.query = item.name;
         st.svcPanel.price = priceFor(item);
+        st.svcPanel.note = descBodyWithoutTitle(item.name, catalogDescriptionForItem(item));
         st.svcPanel.open = false;
         renderServices();
         setTimeout(() => $("jmSvc")?.querySelector('[data-f="panel-qty"]')?.focus(), 20);
@@ -3030,6 +3202,11 @@
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && $("jmSaveRateModal") && !$("jmSaveRateModal").classList.contains("hidden")) {
         closeSaveRateModal();
+        e.stopPropagation();
+        return;
+      }
+      if (e.key === "Escape" && $("jmSaveDescModal") && !$("jmSaveDescModal").classList.contains("hidden")) {
+        closeSaveDescModal();
         e.stopPropagation();
         return;
       }
