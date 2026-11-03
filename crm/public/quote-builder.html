@@ -2747,15 +2747,17 @@
       <h2 id="qbSaveDescTitle" class="qb-modal__title">Gravar nova descrição?</h2>
       <p class="qb-modal__sub text-sm text-slate-600">
         O serviço <strong id="qbSaveDescServiceName"></strong> está ligado à Tabela de Valores.
-        Alterou a descrição neste trabalho.
       </p>
       <div class="text-sm text-slate-600 mb-2 space-y-1">
         <div><span class="font-semibold text-slate-500">Na tabela:</span> <span id="qbSaveDescOld"></span></div>
         <div><span class="font-semibold text-slate-500">Neste orçamento:</span> <span id="qbSaveDescNew"></span></div>
       </div>
       <div class="flex flex-col gap-2 mt-3">
+        <button type="button" id="qbSaveDescClient" class="w-full px-4 py-2.5 rounded-lg bg-slate-900 text-white text-sm font-bold hover:opacity-95">
+          Só para este cliente
+        </button>
         <button type="button" id="qbSaveDescTable" class="w-full px-4 py-2.5 rounded-lg bg-[var(--plab-accent,#e8792c)] text-white text-sm font-bold hover:opacity-95">
-          Atualizar no sistema (Tabela de Valores)
+          Atualizar Tabela de Valores
         </button>
         <button type="button" id="qbSaveDescQuoteOnly" class="w-full px-4 py-2.5 rounded-lg border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50">
           Só neste orçamento
@@ -2807,9 +2809,9 @@
   <script src="lead-contact-links.js?v=20261015-disc1"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
   <script src="quote-paper.js?v=20261028-addon"></script>
-  <script src="crm-job-modal.js?v=20261102-jobs-desc"></script>
-  <script src="quote-builder.js?v=20261102-svc2"></script>
-  <script src="quote-services-popup.js?v=20261102-svc2"></script>
+  <script src="crm-job-modal.js?v=20261102-qfix"></script>
+  <script src="quote-builder.js?v=20261102-qfix"></script>
+  <script src="quote-services-popup.js?v=20261102-qfix"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

@@ -877,6 +877,13 @@
       }
       closeModal("cxFormModal");
       notify(id ? "Cliente atualizado." : "Cliente cadastrado.", "success");
+      try {
+        const bc = new BroadcastChannel("obramate-crm");
+        bc.postMessage({ type: "customer-updated", id: (j.data && j.data.id) || id || null, customer: j.data || null });
+        bc.close();
+      } catch (_) {
+        /* BroadcastChannel unavailable */
+      }
       await loadList();
       const nid = (j.data && j.data.id) || id;
       if (nid) openDetail(nid, { push: !id });

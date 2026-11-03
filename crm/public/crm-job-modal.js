@@ -12,7 +12,7 @@
 
   const CSS_HREF = "crm-job-modal.css?v=20261102-jobs-desc";
   const QPE_CSS = "quote-services-popup.css?v=20261102-svc2";
-  const QPE_JS = "quote-services-popup.js?v=20261102-svc2";
+  const QPE_JS = "quote-services-popup.js?v=20261102-qfix";
   const PAPER_CSS = "quote-paper.css?v=20261027-om1";
   const PAPER_JS = "quote-paper.js?v=20261028-addon";
   let prevQBBridge = null;
@@ -689,13 +689,16 @@
     const nameEl = $("jmSaveDescServiceName");
     const oldEl = $("jmSaveDescOld");
     const newEl = $("jmSaveDescNew");
+    const titleEl = $("jmSaveDescTitle");
+    const field = payload.field === "name" ? "name" : "description";
+    if (titleEl) titleEl.textContent = field === "name" ? "Gravar novo nome?" : "Gravar nova descrição?";
     if (nameEl) nameEl.textContent = payload.serviceName || "Serviço";
     if (oldEl) {
-      const oldTxt = payload.tableDesc || "(sem descrição)";
+      const oldTxt = payload.tableDesc || (field === "name" ? "(sem nome)" : "(sem descrição)");
       oldEl.textContent = oldTxt.length > 160 ? `${oldTxt.slice(0, 157)}…` : oldTxt;
     }
     if (newEl) {
-      const newTxt = payload.newDesc || "(vazia)";
+      const newTxt = payload.newDesc || (field === "name" ? "(vazio)" : "(vazia)");
       newEl.textContent = newTxt.length > 160 ? `${newTxt.slice(0, 157)}…` : newTxt;
     }
     root.classList.remove("hidden");
@@ -713,9 +716,14 @@
     ensureDescModal();
     const pricingItemId = o.pricingItemId || null;
     if (!pricingItemId) return;
+    const field = o.field === "name" ? "name" : "description";
     const item = pricing.find((p) => String(p.id) === String(pricingItemId)) || o.row || null;
     const tableDesc =
-      o.tableDesc != null ? String(o.tableDesc) : descBodyWithoutTitle((item && item.name) || o.serviceName || "", catalogDescriptionForItem(item));
+      o.tableDesc != null
+        ? String(o.tableDesc)
+        : field === "name"
+          ? String((item && item.name) || "").trim()
+          : descBodyWithoutTitle((item && item.name) || o.serviceName || "", catalogDescriptionForItem(item));
     const newDesc = o.newDesc != null ? String(o.newDesc) : "";
     if (normalizeDescText(newDesc) === normalizeDescText(tableDesc)) return;
     openSaveDescModal({
@@ -724,6 +732,7 @@
       newDesc,
       tableDesc,
       pricingItemId: String(pricingItemId),
+      field,
     });
   }
 
@@ -741,27 +750,35 @@
   async function persistDescToPricingTable() {
     const p = descSavePending;
     if (!p || !p.pricingItemId) return;
+    const field = p.field === "name" ? "name" : "description";
     const ok = confirm(
-      "Atualizar a descrição deste serviço na Tabela de Valores?\n\n" +
-        "Isto altera a descrição do sistema para jobs e orçamentos futuros.",
+      field === "name"
+        ? "Atualizar o nome deste serviço na Tabela de Valores?\n\nIsto altera o nome do sistema para jobs e orçamentos futuros."
+        : "Atualizar a descrição deste serviço na Tabela de Valores?\n\nIsto altera a descrição do sistema para jobs e orçamentos futuros.",
     );
     if (!ok) return;
     const btn = $("jmSaveDescTable");
     if (btn) btn.disabled = true;
     try {
+      const body = field === "name" ? { name: p.newDesc || null } : { notes: p.newDesc || null };
       await api(`/api/pricing/${encodeURIComponent(p.pricingItemId)}`, {
         method: "PUT",
-        body: JSON.stringify({ notes: p.newDesc || null }),
+        body: JSON.stringify(body),
       });
-      patchLocalPricingDescription(p.pricingItemId, p.newDesc || "");
+      if (field === "name") {
+        const item = pricing.find((x) => String(x.id) === String(p.pricingItemId));
+        if (item && p.newDesc) item.name = String(p.newDesc);
+      } else {
+        patchLocalPricingDescription(p.pricingItemId, p.newDesc || "");
+      }
       if (p.itemIdx != null && p.itemIdx >= 0 && st && st.lines[p.itemIdx]) {
         st.lines[p.itemIdx].pricingId = p.pricingItemId;
       }
-      notify("Descrição atualizada na Tabela de Valores.", "success");
+      notify(field === "name" ? "Nome atualizado na Tabela de Valores." : "Descrição atualizada na Tabela de Valores.", "success");
       closeSaveDescModal();
       renderServices();
     } catch (e) {
-      notify(e.message || "Erro ao atualizar a descrição.", "error");
+      notify(e.message || "Erro ao atualizar a Tabela de Valores.", "error");
     } finally {
       if (btn) btn.disabled = false;
     }
@@ -1423,6 +1440,7 @@
       rateFor: (row) => priceFor(row),
       descFor: (row, name) =>
         descBodyWithoutTitle(name || (row && row.name) || "", catalogDescriptionForItem(row)),
+      nameFor: (row) => String((row && row.name) || "").trim(),
       catalogIds: (row) => ({ service_catalog_id: null, pricing_item_id: row ? row.id : null }),
       pricingLabel: () => pricingLabel(),
       normalizeServiceType,
@@ -1460,6 +1478,10 @@
       offerDescriptionChange(opts) {
         scheduleQuotePriceSync();
         maybeOfferDescPersist(opts || {});
+      },
+      offerNameChange(opts) {
+        scheduleQuotePriceSync();
+        maybeOfferDescPersist({ ...(opts || {}), field: "name" });
       },
       offerRateChange(opts) {
         const idx = opts && opts.itemIdx;

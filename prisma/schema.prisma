@@ -1350,6 +1350,8 @@ model Customer {
   pricingMode          String       @default("table") // table | custom
   /// Map of pricingItemId -> unit rate when pricingMode is custom.
   customPricingRates   Json?
+  /// Map of pricingItemId -> notes string or { notes?, name? } for this customer's price table.
+  customPricingNotes   Json?
   company              String?
   /// Short name for builder customers. Calendar jobs show this instead of the company name.
   nickname             String?

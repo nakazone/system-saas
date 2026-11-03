@@ -468,6 +468,7 @@ const woInclude = {
       email: true,
       phone: true,
       address: true,
+      leadId: true,
       managers: true,
     },
   },
@@ -922,14 +923,33 @@ scheduleJobsRouter.get(
       if (canSeeBilling(req.user)) {
         await withTenantTransaction(req.organizationId!, (tx) => foldUnlinkedQuoteInvoices(tx, rows));
       }
-      // Particular quote→job left address blank; copy the customer site onto the job once.
-      const addressHeals = rows.filter(
-        (row) => !String(row.address || "").trim() && String(row.customer?.address || "").trim(),
-      );
-      if (addressHeals.length) {
+      // Particular quote→job left address blank; heal Client from lead, then copy onto the job.
+      const needsAddress = rows.filter((row) => !String(row.address || "").trim() && row.customer);
+      if (needsAddress.length) {
         await withTenantTransaction(req.organizationId!, async (tx) => {
-          for (const row of addressHeals) {
-            const next = String(row.customer?.address || "").trim();
+          for (const row of needsAddress) {
+            let next = String(row.customer?.address || "").trim();
+            if (!next && row.customer?.leadId) {
+              const lead = await tx.lead.findFirst({
+                where: { id: row.customer.leadId },
+                select: { metadata: true },
+              });
+              const meta =
+                lead?.metadata && typeof lead.metadata === "object" && !Array.isArray(lead.metadata)
+                  ? (lead.metadata as Record<string, unknown>)
+                  : {};
+              next =
+                (meta.address != null ? String(meta.address).trim() : "") ||
+                (meta.full_address != null ? String(meta.full_address).trim() : "") ||
+                [meta.address_line1, meta.address_line2, meta.city, meta.state, meta.zipcode || meta.address_zip]
+                  .map((x) => (x != null ? String(x).trim() : ""))
+                  .filter(Boolean)
+                  .join(", ");
+              if (next && row.customer) {
+                await tx.customer.update({ where: { id: row.customer.id }, data: { address: next } });
+                row.customer.address = next;
+              }
+            }
             if (!next) continue;
             await tx.workOrder.update({ where: { id: row.id }, data: { address: next } });
             row.address = next;

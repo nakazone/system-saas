@@ -151,16 +151,51 @@ export async function ensureQuoteDiscountsOnJobs(
 
 type QuoteForJob = NonNullable<Awaited<ReturnType<typeof loadQuoteForJob>>>;
 
+function leadSiteAddressFromMeta(metadata: unknown): string | null {
+  const meta =
+    metadata && typeof metadata === "object" && !Array.isArray(metadata)
+      ? (metadata as Record<string, unknown>)
+      : {};
+  const direct = meta.address != null ? String(meta.address).trim() : "";
+  if (direct) return direct;
+  const full = meta.full_address != null ? String(meta.full_address).trim() : "";
+  if (full) return full;
+  const parts = [meta.address_line1, meta.address_line2, meta.city, meta.state, meta.zipcode || meta.address_zip]
+    .map((x) => (x != null ? String(x).trim() : ""))
+    .filter(Boolean);
+  return parts.length ? parts.join(", ") : null;
+}
+
 async function loadQuoteForJob(tx: TenantPrisma, quoteId: string) {
   return tx.quote.findFirst({
     where: { id: quoteId },
     include: {
       property: true,
-      customer: { select: { id: true, name: true, customerType: true, address: true } },
+      customer: { select: { id: true, name: true, customerType: true, address: true, leadId: true } },
       builder: { select: { id: true, company: true, firstName: true, lastName: true, type: true } },
       lineItems: { orderBy: { sortOrder: "asc" } },
     },
   });
+}
+
+/** Particular Clients created from leads used to miss address — copy from the lead site once. */
+async function healCustomerAddressFromLead(
+  tx: TenantPrisma,
+  customer: { id: string; address: string | null; leadId: string | null } | null | undefined,
+): Promise<string | null> {
+  if (!customer) return null;
+  const existing = String(customer.address || "").trim();
+  if (existing) return existing;
+  if (!customer.leadId) return null;
+  const lead = await tx.lead.findFirst({
+    where: { id: customer.leadId },
+    select: { metadata: true },
+  });
+  const next = leadSiteAddressFromMeta(lead?.metadata);
+  if (!next) return null;
+  await tx.customer.update({ where: { id: customer.id }, data: { address: next } });
+  customer.address = next;
+  return next;
 }
 
 async function quotePersonName(tx: TenantPrisma, quote: QuoteForJob): Promise<string> {
@@ -294,6 +329,7 @@ export async function syncLinkedJobFromQuote(
     await tx.quote.update({ where: { id: quote.id }, data: { workOrderId: null } });
     return null;
   }
+  await healCustomerAddressFromLead(tx, quote.customer);
   const ident = jobIdentityFromQuote(quote, await quotePersonName(tx, quote));
   const sameIdentity =
     job.title === ident.title &&
@@ -377,6 +413,7 @@ export async function ensureWorkOrderOnApprove(
     }
   }
 
+  await healCustomerAddressFromLead(tx, quote.customer);
   const ident = jobIdentityFromQuote(quote, await quotePersonName(tx, quote));
   const number = await nextWorkOrderNumber(tx, params.organizationId);
   const lines = quoteJobLineData(params.organizationId, quote);

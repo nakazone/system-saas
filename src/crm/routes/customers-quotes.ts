@@ -473,6 +473,7 @@ function mapCustomer(c: {
   customerType: string;
   pricingMode?: string;
   customPricingRates?: unknown;
+  customPricingNotes?: unknown;
   company: string | null;
   nickname?: string | null;
   managers?: unknown;
@@ -500,6 +501,7 @@ function mapCustomer(c: {
     customer_type: normalizeCustomerType(c.customerType),
     pricing_mode: c.pricingMode === "custom" ? "custom" : "table",
     custom_pricing_rates: normalizeCustomPricingRates(c.customPricingRates),
+    custom_pricing_notes: normalizeCustomPricingNotes(c.customPricingNotes),
     company: c.company,
     nickname: c.nickname ? String(c.nickname).trim() || null : null,
     managers: cleanManagers(c.managers),
@@ -594,6 +596,45 @@ function normalizeCustomPricingRates(raw: unknown): Record<string, number> {
   return out;
 }
 
+/** Per-customer catalog text: notes string or { notes?, name? }. */
+function normalizeCustomPricingNotes(raw: unknown): Record<string, { notes: string | null; name: string | null }> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Record<string, { notes: string | null; name: string | null }> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    const id = String(k || "").trim();
+    if (!id) continue;
+    if (typeof v === "string") {
+      const notes = v.trim() || null;
+      if (notes) out[id] = { notes, name: null };
+      continue;
+    }
+    if (!v || typeof v !== "object" || Array.isArray(v)) continue;
+    const row = v as Record<string, unknown>;
+    const notes = row.notes != null ? String(row.notes).trim() || null : null;
+    const name = row.name != null ? String(row.name).trim().slice(0, 200) || null : null;
+    if (!notes && !name) continue;
+    out[id] = { notes, name };
+  }
+  return out;
+}
+
+/** Site address stored on the lead (metadata), used when creating/healing Clients. */
+function leadSiteAddress(lead: { metadata?: unknown } | null | undefined): string | null {
+  if (!lead) return null;
+  const meta =
+    lead.metadata && typeof lead.metadata === "object" && !Array.isArray(lead.metadata)
+      ? (lead.metadata as Record<string, unknown>)
+      : {};
+  const direct = meta.address != null ? String(meta.address).trim() : "";
+  if (direct) return direct;
+  const full = meta.full_address != null ? String(meta.full_address).trim() : "";
+  if (full) return full;
+  const parts = [meta.address_line1, meta.address_line2, meta.city, meta.state, meta.zipcode || meta.address_zip]
+    .map((x) => (x != null ? String(x).trim() : ""))
+    .filter(Boolean);
+  return parts.length ? parts.join(", ") : null;
+}
+
 function mapQuote(q: {
   id: string;
   number: number;
@@ -630,7 +671,7 @@ function mapQuote(q: {
   payload: unknown;
   createdAt: Date;
   updatedAt: Date;
-  customer?: { name: string; company?: string | null; clientCode?: string | null } | null;
+  customer?: { name: string; company?: string | null; clientCode?: string | null; address?: string | null } | null;
   workOrder?: { number: number | null; status?: string | null } | null;
   builder?: {
     company?: string | null;
@@ -730,8 +771,13 @@ function mapQuote(q: {
     has_invoice_pdf: Boolean(q.invoicePdfPath),
     invoice_pdf_url: q.invoicePdfPath ? `/api/quotes/${q.id}/invoice-pdf` : null,
     job_name: payload.job_name != null ? String(payload.job_name) : q.title,
+    customer_address: q.customer?.address != null ? String(q.customer.address).trim() || null : null,
     job_address:
-      (payload.job_address != null ? String(payload.job_address) : null) || propertyLabel,
+      (payload.job_address != null && String(payload.job_address).trim()
+        ? String(payload.job_address).trim()
+        : null) ||
+      propertyLabel ||
+      (q.customer?.address != null ? String(q.customer.address).trim() || null : null),
     quote_party: payload.quote_party != null ? String(payload.quote_party) : null,
     expiration_date: q.validUntil,
     viewed_at: q.viewedAt,
@@ -1362,10 +1408,17 @@ customersQuotesRouter.post(
         return;
       }
       const row = await withTenantTransaction(req.organizationId!, async (tx) => {
-        const existing = await tx.customer.findFirst({ where: { leadId } });
-        if (existing) return existing;
         const lead = await tx.lead.findFirst({ where: { id: leadId } });
         if (!lead) return null;
+        const siteAddress = leadSiteAddress(lead);
+        const existing = await tx.customer.findFirst({ where: { leadId } });
+        if (existing) {
+          // Older from-lead creates left address blank — heal from the lead site.
+          if (!String(existing.address || "").trim() && siteAddress) {
+            return tx.customer.update({ where: { id: existing.id }, data: { address: siteAddress } });
+          }
+          return existing;
+        }
         const meta =
           lead.metadata && typeof lead.metadata === "object" && !Array.isArray(lead.metadata)
             ? (lead.metadata as Record<string, unknown>)
@@ -1386,6 +1439,7 @@ customersQuotesRouter.post(
             name: formatCustomerName(lead.name, req.body?.customer_type || "particular"),
             email: lead.email,
             phone: lead.phone,
+            address: siteAddress,
             notes: lead.notes,
             customerType: normalizeCustomerType(req.body?.customer_type || "particular"),
             pricingMode: normalizePricingMode(req.body?.pricing_mode),
@@ -1482,6 +1536,10 @@ customersQuotesRouter.put(
                         : existing.customPricingRates,
                     )
                   : {}
+                : undefined,
+            customPricingNotes:
+              body.custom_pricing_notes !== undefined
+                ? normalizeCustomPricingNotes(body.custom_pricing_notes)
                 : undefined,
             company: body.company !== undefined ? String(body.company || "") || null : undefined,
             nickname,
@@ -1644,7 +1702,7 @@ customersQuotesRouter.delete(
 
 function quoteListInclude() {
   return {
-    customer: { select: { name: true, company: true, clientCode: true } },
+    customer: { select: { name: true, company: true, clientCode: true, address: true } },
     workOrder: { select: { number: true, status: true } },
     builder: { select: { company: true, firstName: true, lastName: true } },
     property: { select: { line1: true, city: true, state: true, label: true } },

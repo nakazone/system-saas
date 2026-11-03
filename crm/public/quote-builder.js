@@ -219,14 +219,32 @@
     if (ee) ee.classList.add('hidden');
   }
 
+  function broadcastCustomerUpdated(customer) {
+    try {
+      const bc = new BroadcastChannel('obramate-crm');
+      bc.postMessage({
+        type: 'customer-updated',
+        id: customer && customer.id != null ? String(customer.id) : null,
+        customer: customer || null,
+      });
+      bc.close();
+    } catch (_) {
+      /* BroadcastChannel unavailable */
+    }
+  }
+
   function updateClientActionButtons() {
     const editBtn = $('btnEditClient');
     const crmLink = $('btnOpenLeadInCrm');
     const lid = getActiveLeadId();
-    if (editBtn) editBtn.classList.toggle('hidden', !lid);
+    const cid = String($('customerId')?.value || '').trim();
+    if (editBtn) editBtn.classList.toggle('hidden', !lid && !cid);
     if (crmLink) {
       if (lid) {
         crmLink.href = `lead-detail.html?id=${lid}`;
+        crmLink.classList.remove('hidden');
+      } else if (cid) {
+        crmLink.href = `customers.html?id=${encodeURIComponent(cid)}`;
         crmLink.classList.remove('hidden');
       } else {
         crmLink.classList.add('hidden');
@@ -234,36 +252,56 @@
     }
   }
 
-  function fillClientEditFormFromLead(lead) {
-    if (!lead) return;
-    if ($('editClientName')) $('editClientName').value = lead.name != null ? String(lead.name) : '';
-    if ($('editClientPhone')) $('editClientPhone').value = lead.phone != null ? String(lead.phone) : '';
-    if ($('editClientEmail')) $('editClientEmail').value = lead.email != null ? String(lead.email) : '';
-    if ($('editClientZip')) $('editClientZip').value = lead.zipcode != null ? String(lead.zipcode) : '';
+  function fillClientEditFormFromRecord(rec) {
+    if (!rec) return;
+    if ($('editClientName')) $('editClientName').value = rec.name != null ? String(rec.name) : '';
+    if ($('editClientPhone')) $('editClientPhone').value = rec.phone != null ? String(rec.phone) : '';
+    if ($('editClientEmail')) $('editClientEmail').value = rec.email != null ? String(rec.email) : '';
+    if ($('editClientZip')) $('editClientZip').value = rec.zipcode != null ? String(rec.zipcode) : '';
     if ($('editClientAddress')) {
-      $('editClientAddress').value = leadAddress(lead);
+      $('editClientAddress').value = leadAddress(rec) || customerAddress(rec) || '';
     }
   }
 
   async function openClientEditForm() {
     const lid = getActiveLeadId();
-    if (!lid) {
+    const cid = String($('customerId')?.value || '').trim();
+    if (!lid && !cid) {
       qbToast('Selecione ou crie um cliente primeiro.', 'info');
       return;
     }
     hideClientForms();
-    let lead = selectedQuoteLead;
-    if (!lead || !sameId(lead.id, lid)) {
-      try {
-        const lr = await fetch(`/api/leads/${encodeURIComponent(lid)}`, { credentials: 'include' }).then((r) => r.json());
-        if (lr.success && lr.data) lead = lr.data;
-      } catch (_) {
-        qbToast('Erro ao carregar lead.', 'error');
-        return;
+    if (lid) {
+      let lead = selectedQuoteLead;
+      if (!lead || !sameId(lead.id, lid)) {
+        try {
+          const lr = await fetch(`/api/leads/${encodeURIComponent(lid)}`, { credentials: 'include' }).then((r) => r.json());
+          if (lr.success && lr.data) lead = lr.data;
+        } catch (_) {
+          qbToast('Erro ao carregar lead.', 'error');
+          return;
+        }
       }
+      selectedQuoteLead = lead;
+      fillClientEditFormFromRecord(lead);
+    } else {
+      let customer = getQuoteCustomerRecord();
+      if (!customer || !sameId(customer.id, cid)) {
+        try {
+          const cr = await api(`/api/customers/${encodeURIComponent(cid)}`);
+          if (cr.data) {
+            customer = cr.data;
+            upsertClientInCache(cr.data);
+          }
+        } catch (_) {
+          qbToast('Erro ao carregar cliente.', 'error');
+          return;
+        }
+      }
+      fillClientEditFormFromRecord(customer);
     }
-    selectedQuoteLead = lead;
-    fillClientEditFormFromLead(lead);
+    const title = $('qbClientEditForm')?.querySelector('.qb-client-form__title');
+    if (title) title.textContent = lid ? 'Editar cliente (atualiza lead e Clients)' : 'Editar cliente (atualiza Clients)';
     const form = $('qbClientEditForm');
     if (form) {
       form.classList.remove('hidden');
@@ -276,8 +314,9 @@
     const errEl = $('editClientError');
     if (errEl) errEl.classList.add('hidden');
     const lid = getActiveLeadId();
-    if (!lid) {
-      qbToast('Nenhum lead associado.', 'error');
+    let cid = String($('customerId')?.value || '').trim();
+    if (!lid && !cid) {
+      qbToast('Nenhum cliente associado.', 'error');
       return;
     }
     const name = String($('editClientName')?.value || '').trim();
@@ -293,21 +332,30 @@
       return;
     }
     try {
-      const r = await fetch(`/api/leads/${lid}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ name, email, phone, zipcode, address: address || null }),
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok || !j.success) throw new Error(j.error || 'Erro ao atualizar lead.');
-      selectedQuoteLead = j.data;
-      loadedQuoteLeadId = lid;
-      const search = $('customerSearch');
-      if (search) search.value = formatLeadClientLabel(j.data);
-      const cid = String($('customerId')?.value || '').trim();
+      if (lid) {
+        const r = await fetch(`/api/leads/${lid}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ name, email, phone, zipcode, address: address || null }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.success) throw new Error(j.error || 'Erro ao atualizar lead.');
+        selectedQuoteLead = j.data;
+        loadedQuoteLeadId = lid;
+        const search = $('customerSearch');
+        if (search) search.value = formatLeadClientLabel(j.data);
+        if (!cid) {
+          try {
+            cid = await resolveCustomerForLead(lid);
+            if (cid && $('customerId')) $('customerId').value = String(cid);
+          } catch (_) {
+            /* lead updated; customer optional */
+          }
+        }
+      }
       if (cid) {
-        await fetch(`/api/customers/${encodeURIComponent(cid)}`, {
+        const r = await fetch(`/api/customers/${encodeURIComponent(cid)}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
           credentials: 'include',
@@ -316,24 +364,22 @@
             email,
             phone,
             address: address || null,
-            zipcode: zipcode || null,
           }),
-        }).catch(() => {});
-        try {
-          const cr = await api(`/api/customers/${cid}`);
-          if (cr.data) upsertClientInCache(cr.data);
-        } catch (_) {
-          upsertClientInCache({ id: cid, name, email, phone, address, zipcode });
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.success) throw new Error(j.error || 'Erro ao atualizar cliente.');
+        const updated = j.data || { id: cid, name, email, phone, address };
+        upsertClientInCache(updated);
+        if (selectedOrgCustomer && sameId(selectedOrgCustomer.id, cid)) {
+          selectedOrgCustomer = { ...selectedOrgCustomer, ...updated };
         }
-      } else {
-        try {
-          await resolveCustomerForLead(lid);
-        } catch (_) {
-          /* lead updated; customer optional */
-        }
+        broadcastCustomerUpdated(updated);
+        const search = $('customerSearch');
+        if (search && !lid) search.value = updated.display_name || updated.name || name;
       }
       hideClientForms();
       renderClientDetails();
+      renderOrgCustomerDetails();
       updateClientActionButtons();
       qbToast('Cliente atualizado no CRM.', 'success');
     } catch (e) {
@@ -646,9 +692,34 @@
     });
   }
 
+  function customNotesForCatalogRow(c, row) {
+    if (!c || !c.custom_pricing_notes || typeof c.custom_pricing_notes !== 'object') return null;
+    const notesMap = c.custom_pricing_notes;
+    const pid = catalogPricingItemId(row);
+    const raw = (pid && notesMap[pid] != null ? notesMap[pid] : null) || (row && row.id != null ? notesMap[String(row.id)] : null);
+    if (raw == null) return null;
+    if (typeof raw === 'string') return { notes: raw.trim() || null, name: null };
+    if (typeof raw === 'object') {
+      return {
+        notes: raw.notes != null ? String(raw.notes).trim() || null : null,
+        name: raw.name != null ? String(raw.name).trim() || null : null,
+      };
+    }
+    return null;
+  }
+
   function catalogDescriptionForRow(row) {
     if (!row) return '';
+    const custom = customNotesForCatalogRow(getQuoteCustomerRecord(), row);
+    if (custom && custom.notes) return custom.notes;
     return String(row.default_description || row.notes_customer || row.notes || '').trim();
+  }
+
+  function catalogNameForRow(row) {
+    if (!row) return '';
+    const custom = customNotesForCatalogRow(getQuoteCustomerRecord(), row);
+    if (custom && custom.name) return custom.name;
+    return String(row.name || '').trim();
   }
 
   function normalizeDescText(s) {
@@ -695,14 +766,26 @@
     const nameEl = $('qbSaveDescServiceName');
     const oldEl = $('qbSaveDescOld');
     const newEl = $('qbSaveDescNew');
+    const titleEl = $('qbSaveDescTitle');
+    const field = payload.field === 'name' ? 'name' : 'description';
+    if (titleEl) titleEl.textContent = field === 'name' ? 'Gravar novo nome?' : 'Gravar nova descrição?';
     if (nameEl) nameEl.textContent = payload.serviceName || 'Serviço';
     if (oldEl) {
-      const oldTxt = payload.tableDesc || '(sem descrição)';
+      const oldTxt = payload.tableDesc || (field === 'name' ? '(sem nome)' : '(sem descrição)');
       oldEl.textContent = oldTxt.length > 160 ? `${oldTxt.slice(0, 157)}…` : oldTxt;
     }
     if (newEl) {
-      const newTxt = payload.newDesc || '(vazia)';
+      const newTxt = payload.newDesc || (field === 'name' ? '(vazio)' : '(vazia)');
       newEl.textContent = newTxt.length > 160 ? `${newTxt.slice(0, 157)}…` : newTxt;
+    }
+    const customer = getQuoteCustomerRecord();
+    const clientBtn = $('qbSaveDescClient');
+    if (clientBtn) {
+      const hasCustomer = !!(customer && customer.id != null);
+      clientBtn.hidden = !hasCustomer;
+      clientBtn.disabled = !hasCustomer;
+      const label = customer && (customer.name || customer.company) ? String(customer.name || customer.company) : 'este cliente';
+      clientBtn.textContent = hasCustomer ? `Só para ${label}` : 'Só para este cliente';
     }
     root.classList.remove('hidden');
   }
@@ -720,9 +803,19 @@
     const row = opts.row || (it ? catalogRowForItem(it) : null);
     const pricingItemId = opts.pricingItemId || catalogPricingItemId(row);
     if (!pricingItemId) return;
+    const field = opts.field === 'name' ? 'name' : 'description';
     const tableDesc =
-      opts.tableDesc != null ? String(opts.tableDesc) : catalogDescriptionForRow(row);
-    const newDesc = opts.newDesc != null ? String(opts.newDesc) : String((it && it.description) || '');
+      opts.tableDesc != null
+        ? String(opts.tableDesc)
+        : field === 'name'
+          ? catalogNameForRow(row)
+          : catalogDescriptionForRow(row);
+    const newDesc =
+      opts.newDesc != null
+        ? String(opts.newDesc)
+        : field === 'name'
+          ? String((it && it.name) || '')
+          : String((it && it.description) || '');
     if (normalizeDescText(newDesc) === normalizeDescText(tableDesc)) return;
     openSaveDescModal({
       itemIdx: opts.itemIdx,
@@ -731,7 +824,13 @@
       tableDesc,
       pricingItemId,
       row,
+      field,
+      customer: getQuoteCustomerRecord(),
     });
+  }
+
+  function maybeOfferNamePersist(opts) {
+    maybeOfferDescPersist({ ...(opts || {}), field: 'name' });
   }
 
   function patchLocalCatalogDescription(pricingItemId, notes) {
@@ -745,32 +844,98 @@
     }
   }
 
+  function patchLocalCatalogName(pricingItemId, name) {
+    const pid = String(pricingItemId);
+    const text = name != null ? String(name).trim() : '';
+    for (const row of catalog) {
+      if (catalogPricingItemId(row) !== pid && String(row.id) !== pid) continue;
+      if (text) row.name = text;
+    }
+  }
+
   async function persistDescToPricingTable() {
     const p = descSavePending;
     if (!p || !p.pricingItemId) return;
+    const field = p.field === 'name' ? 'name' : 'description';
     const ok = confirm(
-      'Atualizar a descrição deste serviço na Tabela de Valores?\n\n' +
-        'Isto altera a descrição do sistema para todos os orçamentos futuros.',
+      field === 'name'
+        ? 'Atualizar o nome deste serviço na Tabela de Valores?\n\nIsto altera o nome do sistema para todos os orçamentos futuros.'
+        : 'Atualizar a descrição deste serviço na Tabela de Valores?\n\nIsto altera a descrição do sistema para todos os orçamentos futuros.',
     );
     if (!ok) return;
     const btn = $('qbSaveDescTable');
     if (btn) btn.disabled = true;
     try {
+      const body = field === 'name' ? { name: p.newDesc || null } : { notes: p.newDesc || null };
       const r = await fetch(`/api/pricing/${encodeURIComponent(p.pricingItemId)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ notes: p.newDesc || null }),
+        body: JSON.stringify(body),
       });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok || !j.success) throw new Error(j.error || 'Não foi possível atualizar a descrição.');
-      patchLocalCatalogDescription(p.pricingItemId, p.newDesc || '');
+      if (!r.ok || !j.success) throw new Error(j.error || 'Não foi possível atualizar a Tabela de Valores.');
+      if (field === 'name') patchLocalCatalogName(p.pricingItemId, p.newDesc || '');
+      else patchLocalCatalogDescription(p.pricingItemId, p.newDesc || '');
       const it = items[p.itemIdx];
       if (it) it.pricing_item_id = p.pricingItemId;
-      qbToast('Descrição atualizada na Tabela de Valores.', 'success');
+      qbToast(field === 'name' ? 'Nome atualizado na Tabela de Valores.' : 'Descrição atualizada na Tabela de Valores.', 'success');
       closeSaveDescModal();
     } catch (e) {
-      qbToast(e.message || 'Erro ao atualizar a descrição.', 'error');
+      qbToast(e.message || 'Erro ao atualizar a Tabela de Valores.', 'error');
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function persistDescForCustomerOnly() {
+    const p = descSavePending;
+    let customer = p && p.customer && p.customer.id != null ? p.customer : getQuoteCustomerRecord();
+    if (!p || !p.pricingItemId || !customer || customer.id == null) {
+      qbToast('Selecione um cliente CRM para gravar na tabela deste cliente.', 'error');
+      return;
+    }
+    const cid = String(customer.id);
+    const field = p.field === 'name' ? 'name' : 'description';
+    const prev =
+      customer.custom_pricing_notes && typeof customer.custom_pricing_notes === 'object'
+        ? { ...customer.custom_pricing_notes }
+        : {};
+    const pid = String(p.pricingItemId);
+    const cur = prev[pid];
+    const base =
+      cur && typeof cur === 'object'
+        ? { notes: cur.notes != null ? String(cur.notes) : null, name: cur.name != null ? String(cur.name) : null }
+        : typeof cur === 'string'
+          ? { notes: cur, name: null }
+          : { notes: null, name: null };
+    if (field === 'name') base.name = p.newDesc || null;
+    else base.notes = p.newDesc || null;
+    if (!base.notes && !base.name) delete prev[pid];
+    else prev[pid] = base;
+    const btn = $('qbSaveDescClient');
+    if (btn) btn.disabled = true;
+    try {
+      const r = await fetch(`/api/customers/${encodeURIComponent(cid)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ custom_pricing_notes: prev }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.success) throw new Error(j.error || 'Não foi possível gravar no cliente.');
+      const updated = j.data || { ...customer, custom_pricing_notes: prev };
+      upsertClientInCache(updated);
+      if (selectedOrgCustomer && sameId(selectedOrgCustomer.id, cid)) {
+        selectedOrgCustomer = { ...selectedOrgCustomer, ...updated };
+      }
+      broadcastCustomerUpdated(updated);
+      const it = items[p.itemIdx];
+      if (it) it.pricing_item_id = p.pricingItemId;
+      qbToast(field === 'name' ? 'Nome gravado só para este cliente.' : 'Descrição gravada só para este cliente.', 'success');
+      closeSaveDescModal();
+    } catch (e) {
+      qbToast(e.message || 'Erro ao gravar no cliente.', 'error');
     } finally {
       if (btn) btn.disabled = false;
     }
@@ -779,6 +944,7 @@
   function wireSaveDescModal() {
     $('qbSaveDescQuoteOnly')?.addEventListener('click', () => closeSaveDescModal());
     $('qbSaveDescTable')?.addEventListener('click', () => void persistDescToPricingTable());
+    $('qbSaveDescClient')?.addEventListener('click', () => void persistDescForCustomerOnly());
     $('qbSaveDescCancel')?.addEventListener('click', () => closeSaveDescModal());
     const root = $('qbSaveDescModal');
     if (root) {
@@ -6802,6 +6968,41 @@
     wireQuoteNotify();
     wireSaveRateModal();
     wireSaveDescModal();
+    try {
+      const bc = new BroadcastChannel('obramate-crm');
+      bc.onmessage = (ev) => {
+        const msg = ev && ev.data;
+        if (!msg || msg.type !== 'customer-updated') return;
+        const cid = msg.id != null ? String(msg.id) : '';
+        const active = String($('customerId')?.value || '').trim();
+        if (!cid || !active || !sameId(cid, active)) return;
+        const data = msg.customer;
+        if (data) {
+          upsertClientInCache(data);
+          if (selectedOrgCustomer && sameId(selectedOrgCustomer.id, cid)) {
+            selectedOrgCustomer = { ...selectedOrgCustomer, ...data };
+          }
+          renderClientDetails();
+          renderOrgCustomerDetails();
+          updateClientActionButtons();
+        } else {
+          void api(`/api/customers/${encodeURIComponent(cid)}`)
+            .then((r) => {
+              if (!r.data) return;
+              upsertClientInCache(r.data);
+              if (selectedOrgCustomer && sameId(selectedOrgCustomer.id, cid)) {
+                selectedOrgCustomer = { ...selectedOrgCustomer, ...r.data };
+              }
+              renderClientDetails();
+              renderOrgCustomerDetails();
+              updateClientActionButtons();
+            })
+            .catch(() => {});
+        }
+      };
+    } catch (_) {
+      /* BroadcastChannel unavailable */
+    }
     ensureServiceDescRichText();
     wireInvoiceUi();
     wireOwnerSignatureUi();
@@ -7458,6 +7659,7 @@
     filterCatalog: (q) => filterCatalogForServiceSearch(q),
     rateFor: (row) => effectiveCatalogRate(row, catalogPricingSource()),
     descFor: (row, name) => descriptionBodyWithoutTitle(name || (row && row.name) || '', catalogDescriptionForRow(row)),
+    nameFor: (row) => catalogNameForRow(row),
     catalogIds: (row) => ({ service_catalog_id: row ? normalizeCatalogId(row.id) : null, pricing_item_id: catalogPricingItemId(row) }),
     pricingLabel: () => pricingTypeLabel(catalogPricingSource()),
     normalizeServiceType,
@@ -7468,6 +7670,7 @@
     toast: (m, t) => qbToast(m, t),
     save: () => saveQuote(),
     offerDescriptionChange: (opts) => maybeOfferDescPersist(opts || {}),
+    offerNameChange: (opts) => maybeOfferNamePersist(opts || {}),
     offerRateChange: (opts) =>
       maybeOfferRatePersist({
         itemIdx: opts && opts.itemIdx,

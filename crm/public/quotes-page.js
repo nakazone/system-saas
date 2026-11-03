@@ -347,7 +347,7 @@
   }
   const PIN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>';
   function addressOf(q) {
-    const addr = String(q.job_address || q.property_label || '').trim();
+    const addr = String(q.job_address || q.customer_address || q.property_label || '').trim();
     if (!addr || addr === clientOf(q)) return '';
     return addr;
   }
@@ -365,23 +365,6 @@
     const s = shortStatus(q);
     return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
   }
-  /** Five stages, same bar as Jobs: done orange, current black. */
-  function progHtml(q) {
-    const g = groupOf(q);
-    const label = listStatus(q);
-    if (g === 'expired' || g === 'archived') return `<span class="qs-prog qs-prog--x" aria-label="${esc(label)}"></span>`;
-    let s = 0;
-    if (g === 'approved' && q.work_order_id) s = 5;
-    else if (g === 'approved') s = 3;
-    else if (g === 'changes' || isViewed(q)) s = 2;
-    else if (g !== 'draft') s = 1;
-    let h = '';
-    for (let i = 0; i < 5; i += 1) {
-      const c = i < s ? 'd' : i === s ? 'n' : '';
-      h += `<i class="${c}"></i>`;
-    }
-    return `<span class="qs-prog" aria-label="${esc(label)}">${h}</span>`;
-  }
   function rowHtml(q) {
     const on = String(st.sel) === String(q.id);
     const when = listDate(q);
@@ -392,7 +375,6 @@
       <span class="qs-row__b">
         <span class="qs-row__l1"><b>${esc(clientOf(q))}</b></span>
         ${addr ? `<span class="qs-row__addr">${PIN}<span>${esc(addr)}</span></span>` : ''}
-        <span class="qs-row__l3">${progHtml(q)}</span>
       </span>
       <span class="qs-row__side">
         <span class="qs-row__amt">${money(q.total_amount ?? q.total)}</span>
@@ -943,6 +925,18 @@
     await reload();
     if (window.OmGestures) {
       window.OmGestures.initPullToRefresh({ key: 'quotes', indicator: '#quotesPtr', refresh: () => reload() });
+    }
+    try {
+      const bc = new BroadcastChannel('obramate-crm');
+      bc.onmessage = (ev) => {
+        const msg = ev && ev.data;
+        if (!msg || msg.type !== 'customer-updated') return;
+        void reload().then(() => {
+          if (st.sel) void loadPaper(st.sel);
+        });
+      };
+    } catch (_) {
+      /* BroadcastChannel unavailable */
     }
   }
 
