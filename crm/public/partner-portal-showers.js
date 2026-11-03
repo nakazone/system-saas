@@ -4,12 +4,42 @@
  * opens the shower in 3D (three.js, loaded on demand). Quantities mirror
  * src/lib/trades/packs/tile/shower.ts (a test runs both on the same showers).
  *
- * window.ObShowers = { html(m), bind(view, m, { save, redraw }), quantities(shower), normalize(shower) }
+ * window.ObShowers = { html(m), bind(view, m, { save, redraw }), quantities(shower), normalize(shower), setLang('en'|'pt') }
+ * English for the builder portal; Portuguese for the CRM (Field Quote).
  */
 (function () {
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const CSS_ID = 'ppShowersCss';
   const THREE_URL = '/vendor/three-0.160.0.module.min.js';
+  let LANG = 'en';
+  const PT = {
+    Alcove: '3 paredes', Corner: 'Canto', 'Walk-in': 'Walk-in',
+    'Left wall': 'Parede esquerda', 'Back wall': 'Parede do fundo', 'Right wall': 'Parede direita',
+    Left: 'Esquerda', Back: 'Fundo', Right: 'Direita', Center: 'Centro', 'No door': 'Sem porta', Linear: 'Linear',
+    'Mortar bed': 'Argamassa com manta', 'Foam pan': 'Base de espuma', 'Prefab base': 'Base pronta',
+    'Top view': 'Vista de cima', Walls: 'Paredes', 'unfolded, to scale': 'abertas, em escala',
+    Shower: 'Box', Remove: 'Remover', Name: 'Nome', "Owner's bath shower": 'Box do banheiro da suíte',
+    Shape: 'Formato', Width: 'Largura', Depth: 'Profund.', 'Tile height': 'Altura revestida',
+    Niche: 'Nicho', None: 'Nenhum', Bench: 'Banco', Curb: 'Soleira', Curbless: 'Sem soleira', 'No curb': 'Sem soleira',
+    Door: 'Porta', Pan: 'Base', Drain: 'Ralo', Wall: 'Parede', Length: 'Compr.', 'Niche W': 'Larg.', 'Niche H': 'Alt.',
+    'Wall tile': 'Revestimento da parede', 'Floor tile': 'Revestimento do piso', Stacked: 'Alinhado', Offset: 'Desencontrado', Herringbone: 'Espinha de peixe',
+    waste: 'de perda', '12×24 porcelain': 'Porcelanato 12×24', '2×2 mosaic': 'Pastilha 2×2',
+    Quantities: 'Quantidades', 'this shower': 'deste box', Waterproofing: 'Impermeabilização', 'Trim / edge': 'Perfil / acabamento',
+    'Pan · niche · bench': 'Base · nicho · banco', 'Open edges': 'Bordas abertas', ' and niche frame': ' e moldura do nicho',
+    'Walls, floor': 'Paredes, piso', ', curb': ', soleira', ', niche': ', nicho', ', bench': ', banco',
+    'niche returns': 'laterais do nicho', bench: 'banco', curb: 'soleira', niche: 'nicho', niches: 'nichos', included: 'incluídos',
+    ' · bench footprint taken out': ' · sem a área do banco', Order: 'Comprar', with: 'com',
+    'No showers measured': 'Nenhum box medido',
+    'Add each shower with its size, niche, bench and curb — wall and floor tile, waterproofing and trim come out on their own.': 'Adicione cada box com a medida, nicho, banco e soleira — revestimento, impermeabilização e perfis saem sozinhos.',
+    '+ Shower': '+ Box', 'along the opening': 'na abertura', wide: 'de largura',
+    '72″ above the drain (minimum tiled height)': '72″ acima do ralo (altura mínima revestida)', at: 'a',
+    'drag to turn': 'arraste para girar', Close: 'Fechar', 'Loading 3D…': 'Carregando 3D…', 'Could not load the 3D viewer.': 'Não deu para abrir o 3D.',
+    'Shower seen from above': 'Box visto de cima', 'Shower in 3D': 'Box em 3D', 'One less niche': 'Um nicho a menos', 'One more niche': 'Mais um nicho',
+    'Tile long side': 'Lado maior da peça', Pattern: 'Paginação', 'this shower?': 'este box?',
+    SF: 'pé²', LF: 'pé lin.',
+  };
+  const T = (k) => (LANG === 'pt' && PT[k] != null ? PT[k] : k);
+  const wallLabel = (k) => T(WALL_LABEL[k]);
 
   const SHAPES = {
     alcove: { label: 'Alcove', walls: ['left', 'back', 'right'], openEdges: 2, curb: true },
@@ -95,7 +125,7 @@
     const walls = SHAPES[s.shape].walls;
     const q = quantities(s);
     let g = `<rect x="${x0}" y="${y0}" width="${w}" height="${d}" fill="url(#psMos)" stroke="#E5E7EB"/>`;
-    const wall = (key, x, y, ww, hh) => `<rect class="ps-w" data-sh-wall="${key}" x="${x}" y="${y}" width="${ww}" height="${hh}" fill="#221E1A"><title>${WALL_LABEL[key]}</title></rect>`;
+    const wall = (key, x, y, ww, hh) => `<rect class="ps-w" data-sh-wall="${key}" x="${x}" y="${y}" width="${ww}" height="${hh}" fill="#221E1A"><title>${wallLabel(key)}</title></rect>`;
     if (walls.includes('back')) g += wall('back', x0 - t, y0 - t, w + 2 * t, t);
     if (walls.includes('left')) g += wall('left', x0 - t, y0 - t, t, d + t);
     if (walls.includes('right')) g += wall('right', x0 + w, y0 - t, t, d + t);
@@ -104,11 +134,11 @@
       const r = s.bench_wall === 'back' ? [x0, y0, bl, bd] : s.bench_wall === 'left' ? [x0, y0, bd, bl] : [x0 + w - bd, y0, bd, bl];
       g += `<rect x="${r[0]}" y="${r[1]}" width="${r[2]}" height="${r[3]}" fill="#D9D2C7" stroke="#B8AE9F"/>`;
       const cx = r[0] + r[2] / 2, cy = r[1] + r[3] / 2;
-      g += `<text x="${cx}" y="${cy + 4}" font-size="12" fill="#5B5246" text-anchor="middle"${r[3] > r[2] ? ` transform="rotate(-90 ${cx} ${cy})"` : ''}>Bench ${s.bench_l}″ × ${s.bench_d}″</text>`;
+      g += `<text x="${cx}" y="${cy + 4}" font-size="12" fill="#5B5246" text-anchor="middle"${r[3] > r[2] ? ` transform="rotate(-90 ${cx} ${cy})"` : ''}>${T('Bench')} ${s.bench_l}″ × ${s.bench_d}″</text>`;
     }
     if (s.niches) {
       const nw = s.niche_w * k;
-      if (s.niche_wall === 'back') g += `<rect x="${x0 + w / 2 - nw / 2}" y="${y0 - t - 6}" width="${nw}" height="6" fill="#E7792C"/><text x="${x0 + w / 2}" y="${y0 - t - 12}" font-size="12" font-weight="700" fill="#B4561A" text-anchor="middle">Niche ${s.niche_w}″ × ${s.niche_h}″${s.niches > 1 ? ` ×${s.niches}` : ''}</text>`;
+      if (s.niche_wall === 'back') g += `<rect x="${x0 + w / 2 - nw / 2}" y="${y0 - t - 6}" width="${nw}" height="6" fill="#E7792C"/><text x="${x0 + w / 2}" y="${y0 - t - 12}" font-size="12" font-weight="700" fill="#B4561A" text-anchor="middle">${T('Niche')} ${s.niche_w}″ × ${s.niche_h}″${s.niches > 1 ? ` ×${s.niches}` : ''}</text>`;
       else {
         const x = s.niche_wall === 'left' ? x0 - t - 6 : x0 + w + t;
         g += `<rect x="${x}" y="${y0 + d / 2 - nw / 2}" width="6" height="${nw}" fill="#E7792C"/>`;
@@ -127,13 +157,13 @@
       const dx = center ? [x0 + w * 0.3, x0 + w * 0.7] : left ? [x0, x0 + w * 0.5] : [x0 + w * 0.5, x0 + w];
       if (!center) g += `<line x1="${left ? x0 + w * 0.52 : x0}" y1="${gy}" x2="${left ? x0 + w : x0 + w * 0.48}" y2="${gy}" stroke="#9DB3BF" stroke-width="4"/>`;
       g += `<line x1="${dx[0]}" y1="${gy + 6}" x2="${dx[1]}" y2="${gy + 6}" stroke="#E7792C" stroke-width="4"/>`;
-      g += `<text x="${(dx[0] + dx[1]) / 2}" y="${gy + 24}" font-size="12" font-weight="700" fill="#B4561A" text-anchor="middle">Door</text>`;
+      g += `<text x="${(dx[0] + dx[1]) / 2}" y="${gy + 24}" font-size="12" font-weight="700" fill="#B4561A" text-anchor="middle">${T('Door')}</text>`;
     }
     if (s.shape === 'corner') g += `<line x1="${x0}" y1="${y0}" x2="${x0}" y2="${y0 + d}" stroke="#9DB3BF" stroke-width="4"/>`;
-    g += `<text x="${x0}" y="${gy + 24}" font-size="12" fill="#667085">${hasCurb(s) ? `Curb ${q.curb_lf} LF` : 'No curb'}</text>`;
-    g += `<line x1="${x0}" y1="${gy + 44}" x2="${x0 + w}" y2="${gy + 44}" stroke="#221E1A"/><text x="${x0 + w / 2}" y="${gy + 62}" font-size="13" font-weight="700" text-anchor="middle">${s.width}″ wide</text>`;
+    g += `<text x="${x0}" y="${gy + 24}" font-size="12" fill="#667085">${hasCurb(s) ? `${T('Curb')} ${q.curb_lf} ${T('LF')}` : T('No curb')}</text>`;
+    g += `<line x1="${x0}" y1="${gy + 44}" x2="${x0 + w}" y2="${gy + 44}" stroke="#221E1A"/><text x="${x0 + w / 2}" y="${gy + 62}" font-size="13" font-weight="700" text-anchor="middle">${s.width}″ ${T('wide')}</text>`;
     g += `<line x1="${x0 + w + 30}" y1="${y0}" x2="${x0 + w + 30}" y2="${y0 + d}" stroke="#221E1A"/><text x="${x0 + w + 38}" y="${y0 + d / 2 + 4}" font-size="13" font-weight="700">${s.depth}″</text>`;
-    return `<svg class="ps-top" viewBox="0 0 ${W} ${d + 140}" role="img" aria-label="Shower seen from above">
+    return `<svg class="ps-top" viewBox="0 0 ${W} ${d + 140}" role="img" aria-label="${T('Shower seen from above')}">
       <defs><pattern id="psMos" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="#EFEBE5"/><path d="M8 0H0V8" fill="none" stroke="#DDD5CA" stroke-width="1"/></pattern></defs>${g}</svg>`;
   }
 
@@ -153,10 +183,10 @@
       if (s.bench && w.key === s.bench_wall) inner += `<rect x="0" y="${h - s.bench_h * k}" width="${Math.min(ww, s.bench_l * k)}" height="${s.bench_h * k}" fill="#D9D2C7" stroke="#B8AE9F"/>`;
       if (s.height >= 72) inner += `<line x1="0" y1="${h - 72 * k}" x2="${ww}" y2="${h - 72 * k}" stroke="#536249" stroke-dasharray="3 3"/>`;
       return `<figure data-sh-wall="${w.key}"><svg width="${ww}" height="${h}" viewBox="0 0 ${ww} ${h}" aria-hidden="true"><defs><pattern id="${pid}" width="${tw}" height="${th}" patternUnits="userSpaceOnUse"><rect width="${tw}" height="${th}" fill="#F3F0EA"/><path d="M${tw} 0H0V${th}" fill="none" stroke="#D9D2C7" stroke-width="1"/></pattern></defs>${inner}</svg>
-        <figcaption>${w.label}<small>${w.width}″ × ${w.height}″ · ${w.sf} SF</small></figcaption></figure>`;
+        <figcaption>${wallLabel(w.key)}<small>${w.width}″ × ${w.height}″ · ${w.sf} ${T('SF')}</small></figcaption></figure>`;
     });
     return `<div class="ps-elev">${figs.join('')}</div>
-      <p class="ps-hint"><span class="ps-hint__72">- - -</span> 72″ above the drain (minimum tiled height)${s.niches ? ` · niche ${s.niche_w}″ × ${s.niche_h}″ at 54″` : ''}</p>`;
+      <p class="ps-hint"><span class="ps-hint__72">- - -</span> ${T('72″ above the drain (minimum tiled height)')}${s.niches ? ` · ${T('niche')} ${s.niche_w}″ × ${s.niche_h}″ ${T('at')} 54″` : ''}</p>`;
   }
 
   /* ───────────────────────── panels ───────────────────────── */
@@ -167,38 +197,46 @@
 
   function settings(s, locked) {
     const dis = locked ? 'disabled' : '';
-    const walls = SHAPES[s.shape].walls.map((k) => [k, WALL_LABEL[k].replace(' wall', '')]);
-    return `<section class="ps-card"><h2>Shower${locked ? '' : `<button type="button" class="ps-link" data-sh-del>Remove</button>`}</h2>
-      <label class="ps-name"><span>Name</span><input type="text" maxlength="80" data-sh-field="name" value="${esc(s.name)}" placeholder="Owner's bath shower" ${dis} /></label>
-      <div class="ps-seg" role="group" aria-label="Shape">${Object.entries(SHAPES).map(([k, v]) => `<button type="button" data-sh-shape="${k}" aria-pressed="${k === s.shape}" class="${k === s.shape ? 'is-on' : ''}" ${dis}>${v.label}</button>`).join('')}</div>
-      <div class="ps-dims">${num('width', 'Width', s.width, dis)}${num('depth', 'Depth', s.depth, dis)}${num('height', 'Tile height', s.height, dis)}</div>
-      <div class="ps-row"><div><b>Niche</b><small>${s.niches ? `${s.niche_w}″ × ${s.niche_h}″ · ${WALL_LABEL[s.niche_wall].toLowerCase()}` : 'None'}</small></div>
-        <span class="ps-step">${locked ? '' : '<button type="button" data-sh-niches="-1" aria-label="One less niche">−</button>'}<b>${s.niches}</b>${locked ? '' : '<button type="button" data-sh-niches="1" aria-label="One more niche">+</button>'}</span></div>
-      ${s.niches ? `<div class="ps-sub">${num('niche_w', 'Niche W', s.niche_w, dis)}${num('niche_h', 'Niche H', s.niche_h, dis)}<label class="ps-dim"><span>Wall</span>${sel('niche_wall', s.niche_wall, walls, dis, 'Niche wall')}</label></div>` : ''}
-      <div class="ps-row"><div><b>Bench</b><small>${s.bench ? `${s.bench_l}″ × ${s.bench_d}″ · ${WALL_LABEL[s.bench_wall].toLowerCase()}` : 'None'}</small></div>${tog('bench', s.bench, dis, 'Bench')}</div>
-      ${s.bench ? `<div class="ps-sub">${num('bench_l', 'Length', s.bench_l, dis)}${num('bench_d', 'Depth', s.bench_d, dis)}<label class="ps-dim"><span>Wall</span>${sel('bench_wall', s.bench_wall, walls, dis, 'Bench wall')}</label></div>` : ''}
-      ${SHAPES[s.shape].curb ? `<div class="ps-row"><div><b>Curb</b><small>${hasCurb(s) ? `${quantities(s).curb_lf} LF along the opening` : 'Curbless'}</small></div>${tog('curb', s.curb, dis, 'Curb')}</div>` : ''}
-      <div class="ps-row"><div><b>Door</b></div>${sel('door', s.door, [['right', 'Right'], ['left', 'Left'], ['center', 'Center'], ['none', 'No door']], dis, 'Door')}</div>
-      <div class="ps-row"><div><b>Pan</b></div>${sel('pan', s.pan, Object.entries(PAN_LABEL), dis, 'Pan')}</div>
-      <div class="ps-row"><div><b>Drain</b></div>${sel('drain', s.drain, [['center', 'Center'], ['linear', 'Linear']], dis, 'Drain')}</div>
-      <div class="ps-row ps-row--stack"><div><b>Wall tile</b><small>${s.pattern === 'herringbone' ? 'Herringbone' : s.pattern === 'offset' ? 'Offset' : 'Stacked'} · ${Math.round(quantities(s).waste * 100)}% waste</small></div>
-        <div class="ps-tile"><input type="text" maxlength="80" data-sh-field="wall_tile" value="${esc(s.wall_tile)}" placeholder="12×24 porcelain" ${dis} />${sel('tile_long', s.tile_long, [[6, '≤ 6″'], [12, '12″'], [24, '24″'], [36, '36″'], [48, '48″+']], dis, 'Tile long side')}${sel('pattern', s.pattern, [['stacked', 'Stacked'], ['offset', 'Offset'], ['herringbone', 'Herringbone']], dis, 'Pattern')}</div></div>
-      <div class="ps-row ps-row--stack"><div><b>Floor tile</b></div><input type="text" class="ps-in" maxlength="80" data-sh-field="floor_tile" value="${esc(s.floor_tile)}" placeholder="2×2 mosaic" ${dis} /></div>
+    const walls = SHAPES[s.shape].walls.map((k) => [k, T(k === 'back' ? 'Back' : k === 'left' ? 'Left' : 'Right')]);
+    return `<section class="ps-card"><h2>${T('Shower')}${locked ? '' : `<button type="button" class="ps-link" data-sh-del>${T('Remove')}</button>`}</h2>
+      <label class="ps-name"><span>${T('Name')}</span><input type="text" maxlength="80" data-sh-field="name" value="${esc(s.name)}" placeholder="${esc(T("Owner's bath shower"))}" ${dis} /></label>
+      <div class="ps-seg" role="group" aria-label="${T('Shape')}">${Object.entries(SHAPES).map(([k, v]) => `<button type="button" data-sh-shape="${k}" aria-pressed="${k === s.shape}" class="${k === s.shape ? 'is-on' : ''}" ${dis}>${T(v.label)}</button>`).join('')}</div>
+      <div class="ps-dims">${num('width', T('Width'), s.width, dis)}${num('depth', T('Depth'), s.depth, dis)}${num('height', T('Tile height'), s.height, dis)}</div>
+      <div class="ps-row"><div><b>${T('Niche')}</b><small>${s.niches ? `${s.niche_w}″ × ${s.niche_h}″ · ${wallLabel(s.niche_wall).toLowerCase()}` : T('None')}</small></div>
+        <span class="ps-step">${locked ? '' : `<button type="button" data-sh-niches="-1" aria-label="${T('One less niche')}">−</button>`}<b>${s.niches}</b>${locked ? '' : `<button type="button" data-sh-niches="1" aria-label="${T('One more niche')}">+</button>`}</span></div>
+      ${s.niches ? `<div class="ps-sub">${num('niche_w', T('Niche W'), s.niche_w, dis)}${num('niche_h', T('Niche H'), s.niche_h, dis)}<label class="ps-dim"><span>${T('Wall')}</span>${sel('niche_wall', s.niche_wall, walls, dis, T('Wall'))}</label></div>` : ''}
+      <div class="ps-row"><div><b>${T('Bench')}</b><small>${s.bench ? `${s.bench_l}″ × ${s.bench_d}″ · ${wallLabel(s.bench_wall).toLowerCase()}` : T('None')}</small></div>${tog('bench', s.bench, dis, T('Bench'))}</div>
+      ${s.bench ? `<div class="ps-sub">${num('bench_l', T('Length'), s.bench_l, dis)}${num('bench_d', T('Depth'), s.bench_d, dis)}<label class="ps-dim"><span>${T('Wall')}</span>${sel('bench_wall', s.bench_wall, walls, dis, T('Wall'))}</label></div>` : ''}
+      ${SHAPES[s.shape].curb ? `<div class="ps-row"><div><b>${T('Curb')}</b><small>${hasCurb(s) ? `${quantities(s).curb_lf} ${T('LF')} ${T('along the opening')}` : T('Curbless')}</small></div>${tog('curb', s.curb, dis, T('Curb'))}</div>` : ''}
+      <div class="ps-row"><div><b>${T('Door')}</b></div>${sel('door', s.door, [['right', T('Right')], ['left', T('Left')], ['center', T('Center')], ['none', T('No door')]], dis, T('Door'))}</div>
+      <div class="ps-row"><div><b>${T('Pan')}</b></div>${sel('pan', s.pan, Object.entries(PAN_LABEL).map(([k, v]) => [k, T(v)]), dis, T('Pan'))}</div>
+      <div class="ps-row"><div><b>${T('Drain')}</b></div>${sel('drain', s.drain, [['center', T('Center')], ['linear', T('Linear')]], dis, T('Drain'))}</div>
+      <div class="ps-row ps-row--stack"><div><b>${T('Wall tile')}</b><small>${T(s.pattern === 'herringbone' ? 'Herringbone' : s.pattern === 'offset' ? 'Offset' : 'Stacked')} · ${Math.round(quantities(s).waste * 100)}% ${T('waste')}</small></div>
+        <div class="ps-tile"><input type="text" maxlength="80" data-sh-field="wall_tile" value="${esc(s.wall_tile)}" placeholder="${esc(T('12×24 porcelain'))}" ${dis} />${sel('tile_long', s.tile_long, [[6, '≤ 6″'], [12, '12″'], [24, '24″'], [36, '36″'], [48, '48″+']], dis, T('Tile long side'))}${sel('pattern', s.pattern, [['stacked', T('Stacked')], ['offset', T('Offset')], ['herringbone', T('Herringbone')]], dis, T('Pattern'))}</div></div>
+      <div class="ps-row ps-row--stack"><div><b>${T('Floor tile')}</b></div><input type="text" class="ps-in" maxlength="80" data-sh-field="floor_tile" value="${esc(s.floor_tile)}" placeholder="${esc(T('2×2 mosaic'))}" ${dis} /></div>
     </section>`;
   }
 
   function qtyCard(s) {
     const q = quantities(s);
+    const SF = T('SF'), LF = T('LF');
     const l = (a, b, c) => `<div class="ps-ql"><span>${a}</span><b>${b}</b>${c ? `<small>${c}</small>` : ''}</div>`;
-    return `<section class="ps-qty" aria-live="polite"><h2>Quantities<small>this shower</small></h2>
-      ${l('Wall tile', `${q.wall_sf} SF`, `Order ${q.order_wall_sf} SF with ${Math.round(q.waste * 100)}% waste${s.niches || s.bench || hasCurb(s) ? ` · ${[s.niches ? 'niche returns' : '', s.bench ? 'bench' : '', hasCurb(s) ? 'curb' : ''].filter(Boolean).join(', ')} included` : ''}`)}
-      ${l('Floor tile', `${q.floor_sf} SF`, `Order ${q.order_floor_sf} SF${s.bench ? ' · bench footprint taken out' : ''}`)}
-      ${l('Waterproofing', `${q.waterproofing_sf} SF`, 'Walls, floor' + (hasCurb(s) ? ', curb' : '') + (s.niches ? ', niche' : '') + (s.bench ? ', bench' : ''))}
-      ${l('Trim / edge', `${q.trim_lf} LF`, 'Open edges' + (s.niches ? ' and niche frame' : ''))}
-      ${hasCurb(s) ? l('Curb', `${q.curb_lf} LF`) : ''}
-      ${l('Pan · niche · bench', `${q.pan} · ${q.niches} · ${q.bench}`)}
+    const inc = [s.niches ? T('niche returns') : '', s.bench ? T('bench') : '', hasCurb(s) ? T('curb') : ''].filter(Boolean).join(', ');
+    return `<section class="ps-qty" aria-live="polite"><h2>${T('Quantities')}<small>${T('this shower')}</small></h2>
+      ${l(T('Wall tile'), `${q.wall_sf} ${SF}`, `${T('Order')} ${q.order_wall_sf} ${SF} ${T('with')} ${Math.round(q.waste * 100)}% ${T('waste')}${inc ? ` · ${inc} ${T('included')}` : ''}`)}
+      ${l(T('Floor tile'), `${q.floor_sf} ${SF}`, `${T('Order')} ${q.order_floor_sf} ${SF}${s.bench ? T(' · bench footprint taken out') : ''}`)}
+      ${l(T('Waterproofing'), `${q.waterproofing_sf} ${SF}`, T('Walls, floor') + (hasCurb(s) ? T(', curb') : '') + (s.niches ? T(', niche') : '') + (s.bench ? T(', bench') : ''))}
+      ${l(T('Trim / edge'), `${q.trim_lf} ${LF}`, T('Open edges') + (s.niches ? T(' and niche frame') : ''))}
+      ${hasCurb(s) ? l(T('Curb'), `${q.curb_lf} ${LF}`) : ''}
+      ${l(T('Pan · niche · bench'), `${q.pan} · ${q.niches} · ${q.bench}`)}
     </section>`;
   }
+
+  const chipSub = (s) => {
+    const extras = [s.niches ? (s.niches > 1 ? `${s.niches} ${T('niches')}` : T('niche')) : '', s.bench ? T('bench') : ''].filter(Boolean).join(', ');
+    return `${T(SHAPES[s.shape].label)} · ${s.width}″ × ${s.depth}″${extras ? ` · ${extras}` : ''}`;
+  };
+  const showerName = (s, i) => s.name || `${T('Shower')} ${i + 1}`;
 
   function html(m) {
     ensureCss();
@@ -208,21 +246,20 @@
     const chips = list
       .map((raw, i) => {
         const s = normalize(raw);
-        const extras = [s.niches ? (s.niches > 1 ? `${s.niches} niches` : 'niche') : '', s.bench ? 'bench' : ''].filter(Boolean).join(', ');
-        return `<button type="button" class="ps-chip${i === m.showerIdx ? ' is-on' : ''}" data-sh-pick="${i}" aria-pressed="${i === m.showerIdx}">${esc(s.name || `Shower ${i + 1}`)}<small>${SHAPES[s.shape].label} · ${s.width}″ × ${s.depth}″${extras ? ` · ${extras}` : ''}</small></button>`;
+        return `<button type="button" class="ps-chip${i === m.showerIdx ? ' is-on' : ''}" data-sh-pick="${i}" aria-pressed="${i === m.showerIdx}">${esc(showerName(s, i))}<small>${esc(chipSub(s))}</small></button>`;
       })
       .join('');
-    const add = locked ? '' : '<button type="button" class="ps-chip ps-chip--add" data-sh-add>+ Shower</button>';
+    const add = locked ? '' : `<button type="button" class="ps-chip ps-chip--add" data-sh-add>${T('+ Shower')}</button>`;
     if (!list.length) {
-      return `<section class="ps ps-empty-wrap"><div class="ps-empty"><strong>No showers measured</strong><span>Add each shower with its size, niche, bench and curb — wall and floor tile, waterproofing and trim come out on their own.</span>${locked ? '' : '<button type="button" class="ps-btn ps-btn--pri" data-sh-add>+ Shower</button>'}</div></section>`;
+      return `<section class="ps ps-empty-wrap"><div class="ps-empty"><strong>${T('No showers measured')}</strong><span>${T('Add each shower with its size, niche, bench and curb — wall and floor tile, waterproofing and trim come out on their own.')}</span>${locked ? '' : `<button type="button" class="ps-btn ps-btn--pri" data-sh-add>${T('+ Shower')}</button>`}</div></section>`;
     }
     const s = normalize(list[m.showerIdx]);
     return `<section class="ps">
       <div class="ps-chips">${chips}${add}</div>
       <div class="ps-grid">
         <div class="ps-col">
-          <section class="ps-card"><h2>Top view<button type="button" class="ps-btn ps-btn--dark ps-btn--sm" data-sh-3d>3D</button></h2><div data-sh-top>${topView(s)}</div></section>
-          <section class="ps-card"><h2>Walls<small>unfolded, to scale</small></h2><div data-sh-elev>${elevations(s)}</div></section>
+          <section class="ps-card"><h2>${T('Top view')}<button type="button" class="ps-btn ps-btn--dark ps-btn--sm" data-sh-3d>3D</button></h2><div data-sh-top>${topView(s)}</div></section>
+          <section class="ps-card"><h2>${T('Walls')}<small>${T('unfolded, to scale')}</small></h2><div data-sh-elev>${elevations(s)}</div></section>
         </div>
         <div class="ps-col"><div data-sh-settings>${settings(s, locked)}</div><div data-sh-qty>${qtyCard(s)}</div></div>
       </div>
@@ -243,7 +280,7 @@
       root.querySelector('[data-sh-elev]').innerHTML = elevations(s);
       root.querySelector('[data-sh-qty]').innerHTML = qtyCard(s);
       const chip = root.querySelector(`[data-sh-pick="${m.showerIdx}"] small`);
-      if (chip) chip.textContent = `${SHAPES[s.shape].label} · ${s.width}″ × ${s.depth}″${s.niches || s.bench ? ` · ${[s.niches ? (s.niches > 1 ? `${s.niches} niches` : 'niche') : '', s.bench ? 'bench' : ''].filter(Boolean).join(', ')}` : ''}`;
+      if (chip) chip.textContent = chipSub(s);
     };
     const set = (patch, all) => {
       m.data.showers[m.showerIdx] = normalize({ ...cur(), ...patch });
@@ -259,14 +296,14 @@
       if (b.hasAttribute('data-sh-add')) {
         const list = m.data.showers;
         const prev = list[list.length - 1];
-        list.push(normalize({ ...(prev ? { ...prev, name: '' } : {}), id: `sh${Date.now().toString(36)}`, name: `Shower ${list.length + 1}` }));
+        list.push(normalize({ ...(prev ? { ...prev, name: '' } : {}), id: `sh${Date.now().toString(36)}`, name: `${T('Shower')} ${list.length + 1}` }));
         m.showerIdx = list.length - 1;
         ctx.save();
         return ctx.redraw();
       }
       if (b.hasAttribute('data-sh-del')) {
         const s = normalize(cur());
-        if (!window.confirm(`Remove ${s.name || 'this shower'}?`)) return;
+        if (!window.confirm(`${T('Remove')} ${s.name || T('this shower?').replace('?', '')}?`)) return;
         m.data.showers.splice(m.showerIdx, 1);
         m.showerIdx = Math.max(0, m.showerIdx - 1);
         ctx.save();
@@ -286,7 +323,7 @@
       ctx.save();
       if (k === 'name') {
         const chip = root.querySelector(`[data-sh-pick="${m.showerIdx}"]`);
-        if (chip && chip.firstChild) chip.firstChild.textContent = t.value || `Shower ${m.showerIdx + 1}`;
+        if (chip && chip.firstChild) chip.firstChild.textContent = t.value || `${T('Shower')} ${m.showerIdx + 1}`;
         return;
       }
       if (t.type === 'number') repaint(false);
@@ -306,7 +343,7 @@
     ensureCss();
     const ov = document.createElement('div');
     ov.className = 'ps-3d';
-    ov.innerHTML = `<div class="ps-3d__box" role="dialog" aria-label="Shower in 3D"><div class="ps-3d__bar"><b>${esc(s.name || 'Shower')}</b><span>${SHAPES[s.shape].label} · ${s.width}″ × ${s.depth}″ × ${s.height}″ · drag to turn</span><button type="button" class="ps-btn ps-btn--sm" data-close>Close</button></div><div class="ps-3d__stage" data-stage><p class="ps-3d__load">Loading 3D…</p></div></div>`;
+    ov.innerHTML = `<div class="ps-3d__box" role="dialog" aria-label="${T('Shower in 3D')}"><div class="ps-3d__bar"><b>${esc(s.name || T('Shower'))}</b><span>${T(SHAPES[s.shape].label)} · ${s.width}″ × ${s.depth}″ × ${s.height}″ · ${T('drag to turn')}</span><button type="button" class="ps-btn ps-btn--sm" data-close>${T('Close')}</button></div><div class="ps-3d__stage" data-stage><p class="ps-3d__load">${T('Loading 3D…')}</p></div></div>`;
     document.body.appendChild(ov);
     let stop = false;
     const close = () => { stop = true; ov.remove(); document.removeEventListener('keydown', onKey); };
@@ -321,7 +358,7 @@
       buildScene(THREE, el, s, () => stop);
     } catch (_) {
       const el = ov.querySelector('[data-stage]');
-      if (el) el.innerHTML = '<p class="ps-3d__load">Could not load the 3D viewer.</p>';
+      if (el) el.innerHTML = `<p class="ps-3d__load">${T('Could not load the 3D viewer.')}</p>`;
     }
   }
 
@@ -400,5 +437,6 @@
     el.setAttribute('data-ready', '1');
   }
 
-  window.ObShowers = { html, bind, quantities, normalize, open3d };
+  const setLang = (l) => { LANG = l === 'pt' ? 'pt' : 'en'; };
+  window.ObShowers = { html, bind, quantities, normalize, open3d, setLang, chipSub: (raw, i) => ({ name: showerName(normalize(raw), i), sub: chipSub(normalize(raw)) }) };
 })();

@@ -72,7 +72,7 @@
     d.svc.installation = Object.assign(blankData().svc.installation, d.svc.installation || {});
     d.svc.sanding = Object.assign(blankData().svc.sanding, d.svc.sanding || {});
     d.answers = Object.assign(blankData().answers, d.answers || {});
-    ['rooms', 'custom', 'photos', 'services'].forEach((k) => (d[k] = Array.isArray(d[k]) ? d[k] : []));
+    ['rooms', 'custom', 'photos', 'services', 'showers'].forEach((k) => (d[k] = Array.isArray(d[k]) ? d[k] : []));
     d.extras = d.extras && typeof d.extras === 'object' && !Array.isArray(d.extras) ? d.extras : {};
     d.rates = d.rates && typeof d.rates === 'object' && !Array.isArray(d.rates) ? d.rates : {};
     d.floorplan = d.floorplan && typeof d.floorplan === 'object' && !Array.isArray(d.floorplan) ? d.floorplan : null;
@@ -122,11 +122,35 @@
 
   // ------------------------------------------------------------------ pricing (Tabela de Valores)
   const ctKey = () => 'price_' + ((S.fq && S.fq.customer_type) || 'particular');
+  /**
+   * Tile showers (window.ObShowers): one line per item and shower, priced from the Tabela de Valores
+   * item with the same name (the Tile services list), then by words, then these defaults.
+   */
+  const SHOWER_ITEMS = {
+    sh_wall: { names: ['shower walls installation'], hints: ['shower wall'], rate: 14 },
+    sh_floor: { names: ['shower floor (mosaic)'], hints: ['shower floor'], rate: 16 },
+    sh_pan_mortar: { names: ['shower pan - mortar bed with liner'], hints: ['mortar bed'], rate: 650 },
+    sh_pan_foam: { names: ['shower pan - foam tray system'], hints: ['foam tray', 'foam pan'], rate: 450 },
+    sh_drain: { names: ['linear drain installation'], hints: ['linear drain'], rate: 250 },
+    sh_membrane: { names: ['shower waterproofing membrane'], hints: ['waterproofing'], rate: 4 },
+    sh_flood: { names: ['flood test'], hints: ['flood test'], rate: 100 },
+    sh_niche: { names: ['shower niche'], hints: ['niche'], rate: 250 },
+    sh_bench: { names: ['shower bench'], hints: ['shower bench'], rate: 400 },
+    sh_curb: { names: ['shower curb'], hints: ['shower curb'], rate: 200 },
+    sh_trim: { names: ['metal edge profile / trim'], hints: ['edge profile', 'schluter'], rate: 8 },
+  };
+  /** Line key → the key prices are looked up by: Option B's ':b' and a shower's '@id' come off. */
+  const priceKey = (k) => String(k).replace(/:b$/, '').replace(/@.*$/, '');
   function matchPricing(key, materialOverride) {
     const items = S.pricing.filter((p) => p.active !== 0 && p.active !== false);
     if (!items.length) return null;
     const hay = (p) => `${p.name} ${p.notes || ''}`.toLowerCase();
     const has = (p, words) => words.some((w) => hay(p).includes(w));
+    const sh = SHOWER_ITEMS[key];
+    if (sh) {
+      const nm = (p) => String(p.name || '').toLowerCase().replace(/[–—]/g, '-').replace(/\s+/g, ' ').trim();
+      return items.find((p) => sh.names.includes(nm(p))) || items.find((p) => has(p, sh.hints)) || null;
+    }
     const d = S.d;
     if (key === 'installation' || key === 'supply') {
       const m = mat(materialOverride || d.svc.installation.material);
@@ -154,6 +178,7 @@
       if (m && m[key === 'supply' ? 'supply' : 'install']) return m[key === 'supply' ? 'supply' : 'install'];
     }
     if (key === 'supply') return C.SUPPLY.rate;
+    if (SHOWER_ITEMS[key]) return SHOWER_ITEMS[key].rate;
     const s = svcDef(key);
     if (s) return s.rate;
     const ex = C.EXTRAS.find((e) => e.id === key);
@@ -162,8 +187,8 @@
   /** { rate, source: 'manual'|'tabela'|'padrao', item } */
   function rateFor(key) {
     const o = S.d.rates[key];
-    const base = String(key).replace(/:b$/, '');
-    const matB = key !== base && S.d.option_b ? S.d.option_b.material : null;
+    const base = priceKey(key);
+    const matB = /:b$/.test(key) && S.d.option_b ? S.d.option_b.material : null;
     if (o && o.source === 'manual') return { rate: Number(o.rate) || 0, source: 'manual', item: null };
     if (o && o.pricing_item_id) {
       const it = S.pricing.find((p) => p.id === o.pricing_item_id);
@@ -226,11 +251,37 @@
       const q = ex.unit === 'fixed' ? Math.max(1, extraQty(d, ex)) : extraQty(d, ex);
       push(ex.id, ex.en, ex.qty === 'perimeter' ? 'Measured from room perimeters' : '', q, ex.unit, 'Installation');
     });
+    showerLines(d).forEach((l) => push(l.key, l.name, l.description, l.quantity, l.unit, 'Showers'));
     d.custom.forEach((c) => {
       const q = r2(c.qty);
       const rate = r2(c.rate);
       if (!c.name || q <= 0) return;
       out.push({ key: 'custom:' + c.id, name: c.name, description: '', quantity: q, unit: c.unit || 'each', rate, amount: r2(q * rate), source: 'manual', pricing_item_id: null, service_type: 'General', custom: c.id });
+    });
+    return out;
+  }
+  const SHAPE_EN = { alcove: 'alcove', corner: 'corner', walkin: 'walk-in' };
+  /** Shower lines, in English for the customer; the same for Option A and B. */
+  function showerLines(d) {
+    const O = window.ObShowers;
+    if (!O || !(d.showers || []).length) return [];
+    const out = [];
+    d.showers.forEach((raw, i) => {
+      const s = O.normalize(raw);
+      const q = O.quantities(s);
+      const who = s.name || `Shower ${i + 1}`;
+      const id = '@' + (s.id || i);
+      const add = (key, name, description, quantity, unit) => out.push({ key: key + id, name, description, quantity, unit });
+      add('sh_wall', 'Shower walls — tile installation', `${who} · ${SHAPE_EN[s.shape]} ${s.width}″ × ${s.depth}″, tiled ${s.height}″ high${s.wall_tile ? ` · ${s.wall_tile}` : ''}`, q.wall_sf, 'sq_ft');
+      add('sh_floor', 'Shower floor — tile installation', `${who}${s.floor_tile ? ` · ${s.floor_tile}` : ''}`, q.floor_sf, 'sq_ft');
+      if (q.pan) add(s.pan === 'foam' ? 'sh_pan_foam' : 'sh_pan_mortar', s.pan === 'foam' ? 'Shower pan — foam tray system' : 'Shower pan — mortar bed with liner', who, 1, 'each');
+      if (s.drain === 'linear') add('sh_drain', 'Linear drain installation', who, 1, 'each');
+      add('sh_membrane', 'Shower waterproofing membrane', `${who} · walls, floor${q.curb_lf ? ', curb' : ''}${q.niches ? ', niche' : ''}${q.bench ? ', bench' : ''}`, q.waterproofing_sf, 'sq_ft');
+      if (q.pan) add('sh_flood', 'Flood test', `${who} · before tile`, 1, 'each');
+      if (q.niches) add('sh_niche', q.niches > 1 ? 'Shower niches' : 'Shower niche', `${who} · ${s.niche_w}″ × ${s.niche_h}″`, q.niches, 'each');
+      if (q.bench) add('sh_bench', 'Shower bench', `${who} · ${s.bench_l}″ × ${s.bench_d}″`, 1, 'each');
+      if (q.curb_lf) add('sh_curb', 'Shower curb', `${who} · ${q.curb_lf} lin ft`, 1, 'each');
+      add('sh_trim', 'Shower trim — metal edge profile', `${who} · open edges${q.niches ? ' and niche frame' : ''}`, q.trim_lf, 'linear_ft');
     });
     return out;
   }
@@ -556,9 +607,9 @@
 
   // ------------------------------------------------------------------ panel view
   function progress(d) {
-    const measured = d.rooms.filter((r) => roomArea(r) > 0).length;
+    const measured = d.rooms.filter((r) => roomArea(r) > 0).length + (d.showers || []).length;
     const planOpen = d.floorplan && Array.isArray(d.floorplan.rooms) ? d.floorplan.rooms.filter((r) => !d.rooms.find((x) => x.id === r.measured_room_id)).length : 0;
-    const roomsTotal = d.rooms.length + planOpen;
+    const roomsTotal = d.rooms.length + planOpen + (d.showers || []).length;
     const q = countAnswers(d);
     const withPhoto = d.rooms.filter((r) => photosOf(r.id).length).length;
     const st = (done, part) => (done ? 'is-done' : part ? 'is-part' : '');
@@ -589,10 +640,58 @@
     const flag = area <= 0 ? '<span class="fq-flag">falta medir</span>' : !n ? '<span class="fq-flag">sem foto</span>' : `<span class="fq-ok" role="img" aria-label="Completo">${IC.check()}</span>`;
     return `<button type="button" class="fq-rc" data-fq-room="${esc(r.id)}"><span class="fq-rc__top"><b>${esc(r.label)}</b>${flag}</span><span class="fq-rc__area">${fmtN(area)} <small>pé²</small></span><span class="fq-rc__sub">${esc(roomDims(r))}${n ? ` · ${n} foto${n > 1 ? 's' : ''}` : ''}</span></button>`;
   }
+  /** Tile companies measure showers (or a visit that already has them). */
+  const showerWallSf = (d) => (window.ObShowers ? r2((d.showers || []).reduce((a, raw) => a + window.ObShowers.quantities(raw).wall_sf, 0)) : 0);
+  const showersOn = (d) => Boolean(window.ObShowers) && (((window.__OM_TRADE || {}).measureTabs || []).includes('showers') || (d.showers || []).length > 0);
+  /**
+   * The builder speaks Portuguese or English by itself (the page translator would turn "Box" into
+   * "Caixa"), so its parts are marked data-no-i18n; Spanish falls back to English for now.
+   */
+  const shPt = () => !window.CrmI18n || !window.CrmI18n.getLocale || window.CrmI18n.getLocale() === 'pt';
+  function showersSection(d) {
+    if (!showersOn(d)) return '';
+    const O = window.ObShowers;
+    const pt = shPt();
+    O.setLang(pt ? 'pt' : 'en');
+    const wall = showerWallSf(d);
+    const cards = d.showers.map((raw, i) => {
+      const c = O.chipSub(raw, i);
+      const q = O.quantities(raw);
+      return `<button type="button" class="fq-rc" data-fq-shower="${i}"><span class="fq-rc__top"><b>${esc(c.name)}</b><span class="fq-ok" role="img" aria-label="Medido">${IC.check()}</span></span><span class="fq-rc__area">${fmtN(q.wall_sf)} <small>${pt ? 'pé² parede' : 'sq ft walls'}</small></span><span class="fq-rc__sub">${esc(c.sub)}</span></button>`;
+    });
+    return `<section class="fq-sec" data-no-i18n>
+        <div class="fq-sec__head"><p class="fq-lbl2">${pt ? 'BOXES' : 'SHOWERS'}${wall ? ` · ${fmtN(wall)} ${pt ? 'PÉ² DE PAREDE' : 'SQ FT OF WALL'}` : ''}</p></div>
+        <div class="fq-rooms">${cards.join('')}<button type="button" class="fq-rc fq-rc--add" data-fq-shower-new>${IC.plus(22)}<span>${pt ? 'Box' : 'Shower'}</span></button></div>
+      </section>`;
+  }
+  /** The shower builder (the same one as ObraBuilder's Showers tab), in Portuguese, in a tall sheet. */
+  function sheetShowers(idx, isNew) {
+    const O = window.ObShowers;
+    if (!O) return;
+    const pt = shPt();
+    O.setLang(pt ? 'pt' : 'en');
+    const m = { get data() { return S.d; }, status: 'draft', showerIdx: idx || 0 };
+    if (isNew) {
+      const list = S.d.showers;
+      const prev = list[list.length - 1];
+      list.push(O.normalize({ ...(prev ? prev : {}), id: `sh${Date.now().toString(36)}`, name: `${pt ? 'Box' : 'Shower'} ${list.length + 1}` }));
+      m.showerIdx = list.length - 1;
+      markDirty();
+    }
+    openSheet(`${bar(pt ? 'Boxes' : 'Showers', 'none')}<div class="fq-sbody fq-showers" id="fqShowers" data-no-i18n></div>`, 'fq-sheet__card--tall fq-sheet__card--wide');
+    S.sheet = { kind: 'showers' };
+    const draw = () => {
+      const body = $('#fqShowers');
+      if (!body) return;
+      body.innerHTML = O.html(m);
+      O.bind(body, m, { save: markDirty, redraw: draw });
+    };
+    draw();
+  }
   function sideHtml(t, tips) {
     const area = totalArea(S.d);
     const tb = S.d.option_b ? totals(S.d, 'b') : null;
-    return `${pendingCardHtml()}<section class="fq-live"><span class="fq-lbl2">PROPOSTA AO VIVO${tb ? ' · OPÇÃO A' : ''}</span><b class="fq-live__tot">${esc(money(t.total))}</b>${tb ? `<span class="fq-live__b">Opção B · ${esc(mat(S.d.option_b.material).pt.split(' (')[0])}: <b>${esc(money(tb.total))}</b></span>` : ''}<span class="fq-live__sub">${area ? `${fmtN(area)} pé² · ${esc(money(r2(t.total / area)))}/pé²` : 'meça os cômodos'} · preços ${esc((C.CUSTOMER_TYPES.find((x) => x.id === S.fq.customer_type) || {}).pt || '')}</span>
+    return `${pendingCardHtml()}<section class="fq-live"><span class="fq-lbl2">PROPOSTA AO VIVO${tb ? ' · OPÇÃO A' : ''}</span><b class="fq-live__tot">${esc(money(t.total))}</b>${tb ? `<span class="fq-live__b">Opção B · ${esc(mat(S.d.option_b.material).pt.split(' (')[0])}: <b>${esc(money(tb.total))}</b></span>` : ''}<span class="fq-live__sub">${area ? `${fmtN(area)} pé² · ${esc(money(r2(t.total / area)))}/pé²` : S.d.showers.length ? `${S.d.showers.length} box${S.d.showers.length > 1 ? 'es' : ''} · ${fmtN(showerWallSf(S.d))} pé² de parede` : 'meça os cômodos'} · preços ${esc((C.CUSTOMER_TYPES.find((x) => x.id === S.fq.customer_type) || {}).pt || '')}</span>
       <div class="fq-live__lines">${t.lines.map((l) => `<button type="button" class="fq-live__ln" data-fq-rate="${esc(l.key)}"><span>${esc(l.name)}${l.source === 'padrao' ? ' <em>preço padrão</em>' : ''}</span><b>${esc(money(l.amount))}</b></button>`).join('') || '<p class="fq-empty">As linhas aparecem aqui enquanto você mede.</p>'}</div></section>
       ${photoTipsHtml()}${tipsCard(tips, 3)}`;
   }
@@ -619,6 +718,7 @@
       ${quoted ? `<div class="fq-quoted"><div><b>Orçamento ${esc(fq.quote.number)}</b><small>${esc(quoteStatusPt(fq.quote.status))}</small></div><a class="fq-btn fq-btn--sm" href="quote-builder.html?id=${esc(fq.quote_id)}${fq.lead_id ? '&lead_id=' + esc(fq.lead_id) : ''}">Abrir</a><button type="button" class="fq-btn fq-btn--sm fq-btn--ink" data-fq-present-existing>${IC.play()}Apresentar</button></div>` : ''}
       <div class="fq-only-phone">${pendingCardHtml()}${photoTipsHtml()}${tipsCard(tips, 1)}</div>
       <section class="fq-sec"><p class="fq-lbl2">O QUE VAI SER FEITO</p><div class="fq-chips">${svcChips(d)}</div></section>
+      ${showersSection(d)}
       <section class="fq-sec">
         <div class="fq-sec__head"><p class="fq-lbl2">CÔMODOS${area ? ` · ${fmtN(area)} PÉ²` : ''}</p>${d.services.length ? `<button type="button" class="fq-link2" data-fq-ai-measure>${IC.mic(15)}Ditar medidas</button>` : ''}</div>
         <div class="fq-rooms">${d.rooms.map(roomCard).join('')}
@@ -997,10 +1097,11 @@
   }
 
   // review → "Resultado"
-  const baseKey = (k) => String(k || '').replace(/:b$/, '');
+  const baseKey = (k) => String(k || '').replace(/:b$/, '').replace(/@.*$/, '');
   function lineGroup(l0) {
     const l = Object.assign({}, l0, { key: baseKey(l0.key) });
     const n = String(l.name || '').toLowerCase();
+    if (/^sh_/.test(l.key)) return 'Boxes';
     if (l.key === 'supply') return 'Material';
     if (l.key === 'installation') return 'Instalação';
     if (l.key === 'demolition') return 'Remoção do piso';
@@ -1017,8 +1118,10 @@
     if (view === 'room') {
       const acc = new Map(d.rooms.map((r) => [r.id, 0]));
       let general = 0;
+      let showers = 0;
       t.lines.forEach((l) => {
         const lk = baseKey(l.key);
+        if (/^sh_/.test(lk)) return (showers += l.amount);
         const sid = lk === 'supply' ? 'installation' : lk;
         if (l.unit === 'sq_ft' && C.SERVICES.some((s) => s.id === sid)) {
           const pool = d.rooms.filter((r) => (r.services || []).includes(sid));
@@ -1033,6 +1136,7 @@
         general += l.amount;
       });
       rows = d.rooms.map((r) => ({ label: r.label, sub: `${fmtN(roomArea(r))} pé²`, amount: r2(acc.get(r.id)) }));
+      if (showers > 0) rows.push({ label: 'Boxes', sub: `${d.showers.length} box${d.showers.length > 1 ? 'es' : ''}`, amount: r2(showers) });
       if (general > 0) rows.push({ label: 'Geral', sub: 'escada, descarte, itens fixos', amount: r2(general) });
     } else {
       const g = new Map();
@@ -1096,9 +1200,11 @@
       <div class="fq-sbody fq-result">
         ${two ? optionCards(opt) : `<div class="fq-bigtotal"><small>Total para o cliente</small><b>${esc(money(t.total))}</b><span>preços ${esc((C.CUSTOMER_TYPES.find((x) => x.id === fq.customer_type) || {}).pt)}</span></div>`}
         <div class="fq-stats">
-          <div><small>Por pé²</small><b>${area ? esc(money(r2(t.total / area))) : '—'}</b></div>
+          ${!S.d.rooms.length && S.d.showers.length ? `<div><small>Por box</small><b>${esc(money(r2(t.total / S.d.showers.length)))}</b></div>
+          <div><small>Parede</small><b>${fmtN(showerWallSf(S.d))} pé²</b></div>
+          <div><small>Boxes</small><b>${S.d.showers.length}</b></div>` : `<div><small>Por pé²</small><b>${area ? esc(money(r2(t.total / area))) : '—'}</b></div>
           <div><small>Área</small><b>${fmtN(area)} pé²</b></div>
-          <div><small>Cômodos</small><b>${S.d.rooms.length}</b></div>
+          <div><small>${S.d.showers.length ? 'Cômodos · boxes' : 'Cômodos'}</small><b>${S.d.rooms.length}${S.d.showers.length ? ` · ${S.d.showers.length}` : ''}</b></div>`}
         </div>
         <section class="fq-money">
           <div class="fq-money__head"><b>Para onde vai o dinheiro</b>
@@ -1886,8 +1992,8 @@
         title: fq.client_name,
         job_name: fq.client_name,
         job_address: fq.address || null,
-        service_type: d.services.map((s) => svcDef(s).en).join(' · '),
-        flooring_type: d.services.includes('installation') ? m.id : 'hardwood',
+        service_type: [...d.services.map((s) => svcDef(s).en), ...(d.showers.length ? ['Showers'] : [])].join(' · '),
+        flooring_type: d.services.includes('installation') ? m.id : d.showers.length ? 'tile' : 'hardwood',
         area_sqft: totalArea(d),
         waste_percent: d.svc.installation.supply ? installWaste(d) : 0,
         items: quoteLines(d).map((l) => ({ name: l.name, description: l.description || null, quantity: l.quantity, rate: l.rate, unit_type: l.unit, item_type: 'service', service_type: l.service_type, pricing_item_id: l.pricing_item_id || undefined })),
@@ -2163,6 +2269,8 @@
         return;
       }
       if (t.closest('[data-fq-room-new]')) return sheetRoom(null);
+      if (t.closest('[data-fq-shower-new]')) return sheetShowers(null, true);
+      if ((el = t.closest('[data-fq-shower]'))) return sheetShowers(Number(el.dataset.fqShower));
       if ((el = t.closest('[data-fq-room]'))) return sheetRoom(el.dataset.fqRoom);
       if ((el = t.closest('[data-fq-shoot]'))) {
         if (S.sheet && S.sheet.kind === 'room' && S.sheet.isNew && el.dataset.fqShoot) {

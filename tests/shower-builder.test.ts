@@ -124,4 +124,37 @@ describe("the portal computes the same quantities as the server", () => {
     ];
     for (const s of cases) expect(win.ObShowers.quantities(s)).toEqual(showerQuantities(s));
   });
+
+  it("speaks English in the builder portal and Portuguese in the Field Quote, with the same numbers", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync("crm/public/partner-portal-showers.js", "utf8");
+    const win: Record<string, any> = {};
+    const doc = { getElementById: () => ({}), head: { appendChild() {} }, createElement: () => ({}) };
+    new Function("window", "document", src)(win, doc);
+    const m = () => ({ data: { showers: [owner] }, status: "draft", showerIdx: 0 });
+    const en = win.ObShowers.html(m());
+    expect(en).toContain("Top view");
+    expect(en).toContain("99.7 SF");
+    win.ObShowers.setLang("pt");
+    const pt = win.ObShowers.html(m());
+    expect(pt).toContain("Vista de cima");
+    expect(pt).toContain("99.7 pé²");
+    expect(pt).toContain("Soleira");
+    expect(pt).not.toContain("Top view");
+    expect(win.ObShowers.chipSub(owner, 0)).toEqual({ name: "Owner's bath shower", sub: "3 paredes · 60″ × 36″ · nicho, banco" });
+    expect(win.ObShowers.quantities(owner)).toEqual(showerQuantities(owner));
+  });
+});
+
+describe("Field Quote: showers become priced quote lines", () => {
+  it("prices each shower item from the Tile services list by name, else the default", async () => {
+    const { readFileSync } = await import("node:fs");
+    const fq = readFileSync("crm/public/field-quote.js", "utf8");
+    const { TILE_SERVICES } = await import("../src/lib/trades/packs/tile/services.js");
+    // Every shower item points at a Tile service that the company's price list gets when it turns Tile on.
+    const names = [...fq.matchAll(/names: \['([^']+)'\]/g)].map((x) => x[1]);
+    expect(names.length).toBe(11);
+    const tile = new Set(TILE_SERVICES.map((s) => s.name.toLowerCase().replace(/[–—]/g, "-")));
+    for (const n of names) expect(tile.has(n)).toBe(true);
+  });
 });

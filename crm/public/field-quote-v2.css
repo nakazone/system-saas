@@ -244,3 +244,11 @@ body.fq-body .mate-fab { display: none !important; }
 @keyframes fq-mate-think { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.5px); } }
 .fq-btn .fq-mateface { margin-left: -4px; }
 @media (prefers-reduced-motion: reduce) { .fq-mateface img { animation: none; } }
+
+/* Boxes (Tile): the shower builder in a wide sheet */
+.fq-showers { background: #F7F5F1; }
+.fq-showers .ps-chip { min-height: 44px; }
+@media (min-width: 768px) {
+  .fq-sheet__card--wide { width: min(1120px, calc(100vw - 48px)); }
+  .fq-sheet__card--wide .fq-sbar h2 { max-width: 640px; }
+}
