@@ -27,7 +27,7 @@ import { ensureWorkOrderOnApprove } from "../../lib/work-orders/from-quote.js";
 import { cancelPendingMessages } from "../../lib/automations/schedule.js";
 import { moveLeadForQuoteEvent } from "../../lib/pipeline/move.js";
 import { formatPersonName } from "../../lib/name.js";
-import { buildFieldQuoteTour, tourDeposit, type Tour } from "../../lib/field-quote/tour.js";
+import { buildFieldQuoteTour, quoteShowers, tourDeposit, type Tour } from "../../lib/field-quote/tour.js";
 import { publishAppNotification, quoteLabel, usd } from "../../lib/notifications/publish.js";
 import { primaryPack } from "../../lib/trades/index.js";
 
@@ -132,6 +132,7 @@ async function loadPublicTour(
     optionGroups?: Array<{ id: string; name: string; flooringType: string | null }>;
     selectedOptionGroupId?: string | null;
     taxRate?: Prisma.Decimal | null;
+    payload?: Prisma.JsonValue | null;
   },
 ): Promise<Tour | null> {
   try {
@@ -154,6 +155,7 @@ async function loadPublicTour(
       selectedGroupId: quote.selectedOptionGroupId ?? null,
       taxRate: quote.taxRate ?? 0,
       schedule: quote.paymentSchedule,
+      showers: quoteShowers(quote.payload),
     });
     return tour.rooms.length || tour.showers.length ? tour : null;
   } catch {

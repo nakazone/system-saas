@@ -32,6 +32,8 @@
   let templates = [];
   /** @type {Array<Record<string, unknown>>} */
   let items = [];
+  /** Tile showers kept on the quote (payload.showers): from the Field Quote or made here. */
+  let quoteShowers = [];
   /** Sortable instances for drag-reorder (destroyed on each render). */
   let itemSortables = [];
 
@@ -5167,6 +5169,154 @@
     return card;
   }
 
+  /* ───────────── Tile: showers (the same builder as the Field Quote and ObraBuilder) ───────────── */
+
+  /** Tile companies, or a quote that already has showers. */
+  function showersOn() {
+    const t = window.__OM_TRADE || {};
+    return Boolean(window.ObShowers) && ((Array.isArray(t.measureTabs) && t.measureTabs.includes('showers')) || quoteShowers.length > 0);
+  }
+  const shPt = () => !window.CrmI18n || !window.CrmI18n.getLocale || window.CrmI18n.getLocale() === 'pt';
+  const isShowerLine = (it) => Boolean(it && it.shower_id && it.shower_item);
+
+  /** Older quotes from the Field Quote: tie their shower lines to the showers by name and description. */
+  function adoptShowerLines() {
+    if (!quoteShowers.length) return;
+    const want = window.ObShowers.quoteLines(quoteShowers);
+    want.forEach((w) => {
+      if (items.some((it) => it.shower_id === w.shower_id && it.shower_item === w.item)) return;
+      const who = String(w.description || '').split(' · ')[0];
+      const hit = items.find((it) => !isShowerLine(it) && it.name === w.name && (String(it.description || '') === who || String(it.description || '').startsWith(who + ' · ')));
+      if (hit) {
+        hit.shower_id = w.shower_id;
+        hit.shower_item = w.item;
+      }
+    });
+  }
+
+  /** Price for a new shower line: the company's price list (by name), else the default. */
+  function showerRate(item) {
+    const row = window.ObShowers.matchPrice(item, catalog.filter((r) => catalogPricingItemId(r)));
+    const rate = row ? effectiveCatalogRate(row, catalogPricingSource()) : 0;
+    if (rate > 0) return { rate, pricing_item_id: catalogPricingItemId(row) };
+    return { rate: (window.ObShowers.PRICE_ITEMS[item] || {}).rate || 0, pricing_item_id: null };
+  }
+
+  /**
+   * Rebuild the shower lines from the showers. A line that was already there keeps its price
+   * (and any price set by hand); new lines take the price list; removed showers lose their lines.
+   */
+  function applyShowersToItems(showers) {
+    adoptShowerLines();
+    const old = new Map(items.filter(isShowerLine).map((it) => [`${it.shower_id}|${it.shower_item}`, it]));
+    const at = items.findIndex(isShowerLine);
+    const rest = items.filter((it) => !isShowerLine(it));
+    const fresh = window.ObShowers.quoteLines(showers).map((w) => {
+      const prev = old.get(`${w.shower_id}|${w.item}`);
+      const unit = w.unit === 'each' ? 'fixed' : w.unit;
+      if (prev) return { ...prev, name: w.name, description: w.description, quantity: w.quantity, unit_type: unit };
+      const pr = showerRate(w.item);
+      return { ...emptyLine(), name: w.name, description: w.description, quantity: w.quantity, unit_type: unit, rate: pr.rate, sell_price: pr.rate, pricing_item_id: pr.pricing_item_id, service_type: 'Installation', shower_id: w.shower_id, shower_item: w.item };
+    });
+    const pos = at >= 0 ? Math.min(at, rest.length) : rest.length;
+    items = [...rest.slice(0, pos), ...fresh, ...rest.slice(pos)].filter((it) => !isBlankLine(it));
+    quoteShowers = showers;
+  }
+
+  function showerTotals() {
+    const by = new Map();
+    items.filter(isShowerLine).forEach((it) => by.set(it.shower_id, (by.get(it.shower_id) || 0) + lineAmount(Number(it.quantity) || 0, Number(it.rate) || 0)));
+    return by;
+  }
+
+  /** The strip above the lines: one chip per shower with its wall area and price, and "+ Box". */
+  function renderShowersStrip() {
+    let box = $('qbShowers');
+    if (!showersOn()) {
+      if (box) box.hidden = true;
+      return;
+    }
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'qbShowers';
+      box.className = 'qb-sh';
+      box.setAttribute('data-no-i18n', '');
+      $('itemsList').parentNode.insertBefore(box, $('itemsList'));
+      box.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-qb-sh]');
+        if (b) openShowersEditor(b.getAttribute('data-qb-sh') === 'new' ? null : Number(b.getAttribute('data-qb-sh')));
+      });
+    }
+    box.hidden = false;
+    const O = window.ObShowers;
+    const pt = shPt();
+    O.setLang(pt ? 'pt' : 'en');
+    adoptShowerLines();
+    const tot = showerTotals();
+    box.innerHTML = `<div class="qb-sh__head"><b>${pt ? 'Boxes' : 'Showers'}</b><small>${pt ? 'As linhas de cada box saem das medidas; o preço de cada linha continua editável abaixo.' : 'Each shower’s lines come from its measurements; prices stay editable below.'}</small></div>
+      <div class="qb-sh__chips">${quoteShowers.map((raw, i) => {
+        const c = O.chipSub(raw, i);
+        const s = O.normalize(raw);
+        return `<button type="button" class="qb-sh__chip" data-qb-sh="${i}"><span><b>${escapeHtmlText(c.name)}</b><small>${escapeHtmlText(c.sub)} · ${O.quantities(s).wall_sf} ${pt ? 'pé² parede' : 'sq ft walls'}</small></span><em>${money(tot.get(String(s.id || i)) || 0)}</em></button>`;
+      }).join('')}<button type="button" class="qb-sh__chip qb-sh__chip--add" data-qb-sh="new">+ ${pt ? 'Box' : 'Shower'}</button></div>`;
+  }
+
+  /** Edit the showers in a large sheet; "Aplicar" rebuilds their lines in the quote. */
+  function openShowersEditor(idx) {
+    const O = window.ObShowers;
+    const pt = shPt();
+    O.setLang(pt ? 'pt' : 'en');
+    const draft = { data: { showers: JSON.parse(JSON.stringify(quoteShowers)) }, status: 'draft', showerIdx: idx || 0 };
+    if (idx == null) {
+      const list = draft.data.showers;
+      const prev = list[list.length - 1];
+      list.push(O.normalize({ ...(prev || {}), id: `sh${Date.now().toString(36)}`, name: `${pt ? 'Box' : 'Shower'} ${list.length + 1}` }));
+      draft.showerIdx = list.length - 1;
+    }
+    const ov = document.createElement('div');
+    ov.className = 'qb-sh-modal';
+    ov.setAttribute('data-no-i18n', '');
+    ov.innerHTML = `<div class="qb-sh-modal__box" role="dialog" aria-modal="true" aria-label="${pt ? 'Boxes' : 'Showers'}">
+      <header class="qb-sh-modal__bar"><button type="button" class="qb-sh-modal__x" data-qb-sh-close>${pt ? 'Cancelar' : 'Cancel'}</button><b>${pt ? 'Boxes' : 'Showers'}</b><button type="button" class="qb-sh-modal__ok" data-qb-sh-apply>${pt ? 'Aplicar<span class="qb-sh-modal__long"> ao orçamento</span>' : 'Apply<span class="qb-sh-modal__long"> to quote</span>'}</button></header>
+      <div class="qb-sh-modal__body" id="qbShBody"></div>
+      <footer class="qb-sh-modal__foot" id="qbShFoot"></footer>
+    </div>`;
+    document.body.appendChild(ov);
+    document.documentElement.classList.add('qb-sh-open');
+    const foot = () => {
+      const lines = O.quoteLines(draft.data.showers);
+      const el = $('qbShFoot');
+      if (el) el.textContent = pt ? `${draft.data.showers.length} box${draft.data.showers.length === 1 ? '' : 'es'} · ${lines.length} linhas no orçamento ao aplicar` : `${draft.data.showers.length} shower(s) · ${lines.length} quote lines when applied`;
+    };
+    const draw = () => {
+      const body = $('qbShBody');
+      if (!body) return;
+      body.innerHTML = O.html(draft);
+      O.bind(body, draft, { save: foot, redraw: draw });
+      foot();
+    };
+    const close = () => {
+      ov.remove();
+      document.documentElement.classList.remove('qb-sh-open');
+      document.removeEventListener('keydown', onKey);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape' && !document.querySelector('.ps-3d')) close();
+    };
+    document.addEventListener('keydown', onKey);
+    ov.addEventListener('click', (e) => {
+      if (e.target === ov || e.target.closest('[data-qb-sh-close]')) return close();
+      if (e.target.closest('[data-qb-sh-apply]')) {
+        applyShowersToItems(draft.data.showers.map((x) => O.normalize(x)));
+        close();
+        renderItems();
+        qbMarkDirty();
+        qbToast(pt ? 'Boxes aplicados ao orçamento. Salve para guardar.' : 'Showers applied to the quote. Save to keep them.', 'success');
+      }
+    });
+    draw();
+  }
+
   function renderItems() {
     const list = $('itemsList');
     if (!list) return;
@@ -5175,6 +5325,7 @@
     destroyItemSortables();
     list.innerHTML = '';
     updateItemsCountLabel();
+    renderShowersStrip();
 
     const buckets = { Supply: [], Installation: [], 'Sand & Finishing': [], 'Add On': [], products: [] };
     items.forEach((it, idx) => {
@@ -6392,9 +6543,12 @@
         cost_price: it.cost_price != null ? Number(it.cost_price) : null,
         markup_percentage: it.markup_percentage != null ? Number(it.markup_percentage) : null,
         sell_price: it.sell_price != null ? Number(it.sell_price) : rate,
+        shower_id: it.shower_id || null,
+        shower_item: it.shower_item || null,
         estimateAuto: false,
       };
     });
+    quoteShowers = Array.isArray(payload.showers) ? payload.showers : [];
     for (const it of items) {
       if (!it.pricing_item_id) {
         const pid = catalogPricingItemId(catalogRowForItem(it));
@@ -6532,8 +6686,10 @@
         cost_price: it.cost_price != null ? Number(it.cost_price) : null,
         markup_percentage: it.markup_percentage != null ? Number(it.markup_percentage) : null,
         sell_price: it.sell_price != null ? Number(it.sell_price) : Number(it.rate) || null,
+        ...(it.shower_id && it.shower_item ? { shower_id: it.shower_id, shower_item: it.shower_item } : {}),
       })),
     };
+    if (showersOn()) base.showers = quoteShowers;
     if (lead_id != null) base.lead_id = lead_id;
     // Never send lead_id: null — a null wipe was clearing the Kanban link on every save.
     return base;

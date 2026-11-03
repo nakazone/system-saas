@@ -126,19 +126,8 @@
    * Tile showers (window.ObShowers): one line per item and shower, priced from the Tabela de Valores
    * item with the same name (the Tile services list), then by words, then these defaults.
    */
-  const SHOWER_ITEMS = {
-    sh_wall: { names: ['shower walls installation'], hints: ['shower wall'], rate: 14 },
-    sh_floor: { names: ['shower floor (mosaic)'], hints: ['shower floor'], rate: 16 },
-    sh_pan_mortar: { names: ['shower pan - mortar bed with liner'], hints: ['mortar bed'], rate: 650 },
-    sh_pan_foam: { names: ['shower pan - foam tray system'], hints: ['foam tray', 'foam pan'], rate: 450 },
-    sh_drain: { names: ['linear drain installation'], hints: ['linear drain'], rate: 250 },
-    sh_membrane: { names: ['shower waterproofing membrane'], hints: ['waterproofing'], rate: 4 },
-    sh_flood: { names: ['flood test'], hints: ['flood test'], rate: 100 },
-    sh_niche: { names: ['shower niche'], hints: ['niche'], rate: 250 },
-    sh_bench: { names: ['shower bench'], hints: ['shower bench'], rate: 400 },
-    sh_curb: { names: ['shower curb'], hints: ['shower curb'], rate: 200 },
-    sh_trim: { names: ['metal edge profile / trim'], hints: ['edge profile', 'schluter'], rate: 8 },
-  };
+  /** Shower items and their default prices live with the shower builder (ObShowers.PRICE_ITEMS). */
+  const SHOWER_ITEMS = (window.ObShowers && window.ObShowers.PRICE_ITEMS) || {};
   /** Line key → the key prices are looked up by: Option B's ':b' and a shower's '@id' come off. */
   const priceKey = (k) => String(k).replace(/:b$/, '').replace(/@.*$/, '');
   function matchPricing(key, materialOverride) {
@@ -260,30 +249,11 @@
     });
     return out;
   }
-  const SHAPE_EN = { alcove: 'alcove', corner: 'corner', walkin: 'walk-in' };
-  /** Shower lines, in English for the customer; the same for Option A and B. */
+  /** Shower lines, in English for the customer; the same for Option A and B (ObShowers.quoteLines). */
   function showerLines(d) {
     const O = window.ObShowers;
     if (!O || !(d.showers || []).length) return [];
-    const out = [];
-    d.showers.forEach((raw, i) => {
-      const s = O.normalize(raw);
-      const q = O.quantities(s);
-      const who = s.name || `Shower ${i + 1}`;
-      const id = '@' + (s.id || i);
-      const add = (key, name, description, quantity, unit) => out.push({ key: key + id, name, description, quantity, unit });
-      add('sh_wall', 'Shower walls — tile installation', `${who} · ${SHAPE_EN[s.shape]} ${s.width}″ × ${s.depth}″, tiled ${s.height}″ high${s.wall_tile ? ` · ${s.wall_tile}` : ''}`, q.wall_sf, 'sq_ft');
-      add('sh_floor', 'Shower floor — tile installation', `${who}${s.floor_tile ? ` · ${s.floor_tile}` : ''}`, q.floor_sf, 'sq_ft');
-      if (q.pan) add(s.pan === 'foam' ? 'sh_pan_foam' : 'sh_pan_mortar', s.pan === 'foam' ? 'Shower pan — foam tray system' : 'Shower pan — mortar bed with liner', who, 1, 'each');
-      if (s.drain === 'linear') add('sh_drain', 'Linear drain installation', who, 1, 'each');
-      add('sh_membrane', 'Shower waterproofing membrane', `${who} · walls, floor${q.curb_lf ? ', curb' : ''}${q.niches ? ', niche' : ''}${q.bench ? ', bench' : ''}`, q.waterproofing_sf, 'sq_ft');
-      if (q.pan) add('sh_flood', 'Flood test', `${who} · before tile`, 1, 'each');
-      if (q.niches) add('sh_niche', q.niches > 1 ? 'Shower niches' : 'Shower niche', `${who} · ${s.niche_w}″ × ${s.niche_h}″`, q.niches, 'each');
-      if (q.bench) add('sh_bench', 'Shower bench', `${who} · ${s.bench_l}″ × ${s.bench_d}″`, 1, 'each');
-      if (q.curb_lf) add('sh_curb', 'Shower curb', `${who} · ${q.curb_lf} lin ft`, 1, 'each');
-      add('sh_trim', 'Shower trim — metal edge profile', `${who} · open edges${q.niches ? ' and niche frame' : ''}`, q.trim_lf, 'linear_ft');
-    });
-    return out;
+    return O.quoteLines(d.showers).map((l) => ({ ...l, key: `${l.item}@${l.shower_id}` }));
   }
   function totals(d, opt) {
     const lines = buildLines(d, opt || 'a');
@@ -1962,6 +1932,11 @@
     const b = d.option_b ? totals(d, 'b').lines.filter((l) => l.option === 'b') : [];
     return a.concat(b);
   }
+  /** "sh_wall@sh1" → { shower_item: 'sh_wall', shower_id: 'sh1' }: the quote line remembers its shower. */
+  function showerRef(key) {
+    const m = /^(sh_[a-z_]+)@(.+)$/.exec(String(key || ''));
+    return m ? { shower_item: m[1], shower_id: m[2] } : {};
+  }
   function optionGroupsFor(d, lines) {
     if (!d.option_b) return [];
     const idx = (o) => lines.map((l, i) => (l.option === o ? i : -1)).filter((i) => i >= 0);
@@ -1996,7 +1971,9 @@
         flooring_type: d.services.includes('installation') ? m.id : d.showers.length ? 'tile' : 'hardwood',
         area_sqft: totalArea(d),
         waste_percent: d.svc.installation.supply ? installWaste(d) : 0,
-        items: quoteLines(d).map((l) => ({ name: l.name, description: l.description || null, quantity: l.quantity, rate: l.rate, unit_type: l.unit, item_type: 'service', service_type: l.service_type, pricing_item_id: l.pricing_item_id || undefined })),
+        items: quoteLines(d).map((l) => ({ name: l.name, description: l.description || null, quantity: l.quantity, rate: l.rate, unit_type: l.unit, item_type: 'service', service_type: l.service_type, pricing_item_id: l.pricing_item_id || undefined, ...showerRef(l.key) })),
+        // The showers go with the quote, so the quote editor can change them later.
+        ...(d.showers.length ? { showers: d.showers } : {}),
         tax_total: t.tax,
         total: t.total,
         field_quote_id: fq.id,

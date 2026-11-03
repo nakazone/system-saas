@@ -106,6 +106,9 @@ type QuoteLineBody = {
   service_catalog_id?: unknown;
   product_id?: unknown;
   pricing_item_id?: unknown;
+  /** Tile: the shower (quote payload.showers) and item a line comes from. */
+  shower_id?: unknown;
+  shower_item?: unknown;
   cost_price?: unknown;
   markup_percentage?: unknown;
 };
@@ -135,6 +138,10 @@ function lineItemMetaJson(it: QuoteLineBody): Prisma.InputJsonValue | undefined 
   }
   if (it.pricing_item_id != null && /^[0-9a-f-]{36}$/i.test(String(it.pricing_item_id))) {
     meta.pricing_item_id = String(it.pricing_item_id);
+  }
+  if (it.shower_id != null && String(it.shower_id).trim() && /^sh_[a-z_]{2,20}$/.test(String(it.shower_item || ""))) {
+    meta.shower_id = String(it.shower_id).trim().slice(0, 40);
+    meta.shower_item = String(it.shower_item);
   }
   if (it.cost_price != null && Number.isFinite(Number(it.cost_price))) {
     meta.cost_price = Number(it.cost_price);
@@ -819,6 +826,8 @@ function mapQuote(q: {
         pricing_item_id: meta.pricing_item_id != null ? String(meta.pricing_item_id) : null,
         product_id: meta.product_id != null ? String(meta.product_id) : null,
         notes: meta.notes != null ? String(meta.notes) : null,
+        shower_id: meta.shower_id != null ? String(meta.shower_id) : null,
+        shower_item: meta.shower_item != null ? String(meta.shower_item) : null,
       };
     }),
   };

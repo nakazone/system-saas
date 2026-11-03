@@ -437,6 +437,63 @@
     el.setAttribute('data-ready', '1');
   }
 
+  /* ───────────────────────── quote lines ───────────────────────── */
+
+  /**
+   * What a shower costs, item by item: the Tile service with the same name in the Tabela de
+   * Valores, else words in the name, else this default (estimates to confirm with the pilots).
+   */
+  const PRICE_ITEMS = {
+    sh_wall: { names: ['shower walls installation'], hints: ['shower wall'], rate: 14 },
+    sh_floor: { names: ['shower floor (mosaic)'], hints: ['shower floor'], rate: 16 },
+    sh_pan_mortar: { names: ['shower pan - mortar bed with liner'], hints: ['mortar bed'], rate: 650 },
+    sh_pan_foam: { names: ['shower pan - foam tray system'], hints: ['foam tray', 'foam pan'], rate: 450 },
+    sh_drain: { names: ['linear drain installation'], hints: ['linear drain'], rate: 250 },
+    sh_membrane: { names: ['shower waterproofing membrane'], hints: ['waterproofing'], rate: 4 },
+    sh_flood: { names: ['flood test'], hints: ['flood test'], rate: 100 },
+    sh_niche: { names: ['shower niche'], hints: ['niche'], rate: 250 },
+    sh_bench: { names: ['shower bench'], hints: ['shower bench'], rate: 400 },
+    sh_curb: { names: ['shower curb'], hints: ['shower curb'], rate: 200 },
+    sh_trim: { names: ['metal edge profile / trim'], hints: ['edge profile', 'schluter'], rate: 8 },
+  };
+  /** Price list name as compared with PRICE_ITEMS names (dashes and spaces evened out). */
+  const priceName = (n) => String(n || '').toLowerCase().replace(/[–—]/g, '-').replace(/\s+/g, ' ').trim();
+  /** The price list row for a shower item (rows: [{ name, … }]), or null. */
+  function matchPrice(item, rows) {
+    const def = PRICE_ITEMS[item];
+    if (!def || !Array.isArray(rows)) return null;
+    return rows.find((r) => def.names.includes(priceName(r.name))) || rows.find((r) => def.hints.some((w) => priceName(r.name).includes(w))) || null;
+  }
+
+  const SHAPE_EN = { alcove: 'alcove', corner: 'corner', walkin: 'walk-in' };
+  /**
+   * Quote lines for the showers, in English for the customer, one per item and shower:
+   * [{ item, shower_id, name, description, quantity, unit }] — units sq_ft / linear_ft / each.
+   */
+  function quoteLines(showers) {
+    const out = [];
+    (showers || []).forEach((raw, i) => {
+      const s = normalize(raw);
+      const q = quantities(s);
+      const who = s.name || `Shower ${i + 1}`;
+      const id = String(s.id || i);
+      const add = (item, name, description, quantity, unit) => {
+        if (quantity > 0) out.push({ item, shower_id: id, name, description, quantity, unit });
+      };
+      add('sh_wall', 'Shower walls — tile installation', `${who} · ${SHAPE_EN[s.shape]} ${s.width}″ × ${s.depth}″, tiled ${s.height}″ high${s.wall_tile ? ` · ${s.wall_tile}` : ''}`, q.wall_sf, 'sq_ft');
+      add('sh_floor', 'Shower floor — tile installation', `${who}${s.floor_tile ? ` · ${s.floor_tile}` : ''}`, q.floor_sf, 'sq_ft');
+      if (q.pan) add(s.pan === 'foam' ? 'sh_pan_foam' : 'sh_pan_mortar', s.pan === 'foam' ? 'Shower pan — foam tray system' : 'Shower pan — mortar bed with liner', who, 1, 'each');
+      if (s.drain === 'linear') add('sh_drain', 'Linear drain installation', who, 1, 'each');
+      add('sh_membrane', 'Shower waterproofing membrane', `${who} · walls, floor${q.curb_lf ? ', curb' : ''}${q.niches ? ', niche' : ''}${q.bench ? ', bench' : ''}`, q.waterproofing_sf, 'sq_ft');
+      if (q.pan) add('sh_flood', 'Flood test', `${who} · before tile`, 1, 'each');
+      if (q.niches) add('sh_niche', q.niches > 1 ? 'Shower niches' : 'Shower niche', `${who} · ${s.niche_w}″ × ${s.niche_h}″`, q.niches, 'each');
+      if (q.bench) add('sh_bench', 'Shower bench', `${who} · ${s.bench_l}″ × ${s.bench_d}″`, 1, 'each');
+      if (q.curb_lf) add('sh_curb', 'Shower curb', `${who} · ${q.curb_lf} lin ft`, 1, 'each');
+      add('sh_trim', 'Shower trim — metal edge profile', `${who} · open edges${q.niches ? ' and niche frame' : ''}`, q.trim_lf, 'linear_ft');
+    });
+    return out;
+  }
+
   const setLang = (l) => { LANG = l === 'pt' ? 'pt' : 'en'; };
-  window.ObShowers = { html, bind, quantities, normalize, open3d, setLang, chipSub: (raw, i) => ({ name: showerName(normalize(raw), i), sub: chipSub(normalize(raw)) }) };
+  window.ObShowers = { html, bind, quantities, normalize, open3d, setLang, quoteLines, PRICE_ITEMS, matchPrice, chipSub: (raw, i) => ({ name: showerName(normalize(raw), i), sub: chipSub(normalize(raw)) }) };
 })();

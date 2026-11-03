@@ -104,3 +104,21 @@ describe("client tour with tile showers", () => {
     expect(buildFieldQuoteTour({ data, clientName: "Jen", companyName: "Peak", quoteNumber: "Q-1", total: 10, lines: [] }).showers).toEqual([]);
   });
 });
+
+describe("client tour uses the quote's own showers (edited in the quote editor)", () => {
+  it("prefers payload showers and ties lines to their shower by id", async () => {
+    const { quoteShowers } = await import("../src/lib/field-quote/tour.js");
+    const visit = { showers: [{ id: "a", name: "Old box" }] };
+    const edited = [{ id: "a", name: "Box A" }, { id: "b", name: "Box A" }];
+    const t = buildFieldQuoteTour({
+      data: visit, clientName: "Amanda", companyName: "Peak", quoteNumber: "Q-3", total: 300,
+      showers: quoteShowers({ showers: edited }),
+      lines: [
+        { name: "Shower walls — tile installation", description: "Box A · alcove", quantity: 10, unit: "sq_ft", amount: 100, meta: { shower_id: "a", shower_item: "sh_wall" } },
+        { name: "Shower walls — tile installation", description: "Box A · alcove", quantity: 20, unit: "sq_ft", amount: 200, meta: { shower_id: "b", shower_item: "sh_wall" } },
+      ],
+    });
+    expect(t.showers.map((s) => [s.name, s.price])).toEqual([["Box A", 100], ["Box A", 200]]);
+    expect(quoteShowers({})).toBeUndefined();
+  });
+});

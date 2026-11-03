@@ -24,7 +24,7 @@ import { storage } from "../../lib/storage/index.js";
 import { resolveImagesForAi } from "../../lib/storage/resolve.js";
 import { formatPersonName } from "../../lib/name.js";
 import { aiChatJson, aiListElevenLabsVoices, aiTextToSpeech, isAiConfigured } from "../../lib/ai/client.js";
-import { buildFieldQuoteTour, tourDeposit } from "../../lib/field-quote/tour.js";
+import { buildFieldQuoteTour, quoteShowers, tourDeposit } from "../../lib/field-quote/tour.js";
 import { persistQuoteTotals, recomputeTotalsFromQuote } from "../../modules/quotes/service.js";
 import { getPack } from "../../lib/trades/index.js";
 
@@ -902,7 +902,7 @@ fieldQuotesRouter.get("/api/field-quotes/:id/tour", requireCrmAuth, async (req: 
       const quote = await tx.quote.findFirst({
         where: { id: fq.quoteId },
         select: {
-          quoteNumber: true, number: true, total: true, taxTotal: true, validUntil: true, taxRate: true, selectedOptionGroupId: true,
+          quoteNumber: true, number: true, total: true, taxTotal: true, validUntil: true, taxRate: true, selectedOptionGroupId: true, payload: true,
           organization: { select: { name: true } },
           optionGroups: { orderBy: { sortOrder: "asc" }, select: { id: true, name: true, flooringType: true } },
           paymentSchedule: { select: { items: { orderBy: { sortOrder: "asc" }, select: { label: true, percent: true, fixedAmount: true } } } },
@@ -933,6 +933,7 @@ fieldQuotesRouter.get("/api/field-quotes/:id/tour", requireCrmAuth, async (req: 
         selectedGroupId: quote.selectedOptionGroupId,
         taxRate: quote.taxRate,
         schedule: quote.paymentSchedule,
+        showers: quoteShowers(quote.payload),
       }),
     });
   } catch (e) {

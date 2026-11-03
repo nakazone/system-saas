@@ -149,12 +149,30 @@ describe("the portal computes the same quantities as the server", () => {
 describe("Field Quote: showers become priced quote lines", () => {
   it("prices each shower item from the Tile services list by name, else the default", async () => {
     const { readFileSync } = await import("node:fs");
-    const fq = readFileSync("crm/public/field-quote.js", "utf8");
+    const fq = readFileSync("crm/public/partner-portal-showers.js", "utf8");
     const { TILE_SERVICES } = await import("../src/lib/trades/packs/tile/services.js");
     // Every shower item points at a Tile service that the company's price list gets when it turns Tile on.
     const names = [...fq.matchAll(/names: \['([^']+)'\]/g)].map((x) => x[1]);
     expect(names.length).toBe(11);
     const tile = new Set(TILE_SERVICES.map((s) => s.name.toLowerCase().replace(/[–—]/g, "-")));
     for (const n of names) expect(tile.has(n)).toBe(true);
+  });
+});
+
+describe("shower quote lines (Field Quote and quote editor)", () => {
+  it("one line per item of each shower, tied to the shower id, in English", async () => {
+    const { readFileSync } = await import("node:fs");
+    const win: Record<string, any> = {};
+    new Function("window", "document", readFileSync("crm/public/partner-portal-showers.js", "utf8"))(win, {});
+    const O = win.ObShowers;
+    const lines = O.quoteLines([owner, { ...owner, id: "s2", name: "Hall bath", niches: 0, bench: false, pan: "prefab", drain: "linear" }]);
+    expect(lines.filter((l: any) => l.shower_id === "s1").map((l: any) => l.item)).toEqual(["sh_wall", "sh_floor", "sh_pan_mortar", "sh_membrane", "sh_flood", "sh_niche", "sh_bench", "sh_curb", "sh_trim"]);
+    expect(lines.filter((l: any) => l.shower_id === "s2").map((l: any) => l.item)).toEqual(["sh_wall", "sh_floor", "sh_drain", "sh_membrane", "sh_curb", "sh_trim"]);
+    const wall = lines[0];
+    expect(wall).toMatchObject({ name: "Shower walls — tile installation", quantity: 99.7, unit: "sq_ft" });
+    expect(wall.description.startsWith("Owner's bath shower · ")).toBe(true);
+    // Price list rows are found by the Tile service's name, dashes evened out.
+    expect(O.matchPrice("sh_pan_mortar", [{ name: "Shower Pan – Mortar Bed with Liner" }])?.name).toBe("Shower Pan – Mortar Bed with Liner");
+    expect(O.matchPrice("sh_bench", [{ name: "Baseboard" }])).toBeNull();
   });
 });

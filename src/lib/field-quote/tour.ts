@@ -39,6 +39,8 @@ export type TourInput = {
   taxRate?: Num;
   /** Raw payment schedule, to work out the deposit of each option. */
   schedule?: unknown;
+  /** The quote's own showers (payload.showers, edited in the quote editor); win over the visit's. */
+  showers?: unknown;
 };
 
 export type TourOption = {
@@ -150,6 +152,7 @@ function lineService(l: TourLine): string {
 
 /** Lines the Field Quote makes from a shower (field-quote.js showerLines). */
 export function isShowerLine(l: TourLine): boolean {
+  if (obj(l.meta).shower_item) return true;
   return /^(shower |linear drain installation$|flood test$)/i.test(String(l.name || "").trim());
 }
 
@@ -218,7 +221,7 @@ function buildOne(input: TourInput, materialOverride?: string | null): Tour {
     .filter((r) => r.sqft > 0);
 
   const lines = input.lines.filter((l) => n(l.amount) !== 0);
-  const showers = toursShowers(d, lines);
+  const showers = toursShowers(Array.isArray(input.showers) ? { ...d, showers: input.showers } : d, lines);
   // Spread each line over the rooms it belongs to, so each room can show its share.
   for (const l of lines) {
     if (showers.length && isShowerLine(l)) continue;
@@ -302,13 +305,16 @@ function toursShowers(d: Record<string, unknown>, lines: TourLine[]): TourShower
   for (const l of lines) {
     if (!isShowerLine(l)) continue;
     const desc = String(l.description || "");
-    // The longest matching name wins ("Box 1" vs "Box 10"); lines edited by hand go to the first shower.
-    const who = list.filter((x) => desc === x.name || desc.startsWith(`${x.name} · `)).sort((a, b) => b.name.length - a.name.length)[0] || list[0];
-    if (who) price.set(who.name, (price.get(who.name) || 0) + n(l.amount));
+    const sid = obj(l.meta).shower_id;
+    // The line's shower id first; else the longest matching name ("Box 1" vs "Box 10"); else the first shower.
+    const who =
+      (sid ? list.find((x) => x.s.id === String(sid)) : undefined) ||
+      list.filter((x) => desc === x.name || desc.startsWith(`${x.name} · `)).sort((a, b) => b.name.length - a.name.length)[0] ||
+      list[0];
+    if (who) price.set(who.s.id, (price.get(who.s.id) || 0) + n(l.amount));
   }
   return list.map(({ s, name }) => {
     const q = showerQuantities(s);
-    const same = list.filter((x) => x.name === name).length;
     return {
       name: name.slice(0, 60),
       shape: s.shape,
@@ -337,9 +343,15 @@ function toursShowers(d: Record<string, unknown>, lines: TourLine[]): TourShower
       wall_sf: q.wall_sf,
       floor_sf: q.floor_sf,
       waterproofing_sf: q.waterproofing_sf,
-      price: Math.round((price.get(name) || 0) / same),
+      price: Math.round(price.get(s.id) || 0),
     };
   });
+}
+
+/** Showers kept on the quote (payload.showers, from the Field Quote or the quote editor), or undefined. */
+export function quoteShowers(payload: unknown): unknown[] | undefined {
+  const sh = obj(payload).showers;
+  return Array.isArray(sh) ? sh : undefined;
 }
 
 /** First payment-schedule item (the amount due on approval), when the quote has one. */
