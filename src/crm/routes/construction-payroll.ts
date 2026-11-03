@@ -18,6 +18,7 @@ import {
 } from "../lib/payroll-calc.js";
 import { findLinkableUserId, resolveOwnEmployee } from "../lib/payroll-employee-link.js";
 import { isPhaseKey } from "../../lib/trades/phases.js";
+import { piecesAmount } from "../../lib/payroll/piece-rates.js";
 
 export const constructionPayrollRouter = Router();
 
@@ -1532,9 +1533,11 @@ async function upsertTimesheetLine(
       (e as Error & { statusCode?: number }).statusCode = 404;
       throw e;
     }
+    // A day paid by item (Tile) keeps what its items paid; the grid has no item columns.
+    const byItem = emp.payType === "production" ? piecesAmount(existing.pieces) : null;
     return tx.payrollTimesheet.update({
       where: { id: lineId },
-      data,
+      data: byItem != null ? { ...data, calculatedAmount: new Prisma.Decimal(byItem) } : data,
       include: { employee: true, project: { select: { name: true, number: true } } },
     });
   }

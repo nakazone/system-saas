@@ -11,6 +11,7 @@ import { myJobAccessWhere } from "../../crm/lib/campo-shared.js";
 import { calcTimesheetHoursTotal, parseYmd } from "../../crm/lib/payroll-calc.js";
 import { parsePayCycle, periodBoundsFor } from "../settings/payroll-cycle.js";
 import { safeTimeZone, startOfZonedDay } from "../time/zoned.js";
+import { loadRates, normalizePieces, pieceItemsFor, priceDay } from "./piece-rates.js";
 import {
   computeDayMinutes,
   dayAmount,
@@ -208,6 +209,7 @@ export async function postDayToPayroll(tx: PayrollTx, shiftId: string): Promise<
     sqft,
     hours: calcTimesheetHoursTotal({ daysWorked: emp.payType === "production" ? 0 : days, overtimeHours: otHours }),
     calculatedAmount: shift.amount,
+    pieces: shift.pieces ?? Prisma.DbNull,
     sector: shift.sector || emp.sector || null,
     shiftId: shift.id,
     notes: `Dia de trabalho${jobsLabel ? ` · ${jobsLabel}` : ""}`.slice(0, 500),
@@ -235,7 +237,8 @@ export type FinishInput = {
   gps: Gps;
   deviceAt: Date | null;
   note: string | null;
-  jobs: { workOrderId: string; sqft: number }[];
+  /** pieces: quantities per item on this job (trades paid by item, e.g. Tile). */
+  jobs: { workOrderId: string; sqft: number; pieces?: Record<string, number> | null }[];
   source?: "clock" | "manual" | "auto_closed";
   now?: Date;
 };
@@ -259,14 +262,26 @@ export async function closeDay(
 
   // Jobs of the day (keep order of arrival)
   const existingJobs = await tx.campoShiftJob.findMany({ where: { shiftId }, orderBy: { sortOrder: "asc" } });
-  const wanted = input.jobs.length ? input.jobs : existingJobs.map((j) => ({ workOrderId: j.workOrderId, sqft: num(j.sqft) }));
+  // Production by item (Tile): quantities per job are priced with the employee's rates.
+  const org = await tx.organization.findUnique({ where: { id: shift.organizationId }, select: { tradePacks: true } });
+  const items = emp.payType === "production" ? pieceItemsFor(org?.tradePacks) : [];
+  const wanted = (input.jobs.length
+    ? input.jobs
+    : existingJobs.map((j) => ({ workOrderId: j.workOrderId, sqft: num(j.sqft), pieces: (j.pieces as Record<string, number> | null) ?? null }))
+  ).map((j) => (items.length ? { ...j, pieces: normalizePieces(items, j.pieces) } : { ...j, pieces: null }));
   const keep = new Set(wanted.map((j) => j.workOrderId));
   await tx.campoShiftJob.deleteMany({ where: { shiftId, workOrderId: { notIn: [...keep] } } });
   const photos = await photoCounts(tx, ctx.userId, [...keep], shift.workDate, tz);
   let order = 0;
   for (const j of wanted) {
     const prev = existingJobs.find((e) => e.workOrderId === j.workOrderId);
-    const data = { sqft: Math.max(0, j.sqft || 0), photoCount: photos.get(j.workOrderId) || 0, sortOrder: order++ };
+    const jobSqft = items.length ? priceDay(items, [], [j]).sqft : Math.max(0, j.sqft || 0);
+    const data = {
+      sqft: jobSqft,
+      pieces: j.pieces && Object.keys(j.pieces).length ? (j.pieces as Prisma.InputJsonValue) : Prisma.DbNull,
+      photoCount: photos.get(j.workOrderId) || 0,
+      sortOrder: order++,
+    };
     if (prev) await tx.campoShiftJob.update({ where: { id: prev.id }, data });
     else
       await tx.campoShiftJob.create({
@@ -289,9 +304,10 @@ export async function closeDay(
     expectedEnd: exp.end,
     countEarlyStart: Boolean(emp.countEarlyStart),
   });
-  const sqft = wanted.reduce((s, j) => s + Math.max(0, j.sqft || 0), 0);
+  const priced = items.length ? priceDay(items, await loadRates(tx, items, emp.id), wanted) : null;
+  const sqft = priced ? priced.sqft : wanted.reduce((s, j) => s + Math.max(0, j.sqft || 0), 0);
   const daysWorked = num(shift.daysWorked) || 1;
-  const amount = dayAmount(emp, { daysWorked, overtimeMinutes: mins.overtimeMinutes, sqft });
+  const amount = dayAmount(emp, { daysWorked, overtimeMinutes: mins.overtimeMinutes, sqft, pieces: priced?.lines });
 
   const places = await jobPlaces(tx, [...keep]);
   const firstJobId = existingJobs[0]?.workOrderId ?? wanted[0]?.workOrderId;
@@ -337,6 +353,7 @@ export async function closeDay(
       overtimeMinutes: emp.payType === "production" ? 0 : mins.overtimeMinutes,
       sqft: new Prisma.Decimal(sqft),
       amount: new Prisma.Decimal(amount),
+      pieces: priced ? (priced.lines as unknown as Prisma.InputJsonValue) : Prisma.DbNull,
       sector: emp.sector || null,
       flags,
       submittedAt: now,

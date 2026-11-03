@@ -468,7 +468,7 @@ async function recompute(tx: PayrollTx, shiftId: string, patch: { daysWorked?: n
   if (!s.employee) throw httpErr(409, "Dia sem funcionário");
   const daysWorked = patch.daysWorked ?? num(s.daysWorked);
   const overtimeMinutes = patch.overtimeMinutes ?? s.overtimeMinutes;
-  const amount = dayAmount(s.employee, { daysWorked, overtimeMinutes, sqft: num(s.sqft) });
+  const amount = dayAmount(s.employee, { daysWorked, overtimeMinutes, sqft: num(s.sqft), pieces: s.pieces });
   await tx.campoShift.update({
     where: { id: shiftId },
     data: { daysWorked: new Prisma.Decimal(daysWorked), overtimeMinutes, amount: new Prisma.Decimal(amount) },

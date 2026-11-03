@@ -64,6 +64,15 @@ export type PackTakeoff = {
   specSuggestions: Readonly<Record<string, readonly string[]>>;
 };
 
+/** One thing a production employee is paid for, counted per job at the end of the day. */
+export type PieceItem = {
+  key: string;
+  label: Record<"pt-BR" | "en-US", string>;
+  unit: "sf" | "lf" | "each";
+  /** Counts toward the day's square feet (reports, the SF column of the payroll). */
+  countsSqft?: boolean;
+};
+
 export type TradePack = {
   id: TradeId;
   label: string;
@@ -94,6 +103,11 @@ export type TradePack = {
    */
   phaseStorage: "columns" | "table";
   takeoff: PackTakeoff;
+  /**
+   * Production pay by item (Tile: floor SF, wall SF, shower pan, niche…). Each item has a company
+   * rate and an optional rate per employee. Hardwood leaves this out and keeps SF × one rate.
+   */
+  payroll?: { pieceItems: readonly PieceItem[] };
   combinedPhaseKey: string;
   ai: {
     /** How the assistant describes the product's customers, e.g. "flooring installation companies". */

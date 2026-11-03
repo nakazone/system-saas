@@ -25,6 +25,8 @@ export type PayrollLineQty = {
   daily_rate_override?: unknown;
   dailyRateOverride?: unknown;
   sqft?: unknown;
+  /** Production by item: [{ qty, rate, amount }] with the rates used (trades with piece items). */
+  pieces?: unknown;
 };
 
 function num(v: unknown): number {
@@ -61,6 +63,12 @@ export function calcTimesheetLineAmount(emp: PayrollEmpRates, line: PayrollLineQ
   const prodRate = num(emp.production_rate ?? emp.productionRate);
 
   if (pt === "production") {
+    // Trades paid by item (Tile): the day's items × the rates used; otherwise square feet × one rate.
+    const byItem = Array.isArray(line.pieces) && line.pieces.length ? line.pieces : null;
+    if (byItem) {
+      const total = byItem.reduce((s: number, l: { amount?: unknown; qty?: unknown; rate?: unknown }) => s + (l.amount != null ? num(l.amount) : num(l.qty) * num(l.rate)), 0);
+      return Math.round(total * 100) / 100;
+    }
     return Math.round(sqft * prodRate * 100) / 100;
   }
 

@@ -795,6 +795,7 @@ model Organization {
   jobPartnerMessages       JobPartnerMessage[]
   stainSampleRounds        StainSampleRound[]
   jobPhases                JobPhase[]
+  pieceRates               PieceRate[]
   stainSamples             StainSample[]
   stainApprovals           StainApproval[]
   builders                 Builder[]
@@ -2475,9 +2476,26 @@ model PayrollEmployee {
   shifts            CampoShift[]
   shiftExpenses     CampoShiftExpense[]
   payments          PayrollPayment[]
+  pieceRates        PieceRate[]
 
   @@index([organizationId])
   @@index([userId])
+}
+
+/// Production pay by item (Tile: floor SF, wall SF, shower pan…). employeeId null = company rate;
+/// a row with employeeId is that employee's rate for the item. Unique indexes are partial (see migration).
+model PieceRate {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @db.Uuid
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  employeeId     String?          @db.Uuid
+  employee       PayrollEmployee? @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  itemKey        String
+  rate           Decimal          @default(0) @db.Decimal(12, 2)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([organizationId])
 }
 
 model PayrollPeriod {
@@ -2538,6 +2556,8 @@ model PayrollTimesheet {
   sqft              Decimal         @default(0) @db.Decimal(12, 2)
   /// installation | sand_finish — snapshot from the employee/day
   sector            String?
+  /// Production by item: [{ key, label, unit, qty, rate, amount }] with the rates used
+  pieces            Json?
   /// Dia de trabalho this line came from
   shiftId           String?         @db.Uuid
   notes             String?
@@ -3120,6 +3140,8 @@ model CampoShift {
   daysWorked        Decimal          @default(1) @db.Decimal(4, 2)
   sqft              Decimal          @default(0) @db.Decimal(12, 2)
   amount            Decimal          @default(0) @db.Decimal(12, 2)
+  /// Production by item: [{ key, label, unit, qty, rate, amount }] with the rates used
+  pieces            Json?
   sector            String?
   timesheetId       String?          @db.Uuid
   createdAt         DateTime         @default(now())
@@ -3148,6 +3170,8 @@ model CampoShiftJob {
   workOrder      WorkOrder    @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
   arrivedAt      DateTime?
   sqft           Decimal      @default(0) @db.Decimal(12, 2)
+  /// Quantities per item (production by item): { "floor_sf": 120, "niche": 1 }
+  pieces         Json?
   /// Photos of the day by this employee on this job (snapshot at submit)
   photoCount     Int          @default(0)
   sortOrder      Int          @default(0)

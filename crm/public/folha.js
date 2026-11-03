@@ -591,7 +591,7 @@
       .join("")}</span>`;
   }
   function rowSub(r) {
-    if (r.pay_type === "production") return `produção ${money(r.production_rate)}/sq ft`;
+    if (r.pay_type === "production") return byItem() ? "produção por item" : `produção ${money(r.production_rate)}/sq ft`;
     return `diária ${money0(r.daily_rate)}${r.payment_method ? ` · ${esc(METHOD_LABEL[r.payment_method] || r.payment_method)}` : ""}`;
   }
   function renderWeekHead() {
@@ -2167,6 +2167,8 @@
     try {
       const j = await api("/api/folha/funcionarios");
       st.emps = j.data;
+      // Production by item (Tile): the company's rates per item.
+      if (st.pieces === undefined) st.pieces = await api("/api/payroll/piece-rates").then((r) => r.data).catch(() => null);
       renderEmps();
     } catch (e) {
       box.innerHTML = `<div class="fo-empty"><b>Não foi possível carregar.</b>${esc(e.message)}</div>`;
@@ -2191,7 +2193,7 @@
                 .map((e) => {
                   const ph = e.phone && typeof window.sfFormatPhone === "function" ? window.sfFormatPhone(e.phone) || e.phone : e.phone;
                   return `<tr class="is-row" data-emp-edit="${esc(e.id)}"><td><div class="fo-name"><span class="fo-av${e.sector === "sand_finish" ? " fo-av--sand" : ""}">${esc(initials(e.name))}</span><span><b>${esc(e.name)}</b><small>${esc(e.role_title || ph || e.email || "")}</small></span></div></td>
-                <td>${e.pay_type === "production" ? `Produção · ${money(e.production_rate)}/sq ft` : `Diária · ${money0(e.daily_rate)}`}<div class="fo-muted" style="font-size:12px">extra ${money(e.overtime_rate)}/h${e.payment_method ? ` · ${esc(METHOD_LABEL[e.payment_method] || e.payment_method)}` : ""}</div></td>
+                <td>${e.pay_type === "production" ? (byItem() ? "Produção · por item" : `Produção · ${money(e.production_rate)}/sq ft`) : `Diária · ${money0(e.daily_rate)}`}<div class="fo-muted" style="font-size:12px">extra ${money(e.overtime_rate)}/h${e.payment_method ? ` · ${esc(METHOD_LABEL[e.payment_method] || e.payment_method)}` : ""}</div></td>
                 <td>${esc(schedLabel(e))}<div class="fo-muted" style="font-size:12px">${[e.require_photos ? "fotos obrigatórias" : "", e.require_gps ? "GPS" : ""].filter(Boolean).join(" · ") || "sem exigências"}</div></td>
                 <td>${e.user ? esc(e.user.name || e.user.email) : '<span class="fo-pill fo-pill--due">Sem login</span>'}</td></tr>`;
                 })
@@ -2205,6 +2207,7 @@
     $("foFuncionarios").innerHTML = `<div class="fo-tool">
         <label class="fo-field fo-emps-search"><span class="fo-sr">Buscar</span><input type="search" class="fo-in" id="foEmpSearch" value="${esc(st.empSearch)}" placeholder="Buscar por nome…" autocomplete="off" /></label>
         <div class="fo-muted" style="font-weight:700;font-size:14px">${active.length} ativos · ${nInst} Instalação · ${nLixa} Lixa</div>
+        ${byItem() ? '<button type="button" class="fo-btn fo-btn--ghost" data-piece-table>Tabela de produção</button>' : ""}
         ${st.manage ? '<button type="button" class="fo-btn fo-btn--pri" data-emp-new>+ Novo funcionário</button>' : ""}
       </div>
       <div class="fo-emps-blocks">
@@ -2226,11 +2229,12 @@
         <label class="fo-field">Setor da folha<select class="fo-sel" id="feSector" ${dis}><option value="installation"${v.sector !== "sand_finish" ? " selected" : ""}>Instalação</option><option value="sand_finish"${v.sector === "sand_finish" ? " selected" : ""}>Lixa</option></select></label></div>
       </div>
       <div class="fo-box"><h3>Pagamento</h3>
-        <div class="fo-grid2"><label class="fo-field">Tipo<select class="fo-sel" id="fePayType" ${dis}><option value="daily"${v.pay_type !== "production" ? " selected" : ""}>Diária</option><option value="production"${v.pay_type === "production" ? " selected" : ""}>Produção (sq ft)</option></select></label>
+        <div class="fo-grid2"><label class="fo-field">Tipo<select class="fo-sel" id="fePayType" ${dis}><option value="daily"${v.pay_type !== "production" ? " selected" : ""}>Diária</option><option value="production"${v.pay_type === "production" ? " selected" : ""}>${byItem() ? "Produção (por item)" : "Produção (sq ft)"}</option></select></label>
         <label class="fo-field">Forma de pagamento<select class="fo-sel" id="feMethod" ${dis}><option value="">—</option>${METHODS.map(([k, l]) => `<option value="${k}"${v.payment_method === k ? " selected" : ""}>${l}</option>`).join("")}</select></label></div>
         <div class="fo-grid3" style="margin-top:10px"><label class="fo-field">Diária ($)<input type="number" class="fo-in" id="feDaily" min="0" step="1" value="${v.daily_rate || ""}" ${dis} /></label>
         <label class="fo-field">Extra ($/hora)<input type="number" class="fo-in" id="feOt" min="0" step="0.5" value="${v.overtime_rate || ""}" placeholder="10% da diária" ${dis} /></label>
-        <label class="fo-field">Produção ($/sq ft)<input type="number" class="fo-in" id="feProd" min="0" step="0.01" value="${v.production_rate || ""}" ${dis} /></label></div>
+        ${byItem() ? "" : `<label class="fo-field">Produção ($/sq ft)<input type="number" class="fo-in" id="feProd" min="0" step="0.01" value="${v.production_rate || ""}" ${dis} /></label>`}</div>
+        ${byItem() ? `<div class="fo-pieces" id="fePieces" ${v.pay_type === "production" ? "" : "hidden"}><p class="fo-pieces__t">Valor por item <small>em branco = valor da empresa</small></p><div id="fePiecesList" class="fo-muted">Carregando…</div></div>` : ""}
       </div>
       <div class="fo-box"><h3>Horário padrão</h3>
         <div class="fo-grid2"><label class="fo-field">Início do dia<select class="fo-sel" id="feStartMode" ${dis}><option value="job"${s.start_mode === "job" ? " selected" : ""}>Hora do 1º job agendado</option><option value="fixed"${s.start_mode === "fixed" ? " selected" : ""}>Horário fixo</option></select></label>
@@ -2250,11 +2254,67 @@
           .join("")}</select><small>Só aparecem usuários que ainda não estão ligados a outro funcionário.</small></label>
         ${e ? `<label class="fo-check" style="margin-top:10px"><input type="checkbox" id="feActive" ${v.status === "active" ? "checked" : ""} ${dis} /> Ativo (inativos não aparecem na semana, mas o histórico fica)</label>` : ""}
       </div>`;
+    if (byItem()) loadEmpPieces(e ? e.id : null, dis);
     openSheet(
       `${sheetHead(e ? esc(e.name) : "Novo funcionário", e ? esc(SECTORS[e.sector || "installation"]) : "Setor, pagamento e horário padrão")}<div class="fo-sheet__bd">${body}</div>
        <footer class="fo-sheet__ft"><button type="button" class="fo-btn fo-btn--ghost" data-close>Cancelar</button>${st.manage ? `<button type="button" class="fo-btn fo-btn--pri" data-emp-save="${esc(e ? e.id : "")}">Salvar</button>` : ""}</footer>`,
     );
   }
+  // ------------------------------------------------------------ produção por item (Tile)
+  function byItem() {
+    return Boolean(st.pieces && st.pieces.enabled);
+  }
+  function unitOf(u) {
+    return (st.pieces && st.pieces.units && st.pieces.units[u]) || u;
+  }
+  async function loadEmpPieces(empId, dis) {
+    await null; // the sheet opens first
+    try {
+      const d = empId ? (await api(`/api/payroll/piece-rates?employee_id=${encodeURIComponent(empId)}`)).data : st.pieces;
+      const box = $("fePiecesList");
+      if (!box) return;
+      box.className = "fo-pieces__list";
+      box.innerHTML = d.items
+        .map(
+          (it) => `<label class="fo-piece"><span><b>${esc(it.label)}</b><small>por ${esc(unitOf(it.unit))}</small></span>
+          <span class="fo-piece__in">$<input type="number" class="fo-in" min="0" step="0.01" data-emp-piece="${esc(it.key)}" value="${empId && it.employee != null ? it.employee : ""}" placeholder="${it.company ? Number(it.company).toFixed(2) : "0.00"}" ${dis} /></span></label>`,
+        )
+        .join("");
+    } catch (e) {
+      const box = $("fePiecesList");
+      if (box) box.textContent = e.message;
+    }
+  }
+  function openPieceTable() {
+    const d = st.pieces;
+    const dis = st.manage ? "" : "disabled";
+    const rows = d.items
+      .map(
+        (it) => `<label class="fo-piece"><span><b>${esc(it.label)}</b><small>por ${esc(unitOf(it.unit))}</small></span>
+        <span class="fo-piece__in">$<input type="number" class="fo-in" min="0" step="0.01" data-co-piece="${esc(it.key)}" value="${it.company ? Number(it.company).toFixed(2) : ""}" placeholder="0.00" ${dis} /></span></label>`,
+      )
+      .join("");
+    openSheet(
+      `${sheetHead("Tabela de produção", "Quanto a equipe recebe por item")}<div class="fo-sheet__bd">
+        <div class="fo-box"><p class="fo-muted" style="margin:0 0 10px;font-size:13px">Vale para todos os funcionários de produção. Um funcionário pode ter valor diferente em algum item, no cadastro dele. Mudar um valor não muda dias já lançados.</p>
+        <div class="fo-pieces__list">${rows}</div></div></div>
+       <footer class="fo-sheet__ft"><button type="button" class="fo-btn fo-btn--ghost" data-close>Cancelar</button>${st.manage ? '<button type="button" class="fo-btn fo-btn--pri" data-piece-save>Salvar tabela</button>' : ""}</footer>`,
+    );
+  }
+  async function savePieceTable() {
+    const rates = {};
+    document.querySelectorAll("[data-co-piece]").forEach((inp) => {
+      rates[inp.getAttribute("data-co-piece")] = Number(inp.value) || 0;
+    });
+    try {
+      st.pieces = (await api("/api/payroll/piece-rates", { method: "PUT", body: JSON.stringify({ rates }) })).data;
+      notify("Tabela de produção salva.", "success");
+      closeSheet();
+    } catch (e) {
+      notify(e.message, "error");
+    }
+  }
+
   async function saveEmp(id) {
     const val = (x) => $(x)?.value;
     const name = (val("feName") || "").trim();
@@ -2272,7 +2332,7 @@
       payment_method: val("feMethod") || null,
       daily_rate: Number(val("feDaily")) || 0,
       overtime_rate: val("feOt") === "" ? null : Number(val("feOt")) || 0,
-      production_rate: Number(val("feProd")) || 0,
+      production_rate: $("feProd") ? Number(val("feProd")) || 0 : (id && st.emps.employees.find((x) => x.id === id)?.production_rate) || 0,
       schedule: {
         start_mode: val("feStartMode"),
         start_time: val("feStart") || "07:00",
@@ -2286,7 +2346,15 @@
     };
     if ($("feActive")) body.status = $("feActive").checked ? "active" : "inactive";
     try {
-      await api(id ? `/api/folha/funcionarios/${id}` : "/api/folha/funcionarios", { method: id ? "PUT" : "POST", body: JSON.stringify(body) });
+      const saved = await api(id ? `/api/folha/funcionarios/${id}` : "/api/folha/funcionarios", { method: id ? "PUT" : "POST", body: JSON.stringify(body) });
+      const empId = id || saved?.data?.id;
+      if (byItem() && empId && body.pay_type === "production" && $("fePiecesList")) {
+        const rates = {};
+        document.querySelectorAll("[data-emp-piece]").forEach((inp) => {
+          rates[inp.getAttribute("data-emp-piece")] = inp.value === "" ? null : Number(inp.value) || 0;
+        });
+        await api("/api/payroll/piece-rates", { method: "PUT", body: JSON.stringify({ employee_id: empId, rates }) });
+      }
       notify(id ? "Funcionário salvo." : "Funcionário cadastrado.", "success");
       closeSheet();
       st.emps = null;
@@ -2506,6 +2574,8 @@
     if (el("[data-emp-new]")) return openEmp(null);
     if ((b = el("[data-emp-edit]"))) return openEmp(b.getAttribute("data-emp-edit"));
     if ((b = el("[data-emp-save]"))) return saveEmp(b.getAttribute("data-emp-save") || null);
+    if (el("[data-piece-table]")) return openPieceTable();
+    if (el("[data-piece-save]")) return savePieceTable();
     if ((b = el("[data-ed-ot]"))) {
       const elOt = $("foEdOt");
       if (!elOt) return;
@@ -2531,6 +2601,7 @@
   }
   function onChange(e) {
     const t = e.target;
+    if (t.id === "fePayType" && $("fePieces")) $("fePieces").hidden = t.value !== "production";
     if (t.matches && t.matches("[data-q-emp]")) {
       st.quick.empId = t.value;
       return refreshQuick();
@@ -2614,6 +2685,8 @@
       /* the shell redirects to login */
     }
     document.body.classList.add("fo-page");
+    // Production by item (Tile): the item list and the company's rates.
+    st.pieces = await api("/api/payroll/piece-rates").then((r) => r.data).catch(() => null);
     await loadPayMethods();
     if (!st.manage) document.querySelectorAll("[data-manage]").forEach((el) => (el.hidden = true));
     // Overlays live on <body>: inside the main column they sit under the app's bottom nav.

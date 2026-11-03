@@ -54,6 +54,8 @@ import {
 } from "../../lib/payroll/shift-expenses.js";
 import { storage } from "../../lib/storage/index.js";
 import { randomUUID } from "node:crypto";
+import { UNIT_LABEL, loadRates, normalizePieces, pieceItemsFor } from "../../lib/payroll/piece-rates.js";
+import type { PieceItem } from "../../lib/trades/types.js";
 
 export const campoDiaRouter = Router();
 
@@ -187,9 +189,12 @@ async function mapDay(tx: PayrollTx, d: DayRow, tz: string, now = new Date()) {
     flags: flags.map((k) => ({ key: k, label: DAY_FLAG_LABELS[k] || k })),
     gps_in: d.clockInLat != null ? { lat: num(d.clockInLat), lng: num(d.clockInLng), accuracy: d.clockInAccuracyM != null ? num(d.clockInAccuracyM) : null, distance_m: d.clockInDistanceM } : null,
     gps_out: d.clockOutLat != null ? { lat: num(d.clockOutLat), lng: num(d.clockOutLng), accuracy: d.clockOutAccuracyM != null ? num(d.clockOutAccuracyM) : null, distance_m: d.clockOutDistanceM } : null,
+    /** Production by item: what the day paid per item, with the rates used. */
+    pieces: Array.isArray(d.pieces) ? d.pieces : null,
     jobs: d.jobs.map((j) => ({
       ...mapJob(j.workOrder, tz, photos.get(j.workOrderId) || 0),
       sqft: num(j.sqft),
+      pieces: j.pieces && typeof j.pieces === "object" ? j.pieces : null,
       arrived_label: timeLabel(j.arrivedAt, tz),
     })),
     expenses: (d.expenses || []).map(mapExpense),
@@ -294,6 +299,9 @@ async function loadState(tx: PayrollTx, req: AuthedRequest, tz: string, now = ne
     timezone: tz,
     linked: Boolean(emp),
     employee: emp ? mapEmployee(emp) : null,
+    // Production by item (Tile): what to count on each job, with this employee's rates.
+    piece_items: emp && emp.payType === "production" ? await loadRates(tx, pieceItemsFor(req.organization?.tradePacks), emp.id) : [],
+    piece_units: UNIT_LABEL,
     day: todayShift ? await mapDay(tx, todayShift, tz, now) : null,
     returned: await Promise.all(returned.filter((r) => r.id !== todayShift?.id).map((r) => mapDay(tx, r, tz, now))),
     jobs_today: agenda.map((j) => mapJob(j, tz, photos.get(j.id) || 0, dayBounds(today, tz).start)),
@@ -451,7 +459,14 @@ campoDiaRouter.delete("/api/campo/dia/jobs/:woId", requireCrmAuth, async (req: A
 });
 
 const jobsField = z
-  .array(z.object({ work_order_id: z.string().uuid(), sqft: z.number().min(0).max(100000).optional().nullable() }))
+  .array(
+    z.object({
+      work_order_id: z.string().uuid(),
+      sqft: z.number().min(0).max(100000).optional().nullable(),
+      /** Production by item (Tile): { floor_sf: 120, niche: 1 } */
+      pieces: z.record(z.string(), z.number().min(0).max(100000)).optional().nullable(),
+    }),
+  )
   .max(10);
 
 const expenseItem = z.object({
@@ -479,11 +494,17 @@ async function assertFinishable(
   userId: string,
   workDate: Date,
   tz: string,
-  jobs: { workOrderId: string; sqft: number }[],
+  jobs: { workOrderId: string; sqft: number; pieces?: Record<string, number> | null }[],
+  pieceItems: readonly PieceItem[] = [],
 ) {
   if (!jobs.length) throw httpErr(422, "Informe em qual job você trabalhou.", "JOB_REQUIRED");
   for (const j of jobs) await accessibleJob(tx, j.workOrderId);
-  if (emp.payType === "production" && !jobs.some((j) => j.sqft > 0)) {
+  if (emp.payType === "production" && pieceItems.length) {
+    // Production by item (Tile): at least one item counted on some job.
+    if (!jobs.some((j) => Object.keys(normalizePieces(pieceItems, j.pieces)).length)) {
+      throw httpErr(422, "Informe o que você fez hoje (sq ft de piso, parede, box…).", "PIECES_REQUIRED");
+    }
+  } else if (emp.payType === "production" && !jobs.some((j) => j.sqft > 0)) {
     throw httpErr(422, "Informe quantos sq ft você fez hoje.", "SQFT_REQUIRED");
   }
   if (emp.requirePhotos) {
@@ -593,12 +614,12 @@ campoDiaRouter.post("/api/campo/dia/finish", requireCrmAuth, async (req: AuthedR
       const emp = await ownEmployee(tx, req);
       if (!emp) throw httpErr(409, "Seu usuário não está ligado à folha.", "NOT_LINKED");
       const shift = await openDay(tx, req.user!.id, tz, now);
-      let jobs = (b.data.jobs || []).map((j) => ({ workOrderId: j.work_order_id, sqft: num(j.sqft) }));
+      let jobs = (b.data.jobs || []).map((j) => ({ workOrderId: j.work_order_id, sqft: num(j.sqft), pieces: j.pieces ?? null }));
       if (!jobs.length) {
         const cur = await tx.campoShiftJob.findMany({ where: { shiftId: shift.id }, orderBy: { sortOrder: "asc" } });
-        jobs = cur.map((j) => ({ workOrderId: j.workOrderId, sqft: num(j.sqft) }));
+        jobs = cur.map((j) => ({ workOrderId: j.workOrderId, sqft: num(j.sqft), pieces: (j.pieces as Record<string, number> | null) ?? null }));
       }
-      await assertFinishable(tx, emp, req.user!.id, shift.workDate, tz, jobs);
+      await assertFinishable(tx, emp, req.user!.id, shift.workDate, tz, jobs, pieceItemsFor(req.organization?.tradePacks));
       await closeDay(tx, shift.id, { clockOut: now, gps, deviceAt: deviceAt(req.body || {}), note: b.data.note ?? null, jobs, now }, { tz, userId: req.user!.id });
       const expenseItems = (b.data.expenses || [])
         .filter((e) => e.amount > 0)
@@ -669,8 +690,8 @@ campoDiaRouter.post("/api/campo/dia/manual", requireCrmAuth, async (req: AuthedR
       const clockOut = wallTimeOn(workDate, b.data.end, tz);
       if (clockOut.getTime() <= clockIn.getTime()) throw httpErr(400, "A saída precisa ser depois da entrada.");
       if (clockOut.getTime() > now.getTime() + 5 * 60_000) throw httpErr(400, "A saída não pode ser no futuro.");
-      const jobs = b.data.jobs.map((j) => ({ workOrderId: j.work_order_id, sqft: num(j.sqft) }));
-      await assertFinishable(tx, emp, userId, workDate, tz, jobs);
+      const jobs = b.data.jobs.map((j) => ({ workOrderId: j.work_order_id, sqft: num(j.sqft), pieces: j.pieces ?? null }));
+      await assertFinishable(tx, emp, userId, workDate, tz, jobs, pieceItemsFor(req.organization?.tradePacks));
 
       if (!shift) {
         const exists = await tx.campoShift.findFirst({ where: { userId, workDate } });

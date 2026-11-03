@@ -520,6 +520,49 @@
     }, 250);
   }
 
+  // production by item (Tile): quantities per item on each job, paid with the employee's rates
+  function byItem() {
+    return Boolean(S.employee && S.employee.pay_type === "production" && (S.piece_items || []).length);
+  }
+  function piecesOf(jobs) {
+    return Object.fromEntries((jobs || []).map((j) => [j.id, { ...(j.pieces || {}) }]));
+  }
+  function piecesHtml(jobId, store) {
+    const q = store[jobId] || {};
+    const units = S.piece_units || {};
+    return `<div class="dy-pieces">${S.piece_items
+      .map(
+        (it) => `<label class="dy-piece"><span>${esc(it.label)}<small>${esc(units[it.unit] || it.unit)}${it.rate ? ` · ${esc(money(it.rate))}` : ""}</small></span>
+          <input class="dy-in dy-in--sqft" inputmode="decimal" data-piece="${esc(it.key)}" data-pjob="${esc(jobId)}" value="${esc(q[it.key] ?? "")}" placeholder="0" /></label>`,
+      )
+      .join("")}</div>`;
+  }
+  /** Day totals per item × rate (the server recomputes with the same rates). */
+  function piecesEstimate(store) {
+    const tot = {};
+    Object.values(store || {}).forEach((q) => Object.entries(q || {}).forEach(([k, v]) => (tot[k] = (tot[k] || 0) + (Number(v) || 0))));
+    const lines = S.piece_items.filter((it) => tot[it.key] > 0).map((it) => ({ ...it, qty: Math.round(tot[it.key] * 100) / 100, amount: Math.round(tot[it.key] * (it.rate || 0) * 100) / 100 }));
+    return {
+      lines,
+      amount: Math.round(lines.reduce((s, l) => s + l.amount, 0) * 100) / 100,
+      sqft: Math.round(lines.filter((l) => l.counts_sqft).reduce((s, l) => s + l.qty, 0) * 100) / 100,
+    };
+  }
+  function piecesPayload(store, jobId) {
+    const q = (store || {})[jobId] || {};
+    const out = {};
+    Object.entries(q).forEach(([k, v]) => {
+      const n = Number(String(v).replace(",", "."));
+      if (n > 0) out[k] = n;
+    });
+    return out;
+  }
+  function piecesSummaryHtml(est) {
+    if (!est.lines.length) return `<div class="dy-pline dy-pline--empty">Nada contado ainda.</div>`;
+    const units = S.piece_units || {};
+    return est.lines.map((l) => `<div class="dy-pline"><span>${esc(l.label)}</span><span>${esc(l.qty)} ${esc(units[l.unit] || l.unit)}</span><b>${esc(money(l.amount))}</b></div>`).join("");
+  }
+
   // finish
   function openFinish() {
     const d = S.day;
@@ -527,6 +570,7 @@
     openSheet("finish", "Finalizar o dia", {
       note: "",
       sqft: Object.fromEntries(d.jobs.map((j) => [j.id, j.sqft || ""])),
+      pieces: piecesOf(d.jobs),
       expenses: [],
       err: "",
     });
@@ -544,10 +588,11 @@
     let ot = Math.max(0, (Date.now() - end) / 60000);
     ot = Math.round(ot / 15) * 15;
     const otRate = (emp.daily_rate || 0) * 0.1;
-    const sqft = Object.values(sheet.sqft).reduce((s, v) => s + (Number(v) || 0), 0);
-    const amount = emp.pay_type === "production" ? sqft * (emp.production_rate || 0) : (emp.daily_rate || 0) + (ot / 60) * otRate;
+    const items = byItem() ? piecesEstimate(sheet.pieces) : null;
+    const sqft = items ? items.sqft : Object.values(sheet.sqft).reduce((s, v) => s + (Number(v) || 0), 0);
+    const amount = items ? items.amount : emp.pay_type === "production" ? sqft * (emp.production_rate || 0) : (emp.daily_rate || 0) + (ot / 60) * otRate;
     const reimb = (sheet.expenses || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
-    return { worked: elapsed - lunch, ot: emp.pay_type === "production" ? 0 : ot, amount, sqft, reimb };
+    return { worked: elapsed - lunch, ot: emp.pay_type === "production" ? 0 : ot, amount, sqft, reimb, items };
   }
   function renderFinish() {
     const d = S.day;
@@ -570,13 +615,13 @@
               <div class="dy-fjob__row">
                 <button class="dy-btn dy-btn--sm ${miss ? "dy-btn--terra" : "dy-btn--line"}" data-act="photo" data-job="${esc(j.id)}">${ICON.cam} ${n ? "Mais foto" : "Tirar foto"}</button>
                 ${
-                  emp.pay_type === "production"
+                  emp.pay_type === "production" && !byItem()
                     ? `<label>sq ft <input class="dy-in dy-in--sqft" inputmode="decimal" data-sqft="${esc(j.id)}" value="${esc(sheet.sqft[j.id])}" placeholder="0" /></label>`
                     : d.jobs.length > 1
                       ? `<button class="dy-btn dy-btn--sm dy-btn--line" data-act="rmjob" data-job="${esc(j.id)}">Não fui</button>`
                       : ""
                 }
-              </div></div>`;
+              </div>${byItem() ? `<p class="dy-pieces__t">O que você fez neste job</p>${piecesHtml(j.id, sheet.pieces)}` : ""}</div>`;
           })
           .join("")}
         <button class="dy-btn dy-btn--sm dy-btn--line dy-btn--full" data-act="addjob">+ Trabalhei em outro job</button>
@@ -616,7 +661,8 @@
           <div><small>Horas${d.lunch_minutes ? ` (−${d.lunch_minutes} almoço)` : ""}</small><b>${esc(minLabel(est.worked))}</b></div>
           <div class="ot"><small>Extra (depois das ${esc(d.expected_end_label || emp.schedule.end_time)})</small><b>${est.ot ? esc(minLabel(est.ot)) : "—"}</b></div>
           ${est.reimb ? `<div><small>Reembolso pedido</small><b>+${esc(money(est.reimb))}</b></div>` : ""}
-          <div class="big"><small>${emp.pay_type === "production" ? `${est.sqft || 0} sq ft` : "Estimativa do dia"}</small><b>${esc(money(est.amount))}</b></div>
+          ${est.items ? `<div class="dy-plines" id="dyPLines">${piecesSummaryHtml(est.items)}</div>` : ""}
+          <div class="big"><small>${est.items ? "Produção do dia" : emp.pay_type === "production" ? `${est.sqft || 0} sq ft` : "Estimativa do dia"}</small><b>${esc(money(est.amount))}</b></div>
         </div>
         <p class="dy-gps">${ICON.pin} Ao enviar registramos a hora e sua localização.${est.reimb ? " O reembolso vai para o escritório conferir." : ""}</p></div>`;
     const blocked = missing.length > 0 || waiting > 0;
@@ -690,7 +736,7 @@
     }
     const g = await gps();
     try {
-      const jobs = S.day.jobs.map((j) => ({ work_order_id: j.id, sqft: Number(sheet.sqft[j.id]) || 0 }));
+      const jobs = S.day.jobs.map((j) => ({ work_order_id: j.id, sqft: Number(sheet.sqft[j.id]) || 0, ...(byItem() ? { pieces: piecesPayload(sheet.pieces, j.id) } : {}) }));
       const expenses = (sheet.expenses || []).map((e) => ({
         amount: e.amount,
         description: e.description,
@@ -746,6 +792,7 @@
       jobs: day ? day.jobs.map((j) => j.id) : S.jobs_today.slice(0, 1).map((j) => j.id),
       known: [...(day ? day.jobs : []), ...S.jobs_today],
       sqft: day ? Object.fromEntries(day.jobs.map((j) => [j.id, j.sqft || ""])) : {},
+      pieces: day ? piecesOf(day.jobs) : {},
       note: day ? day.note || "" : "",
       results: null,
       q: "",
@@ -774,9 +821,11 @@
       <div class="dy-step"><p class="dy-step__t">Jobs desse dia</p>
         ${sel.length ? jobPickHtml(sel, m.jobs, true) : '<p class="dy-empty">Escolha pelo menos um job.</p>'}
         ${
-          emp.pay_type === "production" && sel.length
-            ? `<div style="margin-top:8px">${sel.map((j) => `<label class="dy-field" style="margin-top:6px">sq ft · ${esc(jobLine(j))}<input class="dy-in dy-in--sqft" inputmode="decimal" data-msqft="${esc(j.id)}" value="${esc(m.sqft[j.id] || "")}" /></label>`).join("")}</div>`
-            : ""
+          byItem() && sel.length
+            ? sel.map((j) => `<p class="dy-pieces__t">${esc(jobLine(j))}</p>${piecesHtml(j.id, m.pieces)}`).join("")
+            : emp.pay_type === "production" && sel.length
+              ? `<div style="margin-top:8px">${sel.map((j) => `<label class="dy-field" style="margin-top:6px">sq ft · ${esc(jobLine(j))}<input class="dy-in dy-in--sqft" inputmode="decimal" data-msqft="${esc(j.id)}" value="${esc(m.sqft[j.id] || "")}" /></label>`).join("")}</div>`
+              : ""
         }
         <input class="dy-in" id="dyQ" style="margin-top:10px" placeholder="Adicionar outro job — buscar" value="${esc(m.q)}" autocomplete="off" />
         ${others.length ? `<div style="margin-top:8px">${jobPickHtml(others.slice(0, 8), m.jobs, true)}</div>` : ""}
@@ -797,7 +846,7 @@
           date: m.day ? null : m.date,
           start: m.start,
           end: m.end,
-          jobs: m.jobs.map((id) => ({ work_order_id: id, sqft: Number(m.sqft[id]) || 0 })),
+          jobs: m.jobs.map((id) => ({ work_order_id: id, sqft: Number(m.sqft[id]) || 0, ...(byItem() ? { pieces: piecesPayload(m.pieces, id) } : {}) })),
           note: m.note || null,
         }),
       });
@@ -916,6 +965,19 @@
       if (big) big.innerHTML = `<small>${est.sqft || 0} sq ft</small><b>${esc(money(est.amount))}</b>`;
     }
     if (t.hasAttribute("data-msqft")) sheet.sqft[t.getAttribute("data-msqft")] = t.value;
+    if (t.hasAttribute("data-piece")) {
+      const job = t.getAttribute("data-pjob");
+      sheet.pieces = sheet.pieces || {};
+      sheet.pieces[job] = sheet.pieces[job] || {};
+      sheet.pieces[job][t.getAttribute("data-piece")] = t.value;
+      if (sheet.kind === "finish") {
+        const est = finishEstimate();
+        const box = $("dyPLines");
+        if (box && est.items) box.innerHTML = piecesSummaryHtml(est.items);
+        const big = document.querySelector(".dy-sum .big");
+        if (big) big.innerHTML = `<small>Produção do dia</small><b>${esc(money(est.amount))}</b>`;
+      }
+    }
   });
   document.addEventListener("change", (e) => {
     if (e.target.id === "dyMDate" && sheet) sheet.date = e.target.value;

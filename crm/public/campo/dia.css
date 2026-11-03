@@ -216,3 +216,20 @@ body.dy-lock { overflow: hidden; }
   font-size: 13px;
   line-height: 1.4;
 }
+
+/* Production by item (Tile): what was done on each job */
+.dy-pieces__t { margin: 12px 0 6px; font-size: 12.5px; font-weight: 800; color: var(--ink-2); letter-spacing: .02em; }
+.dy-pieces { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.dy-piece { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 700; color: var(--ink); min-width: 0; }
+.dy-piece span { display: flex; flex-direction: column; min-width: 0; }
+.dy-piece small { font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.dy-piece .dy-in--sqft { max-width: none; min-height: 44px; }
+.dy-plines { grid-column: 1 / -1; background: var(--cream); border-radius: 12px; padding: 6px 12px; }
+.dy-sum .dy-plines { padding: 6px 12px; }
+.dy-pline { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; padding: 6px 0; font-size: 13.5px; border-top: 1px solid rgba(0,0,0,.06); }
+.dy-pline:first-child { border-top: 0; }
+.dy-pline span:first-child { font-weight: 700; color: var(--ink); }
+.dy-pline span:nth-child(2) { color: var(--muted); font-variant-numeric: tabular-nums; }
+.dy-pline b { font-variant-numeric: tabular-nums; min-width: 64px; text-align: right; }
+.dy-pline--empty { display: block; color: var(--muted); }
+.dy-sum .dy-pline { background: none; border-radius: 0; padding: 6px 0; }

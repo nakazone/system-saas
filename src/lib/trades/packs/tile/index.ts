@@ -108,6 +108,20 @@ export const tile: TradePack = {
       joint: ['1/16"', '1/8"', '3/16"', '1/4"'],
     },
   },
+  // Production pay by item: what tile crews are usually paid per piece of work.
+  payroll: {
+    pieceItems: [
+      { key: "floor_sf", label: L("Piso", "Floor"), unit: "sf", countsSqft: true },
+      { key: "wall_sf", label: L("Parede / box", "Walls / shower walls"), unit: "sf", countsSqft: true },
+      { key: "mosaic_sf", label: L("Mosaico / decorativo", "Mosaic / accent"), unit: "sf", countsSqft: true },
+      { key: "waterproofing_sf", label: L("Impermeabilização", "Waterproofing"), unit: "sf" },
+      { key: "demo_sf", label: L("Demolição / preparo", "Demo / prep"), unit: "sf" },
+      { key: "shower_pan", label: L("Pan do box", "Shower pan"), unit: "each" },
+      { key: "niche", label: L("Nicho", "Niche"), unit: "each" },
+      { key: "bench", label: L("Banco", "Bench"), unit: "each" },
+      { key: "trim_lf", label: L("Perfil / rodapé / bullnose", "Trim / base / bullnose"), unit: "lf" },
+    ],
+  },
   ai: {
     companyKind: "tile installation companies",
     tradeNoun: "tile",

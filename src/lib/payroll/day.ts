@@ -113,12 +113,13 @@ export function computeDayMinutes(input: {
 
 export function dayAmount(
   emp: PayrollEmpRates,
-  q: { daysWorked: number; overtimeMinutes: number; sqft: number },
+  q: { daysWorked: number; overtimeMinutes: number; sqft: number; pieces?: unknown },
 ): number {
   return calcTimesheetLineAmount(emp, {
     daysWorked: q.daysWorked,
     overtimeHours: Math.round((q.overtimeMinutes / 60) * 100) / 100,
     sqft: q.sqft,
+    pieces: q.pieces,
   });
 }
 
