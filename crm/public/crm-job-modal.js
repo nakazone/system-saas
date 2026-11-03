@@ -2300,26 +2300,44 @@
   async function openScheduleLixaFrom(wo) {
     const base = wo || null;
     if (!base || !base.id) return;
-    const start = nextDayAfter(base.scheduled_end || base.scheduled_start);
-    await openCreate({
-      start,
-      sector: "sand_finish",
-      relatedWorkOrderId: base.id,
-      relatedWorkOrder: {
+    if (!canManage) {
+      notify("Sem permissão para agendar jobs.", "error");
+      return;
+    }
+    // Same ticket → Installation + Sand & Finish (keep install date; no second job).
+    if (String(base.sector || "") === "both") {
+      await openStartDate(base);
+      return;
+    }
+    const sand = nextDayAfter(base.scheduled_end || base.scheduled_start);
+    try {
+      const j = await api(`/api/work-orders/${encodeURIComponent(base.id)}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          sector: "both",
+          sand_scheduled_start: sand.toISOString(),
+        }),
+      });
+      const updated = j.data || {};
+      notify("Job atualizado para Installation + Sand & Finish.", "success");
+      const snap = {
+        ...base,
+        ...updated,
         id: base.id,
-        number: base.number,
-        title: base.title,
-        sector: base.sector,
-        status: base.status,
-      },
-      customerId: base.customer_id || null,
-      builderId: base.builder_id || null,
-      sourceType: base.source_type || "particular",
-      sourceName: base.source_name || "",
-      address: base.address || "",
-      notes: base.notes || "",
-      title: base.title ? `${base.title} — Lixa` : "Lixa",
-    });
+        sector: "both",
+        title: updated.title || base.title,
+        scheduled_start: updated.scheduled_start || base.scheduled_start || null,
+        sand_scheduled_start: updated.sand_scheduled_start || sand.toISOString(),
+      };
+      savedListeners.forEach((fn) => {
+        try {
+          fn({ id: base.id });
+        } catch (_) {}
+      });
+      await openStartDate(snap);
+    } catch (err) {
+      notify((err && err.message) || "Não foi possível agendar a Lixa.", "error");
+    }
   }
 
   /** True when the job title looks auto-built from a client display label (+ optional street). */

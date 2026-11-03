@@ -371,6 +371,10 @@
   function newQuoteHref(c) {
     return c.lead_id ? `quote-builder.html?lead_id=${encodeURIComponent(c.lead_id)}` : "quote-builder.html";
   }
+  function newFieldQuoteHref(c) {
+    if (!c || !c.id) return "field-quote.html";
+    return `field-quote.html?customer_id=${encodeURIComponent(c.id)}`;
+  }
 
   function renderDetail() {
     const host = $("cxDetail");
@@ -407,6 +411,7 @@
           ${btnA(tel, "phone", "Ligar", " cx-btn--ic")}${btnA(sms, "sms", "SMS", " cx-btn--ic")}${btnA(mail, "mail", "E-mail", " cx-btn--ic")}
           <button type="button" class="cx-btn cx-btn--sq" data-more aria-label="Mais ações" aria-haspopup="menu">${ic("more", 16)}</button>
           ${canEdit ? `<button type="button" class="cx-btn" data-edit>${ic("edit")}<span>Editar</span></button>` : ""}
+          <a class="cx-btn" href="${newFieldQuoteHref(c)}">${ic("plus", 15, 2.2)}<span>Field Quote</span></a>
           <a class="cx-btn cx-btn--pri" href="${newQuoteHref(c)}">${ic("plus", 15, 2.2)}<span>Novo quote</span></a>
         </div>
       </div>
@@ -541,7 +546,7 @@
         <div class="cx-col">${jobs}${quotes}</div>
         <div class="cx-col">${invoices}${activity}</div>
       </div>
-      <div class="cx-pbar"><button type="button" class="cx-btn" data-new-job>${ic("plus", 15, 2.2)}<span>Novo job</span></button><a class="cx-btn cx-btn--pri" href="${newQuoteHref(c)}">${ic("plus", 15, 2.2)}<span>Novo quote</span></a></div>
+      <div class="cx-pbar"><button type="button" class="cx-btn" data-new-job>${ic("plus", 15, 2.2)}<span>Novo job</span></button><a class="cx-btn" href="${newFieldQuoteHref(c)}">${ic("plus", 15, 2.2)}<span>Field Quote</span></a><a class="cx-btn cx-btn--pri" href="${newQuoteHref(c)}">${ic("plus", 15, 2.2)}<span>Novo quote</span></a></div>
     </article>`;
     host.scrollTop = 0;
     // A barra fixa do iPhone fica fora do container da página (container-type prende position:fixed).

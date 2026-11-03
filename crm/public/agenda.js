@@ -200,6 +200,21 @@
       color: e.color,
     };
   const SECTOR_LBL = { installation: 'Instalação', sand_finish: 'Lixa' };
+  /** Per-event agenda/sector label — never the first jobs calendar for every job. */
+  function eventTypeLabel(e) {
+    if (!e) return '';
+    if (e.type === 'job') {
+      const role = String((e.meta && e.meta.date_role) || '').toLowerCase();
+      const cal = calOf(e);
+      if (role === 'sand') return (cal && cal.name) || SECTOR_LBL.sand_finish;
+      if (role === 'main') return (cal && cal.name) || SECTOR_LBL.installation;
+      if (cal && cal.name) return cal.name;
+      const sector = String((e.meta && e.meta.sector) || '').toLowerCase();
+      return SECTOR_LBL[sector] || typeInfo('job').one;
+    }
+    const cal = calOf(e);
+    return (cal && cal.name) || typeInfo(e.type).one;
+  }
   const CAL_KINDS = [
     { id: 'jobs', label: 'Jobs' },
     { id: 'visits', label: 'Visitas' },
@@ -822,7 +837,7 @@
         const clock = e.type !== 'job';
         return `${head}<button type="button" class="ag-dp__it${e.status === 'completed' ? ' is-done' : ''}" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}">
                   ${clock ? `<time>${esc(t1)}<small>${esc(t2)}</small></time>` : ''}<i></i>
-                  <span class="ag-dp__b ${toneCls(e)}"><em>${esc(typeInfo(e.type).one)}${e.status === 'canceled' ? ' · cancelado' : ''}</em><b>${esc(ticketTitle(e))}</b>${sub(e) ? `<small>${esc(sub(e))}</small>` : ''}</span>
+                  <span class="ag-dp__b ${toneCls(e)}"><em>${esc(eventTypeLabel(e))}${e.status === 'canceled' ? ' · cancelado' : ''}</em><b>${esc(ticketTitle(e))}</b>${sub(e) ? `<small>${esc(sub(e))}</small>` : ''}</span>
                 </button>`;
       })
       .join('');
@@ -887,7 +902,7 @@
               ([d, l]) => `<section><div class="ag-list__hd"><h3 class="${sameDay(d, from) ? 'is-today' : ''}">${esc(fmtDateLong(d))}</h3>${dayRouteBtnHtml(d, 'ag-btn ag-btn--sm')}</div>${l
                 .map(
                   (e) => `<button type="button" class="ag-li ${toneCls(e)}" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i></i>${showClock(e) || e.allDay ? `<time>${esc(e.allDay ? 'dia inteiro' : fmtTime(e.start))}</time>` : ''}<div><b>${esc(ticketTitle(e))}</b><small>${esc(
-                    [typeInfo(e.type).one, e.needs_delivery ? 'Delivery' : null, eventStreet(e) || null].filter(Boolean).join(' · ')
+                    [eventTypeLabel(e), e.needs_delivery ? 'Delivery' : null, eventStreet(e) || null].filter(Boolean).join(' · ')
                   )}</small></div></button>`
                 )
                 .join('')}</section>`
@@ -1399,7 +1414,11 @@
         ${e.type === 'job' && e.meta.services_total ? `<div><span>Serviços</span><b>${esc(new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(e.meta.services_total))}</b></div>` : ''}
       </div>
       ${notesBlock}
-      <div class="ag-dtl__acts">${e.type === 'visit' && e.status !== 'canceled' ? `<a class="ag-btn ag-btn--pri" href="field-quote.html?meeting_id=${encodeURIComponent(e.id)}">Começar Field Quote</a>` : ''}${ct.href ? `<a class="ag-btn${e.type === 'visit' ? '' : ' ag-btn--pri'}" href="${esc(ct.href)}">${esc(ct.hrefLabel)}</a>` : ''}${
+      <div class="ag-dtl__acts">${e.type === 'visit' && e.status !== 'canceled' ? `<a class="ag-btn ag-btn--pri" href="field-quote.html?meeting_id=${encodeURIComponent(e.id)}">Começar Field Quote</a>` : ''}${
+        e.type === 'job' && e.status !== 'canceled' && (e.meta.customer_id || e.meta.builder_id)
+          ? `<a class="ag-btn" href="field-quote.html?${e.meta.customer_id ? `customer_id=${encodeURIComponent(e.meta.customer_id)}` : `builder_id=${encodeURIComponent(e.meta.builder_id)}`}">Começar Field Quote</a>`
+          : ''
+      }${ct.href ? `<a class="ag-btn${e.type === 'visit' ? '' : ' ag-btn--pri'}" href="${esc(ct.href)}">${esc(ct.hrefLabel)}</a>` : ''}${
         (e.type === 'meeting' || e.type === 'visit') && e.status !== 'canceled'
           ? `<button type="button" class="ag-btn" data-ag-device-cal="${esc(e.id)}">Adicionar ao Apple Calendar</button>`
           : ''
@@ -1537,6 +1556,13 @@
     if (field === 'title' || field === 'when') {
       tapEl.replaceWith(wrap);
       wrap.classList.add('ag-dtl__editing--block');
+      if (field === 'when') {
+        wrap.classList.add('ag-dtl__editing--when');
+        wrap.insertAdjacentHTML(
+          'beforeend',
+          `<button type="button" class="ag-dtl__done" data-ag-edit-done aria-label="Confirmar" title="Confirmar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>`,
+        );
+      }
     } else if (field === 'address') {
       const card = tapEl.closest('.ag-dtl__addr') || tapEl;
       card.replaceWith(wrap);
@@ -1808,7 +1834,7 @@
        <div class="ag-sheet__body"><div class="ag-card" style="padding:6px">${list
          .map(
            (e) =>
-             `<button type="button" class="ag-li" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i></i><time>${esc(e.allDay ? 'dia inteiro' : fmtTime(e.start))}</time><div><b>${esc(ticketTitle(e))}</b><small>${esc(typeInfo(e.type).one)}</small></div></button>`
+             `<button type="button" class="ag-li" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i></i><time>${esc(e.allDay ? 'dia inteiro' : fmtTime(e.start))}</time><div><b>${esc(ticketTitle(e))}</b><small>${esc(eventTypeLabel(e))}</small></div></button>`
          )
          .join('')}</div></div>`
     );
@@ -2068,6 +2094,14 @@
     void y;
   }
 
+  /** Menu under “+ Novo”: no repeated “Novo/New” — the button already says that. */
+  function newMenuLabel(name, fallback) {
+    let n = String(name || '').trim();
+    n = n.replace(/^(novo|nova|new)\s+/i, '').trim();
+    if (!n) n = String(fallback || '').trim();
+    return n || fallback || 'Item';
+  }
+
   function newMenu(x, y, when) {
     if (!S.canManage) return toast('Sem permissão para agendar.', 'error');
     const w = when ? when.toISOString() : '';
@@ -2082,10 +2116,9 @@
     const meets = cals.filter((c) => c.kind === 'meetings' || c.kind === 'custom');
     const items = [];
     jobs.forEach((c) => {
-      const name = jobs.length > 1 ? `Novo job · ${c.name}` : 'Novo job';
       items.push({
         act: 'new-job',
-        label: name + whenLabel,
+        label: newMenuLabel(jobs.length > 1 ? c.name : calOne(c.name, 'Job'), 'Job') + whenLabel,
         color: c.color,
         data: w,
         cal: c.id,
@@ -2095,7 +2128,7 @@
     visits.forEach((c) => {
       items.push({
         act: 'new-visit',
-        label: `Nova ${calOne(c.name, 'visita').toLowerCase()}` + whenLabel,
+        label: newMenuLabel(calOne(c.name, 'Visita'), 'Visita') + whenLabel,
         color: c.color,
         data: w,
         cal: c.id,
@@ -2104,7 +2137,7 @@
     meets.forEach((c) => {
       items.push({
         act: 'new-meeting',
-        label: `Novo ${calOne(c.name, 'compromisso').toLowerCase()}` + whenLabel,
+        label: newMenuLabel(calOne(c.name, 'Compromisso'), 'Compromisso') + whenLabel,
         color: c.color,
         data: w,
         cal: c.id,
@@ -2112,8 +2145,8 @@
     });
     if (!items.length) {
       items.push(
-        { act: 'new-job', label: 'Novo job' + whenLabel, color: TYPES.job.color, data: w },
-        { act: 'new-meeting', label: 'Novo compromisso' + whenLabel, color: TYPES.meeting.color, data: w },
+        { act: 'new-job', label: 'Job' + whenLabel, color: TYPES.job.color, data: w },
+        { act: 'new-meeting', label: 'Compromisso' + whenLabel, color: TYPES.meeting.color, data: w },
       );
     }
     openMenu(x, y, items);
@@ -2521,7 +2554,7 @@
       ? hits
           .map(
             (e) => `<button type="button" class="ag-li ${toneCls(e)}" data-ag-hit="${esc(e.id)}" style="${evStyle(e)}"><i></i><time>${esc(fmtDateShort(e.start))}<br/><small>${esc(e.type === 'job' ? (e.allDay ? 'dia inteiro' : '') : e.allDay ? 'dia inteiro' : fmtTime(e.start))}</small></time><div><b>${esc(ticketTitle(e))}</b><small>${esc(
-              [typeInfo(e.type).one, eventStreet(e) || null].filter(Boolean).join(' · ')
+              [eventTypeLabel(e), eventStreet(e) || null].filter(Boolean).join(' · ')
             )}</small></div></button>`
           )
           .join('')
@@ -3103,9 +3136,19 @@
         ev.stopPropagation();
         const detail = el.closest('[data-ag-detail]');
         const editing = detail && detail.querySelector('[data-ag-editing]');
-        if (editing && editing.getAttribute('data-ag-editing') === 'members') {
+        const mode = editing && editing.getAttribute('data-ag-editing');
+        if (mode === 'members') {
           const box = editing.querySelector('[data-ag-inline="members"]') || editing;
           void applyInlinePatch(box);
+          return;
+        }
+        if (mode === 'when') {
+          const dateEl =
+            editing.querySelector('[data-ag-inline="date"]') ||
+            editing.querySelector('[data-ag-inline="start"]') ||
+            editing.querySelector('[data-ag-inline]');
+          if (dateEl) void applyInlinePatch(dateEl);
+          else if (detail) dismissFieldEdit(detail);
           return;
         }
         if (detail) dismissFieldEdit(detail);
@@ -3300,6 +3343,15 @@
           // Month phone: open event card / day list — never enter day view.
           return openDayEventsSheet(el.dataset.agMday);
         }
+        // Several bookings: same as “+N” — list every appointment for the day.
+        if (eventsOnDay(day).length > 1) {
+          S.selected = day;
+          $$('.ag-md.is-sel, .ag-day.is-sel').forEach((x) => x.classList.remove('is-sel'));
+          el.classList.add('is-sel');
+          renderDayPanel();
+          if (S.sidebar) renderSide();
+          return openDayEventsSheet(el.dataset.agMday);
+        }
         S.selected = day;
         $$('.ag-md.is-sel, .ag-day.is-sel').forEach((x) => x.classList.remove('is-sel'));
         el.classList.add('is-sel');
@@ -3314,7 +3366,17 @@
         return render();
       }
       if ((el = t.closest('[data-ag-day]')) && !isPhone()) {
-        S.selected = parseYmd(el.dataset.agDay);
+        const day = parseYmd(el.dataset.agDay);
+        if (!day) return;
+        if (eventsOnDay(day).length > 1) {
+          S.selected = day;
+          $$('.ag-day.is-sel, .ag-md.is-sel').forEach((x) => x.classList.remove('is-sel'));
+          el.classList.add('is-sel');
+          renderDayPanel();
+          if (S.sidebar) renderSide();
+          return openDayEventsSheet(el.dataset.agDay);
+        }
+        S.selected = day;
         $$('.ag-day.is-sel, .ag-md.is-sel').forEach((x) => x.classList.remove('is-sel'));
         el.classList.add('is-sel');
         renderDayPanel();
@@ -3358,6 +3420,9 @@
       const t = ev.target;
       if (!(t instanceof HTMLElement)) return;
       if (t.matches('[data-ag-inline]')) {
+        const field = t.getAttribute('data-ag-inline');
+        // Date/time wait for the confirm checkmark — do not save on picker change alone.
+        if (field === 'date' || field === 'start' || field === 'end') return;
         void applyInlinePatch(t);
         return;
       }
