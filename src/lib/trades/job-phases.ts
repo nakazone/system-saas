@@ -48,7 +48,8 @@ export type PhaseView = {
 
 type Locale = keyof PhaseDef["label"];
 
-export type EvidenceEntry = { at: string; by?: string | null; value?: unknown; mediaId?: string | null };
+/** `offline`: recorded on the phone without signal and sent later; `at` is the phone's time, `receivedAt` the server's. */
+export type EvidenceEntry = { at: string; by?: string | null; value?: unknown; mediaId?: string | null; offline?: boolean; receivedAt?: string };
 export type Evidence = Record<string, EvidenceEntry>;
 
 export function asEvidence(raw: unknown): Evidence {

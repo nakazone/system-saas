@@ -3,6 +3,10 @@
  * waterproofing, flood test, setting, grout, seal). One vertical list: done phases with who/when and
  * their proofs, the current phase open with its proofs and "Concluir", the next ones with their
  * cure waits. Hardwood keeps Instalação / Lixa on the job status, so the tab stays hidden there.
+ *
+ * Without signal (bathrooms often have none): the last copy of the phases opens from the phone
+ * (OmOffline), and proofs, photos and "Concluir" are saved on the phone, shown as "aguardando
+ * sinal" and sent in order when the signal comes back, with the time they were done.
  */
 (function () {
   const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -15,17 +19,63 @@
     if (!r.ok || j.success === false) {
       const e = new Error(j.error || "Não foi possível concluir.");
       e.code = j.code;
+      e.status = r.status;
       throw e;
     }
     return j.data;
   }
+
+  const OFF = () => window.OmOffline || null;
+  const online = () => navigator.onLine !== false;
+
+  /** Phases: from the server, or the phone's last copy when there is no signal. */
+  async function load(url) {
+    const O = OFF();
+    if (!O) return { data: await api(url), savedAt: null };
+    const j = await O.api(url, { method: "GET", allowQueue: false });
+    if (j && j.success === false) throw new Error(j.error || "Não foi possível abrir as fases.");
+    return { data: j.data, savedAt: j.fromCache ? j.savedAt || null : null };
+  }
+
+  /** Keep the phone's copy in step with what the crew did offline (so a reload shows it). */
+  function saveCopy(url, d) {
+    const O = OFF();
+    if (O && O.putSnapshot) O.putSnapshot(url, { success: true, data: d }).catch(() => {});
+  }
+
+  /** The server's rules, applied on the phone while the action waits for signal. */
+  const local = {
+    evidence(d, phase, req, body, at) {
+      const p = d.phases.find((x) => x.key === phase);
+      const r = p && p.requires.find((x) => x.key === req);
+      if (!r) return;
+      r.done = true;
+      r.pending = true;
+      r.at = at;
+      r.by = "Você";
+      r.value = body.value ?? (body.photo ? null : r.value);
+      if (body.photo) r.photo = { id: null, url: body.photo.data_url, thumb_url: body.photo.data_url };
+    },
+    complete(d, phase, at) {
+      const i = d.phases.findIndex((x) => x.key === phase);
+      const p = d.phases[i];
+      if (!p) return;
+      p.status = "done";
+      p.pending = true;
+      p.done_at = at;
+      p.done_by_name = "Você";
+      const next = d.phases.slice(i + 1).find((x) => x.status !== "skipped");
+      if (next) next.ready_at = new Date(new Date(at).getTime() + (p.wait_after_hours || 0) * 3600000).toISOString();
+    },
+  };
+  const isNetworkError = (e) => !e || e.status == null;
 
   function ensureCss() {
     if (document.getElementById(CSS_ID)) return;
     const l = document.createElement("link");
     l.id = CSS_ID;
     l.rel = "stylesheet";
-    l.href = "/job-phases.css?v=20261102-fases2";
+    l.href = "/job-phases.css?v=20261103-off1";
     document.head.appendChild(l);
   }
 
@@ -108,7 +158,8 @@
   function reqRow(p, r, st) {
     const action = r.kind === "photo" ? "Adicionar foto" : r.kind === "test" ? "Registrar" : "Confirmar";
     const open = st.editing === `${p.key}:${r.key}`;
-    const doneLine = r.done ? (r.photo ? chip(r) : `<small class="jp-req__val">${esc(valueText(r) || "Registrado")}${r.by ? ` · ${esc(r.by)}` : ""}</small>`) : "";
+    const wait = r.pending ? ' <span class="jp-wait">aguardando sinal</span>' : "";
+    const doneLine = r.done ? (r.photo ? `${chip(r)}${wait}` : `<small class="jp-req__val">${esc(valueText(r) || "Registrado")}${r.by ? ` · ${esc(r.by)}` : ""}</small>${wait}`) : "";
     const btn = st.canAct
       ? `<button type="button" class="jp-b" data-req="${esc(r.key)}" data-kind="${esc(r.kind)}" data-phase="${esc(p.key)}" ${st.busy ? "disabled" : ""}>${r.done ? (r.kind === "photo" ? "Trocar foto" : "Refazer") : action}</button>`
       : "";
@@ -151,6 +202,7 @@
     if (isDone) {
       const at = p.done_at ? dayLabel(new Date(p.done_at), st.now) : "";
       sub = [p.status === "skipped" ? "Pulada" : at, p.done_by_name].filter(Boolean).map(esc).join(" · ");
+      if (p.pending) sub += ' · <span class="jp-wait">aguardando sinal</span>';
       if (p.wait_after_hours && next) sub += ` · depois ${p.wait_after_hours} h de cura`;
     } else if (isCur) {
       sub = s.waiting
@@ -195,7 +247,11 @@
 
   function render(box, d, st) {
     const s = shape(d, st.now);
-    const list = `<div class="jd-card">
+    const pending = d.phases.some((p) => p.pending || p.requires.some((r) => r.pending));
+    const off = st.savedAt || !online() || pending
+      ? `<p class="jp-off">${!online() ? `Sem internet${st.savedAt ? ` · fases salvas ${esc(dayLabel(new Date(st.savedAt), st.now).toLowerCase())}` : ""}. ` : ""}${pending ? "O que você registrar fica no celular e é enviado quando o sinal voltar." : !online() ? "Pode registrar as provas: elas ficam no celular até o sinal voltar." : ""}</p>`
+      : "";
+    const list = `<div class="jd-card">${off}
       <div class="jd-ch"><h2>Fases do job</h2><span class="jp-n" translate="no" data-no-i18n>${s.done} de ${s.total}</span></div>
       <ol class="jp-tl">${d.phases.map((p, i) => row(p, i, d, s, st)).join("")}</ol>
       ${!s.cur ? '<p class="jp-all">Todas as fases concluídas.</p>' : ""}
@@ -255,7 +311,7 @@
   async function summary(jobId) {
     if (!available()) return null;
     try {
-      const d = await api(`/api/work-orders/${encodeURIComponent(jobId)}/phases`);
+      const { data: d } = await load(`/api/work-orders/${encodeURIComponent(jobId)}/phases`);
       badge(d);
       return d;
     } catch (_) {
@@ -270,7 +326,7 @@
     if (!box) return;
     ensureCss();
     const notify = ctx.notify || ((m) => console.warn(m));
-    const st = { now: new Date(), compact: Boolean(ctx.compact), canAct: ctx.canAct !== false, busy: false, editing: null };
+    const st = { now: new Date(), compact: Boolean(ctx.compact), canAct: ctx.canAct !== false, busy: false, editing: null, savedAt: null };
     let data = null;
     const base = `/api/work-orders/${encodeURIComponent(ctx.jobId)}/phases`;
     const paint = () => {
@@ -279,6 +335,7 @@
     };
     const took = (d, msg) => {
       data = d;
+      saveCopy(base, d);
       st.editing = null;
       badge(d);
       if (msg) notify(msg, "success");
@@ -297,16 +354,70 @@
         paint();
       }
     };
-    const evidence = (phase, req, body) => api(`${base}/${encodeURIComponent(phase)}/evidence/${encodeURIComponent(req)}`, { method: "POST", body: JSON.stringify(body) });
+    /**
+     * Send an action; without signal (or when the request can't get out), keep it on the phone,
+     * apply it to the screen and the phone's copy, and send it later in order.
+     */
+    const send = async (url, body, label, applyLocal) => {
+      const at = new Date().toISOString();
+      const O = OFF();
+      // Something of this job still waiting to go: this action waits behind it, so the order holds.
+      const behind = O && O.list ? (await O.list().catch(() => [])).some((m) => String(m.url || "").startsWith(base)) : false;
+      if ((online() && !behind) || !O) {
+        try {
+          return { data: await api(url, { method: "POST", body: JSON.stringify(body) }) };
+        } catch (e) {
+          if (!O || !isNetworkError(e)) throw e;
+        }
+      }
+      await O.queue({ url, method: "POST", body: JSON.stringify({ ...body, at }), label, dropOn4xx: true });
+      const d = JSON.parse(JSON.stringify(data));
+      applyLocal(d, at);
+      if (online() && O.flush) setTimeout(() => O.flush().catch(() => {}), 50);
+      return { data: d, queued: true };
+    };
+    const evidence = (phase, req, body, label) =>
+      send(`${base}/${encodeURIComponent(phase)}/evidence/${encodeURIComponent(req)}`, body, label, (d, at) => local.evidence(d, phase, req, body, at));
+    const complete = (phase, body) =>
+      send(`${base}/${encodeURIComponent(phase)}/complete`, body, `Concluir ${phaseLabel(phase)}`, (d, at) => local.complete(d, phase, at));
+    const phaseLabel = (key) => ((data && data.phases.find((p) => p.key === key)) || { label: key }).label.toLowerCase();
+    const reqLabel = (phase, key) => {
+      const p = data && data.phases.find((x) => x.key === phase);
+      const r = p && p.requires.find((x) => x.key === key);
+      return r ? r.label : key;
+    };
+    const say = (out, msg) => took(out.data, out.queued ? "Sem sinal: ficou salvo no celular e vai quando o sinal voltar." : msg);
+    // Back online: the queue sends what waited; then read the phases again from the server.
+    const refresh = () =>
+      load(base)
+        .then((r) => {
+          st.savedAt = r.savedAt;
+          took(r.data);
+          paint();
+        })
+        .catch(() => {});
+    if (OFF() && !box.__jpWired) {
+      box.__jpWired = true;
+      let was = null;
+      OFF().onChange((s) => {
+        if (s.online && s.pending === 0 && was && (was.pending > 0 || !was.online)) refresh();
+        else paint();
+        was = s;
+      });
+      window.addEventListener("om-offline-dropped", (e) => {
+        if (e.detail && String(e.detail.url || "").startsWith(base)) refresh();
+      });
+    }
 
     const note = (t) => `<div class="jp${st.compact ? " jp--compact" : ""}"><div class="jd-card"><p class="jd-empty">${esc(t)}</p></div></div>`;
     box.innerHTML = note("A carregar fases…");
-    api(base)
-      .then((d) => {
-        took(d);
+    load(base)
+      .then((r) => {
+        st.savedAt = r.savedAt;
+        took(r.data);
         paint();
       })
-      .catch((e) => (box.innerHTML = note(navigator.onLine === false ? "Sem internet. As fases abrem quando a conexão voltar." : e.message)));
+      .catch((e) => (box.innerHTML = note(!online() ? "Sem internet e sem cópia das fases neste celular. Abra as fases uma vez com sinal para usar sem internet." : e.message)));
 
     box.onclick = (e) => {
       const req = e.target.closest("[data-req]");
@@ -320,20 +431,16 @@
             const type = String(file.type || "").toLowerCase();
             if (type.includes("heic") || type.includes("heif")) return notify("Foto HEIC não suportada — exporte como JPG.", "error");
             run(async () => {
-              const dataUrl = await compressImage(file, 1600, 0.75);
-              const m = await api(`/api/work-orders/${encodeURIComponent(ctx.jobId)}/media`, {
-                method: "POST",
-                body: JSON.stringify({
-                  data_url: dataUrl,
-                  stage: "during",
-                  taken_at_device: new Date(file.lastModified || Date.now()).toISOString(),
-                  address: ctx.address || null,
-                  client_upload_id: window.crypto?.randomUUID ? crypto.randomUUID() : `phase-${Date.now()}`,
-                  device_label: ctx.deviceLabel || "Office web",
-                  is_public: false,
-                }),
-              });
-              took(await evidence(phase, key, { media_id: m.id }), "Foto registrada.");
+              // One request saves the photo to the job's ObraCam and links it (office and crew).
+              const dataUrl = await compressImage(file, 1600, 0.72);
+              const photo = {
+                data_url: dataUrl,
+                taken_at_device: new Date(file.lastModified || Date.now()).toISOString(),
+                address: ctx.address || null,
+                client_upload_id: window.crypto?.randomUUID ? crypto.randomUUID() : `phase-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                device_label: ctx.deviceLabel || "Office web",
+              };
+              say(await evidence(phase, key, { photo }, `Foto: ${reqLabel(phase, key)}`), "Foto registrada.");
             });
           });
           return;
@@ -344,7 +451,7 @@
           box.querySelector(`[data-req-form="${key}"] input`)?.focus();
           return;
         }
-        run(async () => took(await evidence(phase, key, { value: { confirmed: true } }), "Conferido."));
+        run(async () => say(await evidence(phase, key, { value: { confirmed: true } }, reqLabel(phase, key)), "Conferido."));
         return;
       }
       if (e.target.closest("[data-req-cancel]")) {
@@ -359,14 +466,14 @@
           ? window.crmConfirm({ title: "Liberar a espera?", text: "A cura ainda não terminou. Conclua só se tiver certeza de que o material já curou.", ok: "Liberar e concluir" })
           : Promise.resolve(window.confirm("A cura ainda não terminou. Liberar e concluir?"));
         Promise.resolve(ok).then((yes) => {
-          if (yes) run(async () => took(await api(`${base}/${encodeURIComponent(phase)}/complete`, { method: "POST", body: JSON.stringify({ force: true }) }), "Fase concluída."));
+          if (yes) run(async () => say(await complete(phase, { force: true }), "Fase concluída."));
         });
         return;
       }
       const done = e.target.closest("[data-complete]");
       if (done) {
         const phase = done.getAttribute("data-complete");
-        run(async () => took(await api(`${base}/${encodeURIComponent(phase)}/complete`, { method: "POST", body: "{}" }), "Fase concluída."));
+        run(async () => say(await complete(phase, {}), "Fase concluída."));
       }
     };
     box.onsubmit = (e) => {
@@ -380,9 +487,9 @@
         key === "flood_result"
           ? { depth_in: Number(String(fd.get("depth_in")).replace(",", ".")) || String(fd.get("depth_in")), hours: Number(String(fd.get("hours")).replace(",", ".")) || String(fd.get("hours")), passed: fd.get("passed") !== "no" }
           : { text: String(fd.get("text") || "").trim() };
-      run(async () => took(await evidence(phase, key, { value }), "Resultado registrado."));
+      run(async () => say(await evidence(phase, key, { value }, reqLabel(phase, key)), "Resultado registrado."));
     };
   }
 
-  window.JobPhases = { available, summary, mount, _test: { shape, valueText, dayLabel, left } };
+  window.JobPhases = { available, summary, mount, _test: { shape, valueText, dayLabel, left, local } };
 })();

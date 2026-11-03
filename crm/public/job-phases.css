@@ -63,3 +63,7 @@
 .jp--compact .jp-form { grid-template-columns: minmax(0, 1fr); padding-left: 0; }
 .jp--compact .jp-b--pri { flex: 1; min-height: 46px; }
 .jp--compact .jp-b { min-height: 40px; }
+
+/* Without signal: what waits on the phone */
+.jp-wait { display: inline-block; margin-left: 4px; padding: 1px 7px; border-radius: 999px; background: #FBF1EA; color: #9A4A14; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+.jp-off { margin: 0 0 12px; padding: 9px 12px; border-radius: 12px; background: #FBF1EA; color: #7A3A12; font-size: 13px; font-weight: 600; line-height: 1.4; }

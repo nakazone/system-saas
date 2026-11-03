@@ -8,7 +8,11 @@
  * their jobs, work_orders.view reads. Skipping a cure wait ("force") is office-only.
  */
 import { Router, type Response, type NextFunction } from "express";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import { checkLimit } from "../../lib/features/index.js";
+import { isJobMediaEnabled, parsePhotoUploadMeta, sha256Buffer } from "../../lib/job-media/index.js";
+import { storage } from "../../lib/storage/index.js";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { requireCrmAuth } from "../http.js";
 import { withTenantTransaction, type TenantPrisma } from "../../lib/tenant/prisma-tenant.js";
@@ -130,27 +134,127 @@ const evidenceBody = z.object({
   value: z.unknown().optional(),
   /** ObraCam photo of this job. */
   media_id: z.string().uuid().optional().nullable(),
+  /**
+   * Or the photo itself (JPG/PNG data URL): it is saved to the job's ObraCam and linked in one
+   * step, for the office and the crew alike, and so a photo taken without signal can wait in the
+   * phone's queue as a single action. client_upload_id makes a resend land on the same photo.
+   */
+  photo: z
+    .object({
+      data_url: z.string().startsWith("data:").max(17_000_000),
+      taken_at_device: z.string().max(40).optional().nullable(),
+      address: z.string().max(400).optional().nullable(),
+      device_label: z.string().max(120).optional().nullable(),
+      client_upload_id: z.string().max(80).optional().nullable(),
+    })
+    .optional(),
+  /** When the crew recorded it, if it was sent later (no signal). */
+  at: z.string().datetime({ offset: true }).optional(),
 });
+
+/** Phone time for actions sent later: never in the future, at most 3 days back. */
+const MAX_BACK_MS = 3 * 86_400_000;
+export function clientTime(at: string | undefined, now = new Date()): Date | null {
+  if (!at) return null;
+  const t = new Date(at);
+  if (Number.isNaN(t.getTime())) return null;
+  return new Date(Math.min(now.getTime(), Math.max(now.getTime() - MAX_BACK_MS, t.getTime())));
+}
+
+/** Save a phase photo to the job's ObraCam (dedupe on client_upload_id). Returns the media id. */
+async function storePhasePhoto(
+  req: AuthedRequest,
+  jobId: string,
+  photo: NonNullable<z.infer<typeof evidenceBody>["photo"]>,
+): Promise<string> {
+  const m = /^data:([^;]+);base64,(.+)$/.exec(photo.data_url);
+  if (!m) throw new PhaseError("Foto inválida.", 400, "invalid_photo");
+  const contentType = m[1]!.toLowerCase();
+  if (!contentType.startsWith("image/") || contentType.includes("heic") || contentType.includes("heif")) {
+    throw new PhaseError("Use uma foto JPG ou PNG.", 400, "invalid_photo");
+  }
+  const body = Buffer.from(m[2]!, "base64");
+  if (body.length > 12 * 1024 * 1024) throw new PhaseError("Foto grande demais (máx. 12 MB).", 400, "invalid_photo");
+  const meta = parsePhotoUploadMeta(photo as unknown as Record<string, unknown>);
+  const orgId = req.organizationId!;
+  // Access and the photo's requirement are checked first; the upload runs outside any transaction.
+  const pre = await withTenantTransaction(orgId, async (tx) => {
+    await reachJob(tx, req, jobId, true);
+    const existing = meta.clientUploadId
+      ? await tx.jobMedia.findFirst({ where: { clientUploadId: meta.clientUploadId, workOrderId: jobId, deletedAt: null }, select: { id: true } })
+      : null;
+    const org = await tx.organization.findFirst({ where: { id: orgId }, select: { featureFlags: true } });
+    return { existing: existing?.id ?? null, enabled: isJobMediaEnabled(org?.featureFlags) };
+  });
+  if (pre.existing) return pre.existing;
+  if (!pre.enabled) throw new PhaseError("As fotos de job não estão ativas nesta empresa.", 403, "media_disabled");
+  const limit = await checkLimit(req.organizationId!, "photos_month", 1);
+  if (!limit.ok) throw new PhaseError(limit.message || "Limite de fotos do mês atingido.", 403, "LIMIT_REACHED");
+  const stored = await storage.upload({
+    key: `orgs/${req.organizationId}/jobs/${jobId}/${Date.now()}-${randomUUID().slice(0, 8)}`,
+    body,
+    contentType,
+  });
+  const row = await withTenantTransaction(orgId, (tx) => tx.jobMedia.create({
+    data: {
+      organizationId: req.organizationId!,
+      workOrderId: jobId,
+      authorId: req.user!.id,
+      type: "photo",
+      storageKey: stored.key,
+      url: stored.url,
+      thumbUrl: stored.url,
+      sha256: sha256Buffer(body),
+      takenAtDevice: meta.takenAtDevice,
+      receivedAtServer: new Date(),
+      address: meta.address,
+      stage: "during",
+      isPublic: false,
+      clientUploadId: meta.clientUploadId,
+      deviceLabel: meta.deviceLabel || "Fases",
+    },
+    select: { id: true },
+  }));
+  return row.id;
+}
 
 jobPhasesRouter.post("/api/work-orders/:id/phases/:phase/evidence/:requirement", requireCrmAuth, async (req: AuthedRequest, res, next) => {
   try {
     const body = evidenceBody.safeParse(req.body || {});
     if (!body.success) throw new PhaseError("Dados inválidos.", 400, "invalid");
     const jobId = jobIdOf(req);
+    const phaseKey0 = String(req.params.phase);
+    const reqKey0 = String(req.params.requirement);
+    let uploaded: string | null = null;
+    if (body.data.photo && !body.data.media_id) {
+      const pack = await withTenantTransaction(req.organizationId!, (tx) => packOf(tx, req.organizationId!));
+      const def = pack.phases.find((p) => p.key === phaseKey0)?.requires?.find((r) => r.key === reqKey0);
+      if (pack.phaseStorage !== "table" || !def) throw new PhaseError("Esta fase não pede essa prova.", 400, "unknown_requirement");
+      if (def.kind !== "photo") throw new PhaseError("Esta prova não é uma foto.", 400, "not_photo");
+      uploaded = await storePhasePhoto(req, jobId, body.data.photo);
+    }
     const data = await withTenantTransaction(req.organizationId!, async (tx) => {
       await reachJob(tx, req, jobId, true);
       const pack = await packOf(tx, req.organizationId!);
       if (pack.phaseStorage !== "table") throw new PhaseError("As fases deste ofício são fechadas pelo status do job.", 409, "columns_pack");
       await ensureJobPhases(tx, req.organizationId!, jobId, pack);
+      const phaseKey = String(req.params.phase);
+      const reqKey = String(req.params.requirement);
+      const reqDef = pack.phases.find((p) => p.key === phaseKey)?.requires?.find((r) => r.key === reqKey);
+      if (!reqDef) throw new PhaseError("Esta fase não pede essa prova.", 400, "unknown_requirement");
+      const mediaId = body.data.media_id ?? uploaded;
       if (body.data.media_id) {
         const media = await tx.jobMedia.findFirst({ where: { id: body.data.media_id, workOrderId: jobId, deletedAt: null }, select: { id: true } });
         if (!media) throw new PhaseError("Foto não encontrada neste job.", 404, "media_not_found");
       }
-      const out = await addPhaseEvidence(tx, pack, jobId, String(req.params.phase), String(req.params.requirement), {
-        at: new Date().toISOString(),
+      const now = new Date();
+      const at = clientTime(body.data.at, now);
+      const out = await addPhaseEvidence(tx, pack, jobId, phaseKey, reqKey, {
+        at: (at ?? now).toISOString(),
         by: req.user?.name ?? null,
         value: body.data.value,
-        mediaId: body.data.media_id ?? null,
+        mediaId,
+        ...(at ? { offline: true, receivedAt: now.toISOString() } : {}),
       });
       if (!out.ok) throw new PhaseError("Esta fase não pede essa prova.", 400, out.error);
       return phasesState(tx, req, jobId);
@@ -161,7 +265,7 @@ jobPhasesRouter.post("/api/work-orders/:id/phases/:phase/evidence/:requirement",
   }
 });
 
-const completeBody = z.object({ force: z.boolean().optional() });
+const completeBody = z.object({ force: z.boolean().optional(), at: z.string().datetime({ offset: true }).optional() });
 
 const COMPLETE_MESSAGES: Record<string, string> = {
   previous_open: "Conclua a fase anterior primeiro.",
@@ -183,7 +287,9 @@ jobPhasesRouter.post("/api/work-orders/:id/phases/:phase/complete", requireCrmAu
       const pack = await packOf(tx, req.organizationId!);
       if (pack.phaseStorage !== "table") throw new PhaseError("As fases deste ofício são fechadas pelo status do job.", 409, "columns_pack");
       await ensureJobPhases(tx, req.organizationId!, jobId, pack);
-      const r = await closeJobPhase(tx, pack, jobId, String(req.params.phase), { force: body.data.force, by: { id: req.user?.id, name: req.user?.name } });
+      // Sent later from a phone without signal: the phase closes at the time the crew closed it.
+      const at = clientTime(body.data.at);
+      const r = await closeJobPhase(tx, pack, jobId, String(req.params.phase), { force: body.data.force, by: { id: req.user?.id, name: req.user?.name }, ...(at ? { now: at } : {}) });
       if (!r.ok) {
         const { ok: _ok, error, ...extra } = r;
         throw new PhaseError(COMPLETE_MESSAGES[error] || "Não foi possível concluir.", error === "unknown_phase" ? 404 : 409, error, extra);

@@ -8,7 +8,7 @@
   "use strict";
   if (global.OmOffline) return;
 
-  const VER = "20261013-off1";
+  const VER = "20261103-off2";
   const DB_NAME = "om_offline_v1";
   const DB_VER = 1;
   const STORE_CACHE = "snapshots";
@@ -134,13 +134,19 @@
     return `m-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
 
+  let seqN = 0;
   async function enqueueMutation(item) {
     const row = {
       id: item.id || uuid(),
+      // IndexedDB returns rows by id (random); seq keeps the order they were made in.
+      seq: Date.now() * 1000 + (seqN++ % 1000),
       url: item.url,
       method: String(item.method || "POST").toUpperCase(),
       body: item.body == null ? null : String(item.body),
       label: item.label || "Ação pendente",
+      // Actions the server may refuse for good on replay (409 phase already done, 400…): drop them
+      // and tell the user instead of blocking the rest of the queue.
+      dropOn4xx: Boolean(item.dropOn4xx),
       createdAt: new Date().toISOString(),
       attempts: 0,
       lastError: null,
@@ -154,10 +160,15 @@
     return withStore(STORE_QUEUE, "readonly", (store) => {
       return new Promise((resolve, reject) => {
         const req = store.getAll();
-        req.onsuccess = () => resolve(req.result || []);
+        req.onsuccess = () => resolve(sortQueue(req.result || []));
         req.onerror = () => reject(req.error);
       });
     });
+  }
+  /** Oldest first: actions replay in the order they were made (rows from before seq use createdAt). */
+  function sortQueue(rows) {
+    const at = (r) => (r.seq != null ? r.seq : (Date.parse(r.createdAt) || 0) * 1000);
+    return rows.slice().sort((a, b) => at(a) - at(b));
   }
 
   async function removeMutation(id) {
@@ -306,6 +317,17 @@
             body: row.body,
           });
           if (res.status === 401) break;
+          if (row.dropOn4xx && res.status >= 400 && res.status < 500 && ![408, 429].includes(res.status)) {
+            const j = await res.json().catch(() => ({}));
+            await removeMutation(row.id);
+            const msg = `Não deu para enviar "${row.label}": ${j.error || `erro ${res.status}`}`;
+            try {
+              if (typeof global.crmToast?.error === "function") global.crmToast.error(msg);
+              global.dispatchEvent(new CustomEvent("om-offline-dropped", { detail: { url: row.url, label: row.label, error: j.error || null, status: res.status } }));
+            } catch (_) {}
+            fail += 1;
+            continue;
+          }
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           await removeMutation(row.id);
           ok += 1;
@@ -448,6 +470,9 @@ body.om-offline .cm-tabbar{padding-bottom:env(safe-area-inset-bottom,0)}
     api,
     warm,
     flush: flushMutations,
+    /** Queue a mutation directly (callers that decide themselves what can wait for signal). */
+    queue: enqueueMutation,
+    list: listMutations,
     pendingCount,
     isOnline,
     onChange,
