@@ -1851,6 +1851,7 @@ customersQuotesRouter.get("/api/quotes", requireCrmAuth, async (req: AuthedReque
     const group = req.query.group ? String(req.query.group) : null;
     const leadId = req.query.lead_id ? String(req.query.lead_id) : null;
     const customerId = req.query.customer_id ? String(req.query.customer_id) : null;
+    const builderId = req.query.builder_id ? String(req.query.builder_id) : null;
     const search = String(req.query.q || req.query.search || "").trim();
 
     const [total, rows, leadNames] = await withTenantTransaction(req.organizationId!, async (tx) => {
@@ -1858,7 +1859,13 @@ customersQuotesRouter.get("/api/quotes", requireCrmAuth, async (req: AuthedReque
       if (status) where.status = status;
       if (group) Object.assign(where, quoteGroupWhere(group));
       if (leadId) where.leadId = leadId;
-      if (customerId) where.customerId = customerId;
+      if (customerId && builderId) {
+        where.AND = [...(Array.isArray(where.AND) ? where.AND : []), { OR: [{ customerId }, { builderId }] }];
+      } else if (customerId) {
+        where.customerId = customerId;
+      } else if (builderId) {
+        where.builderId = builderId;
+      }
       if (search) {
         const contains = { contains: search, mode: "insensitive" as const };
         const leadHits = await tx.lead.findMany({
@@ -1868,7 +1875,7 @@ customersQuotesRouter.get("/api/quotes", requireCrmAuth, async (req: AuthedReque
         });
         const or = quoteSearchWhere(search);
         if (leadHits.length) or.push({ leadId: { in: leadHits.map((l) => l.id) } });
-        where.OR = or;
+        where.AND = [...(Array.isArray(where.AND) ? where.AND : []), { OR: or }];
       }
       const count = await tx.quote.count({ where });
       const list = await tx.quote.findMany({

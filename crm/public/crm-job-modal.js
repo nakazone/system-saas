@@ -110,8 +110,23 @@
       quoteNumber: null,
       /** Painel Adicionar/Editar serviço (igual ao Quote): null | { i, name, note, qty, price, pricingId, unit, query, open } */
       svcPanel: null,
+      /** Date chosen on Calendar (kept when importing an open quote). */
+      prefDate: "",
+      /** Open quotes for the selected client (create flow only). */
+      openQuotes: null,
+      openQuotesLoading: false,
+      openQuotesDismissed: false,
     };
   }
+
+  const OPEN_QUOTE_STATUSES = new Set(["draft", "sent", "viewed", "changes_requested"]);
+  const OPEN_QUOTE_STATUS_LBL = {
+    draft: "Rascunho",
+    sent: "Enviado",
+    viewed: "Visto",
+    changes_requested: "Pediu alterações",
+  };
+  let openQuotesFetchSeq = 0;
 
   const SECTOR_OPTS = [
     { id: "installation", label: "Installation" },
@@ -1059,6 +1074,7 @@
         <small>${esc(card.sub || (card.custom ? "Tabela personalizada" : ""))}</small></span>
         <button type="button" class="jm-link" data-act="change-client">Trocar</button>
       </div>
+      ${openQuotesHtml()}
       <label class="jm-field jm-field--wide" style="margin-top:10px">ID do cliente
         <input type="text" id="jmClientCode" class="jm-in" maxlength="120" value="${esc(st.clientRef || "")}" placeholder="Só neste job" autocomplete="off" />
       </label>
@@ -1932,6 +1948,117 @@
   }
 
   // ---------------------------------------------------------------- client selection
+  function isOpenQuoteRow(q) {
+    if (!q || q.work_order_id) return false;
+    const raw = String(q.status_raw || "").toLowerCase();
+    const norm = String(q.status || "").toLowerCase();
+    return OPEN_QUOTE_STATUSES.has(raw) || OPEN_QUOTE_STATUSES.has(norm);
+  }
+
+  function openQuotesHtml() {
+    if (!st || st.id || st.pickerOpen || st.openQuotesDismissed) return "";
+    if (st.openQuotesLoading) {
+      return `<p class="jm-quote-import jm-hint">A verificar orçamentos em aberto…</p>`;
+    }
+    const list = Array.isArray(st.openQuotes) ? st.openQuotes : [];
+    if (!list.length) return "";
+    return `<div class="jm-quote-import">
+      <p class="jm-quote-import__hd"><b>${list.length === 1 ? "1 orçamento em aberto" : `${list.length} orçamentos em aberto`}</b>
+        <span>Importe para puxar serviços e dados do cliente.</span></p>
+      <div class="jm-quote-import__list">${list
+        .map((q) => {
+          const num = q.quote_number || (q.number != null ? `#${q.number}` : "Orçamento");
+          const title = String(q.job_name || q.title || "").trim();
+          const stLbl = OPEN_QUOTE_STATUS_LBL[String(q.status_raw || q.status || "").toLowerCase()] || "Aberto";
+          const tot = Number(q.total ?? q.total_amount ?? 0);
+          return `<button type="button" class="jm-quote-import__row" data-act="import-quote" data-id="${esc(q.id)}">
+            <span class="jm-quote-import__main"><b>${esc(num)}</b>${title ? ` · ${esc(title)}` : ""}</span>
+            <small>${esc(stLbl)}${tot > 0 ? ` · ${esc(money(tot))}` : ""}</small>
+          </button>`;
+        })
+        .join("")}</div>
+      <button type="button" class="jm-link jm-quote-import__skip" data-act="skip-quotes">Continuar sem orçamento</button>
+    </div>`;
+  }
+
+  async function refreshOpenQuotes() {
+    if (!st || st.id || st.openQuotesDismissed) return;
+    if (!st.customerId && !st.builderId) {
+      st.openQuotes = [];
+      st.openQuotesLoading = false;
+      renderClient();
+      return;
+    }
+    const seq = ++openQuotesFetchSeq;
+    const customerSnap = st.customerId;
+    const builderSnap = st.builderId;
+    st.openQuotesLoading = true;
+    renderClient();
+    try {
+      let customerId = customerSnap;
+      const builderId = builderSnap;
+      if (builderId && !customerId) {
+        const pc = await ensurePricingCustomer();
+        if (!st || seq !== openQuotesFetchSeq) return;
+        if (pc) customerId = pc.id;
+      }
+      const params = new URLSearchParams({ limit: "30" });
+      if (customerId) params.set("customer_id", String(customerId));
+      if (builderId) params.set("builder_id", String(builderId));
+      if (!customerId && !builderId) {
+        st.openQuotes = [];
+        return;
+      }
+      const j = await api(`/api/quotes?${params.toString()}`);
+      if (!st || seq !== openQuotesFetchSeq) return;
+      if (String(st.customerId || "") !== String(customerSnap || "") || String(st.builderId || "") !== String(builderSnap || "")) return;
+      st.openQuotes = (j.data || []).filter(isOpenQuoteRow).slice(0, 8);
+    } catch (_) {
+      if (!st || seq !== openQuotesFetchSeq) return;
+      st.openQuotes = [];
+    } finally {
+      if (st && seq === openQuotesFetchSeq) {
+        st.openQuotesLoading = false;
+        renderClient();
+      }
+    }
+  }
+
+  async function importOpenQuote(quoteId) {
+    if (!st || !quoteId || st.busy) return;
+    const prefDate = st.prefDate || st.date || "";
+    st.busy = true;
+    showErr("");
+    renderFoot();
+    try {
+      const j = await api(`/api/quotes/${encodeURIComponent(quoteId)}/status`, {
+        method: "POST",
+        body: JSON.stringify({ status: "approved" }),
+      });
+      let jobId = j.created_job_id || (j.data && j.data.work_order_id) || null;
+      if (!jobId) {
+        const fresh = await api(`/api/quotes/${encodeURIComponent(quoteId)}`);
+        jobId = fresh.data?.work_order_id || null;
+      }
+      if (!jobId) throw new Error("Não foi possível criar o job a partir do orçamento.");
+      close();
+      await openEdit(jobId, { fromQuote: true, prefDate });
+    } catch (err) {
+      const msg = err && err.message ? String(err.message) : "Não foi possível importar o orçamento";
+      if (/403|permiss|forbidden/i.test(msg)) {
+        notify("Sem permissão para aprovar o orçamento. Abrindo o orçamento…", "info");
+        location.href = `quote-builder.html?id=${encodeURIComponent(quoteId)}&create_job=1`;
+        return;
+      }
+      if (st) {
+        st.busy = false;
+        showErr(msg);
+        renderFoot();
+      }
+      notify(msg, "error");
+    }
+  }
+
   function setClient(kind, id) {
     if (kind === "customer") {
       st.customerId = id;
@@ -1963,8 +2090,12 @@
     }
     st.pickerOpen = false;
     st.pickerQuery = "";
+    st.openQuotes = null;
+    st.openQuotesDismissed = false;
+    st.openQuotesLoading = !st.id;
     repriceLines();
     renderAll();
+    if (!st.id) void refreshOpenQuotes();
     setTimeout(() => {
       if (!st) return;
       const code = $("jmClientCode");
@@ -2105,11 +2236,13 @@
     st = blankState();
     const o = opts || {};
     let start = o.start ? new Date(o.start) : null;
+    let keepPrefDate = Boolean(o.start);
     if (!start || Number.isNaN(start.getTime())) {
       const pref = sessionStorage.getItem("obramate_job_pref_start");
       if (pref) {
         sessionStorage.removeItem("obramate_job_pref_start");
         start = new Date(pref);
+        keepPrefDate = true;
       }
     }
     st.allDay = true;
@@ -2122,6 +2255,7 @@
       t.setDate(t.getDate() + 1);
       st.date = ymd(t);
     }
+    st.prefDate = keepPrefDate ? st.date || "" : "";
     if (meId && users.some((x) => String(x.id) === String(meId))) {
       st.assigneeId = String(meId);
       st.members.add(String(meId));
@@ -2155,6 +2289,7 @@
     }
     st.lines = [blankLine()];
     open();
+    if ((st.customerId || st.builderId) && !st.pickerOpen) void refreshOpenQuotes();
     if (o.openServices) {
       setTimeout(() => {
         if (st && !st.id) openJobServicesPopup().catch(() => {});
@@ -2311,8 +2446,14 @@
       st.svcPanel = null;
       st.notes = "";
       if (!wo.scheduled_start) {
-        st.date = "";
-        st.time = "";
+        const keep = String((opts && opts.prefDate) || "").trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(keep)) {
+          st.date = keep;
+          st.prefDate = keep;
+        } else {
+          st.date = "";
+          st.time = "";
+        }
       }
       notify("Job criado a partir do orçamento. Complete Start, Setor, Equipe, Campo e Notas.", "success");
     }
@@ -2630,6 +2771,7 @@
         break;
       case "change-client":
         st.pickerOpen = true;
+        st.openQuotesDismissed = false;
         renderClient();
         setTimeout(() => $("jmClientQ")?.focus(), 20);
         break;
@@ -2637,6 +2779,14 @@
         st.pickerOpen = false;
         st.pickerQuery = "";
         renderClient();
+        if (!st.id) void refreshOpenQuotes();
+        break;
+      case "skip-quotes":
+        st.openQuotesDismissed = true;
+        renderClient();
+        break;
+      case "import-quote":
+        importOpenQuote(btn.getAttribute("data-id"));
         break;
       case "quick-client":
         quickCreateClient(btn.getAttribute("data-type"));
