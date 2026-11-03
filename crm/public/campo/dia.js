@@ -129,7 +129,9 @@
     const first = emp ? emp.name.split(/\s+/)[0] : "";
     const h = new Date().getHours();
     $("dyHello").textContent = `${h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite"}${first ? `, ${first}` : ""}`;
-    $("dyDate").textContent = `${S.today_label}${emp && emp.sector ? ` · ${SECTOR[emp.sector] || emp.sector}` : ""}`;
+    // Trades whose phases live per job (Tile) have no payroll sectors.
+    const noSector = Boolean(window.__OM_TRADE && window.__OM_TRADE.phaseStorage === "table");
+    $("dyDate").textContent = `${S.today_label}${emp && emp.sector && !noSector ? ` · ${SECTOR[emp.sector] || emp.sector}` : ""}`;
     $("dyAv").textContent = emp ? initials(emp.name) : "·";
     renderReturned();
     renderCard();
@@ -527,15 +529,33 @@
   function piecesOf(jobs) {
     return Object.fromEntries((jobs || []).map((j) => [j.id, { ...(j.pieces || {}) }]));
   }
+  /** Only the items used on this job; the others are one tap away ("+ Piso"). */
   function piecesHtml(jobId, store) {
     const q = store[jobId] || {};
     const units = S.piece_units || {};
-    return `<div class="dy-pieces">${S.piece_items
-      .map(
-        (it) => `<label class="dy-piece"><span>${esc(it.label)}<small>${esc(units[it.unit] || it.unit)}${it.rate ? ` · ${esc(money(it.rate))}` : ""}</small></span>
-          <input class="dy-in dy-in--sqft" inputmode="decimal" data-piece="${esc(it.key)}" data-pjob="${esc(jobId)}" value="${esc(q[it.key] ?? "")}" placeholder="0" /></label>`,
-      )
-      .join("")}</div>`;
+    const on = S.piece_items.filter((it) => it.key in q);
+    const off = S.piece_items.filter((it) => !(it.key in q));
+    return `${
+      on.length
+        ? `<div class="dy-pieces">${on
+            .map(
+              (it) => `<label class="dy-piece"><span>${esc(it.label)}<small>${esc(units[it.unit] || it.unit)}${it.rate ? ` · ${esc(money(it.rate))}` : ""}</small></span>
+          <span class="dy-piece__row"><input class="dy-in dy-in--sqft" inputmode="decimal" data-piece="${esc(it.key)}" data-pjob="${esc(jobId)}" value="${esc(q[it.key] ?? "")}" placeholder="0" />
+          <button type="button" class="dy-x" data-act="piece-rm" data-pjob="${esc(jobId)}" data-piece="${esc(it.key)}" aria-label="Tirar ${esc(it.label)}">×</button></span></label>`,
+            )
+            .join("")}</div>`
+        : ""
+    }${
+      off.length
+        ? `<div class="dy-piece-add">${off.map((it) => `<button type="button" class="dy-chip-add" data-act="piece-add" data-pjob="${esc(jobId)}" data-piece="${esc(it.key)}">+ ${esc(it.label)}</button>`).join("")}</div>`
+        : ""
+    }`;
+  }
+  function rerenderSheet(focus) {
+    if (!sheet) return;
+    if (sheet.kind === "finish") renderFinish();
+    else renderManual();
+    if (focus) document.querySelector(`[data-pjob="${focus.job}"][data-piece="${focus.key}"].dy-in`)?.focus();
   }
   /** Day totals per item × rate (the server recomputes with the same rates). */
   function piecesEstimate(store) {
@@ -621,7 +641,7 @@
                       ? `<button class="dy-btn dy-btn--sm dy-btn--line" data-act="rmjob" data-job="${esc(j.id)}">Não fui</button>`
                       : ""
                 }
-              </div>${byItem() ? `<p class="dy-pieces__t">O que você fez neste job</p>${piecesHtml(j.id, sheet.pieces)}` : ""}</div>`;
+              </div>${byItem() ? `<p class="dy-pieces__t">O que você fez neste job <small>toque para adicionar</small></p>${piecesHtml(j.id, sheet.pieces)}` : ""}</div>`;
           })
           .join("")}
         <button class="dy-btn dy-btn--sm dy-btn--line dy-btn--full" data-act="addjob">+ Trabalhei em outro job</button>
@@ -902,6 +922,18 @@
         return openFinish();
       case "photo":
         return takePhoto(job);
+      case "piece-add": {
+        const pj = b.getAttribute("data-pjob");
+        const key = b.getAttribute("data-piece");
+        sheet.pieces = sheet.pieces || {};
+        sheet.pieces[pj] = { ...(sheet.pieces[pj] || {}), [key]: "" };
+        return rerenderSheet({ job: pj, key });
+      }
+      case "piece-rm": {
+        const pj = b.getAttribute("data-pjob");
+        if (sheet.pieces && sheet.pieces[pj]) delete sheet.pieces[pj][b.getAttribute("data-piece")];
+        return rerenderSheet();
+      }
       case "rmjob":
         return api(`/api/campo/dia/jobs/${encodeURIComponent(job)}`, { method: "DELETE" })
           .then((st) => {

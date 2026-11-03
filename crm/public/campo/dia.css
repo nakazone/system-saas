@@ -233,3 +233,9 @@ body.dy-lock { overflow: hidden; }
 .dy-pline b { font-variant-numeric: tabular-nums; min-width: 64px; text-align: right; }
 .dy-pline--empty { display: block; color: var(--muted); }
 .dy-sum .dy-pline { background: none; border-radius: 0; padding: 6px 0; }
+.dy-pieces__t small { font-weight: 600; color: var(--muted); margin-left: 4px; }
+.dy-piece__row { display: flex !important; flex-direction: row !important; align-items: center; gap: 6px; }
+.dy-piece__row .dy-in--sqft { flex: 1; min-width: 0; }
+.dy-piece-add { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.dy-chip-add { border: 1.5px dashed var(--line); background: #fff; border-radius: 999px; min-height: 36px; padding: 0 12px; font: inherit; font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.dy-chip-add:active { background: var(--cream); }

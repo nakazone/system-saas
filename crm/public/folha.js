@@ -11,6 +11,8 @@
   const SECTORS = TRADE
     ? Object.fromEntries(TRADE.phases.map((p) => [p.key, (p.label && p.label["pt-BR"]) || p.key]))
     : { installation: "Instalação", sand_finish: "Lixa" };
+  // Trades whose phases live per job (Tile) have no payroll sectors: one team, no Instalação / Lixa.
+  const NOSEC = Boolean(window.__OM_TRADE && window.__OM_TRADE.phaseStorage === "table");
   let METHODS = [
     ["zelle", "Zelle"],
     ["cash", "Dinheiro"],
@@ -36,6 +38,7 @@
 
   const SECTOR_KEYS = Object.keys(SECTORS);
   function readSectorPref() {
+    if (NOSEC) return "all";
     try {
       const s = localStorage.getItem("folha_setor");
       if (s && ["all", ...SECTOR_KEYS].includes(s)) return s;
@@ -146,7 +149,7 @@
     return m >= 1000 ? `${(m / 1000).toFixed(1).replace(".", ",")} km do job` : `${m} m do job`;
   }
   const FAR_M = 300;
-  const sectorTag = (s) => `<span class="fo-tag${s === "sand_finish" ? " fo-tag--sand" : ""}">${esc(SECTORS[s] || "Instalação")}</span>`;
+  const sectorTag = (s) => NOSEC ? "" : `<span class="fo-tag${s === "sand_finish" ? " fo-tag--sand" : ""}">${esc(SECTORS[s] || "Instalação")}</span>`;
   function statusPill(day) {
     const map = { pending: "warn", returned: "red", approved: "muted", in_progress: "info" };
     return `<span class="fo-pill fo-pill--${map[day.status] || "muted"}">${esc(day.status_label || day.status)}</span>`;
@@ -167,7 +170,7 @@
       if (!tab) st.tab = "semana";
     }
     const s = h.get("setor");
-    if (s && ["all", "installation", "sand_finish"].includes(s)) {
+    if (s && !NOSEC && ["all", "installation", "sand_finish"].includes(s)) {
       st.sector = s;
       saveSectorPref(s);
     }
@@ -408,7 +411,7 @@
     if (!e) return "entra aprovada, no horário padrão do funcionário";
     const s = e.schedule || {};
     const hours = s.start_time && s.end_time ? ` · ${s.start_time}–${s.end_time}` : "";
-    return `${SECTORS[e.sector] || "Instalação"} · diária ${money0(e.daily_rate)}${e.overtime_rate ? ` · extra ${money0(e.overtime_rate)}/h` : ""}${hours}`;
+    return `${NOSEC ? "" : `${SECTORS[e.sector] || "Instalação"} · `}diária ${money0(e.daily_rate)}${e.overtime_rate ? ` · extra ${money0(e.overtime_rate)}/h` : ""}${hours}`;
   }
   function quickDaysGrid() {
     const days = cycleDays();
@@ -429,7 +432,7 @@
   }
   function quickEmpOptions() {
     const emps = launchEmps().sort((a, b) => a.name.localeCompare(b.name, "pt"));
-    if (st.sector !== "all") {
+    if (st.sector !== "all" || NOSEC) {
       return `<option value="">Escolha o funcionário…</option>${emps
         .map((e) => `<option value="${esc(e.id)}"${st.quick.empId === e.id ? " selected" : ""}>${esc(e.name)} · ${money0(e.daily_rate)}</option>`)
         .join("")}`;
@@ -477,11 +480,11 @@
   }
   function quickSheetBody() {
     const emps = launchEmps();
-    const secs = st.sector === "all" ? SECTOR_KEYS : [st.sector];
+    const secs = NOSEC ? ["all"] : st.sector === "all" ? SECTOR_KEYS : [st.sector];
     const chips = (sec) => {
-      const list = emps.filter((e) => (e.sector || "installation") === sec).sort((a, b) => a.name.localeCompare(b.name, "pt"));
+      const list = emps.filter((e) => NOSEC || (e.sector || "installation") === sec).sort((a, b) => a.name.localeCompare(b.name, "pt"));
       return list.length
-        ? `<div class="fo-qchips">${st.sector === "all" ? `<span>${esc(SECTORS[sec])}</span>` : ""}${list.map((e) => `<button type="button" class="fo-chip" data-q-pick="${esc(e.id)}" aria-pressed="${st.quick.empId === e.id}">${esc(e.name.split(" ")[0])}${list.filter((x) => x.name.split(" ")[0] === e.name.split(" ")[0]).length > 1 ? " " + esc((e.name.split(" ")[1] || "").slice(0, 1)) + "." : ""}</button>`).join("")}</div>`
+        ? `<div class="fo-qchips">${st.sector === "all" && !NOSEC ? `<span>${esc(SECTORS[sec])}</span>` : ""}${list.map((e) => `<button type="button" class="fo-chip" data-q-pick="${esc(e.id)}" aria-pressed="${st.quick.empId === e.id}">${esc(e.name.split(" ")[0])}${list.filter((x) => x.name.split(" ")[0] === e.name.split(" ")[0]).length > 1 ? " " + esc((e.name.split(" ")[1] || "").slice(0, 1)) + "." : ""}</button>`).join("")}</div>`
         : "";
     };
     const emptyMsg = st.sector !== "all"
@@ -625,7 +628,7 @@
     if (r.totals.overtime_minutes) bits.push(`${hm(r.totals.overtime_minutes)} extra`);
     if (r.totals.sqft) bits.push(`${qty(r.totals.sqft)} sq ft`);
     if (s === "open") bits.push("em andamento");
-    if (st.sector === "all") bits.push(esc(SECTORS[r.sector]));
+    if (st.sector === "all" && !NOSEC) bits.push(esc(SECTORS[r.sector]));
     return bits.join(" · ");
   }
   function fwRow(r) {
@@ -662,7 +665,7 @@
     const showSq = rows.some((r) => r.totals.sqft);
     const allSel = payable.length && payable.every((r) => st.selected.has(r.id));
     const cols = 9 + (showSq ? 1 : 0);
-    const groups = st.sector === "all" ? ["installation", "sand_finish"].map((k) => [k, rows.filter((r) => r.sector === k)]).filter((g) => g[1].length) : [[st.sector, rows]];
+    const groups = st.sector === "all" && !NOSEC ? ["installation", "sand_finish"].map((k) => [k, rows.filter((r) => r.sector === k)]).filter((g) => g[1].length) : [[st.sector, rows]];
     const rowHtml = (r) => {
       const adj = r.totals.reimbursement - r.totals.discount;
       return `<tr class="is-row${st.sel === r.id ? " is-sel" : ""}" data-emp="${esc(r.id)}">
@@ -837,7 +840,7 @@
       <aside class="fw-list" aria-label="Equipe da semana">
         <div class="fw-list__top">
           ${renderWeekHead()}
-          <div class="fo-seg fo-seg--folha fw-seg" role="group" aria-label="Folha por setor">${segBtn("installation", "Instalação")}${segBtn("sand_finish", "Lixa")}${segBtn("all", "Todos")}</div>
+          ${NOSEC ? "" : `<div class="fo-seg fo-seg--folha fw-seg" role="group" aria-label="Folha por setor">${segBtn("installation", "Instalação")}${segBtn("sand_finish", "Lixa")}${segBtn("all", "Todos")}</div>`}
           <dl class="fw-sums"><div><dt>A pagar</dt><dd>${money0(t.to_pay)}</dd></div><div><dt>A conferir</dt><dd class="${t.pending_days ? "is-hot" : ""}">${t.pending_days}</dd></div><div><dt>Diárias</dt><dd>${dayFrac(t.days)}</dd></div></dl>
           <div class="fw-ph">${st.manage ? `<button type="button" class="fo-btn fo-btn--pri fo-qfab" data-q-sheet>+ Lançar${sec ? ` · ${esc(sec)}` : ""}</button>` : ""}${weekStats(rows)}</div>
           ${showSearch ? `<input type="search" class="fo-in fw-q" id="foWeekQ" placeholder="Buscar funcionário" value="${esc(st.q)}" />` : ""}
@@ -965,7 +968,7 @@
     const flags = d.flags || [];
     const photosByJob = {};
     (d.photos || []).forEach((p) => (photosByJob[p.job_id] = (photosByJob[p.job_id] || 0) + 1));
-    const sub = `${esc(d.employee_name)} · ${esc(SECTORS[d.sector])} · ${d.source === "manual" ? "lançado manualmente" : d.source === "auto_closed" ? "fechado pelo sistema" : "ponto pelo celular"}`;
+    const sub = `${esc(d.employee_name)} · ${NOSEC ? "" : `${esc(SECTORS[d.sector])} · `}${d.source === "manual" ? "lançado manualmente" : d.source === "auto_closed" ? "fechado pelo sistema" : "ponto pelo celular"}`;
     let body = "";
     if (d.paid) body += '<div class="fo-alert"><b>Semana já paga.</b> Para mudar este dia, estorne o pagamento em Pagamentos.</div>';
     if (d.status === "returned" && d.review_note) body += `<div class="fo-alert fo-alert--red"><b>Devolvido ao funcionário:</b> ${esc(d.review_note)}</div>`;
@@ -1232,7 +1235,7 @@
       .map(
         (r) => `<li class="fo-paywho">
         <span class="fo-av${r.sector === "sand_finish" ? " fo-av--sand" : ""}">${esc(initials(r.name))}</span>
-        <span class="fo-paywho__txt"><b>${esc(r.name)}</b><small>${esc(SECTORS[r.sector])}${r.payment_method ? ` · ${esc(METHOD_LABEL[r.payment_method] || r.payment_method)}` : ""}</small></span>
+        <span class="fo-paywho__txt"><b>${esc(r.name)}</b><small>${[NOSEC ? "" : SECTORS[r.sector], r.payment_method ? METHOD_LABEL[r.payment_method] || r.payment_method : ""].filter(Boolean).map(esc).join(" · ")}</small></span>
         <b class="fo-paywho__amt">${money(r.totals.net)}</b>
       </li>`,
       )
@@ -1266,7 +1269,7 @@
           <label class="fo-field">Observação<input type="text" class="fo-in" id="foPayNote" maxlength="500" placeholder="Opcional" /></label>
         </div>
       </div>
-      <p class="fo-pay-hint">Cada pessoa vira uma saída no Financeiro (Folha · ${rows.length === 1 || sectorLabel() ? esc(SECTORS[rows[0].sector]) : "Instalação/Lixa"}). Com todos pagos, a semana fecha.</p>`;
+      <p class="fo-pay-hint">Cada pessoa vira uma saída no Financeiro (${NOSEC ? "Folha" : `Folha · ${rows.length === 1 || sectorLabel() ? esc(SECTORS[rows[0].sector]) : "Instalação/Lixa"}`}). Com todos pagos, a semana fecha.</p>`;
     openSheet(
       `${sheetHead(payTitle, esc(period))}<div class="fo-sheet__bd">${body}</div>
        <footer class="fo-sheet__ft fo-sheet__ft--pay">
@@ -1297,7 +1300,7 @@
     const parts = [
       `Relatório de folha para conferência`,
       `Funcionário: ${r.name}`,
-      `Setor: ${SECTORS[r.sector] || r.sector}`,
+      NOSEC ? null : `Setor: ${SECTORS[r.sector] || r.sector}`,
       `Período: ${period}`,
       "",
       "Dias aprovados:",
@@ -1309,7 +1312,7 @@
     if (r.totals.discount) parts.push(`Desconto: −${money(r.totals.discount)}`);
     parts.push(`Total a receber: ${money(r.totals.net)}`);
     parts.push("", "Por favor confira os valores e confirme com o escritório antes do pagamento.");
-    return parts.join("\n");
+    return parts.filter((x) => x !== null).join("\n");
   }
   function phoneDigits(p) {
     let d = String(p || "").replace(/\D/g, "");
@@ -1353,7 +1356,7 @@
         </div>
         <div class="fo-ticket__hero">
           <p class="fo-ticket__hello">Olá${first ? `, ${esc(first)}` : ""} — confira os valores.</p>
-          <div class="fo-ticket__meta"><span class="fo-ticket__pill">${esc(SECTORS[r.sector] || r.sector)}</span><span class="fo-ticket__type">${r.pay_type === "production" ? "Produção" : "Diária"}</span><span class="fo-ticket__badge">Conferência</span></div>
+          <div class="fo-ticket__meta">${NOSEC ? "" : `<span class="fo-ticket__pill">${esc(SECTORS[r.sector] || r.sector)}</span>`}<span class="fo-ticket__type">${r.pay_type === "production" ? "Produção" : "Diária"}</span><span class="fo-ticket__badge">Conferência</span></div>
           <h3 class="fo-ticket__name">${esc(r.name)}</h3>
           <div class="fo-ticket__strip">
             <div><small>Total a receber</small><b>${money(r.totals.net)}</b></div>
@@ -2076,8 +2079,8 @@
     $("foPagamentos").innerHTML = `<div class="fo-presets">${PRESETS.map(([k, l]) => `<button type="button" class="fo-chip" data-paypreset="${k}" aria-pressed="${st.payPreset === k}">${l}</button>`).join("")}</div>
       <div class="fo-stats">
         <div class="fo-stat fo-stat--ink"><small>Pago no período</small><b>${money(total)}</b><span>${list.length} pagamento${list.length === 1 ? "" : "s"}</span></div>
-        <div class="fo-stat"><small>Instalação</small><b>${money(bySector("installation"))}</b><span>&nbsp;</span></div>
-        <div class="fo-stat"><small>Lixa</small><b>${money(bySector("sand_finish"))}</b><span>&nbsp;</span></div>
+        ${NOSEC ? "" : `<div class="fo-stat"><small>Instalação</small><b>${money(bySector("installation"))}</b><span>&nbsp;</span></div>
+        <div class="fo-stat"><small>Lixa</small><b>${money(bySector("sand_finish"))}</b><span>&nbsp;</span></div>`}
         <div class="fo-stat"><small>Período</small><b style="font-size:16px">${esc(brShort(d.filter.from))} – ${esc(brShort(d.filter.to))}</b><span>pela data do pagamento</span></div>
       </div>
       <div class="fo-card">${
@@ -2130,7 +2133,7 @@
         <div class="fo-dl"><a class="fo-btn fo-btn--sm" href="${csv("employees")}" download>⤓ CSV funcionários</a><a class="fo-btn fo-btn--sm" href="${csv("payments")}" download>⤓ CSV pagamentos</a><a class="fo-btn fo-btn--sm" href="${csv("jobs")}" download>⤓ CSV jobs</a></div></div>
       <div class="fo-filters">
         <label class="fo-field">Funcionário<select class="fo-sel" id="foRepEmp"><option value="">Todos</option>${emps.map((e) => `<option value="${esc(e.id)}"${r.employee === e.id ? " selected" : ""}>${esc(e.name)}${e.status !== "active" ? " (inativo)" : ""}</option>`).join("")}</select></label>
-        <label class="fo-field">Setor<select class="fo-sel" id="foRepSector"><option value="">Todos</option><option value="installation"${r.sector === "installation" ? " selected" : ""}>Instalação</option><option value="sand_finish"${r.sector === "sand_finish" ? " selected" : ""}>Lixa</option></select></label>
+        ${NOSEC ? "" : `<label class="fo-field">Setor<select class="fo-sel" id="foRepSector"><option value="">Todos</option><option value="installation"${r.sector === "installation" ? " selected" : ""}>Instalação</option><option value="sand_finish"${r.sector === "sand_finish" ? " selected" : ""}>Lixa</option></select></label>`}
         <label class="fo-field">De<input type="date" class="fo-in" id="foRepFrom" value="${esc(d.filter.from)}" /></label>
         <label class="fo-field">Até<input type="date" class="fo-in" id="foRepTo" value="${esc(d.filter.to)}" /></label>
       </div>
@@ -2140,14 +2143,14 @@
         <div class="fo-stat"><small>Reembolsos − descontos</small><b>${money(t.reimbursement - t.discount)}</b><span>${money(t.reimbursement)} − ${money(t.discount)}</span></div>
         <div class="fo-stat"><small>Horas extras</small><b>${hm(t.overtime_hours * 60)}</b><span>${t.employees} funcionário${t.employees === 1 ? "" : "s"}</span></div>
       </div>
-      ${one ? `<div class="fo-alert" style="margin-bottom:14px"><b>${esc(one.name)}</b> · ${esc(SECTORS[one.sector])} · ${one.email ? esc(one.email) : "sem e-mail"}${one.phone ? ` · ${esc(one.phone)}` : ""} — pago ${money(one.paid)} em ${one.payments} pagamento${one.payments === 1 ? "" : "s"} de ${esc(brDate(d.filter.from))} a ${esc(brDate(d.filter.to))}.</div>` : ""}
+      ${one ? `<div class="fo-alert" style="margin-bottom:14px"><b>${esc(one.name)}</b> · ${NOSEC ? "" : `${esc(SECTORS[one.sector])} · `}${one.email ? esc(one.email) : "sem e-mail"}${one.phone ? ` · ${esc(one.phone)}` : ""} — pago ${money(one.paid)} em ${one.payments} pagamento${one.payments === 1 ? "" : "s"} de ${esc(brDate(d.filter.from))} a ${esc(brDate(d.filter.to))}.</div>` : ""}
       <div class="fo-card"><div class="fo-card__hd"><h2>Por funcionário</h2><span>Ganho pela data do trabalho · pago pela data do pagamento</span></div>${
         d.employees.length
-          ? `<table class="fo-tbl fo-tbl--scroll"><thead><tr><th>Funcionário</th><th>Setor</th><th class="r">Dias</th><th class="r">Extra</th><th class="r">Sq ft</th><th class="r">Ganho</th><th class="r">Reemb.</th><th class="r">Desc.</th><th class="r">Pago</th></tr></thead><tbody>${d.employees
+          ? `<table class="fo-tbl fo-tbl--scroll"><thead><tr><th>Funcionário</th>${NOSEC ? "" : "<th>Setor</th>"}<th class="r">Dias</th><th class="r">Extra</th><th class="r">Sq ft</th><th class="r">Ganho</th><th class="r">Reemb.</th><th class="r">Desc.</th><th class="r">Pago</th></tr></thead><tbody>${d.employees
               .map(
-                (e) => `<tr class="is-row" data-repemp="${esc(e.id)}"><td class="fo-strong">${esc(e.name)}</td><td>${sectorTag(e.sector)}</td><td class="r">${qty(e.days)}</td><td class="r">${e.overtime_hours ? hm(e.overtime_hours * 60) : "—"}</td><td class="r">${e.sqft ? qty(e.sqft) : "—"}</td><td class="r">${money(e.earned)}</td><td class="r">${e.reimbursement ? money(e.reimbursement) : "—"}</td><td class="r">${e.discount ? money(e.discount) : "—"}</td><td class="r fo-strong">${money(e.paid)}</td></tr>`,
+                (e) => `<tr class="is-row" data-repemp="${esc(e.id)}"><td class="fo-strong">${esc(e.name)}</td>${NOSEC ? "" : `<td>${sectorTag(e.sector)}</td>`}<td class="r">${qty(e.days)}</td><td class="r">${e.overtime_hours ? hm(e.overtime_hours * 60) : "—"}</td><td class="r">${e.sqft ? qty(e.sqft) : "—"}</td><td class="r">${money(e.earned)}</td><td class="r">${e.reimbursement ? money(e.reimbursement) : "—"}</td><td class="r">${e.discount ? money(e.discount) : "—"}</td><td class="r fo-strong">${money(e.paid)}</td></tr>`,
               )
-              .join("")}</tbody><tfoot><tr><td colspan="2">Total</td><td class="r">${qty(t.days)}</td><td class="r">${hm(t.overtime_hours * 60)}</td><td class="r">${t.sqft ? qty(t.sqft) : "—"}</td><td class="r">${money(t.earned)}</td><td class="r">${money(t.reimbursement)}</td><td class="r">${money(t.discount)}</td><td class="r">${money(t.paid)}</td></tr></tfoot></table>`
+              .join("")}</tbody><tfoot><tr><td colspan="${NOSEC ? 1 : 2}">Total</td><td class="r">${qty(t.days)}</td><td class="r">${hm(t.overtime_hours * 60)}</td><td class="r">${t.sqft ? qty(t.sqft) : "—"}</td><td class="r">${money(t.earned)}</td><td class="r">${money(t.reimbursement)}</td><td class="r">${money(t.discount)}</td><td class="r">${money(t.paid)}</td></tr></tfoot></table>`
           : '<div class="fo-empty">Nada no período com esses filtros.</div>'
       }</div>
       <div class="fo-card"><div class="fo-card__hd"><h2>Mão de obra por job</h2><span>Valor do dia dividido entre os jobs do dia (por sq ft na produção)</span></div>${
@@ -2184,7 +2187,7 @@
     const active = (st.emps.employees || []).filter((e) => e.status === "active");
     const match = (e) => !q || String(e.name || "").toLowerCase().includes(q);
     const block = (sector, title) => {
-      const list = active.filter((e) => (e.sector || "installation") === sector && match(e));
+      const list = active.filter((e) => (NOSEC || (e.sector || "installation") === sector) && match(e));
       return `<div class="fo-emps-block">
         <div class="fo-emps-block__hd"><h2>${esc(title)}</h2><span>${list.length}</span></div>
         ${
@@ -2198,7 +2201,7 @@
                 <td>${e.user ? esc(e.user.name || e.user.email) : '<span class="fo-pill fo-pill--due">Sem login</span>'}</td></tr>`;
                 })
                 .join("")}</tbody></table>`
-            : `<div class="fo-empty" style="padding:14px">${q ? "Nenhum resultado nesta busca." : "Nenhum funcionário ativo neste setor."}</div>`
+            : `<div class="fo-empty" style="padding:14px">${q ? "Nenhum resultado nesta busca." : NOSEC ? "Nenhum funcionário ativo." : "Nenhum funcionário ativo neste setor."}</div>`
         }
       </div>`;
     };
@@ -2206,13 +2209,13 @@
     const nLixa = active.filter((e) => e.sector === "sand_finish").length;
     $("foFuncionarios").innerHTML = `<div class="fo-tool">
         <label class="fo-field fo-emps-search"><span class="fo-sr">Buscar</span><input type="search" class="fo-in" id="foEmpSearch" value="${esc(st.empSearch)}" placeholder="Buscar por nome…" autocomplete="off" /></label>
-        <div class="fo-muted" style="font-weight:700;font-size:14px">${active.length} ativos · ${nInst} Instalação · ${nLixa} Lixa</div>
+        <div class="fo-muted" style="font-weight:700;font-size:14px">${active.length} ativos${NOSEC ? "" : ` · ${nInst} Instalação · ${nLixa} Lixa`}</div>
         ${byItem() ? '<button type="button" class="fo-btn fo-btn--ghost" data-piece-table>Tabela de produção</button>' : ""}
         ${st.manage ? '<button type="button" class="fo-btn fo-btn--pri" data-emp-new>+ Novo funcionário</button>' : ""}
       </div>
       <div class="fo-emps-blocks">
-        ${block("installation", "Instalação")}
-        ${block("sand_finish", "Lixa")}
+        ${NOSEC ? block("all", "Equipe") : `${block("installation", "Instalação")}
+        ${block("sand_finish", "Lixa")}`}
       </div>
       <p class="fo-muted" style="font-size:13px;font-weight:600;margin:10px 2px 0">Sem login no app, o funcionário não bate o ponto pelo celular — o escritório lança as diárias na aba Semana.</p>`;
   }
@@ -2226,7 +2229,7 @@
         <label class="fo-field">Nome<input type="text" class="fo-in" id="feName" value="${esc(v.name)}" maxlength="120" autofocus ${dis} /></label>
         <div class="fo-grid2" style="margin-top:10px"><label class="fo-field">Telefone<input type="tel" class="fo-in" id="fePhone" value="${esc(typeof window.sfFormatPhone === "function" ? window.sfFormatPhone(v.phone) || v.phone || "" : v.phone || "")}" ${dis} /></label><label class="fo-field">E-mail<input type="email" class="fo-in" id="feEmail" value="${esc(v.email || "")}" ${dis} /></label></div>
         <div class="fo-grid2" style="margin-top:10px"><label class="fo-field">Função<input type="text" class="fo-in" id="feRole" value="${esc(v.role_title || "")}" maxlength="80" placeholder="Instalador, ajudante…" ${dis} /></label>
-        <label class="fo-field">Setor da folha<select class="fo-sel" id="feSector" ${dis}><option value="installation"${v.sector !== "sand_finish" ? " selected" : ""}>Instalação</option><option value="sand_finish"${v.sector === "sand_finish" ? " selected" : ""}>Lixa</option></select></label></div>
+        <label class="fo-field"${NOSEC ? " hidden" : ""}>Setor da folha<select class="fo-sel" id="feSector" ${dis}><option value="installation"${v.sector !== "sand_finish" ? " selected" : ""}>Instalação</option><option value="sand_finish"${v.sector === "sand_finish" ? " selected" : ""}>Lixa</option></select></label></div>
       </div>
       <div class="fo-box"><h3>Pagamento</h3>
         <div class="fo-grid2"><label class="fo-field">Tipo<select class="fo-sel" id="fePayType" ${dis}><option value="daily"${v.pay_type !== "production" ? " selected" : ""}>Diária</option><option value="production"${v.pay_type === "production" ? " selected" : ""}>${byItem() ? "Produção (por item)" : "Produção (sq ft)"}</option></select></label>
@@ -2256,7 +2259,7 @@
       </div>`;
     if (byItem()) loadEmpPieces(e ? e.id : null, dis);
     openSheet(
-      `${sheetHead(e ? esc(e.name) : "Novo funcionário", e ? esc(SECTORS[e.sector || "installation"]) : "Setor, pagamento e horário padrão")}<div class="fo-sheet__bd">${body}</div>
+      `${sheetHead(e ? esc(e.name) : "Novo funcionário", e ? (NOSEC ? esc(e.role_title || "") : esc(SECTORS[e.sector || "installation"])) : NOSEC ? "Pagamento e horário padrão" : "Setor, pagamento e horário padrão")}<div class="fo-sheet__bd">${body}</div>
        <footer class="fo-sheet__ft"><button type="button" class="fo-btn fo-btn--ghost" data-close>Cancelar</button>${st.manage ? `<button type="button" class="fo-btn fo-btn--pri" data-emp-save="${esc(e ? e.id : "")}">Salvar</button>` : ""}</footer>`,
     );
   }
