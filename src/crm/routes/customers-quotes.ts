@@ -1927,6 +1927,47 @@ customersQuotesRouter.get(
   },
 );
 
+/** Unify 2–5 approved quotes into one draft job (same customer or builder). */
+customersQuotesRouter.post(
+  "/api/quotes/merge-job",
+  requireCrmAuth,
+  requireCrmPermission("quotes.edit"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const raw = Array.isArray(req.body?.quote_ids) ? req.body.quote_ids : [];
+      const quoteIds = raw.map((x: unknown) => String(x || "").trim()).filter((id: string) => UUID_RE.test(id));
+      const result = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const { mergeQuotesIntoJob } = await import("../../lib/work-orders/from-quote.js");
+        return mergeQuotesIntoJob(tx, {
+          organizationId: req.organizationId!,
+          quoteIds,
+          actorId: req.user?.id ?? null,
+        });
+      });
+      res.json({
+        success: true,
+        data: {
+          work_order_id: result.id,
+          number: result.number,
+          created: result.created,
+          quote_ids: result.quoteIds,
+        },
+        created_job_id: result.id,
+      });
+    } catch (error) {
+      const status = (error as { statusCode?: number }).statusCode;
+      if (status && status >= 400 && status < 500) {
+        res.status(status).json({
+          success: false,
+          error: error instanceof Error ? error.message : "Não foi possível unificar",
+        });
+        return;
+      }
+      next(error);
+    }
+  },
+);
+
 customersQuotesRouter.get("/api/quotes/:id", requireCrmAuth, async (req: AuthedRequest, res, next) => {
   try {
     let row = await withTenantTransaction(req.organizationId!, async (tx) =>

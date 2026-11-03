@@ -2599,6 +2599,119 @@
     return `loc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
   }
 
+  const HOURS_DAYS = [
+    { id: "mon", short: "Seg", label: "Monday" },
+    { id: "tue", short: "Ter", label: "Tuesday" },
+    { id: "wed", short: "Qua", label: "Wednesday" },
+    { id: "thu", short: "Qui", label: "Thursday" },
+    { id: "fri", short: "Sex", label: "Friday" },
+    { id: "sat", short: "Sáb", label: "Saturday" },
+    { id: "sun", short: "Dom", label: "Sunday" },
+  ];
+  const HOURS_TIMES = (() => {
+    const out = [];
+    for (let h = 5; h <= 21; h += 1) {
+      for (const m of [0, 30]) {
+        if (h === 21 && m === 30) break;
+        out.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+      }
+    }
+    return out;
+  })();
+
+  function formatHoursLabel(days, open, close) {
+    const selected = HOURS_DAYS.filter((d) => days.has(d.id));
+    if (!selected.length || !open || !close) return "";
+    const pretty = (t) => {
+      const [hh, mm] = String(t).split(":").map(Number);
+      const ampm = hh >= 12 ? "pm" : "am";
+      const h12 = ((hh + 11) % 12) + 1;
+      return mm ? `${h12}:${String(mm).padStart(2, "0")}${ampm}` : `${h12}${ampm}`;
+    };
+    const ids = selected.map((d) => d.id);
+    const monFri = ["mon", "tue", "wed", "thu", "fri"];
+    let dayPart;
+    if (monFri.every((id) => ids.includes(id)) && ids.length === 5) dayPart = "Mon–Fri";
+    else if (ids.length === 7) dayPart = "Daily";
+    else if (ids.join(",") === "sat,sun") dayPart = "Sat–Sun";
+    else dayPart = selected.map((d) => d.label.slice(0, 3)).join(", ");
+    return `${dayPart} ${pretty(open)}–${pretty(close)}`;
+  }
+
+  function parseHoursLabel(raw) {
+    const text = String(raw || "").trim();
+    const days = new Set();
+    let open = "07:00";
+    let close = "16:00";
+    if (/mon\s*[–-]\s*fri/i.test(text) || /seg\s*[–-]\s*sex/i.test(text)) {
+      ["mon", "tue", "wed", "thu", "fri"].forEach((d) => days.add(d));
+    } else if (/daily|todos|every day/i.test(text)) {
+      HOURS_DAYS.forEach((d) => days.add(d.id));
+    } else if (/sat\s*[–-]\s*sun|s[áa]b\s*[–-]\s*dom/i.test(text)) {
+      days.add("sat");
+      days.add("sun");
+    } else {
+      HOURS_DAYS.forEach((d) => {
+        if (new RegExp(d.label.slice(0, 3), "i").test(text) || new RegExp(`\\b${d.short}\\b`, "i").test(text)) {
+          days.add(d.id);
+        }
+      });
+    }
+    if (!days.size) ["mon", "tue", "wed", "thu", "fri"].forEach((d) => days.add(d));
+    const timeBits = text.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/gi) || [];
+    const to24 = (chunk) => {
+      const m = String(chunk).trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
+      if (!m) return null;
+      let h = Number(m[1]);
+      const min = Number(m[2] || 0);
+      const ap = (m[3] || "").toLowerCase();
+      if (ap === "pm" && h < 12) h += 12;
+      if (ap === "am" && h === 12) h = 0;
+      if (!ap && h <= 21) {
+        /* already 24h-ish */
+      }
+      return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+    };
+    if (timeBits[0]) open = to24(timeBits[0]) || open;
+    if (timeBits[1]) close = to24(timeBits[1]) || close;
+    return { days, open, close };
+  }
+
+  function hoursEditorHtml(i, hoursText) {
+    const parsed = parseHoursLabel(hoursText);
+    const dayChips = HOURS_DAYS.map(
+      (d) =>
+        `<button type="button" class="cfg-loc-hours__day${parsed.days.has(d.id) ? " is-on" : ""}" data-jobs-hours-day="${d.id}" data-i="${i}" aria-pressed="${parsed.days.has(d.id) ? "true" : "false"}">${d.short}</button>`,
+    ).join("");
+    const opts = (selected) =>
+      HOURS_TIMES.map((t) => `<option value="${t}"${t === selected ? " selected" : ""}>${t}</option>`).join("");
+    const label = formatHoursLabel(parsed.days, parsed.open, parsed.close) || hoursText || "";
+    return `<div class="cfg-loc-hours" data-hours-i="${i}">
+      <span class="cfg-field" style="margin:0"><span>Dias</span></span>
+      <div class="cfg-loc-hours__days">${dayChips}</div>
+      <div class="cfg-grid2" style="margin-top:0.35rem">
+        <label class="cfg-field"><span>Abre</span><select data-jobs-hours-open data-i="${i}">${opts(parsed.open)}</select></label>
+        <label class="cfg-field"><span>Fecha</span><select data-jobs-hours-close data-i="${i}">${opts(parsed.close)}</select></label>
+      </div>
+      <input type="hidden" data-jobs-loc="hours" data-i="${i}" value="${esc(label)}" />
+      <p class="cfg-hint cfg-loc-hours__preview" style="margin:0.35rem 0 0">${esc(label || "Escolha os dias e o horário")}</p>
+    </div>`;
+  }
+
+  function syncHoursRow(row) {
+    if (!row) return;
+    const days = new Set(
+      Array.from(row.querySelectorAll(".cfg-loc-hours__day.is-on")).map((b) => b.getAttribute("data-jobs-hours-day")),
+    );
+    const open = row.querySelector("[data-jobs-hours-open]")?.value || "07:00";
+    const close = row.querySelector("[data-jobs-hours-close]")?.value || "16:00";
+    const label = formatHoursLabel(days, open, close);
+    const hidden = row.querySelector('[data-jobs-loc="hours"]');
+    const preview = row.querySelector(".cfg-loc-hours__preview");
+    if (hidden) hidden.value = label;
+    if (preview) preview.textContent = label || "Escolha os dias e o horário";
+  }
+
   function renderJobsDeliveryLocs(list) {
     const box = $("jobsDeliveryLocs");
     if (!box) return;
@@ -2616,7 +2729,7 @@
           </div>
           <label class="cfg-field"><span>Nome</span><input type="text" data-jobs-loc="name" data-i="${i}" maxlength="120" value="${esc(row.name || "")}" placeholder="Ex.: Home Depot — Midtown" /></label>
           <label class="cfg-field"><span>Endereço</span><input type="text" data-jobs-loc="address" data-i="${i}" maxlength="500" value="${esc(row.address || "")}" placeholder="Rua, cidade" /></label>
-          <label class="cfg-field"><span>Horário de funcionamento</span><input type="text" data-jobs-loc="hours" data-i="${i}" maxlength="200" value="${esc(row.hours || "")}" placeholder="Mon–Fri 7am–4pm" /></label>
+          ${hoursEditorHtml(i, row.hours || "")}
           <input type="hidden" data-jobs-loc="id" data-i="${i}" value="${esc(row.id || "")}" />
         </div>`,
       )
@@ -2628,6 +2741,7 @@
     if (!box) return [];
     return Array.from(box.querySelectorAll(".cfg-delivery-loc"))
       .map((row) => {
+        syncHoursRow(row);
         const get = (k) => row.querySelector(`[data-jobs-loc="${k}"]`)?.value?.trim() || "";
         return {
           id: get("id") || newDeliveryLocId(),
@@ -2711,11 +2825,20 @@
     form.addEventListener("input", () => updateSavebar());
     form.addEventListener("change", () => updateSavebar());
     form.addEventListener("click", (e) => {
+      const dayBtn = e.target.closest("[data-jobs-hours-day]");
+      if (dayBtn) {
+        e.preventDefault();
+        dayBtn.classList.toggle("is-on");
+        dayBtn.setAttribute("aria-pressed", dayBtn.classList.contains("is-on") ? "true" : "false");
+        syncHoursRow(dayBtn.closest(".cfg-delivery-loc"));
+        updateSavebar();
+        return;
+      }
       const add = e.target.closest("#jobsDeliveryLocAdd");
       if (add) {
         e.preventDefault();
         const cur = readJobsDeliveryLocs();
-        cur.push({ id: newDeliveryLocId(), name: "", address: "", hours: "" });
+        cur.push({ id: newDeliveryLocId(), name: "", address: "", hours: "Mon–Fri 7am–4pm" });
         renderJobsDeliveryLocs(cur);
         updateSavebar();
         return;
@@ -2728,6 +2851,11 @@
         if (Number.isFinite(i)) cur.splice(i, 1);
         renderJobsDeliveryLocs(cur);
         updateSavebar();
+      }
+    });
+    form.addEventListener("change", (e) => {
+      if (e.target.matches?.("[data-jobs-hours-open], [data-jobs-hours-close]")) {
+        syncHoursRow(e.target.closest(".cfg-delivery-loc"));
       }
     });
   }

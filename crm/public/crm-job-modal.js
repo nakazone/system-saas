@@ -10,7 +10,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261103-deliv2";
+  const CSS_HREF = "crm-job-modal.css?v=20261103-unify2";
   const QPE_CSS = "quote-services-popup.css?v=20261102-svc2";
   const QPE_JS = "quote-services-popup.js?v=20261102-qfix";
   const PAPER_CSS = "quote-paper.css?v=20261027-om1";
@@ -133,6 +133,8 @@
       openQuotes: null,
       openQuotesLoading: false,
       openQuotesDismissed: false,
+      /** Quote ids selected for “unificar em 1 job” (create flow). */
+      mergeQuoteIds: [],
     };
   }
 
@@ -169,7 +171,7 @@
   /** `/lockbox 4821` in internal notes → house lockbox code (ticket + Campo). */
   function parseJobLockbox(notes) {
     const m = String(notes || "").match(/\/lockbox\s*[#:]?\s*([0-9A-Za-z-]{2,24})\b/i);
-    return m ? m[1] : null;
+    return m ? sanitizeLockboxCode(m[1]) || null : null;
   }
   function stripLockboxFromNotes(notes) {
     return String(notes || "")
@@ -179,7 +181,8 @@
   }
   function upsertLockboxInNotes(notes, code) {
     const clean = String(code || "")
-      .replace(/[^0-9A-Za-z-]/g, "")
+      .toUpperCase()
+      .replace(/[^0-9A-Z-]/g, "")
       .slice(0, 24);
     const rest = stripLockboxFromNotes(notes);
     if (clean.length < 2) return rest;
@@ -187,7 +190,8 @@
   }
   function sanitizeLockboxCode(raw) {
     return String(raw || "")
-      .replace(/[^0-9A-Za-z-]/g, "")
+      .toUpperCase()
+      .replace(/[^0-9A-Z-]/g, "")
       .slice(0, 24);
   }
   function syncNotesFromLockbox() {
@@ -1720,14 +1724,19 @@
     if (cnt) cnt.innerHTML = st.lines.length ? `${st.lines.length} serviço${st.lines.length > 1 ? "s" : ""} · <b>${money(linesTotal())}</b>` : "";
   }
 
-  function teamAvailableRows() {
-    const q = String(st.teamQuery || "")
-      .trim()
+  function foldSearch(s) {
+    return String(s || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase();
+  }
+
+  function teamAvailableRows() {
+    const q = foldSearch(st.teamQuery || "").trim();
     return users.filter((u) => {
       if (isTeamMember(u)) return false;
       if (!q) return true;
-      const hay = `${u.name || ""} ${u.email || ""}`.toLowerCase();
+      const hay = foldSearch(`${u.name || ""} ${u.email || ""}`);
       return hay.includes(q);
     });
   }
@@ -1739,7 +1748,7 @@
     if (!available.length) return `<p class="jm-empty">${q ? "Nenhum resultado." : "Todos já estão na equipe."}</p>`;
     return available
       .map(
-        (u) => `<button type="button" class="jm-team__opt" data-act="user" data-id="${esc(u.id)}">
+        (u) => `<button type="button" class="jm-team__opt" data-act="user" data-id="${esc(u.id)}" tabindex="-1">
           <span class="jm-dot">${esc(initials(u.name || u.email))}</span>
           <span class="jm-team__opt-txt"><b>${esc(u.name || u.email)}</b>${u.email && u.name ? `<small>${esc(u.email)}</small>` : ""}</span>
           <span class="jm-team__opt-add">+</span>
@@ -1748,13 +1757,83 @@
       .join("");
   }
 
+  function teamPickedHtml() {
+    const team = users.filter((u) => isTeamMember(u));
+    if (!team.length) return `<p class="jm-hint jm-team__empty">Ninguém na equipe ainda.</p>`;
+    return `<div class="jm-team__picked">${team
+      .map((u) => {
+        const lead = String(st.assigneeId) === String(u.id);
+        return `<button type="button" class="jm-team__chip" data-act="user" data-id="${esc(u.id)}" title="Remover">
+          <span class="jm-dot">${esc(initials(u.name || u.email))}</span>
+          <span class="jm-team__chip-name">${esc(u.name || u.email)}</span>
+          ${lead ? '<small>resp.</small>' : ""}
+          <span class="jm-team__chip-x" aria-hidden="true">×</span>
+        </button>`;
+      })
+      .join("")}</div>`;
+  }
+
+  function teamTriggerLabel() {
+    const n = users.filter((u) => isTeamMember(u)).length;
+    if (n) return `Adicionar · ${n} na equipe`;
+    return users.length ? "Adicionar equipe" : "Sem usuários";
+  }
+
+  function focusTeamSearch(caret) {
+    const q = $("jmTeamQ");
+    if (!q || !st?.teamMenuOpen) return;
+    q.focus({ preventScroll: true });
+    try {
+      const n = typeof caret === "number" ? caret : String(q.value || "").length;
+      q.setSelectionRange(n, n);
+    } catch (_) {}
+  }
+
   function refreshTeamList() {
     const list = $("jmTeamList");
     if (!list) {
       renderTeam();
       return;
     }
+    const qEl = $("jmTeamQ");
+    const hadFocus = document.activeElement === qEl;
+    const caret = typeof qEl?.selectionStart === "number" ? qEl.selectionStart : null;
     list.innerHTML = teamListHtml();
+    if (hadFocus) focusTeamSearch(caret);
+  }
+
+  /** Update chips + list + trigger without destroying the search field (avoids tablet flicker). */
+  function softUpdateTeam() {
+    const root = $("jmTeam")?.querySelector(".jm-team");
+    if (!root) {
+      renderTeam();
+      return;
+    }
+    const qEl = $("jmTeamQ");
+    const hadFocus = document.activeElement === qEl;
+    const caret = typeof qEl?.selectionStart === "number" ? qEl.selectionStart : null;
+    if (qEl && qEl.value !== String(st.teamQuery || "")) qEl.value = st.teamQuery || "";
+    const pickedSlot = root.querySelector("[data-team-picked]");
+    if (pickedSlot) pickedSlot.innerHTML = teamPickedHtml();
+    const trig = root.querySelector(".jm-team__trig span:first-child");
+    if (trig) trig.textContent = teamTriggerLabel();
+    refreshTeamList();
+    // Keep lead select in sync via temps area below.
+    const leadWrap = $("jmTemps");
+    if (leadWrap) {
+      const team = users.filter((u) => isTeamMember(u));
+      const existingLead = leadWrap.querySelector(".jm-lead");
+      if (team.length > 1) {
+        const html = `<label class="jm-lead">Responsável <select id="jmLead" class="jm-in jm-in--sm">${team
+          .map((u) => `<option value="${esc(u.id)}"${String(u.id) === String(st.assigneeId) ? " selected" : ""}>${esc(u.name || u.email)}</option>`)
+          .join("")}</select></label>`;
+        if (existingLead) existingLead.outerHTML = html;
+        else leadWrap.insertAdjacentHTML("afterbegin", html);
+      } else if (existingLead) {
+        existingLead.remove();
+      }
+    }
+    if (hadFocus || st.teamMenuOpen) focusTeamSearch(caret);
   }
 
   function isTeamMember(u) {
@@ -1764,34 +1843,16 @@
   function renderTeam() {
     const box = $("jmTeam");
     const team = users.filter((u) => isTeamMember(u));
-    const picked =
-      team.length > 0
-        ? `<div class="jm-team__picked">${team
-            .map((u) => {
-              const lead = String(st.assigneeId) === String(u.id);
-              return `<button type="button" class="jm-team__chip" data-act="user" data-id="${esc(u.id)}" title="Remover">
-                <span class="jm-dot">${esc(initials(u.name || u.email))}</span>
-                <span class="jm-team__chip-name">${esc(u.name || u.email)}</span>
-                ${lead ? '<small>resp.</small>' : ""}
-                <span class="jm-team__chip-x" aria-hidden="true">×</span>
-              </button>`;
-            })
-            .join("")}</div>`
-        : `<p class="jm-hint jm-team__empty">Ninguém na equipe ainda.</p>`;
-    const trigLbl = team.length
-      ? `Adicionar · ${team.length} na equipe`
-      : users.length
-        ? `Adicionar equipe`
-        : "Sem usuários";
+    const trigLbl = teamTriggerLabel();
     box.innerHTML = `<div class="jm-team">
-      ${picked}
+      <div data-team-picked>${teamPickedHtml()}</div>
       <div class="jm-team__dd${st.teamMenuOpen ? " is-open" : ""}">
         <button type="button" class="jm-team__trig" data-act="team-toggle" aria-expanded="${st.teamMenuOpen ? "true" : "false"}"${users.length ? "" : " disabled"}>
           <span>${esc(trigLbl)}</span>
           <span class="jm-team__chev" aria-hidden="true"></span>
         </button>
         <div class="jm-team__panel" ${st.teamMenuOpen ? "" : "hidden"}>
-          <input type="search" id="jmTeamQ" class="jm-in jm-in--sm" value="${esc(st.teamQuery || "")}" placeholder="Buscar nome…" autocomplete="off" />
+          <input type="text" id="jmTeamQ" class="jm-in jm-in--sm" value="${esc(st.teamQuery || "")}" placeholder="Buscar nome…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
           <div class="jm-team__list" id="jmTeamList">${teamListHtml()}</div>
         </div>
       </div>
@@ -2227,7 +2288,7 @@
   }
 
   // ---------------------------------------------------------------- client selection
-  /** Open quote, or quote already converted to a draft job the user abandoned mid-setup. */
+  /** Open quote, approved (for merge), or draft job abandoned mid-setup. */
   function isImportableQuoteRow(q) {
     if (!q) return false;
     const woId = q.work_order_id;
@@ -2238,6 +2299,9 @@
     }
     const raw = String(q.status_raw || "").toLowerCase();
     const norm = String(q.status || "").toLowerCase();
+    if (["approved", "converted", "accepted"].includes(raw) || ["approved", "converted", "accepted"].includes(norm)) {
+      return true;
+    }
     return OPEN_QUOTE_STATUSES.has(raw) || OPEN_QUOTE_STATUSES.has(norm);
   }
 
@@ -2245,7 +2309,18 @@
     const woId = q && q.work_order_id;
     const woStatus = String((q && q.work_order_status) || "").toLowerCase();
     if (woId && (!woStatus || woStatus === "draft")) return "Continuar job";
-    return OPEN_QUOTE_STATUS_LBL[String(q.status_raw || q.status || "").toLowerCase()] || "Aberto";
+    const raw = String(q.status_raw || q.status || "").toLowerCase();
+    if (["approved", "converted", "accepted"].includes(raw)) return "Aprovado";
+    return OPEN_QUOTE_STATUS_LBL[raw] || "Aberto";
+  }
+
+  function isMergeableQuoteRow(q) {
+    if (!q) return false;
+    const raw = String(q.status_raw || q.status || "").toLowerCase();
+    if (["approved", "converted", "accepted"].includes(raw)) return true;
+    const woId = q.work_order_id;
+    const woStatus = String(q.work_order_status || "").toLowerCase();
+    return Boolean(woId) && (!woStatus || woStatus === "draft");
   }
 
   function openQuotesHtml() {
@@ -2255,9 +2330,12 @@
     }
     const list = Array.isArray(st.openQuotes) ? st.openQuotes : [];
     if (!list.length) return "";
+    const selected = new Set((st.mergeQuoteIds || []).map(String));
+    const canMerge = list.filter(isMergeableQuoteRow).length >= 2;
+    const mergeCount = selected.size;
     return `<div class="jm-quote-import">
       <p class="jm-quote-import__hd"><b>${list.length === 1 ? "1 orçamento disponível" : `${list.length} orçamentos disponíveis`}</b>
-        <span>Importe ou continue um job em rascunho a partir do orçamento.</span></p>
+        <span>${canMerge ? "Toque para importar um, ou marque 2 para unificar num só job." : "Importe ou continue um job em rascunho a partir do orçamento."}</span></p>
       <div class="jm-quote-import__list">${list
         .map((q) => {
           const num = q.quote_number || (q.number != null ? `#${q.number}` : "Orçamento");
@@ -2269,19 +2347,37 @@
           const title = String(q.job_name || q.title || "").trim();
           const stLbl = quoteImportStatusLabel(q);
           const tot = Number(q.total ?? q.total_amount ?? 0);
-          return `<button type="button" class="jm-quote-import__row" data-act="import-quote" data-id="${esc(q.id)}">
-            <span class="jm-quote-import__body">
-              <span class="jm-quote-import__l1"><b>${esc(who)}</b></span>
-              ${addr ? `<span class="jm-quote-import__addr">${esc(addr)}</span>` : ""}
-              <span class="jm-quote-import__l3">${esc(num)}${title && title !== who ? ` · ${esc(title)}` : ""}</span>
-            </span>
-            <span class="jm-quote-import__side">
-              ${tot > 0 ? `<span class="jm-quote-import__when">${esc(money(tot))}</span>` : ""}
-              <span class="jm-quote-import__st">${esc(stLbl)}</span>
-            </span>
-          </button>`;
+          const on = selected.has(String(q.id));
+          const mergeable = canMerge && isMergeableQuoteRow(q);
+          return `<div class="jm-quote-import__row${on ? " is-merge-on" : ""}">
+            ${
+              mergeable
+                ? `<label class="jm-quote-import__check" title="Selecionar para unificar">
+                    <input type="checkbox" data-act="toggle-merge-quote" data-id="${esc(q.id)}"${on ? " checked" : ""} />
+                  </label>`
+                : ""
+            }
+            <button type="button" class="jm-quote-import__go" data-act="import-quote" data-id="${esc(q.id)}">
+              <span class="jm-quote-import__body">
+                <span class="jm-quote-import__l1"><b>${esc(who)}</b></span>
+                ${addr ? `<span class="jm-quote-import__addr">${esc(addr)}</span>` : ""}
+                <span class="jm-quote-import__l3">${esc(num)}${title && title !== who ? ` · ${esc(title)}` : ""}</span>
+              </span>
+              <span class="jm-quote-import__side">
+                ${tot > 0 ? `<span class="jm-quote-import__when">${esc(money(tot))}</span>` : ""}
+                <span class="jm-quote-import__st">${esc(stLbl)}</span>
+              </span>
+            </button>
+          </div>`;
         })
         .join("")}</div>
+      ${
+        mergeCount >= 2
+          ? `<button type="button" class="jm-btn jm-btn--pri jm-quote-import__merge" data-act="merge-quotes">Unificar ${mergeCount} orçamentos num job</button>`
+          : canMerge
+            ? `<p class="jm-hint jm-quote-import__merge-hint">Marque 2 orçamentos aprovados para unificar.</p>`
+            : ""
+      }
       <button type="button" class="jm-link jm-quote-import__skip" data-act="skip-quotes">Continuar sem orçamento</button>
     </div>`;
   }
@@ -2376,6 +2472,56 @@
     }
   }
 
+  function toggleMergeQuote(quoteId) {
+    if (!st || !quoteId) return;
+    const id = String(quoteId);
+    const cur = new Set((st.mergeQuoteIds || []).map(String));
+    if (cur.has(id)) cur.delete(id);
+    else {
+      if (cur.size >= 5) {
+        notify("No máximo 5 orçamentos por unificação.", "info");
+        return;
+      }
+      cur.add(id);
+    }
+    st.mergeQuoteIds = [...cur];
+    renderClient();
+  }
+
+  async function mergeSelectedQuotes() {
+    if (!st || st.busy) return;
+    const ids = (st.mergeQuoteIds || []).map(String).filter(Boolean);
+    if (ids.length < 2) {
+      notify("Selecione pelo menos 2 orçamentos.", "info");
+      return;
+    }
+    const prefDate = st.prefDate || st.date || "";
+    st.busy = true;
+    showErr("");
+    renderFoot();
+    renderClient();
+    try {
+      const j = await api("/api/quotes/merge-job", {
+        method: "POST",
+        body: JSON.stringify({ quote_ids: ids }),
+      });
+      const jobId = j.created_job_id || j.data?.work_order_id || null;
+      if (!jobId) throw new Error("Não foi possível unificar os orçamentos.");
+      close();
+      await openEdit(jobId, { fromQuote: true, prefDate });
+      notify(`${ids.length} orçamentos unificados num job.`, "success");
+    } catch (err) {
+      const msg = err && err.message ? String(err.message) : "Não foi possível unificar";
+      if (st) {
+        st.busy = false;
+        showErr(msg);
+        renderFoot();
+        renderClient();
+      }
+      notify(msg, "error");
+    }
+  }
+
   function setClient(kind, id) {
     if (kind === "customer") {
       st.customerId = id;
@@ -2410,6 +2556,7 @@
     st.openQuotes = null;
     st.openQuotesDismissed = false;
     st.openQuotesLoading = !st.id;
+    st.mergeQuoteIds = [];
     repriceLines();
     renderAll();
     if (!st.id) void refreshOpenQuotes();
@@ -3195,10 +3342,17 @@
         break;
       case "skip-quotes":
         st.openQuotesDismissed = true;
+        st.mergeQuoteIds = [];
         renderClient();
         break;
       case "import-quote":
         importOpenQuote(btn.getAttribute("data-id"));
+        break;
+      case "toggle-merge-quote":
+        toggleMergeQuote(btn.getAttribute("data-id"));
+        break;
+      case "merge-quotes":
+        void mergeSelectedQuotes();
         break;
       case "quick-client":
         quickCreateClient(btn.getAttribute("data-type"));
@@ -3386,8 +3540,13 @@
         } else {
           st.members.add(id);
           if (!st.assigneeId) st.assigneeId = id;
+          // Keep typing: clear query after a pick so the next name is easy to find.
+          if (st.teamMenuOpen) st.teamQuery = "";
         }
-        renderTeam();
+        if (st.teamMenuOpen) {
+          softUpdateTeam();
+          focusTeamSearch();
+        } else renderTeam();
         renderSide();
         break;
       }
@@ -3892,6 +4051,16 @@
     modal.addEventListener("click", onClick);
     modal.addEventListener("input", onInput);
     modal.addEventListener("change", onChange);
+    // Keep the team search focused when tapping a name (tablet).
+    modal.addEventListener(
+      "pointerdown",
+      (e) => {
+        const opt = e.target.closest?.(".jm-team__opt");
+        if (!opt) return;
+        e.preventDefault();
+      },
+      { passive: false },
+    );
     modal.addEventListener("focusin", (e) => {
       if (!st) return;
       const t = e.target;
@@ -3944,7 +4113,7 @@
         st.svcPanel.open = false;
         renderServices();
       }
-      if (st.teamMenuOpen && !e.target.closest(".jm-team__dd")) {
+      if (st.teamMenuOpen && !e.target.closest(".jm-team")) {
         st.teamMenuOpen = false;
         renderTeam();
       }

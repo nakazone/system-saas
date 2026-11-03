@@ -712,3 +712,31 @@ body.cfg-has-savebar #omDock { display: none !important; }
 .cfg-row--stack { flex-direction: column; align-items: stretch; }
 .cfg-cancel .btn-danger { background: #a4401b; color: #fff; border-color: #a4401b; }
 @media (max-width: 640px) { .cfg-cancel__reasons { grid-template-columns: 1fr; } .cfg-link-btn { margin-left: 0; } }
+
+/* Delivery location hours picker (Jobs settings) */
+.cfg-loc-hours { display: grid; gap: 0.35rem; }
+.cfg-loc-hours__days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cfg-loc-hours__day {
+  appearance: none;
+  border: 1px solid var(--cfg-field, #E5E7EB);
+  background: #fff;
+  color: var(--cfg-ink, #1F1A16);
+  border-radius: 999px;
+  height: 34px;
+  min-width: 42px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.cfg-loc-hours__day.is-on {
+  background: var(--cfg-accent-ink, #7f3c14);
+  border-color: var(--cfg-accent-ink, #7f3c14);
+  color: #fff;
+}
+.cfg-loc-hours__preview { font-weight: 600; color: var(--cfg-ink-2, #4B5563); }
