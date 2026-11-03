@@ -7,6 +7,10 @@
  * `tour` comes from the server (src/lib/field-quote/tour.ts): rooms with their sizes and
  * share of the price, the material, the removal, the finishing details and the quote's
  * real totals. All client-facing text is English.
+ *
+ * Tile visits bring showers (tour.showers): the tour draws each one unfolded — side walls,
+ * back wall, floor and curb — and walks the client through it: measured, sealed and
+ * flood-tested, then tiled with the niche, bench and trim.
  */
 (function () {
   'use strict';
@@ -72,8 +76,17 @@
     return { rooms, stairs, doors: doors.slice(0, Math.max(tour.transitions || 0, 0)), bw, bh, pct, ppt: (p) => `left:${(p.x / bw) * 100}%;top:${(p.y / bh) * 100}%` };
   }
 
+  const showersOf = (t) => (Array.isArray(t.showers) ? t.showers : []);
+  const roomsOf = (t) => (Array.isArray(t.rooms) ? t.rooms : []);
+
   function stepsFor(t) {
-    const s = [{ id: 'home', name: 'Your home' }];
+    const sh = showersOf(t).length;
+    const s = roomsOf(t).length ? [{ id: 'home', name: 'Your home' }] : [];
+    if (sh) {
+      s.push({ id: 'shower', name: sh > 1 ? 'Your showers' : 'Your shower' });
+      s.push({ id: 'shower_wp', name: 'Sealed & tested' });
+      s.push({ id: 'shower_tile', name: 'Tile & details' });
+    }
     if (t.removal) s.push({ id: 'removal', name: 'Out with the old' });
     if (t.floor) s.push({ id: 'floor', name: 'Your new floor' });
     if (t.refinish) s.push({ id: 'refinish', name: 'Refinished floors' });
@@ -83,18 +96,38 @@
     return s;
   }
 
+  const SHAPE_SAY = { alcove: 'an alcove shower', corner: 'a corner shower', walkin: 'a walk-in shower' };
+  const PAN_EN = { mortar: 'Mortar bed with liner', foam: 'Foam shower pan', prefab: 'Prefabricated base' };
+  const DOOR_EN = { right: 'Door on the right', left: 'Door on the left', center: 'Door in the center', none: 'Open, no door' };
+  const PATTERN_EN = { stacked: 'stacked', offset: 'offset', herringbone: 'herringbone' };
+  const inch = (v) => `${fmt(v)}″`;
+  function curShower(t) {
+    const list = showersOf(t);
+    state.sh = Math.max(0, Math.min(list.length - 1, state.sh || 0));
+    return list[state.sh];
+  }
+  function sayShower(t, id) {
+    const s = curShower(t);
+    if (!s) return '';
+    if (id === 'shower') return `${roomsOf(t).length ? 'And' : `Hi ${t.client_first}! Here is`} ${showersOf(t).length > 1 ? `${s.name}` : 'your shower'}: ${SHAPE_SAY[s.shape] || 'a shower'}, ${inch(s.width)} wide and ${inch(s.depth)} deep, tiled ${inch(s.height)} high.`;
+    if (id === 'shower_wp') return `Before any tile goes up, we seal the walls, the floor${s.curb ? ', the curb' : ''}${s.niches ? ', the niche' : ''}${s.bench ? ' and the bench' : ''} with a waterproof membrane. ${s.pan !== 'prefab' ? 'Then we plug the drain and flood the floor to prove it holds water.' : ''}`;
+    return `Then the tile goes in${s.wall_tile ? `: ${s.wall_tile} on the walls` : ''}${s.floor_tile ? ` and ${s.floor_tile} on the floor` : ''}${s.niches ? ', with the niche' : ''}${s.bench ? ' and the bench' : ''}, finished with clean edges.`;
+  }
+
   function sayFor(t, id) {
+    if (id.startsWith('shower')) return sayShower(t, id);
     const rooms = t.rooms.length;
     if (id === 'home') return `Hi ${t.client_first}! Here is your home as we measured it: ${rooms} room${rooms === 1 ? '' : 's'}${t.stairs ? ' and the stairs' : ''}, about ${fmt(t.sqft)} square feet.`;
     if (id === 'removal') return `First we take out the ${t.removal.existing.length ? t.removal.existing.join(' and ') : 'old flooring'} and clear it away.`;
     if (id === 'floor') return `Then the new ${t.floor.label.toLowerCase()} goes in, room by room. ${t.floor.note}`;
     if (id === 'refinish') return `${t.refinish.label}: we take the floors back to fresh wood and finish them so they look new again.`;
     if (id === 'details') return 'We finish the details too, so every edge and doorway looks clean.';
+    if (id === 'home' && !rooms) return `Hi ${t.client_first}! Here is your proposal.`;
     if (id === 'invest') return `Your total is ${money(t.total, true)}, and here is exactly where it goes.`;
     return 'If everything looks right, you can approve and sign right here.';
   }
 
-  const state = { t: null, opts: null, el: null, i: 0, playing: false, narr: false, timer: null, raf: null, keys: null, opt: null };
+  const state = { t: null, opts: null, el: null, i: 0, playing: false, narr: false, timer: null, raf: null, keys: null, opt: null, sh: 0 };
 
   /** The tour as the client sees it right now: with Option A / B, the chosen option's floor and numbers. */
   function view() {
@@ -119,8 +152,104 @@
     return `qt-fl qt-fl--${k}${still ? ' is-still' : ''}`;
   }
 
+  /**
+   * The shower unfolded: left wall | back wall | right wall on top, the floor under the back
+   * wall, the curb along the opening. To scale, in inches. Layers by step: outline (measured),
+   * membrane + flood test (sealed), tile + niche + bench + trim (tiled).
+   */
+  function showerSvg(s, id) {
+    const keys = (s.walls || []).map((w) => w.key);
+    const hasL = keys.includes('left');
+    const hasR = keys.includes('right');
+    const W = Math.max(12, s.width), D = Math.max(12, s.depth), H = Math.max(24, s.height);
+    const L = hasL ? D : 0;
+    const TW = L + W + (hasR ? D : 0);
+    const curbH = s.curb ? 6 : 0;
+    const TH = H + D + curbH;
+    const pad = Math.max(10, TW * 0.04);
+    const fs = Math.max(5, Math.min(TW, TH) / 22);
+    const wallR = { left: [0, 0, D, H], back: [L, 0, W, H], right: [L + W, 0, D, H] };
+    const floorR = [L, H, W, D];
+    const tiled = ['shower_tile', 'invest', 'approve'].includes(id);
+    const sealed = id === 'shower_wp';
+    const anim = (name, delay) => (reduce() ? '' : ` style="animation:${name} 1s cubic-bezier(.2,.7,.2,1) ${delay}s both"`);
+    const rect = (r, extra) => `<rect x="${r[0]}" y="${r[1]}" width="${r[2]}" height="${r[3]}" ${extra}/>`;
+    const tl = Math.max(4, s.tile_long || 12), th = tl / 2;
+    const off = s.pattern === 'offset' || s.pattern === 'herringbone';
+    let defs = `<pattern id="qtWt" width="${tl}" height="${th * (off ? 2 : 1)}" patternUnits="userSpaceOnUse"><rect width="${tl}" height="${th * (off ? 2 : 1)}" fill="#EEEAE3"/><path d="M0 0H${tl}M0 0V${th}" stroke="#C9C1B5" stroke-width="0.5" fill="none"/>${off ? `<path d="M0 ${th}H${tl}M${tl / 2} ${th}V${th * 2}" stroke="#C9C1B5" stroke-width="0.5" fill="none"/>` : ''}</pattern>`;
+    defs += '<pattern id="qtFt" width="3" height="3" patternUnits="userSpaceOnUse"><rect width="3" height="3" fill="#E2DDD5"/><path d="M0 0H3M0 0V3" stroke="#BDB4A7" stroke-width="0.35" fill="none"/></pattern>';
+    defs += '<pattern id="qtMb" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#9DB3BF"/><path d="M0 0V6" stroke="#8AA3B1" stroke-width="1.4"/></pattern>';
+    let g = '';
+    // base: the bare walls and floor
+    keys.forEach((k) => (g += rect(wallR[k], 'fill="#fff" stroke="#221E1A" stroke-width="1.2"')));
+    g += rect(floorR, 'fill="#fff" stroke="#221E1A" stroke-width="1.2"');
+    if (s.curb) g += rect([L, H + D, W, curbH], 'fill="#fff" stroke="#221E1A" stroke-width="1.2"');
+    const layer = (fill, delay, cls) => {
+      let h = `<g class="${cls}"${anim('qt-sweep', delay)}>`;
+      keys.forEach((k) => (h += rect(wallR[k], `fill="${fill === 'tile' ? 'url(#qtWt)' : fill}"`)));
+      h += rect(floorR, `fill="${fill === 'tile' ? 'url(#qtFt)' : fill}"`);
+      if (s.curb) h += rect([L, H + D, W, curbH], `fill="${fill === 'tile' ? 'url(#qtWt)' : fill}"`);
+      return h + '</g>';
+    };
+    if (sealed) g += layer('url(#qtMb)', 0.2, 'qt-sh-mb');
+    if (tiled) g += layer('tile', id === 'shower_tile' ? 0.1 : 0, 'qt-sh-tile');
+    // bench: front on its wall, top on the floor
+    if (s.bench && keys.includes(s.bench_wall)) {
+      const r = wallR[s.bench_wall];
+      const len = Math.min(s.bench_l, r[2]);
+      const x = s.bench_wall === 'left' ? r[0] + r[2] - len : r[0];
+      const fill = tiled ? 'url(#qtWt)' : sealed ? '#8AA3B1' : '#EFEBE5';
+      g += rect([x, H - s.bench_h, len, s.bench_h], `fill="${fill}" stroke="#221E1A" stroke-width="0.8"${tiled && id === 'shower_tile' ? anim('qt-pop', 0.9) : ''}`);
+      const top = s.bench_wall === 'back' ? [L, H, Math.min(s.bench_l, W), s.bench_d] : s.bench_wall === 'left' ? [L, H, s.bench_d, Math.min(s.bench_l, D)] : [L + W - s.bench_d, H, s.bench_d, Math.min(s.bench_l, D)];
+      g += rect(top, `fill="${tiled ? '#D9D2C7' : sealed ? '#8AA3B1' : '#EFEBE5'}" stroke="#221E1A" stroke-width="0.8"`);
+      if (id === 'shower') g += `<text x="${top[0] + top[2] / 2}" y="${top[1] + top[3] / 2 + fs * 0.35}" font-size="${fs * 0.8}" text-anchor="middle" fill="#5B5246">Bench</text>`;
+    }
+    // niche(s): centered on their wall, bottom at 54″
+    if (s.niches && keys.includes(s.niche_wall)) {
+      const r = wallR[s.niche_wall];
+      const nw = Math.min(s.niche_w, r[2] - 4), nh = s.niche_h, gap = 3;
+      for (let k = 0; k < s.niches; k++) {
+        const y = H - 54 - nh - k * (nh + gap);
+        g += rect([r[0] + r[2] / 2 - nw / 2, Math.max(2, y), nw, nh], `fill="${tiled ? '#D9D2C7' : sealed ? '#7F98A6' : '#F7F5F1'}" stroke="${tiled ? '#B4561A' : '#221E1A'}" stroke-width="${tiled ? 1.4 : 0.8}"${id === 'shower_tile' ? anim('qt-pop', 1 + k * 0.2) : ''}`);
+      }
+    }
+    // drain
+    if (s.drain === 'linear') g += rect([L + W * 0.15, H + D - 5, W * 0.7, 2.2], 'fill="#8C857C" rx="1"');
+    else g += `<circle cx="${L + W / 2}" cy="${H + D / 2}" r="${Math.max(2, W / 28)}" fill="#fff" stroke="#221E1A" stroke-width="0.9"/>`;
+    // flood test: water over the floor
+    if (sealed && s.pan !== 'prefab') g += rect([L + 1, H + 1, W - 2, D - 2], `fill="rgba(70,140,190,.38)" class="qt-sh-water"${reduce() ? '' : ' style="animation:qt-rise 1s ease-out 1.3s both"'}`);
+    // trim: the open vertical edges
+    if (tiled) {
+      const edges = s.shape === 'corner' ? [L, L + W + D] : [0, TW];
+      edges.forEach((x, k) => (g += `<line x1="${x}" y1="0" x2="${x}" y2="${H}" stroke="#E7792C" stroke-width="2.4"${id === 'shower_tile' ? anim('qt-pop', 1.4 + k * 0.15) : ''}/>`));
+    }
+    // outlines over the layers, so the walls stay readable
+    keys.forEach((k) => (g += rect(wallR[k], 'fill="none" stroke="#221E1A" stroke-width="1.2"')));
+    g += rect(floorR, 'fill="none" stroke="#221E1A" stroke-width="1.2"');
+    if (s.curb) g += rect([L, H + D, W, curbH], 'fill="none" stroke="#221E1A" stroke-width="1.2"');
+    // labels while measuring: under the niche on the walls; on the floor away from the drain
+    if (id === 'shower') {
+      const lbl = (x, y, txt, big) => `<text x="${x}" y="${y}" font-size="${big ? fs : fs * 0.8}" font-weight="${big ? 700 : 500}" text-anchor="middle" fill="${big ? '#221E1A' : '#475467'}">${esc(txt)}</text>`;
+      keys.forEach((k) => {
+        const r = wallR[k];
+        const w = (s.walls || []).find((x) => x.key === k) || {};
+        const y = H - 54 + fs * 1.6;
+        g += lbl(r[0] + r[2] / 2, y, w.label || '', true) + lbl(r[0] + r[2] / 2, y + fs * 1.2, `${fmt(r[2])}″ × ${fmt(H)}″`);
+      });
+      const fx = L + W / 2 + (s.bench && s.bench_wall === 'left' ? s.bench_d / 2 : s.bench && s.bench_wall === 'right' ? -s.bench_d / 2 : 0);
+      const fy = s.bench && s.bench_wall === 'back' ? H + s.bench_d : H;
+      g += lbl(fx, fy + fs * 1.2, 'Floor', true) + (s.drain === 'linear' ? lbl(fx, fy + fs * 2.3, `${fmt(W)}″ × ${fmt(D)}″`) : lbl(fx, H + D - fs * 0.5, `${fmt(W)}″ × ${fmt(D)}″`));
+      if (s.curb) g += lbl(L + W / 2, H + D + curbH + fs * 1.1, 'Curb');
+      g += `<line x1="0" y1="${H - 72}" x2="${TW}" y2="${H - 72}" stroke="#536249" stroke-width="0.6" stroke-dasharray="3 3"/>`;
+    }
+    const vb = `${-pad} ${-pad} ${TW + pad * 2} ${TH + pad * 2 + (s.curb && id === 'shower' ? fs * 1.4 : 0)}`;
+    const r = ((TW + pad * 2) / (TH + pad * 2)).toFixed(4);
+    return `<div class="qt-shower" style="--r:${r};aspect-ratio:${r}"><svg viewBox="${vb}" width="100%" height="100%" role="img" aria-label="${esc(s.name)}, unfolded"><defs>${defs}</defs>${g}</svg>${['invest', 'approve'].includes(id) ? `<span class="qt-tag" style="left:50%;top:${((H + D / 2 + pad) / (TH + pad * 2)) * 100}%">${id === 'approve' ? '✓ ' : ''}${money(s.price)}</span>` : ''}</div>`;
+  }
+
   function stageHtml(id) {
     const t = view();
+    if (id.startsWith('shower') || (!roomsOf(t).length && showersOf(t).length)) return showerSvg(curShower(t), id);
     const L = layout(t);
     const order = (r) => (L.rooms.indexOf(r) * 0.16).toFixed(2);
     const base = id !== 'home';
@@ -157,8 +286,36 @@
       .map((o) => `<button type="button" class="qt-opt${o.id === state.opt ? ' is-on' : ''}" role="radio" aria-checked="${o.id === state.opt}" data-qt-opt="${esc(o.id)}"><span class="qt-swatch qt-swatch--sm ${o.floor ? 'qt-fl qt-fl--' + (TEXTURE[o.floor.id] || 'lvp') + ' is-still' : 'qt-fl qt-fl--wood is-still'}" aria-hidden="true"></span><b>${esc(o.floor ? o.floor.label : o.name)}</b><span>${money(o.total)}</span></button>`)
       .join('')}</div>`;
   }
+  function showerPicker(t) {
+    const list = showersOf(t);
+    if (list.length < 2) return '';
+    return `<div class="qt-opts" role="radiogroup" aria-label="Choose a shower">${list
+      .map((s, k) => `<button type="button" class="qt-opt${k === state.sh ? ' is-on' : ''}" role="radio" aria-checked="${k === state.sh}" data-qt-sh="${k}"><b>${esc(s.name)}</b><span>${money(s.price)}</span></button>`)
+      .join('')}</div>`;
+  }
+  function showerPanel(t, id) {
+    const s = curShower(t);
+    const li = (a, b, k) => `<div class="qt-li" style="animation-delay:${(0.15 + (k || 0) * 0.2).toFixed(2)}s"><span>${esc(a)}</span><b>${esc(b)}</b></div>`;
+    const head = `${showerPicker(t)}${showersOf(t).length > 1 ? `<h3 class="qt-h3">${esc(s.name)}</h3>` : ''}`;
+    if (id === 'shower') {
+      return `${head}<p class="qt-p">${esc(s.shape_label)} shower, ${inch(s.width)} wide × ${inch(s.depth)} deep, tiled ${inch(s.height)} high — measured on site, drawn to scale.</p>
+        <div class="qt-big"><b>${fmt(s.wall_sf)}</b><span>sq ft of wall tile + ${fmt(s.floor_sf)} sq ft of floor</span></div>
+        <div class="qt-list">${[s.niches ? li(s.niches > 1 ? `${s.niches} niches` : 'Niche', `${inch(s.niche_w)} × ${inch(s.niche_h)}`, 0) : '', s.bench ? li('Bench', `${inch(s.bench_l)} × ${inch(s.bench_d)}`, 1) : '', li(s.curb ? 'Curb' : 'Curbless entry', s.curb ? `${inch(s.width)} long` : 'Flush', 2), li('Glass', DOOR_EN[s.door] || 'Door', 3)].join('')}</div>
+        <p class="qt-p qt-mut">The dashed line is 72″ above the drain, the minimum tiled height.</p>`;
+    }
+    if (id === 'shower_wp') {
+      return `${head}<p class="qt-p">A shower has to hold water. Before any tile, every surface that gets wet is sealed with a waterproof membrane${s.pan !== 'prefab' ? ', and the floor is flood-tested: we plug the drain, fill it and check it holds' : ''}.</p>
+        <div class="qt-big"><b>${fmt(s.waterproofing_sf)}</b><span>sq ft sealed</span></div>
+        <div class="qt-list">${li('Shower pan', PAN_EN[s.pan] || 'Shower pan', 0)}${li('Drain', s.drain === 'linear' ? 'Linear drain' : 'Center drain', 1)}${s.pan !== 'prefab' ? li('Flood test', 'Before tile, with photos', 2) : ''}</div>`;
+    }
+    return `${head}<div class="qt-list">${li('Wall tile', `${s.wall_tile || 'Your selection'}${s.pattern && s.pattern !== 'stacked' ? ` · ${PATTERN_EN[s.pattern]}` : ''}`, 0)}${li('Floor tile', s.floor_tile || 'Your selection', 1)}${s.niches ? li(s.niches > 1 ? 'Niches' : 'Niche', 'Tiled and sealed', 2) : ''}${s.bench ? li('Bench', 'Tiled', 3) : ''}${li('Edges', 'Finished with trim', 4)}</div>
+      ${s.price ? `<div class="qt-li qt-li--hl"><span>${showersOf(t).length > 1 ? 'This shower' : 'Your shower'}</span><b>${money(s.price, true)}</b></div>` : ''}
+      <p class="qt-p qt-mut">Grout, and flexible caulk where walls meet, are part of the job.</p>`;
+  }
+
   function panelHtml(id) {
     const t = view();
+    if (id.startsWith('shower')) return showerPanel(t, id);
     if (id === 'home') return `<p class="qt-p">We measured every room, ${t.stairs ? 'and the stairs, ' : ''}so the numbers you see are for your home.</p><div class="qt-big"><b>${fmt(t.sqft)}</b><span>sq ft${t.stairs ? ` + ${t.stairs} stair treads` : ''}</span></div>`;
     if (id === 'removal') return `<p class="qt-p">We remove the ${esc(t.removal.existing.join(', ') || 'old flooring')} from ${t.rooms.length === 1 ? 'the room' : 'every room in the scope'} and leave the subfloor clean and ready.</p>${t.categories.some((c) => c.label === 'Haul away') ? '<p class="qt-p">Everything we take out is hauled away.</p>' : ''}`;
     if (id === 'floor') return optionPicker(t) ? `${optionPicker(t)}<h3 class="qt-h3">${esc(t.floor.label)}</h3><p class="qt-p">${esc(t.floor.note)}</p><p class="qt-p qt-mut">Tap an option to see it in your home.</p>` : `<div class="qt-swatch ${texture(t, true)}" aria-hidden="true"></div><h3 class="qt-h3">${esc(t.floor.label)}</h3><p class="qt-p">${esc(t.floor.note)}</p>`;
@@ -213,7 +370,7 @@
         </div>
       </header>
       <nav class="qt-steps" aria-label="Proposal steps">${steps.map((s, k) => `<button type="button" class="qt-step${k === state.i ? ' is-on' : k < state.i ? ' is-done' : ''}" data-qt-go="${k}"><span class="qt-step__n">${k < state.i ? '✓' : k + 1}</span><span class="qt-step__name">${esc(s.name)}</span></button>`).join('')}</nav>
-      <main class="qt-stage" aria-label="Your home">${stageHtml(st.id)}${state.narr ? `<p class="qt-say"><span class="qt-mate" aria-hidden="true"><img src="/assets/img/mascot/mate-head-talking.webp?v=20261027-m2" alt="" width="40" height="40"></span>${esc(say)}</p>` : ''}</main>
+      <main class="qt-stage" aria-label="${roomsOf(t).length ? 'Your home' : 'Your shower'}">${stageHtml(st.id)}${state.narr ? `<p class="qt-say"><span class="qt-mate" aria-hidden="true"><img src="/assets/img/mascot/mate-head-talking.webp?v=20261027-m2" alt="" width="40" height="40"></span>${esc(say)}</p>` : ''}</main>
       <section class="qt-panel" aria-live="polite">
         <span class="qt-kicker">STEP ${state.i + 1} OF ${steps.length}</span>
         <h2 class="qt-h2">${esc(st.name)}</h2>
@@ -256,8 +413,13 @@
   }
 
   function onClick(ev) {
-    const el = ev.target.closest('[data-qt-close],[data-qt-next],[data-qt-prev],[data-qt-go],[data-qt-play],[data-qt-narr],[data-qt-approve],[data-qt-opt]');
+    const el = ev.target.closest('[data-qt-close],[data-qt-next],[data-qt-prev],[data-qt-go],[data-qt-play],[data-qt-narr],[data-qt-approve],[data-qt-opt],[data-qt-sh]');
     if (!el) return;
+    if (el.hasAttribute('data-qt-sh')) {
+      stopPlay();
+      state.sh = Number(el.dataset.qtSh) || 0;
+      return render();
+    }
     if (el.hasAttribute('data-qt-opt')) {
       stopPlay();
       state.opt = el.dataset.qtOpt;
@@ -289,11 +451,12 @@
   }
 
   function open(tour, opts) {
-    if (!tour || !Array.isArray(tour.rooms) || !tour.rooms.length) return false;
+    if (!tour || (!roomsOf(tour).length && !showersOf(tour).length)) return false;
     close();
     state.t = tour;
     state.opts = opts || {};
     state.i = 0;
+    state.sh = 0;
     state.opt = tour.selected_option || (tour.options && tour.options[0] && tour.options[0].id) || null;
     state.narr = false;
     state.playing = false;

@@ -155,7 +155,7 @@ async function loadPublicTour(
       taxRate: quote.taxRate ?? 0,
       schedule: quote.paymentSchedule,
     });
-    return tour.rooms.length ? tour : null;
+    return tour.rooms.length || tour.showers.length ? tour : null;
   } catch {
     return null;
   }

@@ -6,6 +6,8 @@
  * so every number on screen is the quote's number. Client-facing text is in English.
  */
 
+import { SHAPE_INFO, showerQuantities, showerSchema, wallsOf } from "../trades/packs/tile/shower.js";
+
 type Num = number | string | { toString(): string } | null | undefined;
 
 export type TourLine = {
@@ -51,6 +53,38 @@ export type TourOption = {
   details: Array<{ label: string; value: string }>;
 };
 
+/** A tile shower from the visit (Field Quote → Boxes), drawn by the tour, with its share of the price. */
+export type TourShower = {
+  name: string;
+  shape: string;
+  shape_label: string;
+  width: number;
+  depth: number;
+  height: number;
+  walls: Array<{ key: string; label: string; width: number; height: number }>;
+  niches: number;
+  niche_w: number;
+  niche_h: number;
+  niche_wall: string;
+  bench: boolean;
+  bench_l: number;
+  bench_d: number;
+  bench_h: number;
+  bench_wall: string;
+  curb: boolean;
+  door: string;
+  pan: string;
+  drain: string;
+  tile_long: number;
+  pattern: string;
+  wall_tile: string;
+  floor_tile: string;
+  wall_sf: number;
+  floor_sf: number;
+  waterproofing_sf: number;
+  price: number;
+};
+
 export type TourRoom = { name: string; sqft: number; l: number; w: number; services: string[]; price: number; perimeter: number };
 
 export type Tour = {
@@ -66,6 +100,8 @@ export type Tour = {
   floor: { id: string; label: string; note: string } | null;
   refinish: { label: string } | null;
   rooms: TourRoom[];
+  /** Tile showers; empty for flooring visits. */
+  showers: TourShower[];
   stairs: number;
   trim: boolean;
   transitions: number;
@@ -112,7 +148,21 @@ function lineService(l: TourLine): string {
   return "installation";
 }
 
+/** Lines the Field Quote makes from a shower (field-quote.js showerLines). */
+export function isShowerLine(l: TourLine): boolean {
+  return /^(shower |linear drain installation$|flood test$)/i.test(String(l.name || "").trim());
+}
+
+function showerCategory(l: TourLine): string {
+  const name = String(l.name || "").toLowerCase();
+  if (/walls|floor/.test(name)) return "Shower tile";
+  if (/niche|bench|curb/.test(name)) return "Niche, bench & curb";
+  if (/trim|edge/.test(name)) return "Shower trim";
+  return "Waterproofing & pan";
+}
+
 function category(l: TourLine): string {
+  if (isShowerLine(l)) return showerCategory(l);
   const name = String(l.name || l.description || "").toLowerCase();
   const unit = String(l.unit || "").toLowerCase();
   const svc = lineService(l);
@@ -167,9 +217,11 @@ function buildOne(input: TourInput, materialOverride?: string | null): Tour {
     })
     .filter((r) => r.sqft > 0);
 
-  // Spread each line over the rooms it belongs to, so each room can show its share.
   const lines = input.lines.filter((l) => n(l.amount) !== 0);
+  const showers = toursShowers(d, lines);
+  // Spread each line over the rooms it belongs to, so each room can show its share.
   for (const l of lines) {
+    if (showers.length && isShowerLine(l)) continue;
     const unit = String(l.unit || "").toLowerCase();
     const amount = n(l.amount);
     const svcId = lineService(l) === "supply" ? "installation" : lineService(l);
@@ -195,7 +247,7 @@ function buildOne(input: TourInput, materialOverride?: string | null): Tour {
   const stairsLine = lines.find((l) => category(l) === "Stairs");
   const transitionsLine = lines.find((l) => /transition|threshold/i.test(String(l.name || "")));
   const details = lines
-    .filter((l) => ["Stairs", "Trim & transitions", "Subfloor prep", "Furniture moving", "Other work", "Haul away"].includes(category(l)))
+    .filter((l) => !isShowerLine(l) && ["Stairs", "Trim & transitions", "Subfloor prep", "Furniture moving", "Other work", "Haul away"].includes(category(l)))
     .map((l) => {
       const unit = UNIT_EN[String(l.unit || "").toLowerCase()] ?? "";
       const qty = n(l.quantity);
@@ -225,12 +277,69 @@ function buildOne(input: TourInput, materialOverride?: string | null): Tour {
     floor: services.includes("installation") ? { id: MATERIAL[matId] ? matId : "other", label: mat.label, note: mat.note } : null,
     refinish: services.includes("sanding") ? { label: SANDING[sandType] || SANDING.sand_finish } : null,
     rooms,
+    showers,
     stairs: stairsLine ? Math.round(n(stairsLine.quantity)) : 0,
-    trim: lines.some((l) => /quarter round|baseboard|trim/i.test(String(l.name || ""))),
+    trim: lines.some((l) => !isShowerLine(l) && /quarter round|baseboard|trim/i.test(String(l.name || ""))),
     transitions: transitionsLine ? Math.round(n(transitionsLine.quantity)) : 0,
     details,
     categories,
   };
+}
+
+/**
+ * The visit's showers with their drawing data, each with the price of its lines (the line
+ * description starts with the shower's name; two showers with the same name split it).
+ */
+function toursShowers(d: Record<string, unknown>, lines: TourLine[]): TourShower[] {
+  const raw = Array.isArray(d.showers) ? d.showers : [];
+  const list = raw
+    .map((x, i) => {
+      const p = showerSchema.safeParse({ id: `s${i}`, ...obj(x), ...(obj(x).id ? {} : { id: `s${i}` }) });
+      return p.success ? { s: p.data, name: p.data.name || `Shower ${i + 1}` } : null;
+    })
+    .filter((x): x is { s: ReturnType<typeof showerSchema.parse>; name: string } => Boolean(x));
+  const price = new Map<string, number>();
+  for (const l of lines) {
+    if (!isShowerLine(l)) continue;
+    const desc = String(l.description || "");
+    // The longest matching name wins ("Box 1" vs "Box 10"); lines edited by hand go to the first shower.
+    const who = list.filter((x) => desc === x.name || desc.startsWith(`${x.name} · `)).sort((a, b) => b.name.length - a.name.length)[0] || list[0];
+    if (who) price.set(who.name, (price.get(who.name) || 0) + n(l.amount));
+  }
+  return list.map(({ s, name }) => {
+    const q = showerQuantities(s);
+    const same = list.filter((x) => x.name === name).length;
+    return {
+      name: name.slice(0, 60),
+      shape: s.shape,
+      shape_label: SHAPE_INFO[s.shape].label,
+      width: s.width,
+      depth: s.depth,
+      height: s.height,
+      walls: wallsOf(s),
+      niches: s.niches,
+      niche_w: s.niche_w,
+      niche_h: s.niche_h,
+      niche_wall: s.niche_wall,
+      bench: s.bench,
+      bench_l: s.bench_l,
+      bench_d: s.bench_d,
+      bench_h: s.bench_h,
+      bench_wall: s.bench_wall,
+      curb: q.curb_lf > 0,
+      door: s.door,
+      pan: s.pan,
+      drain: s.drain,
+      tile_long: s.tile_long,
+      pattern: s.pattern,
+      wall_tile: s.wall_tile,
+      floor_tile: s.floor_tile,
+      wall_sf: q.wall_sf,
+      floor_sf: q.floor_sf,
+      waterproofing_sf: q.waterproofing_sf,
+      price: Math.round((price.get(name) || 0) / same),
+    };
+  });
 }
 
 /** First payment-schedule item (the amount due on approval), when the quote has one. */

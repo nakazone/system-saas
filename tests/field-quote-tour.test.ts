@@ -77,3 +77,30 @@ describe("field quote client tour", () => {
     expect(b.room_prices.reduce((x, y) => x + y, 0)).toBeGreaterThan(t.rooms.reduce((x, r) => x + r.price, 0));
   });
 });
+
+describe("client tour with tile showers", () => {
+  const box = (name: string, extra: Record<string, unknown> = {}) => ({ id: name, name, shape: "alcove", width: 60, depth: 36, height: 96, niches: 1, bench: true, curb: true, wall_tile: "12x24 porcelain", ...extra });
+  const lines = [
+    { name: "Shower walls — tile installation", description: "Box da suíte · alcove 60″ × 36″, tiled 96″ high", quantity: 99.7, unit: "sq_ft", amount: 1595.2 },
+    { name: "Shower waterproofing membrane", description: "Box da suíte · walls, floor, curb, niche, bench", quantity: 118.7, unit: "sq_ft", amount: 474.8 },
+    { name: "Flood test", description: "Box da suíte · before tile", quantity: 1, unit: "each", amount: 100 },
+    { name: "Shower niche", description: "Box da suíte · 12″ × 24″", quantity: 1, unit: "each", amount: 275 },
+    { name: "Shower trim — metal edge profile", description: "Box da suíte · open edges", quantity: 22, unit: "linear_ft", amount: 176 },
+    { name: "Shower walls — tile installation", description: "Box 10 · corner 48″ × 48″, tiled 84″ high", quantity: 56, unit: "sq_ft", amount: 896 },
+  ];
+  it("draws each shower with its own price; shower lines get their own categories and stay off the rooms", () => {
+    const t = buildFieldQuoteTour({
+      data: { ...data, showers: [box("Box da suíte"), box("Box 10", { shape: "corner", width: 48, depth: 48, height: 84, niches: 0, bench: false })] },
+      clientName: "Amanda Ruiz", companyName: "Peak Line Tile", quoteNumber: "Q-9", total: 3517, lines,
+    });
+    expect(t.showers.map((s) => [s.name, s.price, s.wall_sf])).toEqual([["Box da suíte", 2621, 99.7], ["Box 10", 896, 60.3]]);
+    expect(t.showers[1].walls.map((w) => w.key)).toEqual(["back", "right"]);
+    expect(t.categories.map((c) => c.label)).toEqual(["Shower tile", "Waterproofing & pan", "Niche, bench & curb", "Shower trim"]);
+    expect(t.rooms.reduce((s, r) => s + r.price, 0)).toBe(0);
+    expect(t.trim).toBe(false);
+    expect(t.details).toEqual([]);
+  });
+  it("a flooring visit has no showers", () => {
+    expect(buildFieldQuoteTour({ data, clientName: "Jen", companyName: "Peak", quoteNumber: "Q-1", total: 10, lines: [] }).showers).toEqual([]);
+  });
+});

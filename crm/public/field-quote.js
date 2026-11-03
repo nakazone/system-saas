@@ -1268,7 +1268,7 @@
           } catch (e) { toast(e.message, 'error'); }
         },
       });
-      if (!ok) toast('Meça pelo menos um cômodo para apresentar.', 'error');
+      if (!ok) toast('Meça pelo menos um cômodo ou um box para apresentar.', 'error');
     } catch (e) {
       toast(e.message, 'error');
     } finally {
