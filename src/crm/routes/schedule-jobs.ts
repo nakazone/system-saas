@@ -246,7 +246,7 @@ function mapWorkOrder(wo: {
     notes: string | null;
     createdAt: Date;
   }[];
-  quotes?: { quoteNumber: string | null; title: string; leadId?: string | null; payload?: unknown }[];
+  quotes?: { id?: string; quoteNumber: string | null; title: string; leadId?: string | null; payload?: unknown }[];
   lineItems?: {
     id: string;
     pricingItemId: string | null;
@@ -278,6 +278,7 @@ function mapWorkOrder(wo: {
   return {
     id: wo.id,
     number: wo.number,
+    quote_id: (linkedQuote as { id?: string } | null)?.id || null,
     quote_number: linkedQuote?.quoteNumber || null,
     quote_title: linkedQuote?.title || null,
     lead_name: null as string | null,
@@ -502,7 +503,7 @@ const woInclude = {
   },
   tempWorkers: { orderBy: { createdAt: "asc" as const } },
   quotes: {
-    select: { quoteNumber: true, title: true, leadId: true, payload: true },
+    select: { id: true, quoteNumber: true, title: true, leadId: true, payload: true },
     orderBy: { createdAt: "desc" as const },
     take: 1,
   },
@@ -1723,6 +1724,150 @@ function parseDataUrl(dataUrl: string): { contentType: string; body: Buffer } | 
   if (!match) return null;
   return { contentType: match[1]!, body: Buffer.from(match[2]!, "base64") };
 }
+
+/**
+ * Push job extras marked "send to client" onto the linked quote as optional selected lines,
+ * so the office can open/send that quote to the customer.
+ */
+scheduleJobsRouter.post(
+  "/api/work-orders/:id/extras/send",
+  requireCrmAuth,
+  requireCrmPermission("work_orders.manage"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const jobId = workOrderIdParam(req);
+      const { parseJobExtraNote } = await import("../../lib/invoices/job.js");
+      const { calculateQuoteTotals } = await import("../../lib/quotes/totals.js");
+      const result = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const job = await tx.workOrder.findFirst({
+          where: { id: jobId },
+          include: {
+            lineItems: { orderBy: { sortOrder: "asc" } },
+            quotes: { orderBy: { updatedAt: "desc" }, take: 1 },
+          },
+        });
+        if (!job) return null;
+        const extras = job.lineItems
+          .map((li) => {
+            const flags = parseJobExtraNote(li.notes);
+            if (!flags?.sendToClient) return null;
+            return { li, flags };
+          })
+          .filter(Boolean) as {
+          li: (typeof job.lineItems)[number];
+          flags: NonNullable<ReturnType<typeof parseJobExtraNote>>;
+        }[];
+        if (!extras.length) {
+          const err = new Error('Marque “Enviar ao cliente” em pelo menos um extra e salve o job.') as Error & {
+            statusCode?: number;
+          };
+          err.statusCode = 400;
+          throw err;
+        }
+        const quote = job.quotes[0] || null;
+        if (!quote) {
+          const err = new Error(
+            "Este job não tem orçamento ligado. Abra o quote original para enviar extras ao cliente.",
+          ) as Error & { statusCode?: number };
+          err.statusCode = 400;
+          throw err;
+        }
+        const existing = await tx.quoteLineItem.findMany({
+          where: { quoteId: quote.id },
+          orderBy: { sortOrder: "asc" },
+        });
+        const maxSort = Math.max(0, ...existing.map((l) => l.sortOrder));
+        const stale = existing.filter((l) => {
+          const meta =
+            l.meta && typeof l.meta === "object" && !Array.isArray(l.meta)
+              ? (l.meta as Record<string, unknown>)
+              : {};
+          return meta.job_extra === true || String(meta.source || "") === "job_extra";
+        });
+        if (stale.length) {
+          await tx.quoteLineItem.deleteMany({ where: { id: { in: stale.map((l) => l.id) } } });
+        }
+        let sort = maxSort;
+        for (const { li, flags } of extras) {
+          sort += 1;
+          const qty = Number(li.quantitySqft) || 0;
+          const unitPrice = Number(li.unitPrice) || 0;
+          const amount = Number(li.lineTotal) || qty * unitPrice;
+          await tx.quoteLineItem.create({
+            data: {
+              organizationId: req.organizationId!,
+              quoteId: quote.id,
+              name: li.serviceName.slice(0, 200),
+              description: flags.note || li.serviceName,
+              quantity: new Prisma.Decimal(qty),
+              unit: "each",
+              unitCost: new Prisma.Decimal(0),
+              unitPrice: new Prisma.Decimal(unitPrice),
+              amount: new Prisma.Decimal(amount),
+              isOptional: true,
+              isSelected: true,
+              sortOrder: sort,
+              meta: {
+                job_extra: true,
+                source: "job_extra",
+                show_on_invoice: flags.showOnInvoice,
+                notes: flags.note || null,
+                work_order_line_id: li.id,
+              } as Prisma.InputJsonValue,
+            },
+          });
+        }
+        const full = await tx.quote.findFirst({
+          where: { id: quote.id },
+          include: { lineItems: true },
+        });
+        if (full) {
+          const totals = calculateQuoteTotals({
+            lines: full.lineItems.map((l) => ({
+              quantity: Number(l.quantity),
+              unitPrice: Number(l.unitPrice),
+              amount: Number(l.amount),
+              isOptional: l.isOptional,
+              isSelected: l.isSelected,
+            })),
+            discountType: (full.discountType as "percent" | "fixed" | null) || null,
+            discountValue: Number(full.discountValue),
+            taxRate: Number(full.taxRate),
+          });
+          await tx.quote.update({
+            where: { id: quote.id },
+            data: {
+              subtotal: new Prisma.Decimal(totals.subtotal),
+              taxTotal: new Prisma.Decimal(totals.taxTotal),
+              total: new Prisma.Decimal(totals.total),
+            },
+          });
+        }
+        return {
+          quote_id: quote.id,
+          quote_number: quote.quoteNumber,
+          created: false,
+          open_url: `quote-builder.html?id=${encodeURIComponent(quote.id)}&send=1`,
+        };
+      });
+      if (!result) {
+        res.status(404).json({ success: false, error: "Job não encontrado" });
+        return;
+      }
+      res.json({ success: true, data: result });
+    } catch (error) {
+      const status = (error as { statusCode?: number }).statusCode;
+      if (status && status >= 400 && status < 500) {
+        res.status(status).json({
+          success: false,
+          error: error instanceof Error ? error.message : "Não foi possível enviar",
+        });
+        return;
+      }
+      next(error);
+    }
+  },
+);
 
 /** Office upload for Delivery attachment (PO / PDF / photo). */
 scheduleJobsRouter.post(

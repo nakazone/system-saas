@@ -8,7 +8,12 @@ import type { AuthedRequest } from "../../middleware/auth.js";
 import { requireCrmAuth, requireCrmPermission, dec } from "../http.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { computeInvoiceMoney, invoiceKindLabel } from "../../lib/invoices/core.js";
-import { createJobInvoice, jobBilling, jobBillingLabel } from "../../lib/invoices/job.js";
+import {
+  createJobInvoice,
+  invoiceableJobServicesTotal,
+  jobBilling,
+  jobBillingLabel,
+} from "../../lib/invoices/job.js";
 import { ensureQuoteDiscountOnJob, linkQuoteInvoicesToWorkOrder } from "../../lib/work-orders/from-quote.js";
 
 export const jobInvoicesRouter = Router();
@@ -46,7 +51,7 @@ jobInvoicesRouter.get(
           where: { id },
           select: {
             id: true,
-            lineItems: { select: { lineTotal: true } },
+            lineItems: { select: { lineTotal: true, notes: true } },
             invoices: {
               orderBy: { createdAt: "asc" },
               include: { receipts: { select: { amount: true, paidAt: true } } },
@@ -58,7 +63,7 @@ jobInvoicesRouter.get(
         res.status(404).json({ success: false, error: "Job não encontrado" });
         return;
       }
-      const total = job.lineItems.reduce((s, li) => s + dec(li.lineTotal), 0);
+      const total = invoiceableJobServicesTotal(job.lineItems);
       const billing = jobBilling(total, job.invoices);
       res.json({
         success: true,

@@ -10,7 +10,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261103-unify2";
+  const CSS_HREF = "crm-job-modal.css?v=20261103-extras1";
   const QPE_CSS = "quote-services-popup.css?v=20261102-svc2";
   const QPE_JS = "quote-services-popup.js?v=20261102-qfix";
   const PAPER_CSS = "quote-paper.css?v=20261027-om1";
@@ -135,6 +135,9 @@
       openQuotesDismissed: false,
       /** Quote ids selected for “unificar em 1 job” (create flow). */
       mergeQuoteIds: [],
+      /** Extra work beyond the original quote (send-to-client / invoice flags). */
+      extras: [],
+      quoteId: null,
     };
   }
 
@@ -503,7 +506,36 @@
     return Math.round((Number(l.qty) || 0) * (Number(l.price) || 0) * 100) / 100;
   }
   function linesTotal() {
-    return st.lines.reduce((s, l) => s + lineTotal(l), 0);
+    const svc = st.lines.reduce((s, l) => s + lineTotal(l), 0);
+    const extras = (st.extras || []).reduce((s, l) => s + lineTotal(l), 0);
+    return Math.round((svc + extras) * 100) / 100;
+  }
+
+  function parseExtraNote(notes) {
+    const raw = String(notes || "");
+    const m = raw.match(/^\[\[extra\|send=([01])\|invoice=([01])\]\](?:\n([\s\S]*))?$/);
+    if (!m) return null;
+    return {
+      sendToClient: m[1] === "1",
+      showOnInvoice: m[2] === "1",
+      note: String(m[3] || "").trim(),
+    };
+  }
+  function encodeExtraNote(ex) {
+    const head = `[[extra|send=${ex.sendToClient ? "1" : "0"}|invoice=${ex.showOnInvoice ? "1" : "0"}]]`;
+    const note = String(ex.note || "").trim();
+    return note ? `${head}\n${note.slice(0, 1900)}` : head;
+  }
+  function blankExtra(opts) {
+    const o = opts || {};
+    return {
+      name: o.name || "",
+      qty: o.qty != null ? o.qty : 1,
+      price: o.price != null ? o.price : 0,
+      note: o.note || "",
+      sendToClient: o.sendToClient !== false,
+      showOnInvoice: o.showOnInvoice !== false,
+    };
   }
   function repriceLines() {
     st.lines.forEach((l) => {
@@ -973,6 +1005,7 @@
           <h3 class="jm-sec__t"><span class="jm-n">3</span>Serviços</h3>
           <div class="jm-svc" id="jmSvc"></div>
           <p class="jm-hint" id="jmPriceHint"></p>
+          <div class="jm-extras" id="jmExtras"></div>
         </section>
 
         <section class="jm-sec" data-job-section="team">
@@ -1717,11 +1750,101 @@
       ? `Serviços do orçamento · preços da <b>${esc(pricingLabel())}</b>${card ? ` (${esc(card.name)})` : ""}. Abra a folha para adicionar ou editar.`
       : `Preços da <b>${esc(pricingLabel())}</b>${card ? ` (${esc(card.name)})` : ""}. Mesma tela do orçamento: passos à esquerda e folha à direita.`;
     updateSvcCount();
+    renderExtras();
   }
 
   function updateSvcCount() {
     const cnt = $("jmSvcCount");
     if (cnt) cnt.innerHTML = st.lines.length ? `${st.lines.length} serviço${st.lines.length > 1 ? "s" : ""} · <b>${money(linesTotal())}</b>` : "";
+  }
+
+  function renderExtras() {
+    const box = $("jmExtras");
+    if (!box || !st) return;
+    const rows = (st.extras || [])
+      .map((ex, i) => {
+        const tot = lineTotal(ex);
+        return `<article class="jm-extra" data-ex-i="${i}">
+          <div class="jm-extra__grid">
+            <label class="jm-field">Trabalho extra
+              <input type="text" class="jm-in jm-in--sm" data-ex="name" data-i="${i}" maxlength="200" value="${esc(ex.name || "")}" placeholder="Ex.: Remoção de baseboard" />
+            </label>
+            <label class="jm-field">Qtd
+              <input type="text" class="jm-in jm-in--sm" inputmode="decimal" data-ex="qty" data-i="${i}" value="${Number(ex.qty) ? esc(ex.qty) : ""}" />
+            </label>
+            <label class="jm-field">Preço
+              <input type="text" class="jm-in jm-in--sm" inputmode="decimal" data-ex="price" data-i="${i}" value="${Number(ex.price) ? esc(Number(ex.price).toFixed(2)) : ""}" />
+            </label>
+            <span class="jm-extra__tot">${money(tot)}</span>
+            <button type="button" class="jm-ln__del" data-act="extra-del" data-i="${i}" aria-label="Remover extra">×</button>
+          </div>
+          <label class="jm-field">Nota
+            <input type="text" class="jm-in jm-in--sm" data-ex="note" data-i="${i}" maxlength="500" value="${esc(ex.note || "")}" placeholder="Opcional" />
+          </label>
+          <div class="jm-extra__flags">
+            <label class="jm-check jm-check--inline"><input type="checkbox" data-ex="send" data-i="${i}"${ex.sendToClient ? " checked" : ""} /><span>Enviar ao cliente</span></label>
+            <label class="jm-check jm-check--inline"><input type="checkbox" data-ex="invoice" data-i="${i}"${ex.showOnInvoice ? " checked" : ""} /><span>No Invoice</span></label>
+          </div>
+        </article>`;
+      })
+      .join("");
+    const sendable = (st.extras || []).some((ex) => ex.sendToClient && String(ex.name || "").trim());
+    box.innerHTML = `<div class="jm-extras__hd">
+        <p class="jm-grp">Trabalhos extras</p>
+        <span class="jm-hint">Adição ao orçamento original — escolha se vai ao cliente e se entra no Invoice.</span>
+      </div>
+      ${rows || `<p class="jm-empty jm-empty--svc">Nenhum extra ainda.</p>`}
+      <div class="jm-extras__foot">
+        <button type="button" class="jm-svc__add" data-act="extra-add">+ Extra</button>
+        ${
+          st.id && sendable
+            ? `<button type="button" class="jm-btn jm-btn--sm" data-act="extra-send"${st.busy ? " disabled" : ""}>Enviar extras ao cliente</button>`
+            : ""
+        }
+      </div>`;
+  }
+
+  async function sendExtrasToClient() {
+    if (!st?.id || st.busy) return;
+    const list = (st.extras || []).filter((ex) => ex.sendToClient && String(ex.name || "").trim());
+    if (!list.length) {
+      notify("Marque “Enviar ao cliente” em pelo menos um extra.", "info");
+      return;
+    }
+    st.busy = true;
+    renderFoot();
+    renderExtras();
+    try {
+      // Persist first so the API reads the latest extras from the job.
+      await api(`/api/work-orders/${encodeURIComponent(st.id)}`, {
+        method: "PUT",
+        body: JSON.stringify(payload()),
+      });
+      const j = await api(`/api/work-orders/${encodeURIComponent(st.id)}/extras/send`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      const quoteId = j.data?.quote_id || null;
+      if (quoteId) st.quoteId = quoteId;
+      notify(
+        j.data?.created
+          ? "Extras adicionados ao orçamento. Abra o quote para enviar ao cliente."
+          : "Extras atualizados no orçamento.",
+        "success",
+      );
+      if (quoteId && j.data?.open_url) {
+        location.href = j.data.open_url;
+        return;
+      }
+    } catch (err) {
+      notify(err.message || "Não foi possível enviar os extras.", "error");
+    } finally {
+      if (st) {
+        st.busy = false;
+        renderFoot();
+        renderExtras();
+      }
+    }
   }
 
   function foldSearch(s) {
@@ -1789,6 +1912,31 @@
     } catch (_) {}
   }
 
+  function positionTeamPanel() {
+    const panel = $("jmTeam")?.querySelector(".jm-team__panel");
+    const trig = $("jmTeam")?.querySelector(".jm-team__trig");
+    if (!panel || !trig || panel.hasAttribute("hidden")) return;
+    const r = trig.getBoundingClientRect();
+    const gap = 6;
+    const maxH = Math.min(380, Math.max(180, window.innerHeight - 48));
+    const spaceBelow = window.innerHeight - r.bottom - gap - 16;
+    const spaceAbove = r.top - gap - 16;
+    const openUp = spaceBelow < 220 && spaceAbove > spaceBelow;
+    const height = Math.min(maxH, openUp ? spaceAbove : spaceBelow);
+    panel.style.position = "fixed";
+    panel.style.left = `${Math.max(12, Math.min(r.left, window.innerWidth - r.width - 12))}px`;
+    panel.style.width = `${Math.min(r.width, window.innerWidth - 24)}px`;
+    panel.style.right = "auto";
+    panel.style.maxHeight = `${Math.max(160, height)}px`;
+    if (openUp) {
+      panel.style.top = "auto";
+      panel.style.bottom = `${window.innerHeight - r.top + gap}px`;
+    } else {
+      panel.style.top = `${r.bottom + gap}px`;
+      panel.style.bottom = "auto";
+    }
+  }
+
   function refreshTeamList() {
     const list = $("jmTeamList");
     if (!list) {
@@ -1800,6 +1948,7 @@
     const caret = typeof qEl?.selectionStart === "number" ? qEl.selectionStart : null;
     list.innerHTML = teamListHtml();
     if (hadFocus) focusTeamSearch(caret);
+    if (st?.teamMenuOpen) positionTeamPanel();
   }
 
   /** Update chips + list + trigger without destroying the search field (avoids tablet flicker). */
@@ -1834,10 +1983,29 @@
       }
     }
     if (hadFocus || st.teamMenuOpen) focusTeamSearch(caret);
+    if (st?.teamMenuOpen) positionTeamPanel();
   }
 
   function isTeamMember(u) {
     return st.members.has(String(u.id)) || String(st.assigneeId) === String(u.id);
+  }
+
+  function toggleTeamUser(id) {
+    if (!st || !id) return;
+    const sid = String(id);
+    if (st.members.has(sid) || String(st.assigneeId) === sid) {
+      st.members.delete(sid);
+      if (String(st.assigneeId) === sid) st.assigneeId = [...st.members][0] || null;
+    } else {
+      st.members.add(sid);
+      if (!st.assigneeId) st.assigneeId = sid;
+      if (st.teamMenuOpen) st.teamQuery = "";
+    }
+    if (st.teamMenuOpen) {
+      softUpdateTeam();
+      focusTeamSearch();
+    } else renderTeam();
+    renderSide();
   }
 
   function renderTeam() {
@@ -1857,6 +2025,12 @@
         </div>
       </div>
     </div>`;
+    if (st.teamMenuOpen) {
+      requestAnimationFrame(() => {
+        positionTeamPanel();
+        focusTeamSearch();
+      });
+    }
     const leadPick =
       team.length > 1
         ? `<label class="jm-lead">Responsável <select id="jmLead" class="jm-in jm-in--sm">${team
@@ -2242,6 +2416,7 @@
     if (st.sector === "sand_finish") await ensureInstallOptions();
     renderWhen();
     renderServices();
+    renderExtras();
     renderTeam();
     $("jobNotes").value = st.notes;
     if ($("jmNeedsDelivery")) $("jmNeedsDelivery").checked = Boolean(st.needsDelivery);
@@ -2752,6 +2927,7 @@
       st.titleTouched = true;
     }
     st.lines = [blankLine()];
+    st.extras = [];
     open();
     if ((st.customerId || st.builderId) && !st.pickerOpen) void refreshOpenQuotes();
     if (o.openServices) {
@@ -2773,7 +2949,14 @@
       await openStartDate(base);
       return;
     }
-    const sand = nextDayAfter(base.scheduled_end || base.scheduled_start);
+    // Prefer the already scheduled service day (not "today" / next day).
+    const refIso = base.scheduled_start || base.scheduled_end || null;
+    const sand = refIso
+      ? (() => {
+          const d = new Date(refIso);
+          return Number.isNaN(d.getTime()) ? nextDayAfter(null) : new Date(d.getFullYear(), d.getMonth(), d.getDate(), 7, 30, 0, 0);
+        })()
+      : nextDayAfter(null);
     try {
       const j = await api(`/api/work-orders/${encodeURIComponent(base.id)}`, {
         method: "PUT",
@@ -2890,18 +3073,37 @@
     st.sandDate = sand && !Number.isNaN(sand.getTime()) ? ymd(sand) : "";
     st.assigneeId = wo.assigned_user_id ? String(wo.assigned_user_id) : null;
     (wo.members || []).forEach((m) => st.members.add(String(m.user_id)));
-    st.lines = (wo.line_items || []).map((li) =>
-      blankLine({
-        pricingId: li.pricing_item_id || null,
-        name: li.service_name || "",
-        qty: li.quantity_sqft || 0,
-        price: li.unit_price || 0,
-        unit: li.unit || null,
-        priceTouched: true,
-        manual: !li.pricing_item_id,
-        note: li.notes || "",
-      }),
-    );
+    st.lines = [];
+    st.extras = [];
+    (wo.line_items || []).forEach((li) => {
+      const extra = parseExtraNote(li.notes);
+      if (extra) {
+        st.extras.push(
+          blankExtra({
+            name: li.service_name || "",
+            qty: li.quantity_sqft || 0,
+            price: li.unit_price || 0,
+            note: extra.note,
+            sendToClient: extra.sendToClient,
+            showOnInvoice: extra.showOnInvoice,
+          }),
+        );
+        return;
+      }
+      st.lines.push(
+        blankLine({
+          pricingId: li.pricing_item_id || null,
+          name: li.service_name || "",
+          qty: li.quantity_sqft || 0,
+          price: li.unit_price || 0,
+          unit: li.unit || null,
+          priceTouched: true,
+          manual: !li.pricing_item_id,
+          note: li.notes || "",
+        }),
+      );
+    });
+    st.quoteId = wo.quote_id || (wo.quotes && wo.quotes[0] && wo.quotes[0].id) || null;
     st.notes = wo.notes || "";
     st.lockboxCode = parseJobLockbox(st.notes) || "";
     st.needsLockbox = Boolean(st.lockboxCode);
@@ -3011,18 +3213,29 @@
       clear_delivery_attachment: Boolean(st.clearDeliveryAttachment),
       assigned_user_id: st.assigneeId || null,
       member_user_ids: members,
-      line_items: st.lines
-        .filter((l) => l.pricingId || String(l.name || "").trim())
-        .map((l) => {
-          const item = l.pricingId ? pricing.find((p) => p.id === l.pricingId) : null;
-          return {
-            pricing_item_id: l.pricingId || null,
-            service_name: (item?.name || l.name || "Serviço").trim(),
-            quantity_sqft: Number(l.qty) || 0,
-            unit_price: Number(l.price) || 0,
-            notes: String(l.note || "").trim() || null,
-          };
-        }),
+      line_items: [
+        ...st.lines
+          .filter((l) => l.pricingId || String(l.name || "").trim())
+          .map((l) => {
+            const item = l.pricingId ? pricing.find((p) => p.id === l.pricingId) : null;
+            return {
+              pricing_item_id: l.pricingId || null,
+              service_name: (item?.name || l.name || "Serviço").trim(),
+              quantity_sqft: Number(l.qty) || 0,
+              unit_price: Number(l.price) || 0,
+              notes: String(l.note || "").trim() || null,
+            };
+          }),
+        ...(st.extras || [])
+          .filter((ex) => String(ex.name || "").trim())
+          .map((ex) => ({
+            pricing_item_id: null,
+            service_name: String(ex.name || "Extra").trim().slice(0, 200),
+            quantity_sqft: Number(ex.qty) || 0,
+            unit_price: Number(ex.price) || 0,
+            notes: encodeExtraNote(ex),
+          })),
+      ],
       scheduled_start: start ? start.toISOString() : null,
       scheduled_end: null,
       sand_scheduled_start: st.sector === "both" && dayFromYmd(st.sandDate) ? dayFromYmd(st.sandDate).toISOString() : null,
@@ -3354,6 +3567,22 @@
       case "merge-quotes":
         void mergeSelectedQuotes();
         break;
+      case "extra-add":
+        st.extras = st.extras || [];
+        st.extras.push(blankExtra());
+        renderExtras();
+        refreshNumbers();
+        break;
+      case "extra-del": {
+        const i = Number(btn.getAttribute("data-i"));
+        if (Number.isFinite(i)) st.extras.splice(i, 1);
+        renderExtras();
+        refreshNumbers();
+        break;
+      }
+      case "extra-send":
+        void sendExtrasToClient();
+        break;
       case "quick-client":
         quickCreateClient(btn.getAttribute("data-type"));
         break;
@@ -3479,7 +3708,12 @@
       case "sector": {
         const id = btn.getAttribute("data-id");
         st.sector = id === "installation" || id === "sand_finish" || id === "both" ? id : null;
-        if (st.sector !== "both") st.sandDate = "";
+        if (st.sector !== "both") {
+          st.sandDate = "";
+        } else if (!st.sandDate && st.date) {
+          // Keep the already scheduled service day when adding Sand & Finish.
+          st.sandDate = st.date;
+        }
         renderWhen();
         renderSide();
         renderFoot();
@@ -3487,8 +3721,8 @@
       }
       case "team-toggle":
         st.teamMenuOpen = !st.teamMenuOpen;
+        if (!st.teamMenuOpen) st.teamQuery = "";
         renderTeam();
-        if (st.teamMenuOpen) setTimeout(() => $("jmTeamQ")?.focus(), 20);
         break;
       case "delivery-add": {
         ensureDeliveryStops();
@@ -3533,21 +3767,9 @@
         break;
       }
       case "user": {
-        const id = String(btn.getAttribute("data-id"));
-        if (st.members.has(id) || String(st.assigneeId) === id) {
-          st.members.delete(id);
-          if (String(st.assigneeId) === id) st.assigneeId = [...st.members][0] || null;
-        } else {
-          st.members.add(id);
-          if (!st.assigneeId) st.assigneeId = id;
-          // Keep typing: clear query after a pick so the next name is easy to find.
-          if (st.teamMenuOpen) st.teamQuery = "";
-        }
-        if (st.teamMenuOpen) {
-          softUpdateTeam();
-          focusTeamSearch();
-        } else renderTeam();
-        renderSide();
+        // List options are handled on pointerup (tablet). Chips still use click.
+        if (btn.classList.contains("jm-team__opt")) break;
+        toggleTeamUser(btn.getAttribute("data-id"));
         break;
       }
       case "cancel-job":
@@ -3579,6 +3801,21 @@
   function onInput(e) {
     if (!st) return;
     const t = e.target;
+    if (t.hasAttribute && t.hasAttribute("data-ex")) {
+      const i = Number(t.getAttribute("data-i"));
+      const ex = st.extras?.[i];
+      if (!ex) return;
+      const f = t.getAttribute("data-ex");
+      if (f === "name") ex.name = t.value;
+      if (f === "qty") ex.qty = Number(String(t.value).replace(",", ".")) || 0;
+      if (f === "price") ex.price = Number(String(t.value).replace(",", ".")) || 0;
+      if (f === "note") ex.note = t.value;
+      const row = t.closest(".jm-extra");
+      const tot = row?.querySelector(".jm-extra__tot");
+      if (tot) tot.textContent = money(lineTotal(ex));
+      refreshNumbers();
+      return;
+    }
     if (t.hasAttribute && t.hasAttribute("data-ck-text")) {
       const c = st.checklist[Number(t.getAttribute("data-ck-text"))];
       if (c) c.text = t.value;
@@ -3783,6 +4020,16 @@
   function onChange(e) {
     if (!st) return;
     const t = e.target;
+    if (t.hasAttribute && t.hasAttribute("data-ex")) {
+      const i = Number(t.getAttribute("data-i"));
+      const ex = st.extras?.[i];
+      if (!ex) return;
+      const f = t.getAttribute("data-ex");
+      if (f === "send") ex.sendToClient = Boolean(t.checked);
+      if (f === "invoice") ex.showOnInvoice = Boolean(t.checked);
+      renderExtras();
+      return;
+    }
     switch (t.id) {
       case "jmDate":
         st.date = t.value;
@@ -4051,15 +4298,25 @@
     modal.addEventListener("click", onClick);
     modal.addEventListener("input", onInput);
     modal.addEventListener("change", onChange);
-    // Keep the team search focused when tapping a name (tablet).
+    // Tablet: select on pointerup so preventDefault does not kill click; keep search focused.
     modal.addEventListener(
-      "pointerdown",
+      "pointerup",
       (e) => {
+        if (!st?.teamMenuOpen) return;
         const opt = e.target.closest?.(".jm-team__opt");
-        if (!opt) return;
+        if (!opt || !modal.contains(opt)) return;
         e.preventDefault();
+        e.stopPropagation();
+        toggleTeamUser(opt.getAttribute("data-id"));
       },
       { passive: false },
+    );
+    window.addEventListener(
+      "resize",
+      () => {
+        if (st?.teamMenuOpen) positionTeamPanel();
+      },
+      { passive: true },
     );
     modal.addEventListener("focusin", (e) => {
       if (!st) return;
@@ -4217,7 +4474,13 @@
     $("jmStartDateLabel").firstChild.textContent = both ? "Início Installation" : "Data de início";
     $("jmStartSandWrap").hidden = !both;
     $("jmStartDate").value = wo.scheduled_start ? ymd(new Date(wo.scheduled_start)) : "";
-    $("jmStartSand").value = wo.sand_scheduled_start ? ymd(new Date(wo.sand_scheduled_start)) : "";
+    if (wo.sand_scheduled_start) {
+      $("jmStartSand").value = ymd(new Date(wo.sand_scheduled_start));
+    } else if (both && wo.scheduled_start) {
+      $("jmStartSand").value = ymd(new Date(wo.scheduled_start));
+    } else {
+      $("jmStartSand").value = "";
+    }
     $("jmStartBox").hidden = false;
   }
   async function saveStartDate() {

@@ -2712,6 +2712,18 @@
     if (preview) preview.textContent = label || "Escolha os dias e o horário";
   }
 
+  function attachJobsDeliveryAddressAutocomplete() {
+    const box = $("jobsDeliveryLocs");
+    if (!box || typeof window.sfAttachAddressAutocomplete !== "function") return;
+    const country = String(($("f_country") && $("f_country").value) || "US").toLowerCase();
+    box.querySelectorAll('[data-jobs-loc="address"]').forEach((el) => {
+      if (el.dataset.acBound === "1") return;
+      el.dataset.acBound = "1";
+      el.setAttribute("autocomplete", "off");
+      window.sfAttachAddressAutocomplete(el, { country }).catch(() => undefined);
+    });
+  }
+
   function renderJobsDeliveryLocs(list) {
     const box = $("jobsDeliveryLocs");
     if (!box) return;
@@ -2728,12 +2740,13 @@
             <button type="button" class="btn btn-ghost" data-jobs-loc-del="${i}" style="height:auto;padding:0.2rem 0.45rem">Remover</button>
           </div>
           <label class="cfg-field"><span>Nome</span><input type="text" data-jobs-loc="name" data-i="${i}" maxlength="120" value="${esc(row.name || "")}" placeholder="Ex.: Home Depot — Midtown" /></label>
-          <label class="cfg-field"><span>Endereço</span><input type="text" data-jobs-loc="address" data-i="${i}" maxlength="500" value="${esc(row.address || "")}" placeholder="Rua, cidade" /></label>
+          <label class="cfg-field"><span>Endereço</span><input type="text" data-jobs-loc="address" data-i="${i}" maxlength="500" value="${esc(row.address || "")}" placeholder="Rua, cidade" autocomplete="off" /></label>
           ${hoursEditorHtml(i, row.hours || "")}
           <input type="hidden" data-jobs-loc="id" data-i="${i}" value="${esc(row.id || "")}" />
         </div>`,
       )
       .join("");
+    attachJobsDeliveryAddressAutocomplete();
   }
 
   function readJobsDeliveryLocs() {

@@ -371,27 +371,45 @@ export async function syncLinkedJobFromQuote(
   });
   const invoiced = Number(invoicedAgg._sum.amount ?? 0);
   const next = quoteJobLineData(params.organizationId, quote);
-  const servicesTotal = next
+  // Keep job extras (post-quote add-ons) when re-syncing contract lines from the quote.
+  const { parseJobExtraNote } = await import("../invoices/job.js");
+  const keepExtras = job.lineItems.filter((li) => parseJobExtraNote(li.notes));
+  const nextWithExtras = [
+    ...next,
+    ...keepExtras.map((li, idx) => ({
+      organizationId: params.organizationId,
+      pricingItemId: li.pricingItemId,
+      serviceName: li.serviceName,
+      notes: li.notes,
+      quantitySqft: li.quantitySqft,
+      unitPrice: li.unitPrice,
+      lineTotal: li.lineTotal,
+      sortOrder: next.length + idx + 1,
+    })),
+  ];
+  const servicesTotal = nextWithExtras
     .filter((row) => row.notes !== QUOTE_DISCOUNT_NOTE && !/^discount\b/i.test(row.serviceName))
     .reduce((sum, row) => sum + Math.round(Number(row.lineTotal) * 100) / 100, 0);
   if (invoiced > 0.004 && servicesTotal + 0.004 < invoiced) throw invoicedFloorError(invoiced);
-  const linesDiffer = jobLineFingerprint(job.lineItems) !== jobLineFingerprint(next);
+  const linesDiffer = jobLineFingerprint(job.lineItems) !== jobLineFingerprint(nextWithExtras);
   if (linesDiffer) {
-      const pricingIds = [...new Set(next.map((row) => row.pricingItemId).filter((id): id is string => Boolean(id)))];
+      const pricingIds = [
+        ...new Set(nextWithExtras.map((row) => row.pricingItemId).filter((id): id is string => Boolean(id))),
+      ];
       if (pricingIds.length) {
         const live = await tx.pricingItem.findMany({
           where: { id: { in: pricingIds } },
           select: { id: true },
         });
         const ok = new Set(live.map((row) => row.id));
-        for (const row of next) {
+        for (const row of nextWithExtras) {
           if (row.pricingItemId && !ok.has(row.pricingItemId)) row.pricingItemId = null;
         }
       }
       await tx.workOrderLineItem.deleteMany({ where: { workOrderId: job.id } });
-      if (next.length) {
+      if (nextWithExtras.length) {
         await tx.workOrderLineItem.createMany({
-          data: next.map((row) => ({ ...row, workOrderId: job.id })),
+          data: nextWithExtras.map((row) => ({ ...row, workOrderId: job.id })),
         });
       }
   }

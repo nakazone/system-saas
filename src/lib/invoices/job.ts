@@ -152,10 +152,50 @@ function invoiceLineDescription(li: JobLine): string {
   return combined.length > 500 ? combined.slice(0, 497) + "…" : combined;
 }
 
+/** Job extras stored as line items with notes `[[extra|send=0|1|invoice=0|1]]\noptional note`. */
+export type JobExtraFlags = { sendToClient: boolean; showOnInvoice: boolean; note: string };
+
+export function parseJobExtraNote(notes: string | null | undefined): JobExtraFlags | null {
+  const raw = String(notes || "");
+  const m = raw.match(/^\[\[extra\|send=([01])\|invoice=([01])\]\](?:\n([\s\S]*))?$/);
+  if (!m) return null;
+  return {
+    sendToClient: m[1] === "1",
+    showOnInvoice: m[2] === "1",
+    note: String(m[3] || "").trim(),
+  };
+}
+
+export function encodeJobExtraNote(flags: { sendToClient?: boolean; showOnInvoice?: boolean; note?: string | null }): string {
+  const head = `[[extra|send=${flags.sendToClient ? "1" : "0"}|invoice=${flags.showOnInvoice ? "1" : "0"}]]`;
+  const note = String(flags.note || "").trim();
+  return note ? `${head}\n${note.slice(0, 1900)}` : head;
+}
+
+export function isJobExtraLine(li: { notes?: string | null }): boolean {
+  return Boolean(parseJobExtraNote(li.notes));
+}
+
+/** Contract + extras that should appear on a client invoice. */
+export function invoiceableJobLines(lineItems: JobLine[]): JobLine[] {
+  return (lineItems || []).filter((li) => {
+    const extra = parseJobExtraNote(li.notes);
+    if (!extra) return true;
+    return extra.showOnInvoice;
+  });
+}
+
+export function invoiceableJobServicesTotal(lineItems: JobLine[]): number {
+  return money(
+    invoiceableJobLines(lineItems).reduce((sum, li) => sum + cents(li.lineTotal), 0),
+  );
+}
+
 /**
  * Invoice lines for a job invoice — same idea as quote invoices: always list every service
  * with qty and table price. Partial / deposit amounts show as Balance Due on this invoice
  * (invoice.amount), not by collapsing to a single summary row.
+ * Extras with show_on_invoice=false are omitted.
  */
 export function jobInvoiceLines(params: {
   kind: string;
@@ -166,15 +206,21 @@ export function jobInvoiceLines(params: {
 }): InvoiceLineDraft[] {
   const { label, amount, job } = params;
   const ref = jobRef(job);
-  if (!job.lineItems.length) {
+  const lines = invoiceableJobLines(job.lineItems);
+  if (!lines.length) {
     return [{ description: `${label} — ${ref}`, quantity: 1, unitPrice: amount, amount }];
   }
-  return job.lineItems.map((li) => ({
-    description: invoiceLineDescription(li),
-    quantity: Number(li.quantitySqft) || 0,
-    unitPrice: Number(li.unitPrice) || 0,
-    amount: money(cents(li.lineTotal)),
-  }));
+  return lines.map((li) => {
+    const extra = parseJobExtraNote(li.notes);
+    const base = { ...li, notes: extra ? extra.note || null : li.notes };
+    const desc = invoiceLineDescription(base);
+    return {
+      description: extra ? (desc.startsWith("Extra") ? desc : `Extra — ${desc}`) : desc,
+      quantity: Number(li.quantitySqft) || 0,
+      unitPrice: Number(li.unitPrice) || 0,
+      amount: money(cents(li.lineTotal)),
+    };
+  });
 }
 
 type QuoteServiceLine = {
@@ -318,7 +364,8 @@ export async function createJobInvoice(tx: TenantPrisma, input: CreateJobInvoice
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
   });
   job.lineItems = freshLines;
-  const servicesTotal = job.lineItems.reduce((s, li) => s + Number(li.lineTotal), 0);
+  // Billing follows invoiceable lines (extras can opt out of the client invoice).
+  const servicesTotal = invoiceableJobServicesTotal(job.lineItems);
   const already = await tx.quoteInvoice.findMany({
     where: {
       status: { not: "void" },
