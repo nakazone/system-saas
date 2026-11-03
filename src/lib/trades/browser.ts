@@ -6,8 +6,9 @@ import { primaryPack } from "./index.js";
  * the customer quote sections and tagline, and the ObraBuilder takeoff catalog (floor kinds,
  * product fields and suggestions), so screens stop hardcoding them. Pages keep their old literals as a fallback.
  */
-export function tradeInject(tradePacks: unknown): string {
+export function tradeInject(tradePacks: unknown, opts: { measureTabs?: readonly string[] } = {}): string {
   const pack = primaryPack(tradePacks);
+  const measureTabs = opts.measureTabs ?? pack.measurement?.tabs;
   const boot = JSON.stringify({
     id: pack.id,
     // Payroll / field-app sectors: only packs whose phases live on the WorkOrder columns (Hardwood).
@@ -17,6 +18,8 @@ export function tradeInject(tradePacks: unknown): string {
       : {}),
     // "table": the job page shows the Fases tab (JobPhase rows); "columns": phases follow the job status.
     phaseStorage: pack.phaseStorage,
+    // ObraBuilder measurement tabs (Tile: Showers · Plan · Summary); absent = Hardwood's tabs.
+    ...(measureTabs ? { measureTabs } : {}),
     // Every pack: the job's phases in order, with waits and required evidence (for the job screen).
     jobPhases: pack.phases.map((p) => ({
       key: p.key,
@@ -38,4 +41,19 @@ export function tradeInject(tradePacks: unknown): string {
     },
   }).replace(/</g, "\\u003c");
   return `<script>window.__OM_TRADE=${boot}</script>`;
+}
+
+const HARDWOOD_TABS = ["stairs", "vents", "floors", "summary"] as const;
+
+/**
+ * ObraBuilder measurement tabs for a builder working with several companies: the tabs of every
+ * connected company's trade, in one order (Hardwood only → its own tabs, undefined; Tile only →
+ * Showers · Plan · Summary; both → Stairs · Vents · Showers · Plan · Summary).
+ */
+export function builderMeasureTabs(companyTrades: readonly unknown[]): string[] | undefined {
+  const packs = companyTrades.map((t) => primaryPack(t));
+  if (!packs.some((p) => p.measurement)) return undefined;
+  const wanted = new Set<string>();
+  for (const p of packs) for (const t of p.measurement?.tabs ?? HARDWOOD_TABS) wanted.add(t);
+  return ["stairs", "vents", "showers", "floors", "summary"].filter((t) => wanted.has(t));
 }

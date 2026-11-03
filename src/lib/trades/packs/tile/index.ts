@@ -108,6 +108,8 @@ export const tile: TradePack = {
       joint: ['1/16"', '1/8"', '3/16"', '1/4"'],
     },
   },
+  // ObraBuilder measurement: showers (shower builder) instead of stairs and vents.
+  measurement: { tabs: ["showers", "floors", "summary"] },
   // Production pay by item: what tile crews are usually paid per piece of work.
   payroll: {
     pieceItems: [

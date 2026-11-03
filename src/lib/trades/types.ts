@@ -108,6 +108,11 @@ export type TradePack = {
    * rate and an optional rate per employee. Hardwood leaves this out and keeps SF × one rate.
    */
   payroll?: { pieceItems: readonly PieceItem[] };
+  /**
+   * ObraBuilder measurement tabs for this trade, in order. Hardwood leaves this out (Stairs, Vents,
+   * Plan, Summary); Tile measures showers instead of stairs and vents.
+   */
+  measurement?: { tabs: readonly ("stairs" | "vents" | "showers" | "floors" | "summary")[] };
   combinedPhaseKey: string;
   ai: {
     /** How the assistant describes the product's customers, e.g. "flooring installation companies". */

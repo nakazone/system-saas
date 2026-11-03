@@ -4002,6 +4002,15 @@
     planTotals(data.plan).filter((t) => t.include).forEach((t) => out.push({ kind: 'Floor', group: t.levels.map((l) => `${l.name} ${fmtSf(l.area)}`).join(' · '), text: `${t.label}${specText(t) ? ` · ${specText(t)}` : ''}${t.kind === 'hardwood' && t.sand_finish ? ' · sand & finish' : ''}`, qty: Math.round(t.area), uom: 'SF' }));
     return out;
   }
+  /** Tile companies measure showers instead of stairs and vents (tabs come from the trade). */
+  function measuresShowers() {
+    return Boolean(window.__OM_TRADE && Array.isArray(window.__OM_TRADE.measureTabs) && window.__OM_TRADE.measureTabs.includes('showers'));
+  }
+  function showerTotals(data) {
+    const Q = window.ObShowers ? (data.showers || []).map((x) => window.ObShowers.quantities(x)) : [];
+    const sum = (k) => Math.round(Q.reduce((a, q) => a + q[k], 0) * 10) / 10;
+    return { n: Q.length, wall: sum('wall_sf'), floor: sum('floor_sf'), wp: sum('waterproofing_sf'), niches: sum('niches') };
+  }
   function measCounts(data) {
     let treads = 0; let risers = 0; let nosings = 0;
     (data.stairs || []).forEach((s) => {
@@ -4014,10 +4023,10 @@
     });
     const vents = (data.vents || []).reduce((a, v) => a + (v.qty || 1), 0);
     const landings = (data.stairs || []).filter((s) => s.landing && s.landing.enabled).length;
-    return { stairs: (data.stairs || []).length, treads, risers, nosings, landings, vents };
+    return { stairs: (data.stairs || []).length, treads, risers, nosings, landings, vents, showers: (data.showers || []).length };
   }
   function countsText(c) {
-    return [c.stairs ? `${c.stairs} ${c.stairs === 1 ? 'stair' : 'stairs'}` : '', c.treads ? `${c.treads} treads` : '', c.risers ? `${c.risers} risers` : '', c.nosings ? `${c.nosings} ${c.nosings === 1 ? 'nosing' : 'nosings'}` : '', c.landings ? `${c.landings} ${c.landings === 1 ? 'landing' : 'landings'}` : '', c.vents ? `${c.vents} ${c.vents === 1 ? 'vent' : 'vents'}` : '', c.floor_text || ''].filter(Boolean).join(' · ') || 'Nothing measured yet';
+    return [c.showers ? `${c.showers} ${c.showers === 1 ? 'shower' : 'showers'}` : '', c.stairs ? `${c.stairs} ${c.stairs === 1 ? 'stair' : 'stairs'}` : '', c.treads ? `${c.treads} treads` : '', c.risers ? `${c.risers} risers` : '', c.nosings ? `${c.nosings} ${c.nosings === 1 ? 'nosing' : 'nosings'}` : '', c.landings ? `${c.landings} ${c.landings === 1 ? 'landing' : 'landings'}` : '', c.vents ? `${c.vents} ${c.vents === 1 ? 'vent' : 'vents'}` : '', c.floor_text || ''].filter(Boolean).join(' · ') || 'Nothing measured yet';
   }
   /** Asks before deleting a measurement (photos and plans go with it). */
   function confirmMeasDelete(m, done) {
@@ -5371,7 +5380,26 @@
       return `<div class="pp-sgroup"><div class="pp-sgroup-h">${esc(g.name || 'No room yet')}<small>${n} vent${n === 1 ? '' : 's'}</small></div><ul class="pp-srows">${g.items.map((i) => { const v = vents[i]; return row(`<span class="pp-sthumb" aria-hidden="true">${ventSvg(v)}</span>`, `${esc(String(v.size || '?').trim().replace('x', '×'))} ${esc(VENT_TYPE_LABEL[v.type] || '')}`, esc([v.species, v.finish, v.color].filter((x) => x && x.trim()).join(' · ')), `${Number(v.qty) || 1}<small>EA</small>`); }).join('')}</ul></div>`;
     }).join('') : '';
     const c = measCounts(d);
-    return `${sec('floors', 'Floor Plan', ft ? `${fmtSf(ft)} · ${totals.length} type${totals.length === 1 ? '' : 's'}` : '', floors, 'No floors yet — upload the house plans in Floor Plan to measure every room.')}
+    const floorSec = sec('floors', 'Floor Plan', ft ? `${fmtSf(ft)} · ${totals.length} type${totals.length === 1 ? '' : 's'}` : '', floors, 'No floors yet — upload the house plans in Floor Plan to measure every room.');
+    if (measuresShowers()) {
+      const shs = d.showers || [];
+      const sh = showerTotals(d);
+      const body = shs.length && window.ObShowers ? shs.map((raw, i) => {
+        const x = window.ObShowers.normalize(raw); const q = window.ObShowers.quantities(raw);
+        const shape = { alcove: 'Alcove', corner: 'Corner', walkin: 'Walk-in' }[x.shape] || x.shape;
+        const r = (k, main, sub, qty, u) => row(`<span class="pp-skind">${k}</span>`, main, sub, `${qty}<small>${u}</small>`);
+        return `<div class="pp-sgroup"><div class="pp-sgroup-h">${esc(x.name || `Shower ${i + 1}`)}<small>${esc(`${shape} · ${x.width}″ × ${x.depth}″ × ${x.height}″`)}</small></div><ul class="pp-srows">
+          ${r('Walls', esc(x.wall_tile || 'Wall tile'), esc(`order ${q.order_wall_sf} SF`), q.wall_sf, 'SF')}
+          ${r('Floor', esc(x.floor_tile || 'Floor tile'), esc(`order ${q.order_floor_sf} SF`), q.floor_sf, 'SF')}
+          ${r('Membrane', 'Waterproofing', '', q.waterproofing_sf, 'SF')}
+          ${r('Trim', 'Trim / edge', '', q.trim_lf, 'LF')}
+          ${q.curb_lf ? r('Curb', 'Curb', '', q.curb_lf, 'LF') : ''}
+          ${r('Items', 'Pan · niche · bench', '', `${q.pan} · ${q.niches} · ${q.bench}`, 'EA')}</ul></div>`;
+      }).join('') : '';
+      return `${sec('showers', 'Showers', sh.n ? `${sh.n} shower${sh.n === 1 ? '' : 's'} · ${sh.wall.toLocaleString('en-US')} SF of wall tile` : '', body, 'No showers measured.')}
+      ${floorSec}`;
+    }
+    return `${floorSec}
       ${sec('stairs', 'Stairs', c.stairs ? `${c.stairs} stair${c.stairs === 1 ? '' : 's'} · ${c.treads} treads · ${c.risers} risers${c.nosings ? ` · ${c.nosings} nosings` : ''}` : '', stairs, 'No stairs measured.')}
       ${sec('vents', 'Vents', c.vents ? `${c.vents} vent${c.vents === 1 ? '' : 's'}${vg.filter((g) => g.key).length ? ` in ${vg.filter((g) => g.key).length} room${vg.filter((g) => g.key).length === 1 ? '' : 's'}` : ''}` : '', ventBody, 'No vents measured.')}`;
   }
@@ -5442,10 +5470,10 @@
     const photos = [];
     (d.stairs || []).forEach((st) => (st.photos || []).forEach((k) => photos.push({ k, label: st.name || 'Stair', tab: 'stairs' })));
     (d.vents || []).forEach((v) => (v.photos || []).forEach((k) => photos.push({ k, label: v.room ? `Vent · ${v.room}` : 'Vent', tab: 'vents' })));
-    const empty = !ft && !c.treads && !c.risers && !c.vents;
+    const empty = !ft && !c.treads && !c.risers && !c.vents && !c.showers;
     const status = m.status === 'used' ? ['Sent with the Work Order', 'It’s part of the job now.']
       : m.status === 'done' ? ['Complete — ready to send', 'Send it with a Work Order, or reopen it to change something.']
-      : empty ? ['Nothing measured yet', 'Start with Floors, Stairs or Vents — it all comes together here.']
+      : empty ? ['Nothing measured yet', measuresShowers() ? 'Start with Showers or the Floor Plan — it all comes together here.' : 'Start with Floors, Stairs or Vents — it all comes together here.']
       : ['In progress', 'Check what goes on the Work Order, then complete it.'];
     const quotePdf = plan && plan.quote_link_id && canDo('money.view') ? `/api/builder/measurements/${encodeURIComponent(m.id)}/quote-pdf?company=${encodeURIComponent(plan.quote_link_id)}` : '';
     return `<div class="pp-msum">
@@ -5458,12 +5486,14 @@
             ${locked || m.status === 'done' || empty ? '' : '<button type="button" class="pp-btn pp-btn--pri" data-sum-done>Complete</button>'}
           </div>
         </section>
-        <div class="pp-mkpis pp-mkpis--6">${tile(ft ? fmtSf(ft) : 0, 'Floor Plan', 'floors')}${tile(c.treads, 'Treads', 'stairs')}${tile(c.risers, 'Risers', 'stairs')}${tile(c.nosings, 'Nosings', 'stairs')}${tile(c.landings, 'Landings', 'stairs')}${tile(c.vents, 'Vents', 'vents')}</div>
+        <div class="pp-mkpis pp-mkpis--6">${measuresShowers()
+          ? (() => { const sh = showerTotals(d); return `${tile(ft ? fmtSf(ft) : 0, 'Floor Plan', 'floors')}${tile(sh.n, 'Showers', 'showers')}${tile(sh.wall ? `${sh.wall.toLocaleString('en-US')} SF` : 0, 'Shower walls', 'showers')}${tile(sh.floor ? `${sh.floor.toLocaleString('en-US')} SF` : 0, 'Shower floors', 'showers')}${tile(sh.wp ? `${sh.wp.toLocaleString('en-US')} SF` : 0, 'Waterproofing', 'showers')}${tile(sh.niches, 'Niches', 'showers')}`; })()
+          : `${tile(ft ? fmtSf(ft) : 0, 'Floor Plan', 'floors')}${tile(c.treads, 'Treads', 'stairs')}${tile(c.risers, 'Risers', 'stairs')}${tile(c.nosings, 'Nosings', 'stairs')}${tile(c.landings, 'Landings', 'stairs')}${tile(c.vents, 'Vents', 'vents')}`}</div>
         <div class="pp-msum-grid">
           <div class="pp-msum-main" id="ppMeasSum">${measSummarySectionsHtml(m)}</div>
           <div class="pp-msum-side">
             ${measuredByHtml(m)}
-            <section class="pp-card pp-block"><h3>General notes</h3><textarea class="pp-mnotes" data-head="notes" maxlength="2000" rows="4" placeholder="e.g. access through the garage, concrete slab, client wants Jacobean on the treads" aria-label="General notes" ${locked ? 'disabled' : ''}>${esc(m.notes || '')}</textarea><small class="pp-muted pp-mnotes-hint">Goes on the PDF and the Work Order.</small></section>
+            <section class="pp-card pp-block"><h3>General notes</h3><textarea class="pp-mnotes" data-head="notes" maxlength="2000" rows="4" placeholder="${measuresShowers() ? 'e.g. access through the garage, plumber sets the valve on Monday, client wants a linear drain' : 'e.g. access through the garage, concrete slab, client wants Jacobean on the treads'}" aria-label="General notes" ${locked ? 'disabled' : ''}>${esc(m.notes || '')}</textarea><small class="pp-muted pp-mnotes-hint">Goes on the PDF and the Work Order.</small></section>
             ${photos.length ? `<section class="pp-card pp-block"><h3>Photos <small class="pp-muted">${photos.length}</small></h3><div class="pp-sphotos">${photos.slice(0, 12).map((p) => `<a href="/api/builder/measurements/${encodeURIComponent(m.id)}/photo?key=${encodeURIComponent(p.k)}" target="_blank" rel="noopener" title="${esc(p.label)}"><img src="/api/builder/measurements/${encodeURIComponent(m.id)}/photo?key=${encodeURIComponent(p.k)}" alt="${esc(p.label)}" loading="lazy" /><span>${esc(p.label)}</span></a>`).join('')}</div></section>` : ''}
             <section class="pp-card pp-block"><h3>Activity</h3>${measLogHtml(m)}</section>
             ${locked ? '' : '<div class="pp-msum-acts"><button type="button" class="pp-link pp-late" id="ppMeasDel">Delete measurement</button></div>'}
@@ -6626,7 +6656,9 @@
     const m = state.meas;
     const locked = m.status === 'used';
     const c = measCounts(m.data);
-    if (!['stairs', 'vents', 'floors', 'summary'].includes(m.tab)) m.tab = 'stairs';
+    // Tabs follow the flooring company's trade (Tile: Showers · Plan · Summary).
+    const TABS = (window.__OM_TRADE && Array.isArray(window.__OM_TRADE.measureTabs) && window.__OM_TRADE.measureTabs.length) ? window.__OM_TRADE.measureTabs : ['stairs', 'vents', 'floors', 'summary'];
+    if (!TABS.includes(m.tab)) m.tab = TABS[0];
     const ft = planTotals(m.data.plan).filter((t) => t.include).reduce((a, t) => a + t.area, 0);
     const tab = (k, label, n) => `<button type="button" role="tab" data-mtab="${k}" aria-selected="${m.tab === k}" aria-pressed="${m.tab === k}">${label}${n != null ? `<span class="pp-mtab-n">${n}</span>` : ''}</button>`;
     view.innerHTML = `
@@ -6647,11 +6679,16 @@
       ${state.send && state.send.phase === 'review' && state.send.measurement && state.send.measurement.id === m.id ? `<div class="pp-wz-back"><span>${mate('head-happy', 28)}You’re sending a work order with this measurement.</span><a class="pp-btn pp-btn--pri pp-btn--sm" href="#send">Back to the work order</a></div>` : ''}
       ${locked ? `<div class="pp-match"><strong>This measurement was already sent with the Work Order</strong><span class="pp-muted" style="font-size:14px">${m.work_order_id ? `<a class="pp-link" href="#jobs/${encodeURIComponent(m.work_order_id)}">Open the job</a> · ` : ''}To measure again, start a new measurement for this address.</span></div>` : ''}
       <div class="pp-mtabs" role="tablist" aria-label="Measurement sections">
-        ${tab('stairs', 'Stairs', c.treads + c.risers ? `${c.treads}·${c.risers}` : null)}${tab('vents', 'Vents', c.vents || null)}${tab('floors', '<span class="pp-hide-phone">Floor </span>Plan', ft ? (ft >= 1000 ? `${(Math.round(ft / 100) / 10).toLocaleString('en-US')}k sf` : `${Math.round(ft)} sf`) : null)}${tab('summary', 'Summary', null)}
+        ${TABS.map((k) => k === 'showers' ? tab('showers', 'Showers', c.showers || null)
+          : k === 'stairs' ? tab('stairs', 'Stairs', c.treads + c.risers ? `${c.treads}·${c.risers}` : null)
+          : k === 'vents' ? tab('vents', 'Vents', c.vents || null)
+          : k === 'floors' ? tab('floors', '<span class="pp-hide-phone">Floor </span>Plan', ft ? (ft >= 1000 ? `${(Math.round(ft / 100) / 10).toLocaleString('en-US')}k sf` : `${Math.round(ft)} sf`) : null)
+          : tab('summary', 'Summary', null)).join('')}
       </div>
       <div class="pp-mpanel" role="tabpanel">
         ${m.tab === 'stairs'
           ? `<div class="pp-meas-layout pp-meas-layout--stairs"><div class="pp-meas-main">${stairsWorkbenchHtml(m)}${locked ? '' : `<div class="pp-stair-adds"><button type="button" class="pp-q-add pp-q-add--block" id="ppStairAdd">+ Stair</button>${state.builder && state.builder.ai_reader ? `<button type="button" class="pp-q-add pp-q-add--block pp-stair-photo-btn" id="ppStairPhotos">${icon('camera')}Stair from photos</button>` : ''}</div>`}</div></div>`
+          : m.tab === 'showers' ? (window.ObShowers ? window.ObShowers.html(m) : '<div class="pp-empty">Showers could not load.</div>')
           : m.tab === 'vents' ? ventsHtml(m) : m.tab === 'floors' ? floorsHtml(m) : measSummaryTabHtml(m)}
       </div>
       ${locked || !state.builder.ai_reader ? '' : voiceFabHtml()}`;
@@ -6788,6 +6825,7 @@
   function bindMeasurement() {
     const m = state.meas;
     const redraw = () => { const y = window.scrollY; paintMeasurement(); window.scrollTo(0, y); };
+    if (m.tab === 'showers' && window.ObShowers) window.ObShowers.bind(view, m, { save: measSaveSoon, redraw });
     m.vizSel = m.vizSel || {};
     m.vizMirror = m.vizMirror || {};
     m.stairMeasurementsExpanded = m.stairMeasurementsExpanded || {};

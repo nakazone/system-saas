@@ -86,7 +86,7 @@ import {
   photoStream,
   saveMeasurement,
 } from "../../lib/builders/measurements.js";
-import { tradeInject } from "../../lib/trades/browser.js";
+import { builderMeasureTabs, tradeInject } from "../../lib/trades/browser.js";
 import { builderReferralCoupon, couponTextEn } from "../../lib/billing/coupons.js";
 import { intakeItemsSchema, isIntakeReaderConfigured, readWorkOrder, type IntakeFile } from "../../lib/partner-intake/extract.js";
 
@@ -315,9 +315,17 @@ builderAccountRouter.get("/partner-portal.html", async (req, res, next) => {
       next();
       return;
     }
-    // Builders work with flooring companies of every trade; Phase 0 serves the Hardwood pack.
+    // Builders work with companies of every trade: the measurement tabs are those of all the
+    // connected companies (Tile adds Showers); the rest of the portal keeps the Hardwood pack.
+    const links = await prisma.builderLink.findMany({
+      where: { builderAccountId: member.account.id, status: "active", organizationId: { not: null } },
+      select: { organizationId: true },
+    });
+    const orgs = links.length
+      ? await prisma.organization.findMany({ where: { id: { in: links.map((l) => l.organizationId!) } }, select: { tradePacks: true } })
+      : [];
     const raw = fs.readFileSync(path.join(CRM_PUBLIC_DIR, "partner-portal.html"), "utf8");
-    const tag = tradeInject(undefined);
+    const tag = tradeInject(undefined, { measureTabs: builderMeasureTabs(orgs.map((o) => o.tradePacks)) });
     const html = /<\/head>/i.test(raw) ? raw.replace(/<\/head>/i, `    ${tag}\n</head>`) : `${tag}\n${raw}`;
     res.setHeader("Cache-Control", "no-store, max-age=0");
     res.type("html").send(html);
