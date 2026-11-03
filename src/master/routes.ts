@@ -3,6 +3,9 @@ import QRCode from "qrcode";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "../lib/prisma.js";
+import { withTenantTransaction } from "../lib/tenant/prisma-tenant.js";
+import { seedDefaultPricingServices } from "../lib/pricing/default-services.js";
+import { TRADE_IDS, getPack, isTradeId, primaryPack } from "../lib/trades/index.js";
 import { env } from "../config/env.js";
 import { randomBytes } from "node:crypto";
 import { hashPassword, verifyPassword } from "../lib/auth/password.js";
@@ -931,6 +934,7 @@ masterRouter.get(
       health: (await healthOf(org.id)).get(org.id) ?? null,
       timeline: await timelineFor(org.id, req.query.linha === "tudo" ? 200 : 25),
       details: await companyDetails(org.id),
+      trade: await tradeOf(org.id),
       timezones: US_TIMEZONES,
       supportUsers: await prisma.user.findMany({
         where: { organizationId: org.id, status: "active" },
@@ -2535,6 +2539,7 @@ const AUDIT_TEXT: Record<string, string> = {
   "ops.maintenance_schedule": "Programou manutenção",
   "ops.maintenance_unschedule": "Cancelou manutenção programada",
   "tenant.details": "Editou os dados da empresa",
+  "tenant.trade": "Mudou o ofício da empresa",
   "feature.state": "Mudou um módulo para todas as empresas",
   "plan.features": "Mudou o que o plano inclui",
   "feature.override": "Criou exceção de módulo",
@@ -3260,6 +3265,49 @@ masterRouter.post(
     await audit(req, actor(req), "tenant.details", { type: "org", id: org.id, label: org.name, meta: { changes } });
     invalidateHealth();
     ok(res, `Dados de ${parsed.data.name} salvos (${changes.length} campo(s)).`);
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Ofício da empresa (trade pack): Hardwood, Tile… muda catálogo, quote, fases do job e Mate
+// ---------------------------------------------------------------------------
+
+/** The company's trade and the choices (pilot trades say so in the label). */
+async function tradeOf(organizationId: string) {
+  const row = await prisma.organization.findUnique({ where: { id: organizationId }, select: { tradePacks: true } });
+  const current = primaryPack(row?.tradePacks);
+  return {
+    id: current.id,
+    label: current.label,
+    tagline: current.quote.tagline,
+    options: TRADE_IDS.map((id) => ({ id, label: getPack(id).label + (id === "hardwood" ? "" : " (piloto)"), services: getPack(id).services.length })),
+  };
+}
+
+const tradeSchema = z.object({ trade: z.string().trim(), seed: z.string().optional() });
+
+masterRouter.post(
+  "/clientes/:id/oficio",
+  requireCap("billing_manage"),
+  requireStepUp,
+  h(async (req, res) => {
+    const org = await orgOr404(req, res);
+    if (!org) return;
+    const parsed = tradeSchema.safeParse(req.body);
+    if (!parsed.success || !isTradeId(parsed.data.trade)) return fail(res, 400, "Escolha um ofício da lista.");
+    const trade = parsed.data.trade;
+    const row = await prisma.organization.findUnique({ where: { id: org.id }, select: { tradePacks: true } });
+    const from = primaryPack(row?.tradePacks);
+    const seed = parsed.data.seed === "1" || parsed.data.seed === "on";
+    if (from.id === trade && !seed) return ok(res, "Nada mudou.");
+    if (from.id !== trade) await prisma.organization.update({ where: { id: org.id }, data: { tradePacks: [trade] } });
+    // New services of the trade go into the Tabela de Valores without prices; existing names are kept.
+    const added = seed ? await withTenantTransaction(org.id, (tx) => seedDefaultPricingServices(tx as never, org.id, { trades: [trade] })) : 0;
+    const to = getPack(trade);
+    await audit(req, actor(req), "tenant.trade", { type: "org", id: org.id, label: org.name, meta: { from: from.id, to: to.id, servicesAdded: added } }, true);
+    invalidateHealth();
+    const what = from.id === trade ? `Ofício continua ${to.label}` : `Ofício de ${org.name}: ${from.label} → ${to.label}`;
+    ok(res, `${what}.${seed ? ` ${added} serviço(s) novo(s) na Tabela de Valores, sem preço.` : ""} Vale no próximo acesso.`);
   }),
 );
 

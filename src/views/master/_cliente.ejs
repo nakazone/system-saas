@@ -131,8 +131,9 @@
   </section>
 
   <section class="d-sec">
-    <h3>Dados da empresa <% if (canBilling) { %><button class="btn btn-soft btn-sm" type="button" data-open="dlg-dados">Editar</button><% } %></h3>
+    <h3>Dados da empresa <% if (canBilling) { %><button class="btn btn-soft btn-sm" type="button" data-open="dlg-dados">Editar</button><button class="btn btn-soft btn-sm" type="button" data-open="dlg-oficio">Ofício</button><% } %></h3>
     <div class="kv kv-compact">
+      <div><span>Ofício</span><b translate="no"><%= trade.label %> · <%= trade.tagline %></b></div>
       <div><span>Razão social</span><b><%= details.legalName || '—' %></b></div>
       <div><span>Telefone</span><b><%= details.contactPhone || '—' %></b></div>
       <div><span>E-mail</span><b><%= details.contactEmail || '—' %></b></div>
@@ -308,6 +309,23 @@
         <label class="field">Até (opcional)<input class="input" type="date" name="endsAt" min="<%= todayYmd %>"></label>
       </div>
       <button class="btn btn-dark btn-block" type="submit">Salvar exceção</button>
+    </form>
+  </div>
+</dialog>
+<% } %>
+<% if (canBilling) { %>
+<dialog id="dlg-oficio" aria-labelledby="t-of">
+  <div class="modal">
+    <div class="modal-head"><div><h2 id="t-of">Ofício · <%= o.name %></h2><p>Muda o catálogo padrão, as seções do quote, as fases do job, o takeoff do ObraBuilder e como o Mate descreve a empresa. Jobs, quotes e preços já criados ficam como estão.</p></div>
+      <button class="close-btn" type="button" data-close aria-label="Fechar"><svg class="ico ico-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <form data-action action="/master/clientes/<%= id %>/oficio" data-stepup="Mudar o ofício de <%= o.name %>">
+      <div class="field">Ofício
+        <div class="seg-pick">
+          <% trade.options.forEach(function (t) { %><label><input type="radio" name="trade" value="<%= t.id %>" <%= t.id === trade.id ? 'checked' : '' %>><span translate="no"><%= t.label %></span></label><% }) %>
+        </div>
+      </div>
+      <label class="check"><input type="checkbox" name="seed" value="1" checked> <span>Adicionar os serviços padrão do ofício à Tabela de Valores <small class="muted">sem preço; os que já existem ficam</small></span></label>
+      <button class="btn btn-dark btn-block" type="submit">Salvar ofício</button>
     </form>
   </div>
 </dialog>
