@@ -261,10 +261,23 @@
                 </div>
                 <div id="cfgCalFeedList" class="cfg-calfeed-list" hidden style="margin-top:14px"></div>
               </article>
+              <form id="schedMsgForm" class="cfg-form" novalidate autocomplete="off" data-form="sched-msg">
+                <article class="cfg-card">
+                  <h3 class="cfg-card__title">Mensagens SMS ao cliente</h3>
+                  <p class="cfg-card__desc">Textos usados no botão SMS da Agenda (job, visita, meeting, delivery). Use <code>[name]</code>, <code>[company]</code>, <code>[date]</code>, <code>[address]</code>, <code>[job]</code> e <code>[client_id]</code>.</p>
+                  <div class="cfg-field" style="max-width:22rem;margin-top:0.75rem">
+                    <label for="sm_company">Nome da empresa nas mensagens</label>
+                    <input id="sm_company" maxlength="120" placeholder="Ex.: ObraMate Floors" />
+                    <p class="cfg-hint">Substitui <code>[company]</code>. Se vazio, usa o nome da organização.</p>
+                  </div>
+                  <div class="cfg-lm-tabs" id="smKindTabs" role="tablist" aria-label="Tipo de agendamento" style="margin-top:1rem"></div>
+                  <div id="smKindPanels"></div>
+                </article>
+              </form>
               <form id="calAutoForm" class="cfg-form" novalidate autocomplete="off" data-form="cal-auto">
                 <article class="cfg-card">
-                  <h3 class="cfg-card__title">Mensagens automáticas da agenda</h3>
-                  <p class="cfg-card__desc">Avisos push para a equipe do job e lembretes de visita. Só dispara quando o item está agendado.</p>
+                  <h3 class="cfg-card__title">Avisos automáticos (equipe)</h3>
+                  <p class="cfg-card__desc">Push interno para a equipe do job e lembretes de visita. Não envia SMS ao cliente.</p>
                   <label class="cfg-check" style="display:flex;align-items:flex-start;gap:0.65rem;margin-top:0.85rem">
                     <input type="checkbox" id="ca_job_before" style="margin-top:0.2rem" />
                     <span>
@@ -1337,6 +1350,6 @@
   <script src="crm-address-autocomplete.js?v=20261028-pac"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
   <script src="cfg-meu-perfil.js?v=20261019-i18n2"></script>
-  <script src="configuracoes.js?v=20261103-cal5"></script>
+  <script src="configuracoes.js?v=20261103-cal6"></script>
 </body>
 </html>

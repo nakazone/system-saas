@@ -38,6 +38,7 @@ import { settingsPartnerPortalRouter } from "./routes/settings-partner-portal.js
 import { settingsLeadMessagesRouter } from "./routes/settings-lead-messages.js";
 import { settingsLeadAutomationsRouter } from "./routes/settings-lead-automations.js";
 import { settingsScheduleRouter } from "./routes/settings-schedule.js";
+import { settingsScheduleMessagesRouter } from "./routes/settings-schedule-messages.js";
 import { scheduleCalendarFeedRouter } from "./routes/schedule-calendar-feed.js";
 import { settingsJobsRouter } from "./routes/settings-jobs.js";
 import { settingsFolhaRouter } from "./routes/settings-folha.js";
@@ -64,6 +65,7 @@ crmApiRouter.use(settingsPartnerPortalRouter);
 crmApiRouter.use(settingsLeadMessagesRouter);
 crmApiRouter.use(settingsLeadAutomationsRouter);
 crmApiRouter.use(settingsScheduleRouter);
+crmApiRouter.use(settingsScheduleMessagesRouter);
 crmApiRouter.use(scheduleCalendarFeedRouter);
 crmApiRouter.use(settingsJobsRouter);
 crmApiRouter.use(settingsFolhaRouter);

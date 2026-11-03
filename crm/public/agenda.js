@@ -401,7 +401,10 @@
     return true;
   }
   const evs = () => S.events.filter(visible);
-  /** Day order: Meeting → Delivery → Instalação → Lixa (visits with meetings). */
+  /**
+   * Day order (all of each band together):
+   * Meetings → Visitas → Delivery → Instalação → Lixa.
+   */
   function daySortKey(e) {
     if (e.type === 'meeting') return 0;
     if (e.type === 'visit') return 1;
@@ -409,9 +412,9 @@
       const role = String((e.meta && e.meta.date_role) || '').toLowerCase();
       const sector = String((e.meta && e.meta.sector) || '').toLowerCase();
       if (role === 'delivery') return 2;
-      if (role === 'main' || sector === 'installation' || sector === 'both') return 3;
       if (role === 'sand' || sector === 'sand_finish') return 4;
-      return 5;
+      // main / installation / both / unset → Instalação band
+      return 3;
     }
     return 9;
   }
@@ -420,9 +423,7 @@
       const ka = daySortKey(a);
       const kb = daySortKey(b);
       if (ka !== kb) return ka - kb;
-      const ca = String(a.color || '').toLowerCase();
-      const cb = String(b.color || '').toLowerCase();
-      if (ca !== cb) return ca.localeCompare(cb);
+      // Within the same band: all-day first, then start time (no color interleave).
       return b.allDay - a.allDay || a.start - b.start || String(a.id).localeCompare(String(b.id));
     });
   }
@@ -825,7 +826,7 @@
       return bits.join(' · ');
     };
     const groupLabel = (e) => {
-      if (e.type === 'meeting') return 'Compromissos';
+      if (e.type === 'meeting') return 'Meetings';
       if (e.type === 'visit') return 'Visitas';
       const k = daySortKey(e);
       if (k === 2) return 'Delivery';
@@ -1244,16 +1245,119 @@
     if (e.type === 'visit' && m.lead) return { name: m.lead.name, phone: m.lead.phone, email: m.lead.email, href: `lead-detail.html?id=${encodeURIComponent(m.lead.id)}`, hrefLabel: 'Abrir lead' };
     if (e.type === 'job') {
       const c = m.customer || {};
+      const b = m.builder || {};
       const name =
         c.display_name ||
         c.name ||
-        (m.builder && (m.builder.company || m.builder.name)) ||
+        (b.company || b.name) ||
         m.source_name;
       const jobHrefId = jobIdOf(e);
-      return { name, phone: c.phone, email: c.email, href: `jobs.html?id=${encodeURIComponent(jobHrefId)}`, hrefLabel: `Abrir job${m.number ? ' #' + m.number : ''}` };
+      return {
+        name,
+        phone: c.phone || b.phone || m.homeowner_phone || '',
+        email: c.email || b.email || '',
+        href: `jobs.html?id=${encodeURIComponent(jobHrefId)}`,
+        hrefLabel: `Abrir job${m.number ? ' #' + m.number : ''}`,
+      };
     }
     const c = m.customer;
-    return c ? { name: c.name, href: `customers.html?id=${encodeURIComponent(c.id)}`, hrefLabel: 'Abrir cliente' } : {};
+    return c
+      ? { name: c.name, phone: c.phone || '', email: c.email || '', href: `customers.html?id=${encodeURIComponent(c.id)}`, hrefLabel: 'Abrir cliente' }
+      : {};
+  }
+
+  let schedMsgCache = null;
+  let schedMsgPromise = null;
+  function loadSchedClientMessages(force) {
+    if (schedMsgCache && !force) return Promise.resolve(schedMsgCache);
+    if (schedMsgPromise && !force) return schedMsgPromise;
+    schedMsgPromise = api('/api/settings/schedule-messages')
+      .then((j) => {
+        schedMsgCache = j.data || null;
+        return schedMsgCache;
+      })
+      .catch(() => null)
+      .finally(() => {
+        schedMsgPromise = null;
+      });
+    return schedMsgPromise;
+  }
+
+  function scheduleSmsKind(e) {
+    if (!e) return 'job';
+    if (e.type === 'visit') return 'visit';
+    if (e.type === 'meeting') return 'meeting';
+    if (e.type === 'job') {
+      const role = String((e.meta && e.meta.date_role) || '').toLowerCase();
+      if (role === 'delivery') return 'delivery';
+    }
+    return 'job';
+  }
+
+  function fillScheduleSmsTemplate(body, e, ct, company) {
+    const m = (e && e.meta) || {};
+    const date = e.allDay ? fmtDateShort(e.start) : `${fmtDateShort(e.start)} ${fmtTime(e.start)}`;
+    const map = {
+      '[name]': String((ct && ct.name) || 'there').trim() || 'there',
+      '[company]': String(company || 'ObraMate').trim() || 'ObraMate',
+      '[date]': date,
+      '[address]': String(e.address || m.address || '').trim() || '',
+      '[job]': String(ticketTitle(e) || e.title || '').trim() || '',
+      '[client_id]': String(m.client_ref || (m.customer && m.customer.client_code) || '').trim() || '',
+    };
+    let out = String(body || '');
+    Object.keys(map).forEach((k) => {
+      out = out.split(k).join(map[k]);
+    });
+    return out.replace(/\n{3,}/g, '\n\n').trim();
+  }
+
+  function buildAgendaSmsHref(phone, body) {
+    const digits = String(phone || '').replace(/[^\d+]/g, '');
+    if (!digits) return '';
+    if (typeof window.sfBuildSmsHref === 'function') {
+      try {
+        return window.sfBuildSmsHref(phone, body);
+      } catch (_) {}
+    }
+    const enc = encodeURIComponent(String(body || ''));
+    const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    return isIos ? `sms:${digits}&body=${enc}` : `sms:${digits}?body=${enc}`;
+  }
+
+  async function openAgendaSmsPicker(anchorEl, e, phone) {
+    await loadSchedClientMessages(false);
+    const kind = scheduleSmsKind(e);
+    const kinds = (schedMsgCache && schedMsgCache.kinds) || [];
+    const pack = kinds.find((k) => k.slug === kind) || kinds[0];
+    const templates = (pack && pack.templates) || [];
+    const ct = contactOf(e);
+    const company = (schedMsgCache && schedMsgCache.company_name) || '';
+    const options = templates.length
+      ? templates.map((t) => ({
+          id: t.id,
+          label: t.label,
+          href: buildAgendaSmsHref(phone, fillScheduleSmsTemplate(t.body, e, ct, company)),
+        }))
+      : [
+          {
+            id: 'blank',
+            label: 'SMS em branco',
+            href: buildAgendaSmsHref(phone, ''),
+          },
+        ];
+    if (options.length === 1 && options[0].href) {
+      window.location.href = options[0].href;
+      return;
+    }
+    const items = options.map((o) => ({
+      act: 'sms-tpl',
+      label: o.label,
+      color: '#c1652f',
+      data: o.href,
+    }));
+    const r = anchorEl.getBoundingClientRect();
+    openMenu(r.left, r.bottom + 4, items);
   }
 
   function peopleOf(e) {
@@ -1317,13 +1421,14 @@
             e.address ? `<small>${esc(e.address)}</small>` : ''
           }</div></div>`
         : '';
+    const hasNotes = Boolean(String(notesTarget && notesTarget.value || '').trim());
     const notesBlock = notesTarget
-      ? `<div class="ag-card ag-dtl__notes">
-          <button type="button" class="ag-dtl__notes-tog" data-ag-notes-tog aria-expanded="false">
-            <span>${esc(notesTarget.label)}</span>
+      ? `<div class="ag-card ag-dtl__notes${hasNotes ? ' has-notes is-open' : ''}">
+          <button type="button" class="ag-dtl__notes-tog" data-ag-notes-tog aria-expanded="${hasNotes ? 'true' : 'false'}">
+            <span>${esc(notesTarget.label)}${hasNotes ? `<em class="ag-dtl__notes-badge">Tem nota</em>` : ''}</span>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10l4 4 4-4"/></svg>
           </button>
-          <div class="ag-dtl__notes-panel" hidden>
+          <div class="ag-dtl__notes-panel"${hasNotes ? '' : ' hidden'}>
             ${
               canEdit
                 ? `<textarea name="notes" data-ag-notes="${esc(notesTarget.kind)}" data-ag-notes-id="${esc(notesTarget.id)}" maxlength="8000" placeholder="${esc(notesTarget.placeholder)}">${esc(notesTarget.value)}</textarea>
@@ -1366,7 +1471,9 @@
             }</div>${
               tel || sms
                 ? `<span class="ag-dtl__chips">${tel ? `<a class="ag-chip" href="${esc(tel)}">Ligar</a>` : ''}${
-                    sms ? `<a class="ag-chip" href="${esc(sms)}">SMS</a>` : ''
+                    sms
+                      ? `<button type="button" class="ag-chip" data-ag-sms-pick="${esc(e.id)}" data-ag-sms-phone="${esc(ct.phone || '')}">SMS</button>`
+                      : ''
                   }</span>`
                 : ''
             }</div>`
@@ -3018,6 +3125,10 @@
           });
         }
         if (act === 'new-visit') return openEditor('visit', null, when || null);
+        if (act === 'sms-tpl') {
+          if (when) window.location.href = when;
+          return;
+        }
         if (act === 'new-meeting') {
           const calId = el.getAttribute('data-ag-cal-id') || '';
           const cal = calId ? calList().find((c) => c.id === calId) : null;
@@ -3191,6 +3302,12 @@
           }
         }
       }
+      if ((el = t.closest('[data-ag-sms-pick]'))) {
+        const evn = findEv(el.dataset.agSmsPick);
+        const phone = el.dataset.agSmsPhone || (evn && contactOf(evn).phone) || '';
+        if (!evn || !phone) return toast('Sem telefone para SMS.', 'error');
+        return void openAgendaSmsPicker(el, evn, phone);
+      }
       if ((el = t.closest('[data-ag-notes-tog]'))) {
         const box = el.closest('.ag-dtl__notes');
         const panel = box && box.querySelector('.ag-dtl__notes-panel');
@@ -3227,6 +3344,14 @@
           }
           toast('Notas guardadas', 'success');
           el.disabled = true;
+          const box = ta.closest('.ag-dtl__notes');
+          const tog = box && box.querySelector('[data-ag-notes-tog] span');
+          const has = Boolean(notes);
+          if (box) box.classList.toggle('has-notes', has);
+          if (tog) {
+            const label = String(tog.textContent || '').replace(/\s*Tem nota\s*$/i, '').trim() || 'Notas';
+            tog.innerHTML = has ? `${esc(label)}<em class="ag-dtl__notes-badge">Tem nota</em>` : esc(label);
+          }
         } catch (err) {
           el.disabled = false;
           toast(err.message, 'error');

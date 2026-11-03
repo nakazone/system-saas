@@ -318,11 +318,13 @@
       t.homeowner_name || t.homeowner_phone
         ? `<div class="cm-delivery"><span class="job-delivery-badge">HomeOwner</span><div class="cm-delivery__row"><small>Contato</small><span>${escapeHtml([t.homeowner_name, t.homeowner_phone].filter(Boolean).join(" · "))}</span></div></div>`
         : "";
-    const text = t.notes && !t.attention ? stripLockboxText(t.notes).trim() : "";
+    // Always surface office Notes (even when "Atenção" is also set / derived from notes).
+    const text = stripLockboxText(t.notes || "").trim();
+    const hasNote = Boolean(text);
     const cue = $("cmNoteCue");
     const cueText = $("cmNoteCueText");
     if (cue) {
-      if (text) {
+      if (hasNote) {
         cue.hidden = false;
         if (cueText) cueText.textContent = text;
       } else {
@@ -332,13 +334,15 @@
     }
     const tabDetails = $("cmTabDetails");
     if (tabDetails) {
-      tabDetails.classList.toggle("has-note", Boolean(text));
-      tabDetails.setAttribute("data-note", text ? "1" : "0");
-      const base = "Detalhes";
-      tabDetails.innerHTML = text
-        ? `${base}<span class="cm-ticket-tabs__dot" aria-label="Tem nota" title="Tem nota do escritório"></span>`
-        : base;
+      tabDetails.classList.toggle("has-note", hasNote);
+      tabDetails.setAttribute("data-note", hasNote ? "1" : "0");
+      tabDetails.innerHTML = hasNote
+        ? `Detalhes<span class="cm-ticket-tabs__dot" aria-label="Tem nota" title="Tem nota do escritório"></span>`
+        : "Detalhes";
     }
+    const badge = $("cmTicketNoteBadge");
+    if (badge) badge.hidden = !hasNote;
+    document.body.classList.toggle("cm-ticket-has-note", hasNote);
     if (lockbox || delivery || homeowner) {
       notes.hidden = false;
       notes.innerHTML = `${lockbox}${homeowner}${delivery}`;

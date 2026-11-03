@@ -4,6 +4,11 @@
  */
 import { z } from "zod";
 import { randomUUID } from "crypto";
+import {
+  defaultScheduleClientMessages,
+  parseScheduleClientMessages,
+  type ScheduleClientMessages,
+} from "./schedule-messages.js";
 
 export type ScheduleCalendarKind = "jobs" | "visits" | "meetings" | "delivery" | "custom";
 export type ScheduleJobSector = "all" | "installation" | "sand_finish";
@@ -19,6 +24,8 @@ export type ScheduleCalendar = {
 
 export type ScheduleSettings = {
   calendars: ScheduleCalendar[];
+  /** SMS templates to the client (job / visit / meeting / delivery). */
+  clientMessages: ScheduleClientMessages;
 };
 
 const COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
@@ -41,12 +48,16 @@ const DEFAULT_DELIVERY_CALENDAR: ScheduleCalendar = {
 /** Ensure every org has a Delivery agenda (legacy settings may omit it). */
 export function ensureDeliveryCalendar(settings: ScheduleSettings): ScheduleSettings {
   if (settings.calendars.some((c) => c.kind === "delivery" || c.id === "delivery")) return settings;
-  return { calendars: [...settings.calendars, { ...DEFAULT_DELIVERY_CALENDAR }] };
+  return {
+    calendars: [...settings.calendars, { ...DEFAULT_DELIVERY_CALENDAR }],
+    clientMessages: settings.clientMessages || defaultScheduleClientMessages(),
+  };
 }
 
 export function defaultScheduleSettings(): ScheduleSettings {
   return {
     calendars: DEFAULT_SCHEDULE_CALENDARS.map((c) => ({ ...c })),
+    clientMessages: defaultScheduleClientMessages(),
   };
 }
 
@@ -144,7 +155,10 @@ export function parseScheduleSettings(raw: unknown): ScheduleSettings {
     out.push(cal);
   }
 
-  return ensureDeliveryCalendar(out.length ? { calendars: out } : defaultScheduleSettings());
+  const clientMessages = parseScheduleClientMessages(o.clientMessages);
+  return ensureDeliveryCalendar(
+    out.length ? { calendars: out, clientMessages } : defaultScheduleSettings(),
+  );
 }
 
 export function serializeScheduleSettings(settings: ScheduleSettings) {
@@ -156,6 +170,7 @@ export function serializeScheduleSettings(settings: ScheduleSettings) {
       kind: c.kind,
       ...(c.kind === "jobs" ? { sector: c.sector || "all" } : {}),
     })),
+    clientMessages: settings.clientMessages || defaultScheduleClientMessages(),
   };
 }
 
@@ -173,8 +188,11 @@ export const scheduleSettingsPutSchema = z.object({
 
 export type ScheduleSettingsPut = z.infer<typeof scheduleSettingsPutSchema>;
 
-/** Apply PUT body as the full calendar list (no forced built-ins). */
-export function applyScheduleSettingsPut(body: ScheduleSettingsPut): ScheduleSettings {
+/** Apply PUT body as the full calendar list (no forced built-ins). Preserves clientMessages when provided. */
+export function applyScheduleSettingsPut(
+  body: ScheduleSettingsPut,
+  previous?: ScheduleSettings | null,
+): ScheduleSettings {
   const out: ScheduleCalendar[] = [];
   const seen = new Set<string>();
 
@@ -226,7 +244,10 @@ export function applyScheduleSettingsPut(body: ScheduleSettingsPut): ScheduleSet
     out.push(cal);
   }
 
-  return ensureDeliveryCalendar({ calendars: out });
+  return ensureDeliveryCalendar({
+    calendars: out,
+    clientMessages: previous?.clientMessages || defaultScheduleClientMessages(),
+  });
 }
 
 /** Attach custom agendas found on meetings but missing from settings. */
@@ -251,7 +272,13 @@ export function mergeOrphanCalendars(
     added = true;
   }
   if (!added) return { settings, added: false };
-  return { settings: { calendars: [...settings.calendars, ...extras] }, added: true };
+  return {
+    settings: {
+      calendars: [...settings.calendars, ...extras],
+      clientMessages: settings.clientMessages || defaultScheduleClientMessages(),
+    },
+    added: true,
+  };
 }
 
 export function resolveMeetingColor(

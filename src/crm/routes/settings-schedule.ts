@@ -95,18 +95,24 @@ settingsScheduleRouter.put(
         });
         return;
       }
-      const settings = applyScheduleSettingsPut(parsed.data);
+      const orgId = req.organizationId!;
+      const org = await prisma.organization.findUniqueOrThrow({
+        where: { id: orgId },
+        select: { scheduleSettings: true },
+      });
+      const previous = parseScheduleSettings(org.scheduleSettings);
+      const settings = applyScheduleSettingsPut(parsed.data, previous);
       const payload = serializeScheduleSettings(settings);
 
-      await withTenantTransaction(req.organizationId!, async (tx) => {
+      await withTenantTransaction(orgId, async (tx) => {
         await tx.organization.update({
-          where: { id: req.organizationId! },
+          where: { id: orgId },
           data: { scheduleSettings: payload as Prisma.InputJsonValue },
         });
         await recordActivity(tx, {
-          organizationId: req.organizationId!,
+          organizationId: orgId,
           entityType: "organization",
-          entityId: req.organizationId!,
+          entityId: orgId,
           actorType: "user",
           actorId: req.user!.id,
           action: "settings.schedule_updated",

@@ -96,7 +96,7 @@
       icon: "job",
       desc: "Agenda, Jobs e Folha",
       subs: [
-        { id: "agenda", label: "Agenda e calendários", section: "agenda", perm: "settings.manage", desc: "Calendários da agenda, mensagens automáticas e o link para o Calendário do iPhone.", keywords: "agenda calendário schedule meeting job cor cores visita apple ics assinatura iphone sync mensagem automática lembrete push" },
+        { id: "agenda", label: "Agenda e calendários", section: "agenda", perm: "settings.manage", desc: "Calendários, SMS ao cliente, avisos da equipe e link do iPhone.", keywords: "agenda calendário schedule meeting job cor cores visita apple ics assinatura iphone sync mensagem sms automática lembrete push" },
         { id: "jobs", label: "Jobs e Campo", section: "jobs", perm: "settings.manage", desc: "Opções do job no escritório e no Campo.", keywords: "job checklist campo ticket lista exibir desativar" },
         { id: "folha", label: "Folha de pagamento", section: "folha", perm: "settings.manage", desc: "Quando o período fecha, em que dia a empresa paga e onde cai o reembolso.", keywords: "folha pagamento ciclo semana quinzena mes sabado domingo fechamento reembolso" },
         { id: "formas", label: "Formas de pagamento", section: "folha", perm: "settings.manage", desc: "Como o dinheiro chega ao funcionário (Zelle, cheque, dinheiro…).", keywords: "zelle pix forma pagamento cheque dinheiro ach" },
@@ -174,6 +174,7 @@
     ["Cores da agenda Jobs", "agenda", "schedCalList"],
     ["Cores da agenda Meetings", "agenda", "schedCalList"],
     ["Criar agenda personalizada", "agenda", "btnAddSchedCal"],
+    ["Mensagens SMS ao cliente (agenda)", "agenda", "sm_company"],
     ["Mensagens automáticas da agenda", "agenda", "ca_job_before"],
     ["Lembrete antes do job", "agenda", "ca_job_before"],
     ["Lembrete de visita", "agenda", "ca_visit"],
@@ -274,6 +275,7 @@
     brand: { loaded: false, snapshot: null, logoDataUrl: null, clearLogo: false, logoUrl: null, name: "" },
     schedule: { loaded: false, snapshot: null, draft: null },
     calAuto: { loaded: false, snapshot: null },
+    schedMsg: { loaded: false, snapshot: null, draft: null, activeSlug: "job" },
   };
 
   const $ = (id) => document.getElementById(id);
@@ -418,7 +420,7 @@
 
   function dirtyCount(id) {
     if (id === "empresa") return companyDirtyKeys().length;
-    if (id === "agenda") return (scheduleDirty() ? 1 : 0) + (calAutoDirty() ? 1 : 0);
+    if (id === "agenda") return (scheduleDirty() ? 1 : 0) + (calAutoDirty() ? 1 : 0) + (schedMsgDirty() ? 1 : 0);
     if (id === "marca") return brandDirty() ? 1 : 0;
     if (id === "orcamentos") return quotesDirtyKeys().length + (sigDirty() ? 1 : 0);
     if (id === "mensagens-orcamento") return shareMessagesDirty() ? 1 : 0;
@@ -671,8 +673,9 @@
     if (state.current === "empresa") return saveCompany();
     if (state.current === "agenda") {
       const okSched = scheduleDirty() ? await saveSchedule() : true;
+      const okMsg = schedMsgDirty() ? await saveSchedMessages() : true;
       const okAuto = calAutoDirty() ? await saveCalAutomations() : true;
-      return okSched && okAuto;
+      return okSched && okMsg && okAuto;
     }
     if (state.current === "marca") return saveBrand();
     if (state.current === "orcamentos") return saveQuotes();
@@ -692,6 +695,7 @@
     if (state.current === "empresa") fillCompany(state.company.snapshot);
     if (state.current === "agenda") {
       discardSchedule();
+      discardSchedMessages();
       discardCalAutomations();
     }
     if (state.current === "marca") resetBrandToSnapshot();
@@ -1361,8 +1365,10 @@
       renderScheduleCals();
       bindScheduleCalsOnce();
       bindCalFeedOnce();
+      bindSchedMessagesUi();
       bindCalAutomationsUi();
       void loadCalFeed();
+      void loadSchedMessages(false);
       void loadCalAutomations(false);
       return;
     }
@@ -1375,13 +1381,220 @@
       renderScheduleCals();
       bindScheduleCalsOnce();
       bindCalFeedOnce();
+      bindSchedMessagesUi();
       bindCalAutomationsUi();
       void loadCalFeed();
+      void loadSchedMessages(force);
       void loadCalAutomations(force);
       updateSavebar();
     } catch (err) {
       notify(err.status === 403 ? "Sem permissão para gerir agendas." : "Não foi possível carregar as agendas.", "error");
     }
+  }
+
+  function cloneSchedMsg(data) {
+    return JSON.parse(JSON.stringify(data || { company_name: null, kinds: [] }));
+  }
+
+  function schedMsgPutBody() {
+    syncSchedMsgDraftFromDom();
+    const kinds = {};
+    (state.schedMsg.draft?.kinds || []).forEach((k) => {
+      kinds[k.slug] = {
+        templates: (k.templates || []).map((t) => ({
+          id: t.id,
+          label: String(t.label || "").trim() || "Mensagem",
+          body: String(t.body || "").trim(),
+        })).filter((t) => t.body),
+      };
+    });
+    return {
+      company_name: String($("sm_company")?.value || "").trim() || null,
+      kinds,
+    };
+  }
+
+  function schedMsgDirty() {
+    if (!state.schedMsg.snapshot) return false;
+    try {
+      return JSON.stringify(schedMsgPutBody()) !== JSON.stringify({
+        company_name: state.schedMsg.snapshot.company_name || null,
+        kinds: Object.fromEntries(
+          (state.schedMsg.snapshot.kinds || []).map((k) => [
+            k.slug,
+            {
+              templates: (k.templates || []).map((t) => ({
+                id: t.id,
+                label: t.label,
+                body: t.body,
+              })),
+            },
+          ]),
+        ),
+      });
+    } catch (_) {
+      return true;
+    }
+  }
+
+  function renderSchedMsgKind(kind, active) {
+    const templates = kind.templates || [];
+    const list = templates
+      .map(
+        (t, idx) => `<div class="cfg-lm-tpl" data-sm-id="${esc(t.id)}">
+            <div class="cfg-lm-tpl__head">
+              <div class="cfg-field cfg-grow"><label>Título</label><input data-sm-label maxlength="120" value="${esc(t.label)}" /></div>
+              <button type="button" class="btn cfg-btn-sm cfg-btn-ghost" data-sm-del-tpl title="Remover">Remover</button>
+            </div>
+            <div class="cfg-field"><label>Texto SMS ${idx + 1}</label><textarea data-sm-body rows="4" maxlength="2000">${esc(t.body)}</textarea></div>
+          </div>`,
+      )
+      .join("");
+    return `<div class="cfg-lm-panel" data-sm-kind="${esc(kind.slug)}" ${active ? "" : "hidden"}>
+      <div class="cfg-lm-tpls">${list || '<p class="cfg-hint">Nenhuma mensagem ainda.</p>'}</div>
+      <button type="button" class="btn btn-secondary cfg-btn-sm" data-sm-add-tpl>Adicionar mensagem</button>
+    </div>`;
+  }
+
+  function renderSchedMessages(data) {
+    const kinds = data.kinds || [];
+    if (!kinds.length) return;
+    let active = state.schedMsg.activeSlug;
+    if (!kinds.some((k) => k.slug === active)) active = kinds[0].slug;
+    state.schedMsg.activeSlug = active;
+    if ($("sm_company")) $("sm_company").value = data.company_name || "";
+    $("smKindTabs").innerHTML = kinds
+      .map(
+        (k) =>
+          `<button type="button" class="cfg-lm-tab${k.slug === active ? " is-active" : ""}" role="tab" aria-selected="${
+            k.slug === active ? "true" : "false"
+          }" data-sm-tab="${esc(k.slug)}">${esc(k.label)}</button>`,
+      )
+      .join("");
+    $("smKindPanels").innerHTML = kinds.map((k) => renderSchedMsgKind(k, k.slug === active)).join("");
+  }
+
+  function syncSchedMsgDraftFromDom() {
+    if (!state.schedMsg.draft) return;
+    const company = String($("sm_company")?.value || "").trim() || null;
+    const kinds = (state.schedMsg.draft.kinds || []).map((k) => {
+      const panel = document.querySelector(`[data-sm-kind="${k.slug}"]`);
+      if (!panel) return k;
+      const templates = Array.from(panel.querySelectorAll(".cfg-lm-tpl")).map((row) => ({
+        id: row.getAttribute("data-sm-id") || `msg_${Date.now()}`,
+        label: String(row.querySelector("[data-sm-label]")?.value || "").trim() || "Mensagem",
+        body: String(row.querySelector("[data-sm-body]")?.value || "").trim(),
+      }));
+      return { ...k, templates };
+    });
+    state.schedMsg.draft = { company_name: company, kinds, tokens: state.schedMsg.draft.tokens };
+  }
+
+  function discardSchedMessages() {
+    if (!state.schedMsg.snapshot) return;
+    state.schedMsg.draft = cloneSchedMsg(state.schedMsg.snapshot);
+    renderSchedMessages(state.schedMsg.draft);
+  }
+
+  async function loadSchedMessages(force) {
+    if (state.schedMsg.loaded && !force) {
+      renderSchedMessages(state.schedMsg.draft || state.schedMsg.snapshot);
+      return;
+    }
+    try {
+      const j = await api("/api/settings/schedule-messages");
+      state.schedMsg.snapshot = cloneSchedMsg(j.data);
+      state.schedMsg.draft = cloneSchedMsg(j.data);
+      state.schedMsg.loaded = true;
+      renderSchedMessages(state.schedMsg.draft);
+      updateSavebar();
+    } catch (err) {
+      notify(err.message || "Não foi possível carregar as mensagens SMS.", "error");
+    }
+  }
+
+  async function saveSchedMessages() {
+    const body = schedMsgPutBody();
+    for (const slug of Object.keys(body.kinds || {})) {
+      if (!(body.kinds[slug].templates || []).length) {
+        notify("Mantenha ao menos uma mensagem em cada tipo.", "error");
+        return false;
+      }
+    }
+    setSaving(true);
+    try {
+      const j = await api("/api/settings/schedule-messages", {
+        method: "PUT",
+        body: JSON.stringify(body),
+      });
+      state.schedMsg.snapshot = cloneSchedMsg(j.data);
+      state.schedMsg.draft = cloneSchedMsg(j.data);
+      renderSchedMessages(state.schedMsg.draft);
+      notify("Mensagens SMS da agenda salvas.", "success");
+      updateSavebar();
+      return true;
+    } catch (err) {
+      notify(err.message || "Não foi possível salvar as mensagens SMS.", "error");
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function bindSchedMessagesUi() {
+    const form = $("schedMsgForm");
+    if (!form || form.dataset.bound === "1") return;
+    form.dataset.bound = "1";
+    form.addEventListener("input", () => {
+      syncSchedMsgDraftFromDom();
+      updateSavebar();
+    });
+    form.addEventListener("change", () => {
+      syncSchedMsgDraftFromDom();
+      updateSavebar();
+    });
+    form.addEventListener("click", (e) => {
+      const tab = e.target.closest("[data-sm-tab]");
+      if (tab) {
+        syncSchedMsgDraftFromDom();
+        state.schedMsg.activeSlug = tab.getAttribute("data-sm-tab");
+        renderSchedMessages(state.schedMsg.draft);
+        return;
+      }
+      if (e.target.closest("[data-sm-add-tpl]")) {
+        syncSchedMsgDraftFromDom();
+        const kind = state.schedMsg.draft?.kinds?.find((k) => k.slug === state.schedMsg.activeSlug);
+        if (!kind) return;
+        if ((kind.templates || []).length >= 12) {
+          notify("Limite de 12 mensagens por tipo.", "error");
+          return;
+        }
+        kind.templates = kind.templates || [];
+        kind.templates.push({
+          id: `custom_${Date.now().toString(36)}`,
+          label: "Nova mensagem",
+          body: "Hi [name], …",
+        });
+        renderSchedMessages(state.schedMsg.draft);
+        updateSavebar();
+        return;
+      }
+      const del = e.target.closest("[data-sm-del-tpl]");
+      if (del) {
+        syncSchedMsgDraftFromDom();
+        const row = del.closest(".cfg-lm-tpl");
+        const id = row?.getAttribute("data-sm-id");
+        const kind = state.schedMsg.draft?.kinds?.find((k) => k.slug === state.schedMsg.activeSlug);
+        if (!kind || !id) return;
+        if ((kind.templates || []).length <= 1) {
+          notify("Mantenha ao menos uma mensagem por tipo.", "error");
+          return;
+        }
+        kind.templates = kind.templates.filter((t) => t.id !== id);
+        renderSchedMessages(state.schedMsg.draft);
+        updateSavebar();
+      }
+    });
   }
 
   function readCalAutomations() {
