@@ -15,6 +15,8 @@
     cam: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg>',
     pin: '<svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>',
     back: '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>',
+    pen: '<svg viewBox="0 0 24 24" width="11" height="11" aria-label="com marcações"><path d="M4 20l4-1L19 8a2.1 2.1 0 00-3-3L5 16l-1 4z"/></svg>',
+    note: '<svg viewBox="0 0 24 24" width="11" height="11" aria-label="com nota"><path d="M5 4h14v12l-4 4H5z"/></svg>',
   };
 
   let jobs = [];
@@ -82,6 +84,13 @@
       return h <= 0 ? "agora há pouco" : `há ${h} h`;
     }
     return d === 1 ? "ontem" : `há ${d} dias`;
+  }
+  /** Photos are ordered and grouped by when they were taken (from the photo's own data), falling back to the upload. */
+  function takenAt(p) {
+    return p.taken_at_device || p.created_at;
+  }
+  function byTaken(a, b) {
+    return new Date(takenAt(b)) - new Date(takenAt(a));
   }
   function dayKey(iso) {
     const d = new Date(iso);
@@ -221,28 +230,91 @@
     }
   }
 
-  function groups() {
-    const hit = jobs.filter(jobHit);
-    if (mode === "done") {
-      const done = hit.filter((j) => j.status === "completed").sort((a, b) => new Date(b.last_photo?.created_at || 0) - new Date(a.last_photo?.created_at || 0));
-      return [["Concluídos", done]];
+  // ---------------------------------------------------------------- list filters, grouping, order
+  const LIST_PREF_KEY = "om_cam_list_v1";
+  const listPref = (() => {
+    const d = { filter: "all", group: "status", sort: "recent" };
+    try {
+      return { ...d, ...(JSON.parse(localStorage.getItem(LIST_PREF_KEY) || "{}") || {}) };
+    } catch (_) {
+      return d;
     }
-    const act = hit.filter(isActive);
-    const g = [
-      ["Precisa de foto", act.filter((j) => needsPhoto(j) && j.scheduled_start)],
-      ["Em dia", act.filter((j) => !needsPhoto(j))],
-      ["Sem data", act.filter((j) => needsPhoto(j) && !j.scheduled_start)],
+  })();
+  function savePref() {
+    try {
+      localStorage.setItem(LIST_PREF_KEY, JSON.stringify(listPref));
+    } catch (_) {}
+  }
+  function isToday(iso) {
+    return !!iso && new Date(iso).toDateString() === new Date().toDateString();
+  }
+  /** Quick filters: what the office checks every morning. */
+  const FILTERS = [
+    ["all", "Todos", () => true],
+    ["need", "Precisa de foto", (j) => needsPhoto(j)],
+    ["today", "Hoje", (j) => isToday(j.scheduled_start) || isToday(j.sand_scheduled_start)],
+    ["nogps", "Sem GPS", (j) => (j.photos || []).some((p) => !hasGps(p))],
+    ["far", "Longe", (j) => (j.photos || []).some((p) => p.far_from_job)],
+  ];
+  /** The client a job is grouped under: the builder or customer, without the job reference. */
+  function clientKey(j) {
+    return String(j.builder?.nickname || j.builder?.company || j.customer?.nickname || j.customer?.company || j.customer?.name || j.client_name || j.source_name || "").trim() || "Sem cliente";
+  }
+  function lastPhotoTime(j) {
+    return j.last_photo ? new Date(j.last_photo.created_at).getTime() : 0;
+  }
+  function cmpJobs(a, b) {
+    if (listPref.sort === "name") return listWho(a).localeCompare(listWho(b), "pt-BR", { sensitivity: "base" });
+    if (listPref.sort === "schedule") {
+      const ta = a.scheduled_start ? new Date(a.scheduled_start).getTime() : Infinity;
+      const tb = b.scheduled_start ? new Date(b.scheduled_start).getTime() : Infinity;
+      return ta - tb;
+    }
+    return lastPhotoTime(b) - lastPhotoTime(a);
+  }
+  /** Jobs in the current tab (Ativos / Concluídos) that match the search, before the quick filter. */
+  function baseJobs() {
+    const hit = jobs.filter(jobHit);
+    return mode === "done" ? hit.filter((j) => j.status === "completed") : hit.filter(isActive);
+  }
+
+  function groups() {
+    const f = FILTERS.find(([k]) => k === listPref.filter) || FILTERS[0];
+    const rows = baseJobs().filter(f[2]).sort(cmpJobs);
+    if (listPref.group === "client") {
+      const by = new Map();
+      rows.forEach((j) => {
+        const k = clientKey(j);
+        if (!by.has(k)) by.set(k, []);
+        by.get(k).push(j);
+      });
+      return [...by.entries()].sort(([a], [b]) => (a === "Sem cliente") - (b === "Sem cliente") || a.localeCompare(b, "pt-BR", { sensitivity: "base" }));
+    }
+    if (mode === "done") return [["Concluídos", rows]];
+    return [
+      ["Precisa de foto", rows.filter((j) => needsPhoto(j) && j.scheduled_start)],
+      ["Em dia", rows.filter((j) => !needsPhoto(j))],
+      ["Sem data", rows.filter((j) => needsPhoto(j) && !j.scheduled_start)],
     ];
-    if (mode === "photos") g.push(["Concluídos", hit.filter((j) => j.status === "completed")]);
-    return g;
+  }
+
+  function renderFilters() {
+    const base = baseJobs();
+    const host = $("camFilters");
+    if (!host) return;
+    host.innerHTML = FILTERS.map(([k, l, test]) => {
+      const n = base.filter(test).length;
+      const on = listPref.filter === k;
+      if (!n && !on && k !== "all") return "";
+      return `<button type="button" class="cam-fchip${on ? " is-on" : ""}${k === "need" && n ? " is-hot" : ""}" data-filter="${k}" aria-pressed="${on}">${l} <em>${n}</em></button>`;
+    }).join("");
+    if ($("camGroup")) $("camGroup").value = listPref.group;
+    if ($("camSort")) $("camSort").value = listPref.sort;
   }
 
   function renderList() {
     const active = jobs.filter(isActive);
     const done = jobs.filter((j) => j.status === "completed");
-    const need = active.filter(needsPhoto).length;
-    const recent = feed.filter((p) => new Date(p.created_at).getTime() >= Date.now() - FEED_DAYS * 86400000);
-    const noGps = feed.filter((p) => !hasGps(p)).length;
     $("camJobsN").textContent = String(jobs.length);
     $("camPhotosN").textContent = String(feed.length);
     document.querySelectorAll("#camViews [data-view]").forEach((b) => {
@@ -250,7 +322,7 @@
       b.classList.toggle("is-on", on);
       b.setAttribute("aria-pressed", String(on));
     });
-    $("camStats").innerHTML = `<span><b>${recent.length}</b> foto${recent.length === 1 ? "" : "s"} · ${FEED_DAYS} dias</span><span><b class="${need ? "is-hot" : ""}">${need}</b> sem foto 3+ dias</span><span><b>${noGps}</b> sem GPS</span>`;
+    renderFilters();
     document.querySelectorAll("#camMode [data-mode]").forEach((b) => {
       const m = b.getAttribute("data-mode");
       const listMode = mode === "photos" ? "active" : mode;
@@ -262,7 +334,9 @@
       .filter(([, rows]) => rows.length)
       .map(([label, rows]) => `<p class="cam-grp"><span>${label}</span><em>${rows.length}</em></p>${rows.map(rowHtml).join("")}`)
       .join("");
-    $("camRows").innerHTML = html || `<p class="cam-empty">${q ? "Nenhum job com essa busca." : mode === "done" ? "Nenhum job concluído." : "Nenhum job ativo."}</p>`;
+    $("camRows").innerHTML =
+      html ||
+      `<p class="cam-empty">${listPref.filter !== "all" ? `Nenhum job em “${esc((FILTERS.find(([k]) => k === listPref.filter) || [])[1] || "")}”. <button type="button" class="cam-link" data-filter="all">Ver todos</button>` : q ? "Nenhum job com essa busca." : mode === "done" ? "Nenhum job concluído." : "Nenhum job ativo."}</p>`;
     if (window.OmGestures) window.OmGestures.bindSwipeRow?.($("camRows"));
   }
 
@@ -284,6 +358,8 @@
     return {
       id: p.legacy ? null : p.id, url: p.url, thumb_url: p.thumb_url || p.url, stage: p.stage, created_at: p.created_at, taken_at_device: p.taken_at_device,
       author: p.author_name, device: p.device_label, caption: p.caption, address: p.address || j.address, lat: p.lat, lng: p.lng,
+      uploaded_by_name: p.uploaded_by_name || p.author_name, taken_by_id: p.taken_by_id || p.author_id, taken_by_name: p.taken_by_name || p.author_name,
+      taken_at_source: p.taken_at_source, location_source: p.location_source, camera_model: p.camera_model, annotations: p.annotations || null,
       location_available: p.location_available != null ? p.location_available : p.lat != null, distance_m: p.distance_m, far_from_job: p.far_from_job,
       in_portfolio: p.in_portfolio, job: { id: j.id, number: j.number, title: j.title, client: j.client_name, name: viewerJobName(j) },
     };
@@ -303,9 +379,33 @@
     });
   }
 
+  /** Save one change on a photo and mirror it into every cached copy (job list, job photos, feed). */
+  async function editPhoto(photo, changes) {
+    const r = await api(`/api/work-orders/${encodeURIComponent(photo.job.id)}/media/${encodeURIComponent(photo.id)}`, { method: "PATCH", body: JSON.stringify(changes) });
+    const d = r.data || {};
+    const patch = {};
+    if ("caption" in changes) patch.caption = d.caption ?? null;
+    if ("annotations" in changes) patch.annotations = d.annotations ?? null;
+    if ("taken_by_id" in changes) Object.assign(patch, { taken_by_id: d.taken_by_id, taken_by_name: d.taken_by_name });
+    [feed, ...Object.values(mediaCache), ...jobs.map((x) => x.photos || [])].forEach((arr) =>
+      arr.forEach((x) => {
+        if (String(x.id) === String(photo.id)) Object.assign(x, patch);
+      }),
+    );
+    if (mode === "photos") renderFeed();
+    else renderJob();
+    return patch;
+  }
+
   function openViewer(list, index) {
     if (!window.CamViewer || !list.length) return;
+    if (canManage && !people) loadPeople().then((pp) => window.CamViewer.setPeople?.(pp));
     window.CamViewer.open({
+      canEdit: canManage,
+      people,
+      onNote: (photo, text) => editPhoto(photo, { caption: text }),
+      onAnnotate: (photo, doc) => editPhoto(photo, { annotations: doc }),
+      onTakenBy: (photo, id) => editPhoto(photo, { taken_by_id: id }),
       photos: list,
       index,
       canPortfolio: canManage,
@@ -352,11 +452,17 @@
     return (who && who !== "Sem cliente" ? who : p.job_title) || (p.job_number != null ? `Job #${p.job_number}` : "Job");
   }
 
+  /** Small icons on a tile when the photo carries a note or markup. */
+  function marks(p) {
+    const ink = p.annotations && Array.isArray(p.annotations.shapes) && p.annotations.shapes.length;
+    return `${ink ? SVG.pen : ""}${p.caption ? SVG.note : ""}`;
+  }
+
   function photoTile(p, i, opts) {
     const st = STAGE[p.stage] || "Geral";
     const what = `${st}${opts && opts.job ? ` · ${feedJobName(p)}` : ""}`;
     return `<button type="button" class="cam-ph${opts && opts.job ? " cam-ph--job" : ""}" data-ph-i="${i}" aria-label="Ver foto: ${esc(what)}" style="background-image:url('${esc(p.thumb_url || p.url)}')">
-      ${opts && opts.stage ? `<span class="cam-ph__st">${esc(st)}</span>` : ""}
+      ${opts && opts.stage ? `<span class="cam-ph__st">${esc(st)}${marks(p)}</span>` : marks(p) ? `<span class="cam-ph__st cam-ph__st--ic">${marks(p)}</span>` : ""}
       ${opts && opts.job ? `<span class="cam-ph__jn">${esc(feedJobName(p))}</span>` : ""}
       ${gpsTag(p)}
     </button>`;
@@ -436,7 +542,7 @@
       }
       if (String(selId) !== String(j.id) || mode === "photos") return;
     }
-    const list = mediaCache[j.id];
+    const list = mediaCache[j.id].slice().sort(byTaken);
     const counts = { before: 0, during: 0, after: 0, none: 0 };
     list.forEach((p) => (counts[STAGE[p.stage] ? p.stage : "none"] += 1));
     shown = list.map((p) => toViewer(j, p));
@@ -491,16 +597,16 @@
     const hit = feed.filter((p) => {
       if (stageFilter !== "all" && (STAGE[p.stage] ? p.stage : "none") !== stageFilter) return false;
       if (!q) return true;
-      return norm([p.job_number, p.job_title, feedJobName(p), STAGE[p.stage], p.caption, p.address, p.author_name].filter(Boolean).join(" ")).includes(q);
-    });
+      return norm([p.job_number, p.job_title, feedJobName(p), STAGE[p.stage], p.caption, p.address, p.author_name, p.taken_by_name, p.camera_model].filter(Boolean).join(" ")).includes(q);
+    }).sort(byTaken);
     const counts = { all: feed.length, before: 0, during: 0, after: 0, none: 0 };
     feed.forEach((p) => (counts[STAGE[p.stage] ? p.stage : "none"] += 1));
     shown = hit.map((p) => toViewer({ id: p.job_id, number: p.job_number, title: p.job_title, client_name: (jobs.find((x) => x.id === p.job_id) || {}).client_name }, p));
     const days = [];
     hit.forEach((p, i) => {
-      const k = dayKey(p.created_at);
+      const k = dayKey(takenAt(p));
       let d = days.find((x) => x.k === k);
-      if (!d) days.push((d = { k, label: dayLabel(p.created_at), items: [], jobs: new Set() }));
+      if (!d) days.push((d = { k, label: dayLabel(takenAt(p)), items: [], jobs: new Set() }));
       d.items.push([p, i]);
       d.jobs.add(p.job_id);
     });
@@ -738,6 +844,9 @@
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && !uploadSheet.hidden) closeUploadSheet();
     });
+    uploadSheet.addEventListener("change", (e) => {
+      if (e.target.id === "camUpWho") uploadTakenBy = e.target.value;
+    });
     uploadSheet.addEventListener("click", (e) => {
       if (e.target === uploadSheet) {
         closeUploadSheet();
@@ -750,8 +859,14 @@
         paintUploadSheet("", false);
         return;
       }
-      if (t.hasAttribute("data-cam-up-camera")) return uploadCamera.click();
-      if (t.hasAttribute("data-cam-up-library")) return uploadLibrary.click();
+      if (t.hasAttribute("data-cam-up-camera")) {
+        uploadFrom = "camera";
+        return uploadCamera.click();
+      }
+      if (t.hasAttribute("data-cam-up-library")) {
+        uploadFrom = "library";
+        return uploadLibrary.click();
+      }
       if (t.hasAttribute("data-cam-up-close")) closeUploadSheet();
     });
   }
@@ -763,6 +878,18 @@
   };
   let uploadBusy = false;
   let uploadReturnFocus = null;
+  let uploadFrom = "library";
+  let uploadTakenBy = "";
+  let people = null;
+  let meId = "";
+
+  /** Team for "Tirada por"; loaded the first time the sheet opens. */
+  function loadPeople() {
+    if (people) return Promise.resolve(people);
+    return api("/api/job-media/people")
+      .then((r) => (people = r.data || []))
+      .catch(() => (people = []));
+  }
 
   function paintUploadSheet(status, busy, isErr) {
     ensureUploadUi();
@@ -777,6 +904,11 @@
         (s) =>
           `<button type="button" class="cam-up__stage${s.id === uploadStage ? " is-on" : ""}" data-cam-up-stage="${esc(s.id)}" aria-pressed="${s.id === uploadStage}"${dis}>${s.id === uploadStage ? UP_ICON.check : ""}${esc(s.label)}</button>`,
       ).join("")}</div>
+      ${people && people.length > 1
+        ? `<label class="cam-up__who"><span>Tirada por</span><select id="camUpWho"${dis}>${people
+            .map((u) => `<option value="${esc(u.id)}"${u.id === (uploadTakenBy || meId) ? " selected" : ""}>${esc(u.name || "—")}${u.id === meId ? " (você)" : ""}</option>`)
+            .join("")}</select></label>`
+        : ""}
       <div class="cam-up__go">
         <button type="button" data-cam-up-camera${dis}>${UP_ICON.cam}Câmera</button>
         <button type="button" class="is-sec" data-cam-up-library${dis}>${UP_ICON.lib}Galeria</button>
@@ -800,10 +932,12 @@
     const who = listWho(j);
     uploadTarget = { id: j.id, label: who && who !== "Sem cliente" ? who : j.title || "Job" };
     uploadStage = "during";
+    uploadTakenBy = "";
     uploadReturnFocus = document.activeElement;
     paintUploadSheet("", false);
     uploadSheet.hidden = false;
     uploadSheet.querySelector("[data-cam-up-camera]")?.focus({ preventScroll: true });
+    if (!people) loadPeople().then(() => !uploadSheet.hidden && !uploadBusy && paintUploadSheet("", false));
   }
 
   function compressUpload(file) {
@@ -811,13 +945,13 @@
       const url = URL.createObjectURL(file);
       const img = new Image();
       img.onload = () => {
-        const scale = Math.min(1, 1280 / Math.max(img.naturalWidth, img.naturalHeight));
+        const scale = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
         const c = document.createElement("canvas");
         c.width = Math.round(img.naturalWidth * scale);
         c.height = Math.round(img.naturalHeight * scale);
         c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
         URL.revokeObjectURL(url);
-        resolve(c.toDataURL("image/jpeg", 0.7));
+        resolve(c.toDataURL("image/jpeg", 0.75));
       };
       img.onerror = () => {
         URL.revokeObjectURL(url);
@@ -849,17 +983,22 @@
     const list = Array.from(files || []);
     if (!list.length || !uploadTarget) return;
     let sent = 0;
+    const live = uploadFrom === "camera";
+    const takenBy = uploadTakenBy && uploadTakenBy !== meId ? uploadTakenBy : null;
+    let devicePos;
+    const deviceGps = () => (devicePos !== undefined ? Promise.resolve(devicePos) : uploadGps().then((p) => (devicePos = p)));
     try {
-      const pos = await uploadGps();
       for (const file of list) {
         paintUploadSheet(`Enviando ${sent + 1} de ${list.length}…`, true);
+        // Date, GPS and camera from the photo itself (EXIF), read before compression drops them.
+        const shot = window.PhotoExif
+          ? await window.PhotoExif.uploadMeta(file, { live, deviceGps })
+          : { taken_at_device: new Date().toISOString(), taken_at_source: "upload" };
         const body = {
           data_url: await compressUpload(file),
           stage: uploadStage || null,
-          taken_at_device: new Date().toISOString(),
-          lat: pos ? pos.lat : null,
-          lng: pos ? pos.lng : null,
-          gps_accuracy_m: pos ? pos.acc : null,
+          ...shot,
+          taken_by_id: takenBy,
           client_upload_id: window.crypto?.randomUUID ? crypto.randomUUID() : `cam-${Date.now()}-${sent}`,
           device_label: window.__OM_FOCUS_APP ? "ObraCam app" : "ObraCam",
           is_public: false,
@@ -896,6 +1035,29 @@
         renderList();
         if (pane === "photos") renderFeed();
       }, 160);
+    });
+    const relist = () => {
+      savePref();
+      renderList();
+      if (isWide() && mode !== "photos" && !$("camRows").querySelector(`[data-cam-id="${CSS.escape(String(selId || ""))}"]`)) {
+        selId = firstVisibleId();
+        renderList();
+        renderRight();
+      }
+    };
+    $("cam").addEventListener("click", (e) => {
+      const f = e.target.closest("[data-filter]");
+      if (!f) return;
+      listPref.filter = f.getAttribute("data-filter");
+      relist();
+    });
+    $("camGroup")?.addEventListener("change", (e) => {
+      listPref.group = e.target.value;
+      relist();
+    });
+    $("camSort")?.addEventListener("change", (e) => {
+      listPref.sort = e.target.value;
+      relist();
     });
     $("camMode").addEventListener("click", (e) => {
       const b = e.target.closest("[data-mode]");
@@ -1055,6 +1217,7 @@
     .then((s) => {
       const perms = s?.user?.permissions || [];
       canManage = s?.user?.role === "admin" || perms.includes("work_orders.manage");
+      meId = s?.user?.id || "";
       const add = $("camAddJob");
       if (add) add.hidden = !canManage;
       // Session arrives after the first paint — rebuild rows so swipe-delete appears.

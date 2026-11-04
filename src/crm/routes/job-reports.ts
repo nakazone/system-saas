@@ -11,6 +11,7 @@ import { requireCrmAuth, requireCrmPermission } from "../http.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import {
   isJobMediaEnabled,
+  JOB_MEDIA_PEOPLE,
   mapJobMedia,
   parsePhotoUploadMeta,
   sha256Buffer,
@@ -138,7 +139,7 @@ jobReportsRouter.get(
           where: { workOrderId: jobId, deletedAt: null },
           orderBy: [{ createdAt: "desc" }],
           take: 200,
-          include: { author: { select: { id: true, name: true } } },
+          include: JOB_MEDIA_PEOPLE,
         });
         const jobGeo = await resolveJobSiteGeo(tx, jobId);
         const data = rows.map((row) => {
@@ -295,6 +296,11 @@ jobReportsRouter.post(
           select: { id: true, address: true },
         });
         if (!wo) throw Object.assign(new Error("Job not found"), { status: 404 });
+        // "Tirada por" must be someone in this company; anyone else is ignored and the uploader stands.
+        const takenBy =
+          meta.takenById && meta.takenById !== req.user!.id
+            ? await tx.user.findFirst({ where: { id: meta.takenById }, select: { id: true } })
+            : null;
 
         const row = await tx.jobMedia.create({
           data: {
@@ -317,8 +323,12 @@ jobReportsRouter.post(
             isPublic: meta.isPublic,
             clientUploadId: meta.clientUploadId,
             deviceLabel: meta.deviceLabel || "Office web",
+            takenById: takenBy?.id ?? null,
+            takenAtSource: meta.takenAtDevice ? meta.takenAtSource || "upload" : null,
+            locationSource: meta.locationSource,
+            cameraModel: meta.cameraModel,
           },
-          include: { author: { select: { id: true, name: true } } },
+          include: JOB_MEDIA_PEOPLE,
         });
 
         await recordActivity(tx, {

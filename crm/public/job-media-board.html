@@ -25,8 +25,8 @@
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
   <link rel="stylesheet" href="crm-job-modal.css?v=20261103-addr1" />
   <link rel="stylesheet" href="om-gestures.css?v=20261102-ptr1" />
-  <link rel="stylesheet" href="obracam.css?v=20261104-cam6" />
-  <link rel="stylesheet" href="cam-viewer.css?v=20261104-cam6" />
+  <link rel="stylesheet" href="obracam.css?v=20261104-cam8" />
+  <link rel="stylesheet" href="cam-viewer.css?v=20261104-cam8" />
 </head>
 <body class="dashboard-app-body om-app sidebar-collapsed cam-app">
   <script src="/om-reload.js?v=20261013-rl8"></script>
@@ -89,7 +89,6 @@
         <div class="cam-split" id="camSplit">
           <section class="cam-list" aria-label="Jobs">
             <div class="cam-list__top">
-              <p class="cam-stats" id="camStats"></p>
               <label class="cam-search">
                 <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
                 <input type="search" id="camQ" placeholder="Buscar job, endereço ou quem tirou" autocomplete="off" enterkeyhint="search" />
@@ -97,6 +96,11 @@
               <div class="cam-seg" id="camMode" role="group" aria-label="Mostrar">
                 <button type="button" data-mode="active" class="is-on">Ativos</button>
                 <button type="button" data-mode="done">Concluídos</button>
+              </div>
+              <div class="cam-filters" id="camFilters" role="group" aria-label="Filtrar jobs"></div>
+              <div class="cam-order">
+                <label>Agrupar <select id="camGroup"><option value="status">por status</option><option value="client">por cliente</option></select></label>
+                <label>Ordenar <select id="camSort"><option value="recent">última foto</option><option value="schedule">data agendada</option><option value="name">nome</option></select></label>
               </div>
             </div>
             <div class="cam-rows" id="camRows"><p class="cam-empty">Carregando…</p></div>
@@ -119,7 +123,8 @@
   <script src="crm-job-modal.js?v=20261103-addr1"></script>
   <script src="jobs-info.js?v=20261102-cam2"></script>
   <script src="om-gestures.js?v=20261102-ptr1"></script>
-  <script src="cam-viewer.js?v=20261104-cam6"></script>
-  <script src="job-media-board.js?v=20261104-cam6"></script>
+  <script src="/photo-exif.js?v=20261104-exif1"></script>
+  <script src="cam-viewer.js?v=20261104-cam8"></script>
+  <script src="job-media-board.js?v=20261104-cam8"></script>
 </body>
 </html>

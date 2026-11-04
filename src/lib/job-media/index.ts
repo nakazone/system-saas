@@ -30,6 +30,11 @@ export type JobMediaRow = {
   deviceLabel?: string | null;
   authorId?: string | null;
   author?: { name: string } | null;
+  takenById?: string | null;
+  takenBy?: { name: string } | null;
+  takenAtSource?: string | null;
+  locationSource?: string | null;
+  cameraModel?: string | null;
   createdAt: Date;
   deletedAt?: Date | null;
 };
@@ -113,6 +118,13 @@ export function mapJobMedia(row: JobMediaRow) {
     client_upload_id: row.clientUploadId || null,
     device_label: row.deviceLabel || null,
     author_id: row.authorId || null,
+    /** Who took it: the chosen crew member, else the uploader. */
+    taken_by_id: row.takenById || row.authorId || null,
+    taken_by_name: row.takenBy?.name || row.author?.name || null,
+    uploaded_by_name: row.author?.name || null,
+    taken_at_source: row.takenAtSource || null,
+    location_source: row.locationSource || null,
+    camera_model: row.cameraModel || null,
     author_name:
       row.author?.name?.split(/\s+/)[0] ||
       (row.deviceLabel?.startsWith(TEMP_DEVICE_PREFIX) ? row.deviceLabel.slice(TEMP_DEVICE_PREFIX.length).split(/\s+/)[0] : null) ||
@@ -160,9 +172,24 @@ export function parsePhotoUploadMeta(body: Record<string, unknown>) {
     deviceLabel: body.device_label || body.deviceLabel
       ? String(body.device_label || body.deviceLabel).slice(0, 120)
       : null,
+    takenAtSource: pickSource(body.taken_at_source, ["exif", "file", "upload"]),
+    locationSource: lat != null && lng != null ? pickSource(body.location_source, ["exif", "device"]) : null,
+    cameraModel: body.camera_model ? String(body.camera_model).trim().slice(0, 80) || null : null,
+    takenById: typeof body.taken_by_id === "string" && /^[0-9a-f-]{36}$/i.test(body.taken_by_id) ? body.taken_by_id : null,
     isPublic: body.is_public === true || body.isPublic === true,
   };
 }
+
+function pickSource(raw: unknown, allowed: string[]): string | null {
+  const v = raw != null ? String(raw) : "";
+  return allowed.includes(v) ? v : null;
+}
+
+/** Prisma include that every ObraCam media read uses, so uploader and taker names come back together. */
+export const JOB_MEDIA_PEOPLE = {
+  author: { select: { id: true, name: true } },
+  takenBy: { select: { id: true, name: true } },
+} as const;
 
 export function requireJobMediaOr403(
   _req: AuthedRequest,
