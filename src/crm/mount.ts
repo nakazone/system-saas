@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import express, { type Request, type Response, type Router } from "express";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { crmAuthRouter } from "./auth-api.js";
+import { hasFeature } from "../lib/features/index.js";
 import { crmApiRouter } from "./api.js";
 import { i18nCrmRouter } from "../lib/i18n/routes.js";
 import { i18nVersion, orgDefaultUiLocale } from "../lib/i18n/index.js";
@@ -134,6 +135,26 @@ export function obraCalendarHtml(html: string): string {
     .replace(/<\/body>/i, '  <script src="/obracalendar.js?v=1"></script>\n</body>');
 }
 
+const OBRACAM_ROLES = new Set(["admin", "general_manager", "office"]);
+
+/** The ObraCam page dressed as its own app; lists, photos and viewer are shared with job-media-board.html. */
+export function obraCamHtml(html: string): string {
+  const head = [
+    '<link rel="manifest" href="/obracam.webmanifest?v=1" />',
+    '<meta name="apple-mobile-web-app-title" content="ObraCam" />',
+    '<meta name="apple-mobile-web-app-capable" content="yes" />',
+    '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&display=swap" />',
+    '<link rel="stylesheet" href="/obracam-app.css?v=1" />',
+    "<script>window.__OM_FOCUS_APP=true</script>",
+  ].join("\n    ");
+  return html
+    .replace(/<title>[^<]*<\/title>/i, "<title>ObraCam</title>")
+    .replace(/<meta name="theme-color"[^>]*>/i, '<meta name="theme-color" content="#F7F8FA" />')
+    .replace(/<link rel="apple-touch-icon"[^>]*>/i, '<link rel="apple-touch-icon" href="/assets/obracam/apple-touch-icon.png?v=1" />')
+    .replace(/<\/head>/i, `    ${head}\n</head>`)
+    .replace(/<\/body>/i, '  <script src="/obracam-app.js?v=1"></script>\n</body>');
+}
+
 async function sendCrmHtml(req: Request, res: Response, filename: string) {
   const full = path.join(CRM_PUBLIC_DIR, filename);
   const html = await renderCrmHtml(req, full);
@@ -198,6 +219,29 @@ export function createCrmRouter(): Router {
       }
       const html = await renderCrmHtml(req, path.join(CRM_PUBLIC_DIR, "schedule.html"));
       res.type("html").send(obraCalendarHtml(html));
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  // ObraCam: admins, managers and office get the photos as their own app, when the company's plan includes ObraCam.
+  router.get("/obracam", async (req: AuthedRequest, res, next) => {
+    try {
+      if (!req.user) {
+        res.redirect("/login.html?app=obracam");
+        return;
+      }
+      res.setHeader("Cache-Control", "no-store, max-age=0");
+      if (!OBRACAM_ROLES.has(req.user.roleKey ?? "")) {
+        res.type("html").send(fs.readFileSync(path.join(CRM_PUBLIC_DIR, "obracam-sem-acesso.html"), "utf8"));
+        return;
+      }
+      if (!(await hasFeature(req.user.organizationId, "job_media"))) {
+        res.redirect(302, "/job-media-board.html");
+        return;
+      }
+      const html = await renderCrmHtml(req, path.join(CRM_PUBLIC_DIR, "job-media-board.html"));
+      res.type("html").send(obraCamHtml(html));
     } catch (e) {
       next(e);
     }

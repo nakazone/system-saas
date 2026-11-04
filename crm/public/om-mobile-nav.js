@@ -769,8 +769,8 @@
       ensureAppTop();
       return;
     }
-    // ObraCalendar brings its own tabs (obracalendar.js).
-    if (window.__OM_CAL_APP) return;
+    // ObraCalendar and ObraCam bring their own tabs.
+    if (window.__OM_CAL_APP || window.__OM_FOCUS_APP) return;
 
     const field = await resolveFieldRole();
     if (field) {

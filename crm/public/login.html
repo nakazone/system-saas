@@ -9,10 +9,12 @@
     <link rel="icon" href="/favicon.ico?v=20260924-pwa" sizes="any" />
     <link rel="apple-touch-icon" href="/assets/favicon-180.png?v=20260924-pwa" />
     <script>
-      // Added to the Home Screen from this page, the ObraCalendar link must keep its own icon and name.
-      if (/[?&]app=obracalendar\b/.test(location.search)) {
-        document.querySelector('link[rel="apple-touch-icon"]').href = '/assets/obracalendar/apple-touch-icon.png?v=1';
-        document.write('<link rel="manifest" href="/obracalendar.webmanifest?v=1" /><meta name="apple-mobile-web-app-title" content="ObraCalendar" />');
+      // Added to the Home Screen from this page, an app link must keep its own icon and name.
+      window.__omLoginApp = (/[?&]app=(obracalendar|obracam)\b/.exec(location.search) || [])[1] || null;
+      if (window.__omLoginApp) {
+        var omApp = window.__omLoginApp;
+        document.querySelector('link[rel="apple-touch-icon"]').href = '/assets/' + omApp + '/apple-touch-icon.png?v=1';
+        document.write('<link rel="manifest" href="/' + omApp + '.webmanifest?v=1" /><meta name="apple-mobile-web-app-title" content="' + (omApp === 'obracam' ? 'ObraCam' : 'ObraCalendar') + '" />');
       }
     </script>
     <link rel="stylesheet" href="styles.css?v=20261008-modulos1">
@@ -143,7 +145,7 @@
                         window.location.href = mobile ? '/campo/hoje.html' : '/funcionario.html';
                         return;
                     }
-                    window.location.href = /[?&]app=obracalendar\b/.test(location.search) ? '/obracalendar' : '/dashboard.html';
+                    window.location.href = window.__omLoginApp ? '/' + window.__omLoginApp : '/dashboard.html';
                 }
             })
             .catch(() => {});
@@ -208,7 +210,7 @@
                     // (e.g. "/dashboard"); do NOT prefix "/" or browsers treat "//dashboard" as https://dashboard.
                     var home = (window.__omDevice && window.__omDevice.entryHref && window.__omDevice.entryHref()) || '/dashboard';
                     if (home.charAt(0) !== '/') home = '/' + home;
-                    if (/[?&]app=obracalendar\b/.test(location.search)) home = '/obracalendar';
+                    if (window.__omLoginApp) home = '/' + window.__omLoginApp;
                     var dest = u.must_change_password
                         ? '/change-password.html'
                         : (role === 'installer' || role === 'crew_lead' || role === 'subcontractor')

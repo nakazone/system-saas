@@ -137,6 +137,7 @@
   }
 
   function useSwipeDelete() {
+    if (window.__OM_FOCUS_APP) return false; // Deleting a job does not belong in the photo app.
     return canManage && window.matchMedia("(max-width: 1024px), (pointer: coarse)").matches;
   }
 
@@ -379,7 +380,7 @@
     const mapBox = `<div class="cam-box cam-box--map"><h3>Onde foram tiradas</h3><div class="cam-map" id="camMap"></div><p class="cam-meta" id="camMapNote"></p></div>`;
     let body;
     if (!list.length) {
-      body = `<div class="cam-box cam-none"><span class="cam-none__ic">${SVG.cam}</span><b>Nenhuma foto ainda</b><p>A equipe tira as fotos pelo Campo (ticket do job). Você também pode adicionar pela página do job.</p><a class="cam-btn" href="job-detail.html?id=${encodeURIComponent(j.id)}#fotos">Adicionar fotos</a></div>`;
+      body = `<div class="cam-box cam-none"><span class="cam-none__ic">${SVG.cam}</span><b>Nenhuma foto ainda</b><p>${window.__OM_FOCUS_APP ? "A equipe tira as fotos pelo Campo (ticket do job). Você também pode adicionar aqui." : "A equipe tira as fotos pelo Campo (ticket do job). Você também pode adicionar pela página do job."}</p><a class="cam-btn" href="job-detail.html?id=${encodeURIComponent(j.id)}#fotos">Adicionar fotos</a></div>`;
     } else if (isPhone()) {
       const segs = [["all", "Todas", list.length], ...STAGES.filter(([k]) => counts[k]).map(([k, l]) => [k, l, counts[k]])];
       if (!segs.some(([k]) => k === stageFilter)) stageFilter = "all";
@@ -714,6 +715,16 @@
   }
 
   bind();
+  // The ObraCam app (obracam-app.js) refreshes the job after sending photos.
+  window.__camApp = {
+    mode: () => mode,
+    reload(id) {
+      if (id) delete mediaCache[id];
+      return load().then(() => {
+        if (id) select(id, false);
+      });
+    },
+  };
   $("camAddJob")?.addEventListener("click", () => {
     if (!canManage || !window.__crmJobModal?.openCreate) return;
     window.__crmJobModal.openCreate({ allDay: true }).catch((e) => window.crmToast?.error?.(e.message || "Não foi possível abrir o job"));

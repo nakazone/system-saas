@@ -43,8 +43,8 @@
       el.style.display = "";
     });
 
-    // ObraCalendar has its own Home Screen icon (also on its login page).
-    var calApp = window.__OM_CAL_APP || /[?&]app=obracalendar\b/.test(location.search);
+    // ObraCalendar and ObraCam have their own Home Screen icons (also on their login pages).
+    var calApp = window.__OM_CAL_APP || window.__OM_FOCUS_APP || /[?&]app=(obracalendar|obracam)\b/.test(location.search);
     document.querySelectorAll('link[rel="apple-touch-icon"]').forEach(function (el) {
       if (!calApp) el.setAttribute("href", SYSTEM_TOUCH_ICON);
     });

@@ -252,8 +252,8 @@ export async function resolveTenant(
       return;
     }
 
-    if (req.path === "/obracalendar") {
-      res.redirect("/login.html?app=obracalendar");
+    if (req.path === "/obracalendar" || req.path === "/obracam") {
+      res.redirect(`/login.html?app=${req.path.slice(1)}`);
       return;
     }
 
