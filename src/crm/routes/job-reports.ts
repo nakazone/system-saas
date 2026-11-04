@@ -26,6 +26,7 @@ import {
   type JobReportTemplate,
 } from "../../lib/job-media/report.js";
 import { buildJobReportPdf } from "../../lib/job-media/report-pdf.js";
+import { cleanStickerIds } from "../../lib/job-media/stickers.js";
 import { isAiConfigured } from "../../lib/ai/client.js";
 import { recordActivity } from "../../lib/activity/record.js";
 import { storage } from "../../lib/storage/index.js";
@@ -299,8 +300,9 @@ jobReportsRouter.post(
         // "Tirada por" must be someone in this company; anyone else is ignored and the uploader stands.
         const takenBy =
           meta.takenById && meta.takenById !== req.user!.id
-            ? await tx.user.findFirst({ where: { id: meta.takenById }, select: { id: true } })
+            ? await tx.user.findFirst({ where: { id: meta.takenById, organizationId: req.organizationId! }, select: { id: true } })
             : null;
+        const stickerIds = await cleanStickerIds(tx, req.organizationId!, raw.sticker_ids);
 
         const row = await tx.jobMedia.create({
           data: {
@@ -327,6 +329,7 @@ jobReportsRouter.post(
             takenAtSource: meta.takenAtDevice ? meta.takenAtSource || "upload" : null,
             locationSource: meta.locationSource,
             cameraModel: meta.cameraModel,
+            stickerIds,
           },
           include: JOB_MEDIA_PEOPLE,
         });

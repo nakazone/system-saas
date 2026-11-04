@@ -166,4 +166,37 @@ describe.skipIf(!privileged)("GET /obracam", () => {
     const empty = await fetch(url, { method: "PATCH", headers: json, body: JSON.stringify({}) });
     expect(empty.status).toBe(400);
   });
+
+  it("creates default stickers, tags old stain photos with Samples, and lets managers edit them", async () => {
+    const json = { "Content-Type": "application/json", Cookie: adminCookie };
+    const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const wo = await fetch(`${base}/api/work-orders`, { method: "POST", headers: json, body: JSON.stringify({ title: "Sticker test" }) }).then((r) => r.json());
+    // a stain sample photo saved before stickers existed
+    const old = await fetch(`${base}/api/work-orders/${wo.data.id}/media`, { method: "POST", headers: json, body: JSON.stringify({ data_url: png, caption: "Stain sample #1 · Jacobean" }) }).then((r) => r.json());
+
+    const first = await fetch(`${base}/api/job-media/stickers`, { headers: json }).then((r) => r.json());
+    expect(first.data.map((x: { name: string }) => x.name)).toEqual(["Samples", "Delivery", "Scan"]);
+    const samples = first.data.find((x: { system: boolean }) => x.system);
+    const media = await fetch(`${base}/api/work-orders/${wo.data.id}/media`, { headers: json }).then((r) => r.json());
+    expect(media.data.find((m: { id: string }) => m.id === old.data.id).sticker_ids).toEqual([samples.id]);
+
+    const created = await fetch(`${base}/api/job-media/stickers`, { method: "POST", headers: json, body: JSON.stringify({ name: "Medição", color: "#8A6A00" }) }).then((r) => r.json());
+    expect(created.data).toMatchObject({ name: "Medição", color: "#8A6A00", archived: false });
+    const dup = await fetch(`${base}/api/job-media/stickers`, { method: "POST", headers: json, body: JSON.stringify({ name: "medição", color: "#1D6FB8" }) });
+    expect(dup.status).toBe(409);
+    const badColor = await fetch(`${base}/api/job-media/stickers`, { method: "POST", headers: json, body: JSON.stringify({ name: "X", color: "red" }) });
+    expect(badColor.status).toBe(400);
+
+    const delivery = first.data.find((x: { name: string }) => x.name === "Delivery");
+    const url = `${base}/api/work-orders/${wo.data.id}/media/${old.data.id}`;
+    const tagged = await fetch(url, { method: "PATCH", headers: json, body: JSON.stringify({ sticker_ids: [samples.id, delivery.id, created.data.id, "00000000-0000-0000-0000-000000000000"] }) }).then((r) => r.json());
+    expect(tagged.data.sticker_ids).toEqual([samples.id, delivery.id, created.data.id]);
+
+    // an archived sticker stays on photos that have it but can't be newly applied
+    const arch = await fetch(`${base}/api/job-media/stickers/${created.data.id}`, { method: "PATCH", headers: json, body: JSON.stringify({ archived: true }) }).then((r) => r.json());
+    expect(arch.data.archived).toBe(true);
+    const again = await fetch(url, { method: "PATCH", headers: json, body: JSON.stringify({ sticker_ids: [created.data.id] }) }).then((r) => r.json());
+    expect(again.data.sticker_ids).toEqual([]);
+
+  });
 });

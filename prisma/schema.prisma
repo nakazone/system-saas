@@ -850,6 +850,7 @@ model Organization {
   campoWeekSubmissions     CampoWeekSubmission[]
   campoManualEntries       CampoManualEntry[]
   jobMedia                 JobMedia[]
+  mediaStickers            MediaSticker[]
   jobReports               JobReport[]
   jobInspections           JobInspection[]
   jobMeasurements          JobMeasurement[]
@@ -2809,6 +2810,8 @@ model JobMedia {
   locationSource     String?
   /// Camera make + model read from the photo's EXIF, e.g. "Apple iPhone 15 Pro"
   cameraModel        String?
+  /// MediaSticker ids on this photo (Samples, Delivery, Scan…)
+  stickerIds         String[]     @default([]) @db.Uuid
   /// photo | video
   type               String       @default("photo")
   storageKey         String
@@ -3939,4 +3942,23 @@ model BuilderPriceItem {
   updatedAt        DateTime       @updatedAt
 
   @@index([builderAccountId, builderLinkId])
+}
+
+/// Photo labels a company defines for ObraCam (Samples, Delivery, Scan…). Photos keep the ids in JobMedia.stickerIds.
+model MediaSticker {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// System sticker the app applies on its own, e.g. "samples" for stain sample photos; null for ones people create
+  key            String?
+  name           String
+  /// Hex colour of the badge, e.g. "#B4561A"
+  color          String
+  sortOrder      Int          @default(0)
+  archivedAt     DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, key])
+  @@index([organizationId])
 }

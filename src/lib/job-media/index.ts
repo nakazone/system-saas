@@ -35,6 +35,7 @@ export type JobMediaRow = {
   takenAtSource?: string | null;
   locationSource?: string | null;
   cameraModel?: string | null;
+  stickerIds?: string[] | null;
   createdAt: Date;
   deletedAt?: Date | null;
 };
@@ -125,6 +126,7 @@ export function mapJobMedia(row: JobMediaRow) {
     taken_at_source: row.takenAtSource || null,
     location_source: row.locationSource || null,
     camera_model: row.cameraModel || null,
+    sticker_ids: row.stickerIds || [],
     author_name:
       row.author?.name?.split(/\s+/)[0] ||
       (row.deviceLabel?.startsWith(TEMP_DEVICE_PREFIX) ? row.deviceLabel.slice(TEMP_DEVICE_PREFIX.length).split(/\s+/)[0] : null) ||

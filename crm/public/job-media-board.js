@@ -17,6 +17,7 @@
     back: '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>',
     pen: '<svg viewBox="0 0 24 24" width="11" height="11" aria-label="com marcações"><path d="M4 20l4-1L19 8a2.1 2.1 0 00-3-3L5 16l-1 4z"/></svg>',
     note: '<svg viewBox="0 0 24 24" width="11" height="11" aria-label="com nota"><path d="M5 4h14v12l-4 4H5z"/></svg>',
+    tag: '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/></svg>',
   };
 
   let jobs = [];
@@ -25,6 +26,18 @@
   let q = "";
   let selId = null;
   let stageFilter = "all";
+  /** Sticker (photo label) the job grid or feed is narrowed to, "" for all. */
+  let stickerFilter = "";
+  let stickers = [];
+  const stickerById = (id) => stickers.find((x) => x.id === id);
+  function loadStickers() {
+    return api("/api/job-media/stickers")
+      .then((r) => {
+        stickers = r.data || [];
+        window.CamViewer?.setStickers?.(stickers);
+      })
+      .catch(() => {});
+  }
   /** Each job and the feed show either the photos or "Local" (the map); the map loads only when asked for. */
   let pane = "photos";
   let canManage = false;
@@ -355,6 +368,7 @@
       author: p.author_name, device: p.device_label, caption: p.caption, address: p.address || j.address, lat: p.lat, lng: p.lng,
       uploaded_by_name: p.uploaded_by_name || p.author_name, taken_by_id: p.taken_by_id || p.author_id, taken_by_name: p.taken_by_name || p.author_name,
       taken_at_source: p.taken_at_source, location_source: p.location_source, camera_model: p.camera_model, annotations: p.annotations || null,
+      sticker_ids: (p.sticker_ids || []).slice(),
       location_available: p.location_available != null ? p.location_available : p.lat != null, distance_m: p.distance_m, far_from_job: p.far_from_job,
       in_portfolio: p.in_portfolio, job: { id: j.id, number: j.number, title: j.title, client: j.client_name, name: viewerJobName(j) },
     };
@@ -382,6 +396,7 @@
     if ("caption" in changes) patch.caption = d.caption ?? null;
     if ("annotations" in changes) patch.annotations = d.annotations ?? null;
     if ("taken_by_id" in changes) Object.assign(patch, { taken_by_id: d.taken_by_id, taken_by_name: d.taken_by_name });
+    if ("sticker_ids" in changes) patch.sticker_ids = d.sticker_ids || [];
     [feed, ...Object.values(mediaCache), ...jobs.map((x) => x.photos || [])].forEach((arr) =>
       arr.forEach((x) => {
         if (String(x.id) === String(photo.id)) Object.assign(x, patch);
@@ -401,6 +416,9 @@
       onNote: (photo, text) => editPhoto(photo, { caption: text }),
       onAnnotate: (photo, doc) => editPhoto(photo, { annotations: doc }),
       onTakenBy: (photo, id) => editPhoto(photo, { taken_by_id: id }),
+      stickers,
+      onStickers: canManage ? (photo, ids) => editPhoto(photo, { sticker_ids: ids }) : null,
+      onManageStickers: canManage ? () => openStickerManager() : null,
       photos: list,
       index,
       canPortfolio: canManage,
@@ -453,11 +471,21 @@
     return `${ink ? SVG.pen : ""}${p.caption ? SVG.note : ""}`;
   }
 
+  /** Sticker badges on a tile: the first two by name, then "+N". */
+  function tileStickers(p) {
+    const list = (p.sticker_ids || []).map(stickerById).filter(Boolean);
+    if (!list.length) return "";
+    const shown = list.slice(0, 2).map((x) => `<span style="--stk:${esc(x.color)}">${esc(x.name)}</span>`).join("");
+    return `<span class="cam-ph__stk" data-no-i18n>${shown}${list.length > 2 ? `<span class="is-more">+${list.length - 2}</span>` : ""}</span>`;
+  }
+
   function photoTile(p, i, opts) {
     const st = STAGE[p.stage] || "Geral";
-    const what = `${st}${opts && opts.job ? ` · ${feedJobName(p)}` : ""}`;
+    const tags = (p.sticker_ids || []).map(stickerById).filter(Boolean).map((x) => x.name);
+    const what = `${st}${tags.length ? ` · ${tags.join(", ")}` : ""}${opts && opts.job ? ` · ${feedJobName(p)}` : ""}`;
     return `<button type="button" class="cam-ph${opts && opts.job ? " cam-ph--job" : ""}" data-ph-i="${i}" aria-label="Ver foto: ${esc(what)}" style="background-image:url('${esc(p.thumb_url || p.url)}')">
       ${opts && opts.stage ? `<span class="cam-ph__st">${esc(st)}${marks(p)}</span>` : marks(p) ? `<span class="cam-ph__st cam-ph__st--ic">${marks(p)}</span>` : ""}
+      ${tileStickers(p)}
       ${opts && opts.job ? `<span class="cam-ph__jn">${esc(feedJobName(p))}</span>` : ""}
       ${gpsTag(p)}
     </button>`;
@@ -548,23 +576,39 @@
       // One grid for every width, filtered by stage: Antes, Durante and Depois always show (zero is information); Geral only when it has photos.
       const chips = [["all", "Todas", list.length], ...STAGES.filter(([k]) => k !== "none" || counts.none).map(([k, l]) => [k, l, counts[k]])];
       if (!chips.some(([k]) => k === stageFilter)) stageFilter = "all";
-      const sel = list.map((p, i) => [p, i]).filter(([p]) => stageFilter === "all" || (stageFilter === "none" ? !STAGE[p.stage] : p.stage === stageFilter));
-      const label = (chips.find(([k]) => k === stageFilter) || [])[1] || "";
+      if (stickerFilter && !list.some((p) => (p.sticker_ids || []).includes(stickerFilter))) stickerFilter = "";
+      const sel = list
+        .map((p, i) => [p, i])
+        .filter(([p]) => stageFilter === "all" || (stageFilter === "none" ? !STAGE[p.stage] : p.stage === stageFilter))
+        .filter(([p]) => !stickerFilter || (p.sticker_ids || []).includes(stickerFilter));
+      const label = stickerFilter ? `${(chips.find(([k]) => k === stageFilter) || [])[1] || ""} com “${(stickerById(stickerFilter) || {}).name || ""}”` : (chips.find(([k]) => k === stageFilter) || [])[1] || "";
       const far = list.filter((p) => p.far_from_job).length;
       const content =
         pane === "map"
           ? mapPaneHtml()
           : sel.length
             ? `<div class="cam-pgrid">${sel.map(([p, i]) => photoTile(p, i, { stage: stageFilter === "all" })).join("")}</div>`
-            : `<p class="cam-col__none">Nenhuma foto de ${esc(label.toLowerCase())} ainda.</p>`;
+            : `<p class="cam-col__none">Nenhuma foto ${stickerFilter ? `em ${esc(label)}` : `de ${esc(label.toLowerCase())}`} ainda.</p>`;
       body = `<div class="cam-box cam-box--photos">
-          <div class="cam-chips cam-chips--bar cam-chips--stick">${paneSwitchHtml("Local", far)}${pane === "photos" ? chips.map(([k, l, c]) => chipHtml(k, l, c)).join("") : ""}</div>
+          <div class="cam-chips cam-chips--bar cam-chips--stick">${paneSwitchHtml("Local", far)}${pane === "photos" ? chips.map(([k, l, c]) => chipHtml(k, l, c)).join("") + stickerChipsHtml(list) : ""}</div>
           ${content}
         </div>`;
     }
     host.innerHTML = headHtml(j, list) + body + (isPhone() ? pbarHtml(j) : "");
     movePbar();
     if (list.length && pane === "map") renderJobMap(j, list).catch(() => {});
+  }
+
+  /** Sticker filter chips, only for stickers that photos here actually carry, plus "Stickers" to manage them. */
+  function stickerChipsHtml(list) {
+    const counts = {};
+    list.forEach((p) => (p.sticker_ids || []).forEach((id) => (counts[id] = (counts[id] || 0) + 1)));
+    const chips = stickers
+      .filter((x) => counts[x.id])
+      .map((x) => `<button type="button" class="cam-chip cam-chip--stk${stickerFilter === x.id ? " is-on" : ""}" data-no-i18n data-sticker="${esc(x.id)}" aria-pressed="${stickerFilter === x.id}" style="--stk:${esc(x.color)}"><i aria-hidden="true"></i>${esc(x.name)} <em>${counts[x.id]}</em></button>`)
+      .join("");
+    const manage = canManage ? `<button type="button" class="cam-chip cam-chip--ghost" data-stk-manage>${SVG.tag}Stickers</button>` : "";
+    return chips || manage ? `<span class="cam-chips__sep" aria-hidden="true"></span>${chips}${manage}` : "";
   }
 
   function chipHtml(k, l, c) {
@@ -591,8 +635,10 @@
     }
     const hit = feed.filter((p) => {
       if (stageFilter !== "all" && (STAGE[p.stage] ? p.stage : "none") !== stageFilter) return false;
+      if (stickerFilter && !(p.sticker_ids || []).includes(stickerFilter)) return false;
       if (!q) return true;
-      return norm([p.job_number, p.job_title, feedJobName(p), STAGE[p.stage], p.caption, p.address, p.author_name, p.taken_by_name, p.camera_model].filter(Boolean).join(" ")).includes(q);
+      const tags = (p.sticker_ids || []).map(stickerById).filter(Boolean).map((x) => x.name);
+      return norm([p.job_number, p.job_title, feedJobName(p), STAGE[p.stage], p.caption, p.address, p.author_name, p.taken_by_name, p.camera_model, ...tags].filter(Boolean).join(" ")).includes(q);
     }).sort(byTaken);
     const counts = { all: feed.length, before: 0, during: 0, after: 0, none: 0 };
     feed.forEach((p) => (counts[STAGE[p.stage] ? p.stage : "none"] += 1));
@@ -616,8 +662,8 @@
               `<p class="cam-day">${esc(d.label)}<em>${d.items.length} foto${d.items.length === 1 ? "" : "s"} · ${d.jobs.size} job${d.jobs.size === 1 ? "" : "s"}</em></p><div class="cam-feedg">${d.items.map(([p, i]) => photoTile(p, i, { stage: true, job: true })).join("")}</div>`,
           )
           .join("")
-      : `<p class="cam-empty">${q || stageFilter !== "all" ? "Nenhuma foto com esse filtro." : "Ainda sem fotos."}</p>`;
-    $("camFeedBody").innerHTML = `<div class="cam-chips cam-chips--bar cam-chips--stick">${paneSwitchHtml("Mapa", 0)}${pane === "photos" ? chips : ""}</div>${pane === "map" ? mapPaneHtml() : grid}`;
+      : `<p class="cam-empty">${q || stageFilter !== "all" || stickerFilter ? "Nenhuma foto com esse filtro." : "Ainda sem fotos."}</p>`;
+    $("camFeedBody").innerHTML = `<div class="cam-chips cam-chips--bar cam-chips--stick">${paneSwitchHtml("Mapa", 0)}${pane === "photos" ? chips + stickerChipsHtml(feed) : ""}</div>${pane === "map" ? mapPaneHtml() : grid}`;
     if (pane === "map") renderAllMap().catch(() => {});
   }
 
@@ -727,6 +773,7 @@
   function select(id, push) {
     selId = id;
     stageFilter = "all";
+    stickerFilter = "";
     pane = "photos";
     renderList();
     const feedView = mode === "photos";
@@ -847,8 +894,14 @@
         closeUploadSheet();
         return;
       }
-      const t = e.target.closest("[data-cam-up-stage],[data-cam-up-camera],[data-cam-up-library],[data-cam-up-close]");
+      const t = e.target.closest("[data-cam-up-stage],[data-cam-up-camera],[data-cam-up-library],[data-cam-up-close],[data-cam-up-stk]");
       if (!t) return;
+      if (t.hasAttribute("data-cam-up-stk")) {
+        const id = t.getAttribute("data-cam-up-stk");
+        uploadStickers = uploadStickers.includes(id) ? uploadStickers.filter((x) => x !== id) : uploadStickers.concat(id);
+        paintUploadSheet("", false);
+        return;
+      }
       if (t.hasAttribute("data-cam-up-stage")) {
         uploadStage = t.getAttribute("data-cam-up-stage") || "";
         paintUploadSheet("", false);
@@ -875,6 +928,7 @@
   let uploadReturnFocus = null;
   let uploadFrom = "library";
   let uploadTakenBy = "";
+  let uploadStickers = [];
   let people = null;
   let meId = "";
 
@@ -899,6 +953,12 @@
         (s) =>
           `<button type="button" class="cam-up__stage${s.id === uploadStage ? " is-on" : ""}" data-cam-up-stage="${esc(s.id)}" aria-pressed="${s.id === uploadStage}"${dis}>${s.id === uploadStage ? UP_ICON.check : ""}${esc(s.label)}</button>`,
       ).join("")}</div>
+      ${stickers.some((x) => !x.archived)
+        ? `<p class="cam-up__lbl">Stickers <span>opcional</span></p><div class="cam-up__stks" role="group" aria-label="Stickers" data-no-i18n>${stickers
+            .filter((x) => !x.archived)
+            .map((x) => `<button type="button" class="cam-up__stk${uploadStickers.includes(x.id) ? " is-on" : ""}" data-cam-up-stk="${esc(x.id)}" aria-pressed="${uploadStickers.includes(x.id)}" style="--stk:${esc(x.color)}"${dis}><i aria-hidden="true"></i>${esc(x.name)}</button>`)
+            .join("")}</div>`
+        : ""}
       ${people && people.length > 1
         ? `<label class="cam-up__who"><span>Tirada por</span><select id="camUpWho"${dis}>${people
             .map((u) => `<option value="${esc(u.id)}"${u.id === (uploadTakenBy || meId) ? " selected" : ""}>${esc(u.name || "—")}${u.id === meId ? " (você)" : ""}</option>`)
@@ -928,11 +988,146 @@
     uploadTarget = { id: j.id, label: who && who !== "Sem cliente" ? who : j.title || "Job" };
     uploadStage = "during";
     uploadTakenBy = "";
+    uploadStickers = [];
     uploadReturnFocus = document.activeElement;
     paintUploadSheet("", false);
     uploadSheet.hidden = false;
     uploadSheet.querySelector("[data-cam-up-camera]")?.focus({ preventScroll: true });
     if (!people) loadPeople().then(() => !uploadSheet.hidden && !uploadBusy && paintUploadSheet("", false));
+  }
+
+  // ---------------------------------------------------------------- sticker manager
+  const STICKER_COLORS = ["#B4561A", "#1D6FB8", "#2F7D4F", "#7A4BC2", "#B42318", "#8A6A00", "#0F766E", "#475467"];
+  let stkSheet = null;
+  let stkReturnFocus = null;
+  let stkNewColor = STICKER_COLORS[1];
+  let stkStatus = "";
+
+  /** Create, rename, recolour and archive stickers (managers). Every change saves at once. */
+  function openStickerManager() {
+    if (!canManage) return;
+    if (!stkSheet) {
+      stkSheet = document.createElement("div");
+      stkSheet.className = "cam-up cam-stkm";
+      stkSheet.hidden = true;
+      document.body.appendChild(stkSheet);
+      stkSheet.addEventListener("click", onStickerSheetClick);
+      stkSheet.addEventListener("change", onStickerSheetChange);
+      stkSheet.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          e.stopPropagation();
+          closeStickerManager();
+        }
+        if (e.key === "Enter" && e.target.id === "camStkNew") {
+          e.preventDefault();
+          createSticker();
+        }
+      });
+    }
+    stkReturnFocus = document.activeElement;
+    stkStatus = "";
+    paintStickerManager();
+    stkSheet.hidden = false;
+    stkSheet.querySelector("#camStkNew")?.focus({ preventScroll: true });
+  }
+  function closeStickerManager() {
+    if (!stkSheet || stkSheet.hidden) return;
+    stkSheet.hidden = true;
+    if (stkReturnFocus && document.contains(stkReturnFocus)) stkReturnFocus.focus();
+  }
+  function swatches(cur, attr) {
+    return STICKER_COLORS.map((c) => `<button type="button" class="cam-stkm__sw${c === cur ? " is-on" : ""}" ${attr}="${c}" aria-pressed="${c === cur}" aria-label="Cor ${c}" style="--stk:${c}"></button>`).join("");
+  }
+  function paintStickerManager() {
+    const active = stickers.filter((x) => !x.archived);
+    const archived = stickers.filter((x) => x.archived);
+    const row = (x) => `<li class="cam-stkm__row${x.archived ? " is-arch" : ""}" data-stk-row="${esc(x.id)}">
+        <span class="cam-stkm__pv" style="--stk:${esc(x.color)}">${esc(x.name)}</span>
+        <input type="text" class="cam-stkm__name" value="${esc(x.name)}" maxlength="32" aria-label="Nome do sticker" data-stk-name="${esc(x.id)}"${x.archived ? " disabled" : ""} />
+        ${x.archived ? "" : `<span class="cam-stkm__sws" role="group" aria-label="Cor">${swatches(x.color, `data-stk-color-for="${esc(x.id)}" data-stk-color`)}</span>`}
+        ${x.system ? `<small>aplicado nas fotos de samples</small>` : ""}
+        <button type="button" class="cam-stkm__arch" data-stk-arch="${esc(x.id)}" data-arch="${x.archived ? "0" : "1"}">${x.archived ? "Restaurar" : "Arquivar"}</button>
+      </li>`;
+    stkSheet.innerHTML = `<div class="cam-up__card cam-stkm__card" role="dialog" aria-modal="true" aria-labelledby="camStkTitle">
+      <h2 id="camStkTitle">Stickers</h2>
+      <p>Etiquetas para organizar as fotos, como Delivery ou Scan. Cada foto pode ter várias.</p>
+      <div class="cam-stkm__new">
+        <input type="text" id="camStkNew" maxlength="32" placeholder="Novo sticker, ex.: Delivery" aria-label="Nome do novo sticker" />
+        <span class="cam-stkm__sws" role="group" aria-label="Cor do novo sticker">${swatches(stkNewColor, "data-stk-newcolor")}</span>
+        <button type="button" class="cam-stkm__add" data-stk-create>Criar</button>
+      </div>
+      <div class="cam-up__status${/não|erro|já existe/i.test(stkStatus) ? " is-err" : ""}" role="status">${esc(stkStatus)}</div>
+      <ul class="cam-stkm__list" data-no-i18n>${active.map(row).join("") || '<li class="cam-empty">Nenhum sticker ainda.</li>'}</ul>
+      ${archived.length ? `<p class="cam-up__lbl">Arquivados</p><ul class="cam-stkm__list" data-no-i18n>${archived.map(row).join("")}</ul>` : ""}
+      <button type="button" class="cam-up__cancel" data-stk-close>Fechar</button>
+    </div>`;
+  }
+  async function saveSticker(id, changes, msg) {
+    try {
+      const r = await api(`/api/job-media/stickers/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(changes) });
+      stickers = stickers.map((x) => (x.id === id ? r.data : x));
+      stkStatus = msg || "Salvo";
+    } catch (e) {
+      stkStatus = e.message || "Não foi possível salvar";
+    }
+    afterStickerChange();
+  }
+  async function createSticker() {
+    const input = stkSheet.querySelector("#camStkNew");
+    const name = (input?.value || "").trim();
+    if (!name) {
+      stkStatus = "Escreva um nome para o sticker.";
+      paintStickerManager();
+      stkSheet.querySelector("#camStkNew")?.focus();
+      return;
+    }
+    try {
+      const r = await api("/api/job-media/stickers", { method: "POST", body: JSON.stringify({ name, color: stkNewColor }) });
+      stickers = stickers.concat(r.data);
+      stkStatus = `“${r.data.name}” criado`;
+    } catch (e) {
+      stkStatus = e.message || "Não foi possível criar";
+    }
+    afterStickerChange();
+    stkSheet.querySelector("#camStkNew")?.focus();
+  }
+  function afterStickerChange() {
+    paintStickerManager();
+    window.CamViewer?.setStickers?.(stickers);
+    renderRight();
+  }
+  function onStickerSheetClick(e) {
+    if (e.target === stkSheet || e.target.closest("[data-stk-close]")) return closeStickerManager();
+    const nc = e.target.closest("[data-stk-newcolor]");
+    if (nc) {
+      stkNewColor = nc.getAttribute("data-stk-newcolor");
+      const keep = stkSheet.querySelector("#camStkNew")?.value || "";
+      paintStickerManager();
+      const inp = stkSheet.querySelector("#camStkNew");
+      inp.value = keep;
+      inp.focus({ preventScroll: true }); // Enter still creates after picking a colour
+      return;
+    }
+    if (e.target.closest("[data-stk-create]")) return createSticker();
+    const col = e.target.closest("[data-stk-color]");
+    if (col) return saveSticker(col.getAttribute("data-stk-color-for"), { color: col.getAttribute("data-stk-color") }, "Cor atualizada");
+    const ar = e.target.closest("[data-stk-arch]");
+    if (ar) {
+      const archive = ar.getAttribute("data-arch") === "1";
+      const x = stickerById(ar.getAttribute("data-stk-arch"));
+      saveSticker(x.id, { archived: archive }, archive ? `“${x.name}” arquivado. As fotos que já têm continuam com ele.` : `“${x.name}” restaurado`);
+    }
+  }
+  function onStickerSheetChange(e) {
+    const id = e.target.getAttribute && e.target.getAttribute("data-stk-name");
+    if (!id) return;
+    const name = e.target.value.trim();
+    const x = stickerById(id);
+    if (!x || !name || name === x.name) {
+      e.target.value = x ? x.name : "";
+      return;
+    }
+    saveSticker(id, { name }, "Nome atualizado");
   }
 
   function compressUpload(file) {
@@ -994,6 +1189,7 @@
           stage: uploadStage || null,
           ...shot,
           taken_by_id: takenBy,
+          sticker_ids: uploadStickers.slice(),
           client_upload_id: window.crypto?.randomUUID ? crypto.randomUUID() : `cam-${Date.now()}-${sent}`,
           device_label: window.__OM_FOCUS_APP ? "ObraCam app" : "ObraCam",
           is_public: false,
@@ -1103,6 +1299,17 @@
         openUploadSheet(up.getAttribute("data-cam-upload"));
         return;
       }
+      const sk = e.target.closest("[data-sticker]");
+      if (sk) {
+        const id = sk.getAttribute("data-sticker");
+        stickerFilter = stickerFilter === id ? "" : id;
+        renderRight();
+        return;
+      }
+      if (e.target.closest("[data-stk-manage]")) {
+        openStickerManager();
+        return;
+      }
       const pn = e.target.closest("[data-pane]");
       if (pn) {
         pane = pn.getAttribute("data-pane");
@@ -1194,6 +1401,7 @@
   // The ObraCam app (obracam-app.js) refreshes the job after sending photos.
   window.__camApp = {
     mode: () => mode,
+    manageStickers: () => openStickerManager(),
     setView,
     openUpload: openUploadSheet,
     reload(id) {
@@ -1225,6 +1433,12 @@
       }
     })
     .catch(() => {});
+  // Stickers may arrive after the first paint; repaint so tiles and filters show them.
+  loadStickers().then(() => {
+    if (!jobs.length) return;
+    if (mode === "photos") renderFeed();
+    else if (selId) renderJob();
+  });
   load().catch((e) => {
     $("camRows").innerHTML = `<p class="cam-empty">${esc(e.message || "Falha ao carregar")}</p>`;
     $("camDetail").innerHTML = "";
