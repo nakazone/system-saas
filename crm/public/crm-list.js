@@ -105,7 +105,7 @@
 
   function apply(L) {
     L.mo.disconnect();
-    try { render(L); } finally { L.mo.observe(L.rows, { childList: true, subtree: true }); }
+    try { render(L); if (!(L.spyLock && Date.now() < L.spyLock)) { L.spy = null; spy(L); } else markSpy(L); } finally { L.mo.observe(L.rows, { childList: true, subtree: true }); }
   }
 
   function render(L) {
@@ -182,31 +182,39 @@
       if (filters.length > 1) html += '<button type="button" class="ol-clear" data-ol-clear="all">Limpar</button>';
       html += "</div>";
     }
-    var fold = multi && !q
-      ? '<button type="button" class="ol-foldall" data-ol-foldall="' + (anyOpen ? "1" : "0") + '">' +
-        (anyOpen ? "Recolher tudo" : "Abrir tudo") + "</button>"
-      : "";
-    // Com uma linha de selects (Status/Origem…), o botão mora nela, só com ícone — sem faixa
-    // só para ele. Se não couber na linha (quebraria), volta para a faixa, com texto.
-    var slot = L.top && L.top.querySelector(".ol-bar");
-    var cur = slot && slot.querySelector(":scope > .ol-foldall");
-    var placed = false;
-    if (slot && fold) {
-      var label = anyOpen ? "Recolher todos os grupos" : "Abrir todos os grupos";
-      var icon = '<button type="button" class="ol-foldall ol-foldall--icon" data-ol-foldall="' + (anyOpen ? "1" : "0") +
-        '" aria-label="' + label + '" title="' + label + '"><svg viewBox="0 0 24 24" aria-hidden="true">' +
-        (anyOpen ? '<path d="m7 11 5-5 5 5M7 18l5-5 5 5"/>' : '<path d="m7 6 5 5 5-5M7 13l5 5 5-5"/>') + "</svg></button>";
-      if (!cur) { slot.insertAdjacentHTML("beforeend", icon); cur = slot.lastElementChild; }
-      else if (cur.outerHTML !== icon) { cur.outerHTML = icon; cur = slot.querySelector(":scope > .ol-foldall"); }
-      var first = slot.firstElementChild;
-      var cb = cur.getBoundingClientRect();
-      var sb = slot.getBoundingClientRect();
-      placed = !first || first === cur || (cur.offsetTop <= first.offsetTop + 4 && cb.right <= sb.right + 1);
+    // Índice dos grupos: a lista inteira num relance, um toque para ir ao grupo.
+    // Substitui a linha "Recolher tudo" — o recolher vira o ícone no fim do índice.
+    if (multi && !q) {
+      var idx = [];
+      var byShort = {};
+      groups.forEach(function (g, gi) {
+        if (!g.head) return;
+        var short = g.label.split(" · ")[0];
+        var n = parseInt((g.head.querySelector("em") || {}).textContent, 10);
+        if (isNaN(n)) n = g.items.length;
+        if (byShort[short]) { byShort[short].n += n; return; }
+        byShort[short] = { short: short, n: n, gi: gi, label: g.label, hot: HOT_RE.test(g.label), folded: g.head.classList.contains("is-folded") };
+        idx.push(byShort[short]);
+      });
+      var foldLabel = anyOpen ? "Recolher todos os grupos" : "Abrir todos os grupos";
+      html += '<div class="ol-idx"><nav class="ol-idx__list" aria-label="Ir para o grupo">' +
+        idx.map(function (x) {
+          return '<button type="button" class="ol-idx__b' + (x.hot ? " is-hot" : "") + (x.folded ? " is-folded" : "") +
+            (L.spy === x.short ? " is-here" : "") + '" data-ol-go="' + x.gi + '" data-ol-short="' + esc(x.short) + '">' +
+            esc(x.short) + "<em>" + x.n + "</em></button>";
+        }).join("") +
+        '</nav><button type="button" class="ol-idx__fold" data-ol-foldall="' + (anyOpen ? "1" : "0") + '" aria-label="' + foldLabel +
+        '" title="' + foldLabel + '"><svg viewBox="0 0 24 24" aria-hidden="true">' +
+        (anyOpen ? '<path d="m7 11 5-5 5 5M7 18l5-5 5 5"/>' : '<path d="m7 6 5 5 5-5M7 13l5 5 5-5"/>') + "</svg></button></div>";
     }
-    if (!placed && cur) cur.remove();
-    if (!placed) html += fold;
     L.filters = filters;
-    if (host.innerHTML !== html) host.innerHTML = html;
+    if (host.innerHTML !== html) {
+      var nav = host.querySelector(".ol-idx__list");
+      var sx = nav ? nav.scrollLeft : 0;
+      host.innerHTML = html;
+      nav = host.querySelector(".ol-idx__list");
+      if (nav) nav.scrollLeft = sx;
+    }
     host.hidden = !html;
   }
 
@@ -222,6 +230,66 @@
     if (keys.length > 80) keys.slice(0, keys.length - 80).forEach(function (k) { delete folds[k]; });
     store(L.key, folds);
     apply(L);
+  }
+
+  /* ---------- índice: ir ao grupo e marcar onde estamos */
+  function goTo(L, gi) {
+    var g = L.groups[gi];
+    if (!g || !g.head) return;
+    if (g.head.classList.contains("is-folded")) {
+      var folds = store(L.key);
+      folds[g.label] = false;
+      store(L.key, folds);
+      apply(L);
+      g = L.groups[gi];
+    }
+    var target = g.head.parentElement && g.head.parentElement.classList.contains("ol-band") ? g.head.parentElement : g.head;
+    var smooth = !(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+    var rows = L.rows;
+    if (rows.scrollHeight > rows.clientHeight + 4 && getComputedStyle(rows).overflowY !== "visible") {
+      var top = target.getBoundingClientRect().top - rows.getBoundingClientRect().top + rows.scrollTop - 6;
+      rows.scrollTo({ top: Math.max(0, top), behavior: smooth ? "smooth" : "auto" });
+    } else {
+      target.scrollIntoView({ block: "start", behavior: smooth ? "smooth" : "auto" });
+    }
+    L.spy = g.label.split(" · ")[0];
+    // o grupo tocado fica marcado mesmo que a lista não role até ele (fim da lista)
+    L.spyLock = Date.now() + 1200;
+    markSpy(L);
+  }
+
+  function spy(L) {
+    if (!L.groups || (L.spyLock && Date.now() < L.spyLock)) return;
+    var rows = L.rows;
+    var inner = rows.scrollHeight > rows.clientHeight + 4 && getComputedStyle(rows).overflowY !== "visible";
+    var edge = inner ? rows.getBoundingClientRect().top + 12 : (L.bar.getBoundingClientRect().bottom || 0) + 12;
+    var cur = null;
+    L.groups.forEach(function (g) {
+      if (!g.head) return;
+      var el = g.head.parentElement && g.head.parentElement.classList.contains("ol-band") ? g.head.parentElement : g.head;
+      if (el.getBoundingClientRect().top <= edge) cur = g;
+    });
+    if (!cur) cur = L.groups.filter(function (g) { return g.head; })[0];
+    var short = cur ? cur.label.split(" · ")[0] : "";
+    if (short === L.spy) return;
+    L.spy = short;
+    markSpy(L);
+  }
+
+  function markSpy(L) {
+    var here = null;
+    L.bar.querySelectorAll(".ol-idx__b").forEach(function (b) {
+      var on = b.dataset.olShort === L.spy;
+      b.classList.toggle("is-here", on);
+      if (on) here = b;
+    });
+    if (here) {
+      var nav = here.parentElement;
+      var l = here.offsetLeft - nav.offsetLeft;
+      if (l < nav.scrollLeft || l + here.offsetWidth > nav.scrollLeft + nav.clientWidth) {
+        nav.scrollTo({ left: Math.max(0, l - 24), behavior: "smooth" });
+      }
+    }
   }
 
   /* ---------- montar */
@@ -267,7 +335,6 @@
       apply(L);
       return true;
     }
-    if (top) top.addEventListener("click", function (e) { onFoldAll(e); });
     barEl.addEventListener("click", function (e) {
       var c = e.target.closest("[data-ol-clear]");
       if (c) {
@@ -277,8 +344,18 @@
         setTimeout(function () { apply(L); }, 0);
         return;
       }
+      var go = e.target.closest("[data-ol-go]");
+      if (go) { goTo(L, +go.dataset.olGo); return; }
       onFoldAll(e);
     });
+    // índice acompanha a rolagem: o grupo no topo fica marcado
+    var spyT = 0;
+    var onScroll = function () {
+      clearTimeout(spyT);
+      spyT = setTimeout(function () { spy(L); }, 60);
+    };
+    rows.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("scroll", onScroll, { passive: true });
     // filtros mudam fora da lista (selects, chips, busca) → atualizar faixa
     var later = function () { setTimeout(function () { apply(L); }, 0); };
     if (top) {

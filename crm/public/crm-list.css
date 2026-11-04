@@ -18,6 +18,8 @@
   --ol-surface: #ffffff;
   --ol-field: #F1F3F5;
   --ol-hover: #F6F7F9;
+  --ol-well: #F1F2F4;      /* fundo da área das linhas: cartões brancos ganham contraste */
+  --ol-card-line: #E3E6EA;
   --ol-accent: #E7792C;
   --ol-accent-soft: #FFF4EC;
   --ol-accent-ring: rgba(231, 121, 44, .38);
@@ -483,12 +485,119 @@
 .ol-list .ol-rows .jx-foot > .jmx-b:focus-visible { outline: 2px solid var(--ol-accent); outline-offset: 2px; }
 .ol-list .ol-rows .ol-band > .jx-rowwrap.jmx-card:last-child { margin-bottom: 4px; }
 
-/* "Recolher tudo" na linha dos selects, quando a lista tem uma */
-.ol-list .ol-bar > .ol-foldall {
-  margin-left: auto; height: 26px; padding: 0 8px; border: 0; border-radius: 8px;
-  background: transparent; color: var(--ol-ink2); font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; white-space: nowrap;
+
+
+/* ======================================================================
+ * Fundo cinza + cartões brancos (computador). O topo (busca, filtros, índice)
+ * continua branco; a área das linhas vira um "poço" cinza e cada item é um
+ * cartão — a leitura separa item por item sem precisar de divisórias.
+ * ====================================================================== */
+@media (min-width: 1025px) {
+  .ol-list:not(.ol-list--bare) .ol-rows { background: var(--ol-well); padding: 8px 10px 14px; }
+  .ol-list:not(.ol-list--bare) .ol-rows .ol-row,
+  .ol-list:not(.ol-list--bare) .ol-rows .om-swipe .ol-row {
+    margin: 0 0 6px;
+    background: var(--ol-surface);
+    box-shadow: 0 0 0 1px var(--ol-card-line), 0 1px 2px rgba(16, 24, 40, .04);
+  }
+  .ol-list:not(.ol-list--bare) .ol-rows .ol-row:hover { background: var(--ol-surface); box-shadow: 0 0 0 1px #C9CED6, 0 1px 3px rgba(16, 24, 40, .06); }
+  .ol-list:not(.ol-list--bare) .ol-rows .ol-row.is-on,
+  .ol-list:not(.ol-list--bare) .ol-rows .ol-row.is-active {
+    background: var(--ol-accent-soft);
+    box-shadow: 0 0 0 1.5px var(--ol-accent), 0 1px 3px rgba(16, 24, 40, .06);
+  }
+  .ol-list:not(.ol-list--bare) .ol-rows .om-swipe { background: transparent; box-shadow: none; }
+  /* cabeçalho preso: mesma cor do poço, sem sombra de cartão */
+  .ol-list:not(.ol-list--bare) .ol-rows .ol-grp--fold { background: var(--ol-well); box-shadow: none; top: -8px; margin-left: -10px; margin-right: -10px; padding: 12px 18px 8px; }
+  .ol-list:not(.ol-list--bare) .ol-rows .ol-more { background: transparent; }
+  .ol-list:not(.ol-list--bare) .ol-rows .ol-more:hover { background: #E7E9EC; }
+  .ol-list:not(.ol-list--bare) .ol-rows > p:only-child { color: var(--ol-ink2); }
+
+  /* Jobs: o cartão do app já é um cartão — só ajusta borda ao poço */
+  .ol-list .ol-rows .jx-rowwrap.jmx-card { border: 0; box-shadow: 0 0 0 1px var(--ol-card-line), 0 1px 2px rgba(16, 24, 40, .04); margin-bottom: 6px; }
+  .ol-list .ol-rows .jx-rowwrap.jmx-card:hover { box-shadow: 0 0 0 1px #C9CED6, 0 1px 3px rgba(16, 24, 40, .06); }
+  .ol-list .ol-rows .jx-rowwrap.jmx-card:has(.ol-row.is-on) { box-shadow: 0 0 0 1.5px var(--ol-accent), 0 1px 3px rgba(16, 24, 40, .06); }
+  .ol-list .ol-rows .jx-rowwrap.jmx-card .ol-row,
+  .ol-list .ol-rows .jx-rowwrap.jmx-card .ol-row:hover,
+  .ol-list .ol-rows .jx-rowwrap.jmx-card .ol-row.is-on { margin: 0; background: transparent; box-shadow: none !important; }
 }
-.ol-list .ol-bar > .ol-foldall--icon { flex: none; width: 30px; height: 30px; padding: 0; display: inline-grid; place-items: center; }
-.ol-list .ol-bar > .ol-foldall--icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.ol-list .ol-bar > .ol-foldall:hover { background: var(--ol-hover); color: var(--ol-ink); }
-.ol-list .ol-bar > .ol-foldall:focus-visible { outline: 2px solid var(--ol-accent); outline-offset: 1px; }
+
+/* ---------- índice de grupos (crm-list.js) */
+.ol-filt { flex-direction: column; align-items: stretch; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--ol-line); background: var(--ol-surface); }
+.ol-filt .ol-act { flex: none; }
+.ol-idx { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.ol-idx__list {
+  display: flex; gap: 4px; min-width: 0; flex: 1;
+  overflow-x: auto; scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 18px), transparent);
+          mask-image: linear-gradient(90deg, #000 calc(100% - 18px), transparent);
+}
+.ol-idx__list::-webkit-scrollbar { display: none; }
+/* índice = navegação, não filtro: texto com sublinhado no grupo atual (os filtros são pílulas) */
+.ol-idx__b {
+  position: relative;
+  flex: none; display: inline-flex; align-items: center; gap: 5px;
+  height: 30px; padding: 0 8px; border: 0; border-radius: 8px;
+  background: transparent; color: var(--ol-ink2);
+  font: inherit; font-size: 12.5px; font-weight: 600; white-space: nowrap; cursor: pointer;
+  transition: color .15s ease;
+}
+.ol-idx__b::after {
+  content: ""; position: absolute; left: 8px; right: 8px; bottom: 1px; height: 2px; border-radius: 2px;
+  background: var(--ol-accent); transform: scaleX(0); transition: transform .2s cubic-bezier(.2, .7, .3, 1);
+}
+.ol-idx__b em { font-style: normal; font-weight: 650; font-variant-numeric: tabular-nums; color: var(--ol-ink3); }
+.ol-idx__b.is-hot em { color: var(--ol-hot); }
+.ol-idx__b.is-folded { color: var(--ol-ink3); }
+.ol-idx__b:hover { color: var(--ol-ink); }
+.ol-idx__b.is-here { color: var(--ol-ink); font-weight: 700; }
+.ol-idx__b.is-here::after { transform: scaleX(1); }
+.ol-idx__b:focus-visible, .ol-idx__fold:focus-visible { outline: 2px solid var(--ol-accent); outline-offset: 1px; }
+.ol-idx__fold {
+  flex: none; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px;
+  display: inline-grid; place-items: center; background: transparent; color: var(--ol-ink2); cursor: pointer;
+}
+.ol-idx__fold:hover { background: var(--ol-hover); color: var(--ol-ink); }
+.ol-idx__fold svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+@media (max-width: 1024px) {
+  .ol-filt { padding: 0 2px 10px; border: 0; background: transparent; }
+  .ol-idx__b { height: 34px; font-size: 13px; }
+}
+@media (prefers-reduced-motion: reduce) { .ol-idx__b, .ol-idx__b::after { transition: none; } }
+.ol-list .ol-top:has(+ .ol-filt:not([hidden])) { border-bottom: 0; padding-bottom: 8px; }
+.ol-list .ol-top + .ol-filt { padding-top: 0; }
+
+/* ---------- Jobs: cartão de agenda (bloco do dia à esquerda) */
+.ol-list .jx-day {
+  align-self: start;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  width: 46px; padding: 6px 0 5px; margin-right: 12px;
+  border-radius: 11px; background: var(--ol-field); color: var(--ol-ink);
+  line-height: 1; text-transform: uppercase;
+}
+.ol-list .jx-day b { font-size: 19px; font-weight: 750; letter-spacing: -.02em; margin: 3px 0 2px; font-variant-numeric: tabular-nums; }
+.ol-list .jx-day small { font-size: 10px; font-weight: 650; letter-spacing: .04em; color: var(--ol-ink2); }
+.ol-list .jx-day.is-today { background: var(--ol-accent); color: #fff; }
+.ol-list .jx-day.is-today small { color: rgba(255, 255, 255, .86); }
+.ol-list .jx-day.is-late { background: var(--ol-hot-bg); color: var(--ol-hot); }
+.ol-list .jx-day.is-late small { color: var(--ol-hot); }
+.ol-list .jx-day.is-done { color: var(--ol-ink2); }
+.ol-list .jx-day.is-none b { font-size: 16px; color: var(--ol-ink3); margin: 2px 0 3px; }
+.ol-list .jx-day.is-none small { text-transform: none; letter-spacing: 0; font-size: 9.5px; }
+/* com o bloco do dia, o progresso fica sob o texto, não sob o bloco */
+.ol-list .ol-rows .jx-rowwrap.jmx-card .ol-row > .jx-prog { grid-column: 2 / -1; }
+.ol-list .ol-rows .jx-rowwrap.jmx-card .ol-row > .ol-v.ol-time { font-size: 12.5px; font-weight: 650; color: var(--ol-ink2); }
+
+/* ---------- Jobs: Status/Origem atrás do botão Filtros */
+.jx-filt-btn { position: relative; }
+.jx-filt-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.jx-filt-btn em {
+  position: absolute; top: -4px; right: -4px; min-width: 17px; height: 17px; padding: 0 4px;
+  border-radius: 999px; background: var(--ol-accent); color: #fff;
+  font-style: normal; font-size: 10.5px; font-weight: 750; line-height: 17px; text-align: center;
+  box-shadow: 0 0 0 2px var(--ol-surface);
+}
+.jx-filt-btn em[hidden] { display: none; }
+@media (min-width: 1025px) {
+  .jx-list:not(.is-filt) .jx-list__bar { display: none; }
+}
