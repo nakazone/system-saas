@@ -1424,7 +1424,7 @@
     openSheet(
       `<header class="fq-sbar"><button type="button" class="fq-link" data-fq-close>Fechar</button><h2>Mate</h2>${hasSpeech ? `<button type="button" class="fq-hf${hf ? ' is-on' : ''}" data-fq-handsfree aria-pressed="${hf}">${hf ? 'Mãos livres · ligado' : 'Mãos livres'}</button>` : '<span></span>'}</header>
       <div class="fq-chat">
-        <div class="fq-chat__summary"><span>${serviceCount} serviço${serviceCount === 1 ? '' : 's'}</span><span>${roomCount} cômodo${roomCount === 1 ? '' : 's'}</span><b>${esc(money(estimate.total))}</b></div>
+        <div class="fq-chat__summary">${floorHidden(S.d) ? `<span>${topPieces(S.d)} bancada${topPieces(S.d) === 1 ? '' : 's'}</span><span>${fmtN(topsSf(S.d))} pé²</span>` : `<span>${serviceCount} serviço${serviceCount === 1 ? '' : 's'}</span><span>${roomCount} cômodo${roomCount === 1 ? '' : 's'}</span>`}<b>${esc(money(estimate.total))}</b></div>
         <div class="fq-chat__messages" id="fqAiConversationMessages" role="log" aria-label="Conversa sobre o orçamento" aria-live="polite">
           ${messages.length ? messageHtml : `<div class="fq-chat__welcome"><b>Fale como contaria para alguém da equipe.</b><p>Cômodo por cômodo: o que sai, o que entra e as medidas. Eu monto e você confirma.</p><small>Ex.: “Sala dezesseis por doze, tira o carpete e coloca LVP. Corredor dez por quatro, mesmo piso.”</small></div>`}
           ${S.ai.conversationBusy ? '<div class="fq-chat__typing" role="status"><i></i><i></i><i></i><span>Um instante…</span></div>' : ''}
@@ -1558,12 +1558,61 @@
     });
     if (detailChanges) changes.push(`Registrei ${detailChanges} detalhe${detailChanges === 1 ? '' : 's'} da obra`);
 
+    changes.push(...applyTopsPatch(patch));
     const note = String(patch.notes_append || '').trim();
     if (note) {
       S.d.notes = [S.d.notes, note].filter(Boolean).join('\n');
       changes.push('Anotei o detalhe interno da obra');
     }
     return changes;
+  }
+  /** Countertops from Mate: new tops, changes to a top, removed tops, and the job's stone and edge. */
+  function applyTopsPatch(patch) {
+    const O = window.ObTops;
+    const add = Array.isArray(patch.tops_add) ? patch.tops_add : [];
+    const upd = Array.isArray(patch.tops_update) ? patch.tops_update : [];
+    const rem = Array.isArray(patch.tops_remove_ids) ? patch.tops_remove_ids : [];
+    const spec = patch.top_spec && typeof patch.top_spec === 'object' ? patch.top_spec : {};
+    if (!O || (!add.length && !upd.length && !rem.length && !Object.keys(spec).length)) return [];
+    const out = [];
+    const tops = O.normalize(S.d.tops || {});
+    const inch = (v) => `${Math.round(v * 10) / 10}″`;
+    O.setLang('pt');
+    add.forEach((raw) => {
+      const p = O.normalize({ spec: tops.spec, pieces: [raw] }).pieces[0];
+      if (tops.pieces.some((x) => x.id === p.id)) return;
+      tops.pieces.push(p);
+      out.push(`Adicionei ${p.name || O.chip({ pieces: [p] }, 0).name} · ${inch(p.length)} × ${inch(p.depth + p.overhang)}`);
+    });
+    upd.forEach((u) => {
+      const i = tops.pieces.findIndex((x) => x.id === u.id);
+      if (i < 0) return;
+      const cur = tops.pieces[i];
+      const merged = { ...cur, ...u, waterfall: { ...cur.waterfall, ...(u.waterfall || {}) } };
+      tops.pieces[i] = O.normalize({ pieces: [merged] }).pieces[0];
+      const n = tops.pieces[i];
+      const sized = ['length', 'depth', 'overhang'].some((k) => u[k] != null);
+      out.push(`Atualizei ${n.name || O.chip(tops, i).name}${sized ? ` · ${inch(n.length)} × ${inch(n.depth + n.overhang)}` : ''}`);
+    });
+    rem.forEach((id) => {
+      const i = tops.pieces.findIndex((x) => x.id === id);
+      if (i < 0) return;
+      out.push(`Removi ${tops.pieces[i].name || O.chip(tops, i).name}`);
+      tops.pieces.splice(i, 1);
+    });
+    const SPEC_PT = { level: 'Nível', material: 'Material', color: 'Cor', thickness: 'Espessura', edge: 'Borda', splash: 'Rodabanca', full_h: 'Altura da rodabanca', tearout: 'Retirar bancada antiga' };
+    const VAL_PT = { eased: 'reta', bevel: 'chanfro', ogee: 'ogee', mitered: 'esquadria', none: 'sem', '4in': '4″', full: 'até o armário' };
+    const before = JSON.stringify(tops.spec);
+    tops.spec = O.normalize({ spec: { ...tops.spec, ...spec } }).spec;
+    if (JSON.stringify(tops.spec) !== before) {
+      Object.keys(spec).forEach((k) => {
+        if (!(k in SPEC_PT)) return;
+        const v = tops.spec[k];
+        out.push(`${SPEC_PT[k]}: ${typeof v === 'boolean' ? (v ? 'sim' : 'não') : VAL_PT[v] || v}`);
+      });
+    }
+    S.d.tops = tops;
+    return out;
   }
   async function sendAiConversation(message, fromVoice) {
     const input = $('#fqAiConversationInput');

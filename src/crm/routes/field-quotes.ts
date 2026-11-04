@@ -26,7 +26,8 @@ import { formatPersonName } from "../../lib/name.js";
 import { aiChatJson, aiListElevenLabsVoices, aiTextToSpeech, isAiConfigured } from "../../lib/ai/client.js";
 import { buildFieldQuoteTour, quoteShowers, quoteTops, tourDeposit } from "../../lib/field-quote/tour.js";
 import { persistQuoteTotals, recomputeTotalsFromQuote } from "../../modules/quotes/service.js";
-import { getPack } from "../../lib/trades/index.js";
+import { getPack, primaryPack } from "../../lib/trades/index.js";
+import { TOPS_CONVERSATION_PROMPT, cleanTopsPatch, topsConversationSchema, topsContext } from "../../lib/field-quote/tops-ai.js";
 
 /** The trade word the AI uses for this product's companies (hardwood pack: "flooring"). */
 const TRADE_NOUN = getPack().ai.tradeNoun;
@@ -681,6 +682,28 @@ fieldQuotesRouter.post("/api/field-quotes/:id/ai/conversation", requireCrmAuth, 
 
     const current = row.data && typeof row.data === "object" && !Array.isArray(row.data) ? row.data as Record<string, unknown> : {};
     const currentRooms = Array.isArray(current.rooms) ? current.rooms as Array<Record<string, unknown>> : [];
+
+    // A Countertops company's visit without flooring: Mate talks tops (pieces, edges, sink…) instead.
+    const org = await txFor(req, (tx) => tx.organization.findUnique({ where: { id: req.organizationId! }, select: { tradePacks: true } }));
+    const flooring = currentRooms.length > 0 || (Array.isArray(current.services) && current.services.length > 0);
+    if (primaryPack(org?.tradePacks).id === "countertops" && !flooring) {
+      const { data: talk, model } = await askFieldQuoteAi(
+        TOPS_CONVERSATION_PROMPT,
+        JSON.stringify({
+          current_context: {
+            ...topsContext(current.tops),
+            answers: current.answers && typeof current.answers === "object" ? current.answers : {},
+            internal_notes: String(current.notes || "").slice(0, 1600),
+          },
+          recent_conversation: request.data.history.slice(-20),
+          latest_message: request.data.message,
+        }),
+        topsConversationSchema,
+      );
+      const clean = cleanTopsPatch(talk, current.tops);
+      res.json({ success: true, data: { ...clean, model } });
+      return;
+    }
     const currentAnswers = current.answers && typeof current.answers === "object" && !Array.isArray(current.answers) ? current.answers : {};
     const currentServices = Array.isArray(current.services) ? current.services.filter((service): service is string => typeof service === "string" && (SERVICE_IDS as readonly string[]).includes(service)) : [];
     const currentExtras = current.extras && typeof current.extras === "object" && !Array.isArray(current.extras) ? current.extras as Record<string, unknown> : {};

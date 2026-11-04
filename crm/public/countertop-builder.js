@@ -198,7 +198,7 @@
     add('ct_waterfall', 'ct_waterfall', 'Waterfall Edge (per side)', 'Mitered waterfall to the floor', q.waterfalls, 'each');
     if (s.edge !== 'eased') {
       const nm = { bevel: 'Edge Upgrade – Bevel / Half Bullnose', ogee: 'Edge Upgrade – Ogee / Full Bullnose', mitered: 'Mitered Edge (laminated)' }[s.edge];
-      add(`ct_edge_${s.edge}`, 'ct_edge', nm, 'Exposed edges', q.edge_lf, 'linear_ft');
+      add(`ct_edge_${s.edge}`, `ct_edge_${s.edge}`, nm, 'Exposed edges', q.edge_lf, 'linear_ft');
     }
     add('ct_sink_undermount', 'ct_sink_undermount', 'Undermount Sink Cutout', 'Polished cutout, sink mounted', q.sinks.undermount, 'each');
     add('ct_sink_farmhouse', 'ct_sink_farmhouse', 'Farmhouse / Apron Sink Cutout', '', q.sinks.farmhouse, 'each');

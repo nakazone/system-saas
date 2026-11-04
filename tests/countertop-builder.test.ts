@@ -65,7 +65,7 @@ describe("countertop quote lines", () => {
       "ct_top_l2@run",
       "ct_top_l2@isl",
       "ct_waterfall",
-      "ct_edge",
+      "ct_edge_ogee",
       "ct_sink_undermount",
       "ct_cooktop",
       "ct_faucet",
@@ -76,10 +76,18 @@ describe("countertop quote lines", () => {
     expect(lines[0]).toMatchObject({ item: "ct_top_l2", piece_id: "run", name: "Countertop – Level 2 (fabricate & install)", quantity: 21.3, unit: "sq_ft" });
     expect(lines[0].description).toBe("Sink wall · 120″ × 25.5″ · Quartz · Calacatta Laza · 3 cm");
     expect(lines[1].description).toContain("+ 12″ overhang");
-    expect(lines.find((l: any) => l.key === "ct_edge")).toMatchObject({ name: "Edge Upgrade – Ogee / Full Bullnose", quantity: 30.5, unit: "linear_ft" });
+    expect(lines.find((l: any) => l.key === "ct_edge_ogee")).toMatchObject({ name: "Edge Upgrade – Ogee / Full Bullnose", quantity: 30.5, unit: "linear_ft" });
     // The eased edge is included in the top: no edge line.
-    expect(O.quoteLines(kitchen).some((l: any) => l.key === "ct_edge")).toBe(false);
+    expect(O.quoteLines(kitchen).some((l: any) => /^ct_edge/.test(l.key))).toBe(false);
     expect(O.quoteLines({ spec: {}, pieces: [] })).toEqual([]);
+    // The Field Quote looks a line's price up by its key: every key (without the piece) is its item.
+    for (const edge of ["bevel", "ogee", "mitered"]) {
+      const all = O.quoteLines({ spec: { edge, splash: "full", tearout: true }, pieces: [{ id: "a", sink: "farmhouse", cooktop: true, outlets: 1, overhang: 14, waterfall: { left: true } }, { id: "b", kind: "vanity", sink: "dropin" }] });
+      for (const l of all) {
+        expect(l.key.split("@")[0]).toBe(l.item);
+        expect(O.PRICE_ITEMS[l.item]).toBeTruthy();
+      }
+    }
   });
 
   it("every item points at a Countertops service the price list gets when the trade is turned on", () => {
