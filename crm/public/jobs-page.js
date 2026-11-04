@@ -215,6 +215,26 @@
     }
     return "";
   }
+  /** Bloco do dia, como numa agenda: QUA / 4 / NOV. Hoje em laranja, atrasado em tom quente. */
+  function dayBlock(wo, finished) {
+    const J = I();
+    const iso = J.listAnchorIso(wo) || (finished ? wo.updated_at || wo.scheduled_end : null);
+    if (!iso) return `<span class="ol-lead jx-day is-none" aria-hidden="true"><b>—</b><small>sem data</small></span>`;
+    const d = new Date(iso);
+    const wd = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"][d.getDay()];
+    const mo = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"][d.getMonth()];
+    const today = sod(d).getTime() === sod(new Date()).getTime();
+    const tone = today ? " is-today" : !finished && J.late(wo) ? " is-late" : finished ? " is-done" : "";
+    return `<span class="ol-lead jx-day${tone}" aria-label="${today ? "Hoje" : `${wd} ${d.getDate()} ${mo}`}"><small>${today ? "hoje" : wd}</small><b>${d.getDate()}</b><small>${mo}</small></span>`;
+  }
+  /** Hora de início, quando o job tem hora marcada (não meia-noite). */
+  function timeText(wo) {
+    const iso = I().listAnchorIso(wo);
+    if (!iso || wo.status === "completed" || wo.status === "canceled") return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime()) || (d.getHours() === 0 && d.getMinutes() === 0)) return "";
+    return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  }
   function rowHtml(wo, now = false) {
     const J = I();
     const finished = wo.status === "completed" || wo.status === "canceled";
@@ -231,12 +251,13 @@
     const maps = wo.address ? `https://maps.google.com/?q=${encodeURIComponent(wo.address)}` : "";
     const actions = cardActions(wo, undated, now);
     const id = J.esc(wo.id);
-    // Cartão do app, compacto para a coluna: nome e data, endereço, progresso, e uma
-    // linha com o status à esquerda e mapa + ação principal à direita.
+    // Cartão de agenda: bloco do dia à esquerda (lê-se a lista pela data, como uma agenda),
+    // nome + hora, endereço, progresso; embaixo o status e mapa + ação principal.
     const body = `<div class="jx-rowwrap jmx-card">
     <a class="jx-row ol-row${String(wo.id) === String(selId) ? " is-on" : ""}" href="${href}" data-jx-id="${id}">
+      ${dayBlock(wo, finished)}
       <b class="ol-t" title="${J.esc(head)}">${J.esc(head)}</b>
-      ${when.date && !undated ? `<span class="ol-v">${J.esc(when.date)}</span>` : ""}
+      ${timeText(wo) ? `<span class="ol-v ol-time">${J.esc(timeText(wo))}</span>` : ""}
       ${addr}
       ${J.progHtml(wo)}
     </a>
@@ -1204,7 +1225,18 @@
       render();
     } catch (_) {}
   });
+  /** Quantos filtros (Status, Origem) estão ligados — aparece no botão Filtros. */
+  function syncFiltBadge() {
+    const n = ["jxStatus", "jxSource"].filter((id) => $(id) && $(id).value).length;
+    const badge = $("jxFiltN");
+    if (badge) {
+      badge.hidden = !n;
+      badge.textContent = n ? String(n) : "";
+    }
+    $("jxFiltBtn")?.classList.toggle("is-set", n > 0);
+  }
   function render() {
+    syncFiltBadge();
     renderSum();
     renderTiles();
     const rows = renderList();
@@ -1561,6 +1593,18 @@
     $("btnNewJob")?.addEventListener("click", () => {
       window.__crmJobModal.openCreate({ allDay: true }).catch((e) => notify(e.message, "error"));
     });
+    // Status e Origem ficam atrás do botão Filtros (o topo já filtra por status nos blocos);
+    // o filtro ligado aparece como chip acima da lista, e o botão mostra quantos estão ligados.
+    const filtBtn = $("jxFiltBtn");
+    filtBtn?.addEventListener("click", () => {
+      const list = filtBtn.closest(".jx-list");
+      const open = !list.classList.contains("is-filt");
+      list.classList.toggle("is-filt", open);
+      filtBtn.setAttribute("aria-expanded", open ? "true" : "false");
+      if (open) $("jxStatus")?.focus();
+    });
+    ["jxStatus", "jxSource"].forEach((id) => $(id)?.addEventListener("change", syncFiltBadge));
+    syncFiltBadge();
     $("jxCalBtn")?.addEventListener("click", (e) => {
       e.stopPropagation();
       calOpen = !calOpen;
