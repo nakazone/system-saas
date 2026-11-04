@@ -2453,18 +2453,21 @@
   }
 
   // ---------------------------------------------------------------- client selection
-  /** Open quote, approved (for merge), or draft job abandoned mid-setup. */
+  /** Open quote, approved, or draft/canceled job that can still become a new job. */
   function isImportableQuoteRow(q) {
     if (!q) return false;
     const woId = q.work_order_id;
     const woStatus = String(q.work_order_status || "").toLowerCase();
     if (woId) {
-      // Job was created from the quote but never finished (closed without Save).
-      return !woStatus || woStatus === "draft";
+      // Draft = unfinished setup; canceled = previous job voided — quote is free again.
+      return !woStatus || woStatus === "draft" || woStatus === "canceled";
     }
     const raw = String(q.status_raw || "").toLowerCase();
     const norm = String(q.status || "").toLowerCase();
-    if (["approved", "converted", "accepted"].includes(raw) || ["approved", "converted", "accepted"].includes(norm)) {
+    if (
+      ["approved", "converted", "accepted", "invoiced"].includes(raw) ||
+      ["approved", "converted", "accepted"].includes(norm)
+    ) {
       return true;
     }
     return OPEN_QUOTE_STATUSES.has(raw) || OPEN_QUOTE_STATUSES.has(norm);
@@ -2473,19 +2476,29 @@
   function quoteImportStatusLabel(q) {
     const woId = q && q.work_order_id;
     const woStatus = String((q && q.work_order_status) || "").toLowerCase();
+    if (woId && woStatus === "canceled") return "Job cancelado";
     if (woId && (!woStatus || woStatus === "draft")) return "Continuar job";
     const raw = String(q.status_raw || q.status || "").toLowerCase();
-    if (["approved", "converted", "accepted"].includes(raw)) return "Aprovado";
+    if (["approved", "converted", "accepted", "invoiced"].includes(raw)) return "Aprovado";
     return OPEN_QUOTE_STATUS_LBL[raw] || "Aberto";
   }
 
+  /** Any importable quote can be selected for unify (open ones are auto-approved on merge). */
   function isMergeableQuoteRow(q) {
-    if (!q) return false;
-    const raw = String(q.status_raw || q.status || "").toLowerCase();
-    if (["approved", "converted", "accepted"].includes(raw)) return true;
-    const woId = q.work_order_id;
-    const woStatus = String(q.work_order_status || "").toLowerCase();
-    return Boolean(woId) && (!woStatus || woStatus === "draft");
+    return isImportableQuoteRow(q);
+  }
+
+  function selectedClientDisplayName() {
+    if (!st) return "";
+    if (st.customerId) {
+      const c = currentCustomer();
+      return String((c && (c.name || c.company)) || st.sourceName || "").trim();
+    }
+    if (st.builderId) {
+      const b = currentBuilder();
+      return String((b && builderName(b)) || st.sourceName || "").trim();
+    }
+    return String(st.sourceName || "").trim();
   }
 
   function openQuotesHtml() {
@@ -2500,7 +2513,7 @@
     const mergeCount = selected.size;
     return `<div class="jm-quote-import">
       <p class="jm-quote-import__hd"><b>${list.length === 1 ? "1 orçamento disponível" : `${list.length} orçamentos disponíveis`}</b>
-        <span>${canMerge ? "Toque para importar um, ou marque 2 para unificar num só job." : "Importe ou continue um job em rascunho a partir do orçamento."}</span></p>
+        <span>${canMerge ? "Toque para importar um, ou marque 2+ para unificar num só job." : "Importe ou continue um job em rascunho a partir do orçamento."}</span></p>
       <div class="jm-quote-import__list">${list
         .map((q) => {
           const num = q.quote_number || (q.number != null ? `#${q.number}` : "Orçamento");
@@ -2540,7 +2553,7 @@
         mergeCount >= 2
           ? `<button type="button" class="jm-btn jm-btn--pri jm-quote-import__merge" data-act="merge-quotes">Unificar ${mergeCount} orçamentos num job</button>`
           : canMerge
-            ? `<p class="jm-hint jm-quote-import__merge-hint">Marque 2 orçamentos aprovados para unificar.</p>`
+            ? `<p class="jm-hint jm-quote-import__merge-hint">Marque 2 ou mais orçamentos para unificar num job.</p>`
             : ""
       }
       <button type="button" class="jm-link jm-quote-import__skip" data-act="skip-quotes">Continuar sem orçamento</button>
@@ -2558,6 +2571,7 @@
     const seq = ++openQuotesFetchSeq;
     const customerSnap = st.customerId;
     const builderSnap = st.builderId;
+    const nameSnap = selectedClientDisplayName();
     st.openQuotesLoading = true;
     renderClient();
     try {
@@ -2568,17 +2582,27 @@
         if (!st || seq !== openQuotesFetchSeq) return;
         if (pc) customerId = pc.id;
       }
-      const params = new URLSearchParams({ limit: "30" });
+      const params = new URLSearchParams({ limit: "20" });
       if (customerId) params.set("customer_id", String(customerId));
       if (builderId) params.set("builder_id", String(builderId));
-      if (!customerId && !builderId) {
+      if (nameSnap) params.set("name", nameSnap);
+      if (!customerId && !builderId && !nameSnap) {
         st.openQuotes = [];
         return;
       }
-      const j = await api(`/api/quotes?${params.toString()}`);
+      let j;
+      try {
+        j = await api(`/api/quotes/job-import-candidates?${params.toString()}`);
+      } catch (_) {
+        // Older deploy fallback: expanded party filter on /api/quotes.
+        const fallback = new URLSearchParams({ limit: "30" });
+        if (customerId) fallback.set("customer_id", String(customerId));
+        if (builderId) fallback.set("builder_id", String(builderId));
+        j = await api(`/api/quotes?${fallback.toString()}`);
+      }
       if (!st || seq !== openQuotesFetchSeq) return;
       if (String(st.customerId || "") !== String(customerSnap || "") || String(st.builderId || "") !== String(builderSnap || "")) return;
-      st.openQuotes = (j.data || []).filter(isImportableQuoteRow).slice(0, 8);
+      st.openQuotes = (j.data || []).filter(isImportableQuoteRow).slice(0, 12);
     } catch (_) {
       if (!st || seq !== openQuotesFetchSeq) return;
       st.openQuotes = [];
@@ -2607,6 +2631,8 @@
         notify("Este orçamento já tem um job. Abrindo o job existente.", "info");
         return;
       }
+      // Canceled job: free the quote and create a fresh draft.
+      if (jobId && woStatus === "canceled") jobId = null;
       if (!jobId) {
         const j = await api(`/api/quotes/${encodeURIComponent(quoteId)}/status`, {
           method: "POST",

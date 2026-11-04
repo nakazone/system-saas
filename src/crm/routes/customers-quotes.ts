@@ -1710,6 +1710,80 @@ function quoteListInclude() {
   };
 }
 
+/**
+ * Expand customer_id / builder_id into linked parties (builder→customer, customer→builders,
+ * Client ID twins) so quote lists find every orçamento for that person/company.
+ */
+async function expandQuotePartyIds(
+  tx: TenantPrisma,
+  customerId: string | null,
+  builderId: string | null,
+): Promise<{ customerIds: string[]; builderIds: string[] }> {
+  const customerIds = new Set<string>();
+  const builderIds = new Set<string>();
+  if (customerId) customerIds.add(customerId);
+  if (builderId) builderIds.add(builderId);
+  for (let round = 0; round < 3; round++) {
+    if (builderIds.size) {
+      const builders = await tx.builder.findMany({
+        where: { id: { in: [...builderIds] } },
+        select: { customerId: true },
+      });
+      for (const b of builders) {
+        if (b.customerId) customerIds.add(b.customerId);
+      }
+    }
+    if (customerIds.size) {
+      const linked = await tx.builder.findMany({
+        where: { customerId: { in: [...customerIds] } },
+        select: { id: true },
+      });
+      for (const b of linked) builderIds.add(b.id);
+      const seeds = await tx.customer.findMany({
+        where: { id: { in: [...customerIds] } },
+        select: { clientCode: true },
+      });
+      const codes = [
+        ...new Set(
+          seeds
+            .map((s) => (s.clientCode != null ? String(s.clientCode).trim() : ""))
+            .filter(Boolean),
+        ),
+      ];
+      if (codes.length) {
+        const twins = await tx.customer.findMany({
+          where: { clientCode: { in: codes } },
+          select: { id: true },
+          take: 50,
+        });
+        for (const t of twins) customerIds.add(t.id);
+      }
+    }
+  }
+  return { customerIds: [...customerIds], builderIds: [...builderIds] };
+}
+
+function quotePartyWhere(customerIds: string[], builderIds: string[]): Prisma.QuoteWhereInput | null {
+  const or: Prisma.QuoteWhereInput[] = [];
+  if (customerIds.length) or.push({ customerId: { in: customerIds } });
+  if (builderIds.length) or.push({ builderId: { in: builderIds } });
+  return or.length ? { OR: or } : null;
+}
+
+/** Quotes that can still become (or resume) a draft job from the job modal. */
+function isJobImportCandidateRow(q: {
+  status: string;
+  workOrderId: string | null;
+  workOrder?: { status?: string | null } | null;
+}): boolean {
+  const woStatus = String(q.workOrder?.status || "").toLowerCase();
+  if (q.workOrderId) {
+    return !woStatus || woStatus === "draft" || woStatus === "canceled";
+  }
+  const st = normalizeQuoteStatus(q.status);
+  return st === "draft" || st === "sent" || st === "changes_requested" || st === "approved" || st === "converted";
+}
+
 /** Broad quote list search: number, title, client/builder names, address, job fields. */
 function quoteSearchWhere(search: string): Prisma.QuoteWhereInput[] {
   const q = search.trim();
@@ -1859,12 +1933,12 @@ customersQuotesRouter.get("/api/quotes", requireCrmAuth, async (req: AuthedReque
       if (status) where.status = status;
       if (group) Object.assign(where, quoteGroupWhere(group));
       if (leadId) where.leadId = leadId;
-      if (customerId && builderId) {
-        where.AND = [...(Array.isArray(where.AND) ? where.AND : []), { OR: [{ customerId }, { builderId }] }];
-      } else if (customerId) {
-        where.customerId = customerId;
-      } else if (builderId) {
-        where.builderId = builderId;
+      if (customerId || builderId) {
+        const parties = await expandQuotePartyIds(tx, customerId, builderId);
+        const partyWhere = quotePartyWhere(parties.customerIds, parties.builderIds);
+        if (partyWhere) {
+          where.AND = [...(Array.isArray(where.AND) ? where.AND : []), partyWhere];
+        }
       }
       if (search) {
         const contains = { contains: search, mode: "insensitive" as const };
@@ -1906,6 +1980,97 @@ customersQuotesRouter.get("/api/quotes", requireCrmAuth, async (req: AuthedReque
     next(error);
   }
 });
+
+/**
+ * Quotes eligible to import / merge into a new job for the selected customer or builder.
+ * Expands linked parties and also matches by display / job name (e.g. homeowner on a builder quote).
+ */
+customersQuotesRouter.get(
+  "/api/quotes/job-import-candidates",
+  requireCrmAuth,
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const customerId = asOptionalUuid(req.query.customer_id);
+      const builderId = asOptionalUuid(req.query.builder_id);
+      const name = String(req.query.name || "").trim();
+      if (!customerId && !builderId && name.length < 2) {
+        res.json({ success: true, data: [] });
+        return;
+      }
+      const limit = Math.min(40, Math.max(1, Number(req.query.limit) || 20));
+
+      const rows = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const parties = await expandQuotePartyIds(tx, customerId, builderId);
+        const or: Prisma.QuoteWhereInput[] = [];
+        const partyWhere = quotePartyWhere(parties.customerIds, parties.builderIds);
+        if (partyWhere?.OR) or.push(...(partyWhere.OR as Prisma.QuoteWhereInput[]));
+
+        if (name.length >= 2) {
+          const contains = { contains: name, mode: "insensitive" as const };
+          or.push(
+            { title: contains },
+            { payload: { path: ["job_name"], string_contains: name } },
+            {
+              customer: {
+                is: {
+                  OR: [{ name: contains }, { company: contains }],
+                },
+              },
+            },
+            {
+              builder: {
+                is: {
+                  OR: [
+                    { company: contains },
+                    { nickname: contains },
+                    { firstName: contains },
+                    { lastName: contains },
+                  ],
+                },
+              },
+            },
+          );
+          const parts = name.split(/\s+/).filter(Boolean);
+          if (parts.length >= 2) {
+            or.push({
+              builder: {
+                is: {
+                  AND: [
+                    { firstName: { contains: parts[0]!, mode: "insensitive" } },
+                    { lastName: { contains: parts[parts.length - 1]!, mode: "insensitive" } },
+                  ],
+                },
+              },
+            });
+          }
+          const leadHits = await tx.lead.findMany({
+            where: { OR: [{ name: contains }, { email: contains }, { phone: contains }] },
+            select: { id: true },
+            take: 40,
+          });
+          if (leadHits.length) or.push({ leadId: { in: leadHits.map((l) => l.id) } });
+        }
+
+        if (!or.length) return [];
+
+        const list = await tx.quote.findMany({
+          where: { OR: or },
+          orderBy: { createdAt: "desc" },
+          take: Math.min(80, limit * 3),
+          include: quoteListInclude(),
+        });
+        return list.filter(isJobImportCandidateRow).slice(0, limit);
+      });
+
+      res.json({
+        success: true,
+        data: rows.map((q) => mapQuoteForUser(q, req.user)),
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 customersQuotesRouter.get(
   "/api/quotes/lookup/builders",

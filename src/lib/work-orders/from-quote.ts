@@ -5,6 +5,7 @@
 import { copyFieldQuoteToJob } from "../field-quote/job.js";
 import { discountLineLabel, readQuoteDiscount, type DiscountKind } from "../quotes/discount.js";
 import { calculateQuoteTotals } from "../quotes/totals.js";
+import { normalizeQuoteStatus } from "../quotes/transitions.js";
 import { Prisma } from "@prisma/client";
 import type { TenantPrisma } from "../tenant/prisma-tenant.js";
 import { recordActivity } from "../activity/record.js";
@@ -730,10 +731,88 @@ function httpErr(message: string, statusCode: number): Error & { statusCode: num
   return err;
 }
 
+function mergeJobNameKey(quote: QuoteForJob): string {
+  const payload = payloadOf(quote.payload);
+  return String(payload.job_name || quote.title || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+/** Expand customer↔builder links and Client ID twins from a seed party set. */
+async function expandPartyReach(
+  tx: TenantPrisma,
+  seed: { customerIds: Iterable<string>; builderIds: Iterable<string> },
+): Promise<{ customerIds: Set<string>; builderIds: Set<string> }> {
+  const customerIds = new Set([...seed.customerIds].filter(Boolean));
+  const builderIds = new Set([...seed.builderIds].filter(Boolean));
+  for (let round = 0; round < 3; round++) {
+    if (builderIds.size) {
+      const builders = await tx.builder.findMany({
+        where: { id: { in: [...builderIds] } },
+        select: { customerId: true },
+      });
+      for (const b of builders) {
+        if (b.customerId) customerIds.add(b.customerId);
+      }
+    }
+    if (customerIds.size) {
+      const linked = await tx.builder.findMany({
+        where: { customerId: { in: [...customerIds] } },
+        select: { id: true },
+      });
+      for (const b of linked) builderIds.add(b.id);
+      const seeds = await tx.customer.findMany({
+        where: { id: { in: [...customerIds] } },
+        select: { clientCode: true },
+      });
+      const codes = [
+        ...new Set(
+          seeds
+            .map((s) => (s.clientCode != null ? String(s.clientCode).trim() : ""))
+            .filter(Boolean),
+        ),
+      ];
+      if (codes.length) {
+        const twins = await tx.customer.findMany({
+          where: { clientCode: { in: codes } },
+          select: { id: true },
+          take: 50,
+        });
+        for (const t of twins) customerIds.add(t.id);
+      }
+    }
+  }
+  return { customerIds, builderIds };
+}
+
+async function quotesCompatibleForMerge(tx: TenantPrisma, quotes: QuoteForJob[]): Promise<boolean> {
+  if (quotes.length < 2) return false;
+  const allSameCustomer =
+    Boolean(quotes[0].customerId) && quotes.every((q) => q.customerId === quotes[0].customerId);
+  const allSameBuilder =
+    Boolean(quotes[0].builderId) && quotes.every((q) => q.builderId === quotes[0].builderId);
+  if (allSameCustomer || allSameBuilder) return true;
+
+  const job0 = mergeJobNameKey(quotes[0]);
+  if (job0.length >= 2 && quotes.every((q) => mergeJobNameKey(q) === job0)) return true;
+
+  const reach = await expandPartyReach(tx, {
+    customerIds: quotes[0].customerId ? [quotes[0].customerId] : [],
+    builderIds: quotes[0].builderId ? [quotes[0].builderId] : [],
+  });
+  if (!reach.customerIds.size && !reach.builderIds.size) return false;
+  return quotes.every(
+    (q) =>
+      (q.customerId != null && reach.customerIds.has(q.customerId)) ||
+      (q.builderId != null && reach.builderIds.has(q.builderId)),
+  );
+}
+
 /**
- * Unify 2–5 approved quotes into a single draft job.
- * Rules: same customer or same builder; existing linked jobs must be draft (or already the same job).
- * Both quotes keep their own record and point at the shared WorkOrder.
+ * Unify 2–5 open/approved quotes into a single draft job.
+ * Rules: same customer/builder graph (or same job name); linked jobs must be draft/canceled.
+ * Open quotes are auto-approved; canceled job links are cleared. Quotes keep their own record.
  */
 export async function mergeQuotesIntoJob(
   tx: TenantPrisma,
@@ -756,24 +835,32 @@ export async function mergeQuotesIntoJob(
   }
 
   for (const q of quotes) {
-    const st = String(q.status || "").toLowerCase();
-    const ok =
-      ["approved", "converted", "accepted"].includes(st) ||
-      Boolean(q.workOrderId);
-    if (!ok) {
+    const st = normalizeQuoteStatus(q.status);
+    if (st === "archived" || st === "expired") {
       throw httpErr(
-        `O orçamento ${q.quoteNumber || `#${q.number}`} precisa estar aprovado para unificar.`,
+        `O orçamento ${q.quoteNumber || `#${q.number}`} está arquivado/expirado e não pode ser unificado.`,
         400,
       );
     }
+    if (q.workOrderId) {
+      const wo = await tx.workOrder.findFirst({
+        where: { id: q.workOrderId },
+        select: { status: true },
+      });
+      if (wo && String(wo.status || "").toLowerCase() === "canceled") {
+        await tx.quote.update({ where: { id: q.id }, data: { workOrderId: null } });
+        q.workOrderId = null;
+      }
+    }
+    // Open quotes can merge: mark approved here so the shared job is the only conversion.
+    if (!["approved", "converted"].includes(st)) {
+      await tx.quote.update({ where: { id: q.id }, data: { status: "approved" } });
+      q.status = "approved";
+    }
   }
 
-  const allSameCustomer =
-    Boolean(quotes[0].customerId) && quotes.every((q) => q.customerId === quotes[0].customerId);
-  const allSameBuilder =
-    Boolean(quotes[0].builderId) && quotes.every((q) => q.builderId === quotes[0].builderId);
-  if (!allSameCustomer && !allSameBuilder) {
-    throw httpErr("Os orçamentos precisam ser do mesmo cliente ou do mesmo builder.", 400);
+  if (!(await quotesCompatibleForMerge(tx, quotes))) {
+    throw httpErr("Os orçamentos precisam ser do mesmo cliente, builder ou job.", 400);
   }
 
   const woIds = [...new Set(quotes.map((q) => q.workOrderId).filter((id): id is string => Boolean(id)))];
