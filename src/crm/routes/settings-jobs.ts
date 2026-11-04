@@ -12,6 +12,7 @@ import { recordActivity } from "../../lib/activity/record.js";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { requireCrmAuth, requireCrmPermission } from "../http.js";
 import { fieldErrors } from "../../lib/settings/organization.js";
+import { primaryPack } from "../../lib/trades/index.js";
 import {
   applyJobsSettingsPatch,
   jobsSettingsPatchSchema,
@@ -19,6 +20,15 @@ import {
 } from "../../lib/settings/jobs.js";
 
 export const settingsJobsRouter = Router();
+
+/** The trade's phase with a shop lead time (Countertops install), for the settings screen; null when none. */
+function leadTimeInfo(tradePacks: unknown) {
+  const pack = primaryPack(tradePacks);
+  const def = pack.phases.find((p) => p.leadTime);
+  if (!def?.leadTime) return null;
+  const after = pack.phases.find((p) => p.key === def.leadTime!.after);
+  return { default_days: def.leadTime.businessDays, phase_label: def.label["pt-BR"], after_label: after?.label["pt-BR"] ?? def.leadTime.after };
+}
 
 function canReadJobsSettings(req: AuthedRequest): boolean {
   const perms = req.user?.permissions || [];
@@ -43,9 +53,9 @@ settingsJobsRouter.get(
       }
       const org = await prisma.organization.findUniqueOrThrow({
         where: { id: req.organizationId! },
-        select: { featureFlags: true },
+        select: { featureFlags: true, tradePacks: true },
       });
-      res.json({ success: true, data: parseJobsSettings(org.featureFlags) });
+      res.json({ success: true, data: { ...parseJobsSettings(org.featureFlags), lead_time: leadTimeInfo(org.tradePacks) } });
     } catch (error) {
       next(error);
     }
@@ -75,7 +85,7 @@ settingsJobsRouter.patch(
       const data = await withTenantTransaction(req.organizationId!, async (tx) => {
         const org = await tx.organization.findUniqueOrThrow({
           where: { id: req.organizationId! },
-          select: { featureFlags: true },
+          select: { featureFlags: true, tradePacks: true },
         });
         const nextFlags = applyJobsSettingsPatch(org.featureFlags, parsed.data);
         await tx.organization.update({
@@ -91,7 +101,7 @@ settingsJobsRouter.patch(
           action: "settings.jobs_updated",
           changes: null,
         });
-        return parseJobsSettings(nextFlags);
+        return { ...parseJobsSettings(nextFlags), lead_time: leadTimeInfo(org.tradePacks) };
       });
 
       res.json({ success: true, data });

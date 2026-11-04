@@ -136,3 +136,21 @@ describe("countertops: shop lead time before install", () => {
     expect(phaseEarliest(pack.phases.find((p) => p.key === "template"), rows("done", new Date()))).toBeNull();
   });
 });
+
+describe("countertops: the company sets its own shop lead time", () => {
+  it("is stored in the job settings, empty means the trade's default, and the phase uses it", async () => {
+    const { applyJobsSettingsPatch, parseJobsSettings, jobsSettingsPatchSchema } = await import("../src/lib/settings/jobs.js");
+    const { phaseEarliest } = await import("../src/lib/trades/job-phases.js");
+    const { getPack } = await import("../src/lib/trades/index.js");
+    const flags = applyJobsSettingsPatch({ field_quote: true }, { shop_lead_days: 10 });
+    expect(flags).toEqual({ field_quote: true, shop_lead_days: 10 });
+    expect(parseJobsSettings(flags)).toEqual({ checklist_enabled: true, shop_lead_days: 10 });
+    expect(parseJobsSettings(applyJobsSettingsPatch(flags, { shop_lead_days: null })).shop_lead_days).toBeNull();
+    expect(jobsSettingsPatchSchema.safeParse({ shop_lead_days: 90 }).success).toBe(false);
+    const install = getPack("countertops").phases.find((p) => p.key === "install");
+    const rows = [{ phaseKey: "layout_approval", sortOrder: 3, status: "done", doneAt: new Date("2026-11-04T15:00:00Z") }];
+    // 10 business days from Wed 4 Nov = Wed 18 Nov
+    expect(phaseEarliest(install, rows, 10)?.toISOString()).toBe("2026-11-18T15:00:00.000Z");
+    expect(phaseEarliest(install, rows, null)?.toISOString()).toBe("2026-11-13T15:00:00.000Z");
+  });
+});

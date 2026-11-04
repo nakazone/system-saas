@@ -97,7 +97,7 @@
       desc: "Agenda, Jobs e Folha",
       subs: [
         { id: "agenda", label: "Agenda e calendários", section: "agenda", perm: "settings.manage", desc: "Calendários da agenda e o link para o Calendário do iPhone.", keywords: "agenda calendário schedule meeting job cor cores visita apple ics assinatura iphone sync" },
-        { id: "jobs", label: "Jobs e Campo", section: "jobs", perm: "settings.manage", desc: "Opções do job no escritório e no Campo.", keywords: "job checklist campo ticket lista exibir desativar" },
+        { id: "jobs", label: "Jobs e Campo", section: "jobs", perm: "settings.manage", desc: "Opções do job no escritório e no Campo.", keywords: "job checklist campo ticket lista exibir desativar prazo oficina fabricação instalação dias úteis" },
         { id: "folha", label: "Folha de pagamento", section: "folha", perm: "settings.manage", desc: "Quando o período fecha, em que dia a empresa paga e onde cai o reembolso.", keywords: "folha pagamento ciclo semana quinzena mes sabado domingo fechamento reembolso" },
         { id: "formas", label: "Formas de pagamento", section: "folha", perm: "settings.manage", desc: "Como o dinheiro chega ao funcionário (Zelle, cheque, dinheiro…).", keywords: "zelle pix forma pagamento cheque dinheiro ach" },
       ],
@@ -2597,16 +2597,35 @@
   function fillJobsSettings(d) {
     const el = $("jobs_checklist_enabled");
     if (el) el.checked = d?.checklist_enabled !== false;
+    // Shop lead time: only for trades whose install waits on the shop (Countertops).
+    const card = $("jobsLeadCard");
+    const lt = d?.lead_time;
+    if (card) card.hidden = !lt;
+    if (lt) {
+      $("jobsLeadDesc").textContent = `Dias úteis entre “${lt.after_label}” e “${lt.phase_label}”.`;
+      const inp = $("jobs_shop_lead_days");
+      inp.placeholder = String(lt.default_days);
+      inp.value = d.shop_lead_days == null ? "" : String(d.shop_lead_days);
+      $("jobsLeadHint").textContent = `Vazio usa o padrão (${lt.default_days} dias úteis). A fase mostra a data mínima e avisa quando o job está agendado antes; não bloqueia.`;
+    }
   }
 
   function readJobsSettings() {
-    return { checklist_enabled: !!$("jobs_checklist_enabled")?.checked };
+    const out = { checklist_enabled: !!$("jobs_checklist_enabled")?.checked };
+    const inp = $("jobs_shop_lead_days");
+    if (inp && state.jobs.snapshot && state.jobs.snapshot.lead_time) {
+      const v = String(inp.value).trim();
+      out.shop_lead_days = v === "" ? null : Math.max(0, Math.min(60, Math.round(Number(v)) || 0));
+    }
+    return out;
   }
 
   function jobsDirty() {
     if (!state.jobs.snapshot) return false;
+    const cur = readJobsSettings();
     return (
-      !!readJobsSettings().checklist_enabled !== !!state.jobs.snapshot.checklist_enabled
+      !!cur.checklist_enabled !== !!state.jobs.snapshot.checklist_enabled ||
+      ("shop_lead_days" in cur && cur.shop_lead_days !== (state.jobs.snapshot.shop_lead_days ?? null))
     );
   }
 
@@ -2615,13 +2634,15 @@
     fillJobsSettings(state.jobs.snapshot);
   }
 
+  const jobsSnapshot = (d) => ({ checklist_enabled: d?.checklist_enabled !== false, shop_lead_days: d?.shop_lead_days ?? null, lead_time: d?.lead_time || null });
+
   async function loadJobsSettings(force) {
     if (state.jobs.loaded && !force) {
       fillJobsSettings(state.jobs.snapshot);
       return;
     }
     const j = await api("/api/settings/jobs");
-    state.jobs.snapshot = { checklist_enabled: j.data?.checklist_enabled !== false };
+    state.jobs.snapshot = jobsSnapshot(j.data);
     state.jobs.loaded = true;
     fillJobsSettings(state.jobs.snapshot);
   }
@@ -2634,7 +2655,7 @@
         method: "PATCH",
         body: JSON.stringify(body),
       });
-      state.jobs.snapshot = { checklist_enabled: j.data?.checklist_enabled !== false };
+      state.jobs.snapshot = jobsSnapshot(j.data);
       fillJobsSettings(state.jobs.snapshot);
       notify("Configurações de Jobs salvas.", "success");
       updateSavebar();
@@ -2652,6 +2673,7 @@
     if (!form || form.dataset.bound === "1") return;
     form.dataset.bound = "1";
     form.addEventListener("change", () => updateSavebar());
+    form.addEventListener("input", () => updateSavebar());
   }
 
   // ---------------------------------------------------------------- indicações

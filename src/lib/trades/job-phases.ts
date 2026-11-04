@@ -80,10 +80,10 @@ export function addBusinessDays(from: Date, n: number): Date {
  * Earliest date of a phase with a shop lead time: null until the phase it counts from is done
  * (or when the phase has no lead time).
  */
-export function phaseEarliest(def: PhaseDef | undefined, rows: readonly JobPhaseRow[]): Date | null {
+export function phaseEarliest(def: PhaseDef | undefined, rows: readonly JobPhaseRow[], businessDays?: number | null): Date | null {
   if (!def?.leadTime) return null;
   const from = rows.find((r) => r.phaseKey === def.leadTime!.after);
-  return from?.status === "done" && from.doneAt ? addBusinessDays(from.doneAt, def.leadTime.businessDays) : null;
+  return from?.status === "done" && from.doneAt ? addBusinessDays(from.doneAt, businessDays ?? def.leadTime.businessDays) : null;
 }
 
 /* ───────────────────────────── reading ───────────────────────────── */

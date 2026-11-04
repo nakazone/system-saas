@@ -18,6 +18,7 @@ import { requireCrmAuth } from "../http.js";
 import { withTenantTransaction, type TenantPrisma } from "../../lib/tenant/prisma-tenant.js";
 import { myJobAccessWhere } from "../lib/campo-shared.js";
 import { primaryPack, type TradePack } from "../../lib/trades/index.js";
+import { shopLeadDays } from "../../lib/settings/jobs.js";
 import { activeVariants, asEvidence, phaseEarliest, readJobPhases, type JobPhaseRow } from "../../lib/trades/job-phases.js";
 import { addPhaseEvidence, closeJobPhase, ensureJobPhases, listJobPhases, setJobVariant } from "../../lib/trades/job-phases-db.js";
 
@@ -49,6 +50,12 @@ async function reachJob(tx: TenantPrisma, req: AuthedRequest, jobId: string, wri
   return job;
 }
 
+/** The company's shop lead time (Configurações › Jobs), or null for the trade's default. */
+async function leadDaysOf(tx: TenantPrisma, organizationId: string): Promise<number | null> {
+  const org = await tx.organization.findUnique({ where: { id: organizationId }, select: { featureFlags: true } });
+  return shopLeadDays(org?.featureFlags);
+}
+
 async function packOf(tx: TenantPrisma, organizationId: string): Promise<TradePack> {
   const org = await tx.organization.findUnique({ where: { id: organizationId }, select: { tradePacks: true } });
   return primaryPack(org?.tradePacks);
@@ -57,6 +64,7 @@ async function packOf(tx: TenantPrisma, organizationId: string): Promise<TradePa
 async function phasesState(tx: TenantPrisma, req: AuthedRequest, jobId: string) {
   const job = await reachJob(tx, req, jobId, false);
   const pack = await packOf(tx, req.organizationId!);
+  const leadDays = pack.phases.some((p) => p.leadTime) ? await leadDaysOf(tx, req.organizationId!) : null;
   if (pack.phaseStorage === "table") await ensureJobPhases(tx, req.organizationId!, jobId, pack);
   const rows = pack.phaseStorage === "table" ? await listJobPhases(tx, jobId) : [];
   const rowByKey = new Map(rows.map((r) => [r.phaseKey, r]));
@@ -100,10 +108,10 @@ async function phasesState(tx: TenantPrisma, req: AuthedRequest, jobId: string) 
         // Shop lead time (Countertops install): earliest date once the counted-from phase is done.
         lead_time: def?.leadTime
           ? {
-              business_days: def.leadTime.businessDays,
+              business_days: leadDays ?? def.leadTime.businessDays,
               after: def.leadTime.after,
               after_label: pack.phases.find((x) => x.key === def.leadTime!.after)?.label[locale] ?? def.leadTime.after,
-              earliest_at: phaseEarliest(def, rows)?.toISOString() ?? null,
+              earliest_at: phaseEarliest(def, rows, leadDays)?.toISOString() ?? null,
             }
           : null,
         requires: (def?.requires ?? []).map((r) => {
