@@ -462,7 +462,14 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
   align-items: stretch;
   gap: 10px;
 }
-.ag-dtl__editing--when .ag-dtl__done { align-self: flex-end; flex: 0 0 auto; }
+.ag-dtl__pick-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 100%;
+}
+.ag-dtl__pick-row .ag-dtl__pick { flex: 1 1 auto; min-width: 0; }
+.ag-dtl__pick-row .ag-dtl__done { flex: 0 0 auto; margin-top: 34px; }
 .ag-dtl__pick { width: 100%; max-width: 300px; }
 .ag-dtl__when-times { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .ag-mini--pick {

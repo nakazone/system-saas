@@ -1547,12 +1547,12 @@
         : '';
     const hasNotes = Boolean(String(notesTarget && notesTarget.value || '').trim());
     const notesBlock = notesTarget
-      ? `<div class="ag-card ag-dtl__notes${hasNotes ? ' has-notes is-open' : ''}">
-          <button type="button" class="ag-dtl__notes-tog" data-ag-notes-tog aria-expanded="${hasNotes ? 'true' : 'false'}">
+      ? `<div class="ag-card ag-dtl__notes${hasNotes ? ' has-notes' : ''}">
+          <button type="button" class="ag-dtl__notes-tog" data-ag-notes-tog aria-expanded="false">
             <span>${esc(notesTarget.label)}${hasNotes ? `<i class="ag-dtl__notes-dot" aria-label="Tem nota"></i>` : ''}</span>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10l4 4 4-4"/></svg>
           </button>
-          <div class="ag-dtl__notes-panel"${hasNotes ? '' : ' hidden'}>
+          <div class="ag-dtl__notes-panel" hidden>
             ${
               canEdit
                 ? `<textarea name="notes" data-ag-notes="${esc(notesTarget.kind)}" data-ag-notes-id="${esc(notesTarget.id)}" maxlength="8000" placeholder="${esc(notesTarget.placeholder)}">${esc(notesTarget.value)}</textarea>
@@ -1719,22 +1719,26 @@
     }
     if (field === 'when') {
       const day = ymd(e.start);
-      const pick = `<div class="ag-dtl__pick" data-ag-date-pick>${miniMonthHtml(e.start, {
-        pick: true,
-        selectedYmd: day,
-        nav: true,
-        year: true,
-        cls: 'ag-mini--pick',
-      })}</div>`;
+      const doneBtn = `<button type="button" class="ag-dtl__done" data-ag-edit-done aria-label="Confirmar" title="Confirmar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>`;
+      const pickRow = `<div class="ag-dtl__pick-row">
+        <div class="ag-dtl__pick" data-ag-date-pick>${miniMonthHtml(e.start, {
+          pick: true,
+          selectedYmd: day,
+          nav: true,
+          year: true,
+          cls: 'ag-mini--pick',
+        })}</div>
+        ${doneBtn}
+      </div>`;
       if (e.type === 'job') {
         return `<div class="ag-dtl__when" data-ag-when-wrap>
           <input type="hidden" data-ag-inline="date" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" value="${esc(day)}" />
-          ${pick}
+          ${pickRow}
         </div>`;
       }
       return `<div class="ag-dtl__when" data-ag-when-wrap>
         <input type="hidden" data-ag-inline="date" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" value="${esc(day)}" />
-        ${pick}
+        ${pickRow}
         <div class="ag-dtl__when-times">
           ${timeWheelHtml('start', hm(e.start), { inline: true, id: e.id, type: e.type })}
           ${e.type === 'visit' ? '' : timeWheelHtml('end', hm(e.end), { inline: true, id: e.id, type: e.type })}
@@ -1836,13 +1840,7 @@
     if (field === 'title' || field === 'when') {
       tapEl.replaceWith(wrap);
       wrap.classList.add('ag-dtl__editing--block');
-      if (field === 'when') {
-        wrap.classList.add('ag-dtl__editing--when');
-        wrap.insertAdjacentHTML(
-          'beforeend',
-          `<button type="button" class="ag-dtl__done" data-ag-edit-done aria-label="Confirmar" title="Confirmar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>`,
-        );
-      }
+      if (field === 'when') wrap.classList.add('ag-dtl__editing--when');
     } else if (field === 'address') {
       const card = tapEl.closest('.ag-dtl__addr') || tapEl;
       card.replaceWith(wrap);
