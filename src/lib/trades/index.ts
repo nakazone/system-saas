@@ -6,13 +6,14 @@ import type { PackService, PhaseDef, TradeId, TradePack } from "./types.js";
 import { TRADE_IDS } from "./types.js";
 import { hardwood } from "./packs/hardwood/index.js";
 import { tile } from "./packs/tile/index.js";
+import { countertops } from "./packs/countertops/index.js";
 
 export type { PackService, PackTakeoff, PhaseDef, PhaseDoneField, PhaseRequirement, QuoteSectionDef, TradeId, TradePack } from "./types.js";
 export { TRADE_IDS } from "./types.js";
 
 export const DEFAULT_TRADE: TradeId = "hardwood";
 
-const PACKS: Record<TradeId, TradePack> = { hardwood, tile };
+const PACKS: Record<TradeId, TradePack> = { hardwood, tile, countertops };
 
 export function isTradeId(v: unknown): v is TradeId {
   return typeof v === "string" && (TRADE_IDS as readonly string[]).includes(v);

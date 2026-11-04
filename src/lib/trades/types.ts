@@ -10,7 +10,7 @@
  * The full design (measurement models, evidence, waste engines…) lives in labs/trades/.
  */
 
-export const TRADE_IDS = ["hardwood", "tile"] as const;
+export const TRADE_IDS = ["hardwood", "tile", "countertops"] as const;
 export type TradeId = (typeof TRADE_IDS)[number];
 
 /** A default Tabela de Valores row. Rates always start at 0. */
