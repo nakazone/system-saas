@@ -274,6 +274,41 @@ a.cam-dloc span { text-decoration: underline; text-decoration-color: #F2D9C6; te
 .cam-day { margin: 16px 0 8px; display: flex; align-items: baseline; gap: 8px; font-size: 13.5px; font-weight: 650; }
 .cam-day:first-child { margin-top: 0; }
 .cam-day em { font-style: normal; font-size: 12px; font-weight: 500; color: var(--cam-ink2); }
+.cam-day .cam-link { margin-left: auto; font-size: 12.5px; }
+.cam-box--photos .cam-day:first-of-type { margin-top: 2px; }
+
+/* multi-select: a picked photo gets an orange ring and a filled check; GPS tags step aside while picking */
+.cam-ph__ck { position: absolute; z-index: 2; right: 6px; top: 6px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: rgba(34, 30, 26, .35); box-shadow: inset 0 0 0 2px #fff; color: transparent; transition: background-color 120ms; }
+.cam-ph__ck svg { width: 14px; height: 14px; stroke-width: 3; }
+.cam-ph.is-pick { box-shadow: inset 0 0 0 3px var(--cam-or) !important; }
+.cam-ph.is-pick::after { content: ""; position: absolute; inset: 0; background: rgba(231, 121, 44, .16); }
+.cam-ph.is-pick .cam-ph__ck { background: var(--cam-or); box-shadow: inset 0 0 0 2px #fff; color: #fff; }
+body.cam-selecting .cam-ph .cam-tag { display: none; }
+body.cam-selecting .cam-ph { cursor: pointer; }
+
+.cam-selbar {
+  position: fixed; z-index: 70; left: 50%; bottom: 104px; transform: translateX(-50%); width: min(760px, calc(100% - 24px)); box-sizing: border-box;
+  display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 6px; border-radius: 18px; background: #221E1A; color: #fff;
+  box-shadow: 0 14px 34px -12px rgba(16, 24, 40, .55);
+  font-family: Geist, "Plus Jakarta Sans", system-ui, sans-serif;
+}
+.cam-selbar button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; font: inherit; }
+.cam-selbar__x { width: 40px; height: 40px; flex: none; display: grid; place-items: center; border: 0; border-radius: 12px; background: transparent; color: #fff; cursor: pointer; }
+.cam-selbar__x svg, .cam-selbar__acts svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.cam-selbar__n { font-size: 14px; white-space: nowrap; }
+.cam-selbar__n b { font-size: 16px; }
+.cam-selbar .cam-link { color: #F7B98E; font-size: 13px; }
+.cam-selbar__acts { margin-left: auto; display: flex; gap: 4px; }
+.cam-selbar__acts button { height: 44px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; border: 0; border-radius: 12px; background: rgba(255, 255, 255, .1); color: #fff; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+.cam-selbar__acts button.is-danger { color: #F7B98E; }
+.cam-selbar__acts button:disabled { opacity: .4; cursor: default; }
+.cam-selbar__acts button:not(:disabled):active, .cam-selbar__x:active { transform: scale(.96); }
+@media (hover: hover) and (pointer: fine) { .cam-selbar__acts button:not(:disabled):hover, .cam-selbar__x:hover { background: rgba(255, 255, 255, .18); } }
+.cam-selbar :focus-visible { outline: 2px solid var(--cam-or); outline-offset: 2px; }
+body.cam-selecting .cam-pbar, body.cam-selecting .oc-tabs { display: none !important; }
+.cam-up__stk.is-some { box-shadow: inset 0 0 0 2px var(--stk); }
+.cam-up__stk em { font-style: normal; font-size: 12px; color: #667085; }
+.cam-selsheet .cam-up__card p { margin: 0 0 12px; }
 .cam-feedg { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 8px; }
 .cam-none { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 40px 20px; }
 .cam-none__ic { width: 52px; height: 52px; border-radius: 16px; background: var(--cam-sur); display: grid; place-items: center; color: var(--cam-ink2); }
@@ -319,6 +354,10 @@ a.cam-dloc span { text-decoration: underline; text-decoration-color: #F2D9C6; te
   .cam-search input { font-size: 16px; height: 44px !important; background: #fff !important; box-shadow: 0 0 0 1px var(--cam-line) !important; }
   .cam-seg button { height: 38px; font-size: 14px; }
   .cam-filters { margin: 12px -14px 0; padding: 0 14px; }
+  .cam-selbar { bottom: calc(10px + env(safe-area-inset-bottom, 0px)); gap: 6px; padding: 6px; }
+  .cam-selbar__acts button { padding: 0 10px; flex-direction: column; gap: 2px; height: 50px; font-size: 11px; }
+  .cam-selbar .cam-link { display: none; }
+  body.cam-selecting .cam { padding-bottom: 90px; }
   .cam-fchip { height: 36px; padding: 0 13px; font-size: 13.5px; }
   .cam-order { margin-top: 8px; }
   .cam-order select { height: 36px; font-size: 16px; }

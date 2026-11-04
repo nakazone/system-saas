@@ -18,6 +18,12 @@
     pen: '<svg viewBox="0 0 24 24" width="11" height="11" aria-label="com marcações"><path d="M4 20l4-1L19 8a2.1 2.1 0 00-3-3L5 16l-1 4z"/></svg>',
     note: '<svg viewBox="0 0 24 24" width="11" height="11" aria-label="com nota"><path d="M5 4h14v12l-4 4H5z"/></svg>',
     tag: '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/></svg>',
+    check: '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    sel: '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M8.5 12.2l2.4 2.4 4.6-5"/></svg>',
+    dl: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
+    trash: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>',
+    layers: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg>',
+    x: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   };
 
   let jobs = [];
@@ -28,6 +34,10 @@
   let stageFilter = "all";
   /** Sticker (photo label) the job grid or feed is narrowed to, "" for all. */
   let stickerFilter = "";
+  /** Multi-select: on while picking photos; ids of the picked photos; the raw photos on screen (with their job). */
+  let selecting = false;
+  const picked = new Set();
+  let onScreen = [];
   let stickers = [];
   const stickerById = (id) => stickers.find((x) => x.id === id);
   function loadStickers() {
@@ -483,7 +493,9 @@
     const st = STAGE[p.stage] || "Geral";
     const tags = (p.sticker_ids || []).map(stickerById).filter(Boolean).map((x) => x.name);
     const what = `${st}${tags.length ? ` · ${tags.join(", ")}` : ""}${opts && opts.job ? ` · ${feedJobName(p)}` : ""}`;
-    return `<button type="button" class="cam-ph${opts && opts.job ? " cam-ph--job" : ""}" data-ph-i="${i}" aria-label="Ver foto: ${esc(what)}" style="background-image:url('${esc(p.thumb_url || p.url)}')">
+    const pick = selecting && picked.has(String(p.id));
+    return `<button type="button" class="cam-ph${opts && opts.job ? " cam-ph--job" : ""}${pick ? " is-pick" : ""}" data-ph-i="${i}" data-ph-id="${esc(p.id)}"${selecting ? ` aria-pressed="${pick}"` : ""} aria-label="${selecting ? "Selecionar" : "Ver"} foto: ${esc(what)}" style="background-image:url('${esc(p.thumb_url || p.url)}')">
+      ${selecting ? `<span class="cam-ph__ck" aria-hidden="true">${SVG.check}</span>` : ""}
       ${opts && opts.stage ? `<span class="cam-ph__st">${esc(st)}${marks(p)}</span>` : marks(p) ? `<span class="cam-ph__st cam-ph__st--ic">${marks(p)}</span>` : ""}
       ${tileStickers(p)}
       ${opts && opts.job ? `<span class="cam-ph__jn">${esc(feedJobName(p))}</span>` : ""}
@@ -566,6 +578,7 @@
       if (String(selId) !== String(j.id) || mode === "photos") return;
     }
     const list = mediaCache[j.id].slice().sort(byTaken);
+    onScreen = list.map((p) => ({ ...p, job_id: j.id }));
     const counts = { before: 0, during: 0, after: 0, none: 0 };
     list.forEach((p) => (counts[STAGE[p.stage] ? p.stage : "none"] += 1));
     shown = list.map((p) => toViewer(j, p));
@@ -581,22 +594,46 @@
         .map((p, i) => [p, i])
         .filter(([p]) => stageFilter === "all" || (stageFilter === "none" ? !STAGE[p.stage] : p.stage === stageFilter))
         .filter(([p]) => !stickerFilter || (p.sticker_ids || []).includes(stickerFilter));
+      onScreen = sel.map(([p]) => ({ ...p, job_id: j.id })); // "Todas" picks what the filters show
       const label = stickerFilter ? `${(chips.find(([k]) => k === stageFilter) || [])[1] || ""} com “${(stickerById(stickerFilter) || {}).name || ""}”` : (chips.find(([k]) => k === stageFilter) || [])[1] || "";
       const far = list.filter((p) => p.far_from_job).length;
       const content =
         pane === "map"
           ? mapPaneHtml()
           : sel.length
-            ? `<div class="cam-pgrid">${sel.map(([p, i]) => photoTile(p, i, { stage: stageFilter === "all" })).join("")}</div>`
+            ? daysHtml(sel.map(([p, i]) => [{ ...p, job_id: j.id }, i]), "cam-pgrid", { tile: { stage: stageFilter === "all" } })
             : `<p class="cam-col__none">Nenhuma foto ${stickerFilter ? `em ${esc(label)}` : `de ${esc(label.toLowerCase())}`} ainda.</p>`;
       body = `<div class="cam-box cam-box--photos">
-          <div class="cam-chips cam-chips--bar cam-chips--stick">${paneSwitchHtml("Local", far)}${pane === "photos" ? chips.map(([k, l, c]) => chipHtml(k, l, c)).join("") + stickerChipsHtml(list) : ""}</div>
+          <div class="cam-chips cam-chips--bar cam-chips--stick">${paneSwitchHtml("Local", far)}${pane === "photos" ? selectChipHtml() + chips.map(([k, l, c]) => chipHtml(k, l, c)).join("") + stickerChipsHtml(list) : ""}</div>
           ${content}
         </div>`;
     }
     host.innerHTML = headHtml(j, list) + body + (isPhone() ? pbarHtml(j) : "");
     movePbar();
+    renderSelBar();
     if (list.length && pane === "map") renderJobMap(j, list).catch(() => {});
+  }
+
+  /** Photos split by the day they were taken; in select mode each day can be picked at once. */
+  function daysHtml(items, gridCls, opts) {
+    const days = [];
+    items.forEach(([p, i]) => {
+      const k = dayKey(takenAt(p));
+      let d = days.find((x) => x.k === k);
+      if (!d) days.push((d = { k, label: dayLabel(takenAt(p)), items: [], jobs: new Set() }));
+      d.items.push([p, i]);
+      d.jobs.add(p.job_id);
+    });
+    return days
+      .map((d) => {
+        const ids = d.items.map(([p]) => String(p.id));
+        const all = ids.every((id) => picked.has(id));
+        const n = d.items.length;
+        const meta = `${n} foto${n === 1 ? "" : "s"}${opts.jobs ? ` · ${d.jobs.size} job${d.jobs.size === 1 ? "" : "s"}` : ""}`;
+        return `<div class="cam-day"><span>${esc(d.label)}</span><em>${meta}</em>${selecting ? `<button type="button" class="cam-link" data-sel-day="${esc(ids.join(","))}" data-all="${all ? 1 : 0}">${all ? "Desmarcar dia" : "Selecionar dia"}</button>` : ""}</div>
+          <div class="${gridCls}">${d.items.map(([p, i]) => photoTile(p, i, opts.tile)).join("")}</div>`;
+      })
+      .join("");
   }
 
   /** Sticker filter chips, only for stickers that photos here actually carry, plus "Stickers" to manage them. */
@@ -609,6 +646,215 @@
       .join("");
     const manage = canManage ? `<button type="button" class="cam-chip cam-chip--ghost" data-stk-manage>${SVG.tag}Stickers</button>` : "";
     return chips || manage ? `<span class="cam-chips__sep" aria-hidden="true"></span>${chips}${manage}` : "";
+  }
+
+  // ---------------------------------------------------------------- multi-select
+  function selectChipHtml() {
+    if (selecting || !onScreen.length) return "";
+    return `<button type="button" class="cam-chip cam-chip--ghost" data-sel-start>${SVG.sel}Selecionar</button>`;
+  }
+  function startSelecting(firstId) {
+    selecting = true;
+    picked.clear();
+    if (firstId) picked.add(String(firstId));
+    document.body.classList.add("cam-selecting");
+    renderRight();
+  }
+  function stopSelecting() {
+    if (!selecting) return;
+    selecting = false;
+    picked.clear();
+    document.body.classList.remove("cam-selecting");
+    $("camSelBar")?.remove();
+    $("camSelSheet")?.remove();
+    renderRight();
+  }
+  function pickedPhotos() {
+    return onScreen.filter((p) => picked.has(String(p.id)));
+  }
+  /** Flip one tile without repainting the grid, so long lists stay smooth while picking. */
+  function togglePick(id) {
+    id = String(id);
+    if (picked.has(id)) picked.delete(id);
+    else picked.add(id);
+    document.querySelectorAll(`#camDetail [data-ph-id="${CSS.escape(id)}"]`).forEach((t) => {
+      t.classList.toggle("is-pick", picked.has(id));
+      t.setAttribute("aria-pressed", String(picked.has(id)));
+    });
+    syncDayLinks();
+    renderSelBar();
+  }
+  function syncDayLinks() {
+    document.querySelectorAll("#camDetail [data-sel-day]").forEach((b) => {
+      const all = b.getAttribute("data-sel-day").split(",").every((id) => picked.has(id));
+      b.setAttribute("data-all", all ? "1" : "0");
+      b.textContent = all ? "Desmarcar dia" : "Selecionar dia";
+    });
+  }
+  function renderSelBar() {
+    let bar = $("camSelBar");
+    if (!selecting) {
+      bar?.remove();
+      return;
+    }
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.id = "camSelBar";
+      bar.className = "cam-selbar";
+      bar.setAttribute("role", "toolbar");
+      bar.setAttribute("aria-label", "Fotos selecionadas");
+      document.body.appendChild(bar);
+    }
+    const n = picked.size;
+    const all = onScreen.length && onScreen.every((p) => picked.has(String(p.id)));
+    const dis = n ? "" : " disabled";
+    bar.innerHTML = `<button type="button" class="cam-selbar__x" data-sel-stop aria-label="Sair da seleção">${SVG.x}</button>
+      <span class="cam-selbar__n" role="status" aria-live="polite"><b>${n}</b> ${n === 1 ? "foto" : "fotos"}</span>
+      <button type="button" class="cam-link" data-sel-all="${all ? 0 : 1}">${all ? "Desmarcar todas" : "Todas"}</button>
+      <span class="cam-selbar__acts">
+        ${canManage ? `<button type="button" data-sel-act="stage"${dis}>${SVG.layers}<span>Etapa</span></button><button type="button" data-sel-act="stickers"${dis}>${SVG.tag}<span>Stickers</span></button>` : ""}
+        <button type="button" data-sel-act="download"${dis}>${SVG.dl}<span>Baixar</span></button>
+        ${canManage ? `<button type="button" class="is-danger" data-sel-act="delete"${dis}>${SVG.trash}<span>Apagar</span></button>` : ""}
+      </span>`;
+  }
+
+  /** Small sheet for a batch choice (stage, stickers), above the selection bar. */
+  function selSheet(title, inner) {
+    $("camSelSheet")?.remove();
+    const el = document.createElement("div");
+    el.id = "camSelSheet";
+    el.className = "cam-up cam-selsheet";
+    el.innerHTML = `<div class="cam-up__card" role="dialog" aria-modal="true" aria-labelledby="camSelT"><h2 id="camSelT">${title}</h2>${inner}<div class="cam-up__status" role="status"></div><button type="button" class="cam-up__cancel" data-selsheet-close>Fechar</button></div>`;
+    document.body.appendChild(el);
+    el.addEventListener("click", (e) => {
+      if (e.target === el || e.target.closest("[data-selsheet-close]")) el.remove();
+    });
+    el.querySelector("button")?.focus({ preventScroll: true });
+    return el;
+  }
+  /** Run one request per photo, in order, with progress in the sheet or bar; returns how many worked. */
+  async function eachPhoto(list, label, fn, statusEl) {
+    let ok = 0;
+    for (const p of list) {
+      if (statusEl) statusEl.textContent = `${label} ${ok + 1} de ${list.length}…`;
+      try {
+        await fn(p);
+        ok += 1;
+      } catch (err) {
+        if (statusEl) statusEl.textContent = err.message || "Falha";
+        window.crmToast?.error?.(`${ok} de ${list.length} feitas. ${err.message || ""}`.trim());
+        break;
+      }
+    }
+    return ok;
+  }
+  function patchCaches(id, patch) {
+    [feed, onScreen, ...Object.values(mediaCache), ...jobs.map((x) => x.photos || [])].forEach((arr) =>
+      arr.forEach((x) => {
+        if (String(x.id) === String(id)) Object.assign(x, patch);
+      }),
+    );
+  }
+  function openStageSheet() {
+    const list = pickedPhotos();
+    const el = selSheet(`Etapa de ${list.length} foto${list.length === 1 ? "" : "s"}`, `<div class="cam-up__stages">${UPLOAD_STAGES.map((x) => `<button type="button" class="cam-up__stage" data-bulk-stage="${esc(x.id)}">${esc(x.label)}</button>`).join("")}</div>`);
+    el.addEventListener("click", async (e) => {
+      const b = e.target.closest("[data-bulk-stage]");
+      if (!b) return;
+      const stage = b.getAttribute("data-bulk-stage") || null;
+      el.querySelectorAll("button").forEach((x) => (x.disabled = true));
+      const ok = await eachPhoto(list, "Mudando", async (p) => {
+        await api(`/api/work-orders/${encodeURIComponent(p.job_id)}/media/${encodeURIComponent(p.id)}/stage`, { method: "PATCH", body: JSON.stringify({ stage }) });
+        patchCaches(p.id, { stage });
+      }, el.querySelector(".cam-up__status"));
+      el.remove();
+      window.crmToast?.success?.(`${ok} foto${ok === 1 ? "" : "s"} em ${STAGE[stage] || "Geral"}`);
+      renderRight();
+    });
+  }
+  /** Stickers for many photos: a sticker every picked photo has is removed from all; otherwise it is added to all. */
+  function openStickersSheet() {
+    const list = pickedPhotos();
+    const paint = () => {
+      const chips = stickers
+        .filter((x) => !x.archived)
+        .map((x) => {
+          const n = list.filter((p) => (p.sticker_ids || []).includes(x.id)).length;
+          const state = n === list.length ? "all" : n ? "some" : "none";
+          return `<button type="button" class="cam-up__stk${state === "all" ? " is-on" : ""}${state === "some" ? " is-some" : ""}" data-bulk-stk="${esc(x.id)}" aria-pressed="${state === "all" ? "true" : state === "some" ? "mixed" : "false"}" style="--stk:${esc(x.color)}"><i aria-hidden="true"></i>${esc(x.name)}${state === "some" ? ` <em>${n}/${list.length}</em>` : ""}</button>`;
+        })
+        .join("");
+      return `<p>Toque para pôr em todas as fotos; toque de novo para tirar de todas.</p><div class="cam-up__stks" data-no-i18n>${chips || "Nenhum sticker criado."}</div>`;
+    };
+    const el = selSheet(`Stickers em ${list.length} foto${list.length === 1 ? "" : "s"}`, `<div data-bulk-body>${paint()}</div>`);
+    el.addEventListener("click", async (e) => {
+      const b = e.target.closest("[data-bulk-stk]");
+      if (!b) return;
+      const id = b.getAttribute("data-bulk-stk");
+      const remove = list.every((p) => (p.sticker_ids || []).includes(id));
+      el.querySelectorAll("[data-bulk-stk]").forEach((x) => (x.disabled = true));
+      const status = el.querySelector(".cam-up__status");
+      await eachPhoto(list, remove ? "Tirando de" : "Pondo em", async (p) => {
+        const cur = p.sticker_ids || [];
+        const next = remove ? cur.filter((x) => x !== id) : cur.includes(id) ? cur : cur.concat(id);
+        if (next.join() === cur.join()) return;
+        const r = await api(`/api/work-orders/${encodeURIComponent(p.job_id)}/media/${encodeURIComponent(p.id)}`, { method: "PATCH", body: JSON.stringify({ sticker_ids: next }) });
+        patchCaches(p.id, { sticker_ids: (r.data && r.data.sticker_ids) || next });
+      }, status);
+      status.textContent = remove ? "Sticker tirado das fotos" : "Sticker posto nas fotos";
+      el.querySelector("[data-bulk-body]").innerHTML = paint();
+      renderRight();
+    });
+  }
+  /** One file per photo; the browser may ask once to allow several downloads. */
+  async function downloadPicked() {
+    const list = pickedPhotos();
+    for (const [n, p] of list.entries()) {
+      const a = document.createElement("a");
+      a.href = p.url;
+      a.download = `obracam-${p.job_number || (jobs.find((j) => String(j.id) === String(p.job_id)) || {}).number || "foto"}-${n + 1}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      await new Promise((r) => setTimeout(r, 350));
+    }
+    window.crmToast?.success?.(`${list.length} foto${list.length === 1 ? "" : "s"} baixada${list.length === 1 ? "" : "s"}`);
+  }
+  async function deletePicked() {
+    const list = pickedPhotos();
+    if (!confirm(`Apagar ${list.length} foto${list.length === 1 ? "" : "s"}? Elas saem dos jobs e do ObraCam.`)) return;
+    const bar = $("camSelBar");
+    bar?.querySelectorAll("button").forEach((x) => (x.disabled = true));
+    const ok = await eachPhoto(list, "Apagando", async (p) => {
+      await api(`/api/work-orders/${encodeURIComponent(p.job_id)}/media/${encodeURIComponent(p.id)}`, { method: "DELETE" });
+      dropPhotoEverywhere(p.id);
+      delete mediaCache[p.job_id];
+    }, bar?.querySelector(".cam-selbar__n"));
+    window.crmToast?.success?.(`${ok} foto${ok === 1 ? "" : "s"} apagada${ok === 1 ? "" : "s"}`);
+    stopSelecting();
+    renderList();
+  }
+  function onSelBarClick(e) {
+    if (e.target.closest("[data-sel-stop]")) return stopSelecting();
+    const all = e.target.closest("[data-sel-all]");
+    if (all) {
+      if (all.getAttribute("data-sel-all") === "1") onScreen.forEach((p) => picked.add(String(p.id)));
+      else picked.clear();
+      document.querySelectorAll("#camDetail [data-ph-id]").forEach((t) => {
+        const on = picked.has(t.getAttribute("data-ph-id"));
+        t.classList.toggle("is-pick", on);
+        t.setAttribute("aria-pressed", String(on));
+      });
+      syncDayLinks();
+      return renderSelBar();
+    }
+    const act = e.target.closest("[data-sel-act]");
+    if (!act || !picked.size) return;
+    const k = act.getAttribute("data-sel-act");
+    if (k === "stage") openStageSheet();
+    else if (k === "stickers") openStickersSheet();
+    else if (k === "download") downloadPicked();
+    else if (k === "delete") deletePicked();
   }
 
   function chipHtml(k, l, c) {
@@ -643,27 +889,16 @@
     const counts = { all: feed.length, before: 0, during: 0, after: 0, none: 0 };
     feed.forEach((p) => (counts[STAGE[p.stage] ? p.stage : "none"] += 1));
     shown = hit.map((p) => toViewer({ id: p.job_id, number: p.job_number, title: p.job_title, client_name: (jobs.find((x) => x.id === p.job_id) || {}).client_name }, p));
-    const days = [];
-    hit.forEach((p, i) => {
-      const k = dayKey(takenAt(p));
-      let d = days.find((x) => x.k === k);
-      if (!d) days.push((d = { k, label: dayLabel(takenAt(p)), items: [], jobs: new Set() }));
-      d.items.push([p, i]);
-      d.jobs.add(p.job_id);
-    });
+    onScreen = hit;
     const chips = [["all", "Todas"], ["before", "Antes"], ["during", "Durante"], ["after", "Depois"], ["none", "Geral"]]
       .filter(([k]) => k === "all" || counts[k])
       .map(([k, l]) => chipHtml(k, l, counts[k]))
       .join("");
-    const grid = days.length
-      ? days
-          .map(
-            (d) =>
-              `<p class="cam-day">${esc(d.label)}<em>${d.items.length} foto${d.items.length === 1 ? "" : "s"} · ${d.jobs.size} job${d.jobs.size === 1 ? "" : "s"}</em></p><div class="cam-feedg">${d.items.map(([p, i]) => photoTile(p, i, { stage: true, job: true })).join("")}</div>`,
-          )
-          .join("")
+    const grid = hit.length
+      ? daysHtml(hit.map((p, i) => [p, i]), "cam-feedg", { jobs: true, tile: { stage: true, job: true } })
       : `<p class="cam-empty">${q || stageFilter !== "all" || stickerFilter ? "Nenhuma foto com esse filtro." : "Ainda sem fotos."}</p>`;
-    $("camFeedBody").innerHTML = `<div class="cam-chips cam-chips--bar cam-chips--stick">${paneSwitchHtml("Mapa", 0)}${pane === "photos" ? chips + stickerChipsHtml(feed) : ""}</div>${pane === "map" ? mapPaneHtml() : grid}`;
+    $("camFeedBody").innerHTML = `<div class="cam-chips cam-chips--bar cam-chips--stick">${paneSwitchHtml("Mapa", 0)}${pane === "photos" ? selectChipHtml() + chips + stickerChipsHtml(feed) : ""}</div>${pane === "map" ? mapPaneHtml() : grid}`;
+    renderSelBar();
     if (pane === "map") renderAllMap().catch(() => {});
   }
 
@@ -771,6 +1006,12 @@
   }
 
   function select(id, push) {
+    if (selecting) {
+      selecting = false;
+      picked.clear();
+      document.body.classList.remove("cam-selecting");
+      $("camSelBar")?.remove();
+    }
     selId = id;
     stageFilter = "all";
     stickerFilter = "";
@@ -1312,6 +1553,12 @@
       }
       const pn = e.target.closest("[data-pane]");
       if (pn) {
+        if (selecting) {
+          selecting = false;
+          picked.clear();
+          document.body.classList.remove("cam-selecting");
+          $("camSelBar")?.remove();
+        }
         pane = pn.getAttribute("data-pane");
         renderRight();
         return;
@@ -1322,8 +1569,61 @@
         renderRight();
         return;
       }
+      if (e.target.closest("[data-sel-start]")) {
+        startSelecting();
+        return;
+      }
+      const day = e.target.closest("[data-sel-day]");
+      if (day) {
+        const ids = day.getAttribute("data-sel-day").split(",");
+        const all = day.getAttribute("data-all") === "1";
+        ids.forEach((id) => (all ? picked.delete(id) : picked.add(id)));
+        document.querySelectorAll("#camDetail [data-ph-id]").forEach((t) => {
+          const on = picked.has(t.getAttribute("data-ph-id"));
+          t.classList.toggle("is-pick", on);
+          t.setAttribute("aria-pressed", String(on));
+        });
+        syncDayLinks();
+        renderSelBar();
+        return;
+      }
       const ph = e.target.closest("[data-ph-i]");
+      if (ph && longPressed) {
+        longPressed = false;
+        return;
+      }
+      if (ph && selecting) return togglePick(ph.getAttribute("data-ph-id"));
       if (ph) openViewer(shown, Number(ph.getAttribute("data-ph-i")) || 0);
+    });
+    // Touch: holding a photo for half a second starts selecting with that photo picked.
+    let pressTimer = null;
+    let pressAt = null;
+    let longPressed = false;
+    $("camDetail").addEventListener("pointerdown", (e) => {
+      const ph = e.target.closest("[data-ph-id]");
+      if (!ph || e.pointerType === "mouse" || selecting) return;
+      pressAt = { x: e.clientX, y: e.clientY };
+      clearTimeout(pressTimer);
+      pressTimer = setTimeout(() => {
+        longPressed = true;
+        startSelecting(ph.getAttribute("data-ph-id"));
+        if (navigator.vibrate) navigator.vibrate(12);
+      }, 480);
+    });
+    const cancelPress = () => clearTimeout(pressTimer);
+    $("camDetail").addEventListener("pointerup", cancelPress);
+    $("camDetail").addEventListener("pointercancel", cancelPress);
+    $("camDetail").addEventListener("pointermove", (e) => {
+      if (pressAt && Math.hypot(e.clientX - pressAt.x, e.clientY - pressAt.y) > 10) cancelPress();
+    });
+    $("camDetail").addEventListener("contextmenu", (e) => {
+      if (e.target.closest("[data-ph-id]")) e.preventDefault();
+    });
+    document.addEventListener("click", (e) => {
+      if (e.target.closest("#camSelBar")) onSelBarClick(e);
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && selecting && !document.querySelector(".cv:not([hidden]), #camSelSheet, .cam-up:not([hidden])")) stopSelecting();
     });
     document.addEventListener("click", (e) => {
       const up = e.target.closest(".cam-pbar [data-cam-upload]");
