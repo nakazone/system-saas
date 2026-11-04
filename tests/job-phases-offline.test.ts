@@ -15,6 +15,7 @@ import { hashPassword } from "../src/lib/auth/password.js";
 import { getPack } from "../src/lib/trades/index.js";
 import { addPhaseEvidence, closeJobPhase, ensureJobPhases } from "../src/lib/trades/job-phases-db.js";
 import { clientTime } from "../src/crm/routes/job-phases.js";
+import { markWorkOrderCompletedForInvoice } from "../src/lib/invoices/job.js";
 
 const probe = new PrismaClient();
 const privileged = await probe
@@ -132,5 +133,13 @@ describe.skipIf(!privileged)("Tile phases from the crew's phone, sent when the s
     const r = await call("POST", `${p}/grout/complete`, { at: new Date(Date.now() - 48 * H).toISOString() });
     expect(r.status).toBe(409);
     expect(r.json.code).toBe("waiting");
+  });
+
+  it("a quote invoice doesn't finish a tile job while phases are open", async () => {
+    const out = await withTenantTransaction(orgId, (tx) => markWorkOrderCompletedForInvoice(tx, { organizationId: orgId, workOrderId: jobId, actorId: jobId, reason: "quote_invoice_issued" }));
+    expect(out.completed).toBe(false);
+    expect(out.openPhases).toBeGreaterThan(0);
+    const wo = await withTenantTransaction(orgId, (tx) => tx.workOrder.findFirst({ where: { id: jobId }, select: { status: true } }));
+    expect(wo?.status).toBe("in_progress");
   });
 });

@@ -14,6 +14,7 @@ import { nextInvoiceNumber, seedDefaultPaymentTemplates } from "../payments/engi
 import { computeNewInvoiceAmount } from "./core.js";
 import { stripLockbox } from "../../modules/work-orders/public-ticket.js";
 import { discountLineLabel, readQuoteDiscount } from "../quotes/discount.js";
+import { openJobPhases } from "../trades/job-phases-db.js";
 
 /**
  * Explicitly mark a job completed (office status). Used by the "Marcar concluído" action —
@@ -22,7 +23,7 @@ import { discountLineLabel, readQuoteDiscount } from "../quotes/discount.js";
 export async function markWorkOrderCompletedForInvoice(
   tx: TenantPrisma,
   input: { organizationId: string; workOrderId: string; actorId: string; reason?: string },
-): Promise<{ completed: boolean }> {
+): Promise<{ completed: boolean; openPhases?: number }> {
   const job = await tx.workOrder.findFirst({
     where: { id: input.workOrderId, organizationId: input.organizationId },
     select: { id: true, status: true, fieldStatus: true },
@@ -30,6 +31,9 @@ export async function markWorkOrderCompletedForInvoice(
   if (!job || job.status === "canceled" || job.status === "completed") {
     return { completed: false };
   }
+  // Trades that keep phases per job (Tile): the job finishes with its last phase, not with a bill.
+  const open = await openJobPhases(tx, input.organizationId, job.id);
+  if (open.length) return { completed: false, openPhases: open.length };
   await tx.workOrder.update({
     where: { id: job.id },
     data: {
