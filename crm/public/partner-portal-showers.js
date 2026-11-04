@@ -38,7 +38,34 @@
     'Tile long side': 'Lado maior da peça', Pattern: 'Paginação', 'this shower?': 'este box?',
     SF: 'pé²', LF: 'pé lin.',
   };
-  const T = (k) => (LANG === 'pt' && PT[k] != null ? PT[k] : k);
+  const ES = {
+    Alcove: '3 paredes', Corner: 'Esquina', 'Walk-in': 'Walk-in',
+    'Left wall': 'Pared izquierda', 'Back wall': 'Pared del fondo', 'Right wall': 'Pared derecha',
+    Left: 'Izquierda', Back: 'Fondo', Right: 'Derecha', Center: 'Centro', 'No door': 'Sin puerta', Linear: 'Lineal',
+    'Mortar bed': 'Mortero con membrana', 'Foam pan': 'Base de espuma', 'Prefab base': 'Base prefabricada',
+    'Top view': 'Vista superior', Walls: 'Paredes', 'unfolded, to scale': 'desplegadas, a escala',
+    Shower: 'Ducha', Remove: 'Quitar', Name: 'Nombre', "Owner's bath shower": 'Ducha del baño principal',
+    Shape: 'Forma', Width: 'Ancho', Depth: 'Fondo', 'Tile height': 'Altura enchapada',
+    Niche: 'Nicho', None: 'Ninguno', Bench: 'Banco', Curb: 'Bordillo', Curbless: 'Sin bordillo', 'No curb': 'Sin bordillo',
+    Door: 'Puerta', Pan: 'Base', Drain: 'Desagüe', Wall: 'Pared', Length: 'Largo', 'Niche W': 'Ancho', 'Niche H': 'Alto',
+    'Wall tile': 'Azulejo de pared', 'Floor tile': 'Azulejo de piso', Stacked: 'Alineado', Offset: 'Trabado', Herringbone: 'Espiga',
+    waste: 'de desperdicio', '12×24 porcelain': 'Porcelanato 12×24', '2×2 mosaic': 'Mosaico 2×2',
+    Quantities: 'Cantidades', 'this shower': 'esta ducha', Waterproofing: 'Impermeabilización', 'Trim / edge': 'Perfil / borde',
+    'Pan · niche · bench': 'Base · nicho · banco', 'Open edges': 'Bordes abiertos', ' and niche frame': ' y marco del nicho',
+    'Walls, floor': 'Paredes, piso', ', curb': ', bordillo', ', niche': ', nicho', ', bench': ', banco',
+    'niche returns': 'laterales del nicho', bench: 'banco', curb: 'bordillo', niche: 'nicho', niches: 'nichos', included: 'incluidos',
+    ' · bench footprint taken out': ' · sin el área del banco', Order: 'Pedir', with: 'con',
+    'No showers measured': 'Ninguna ducha medida',
+    'Add each shower with its size, niche, bench and curb — wall and floor tile, waterproofing and trim come out on their own.': 'Agregue cada ducha con su medida, nicho, banco y bordillo — azulejo, impermeabilización y perfiles salen solos.',
+    '+ Shower': '+ Ducha', 'along the opening': 'en la abertura', wide: 'de ancho',
+    '72″ above the drain (minimum tiled height)': '72″ sobre el desagüe (altura mínima enchapada)', at: 'a',
+    'drag to turn': 'arrastre para girar', Close: 'Cerrar', 'Loading 3D…': 'Cargando 3D…', 'Could not load the 3D viewer.': 'No se pudo abrir el 3D.',
+    'Shower seen from above': 'Ducha vista desde arriba', 'Shower in 3D': 'Ducha en 3D', 'One less niche': 'Un nicho menos', 'One more niche': 'Un nicho más',
+    'Tile long side': 'Lado largo de la pieza', Pattern: 'Patrón', 'this shower?': 'esta ducha?',
+    SF: 'pie²', LF: 'pie lin.',
+  };
+  const DICT = { pt: PT, es: ES };
+  const T = (k) => (DICT[LANG] && DICT[LANG][k] != null ? DICT[LANG][k] : k);
   const wallLabel = (k) => T(WALL_LABEL[k]);
 
   const SHAPES = {
@@ -494,6 +521,6 @@
     return out;
   }
 
-  const setLang = (l) => { LANG = l === 'pt' ? 'pt' : 'en'; };
+  const setLang = (l) => { LANG = l === 'pt' || l === 'es' ? l : 'en'; };
   window.ObShowers = { html, bind, quantities, normalize, open3d, setLang, quoteLines, PRICE_ITEMS, matchPrice, chipSub: (raw, i) => ({ name: showerName(normalize(raw), i), sub: chipSub(normalize(raw)) }) };
 })();

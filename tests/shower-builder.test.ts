@@ -176,3 +176,18 @@ describe("shower quote lines (Field Quote and quote editor)", () => {
     expect(O.matchPrice("sh_bench", [{ name: "Baseboard" }])).toBeNull();
   });
 });
+
+describe("the shower builder in Spanish", () => {
+  it("speaks Spanish with the same numbers", async () => {
+    const { readFileSync } = await import("node:fs");
+    const win: Record<string, any> = {};
+    const doc = { getElementById: () => ({}), head: { appendChild() {} }, createElement: () => ({}) };
+    new Function("window", "document", readFileSync("crm/public/partner-portal-showers.js", "utf8"))(win, doc);
+    win.ObShowers.setLang("es");
+    const html = win.ObShowers.html({ data: { showers: [owner] }, status: "draft", showerIdx: 0 });
+    expect(html).toContain("Vista superior");
+    expect(html).toContain("99.7 pie²");
+    expect(html).toContain("Bordillo");
+    expect(win.ObShowers.chipSub(owner, 0).sub).toBe("3 paredes · 60″ × 36″ · nicho, banco");
+  });
+});

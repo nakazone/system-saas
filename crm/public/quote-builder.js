@@ -5191,7 +5191,10 @@
     const t = window.__OM_TRADE || {};
     return Boolean(window.ObShowers) && ((Array.isArray(t.measureTabs) && t.measureTabs.includes('showers')) || quoteShowers.length > 0);
   }
-  const shPt = () => !window.CrmI18n || !window.CrmI18n.getLocale || window.CrmI18n.getLocale() === 'pt';
+  const shLang = () => (window.CrmI18n && window.CrmI18n.getLocale ? window.CrmI18n.getLocale() : 'pt');
+  const shPt = () => shLang() === 'pt';
+  /** Host labels in the CRM's language (the builder itself speaks pt / es / en). */
+  const shT = (pt, es, en) => (shLang() === 'pt' ? pt : shLang() === 'es' ? es : en);
   const isShowerLine = (it) => Boolean(it && it.shower_id && it.shower_item);
 
   /** Older quotes from the Field Quote: tie their shower lines to the showers by name and description. */
@@ -5264,35 +5267,33 @@
     }
     box.hidden = false;
     const O = window.ObShowers;
-    const pt = shPt();
-    O.setLang(pt ? 'pt' : 'en');
+    O.setLang(shLang());
     adoptShowerLines();
     const tot = showerTotals();
-    box.innerHTML = `<div class="qb-sh__head"><b>${pt ? 'Boxes' : 'Showers'}</b><small>${pt ? 'As linhas de cada box saem das medidas; o preço de cada linha continua editável abaixo.' : 'Each shower’s lines come from its measurements; prices stay editable below.'}</small></div>
+    box.innerHTML = `<div class="qb-sh__head"><b>${shT('Boxes', 'Duchas', 'Showers')}</b><small>${shT('As linhas de cada box saem das medidas; o preço de cada linha continua editável abaixo.', 'Las líneas de cada ducha salen de las medidas; el precio de cada línea sigue editable abajo.', 'Each shower’s lines come from its measurements; prices stay editable below.')}</small></div>
       <div class="qb-sh__chips">${quoteShowers.map((raw, i) => {
         const c = O.chipSub(raw, i);
         const s = O.normalize(raw);
-        return `<button type="button" class="qb-sh__chip" data-qb-sh="${i}"><span><b>${escapeHtmlText(c.name)}</b><small>${escapeHtmlText(c.sub)} · ${O.quantities(s).wall_sf} ${pt ? 'pé² parede' : 'sq ft walls'}</small></span><em>${money(tot.get(String(s.id || i)) || 0)}</em></button>`;
-      }).join('')}<button type="button" class="qb-sh__chip qb-sh__chip--add" data-qb-sh="new">+ ${pt ? 'Box' : 'Shower'}</button></div>`;
+        return `<button type="button" class="qb-sh__chip" data-qb-sh="${i}"><span><b>${escapeHtmlText(c.name)}</b><small>${escapeHtmlText(c.sub)} · ${O.quantities(s).wall_sf} ${shT('pé² parede', 'pie² de pared', 'sq ft walls')}</small></span><em>${money(tot.get(String(s.id || i)) || 0)}</em></button>`;
+      }).join('')}<button type="button" class="qb-sh__chip qb-sh__chip--add" data-qb-sh="new">+ ${shT('Box', 'Ducha', 'Shower')}</button></div>`;
   }
 
   /** Edit the showers in a large sheet; "Aplicar" rebuilds their lines in the quote. */
   function openShowersEditor(idx) {
     const O = window.ObShowers;
-    const pt = shPt();
-    O.setLang(pt ? 'pt' : 'en');
+    O.setLang(shLang());
     const draft = { data: { showers: JSON.parse(JSON.stringify(quoteShowers)) }, status: 'draft', showerIdx: idx || 0 };
     if (idx == null) {
       const list = draft.data.showers;
       const prev = list[list.length - 1];
-      list.push(O.normalize({ ...(prev || {}), id: `sh${Date.now().toString(36)}`, name: `${pt ? 'Box' : 'Shower'} ${list.length + 1}` }));
+      list.push(O.normalize({ ...(prev || {}), id: `sh${Date.now().toString(36)}`, name: `${shT('Box', 'Ducha', 'Shower')} ${list.length + 1}` }));
       draft.showerIdx = list.length - 1;
     }
     const ov = document.createElement('div');
     ov.className = 'qb-sh-modal';
     ov.setAttribute('data-no-i18n', '');
-    ov.innerHTML = `<div class="qb-sh-modal__box" role="dialog" aria-modal="true" aria-label="${pt ? 'Boxes' : 'Showers'}">
-      <header class="qb-sh-modal__bar"><button type="button" class="qb-sh-modal__x" data-qb-sh-close>${pt ? 'Cancelar' : 'Cancel'}</button><b>${pt ? 'Boxes' : 'Showers'}</b><button type="button" class="qb-sh-modal__ok" data-qb-sh-apply>${pt ? 'Aplicar<span class="qb-sh-modal__long"> ao orçamento</span>' : 'Apply<span class="qb-sh-modal__long"> to quote</span>'}</button></header>
+    ov.innerHTML = `<div class="qb-sh-modal__box" role="dialog" aria-modal="true" aria-label="${shT('Boxes', 'Duchas', 'Showers')}">
+      <header class="qb-sh-modal__bar"><button type="button" class="qb-sh-modal__x" data-qb-sh-close>${shT('Cancelar', 'Cancelar', 'Cancel')}</button><b>${shT('Boxes', 'Duchas', 'Showers')}</b><button type="button" class="qb-sh-modal__ok" data-qb-sh-apply>${shT('Aplicar<span class="qb-sh-modal__long"> ao orçamento</span>', 'Aplicar<span class="qb-sh-modal__long"> al presupuesto</span>', 'Apply<span class="qb-sh-modal__long"> to quote</span>')}</button></header>
       <div class="qb-sh-modal__body" id="qbShBody"></div>
       <footer class="qb-sh-modal__foot" id="qbShFoot"></footer>
     </div>`;
@@ -5301,7 +5302,7 @@
     const foot = () => {
       const lines = O.quoteLines(draft.data.showers);
       const el = $('qbShFoot');
-      if (el) el.textContent = pt ? `${draft.data.showers.length} box${draft.data.showers.length === 1 ? '' : 'es'} · ${lines.length} linhas no orçamento ao aplicar` : `${draft.data.showers.length} shower(s) · ${lines.length} quote lines when applied`;
+      if (el) el.textContent = shT(`${draft.data.showers.length} box${draft.data.showers.length === 1 ? '' : 'es'} · ${lines.length} linhas no orçamento ao aplicar`, `${draft.data.showers.length} ducha(s) · ${lines.length} líneas en el presupuesto al aplicar`, `${draft.data.showers.length} shower(s) · ${lines.length} quote lines when applied`);
     };
     const draw = () => {
       const body = $('qbShBody');
@@ -5326,7 +5327,7 @@
         close();
         renderItems();
         qbMarkDirty();
-        qbToast(pt ? 'Boxes aplicados ao orçamento. Salve para guardar.' : 'Showers applied to the quote. Save to keep them.', 'success');
+        qbToast(shT('Boxes aplicados ao orçamento. Salve para guardar.', 'Duchas aplicadas al presupuesto. Guarde para conservarlas.', 'Showers applied to the quote. Save to keep them.'), 'success');
       }
     });
     draw();

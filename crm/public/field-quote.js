@@ -617,38 +617,39 @@
    * The builder speaks Portuguese or English by itself (the page translator would turn "Box" into
    * "Caixa"), so its parts are marked data-no-i18n; Spanish falls back to English for now.
    */
-  const shPt = () => !window.CrmI18n || !window.CrmI18n.getLocale || window.CrmI18n.getLocale() === 'pt';
+  const shLang = () => (window.CrmI18n && window.CrmI18n.getLocale ? window.CrmI18n.getLocale() : 'pt');
+  const shPt = () => shLang() === 'pt';
+  /** Host labels in the CRM's language (the builder itself speaks pt / es / en). */
+  const shT = (pt, es, en) => (shLang() === 'pt' ? pt : shLang() === 'es' ? es : en);
   function showersSection(d) {
     if (!showersOn(d)) return '';
     const O = window.ObShowers;
-    const pt = shPt();
-    O.setLang(pt ? 'pt' : 'en');
+    O.setLang(shLang());
     const wall = showerWallSf(d);
     const cards = d.showers.map((raw, i) => {
       const c = O.chipSub(raw, i);
       const q = O.quantities(raw);
-      return `<button type="button" class="fq-rc" data-fq-shower="${i}"><span class="fq-rc__top"><b>${esc(c.name)}</b><span class="fq-ok" role="img" aria-label="Medido">${IC.check()}</span></span><span class="fq-rc__area">${fmtN(q.wall_sf)} <small>${pt ? 'pé² parede' : 'sq ft walls'}</small></span><span class="fq-rc__sub">${esc(c.sub)}</span></button>`;
+      return `<button type="button" class="fq-rc" data-fq-shower="${i}"><span class="fq-rc__top"><b>${esc(c.name)}</b><span class="fq-ok" role="img" aria-label="Medido">${IC.check()}</span></span><span class="fq-rc__area">${fmtN(q.wall_sf)} <small>${shT('pé² parede', 'pie² de pared', 'sq ft walls')}</small></span><span class="fq-rc__sub">${esc(c.sub)}</span></button>`;
     });
     return `<section class="fq-sec" data-no-i18n>
-        <div class="fq-sec__head"><p class="fq-lbl2">${pt ? 'BOXES' : 'SHOWERS'}${wall ? ` · ${fmtN(wall)} ${pt ? 'PÉ² DE PAREDE' : 'SQ FT OF WALL'}` : ''}</p></div>
-        <div class="fq-rooms">${cards.join('')}<button type="button" class="fq-rc fq-rc--add" data-fq-shower-new>${IC.plus(22)}<span>${pt ? 'Box' : 'Shower'}</span></button></div>
+        <div class="fq-sec__head"><p class="fq-lbl2">${shT('BOXES', 'DUCHAS', 'SHOWERS')}${wall ? ` · ${fmtN(wall)} ${shT('PÉ² DE PAREDE', 'PIE² DE PARED', 'SQ FT OF WALL')}` : ''}</p></div>
+        <div class="fq-rooms">${cards.join('')}<button type="button" class="fq-rc fq-rc--add" data-fq-shower-new>${IC.plus(22)}<span>${shT('Box', 'Ducha', 'Shower')}</span></button></div>
       </section>`;
   }
   /** The shower builder (the same one as ObraBuilder's Showers tab), in Portuguese, in a tall sheet. */
   function sheetShowers(idx, isNew) {
     const O = window.ObShowers;
     if (!O) return;
-    const pt = shPt();
-    O.setLang(pt ? 'pt' : 'en');
+    O.setLang(shLang());
     const m = { get data() { return S.d; }, status: 'draft', showerIdx: idx || 0 };
     if (isNew) {
       const list = S.d.showers;
       const prev = list[list.length - 1];
-      list.push(O.normalize({ ...(prev ? prev : {}), id: `sh${Date.now().toString(36)}`, name: `${pt ? 'Box' : 'Shower'} ${list.length + 1}` }));
+      list.push(O.normalize({ ...(prev ? prev : {}), id: `sh${Date.now().toString(36)}`, name: `${shT('Box', 'Ducha', 'Shower')} ${list.length + 1}` }));
       m.showerIdx = list.length - 1;
       markDirty();
     }
-    openSheet(`${bar(pt ? 'Boxes' : 'Showers', 'none')}<div class="fq-sbody fq-showers" id="fqShowers" data-no-i18n></div>`, 'fq-sheet__card--tall fq-sheet__card--wide');
+    openSheet(`${bar(shT('Boxes', 'Duchas', 'Showers'), 'none')}<div class="fq-sbody fq-showers" id="fqShowers" data-no-i18n></div>`, 'fq-sheet__card--tall fq-sheet__card--wide');
     S.sheet = { kind: 'showers' };
     const draw = () => {
       const body = $('#fqShowers');
