@@ -90,3 +90,11 @@ describe.skipIf(!privileged)("GET /obracrew", () => {
     expect(m.name).toBe("ObraCrew");
   });
 });
+
+describe("saas-branding", () => {
+  it("keeps the ObraCrew icon on Campo pages", () => {
+    const js = readFileSync("crm/public/saas-branding.js", "utf8");
+    expect(js).toContain("/^\\/campo\\//.test(location.pathname)");
+    expect(js).toContain("obracam|obracrew");
+  });
+});
