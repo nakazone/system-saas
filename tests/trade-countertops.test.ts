@@ -112,3 +112,27 @@ describe("Countertops pack", () => {
     expect(pieceItemsFor(["countertops"]).filter((i) => i.countsSqft).map((i) => i.key)).toEqual(["top_sf"]);
   });
 });
+
+describe("countertops: shop lead time before install", () => {
+  it("business days skip the weekend and keep the time", async () => {
+    const { addBusinessDays } = await import("../src/lib/trades/job-phases.js");
+    // Wed 4 Nov 2026 15:00 UTC + 7 business days = Fri 13 Nov 15:00 UTC
+    expect(addBusinessDays(new Date("2026-11-04T15:00:00Z"), 7).toISOString()).toBe("2026-11-13T15:00:00.000Z");
+    // Fri + 1 = Mon
+    expect(addBusinessDays(new Date("2026-11-06T09:00:00Z"), 1).toISOString()).toBe("2026-11-09T09:00:00.000Z");
+    expect(addBusinessDays(new Date("2026-11-06T09:00:00Z"), 0).toISOString()).toBe("2026-11-06T09:00:00.000Z");
+  });
+
+  it("install is earliest 7 business days after the slab layout is approved; nothing before it is done", async () => {
+    const { phaseEarliest } = await import("../src/lib/trades/job-phases.js");
+    const { getPack } = await import("../src/lib/trades/index.js");
+    const pack = getPack("countertops");
+    const install = pack.phases.find((p) => p.key === "install");
+    expect(install?.leadTime).toEqual({ after: "layout_approval", businessDays: 7 });
+    const rows = (status: string, doneAt: Date | null) => [{ phaseKey: "layout_approval", sortOrder: 3, status, doneAt }];
+    expect(phaseEarliest(install, rows("pending", null))).toBeNull();
+    expect(phaseEarliest(install, rows("done", new Date("2026-11-04T15:00:00Z")))?.toISOString()).toBe("2026-11-13T15:00:00.000Z");
+    // Other phases have no lead time.
+    expect(phaseEarliest(pack.phases.find((p) => p.key === "template"), rows("done", new Date()))).toBeNull();
+  });
+});

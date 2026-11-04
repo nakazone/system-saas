@@ -62,6 +62,30 @@ function missingFor(def: PhaseDef | undefined, evidence: Evidence): string[] {
   return (def?.requires ?? []).filter((r: PhaseRequirement) => !evidence[r.key]).map((r) => r.key);
 }
 
+/* ───────────────────────────── lead time ───────────────────────────── */
+
+/** `from` plus `n` business days (Monday to Friday), keeping the time of day. */
+export function addBusinessDays(from: Date, n: number): Date {
+  const d = new Date(from.getTime());
+  let left = Math.max(0, Math.floor(n));
+  while (left > 0) {
+    d.setUTCDate(d.getUTCDate() + 1);
+    const wd = d.getUTCDay();
+    if (wd !== 0 && wd !== 6) left--;
+  }
+  return d;
+}
+
+/**
+ * Earliest date of a phase with a shop lead time: null until the phase it counts from is done
+ * (or when the phase has no lead time).
+ */
+export function phaseEarliest(def: PhaseDef | undefined, rows: readonly JobPhaseRow[]): Date | null {
+  if (!def?.leadTime) return null;
+  const from = rows.find((r) => r.phaseKey === def.leadTime!.after);
+  return from?.status === "done" && from.doneAt ? addBusinessDays(from.doneAt, def.leadTime.businessDays) : null;
+}
+
 /* ───────────────────────────── reading ───────────────────────────── */
 
 /**

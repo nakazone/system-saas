@@ -75,7 +75,7 @@
     const l = document.createElement("link");
     l.id = CSS_ID;
     l.rel = "stylesheet";
-    l.href = "/job-phases.css?v=20261103-stone1";
+    l.href = "/job-phases.css?v=20261104-lead1";
     document.head.appendChild(l);
   }
 
@@ -94,6 +94,30 @@
     if (diff === -1) return `Ontem ${time}`;
     const day = d.toLocaleDateString("pt-BR", { weekday: "short", day: "numeric", month: "short" }).replace(/\./g, "");
     return `${day.charAt(0).toUpperCase()}${day.slice(1)} · ${time}`;
+  }
+
+  const dateOnly = (d) => {
+    const t = d.toLocaleDateString("pt-BR", { weekday: "short", day: "numeric", month: "short" }).replace(/\./g, "");
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  };
+  /**
+   * Shop lead time (Countertops install): "A partir de Qui 12 nov" once the layout is approved,
+   * and a warning when the job is on the calendar before that. It does not block.
+   */
+  function leadLine(p, d) {
+    const lt = p.lead_time;
+    if (!lt) return "";
+    const after = esc(String(lt.after_label || "").toLowerCase());
+    if (!lt.earliest_at) return `Pelo menos ${lt.business_days} dias úteis depois de ${after}`;
+    const earliest = new Date(lt.earliest_at);
+    let out = `A partir de ${esc(dateOnly(earliest))} · ${lt.business_days} dias úteis depois de ${after}`;
+    const when = p.scheduled_start || d.scheduled_start;
+    if (when) {
+      const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+      const w = new Date(when);
+      if (day(w) < day(earliest)) out += ` <span class="jp-warn">Agendado para ${esc(dateOnly(w))}, antes do prazo da oficina</span>`;
+    }
+    return out;
   }
 
   function left(ms) {
@@ -209,16 +233,20 @@
       if (p.pending) sub += ' · <span class="jp-wait">aguardando sinal</span>';
       if (p.wait_after_hours && next) sub += ` · depois ${p.wait_after_hours} h de cura`;
     } else if (isCur) {
+      const lead = leadLine(p, d);
       sub = s.waiting
         ? `Em cura até ${esc(dayLabel(s.readyAt, st.now))} · depois registre as provas e conclua`
         : p.requires.length
           ? "Registre as provas e conclua"
           : "Pronta para concluir";
+      if (lead) sub = `${lead} · ${sub}`;
       if (s.waiting) {
         const l = esc(left(s.readyAt.getTime() - st.now.getTime()));
         right = `<span class="jp-left">${l}</span>`;
         sub = `<b class="jp-left jp-left--inline">${l} · </b>${sub}`;
       }
+    } else if (p.lead_time) {
+      sub = leadLine(p, d);
     } else if (p.wait_after_hours && next) {
       sub = `Depois: ${p.wait_after_hours} h de cura antes de ${esc(next.label.toLowerCase())}`;
     } else if (p.requires.length) {

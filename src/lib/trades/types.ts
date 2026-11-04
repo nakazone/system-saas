@@ -50,6 +50,12 @@ export type PhaseDef = {
   /** Evidence required to close this phase. */
   requires?: readonly PhaseRequirement[];
   /**
+   * Shop lead time: this phase should not happen before `businessDays` (Mon–Fri) after phase
+   * `after` closed (Countertops: install ≥ N business days after the slab layout is approved).
+   * Shown as the earliest date and a warning when the job is scheduled earlier; it does not block.
+   */
+  leadTime?: { after: string; businessDays: number };
+  /**
    * Only for jobs with this variant on (Tile: "stone" adds receiving, dry-lay and stone sealing).
    * The row exists on every job; it is "skipped" while the variant is off.
    */

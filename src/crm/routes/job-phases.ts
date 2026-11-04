@@ -18,7 +18,7 @@ import { requireCrmAuth } from "../http.js";
 import { withTenantTransaction, type TenantPrisma } from "../../lib/tenant/prisma-tenant.js";
 import { myJobAccessWhere } from "../lib/campo-shared.js";
 import { primaryPack, type TradePack } from "../../lib/trades/index.js";
-import { activeVariants, asEvidence, readJobPhases, type JobPhaseRow } from "../../lib/trades/job-phases.js";
+import { activeVariants, asEvidence, phaseEarliest, readJobPhases, type JobPhaseRow } from "../../lib/trades/job-phases.js";
 import { addPhaseEvidence, closeJobPhase, ensureJobPhases, listJobPhases, setJobVariant } from "../../lib/trades/job-phases-db.js";
 
 export const jobPhasesRouter = Router();
@@ -77,6 +77,8 @@ async function phasesState(tx: TenantPrisma, req: AuthedRequest, jobId: string) 
     trade: pack.id,
     storage: pack.phaseStorage,
     status: job.status,
+    // The job's date on the calendar, to warn when it is before a phase's earliest date.
+    scheduled_start: job.scheduledStart?.toISOString() ?? null,
     can_force: perms(req).manage,
     // Job variants (Tile: natural stone) and whether each is on for this job.
     variants: (pack.variants ?? []).map((v) => ({ key: v.key, label: v.label[locale], label_en: v.label["en-US"], on: activeVariants(pack, rows).includes(v.key) })),
@@ -95,6 +97,15 @@ async function phasesState(tx: TenantPrisma, req: AuthedRequest, jobId: string) 
         done_at: v.doneAt?.toISOString() ?? null,
         done_by_name: row?.doneByName ?? null,
         wait_after_hours: def?.waitAfterHours ?? 0,
+        // Shop lead time (Countertops install): earliest date once the counted-from phase is done.
+        lead_time: def?.leadTime
+          ? {
+              business_days: def.leadTime.businessDays,
+              after: def.leadTime.after,
+              after_label: pack.phases.find((x) => x.key === def.leadTime!.after)?.label[locale] ?? def.leadTime.after,
+              earliest_at: phaseEarliest(def, rows)?.toISOString() ?? null,
+            }
+          : null,
         requires: (def?.requires ?? []).map((r) => {
           const e = ev[r.key];
           return {

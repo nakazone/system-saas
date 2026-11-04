@@ -93,6 +93,8 @@ export const countertops: TradePack = {
     {
       key: "install",
       label: L("Instalação", "Install"),
+      // Shop lead time: fabrication takes about a week after the layout is approved (pilot to confirm).
+      leadTime: { after: "layout_approval", businessDays: 7 },
       // Sink silicone / seam epoxy cure before the plumbing is reconnected (24 h typical).
       waitAfterHours: 24,
       requires: [{ key: "seams_photo", kind: "photo", label: L("Foto das emendas e dos cutouts", "Seams and cutouts") }],
