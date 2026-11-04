@@ -353,22 +353,27 @@
 /* ---------- grupos que recolhem, "mostrar mais" e filtros ativos (crm-list.js) */
 .ol-hide { display: none !important; }
 
+/* Preso no topo da lista. O contêiner das linhas tem 6px de respiro em cima; o
+ * cabeçalho sobe esses 6px para encostar na borda — sem fresta onde as linhas
+ * apareçam por trás ao rolar. */
 .ol-list .ol-grp--fold {
   position: sticky;
   top: 0;
-  z-index: 2;
+  z-index: 3;
   margin-left: 0;
   margin-right: 0;
-  padding: 8px 12px 6px;
+  padding: 12px 12px 8px;
   align-items: center;
   background: var(--ol-surface);
+  box-shadow: 0 1px 0 var(--ol-line);
   cursor: pointer;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
-  border-radius: 8px;
 }
+.ol-list .ol-rows .ol-grp--fold { top: -6px; margin-left: -8px; margin-right: -8px; padding-left: 20px; padding-right: 20px; }
+.ol-list .ol-grp--fold.is-folded { box-shadow: none; }
 .ol-list .ol-grp--fold:hover { color: var(--ol-ink); }
-.ol-list .ol-grp--fold:focus-visible { outline: 2px solid var(--ol-accent); outline-offset: -2px; }
+.ol-list .ol-grp--fold:focus-visible { outline: 2px solid var(--ol-accent); outline-offset: -3px; }
 .ol-list .ol-grp--fold > .ol-chev {
   flex: none;
   width: 14px; height: 14px;
@@ -427,7 +432,8 @@
 .ol-filt :focus-visible { outline: 2px solid var(--ol-accent); outline-offset: 1px; }
 
 @media (max-width: 1024px) {
-  .ol-list .ol-grp--fold { position: static; background: transparent; padding: 10px 8px 6px; }
+  .ol-list .ol-grp--fold,
+  .ol-list .ol-rows .ol-grp--fold { position: static; background: transparent; box-shadow: none; margin-left: 0; margin-right: 0; padding: 10px 8px 6px; }
   .ol-filt { padding: 0 2px 8px; }
   /* Agrupar/Ordenar, Status/Origem: uma linha só, rola de lado se faltar espaço */
   .ol-list .ol-bar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
@@ -438,3 +444,24 @@
 @media (prefers-reduced-motion: reduce) {
   .ol-list .ol-grp--fold > .ol-chev { transition: none; }
 }
+
+/* ---------- Jobs no computador: o mesmo cartão do app (dados em cima, ações embaixo) */
+.ol-list .ol-rows .jx-rowwrap.jmx-card {
+  margin: 0 0 8px;
+  padding: 12px 14px;
+  border: 1.5px solid #D0D5DD;
+  border-radius: 16px;
+  background: var(--ol-surface);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .04);
+  transition: border-color .12s ease;
+}
+.ol-list .ol-rows .jx-rowwrap.jmx-card:hover { border-color: #98A2B3; }
+.ol-list .ol-rows .jx-rowwrap.jmx-card:has(.ol-row.is-on) {
+  border-color: var(--ol-accent);
+  background: var(--ol-accent-soft);
+  box-shadow: 0 0 0 1px var(--ol-accent-ring);
+}
+.ol-list .ol-rows .jx-rowwrap.jmx-card .jmx-card__r3 { margin-top: 10px; }
+.ol-list .ol-rows .jx-rowwrap.jmx-card .jmx-b { height: 32px; }
+.ol-list .ol-rows .jx-rowwrap.jmx-card .jmx-b--sq { width: 32px; }
+.ol-list .ol-rows .ol-band > .jx-rowwrap.jmx-card:last-child { margin-bottom: 4px; }
