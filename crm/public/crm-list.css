@@ -349,3 +349,92 @@
 .ol-list .jmx-card .ol-row .ol-t { font-size: 15px; }
 .ol-list .jmx-card .ol-row .ol-f .jx-prog { max-width: none; }
 .ol-list .jmx-card .jmx-card__r3 { margin-top: 10px; }
+
+/* ---------- grupos que recolhem, "mostrar mais" e filtros ativos (crm-list.js) */
+.ol-hide { display: none !important; }
+
+.ol-list .ol-grp--fold {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin-left: 0;
+  margin-right: 0;
+  padding: 8px 12px 6px;
+  align-items: center;
+  background: var(--ol-surface);
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  border-radius: 8px;
+}
+.ol-list .ol-grp--fold:hover { color: var(--ol-ink); }
+.ol-list .ol-grp--fold:focus-visible { outline: 2px solid var(--ol-accent); outline-offset: -2px; }
+.ol-list .ol-grp--fold > .ol-chev {
+  flex: none;
+  width: 14px; height: 14px;
+  margin: 0 -2px 0 -4px;
+  fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round;
+  transform: rotate(90deg);
+  transition: transform .16s cubic-bezier(.2, .7, .3, 1);
+}
+.ol-list .ol-grp--fold.is-folded > .ol-chev { transform: rotate(0deg); }
+/* recolhido: o cabeçalho vira uma linha de resumo, com a contagem em destaque */
+.ol-list .ol-grp--fold.is-folded { margin-bottom: 0; }
+.ol-list .ol-grp--fold.is-folded em {
+  min-width: 22px; padding: 1px 7px; border-radius: 999px;
+  background: var(--ol-act-bg); color: var(--ol-ink2); text-align: center;
+}
+
+.ol-list .ol-more {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  width: calc(100% - 8px); margin: 2px 4px 8px; height: 34px;
+  border: 0; border-radius: 10px;
+  background: transparent; color: var(--ol-ink2);
+  font: inherit; font-size: 12.5px; font-weight: 650;
+  cursor: pointer;
+}
+.ol-list .ol-more::after {
+  content: ""; width: 7px; height: 7px; margin-top: -4px;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg);
+}
+.ol-list .ol-more:hover { background: var(--ol-hover); color: var(--ol-ink); }
+.ol-list .ol-more:focus-visible { outline: 2px solid var(--ol-accent); outline-offset: -2px; }
+
+/* faixa entre o topo e as linhas */
+.ol-filt {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 12px 0;
+}
+.ol-filt[hidden] { display: none; }
+.ol-filt .ol-act { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; flex: 1; }
+.ol-filt .ol-chip {
+  display: inline-flex; align-items: center; gap: 4px; max-width: 100%;
+  height: 26px; padding: 0 6px 0 10px; border: 0; border-radius: 999px;
+  background: var(--ol-accent-soft); box-shadow: inset 0 0 0 1px var(--ol-accent-ring);
+  color: var(--ol-hot); font: inherit; font-size: 12px; font-weight: 650; cursor: pointer;
+}
+.ol-filt .ol-chip span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ol-filt .ol-chip svg { flex: none; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+.ol-filt .ol-chip:hover { background: #FDE7D6; }
+.ol-filt .ol-clear,
+.ol-filt .ol-foldall {
+  flex: none; height: 26px; padding: 0 8px; border: 0; border-radius: 8px;
+  background: transparent; color: var(--ol-ink2); font: inherit; font-size: 12px; font-weight: 650; cursor: pointer;
+}
+.ol-filt .ol-foldall { margin-left: auto; }
+.ol-filt .ol-clear:hover,
+.ol-filt .ol-foldall:hover { background: var(--ol-hover); color: var(--ol-ink); }
+.ol-filt :focus-visible { outline: 2px solid var(--ol-accent); outline-offset: 1px; }
+
+@media (max-width: 1024px) {
+  .ol-list .ol-grp--fold { position: static; background: transparent; padding: 10px 8px 6px; }
+  .ol-filt { padding: 0 2px 8px; }
+  /* Agrupar/Ordenar, Status/Origem: uma linha só, rola de lado se faltar espaço */
+  .ol-list .ol-bar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .ol-list .ol-bar::-webkit-scrollbar { display: none; }
+  .ol-list .ol-bar > label { flex: none; white-space: nowrap; }
+  .ol-list .ol-more { height: 40px; font-size: 13px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ol-list .ol-grp--fold > .ol-chev { transition: none; }
+}
