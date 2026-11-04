@@ -196,24 +196,26 @@
     window.JobBilling.openDialog({ jobId: wo.id, billing: wo.billing, jobStatus: wo.status });
   }
   /** Botão principal do cartão — o mesmo do app: agendar, iniciar, concluir, faturar. */
-  function cardActions(wo, undated) {
+  function cardActions(wo, undated, now) {
     if (!canManage) return "";
     const J = I();
     const id = J.esc(wo.id);
+    // Laranja só no que é para agora (em campo, hoje, atrasado, sem data); o resto fica neutro.
+    const b = now ? "jmx-b jmx-b--or" : "jmx-b";
     if (wo.status === "in_progress") {
       const nxt = J.nextFinish ? J.nextFinish(wo) : null;
-      return `<button type="button" class="jmx-b jmx-b--or" data-jx-act="complete" data-id="${id}">${J.esc(nxt ? nxt.label : "Concluir")}</button>`;
+      return `<button type="button" class="${b}" data-jx-act="complete" data-id="${id}">${J.esc(nxt ? nxt.label : "Concluir")}</button>`;
     }
     if (wo.status === "scheduled" || wo.status === "draft") {
-      if (undated) return `<button type="button" class="jmx-b jmx-b--or" data-jx-start="${id}">Schedule Job</button>`;
-      return `<button type="button" class="jmx-b jmx-b--or" data-jx-act="start" data-id="${id}">Iniciar</button>`;
+      if (undated) return `<button type="button" class="${b}" data-jx-start="${id}">Schedule Job</button>`;
+      return `<button type="button" class="${b}" data-jx-act="start" data-id="${id}">Iniciar</button>`;
     }
     if (wo.status === "completed" && canBill && bucket(wo) === "toinvoice") {
-      return `<button type="button" class="jmx-b jmx-b--or" data-jx-faturar="${id}">Faturar</button>`;
+      return `<button type="button" class="${b}" data-jx-faturar="${id}">Faturar</button>`;
     }
     return "";
   }
-  function rowHtml(wo) {
+  function rowHtml(wo, now = false) {
     const J = I();
     const finished = wo.status === "completed" || wo.status === "canceled";
     const undated = !finished && !wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start);
@@ -227,15 +229,18 @@
     const stText = lt ? lt.short : when.status;
     const tone = J.stageTone ? J.stageTone(wo) : "wait";
     const maps = wo.address ? `https://maps.google.com/?q=${encodeURIComponent(wo.address)}` : "";
-    const actions = cardActions(wo, undated);
+    const actions = cardActions(wo, undated, now);
+    const id = J.esc(wo.id);
+    // Cartão do app, compacto para a coluna: nome e data, endereço, progresso, e uma
+    // linha com o status à esquerda e mapa + ação principal à direita.
     const body = `<div class="jx-rowwrap jmx-card">
-    <a class="jx-row ol-row${String(wo.id) === String(selId) ? " is-on" : ""}" href="${href}" data-jx-id="${J.esc(wo.id)}">
+    <a class="jx-row ol-row${String(wo.id) === String(selId) ? " is-on" : ""}" href="${href}" data-jx-id="${id}">
       <b class="ol-t" title="${J.esc(head)}">${J.esc(head)}</b>
       ${when.date && !undated ? `<span class="ol-v">${J.esc(when.date)}</span>` : ""}
       ${addr}
-      <span class="ol-f">${stText ? `<span class="ol-st is-${tone}">${J.esc(stText)}</span>` : ""}${J.progHtml(wo)}</span>
-    </a>${maps || actions ? `
-    <div class="jmx-card__r3">${maps ? `<a class="jmx-b jmx-b--sq" href="${maps}" target="_blank" rel="noopener" aria-label="Abrir mapa" title="Abrir mapa">${SVG.pin}</a>` : ""}${actions}</div>` : ""}
+      ${J.progHtml(wo)}
+    </a>
+    <div class="jmx-card__r3 jx-foot" data-jx-id="${id}">${stText ? `<span class="ol-st is-${tone}" title="${J.esc(stText)}">${J.esc(stText)}</span>` : ""}${maps ? `<a class="jmx-b jmx-b--sq" href="${maps}" target="_blank" rel="noopener" aria-label="Abrir mapa" title="Abrir mapa">${SVG.pin}</a>` : ""}${actions}</div>
     </div>`;
     // Swipe-to-delete only on touch / narrow — desktop list stays clean (no inline buttons).
     if (showDel && useSwipeDelete()) {
@@ -328,6 +333,12 @@
    * depois amanhã, a semana e o resto. Concluídos ficam no fim (a lista os recolhe).
    */
   const DAY_MS = 86400000;
+  const NOW_GROUPS = new Set(["field", "today", "late", "nodate"]);
+  function dayName(d) {
+    const wd = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+    const mo = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+    return `${wd[d.getDay()]} ${d.getDate()} ${mo[d.getMonth()]}`;
+  }
   function dayGroups(rows) {
     const J = I();
     const now = new Date();
@@ -367,11 +378,13 @@
       .filter(([k]) => b[k].length)
       .map(([k, label]) => {
         const g = b[k];
+        if (k === "today") label = `Hoje · ${dayName(now)}`;
+        if (k === "tomorrow") label = `Amanhã · ${dayName(new Date(tomorrow))}`;
         if (k === "done" || k === "off") g.sort(byDoneDesc);
         else if (k === "late") g.sort((a, z) => byStart(z, a));
         else if (k === "nodate") g.sort((a, z) => new Date(z.created_at || 0) - new Date(a.created_at || 0));
         else g.sort(byStart);
-        return [label, g];
+        return [k, label, g];
       });
   }
   function weekTitle(sunday) {
@@ -475,10 +488,11 @@
     }
     let html = "";
     if (pending.length || portal.length) {
-      html += `<section class="jx-week jx-week--portal ol-band"><p class="jx-grp jx-grp--portal ol-grp"><span>Do portal</span><em>${pending.length + portal.length}</em></p>${pending.map(pendingRequestHtml).join("")}${portal.map(rowHtml).join("")}</section>`;
+      html += `<section class="jx-week jx-week--portal ol-band"><p class="jx-grp jx-grp--portal ol-grp"><span>Do portal</span><em>${pending.length + portal.length}</em></p>${pending.map(pendingRequestHtml).join("")}${portal.map((wo) => rowHtml(wo, true)).join("")}</section>`;
     }
-    dayGroups(rows).forEach(([label, g]) => {
-      html += `<section class="jx-week ol-band"><p class="jx-grp ol-grp"><span>${label}</span><em>${g.length}</em></p>${g.map(rowHtml).join("")}</section>`;
+    dayGroups(rows).forEach(([key, label, g]) => {
+      const now = NOW_GROUPS.has(key);
+      html += `<section class="jx-week ol-band"><p class="jx-grp ol-grp"><span>${label}</span><em>${g.length}</em></p>${g.map((wo) => rowHtml(wo, now)).join("")}</section>`;
     });
     host.innerHTML = html;
     if (window.OmGestures) window.OmGestures.bindSwipeRow?.(host);

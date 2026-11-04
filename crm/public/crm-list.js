@@ -182,10 +182,29 @@
       if (filters.length > 1) html += '<button type="button" class="ol-clear" data-ol-clear="all">Limpar</button>';
       html += "</div>";
     }
-    if (multi && !q) {
-      html += '<button type="button" class="ol-foldall" data-ol-foldall="' + (anyOpen ? "1" : "0") + '">' +
-        (anyOpen ? "Recolher tudo" : "Abrir tudo") + "</button>";
+    var fold = multi && !q
+      ? '<button type="button" class="ol-foldall" data-ol-foldall="' + (anyOpen ? "1" : "0") + '">' +
+        (anyOpen ? "Recolher tudo" : "Abrir tudo") + "</button>"
+      : "";
+    // Com uma linha de selects (Status/Origem…), o botão mora nela, só com ícone — sem faixa
+    // só para ele. Se não couber na linha (quebraria), volta para a faixa, com texto.
+    var slot = L.top && L.top.querySelector(".ol-bar");
+    var cur = slot && slot.querySelector(":scope > .ol-foldall");
+    var placed = false;
+    if (slot && fold) {
+      var label = anyOpen ? "Recolher todos os grupos" : "Abrir todos os grupos";
+      var icon = '<button type="button" class="ol-foldall ol-foldall--icon" data-ol-foldall="' + (anyOpen ? "1" : "0") +
+        '" aria-label="' + label + '" title="' + label + '"><svg viewBox="0 0 24 24" aria-hidden="true">' +
+        (anyOpen ? '<path d="m7 11 5-5 5 5M7 18l5-5 5 5"/>' : '<path d="m7 6 5 5 5-5M7 13l5 5 5-5"/>') + "</svg></button>";
+      if (!cur) { slot.insertAdjacentHTML("beforeend", icon); cur = slot.lastElementChild; }
+      else if (cur.outerHTML !== icon) { cur.outerHTML = icon; cur = slot.querySelector(":scope > .ol-foldall"); }
+      var first = slot.firstElementChild;
+      var cb = cur.getBoundingClientRect();
+      var sb = slot.getBoundingClientRect();
+      placed = !first || first === cur || (cur.offsetTop <= first.offsetTop + 4 && cb.right <= sb.right + 1);
     }
+    if (!placed && cur) cur.remove();
+    if (!placed) html += fold;
     L.filters = filters;
     if (host.innerHTML !== html) host.innerHTML = html;
     host.hidden = !html;
@@ -223,8 +242,9 @@
     list.__ol = L;
     var t = 0;
     L.mo = new MutationObserver(function () {
-      cancelAnimationFrame(t);
-      t = requestAnimationFrame(function () { apply(L); });
+      // setTimeout, não rAF: rAF para em aba/painel em segundo plano e a lista ficaria sem grupos.
+      clearTimeout(t);
+      t = setTimeout(function () { apply(L); }, 16);
     });
 
     rows.addEventListener("click", function (e) {
@@ -237,6 +257,17 @@
       var h = e.target.closest && e.target.closest(".ol-grp--fold");
       if (h && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); toggle(L, h); }
     });
+    function onFoldAll(e) {
+      var fa = e.target.closest("[data-ol-foldall]");
+      if (!fa) return false;
+      var fold = fa.dataset.olFoldall === "1";
+      var folds = store(L.key);
+      L.groups.forEach(function (g) { if (g.head) folds[g.label] = fold; });
+      store(L.key, folds);
+      apply(L);
+      return true;
+    }
+    if (top) top.addEventListener("click", function (e) { onFoldAll(e); });
     barEl.addEventListener("click", function (e) {
       var c = e.target.closest("[data-ol-clear]");
       if (c) {
@@ -246,14 +277,7 @@
         setTimeout(function () { apply(L); }, 0);
         return;
       }
-      var fa = e.target.closest("[data-ol-foldall]");
-      if (fa) {
-        var fold = fa.dataset.olFoldall === "1";
-        var folds = store(L.key);
-        L.groups.forEach(function (g) { if (g.head) folds[g.label] = fold; });
-        store(L.key, folds);
-        apply(L);
-      }
+      onFoldAll(e);
     });
     // filtros mudam fora da lista (selects, chips, busca) → atualizar faixa
     var later = function () { setTimeout(function () { apply(L); }, 0); };
