@@ -155,3 +155,21 @@ describe("client tour of a countertops quote", () => {
     expect(tour.tops).toBeNull();
   });
 });
+
+describe("Field Quote questions of a countertops visit", () => {
+  const catalog = (trade: string) => {
+    const win: Record<string, any> = { __OM_TRADE: { id: trade } };
+    new Function("window", readFileSync("crm/public/field-quote-catalog.js", "utf8"))(win);
+    return win.FQ_CATALOG.QUESTIONS;
+  };
+  it("asks what decides the template trip; risky answers go to the job's 'Para o campo'", () => {
+    const Q = catalog("countertops");
+    expect(Q.countertops.map((q: any) => q.id)).toEqual(["cabinets", "sink_faucet", "sink_model", "cooktop_model", "plumbing", "existing_top", "wall_tile", "slab"]);
+    const cab = Q.countertops.find((q: any) => q.id === "cabinets");
+    expect([cab.attentionIf("ready"), cab.attentionIf("installing"), cab.attentionIf("not_yet")]).toEqual([false, true, true]);
+    expect(Q.countertops.find((q: any) => q.id === "plumbing").attentionIf("plumber")).toBe(true);
+    // Heavy furniture is a flooring question.
+    expect(Q.general.find((q: any) => q.id === "heavy_items").show()).toBe(false);
+    expect(catalog("hardwood").general.find((q: any) => q.id === "heavy_items").show()).toBe(true);
+  });
+});

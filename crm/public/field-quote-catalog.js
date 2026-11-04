@@ -71,12 +71,14 @@
   ];
 
   /** Details asked on site (not priced). Grouped by service; `show` gates by previous answers. */
+  /** A Countertops company (trade pack) — its visits ask countertop questions, not flooring ones. */
+  const countertopsOnly = () => ((global.__OM_TRADE || {}).id === 'countertops');
   const QUESTIONS = {
     general: [
       { id: 'occupied', pt: 'Casa ocupada durante a obra?', type: 'bool' },
       { id: 'pets', pt: 'Tem pets?', type: 'bool', attention: 'Pets na casa' },
       { id: 'access', pt: 'Acesso / estacionamento', type: 'text', attention: 'Acesso' },
-      { id: 'heavy_items', pt: 'Móveis pesados (piano, cofre…)', type: 'text', attention: 'Móveis pesados' },
+      { id: 'heavy_items', pt: 'Móveis pesados (piano, cofre…)', type: 'text', attention: 'Móveis pesados', show: () => !countertopsOnly() },
       { id: 'timeline', pt: 'Quando o cliente quer começar?', type: 'text' },
     ],
     demolition: [
@@ -92,6 +94,21 @@
       { id: 'board_width', pt: 'Largura da tábua', type: 'text', show: (a, s) => ['solid_hardwood', 'engineered_wood', 'lvp', 'laminate'].includes(s.installation && s.installation.material) },
       { id: 'direction', pt: 'Direção da instalação', type: 'text', attention: 'Direção' },
       { id: 'tile_size', pt: 'Tamanho da peça / rejunte', type: 'text', show: (a, s) => (s.installation && s.installation.material) === 'tile' },
+    ],
+    /**
+     * Countertops visits: what decides whether the template trip happens (cabinets set, sink and
+     * faucet on site) and what the crew must know. "attentionIf" marks the answers that go to the
+     * job's "Para o campo".
+     */
+    countertops: [
+      { id: 'cabinets', pt: 'Cabinets', type: 'choice', options: [['ready', 'Fixos e nivelados'], ['installing', 'Sendo instalados'], ['not_yet', 'Ainda não chegaram']], attention: 'Cabinets', attentionIf: (v) => v !== 'ready' },
+      { id: 'sink_faucet', pt: 'Cuba e torneira', type: 'choice', options: [['on_site', 'Já estão no local'], ['customer', 'Cliente vai comprar'], ['us', 'Nós fornecemos']], attention: 'Cuba e torneira', attentionIf: (v) => v === 'customer' },
+      { id: 'sink_model', pt: 'Modelo da cuba / torneira', type: 'text', attention: 'Cuba' },
+      { id: 'cooktop_model', pt: 'Cooktop / range (modelo e medida)', type: 'text', attention: 'Cooktop' },
+      { id: 'plumbing', pt: 'Desligar e religar a pia', type: 'choice', options: [['us', 'Nós'], ['plumber', 'Encanador do cliente']], attention: 'Encanamento', attentionIf: (v) => v === 'plumber' },
+      { id: 'existing_top', pt: 'Bancada atual (material)', type: 'text' },
+      { id: 'wall_tile', pt: 'Azulejo na parede da rodabanca para tirar?', type: 'bool', attention: 'Azulejo na parede' },
+      { id: 'slab', pt: 'Slab', type: 'choice', options: [['chosen', 'Já escolhido'], ['showroom', 'Vai escolher no showroom'], ['remnant', 'Sobra (remnant)']] },
     ],
     sanding: [
       { id: 'coats', pt: 'Demãos de acabamento', type: 'number' },

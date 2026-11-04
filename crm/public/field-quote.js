@@ -63,7 +63,7 @@
   const LS = (id) => 'om_fq_' + id;
 
   function blankData() {
-    return { version: 1, services: [], svc: { installation: { material: 'lvp', pattern: 'straight', supply: false, waste: null }, sanding: { type: 'sand_finish' }, demolition: {} }, rooms: [], extras: {}, custom: [], answers: { general: {}, demolition: {}, installation: {}, sanding: {} }, rates: {}, notes: '', photos: [], floorplan: null, photo_analysis: null, ai_conversation: [] };
+    return { version: 1, services: [], svc: { installation: { material: 'lvp', pattern: 'straight', supply: false, waste: null }, sanding: { type: 'sand_finish' }, demolition: {} }, rooms: [], extras: {}, custom: [], answers: { general: {}, demolition: {}, installation: {}, sanding: {}, countertops: {} }, rates: {}, notes: '', photos: [], floorplan: null, photo_analysis: null, ai_conversation: [] };
   }
   function normalizeData(raw) {
     const b = blankData();
@@ -282,7 +282,10 @@
         if (!q.attention) return;
         const v = (d.answers[g] || {})[q.id];
         if (v == null || v === '' || v === false) return;
-        out.push(v === true ? q.attention : `${q.attention}: ${v}`);
+        if (q.attentionIf && !q.attentionIf(v)) return;
+        const opt = q.type === 'choice' ? (q.options || []).find((o) => (Array.isArray(o) ? o[0] : o) === v) : null;
+        const shown = opt && Array.isArray(opt) ? opt[1] : v;
+        out.push(v === true ? q.attention : `${q.attention}: ${shown}`);
       });
     });
     return out.join(' · ');
@@ -597,7 +600,7 @@
     const withPhoto = d.rooms.filter((r) => photosOf(r.id).length).length;
     const st = (done, part) => (done ? 'is-done' : part ? 'is-part' : '');
     return [
-      { name: 'Serviços', cls: st(d.services.length > 0) },
+      ...(floorHidden(d) ? [] : [{ name: 'Serviços', cls: st(d.services.length > 0) }]),
       { name: roomsTotal ? `Medidas ${measured}/${roomsTotal}` : 'Medidas', cls: st(measured > 0 && !planOpen, measured > 0) },
       { name: `Fotos ${d.photos.length}`, cls: st(d.rooms.length > 0 && withPhoto === d.rooms.length, d.photos.length > 0) },
       { name: q.total ? `Detalhes ${q.answered}/${q.total}` : 'Detalhes', cls: st(q.total > 0 && q.answered >= Math.min(3, q.total), q.answered > 0) },
@@ -672,6 +675,12 @@
     };
     draw();
   }
+  const ctTrade = () => (window.__OM_TRADE || {}).id === 'countertops';
+  /**
+   * A Countertops company's visit shows only the tops; the flooring parts (services, rooms, extras)
+   * open from a link, and stay open once the visit has any of them.
+   */
+  const floorHidden = (d) => ctTrade() && Boolean(window.ObTops) && !S.floorOpen && !d.services.length && !d.rooms.length && !(d.floorplan && Array.isArray(d.floorplan.rooms) && d.floorplan.rooms.length) && !Object.values(d.extras || {}).some((e) => e && e.on) && !(d.custom || []).length;
   /** Countertops companies measure tops (or a visit that already has them). */
   const topsOn = (d) => Boolean(window.ObTops) && ((window.__OM_TRADE || {}).id === 'countertops' || topPieces(d) > 0);
   const topsSf = (d) => (window.ObTops && d.tops ? window.ObTops.quantities(d.tops).sf : 0);
@@ -722,6 +731,7 @@
   }
   function renderPanel() {
     const fq = S.fq;
+    if (S.floorFor !== fq.id) Object.assign(S, { floorFor: fq.id, floorOpen: false });
     const d = S.d;
     document.title = fq.client_name + ' · Field Quote';
     const t = totals(d);
@@ -742,10 +752,11 @@
       <div class="fq-prog" aria-label="Andamento da visita">${progress(d).map((p) => `<div class="fq-prog__i ${p.cls}"><i></i><span>${esc(p.name)}</span></div>`).join('')}</div>
       ${quoted ? `<div class="fq-quoted"><div><b>Orçamento ${esc(fq.quote.number)}</b><small>${esc(quoteStatusPt(fq.quote.status))}</small></div><a class="fq-btn fq-btn--sm" href="quote-builder.html?id=${esc(fq.quote_id)}${fq.lead_id ? '&lead_id=' + esc(fq.lead_id) : ''}">Abrir</a><button type="button" class="fq-btn fq-btn--sm fq-btn--ink" data-fq-present-existing>${IC.play()}Apresentar</button></div>` : ''}
       <div class="fq-only-phone">${pendingCardHtml()}${photoTipsHtml()}${tipsCard(tips, 1)}</div>
-      <section class="fq-sec"><p class="fq-lbl2">O QUE VAI SER FEITO</p><div class="fq-chips">${svcChips(d)}</div></section>
+      ${floorHidden(d) ? '' : `<section class="fq-sec"><p class="fq-lbl2">O QUE VAI SER FEITO</p><div class="fq-chips">${svcChips(d)}</div></section>`}
       ${showersSection(d)}
       ${topsSection(d)}
-      <section class="fq-sec">
+      ${floorHidden(d) ? `<button type="button" class="fq-link2 fq-floor-open" data-fq-floor-open>${IC.plus(15)}Também tem piso? Adicionar cômodos e serviços</button>` : ''}
+      <section class="fq-sec"${floorHidden(d) ? ' hidden' : ''}>
         <div class="fq-sec__head"><p class="fq-lbl2">CÔMODOS${area ? ` · ${fmtN(area)} PÉ²` : ''}</p>${d.services.length ? `<button type="button" class="fq-link2" data-fq-ai-measure>${IC.mic(15)}Ditar medidas</button>` : ''}</div>
         <div class="fq-rooms">${d.rooms.map(roomCard).join('')}
           ${planOpen.map((r) => `<button type="button" class="fq-rc fq-rc--todo" data-fq-plan-measure="${esc(r.id)}"><span class="fq-rc__top"><b>${esc(r.label)}</b><span class="fq-flag">falta medir</span></span><span class="fq-rc__sub">da planta das fotos</span></button>`).join('')}
@@ -753,9 +764,9 @@
         </div>
       </section>
       <section class="fq-sec fq-list2">
-        <button type="button" class="fq-li2" data-fq-open="extras"><span><b>Extras</b><small>${extrasOn.length || d.custom.length ? esc([...extrasOn.map((e) => e.pt), ...d.custom.map((c) => c.name).filter(Boolean)].join(' · ')) : 'Escada, rodapé, transições, descarte…'}</small></span>${IC.chev()}</button>
-        <button type="button" class="fq-li2" data-fq-open="details"><span><b>Detalhes da obra</b><small>${qCount.answered ? `${qCount.answered} de ${qCount.total} respondidas` : 'Pets, acesso, piso atual, acabamento…'}${attentionSummary(d) ? ' · ' + esc(attentionSummary(d)) : ''}</small></span>${IC.chev()}</button>
-        <div class="fq-li2 fq-li2--photos"><span><b>Fotos</b><small>${d.photos.length ? `${d.photos.length} foto${d.photos.length > 1 ? 's' : ''} · vão para o ObraCam do job` : 'Piso atual, danos, acesso'}</small></span>
+        ${floorHidden(d) ? '' : `<button type="button" class="fq-li2" data-fq-open="extras"><span><b>Extras</b><small>${extrasOn.length || d.custom.length ? esc([...extrasOn.map((e) => e.pt), ...d.custom.map((c) => c.name).filter(Boolean)].join(' · ')) : 'Escada, rodapé, transições, descarte…'}</small></span>${IC.chev()}</button>`}
+        <button type="button" class="fq-li2" data-fq-open="details"><span><b>Detalhes da obra</b><small>${qCount.answered ? `${qCount.answered} de ${qCount.total} respondidas` : (ctTrade() ? 'Cabinets, cuba, cooktop, acesso…' : 'Pets, acesso, piso atual, acabamento…')}${attentionSummary(d) ? ' · ' + esc(attentionSummary(d)) : ''}</small></span>${IC.chev()}</button>
+        <div class="fq-li2 fq-li2--photos"><span><b>Fotos</b><small>${d.photos.length ? `${d.photos.length} foto${d.photos.length > 1 ? 's' : ''} · vão para o ObraCam do job` : ctTrade() ? 'Cabinets, bancada atual, acesso' : 'Piso atual, danos, acesso'}</small></span>
           ${d.photos.length ? `<div class="fq-photos">${d.photos.slice(-8).map((p) => `<button type="button" class="fq-photo" data-fq-photo="${esc(p.id)}" style="background-image:url('${esc(p.url)}')" aria-label="Abrir foto"></button>`).join('')}</div>` : ''}
           <div class="fq-row2"><button type="button" class="fq-btn" data-fq-shoot>${IC.cam()}Tirar foto</button><button type="button" class="fq-btn fq-btn--quiet" data-fq-ai-photos ${d.photos.length ? '' : 'disabled'}>${IC.mate(18)}Ler fotos</button></div>
           ${d.photo_analysis && d.photo_analysis.observations && d.photo_analysis.observations.length ? `<small class="fq-mut">O Mate leu as fotos: ${esc(d.photo_analysis.observations.slice(0, 2).map((o) => o.title).join(' · '))}</small>` : ''}
@@ -791,10 +802,12 @@
     }).join('')}</svg>`;
   }
   const quoteStatusPt = (s) => ({ draft: 'rascunho', sent: 'enviado', viewed: 'visualizado', approved: 'aprovado', converted: 'virou job', changes_requested: 'alteração pedida', rejected: 'recusado' })[s] || s;
+  /** Question groups of a visit: general, each flooring service, and Bancadas when it measures tops. */
+  const questionGroups = (d) => ['general', ...d.services, ...(topsOn(d) ? ['countertops'] : [])];
   function countAnswers(d) {
     let total = 0;
     let answered = 0;
-    ['general', ...d.services].forEach((g) => {
+    questionGroups(d).forEach((g) => {
       (C.QUESTIONS[g] || []).forEach((q) => {
         if (q.show && !q.show(d.answers, d.svc)) return;
         total++;
@@ -1092,8 +1105,8 @@
   // details
   function sheetDetails() {
     const d = S.d;
-    const groups = ['general', ...d.services];
-    const title = { general: 'Geral', demolition: 'Demolição', installation: 'Instalação', sanding: 'Lixa e acabamento' };
+    const groups = questionGroups(d);
+    const title = { general: 'Geral', demolition: 'Demolição', installation: 'Instalação', sanding: 'Lixa e acabamento', countertops: 'Bancadas' };
     openSheet(
       `${bar('Detalhes da obra')}
       <div class="fq-sbody">${groups
@@ -1103,7 +1116,7 @@
           return `<p class="fq-lbl">${esc(title[g])}</p><div class="fq-group">${qs.map((q) => questionHtml(g, q)).join('')}</div>`;
         })
         .join('')}
-        <p class="fq-hint">Itens marcados como atenção (pets, acesso, cor…) vão para “Para o campo” do job quando o orçamento for aprovado.</p>
+        <p class="fq-hint">Itens marcados como atenção (${topsOn(d) && !d.services.length ? 'cabinets, cuba, encanamento…' : 'pets, acesso, cor…'}) vão para “Para o campo” do job quando o orçamento for aprovado.</p>
         <div class="fq-ai-review"><button type="button" class="fq-btn fq-btn--block fq-btn--ghost" data-fq-ai-assist>Abrir copiloto da visita</button><p class="fq-hint">Pergunte o que conferir ou o que esclarecer com o cliente, usando o contexto desta obra.</p></div>
       </div>`
     );
@@ -2317,6 +2330,10 @@
       if (t.closest('[data-fq-room-new]')) return sheetRoom(null);
       if (t.closest('[data-fq-shower-new]')) return sheetShowers(null, true);
       if (t.closest('[data-fq-top-new]')) return sheetTops(null, true);
+      if (t.closest('[data-fq-floor-open]')) {
+        S.floorOpen = true;
+        return renderPanel();
+      }
       if ((el = t.closest('[data-fq-top]'))) return sheetTops(Number(el.dataset.fqTop));
       if ((el = t.closest('[data-fq-shower]'))) return sheetShowers(Number(el.dataset.fqShower));
       if ((el = t.closest('[data-fq-room]'))) return sheetRoom(el.dataset.fqRoom);
