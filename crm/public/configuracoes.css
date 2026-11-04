@@ -496,6 +496,45 @@ body.cfg-has-savebar #omDock { display: none !important; }
 /* ---------------- estimate rules table ---------------- */
 .cfg-card--flush { padding: 0; overflow: hidden; }
 .cfg-table-wrap { overflow-x: auto; }
+.cfg-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 12px;
+}
+.cfg-toolbar__search {
+  flex: 1 1 200px;
+  min-width: 160px;
+  height: 36px;
+  border: 1px solid var(--cfg-field);
+  border-radius: 8px;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 0.9rem;
+  background: #fff;
+  color: var(--cfg-ink);
+}
+.cfg-toolbar__select {
+  height: 36px;
+  border: 1px solid var(--cfg-field);
+  border-radius: 8px;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 0.9rem;
+  background: #fff;
+  color: var(--cfg-ink);
+}
+.cfg-pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 12px;
+  font-size: 0.875rem;
+  color: var(--cfg-muted);
+}
+.cfg-pager button:disabled { opacity: 0.45; cursor: default; }
 .cfg-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
 .cfg-table th, .cfg-table td { padding: 10px 12px; border-bottom: 1px solid #f0e9df; text-align: left; vertical-align: top; }
 .cfg-table thead th { font-size: 0.75rem; font-weight: 600; color: var(--cfg-muted); background: var(--cfg-soft-2); white-space: nowrap; }

@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="crm-toast.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-push.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="configuracoes.css?v=20261103-unify2" />
+  <link rel="stylesheet" href="configuracoes.css?v=20261104-team1" />
   <link rel="stylesheet" href="configuracoes-v2.css?v=20261014-perfil5" />
   <link rel="stylesheet" href="cfg-meu-perfil.css?v=20261015-sig2" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -912,6 +912,49 @@
               <p class="cfg-hint">Valores diferentes do padrão ObraMate ficam marcados. “Padrão” volta a linha aos valores originais.</p>
             </section>
 
+            <!-- ---------- Usuários ---------- -->
+            <section class="cfg-section" data-section="usuarios" hidden>
+              <header class="cfg-head cfg-head--row">
+                <div>
+                  <h2 class="cfg-title">Usuários</h2>
+                  <p class="cfg-lead">Quem acessa o workspace. Cargos e permissões padrão ficam em <a href="#cargos">Cargos</a>.</p>
+                </div>
+                <button type="button" class="btn btn-primary cfg-btn-sm" id="cfgUserAddBtn">+ Novo usuário</button>
+              </header>
+              <div class="cfg-toolbar" role="search" aria-label="Filtrar usuários">
+                <input type="search" id="cfgUsersSearch" class="cfg-toolbar__search" placeholder="Buscar nome, e-mail ou telefone…" autocomplete="off" aria-label="Buscar usuários" />
+                <select id="cfgUsersStatus" class="cfg-toolbar__select" aria-label="Status">
+                  <option value="">Todos</option>
+                  <option value="active">Ativos</option>
+                  <option value="inactive">Inativos</option>
+                </select>
+                <button type="button" class="btn btn-secondary cfg-btn-sm" id="cfgUsersSearchBtn">Buscar</button>
+                <button type="button" class="btn btn-secondary cfg-btn-sm" id="cfgUsersClearBtn">Limpar</button>
+              </div>
+              <article class="cfg-card cfg-card--flush">
+                <div class="cfg-table-wrap">
+                  <table class="cfg-table" id="cfgUsersTable">
+                    <thead>
+                      <tr>
+                        <th scope="col">Usuário</th>
+                        <th scope="col">Contacto</th>
+                        <th scope="col">Cargo</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Desde</th>
+                        <th scope="col"><span class="cfg-sr">Ações</span></th>
+                      </tr>
+                    </thead>
+                    <tbody id="cfgUsersBody"><tr><td colspan="6"><div class="cfg-skeleton"></div></td></tr></tbody>
+                  </table>
+                </div>
+              </article>
+              <div class="cfg-pager" id="cfgUsersPager">
+                <button type="button" class="btn btn-secondary cfg-btn-sm" id="cfgUsersPrev">Anterior</button>
+                <span id="cfgUsersPageInfo">Página 1</span>
+                <button type="button" class="btn btn-secondary cfg-btn-sm" id="cfgUsersNext">Seguinte</button>
+              </div>
+            </section>
+
             <!-- ---------- Cargos ---------- -->
             <section class="cfg-section" data-section="cargos" hidden>
               <header class="cfg-head cfg-head--row">
@@ -1217,7 +1260,7 @@
                   <div><dt>Conta desde</dt><dd id="mpMetaCreated">—</dd></div>
                   <div><dt>Última atualização</dt><dd id="mpMetaUpdated">—</dd></div>
                 </dl>
-                <p class="cfg-hint" style="margin-top:8px">Gestão de utilizadores em <a href="equipe.html">Equipe</a>.</p>
+                <p class="cfg-hint" style="margin-top:8px">Gestão de utilizadores em <a href="#usuarios">Usuários</a>.</p>
               </article>
             </section>
 
@@ -1253,6 +1296,38 @@
         <button type="button" class="btn btn-secondary" data-close>Continuar editando</button>
         <button type="button" class="btn btn-primary" id="cfgLeaveConfirm">Descartar e sair</button>
       </div>
+    </div>
+  </div>
+
+  <!-- User editor -->
+  <div class="cfg-modal" id="cfgUserModal" role="dialog" aria-modal="true" aria-labelledby="cfgUserModalTitle" hidden>
+    <div class="cfg-modal__scrim" data-close="cfgUserModal"></div>
+    <div class="cfg-modal__box cfg-modal__box--wide">
+      <h3 id="cfgUserModalTitle">Usuário</h3>
+      <form id="cfgUserForm" autocomplete="off">
+        <input type="hidden" id="cfgUserId" value="" />
+        <div class="cfg-field"><label for="cfgUserName">Nome</label><input id="cfgUserName" required maxlength="255" autocomplete="name" /></div>
+        <div class="cfg-grid2">
+          <div class="cfg-field"><label for="cfgUserEmail">E-mail</label><input id="cfgUserEmail" type="email" required autocomplete="email" /></div>
+          <div class="cfg-field"><label for="cfgUserPhone">Telefone</label><input id="cfgUserPhone" maxlength="50" autocomplete="tel" /></div>
+        </div>
+        <div class="cfg-grid2">
+          <div class="cfg-field"><label for="cfgUserRole">Cargo</label><select id="cfgUserRole"></select></div>
+          <div class="cfg-field"><label for="cfgUserPassword">Senha <span class="cfg-muted" id="cfgUserPasswordHint">(opcional ao editar)</span></label><input id="cfgUserPassword" type="password" minlength="8" autocomplete="new-password" placeholder="Mín. 8 caracteres" /></div>
+        </div>
+        <div class="cfg-field cfg-field--check"><label><input type="checkbox" id="cfgUserForcePw" checked /> Obrigar troca de senha no próximo login</label></div>
+        <div class="cfg-field cfg-field--check"><label><input type="checkbox" id="cfgUserActive" checked /> Conta ativa</label></div>
+        <div class="cfg-field" id="cfgUserPermsSection" hidden>
+          <label>Módulos e permissões</label>
+          <p class="cfg-hint" id="cfgUserPermsHelp">Marque o que este usuário pode fazer. Administradores têm acesso total.</p>
+          <div id="cfgUserPermsGroups" class="cfg-perm-groups"></div>
+        </div>
+        <p class="cfg-err" id="cfgUserFormError" hidden></p>
+        <div class="cfg-row cfg-row--end">
+          <button type="button" class="btn btn-secondary" data-close="cfgUserModal">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="cfgUserFormSubmit">Guardar</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -1343,13 +1418,13 @@
   <script src="crm-i18n.js?v=20261014-perfil5"></script>
   <script src="crm-shell.js?v=20261102-ptr1"></script>
   <script src="crm-shared-nav.js?v=20261015-refnav1"></script>
-  <script src="crm-account-menu.js?v=20261014-perfil5"></script>
+  <script src="crm-account-menu.js?v=20261104-team1"></script>
   <script src="crm-toast.js"></script>
   <script src="crm-pwa-install.js?v=20260923-pwa"></script>
   <script src="crm-push.js?v=20261022-inbox1"></script>
   <script src="crm-address-autocomplete.js?v=20261103-addr1"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
   <script src="cfg-meu-perfil.js?v=20261019-i18n2"></script>
-  <script src="configuracoes.js?v=20261103-cal6"></script>
+  <script src="configuracoes.js?v=20261104-team1"></script>
 </body>
 </html>

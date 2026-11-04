@@ -29,7 +29,7 @@
         if (window.__crmFieldGate && (await window.__crmFieldGate.bounceFieldWorker())) return;
         var p = new URLSearchParams(location.search).get('page');
         if (p === 'crm') p = 'leads';
-        if (p === 'users') { location.replace('equipe.html'); return; }
+        if (p === 'users') { location.replace('configuracoes.html#usuarios'); return; }
         if (!p || p === 'dashboard') {
           var dest = (window.__omDevice && window.__omDevice.entryHref()) || '/dashboard';
           location.replace(dest);
@@ -163,7 +163,7 @@
                 <div class="mobile-more-sheet__cadastro-panel">
                     <a href="customers.html" class="mobile-more-sheet__btn mobile-more-sheet__btn--sub" data-crm-permission="customers.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">👥</span> Clientes</a>
                     <a href="builder-pricing-admin.html" class="mobile-more-sheet__btn mobile-more-sheet__btn--sub" data-crm-permission-any="builders.view,quotes.edit"><span class="mobile-more-sheet__emoji" aria-hidden="true">💰</span> Tabela de Valor</a>
-                    <a href="equipe.html" class="mobile-more-sheet__btn mobile-more-sheet__btn--sub" data-crm-permission="users.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">👤</span> Equipe</a>
+                    <a href="configuracoes.html#usuarios" class="mobile-more-sheet__btn mobile-more-sheet__btn--sub" data-crm-permission="users.view"><span class="mobile-more-sheet__emoji" aria-hidden="true">👤</span> Equipe</a>
                 </div>
             </details>
             <a href="configuracoes.html" class="mobile-more-sheet__btn" data-crm-permission="settings.manage"><span class="mobile-more-sheet__emoji" aria-hidden="true">🎨</span> Configurações</a>

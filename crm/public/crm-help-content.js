@@ -136,7 +136,7 @@
     },
     {
       id: "team",
-      href: "equipe.html",
+      href: "configuracoes.html#usuarios",
       icon: "team",
       title: { pt: "Equipe", en: "Team" },
       blurb: {
@@ -461,11 +461,12 @@
     "builder-pricing-admin.html": { moduleId: "pricing", problems: ["price-table", "send-quote"], tutorials: ["brand-setup", "lead-to-quote"] },
     "relatorios.html": { moduleId: "reports", problems: ["reports", "finance-cash"], tutorials: ["billing"] },
     "equipe.html": { moduleId: "team", problems: ["invite-team"], tutorials: ["getting-started"] },
+    "configuracoes.html#usuarios": { moduleId: "team", problems: ["invite-team"], tutorials: ["getting-started"] },
     "configuracoes.html": { moduleId: "settings", problems: ["branding", "invite-team", "bug"], tutorials: ["brand-setup", "getting-started"] },
   };
 
   var CHECKLIST = [
-    { id: "team", href: "equipe.html", label: { pt: "Convidar a equipe", en: "Invite the team" } },
+    { id: "team", href: "configuracoes.html#usuarios", label: { pt: "Convidar a equipe", en: "Invite the team" } },
     { id: "pricing", href: "builder-pricing-admin.html", label: { pt: "Montar Tabela de Valor", en: "Set up Price table" } },
     { id: "lead", href: "leads.html?new=1", label: { pt: "Cadastrar o primeiro lead", en: "Add the first lead" } },
     { id: "quote", href: "quotes.html", label: { pt: "Enviar um orçamento", en: "Send a quote" } },
@@ -485,7 +486,7 @@
       },
       steps: {
         pt: [
-          { text: "Convide a equipe e defina papéis.", href: "equipe.html" },
+          { text: "Convide a equipe e defina papéis.", href: "configuracoes.html#usuarios" },
           { text: "Monte a Tabela de Valor com seus serviços.", href: "builder-pricing-admin.html" },
           { text: "Cadastre o primeiro lead.", href: "leads.html?new=1" },
           { text: "Crie e envie um orçamento.", href: "quotes.html" },
@@ -493,7 +494,7 @@
           { text: "Emita a primeira fatura.", href: "invoices.html" },
         ],
         en: [
-          { text: "Invite the team and set roles.", href: "equipe.html" },
+          { text: "Invite the team and set roles.", href: "configuracoes.html#usuarios" },
           { text: "Build your Price table with services.", href: "builder-pricing-admin.html" },
           { text: "Add your first lead.", href: "leads.html?new=1" },
           { text: "Create and send a quote.", href: "quotes.html" },

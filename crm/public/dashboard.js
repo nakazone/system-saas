@@ -888,7 +888,7 @@ function showPage(pageName) {
         return;
     }
     if (pageName === 'users') {
-        window.location.href = 'equipe.html';
+        window.location.href = 'configuracoes.html#usuarios';
         return;
     }
 

@@ -108,7 +108,7 @@
       icon: "users",
       desc: "Usuários, cargos e permissões",
       subs: [
-        { id: "usuarios", label: "Usuários", href: "equipe.html", perm: ["users.view"], desc: "Quem acessa o workspace", keywords: "usuário equipe convidar senha" },
+        { id: "usuarios", label: "Usuários", section: "usuarios", perm: ["users.view"], desc: "Quem acessa o workspace", keywords: "usuário equipe convidar senha" },
         { id: "cargos", label: "Cargos e permissões", section: "cargos", perm: ["roles.manage", "users.view"], desc: "Cargos da equipe e as permissões padrão de cada um.", keywords: "cargo role permissão função acesso" },
       ],
     },
@@ -198,6 +198,7 @@
     ["Formas de pagamento da folha", "folha", "cfgPayMethodsBody"],
     ["Desperdício por tipo de piso", "regras-estimativa", "rulesTable"],
     ["Markup de material e mão de obra", "regras-estimativa", "rulesTable"],
+    ["Usuários", "usuarios", "cfgUsersBody"],
     ["Cargos", "cargos", "cfgRolesBody"],
     ["Categorias de serviço", "categorias-servico", "cfgCatsBody"],
     ["Unidades", "unidades", "cfgUnitsBody"],
@@ -732,7 +733,7 @@
     { title: "Serviços e preços", desc: "Tabela de valor por tipo de cliente", href: "builder-pricing-admin.html", perm: ["builders.view", "quotes.edit"] },
     { title: "Produtos e fornecedores", desc: "Custos, margens e SKUs", href: "products-erp.html", perm: ["quotes.view"] },
     { title: "Cargos", desc: "Funções e permissões da equipe", href: "#cargos", perm: ["roles.manage", "users.view"] },
-    { title: "Usuários", desc: "Quem acessa o workspace", href: "equipe.html", perm: ["users.view"] },
+    { title: "Usuários", desc: "Quem acessa o workspace", href: "#usuarios", perm: ["users.view"] },
     { title: "App e alertas", desc: "Instalar e receber avisos", href: "#app", perm: null },
   ];
 
@@ -4192,6 +4193,278 @@
     return catalogState.permsByGroup;
   }
 
+  const usersState = { page: 1, search: "", status: "", roles: null };
+
+  function canViewUsersLocal() {
+    return state.isAdmin || state.perms.has("users.view");
+  }
+  function canCreateUsersLocal() {
+    return state.isAdmin || state.perms.has("users.create");
+  }
+  function canEditUsersLocal() {
+    return state.isAdmin || state.perms.has("users.edit");
+  }
+  function canDeleteUsersLocal() {
+    return state.isAdmin || state.perms.has("users.delete");
+  }
+  function canManageUserPermsLocal() {
+    return (
+      state.isAdmin ||
+      state.perms.has("users.manage") ||
+      state.perms.has("roles.manage") ||
+      state.perms.has("users.manage_permissions")
+    );
+  }
+
+  async function ensureRolesOptions() {
+    if (usersState.roles) return usersState.roles;
+    try {
+      const j = await api("/api/roles");
+      usersState.roles = j.data || [];
+    } catch (_) {
+      usersState.roles = [];
+    }
+    return usersState.roles;
+  }
+
+  async function populateUserRoleSelect(selectedKey) {
+    const sel = $("cfgUserRole");
+    if (!sel) return;
+    const roles = await ensureRolesOptions();
+    const preferred = selectedKey || sel.value || "";
+    sel.innerHTML = roles.length
+      ? roles.map((r) => `<option value="${esc(r.key)}">${esc(r.name || r.key)}</option>`).join("")
+      : '<option value="admin">Administrador</option><option value="sales">Sales</option>';
+    const keys = new Set([...sel.options].map((o) => o.value));
+    if (preferred && keys.has(preferred)) sel.value = preferred;
+    else if (keys.has("sales")) sel.value = "sales";
+    else if (sel.options.length) sel.selectedIndex = 0;
+  }
+
+  function collectUserPermIds() {
+    return [...document.querySelectorAll("#cfgUserPermsGroups input[type=checkbox]:checked")].map((el) => el.value).filter(Boolean);
+  }
+
+  async function loadUsersSection() {
+    const body = $("cfgUsersBody");
+    if (!body) return;
+    if (!canViewUsersLocal()) {
+      body.innerHTML = `<tr><td colspan="6" class="cfg-err">Sem permissão para ver usuários.</td></tr>`;
+      if ($("cfgUserAddBtn")) $("cfgUserAddBtn").hidden = true;
+      return;
+    }
+    body.innerHTML = `<tr><td colspan="6"><div class="cfg-skeleton"></div></td></tr>`;
+    if ($("cfgUserAddBtn")) $("cfgUserAddBtn").hidden = !canCreateUsersLocal();
+    try {
+      const searching = !!usersState.search;
+      const qs = new URLSearchParams({
+        page: searching ? "1" : String(usersState.page),
+        limit: searching ? "100" : "20",
+      });
+      if (usersState.status === "active") qs.set("active", "true");
+      if (usersState.status === "inactive") qs.set("active", "false");
+      const j = await api(`/api/users?${qs}`);
+      let rows = Array.isArray(j.data) ? j.data.slice() : [];
+      if (usersState.search) {
+        const q = usersState.search.toLowerCase();
+        rows = rows.filter((u) =>
+          [u.name, u.email, u.phone, u.role_name, u.role]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase()
+            .includes(q),
+        );
+      }
+      if (!rows.length) {
+        body.innerHTML = `<tr><td colspan="6" class="cfg-hint">Nenhum usuário encontrado.</td></tr>`;
+      } else {
+        const canEdit = canEditUsersLocal();
+        const canDel = canDeleteUsersLocal();
+        body.innerHTML = rows
+          .map((u) => {
+            const active = u.is_active !== undefined ? u.is_active : u.active;
+            const roleLabel = u.role_name || u.role || "—";
+            const created = u.created_at
+              ? new Date(u.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" })
+              : "—";
+            const contact = [u.email, u.phone].filter(Boolean).map((x) => esc(x)).join("<br>") || "—";
+            const actions = [];
+            if (canEdit) actions.push(`<button type="button" class="btn cfg-btn-ghost cfg-btn-sm" data-user-edit="${esc(u.id)}">Editar</button>`);
+            if (canDel && active) actions.push(`<button type="button" class="btn cfg-btn-ghost cfg-btn-sm" data-user-del="${esc(u.id)}">Desativar</button>`);
+            return `<tr>
+              <td><strong>${esc(u.name || "—")}</strong></td>
+              <td>${contact}</td>
+              <td>${esc(roleLabel)}</td>
+              <td>${active ? '<span class="cfg-badge cfg-badge--ok">Ativo</span>' : '<span class="cfg-badge">Inativo</span>'}</td>
+              <td>${esc(created)}</td>
+              <td class="cfg-actions">${actions.join(" ") || "—"}</td>
+            </tr>`;
+          })
+          .join("");
+      }
+      const totalPages = searching ? 1 : Math.ceil((j.total || 0) / 20) || 1;
+      const info = $("cfgUsersPageInfo");
+      const prev = $("cfgUsersPrev");
+      const next = $("cfgUsersNext");
+      if (info) {
+        info.textContent = searching
+          ? `${rows.length} resultado${rows.length === 1 ? "" : "s"}`
+          : `Página ${usersState.page} de ${totalPages}`;
+      }
+      if (prev) prev.disabled = searching || usersState.page <= 1;
+      if (next) next.disabled = searching || usersState.page >= totalPages;
+    } catch (err) {
+      body.innerHTML = `<tr><td colspan="6" class="cfg-err">${esc(err.message || "Erro ao carregar usuários")}</td></tr>`;
+    }
+  }
+
+  async function openUserEditor(userId) {
+    if (userId ? !canEditUsersLocal() : !canCreateUsersLocal()) {
+      notify("Sem permissão para gerir usuários", "error");
+      return;
+    }
+    const err = $("cfgUserFormError");
+    const form = $("cfgUserForm");
+    const permsSection = $("cfgUserPermsSection");
+    const groupsEl = $("cfgUserPermsGroups");
+    if (!form) return;
+    err.hidden = true;
+    form.reset();
+    $("cfgUserId").value = userId != null ? String(userId) : "";
+    $("cfgUserActive").checked = true;
+    $("cfgUserForcePw").checked = true;
+    $("cfgUserPassword").value = "";
+    const byGroup = await ensurePermRegistry();
+    const canManagePerms = canManageUserPermsLocal();
+    const roleSel = $("cfgUserRole");
+    const syncPermsVisibility = () => {
+      const isAdminRole = roleSel.value === "admin";
+      permsSection.hidden = isAdminRole;
+    };
+    roleSel.onchange = syncPermsVisibility;
+
+    if (userId != null) {
+      $("cfgUserModalTitle").textContent = "Editar usuário";
+      $("cfgUserPasswordHint").textContent = "(deixe vazio para não alterar)";
+      $("cfgUserFormSubmit").textContent = "Guardar";
+      const [ur, pr] = await Promise.all([
+        api(`/api/users/${encodeURIComponent(userId)}`),
+        api(`/api/users/${encodeURIComponent(userId)}/permissions`).catch(() => ({ data: { permission_ids: [] } })),
+      ]);
+      const d = ur.data || {};
+      $("cfgUserName").value = d.name || "";
+      $("cfgUserEmail").value = d.email || "";
+      $("cfgUserPhone").value = d.phone || "";
+      await populateUserRoleSelect(d.role || "");
+      const active = d.is_active !== undefined ? d.is_active : d.active;
+      $("cfgUserActive").checked = !!active;
+      $("cfgUserForcePw").checked = !!d.must_change_password;
+      const selected = new Set((pr.data && pr.data.permission_ids) || []);
+      $("cfgUserPermsHelp").textContent = canManagePerms
+        ? "Marque os módulos permitidos para este usuário (além do cargo)."
+        : "Só administradores ou quem gere cargos/usuários podem alterar isto.";
+      groupsEl.innerHTML = renderPermGroups(byGroup, [...selected]);
+      if (!canManagePerms) {
+        groupsEl.querySelectorAll("input").forEach((el) => {
+          el.disabled = true;
+        });
+      }
+      syncPermsVisibility();
+    } else {
+      $("cfgUserModalTitle").textContent = "Novo usuário";
+      $("cfgUserPasswordHint").textContent = "(obrigatório, mín. 8 caracteres)";
+      $("cfgUserFormSubmit").textContent = "Criar usuário";
+      await populateUserRoleSelect("");
+      $("cfgUserPermsHelp").textContent = "Opcional: deixe vazio para aplicar as permissões do cargo.";
+      groupsEl.innerHTML = renderPermGroups(byGroup, []);
+      syncPermsVisibility();
+    }
+    openCfgModal("cfgUserModal");
+  }
+
+  async function submitUserForm(e) {
+    e.preventDefault();
+    const err = $("cfgUserFormError");
+    err.hidden = true;
+    const id = $("cfgUserId").value.trim();
+    const name = $("cfgUserName").value.trim();
+    const email = $("cfgUserEmail").value.trim();
+    const phone = $("cfgUserPhone").value.trim();
+    const role = $("cfgUserRole").value;
+    const pw = $("cfgUserPassword").value;
+    const isActive = $("cfgUserActive").checked;
+    const forcePw = $("cfgUserForcePw").checked;
+    const btn = $("cfgUserFormSubmit");
+    if (!id && (!pw || pw.length < 8)) {
+      err.textContent = "Defina uma senha inicial com pelo menos 8 caracteres.";
+      err.hidden = false;
+      return;
+    }
+    if (pw && pw.length < 8) {
+      err.textContent = "A senha deve ter pelo menos 8 caracteres.";
+      err.hidden = false;
+      return;
+    }
+    btn.disabled = true;
+    try {
+      if (!id) {
+        const body = {
+          name,
+          email,
+          phone: phone || null,
+          role,
+          is_active: isActive,
+          force_password_change: forcePw,
+          password: pw,
+        };
+        if (role !== "admin") {
+          const pids = collectUserPermIds();
+          if (pids.length) body.permission_ids = pids;
+        }
+        await api("/api/users", { method: "POST", body: JSON.stringify(body) });
+        notify("Usuário criado", "success");
+      } else {
+        const body = {
+          name,
+          email,
+          phone: phone || null,
+          role,
+          is_active: isActive,
+          force_password_change: forcePw,
+        };
+        if (pw) body.password = pw;
+        await api(`/api/users/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(body) });
+        if (role !== "admin" && canManageUserPermsLocal()) {
+          await api(`/api/users/${encodeURIComponent(id)}/permissions`, {
+            method: "PUT",
+            body: JSON.stringify({ permission_ids: collectUserPermIds() }),
+          });
+        }
+        notify("Usuário atualizado", "success");
+      }
+      usersState.roles = null;
+      closeCfgModal("cfgUserModal");
+      await loadUsersSection();
+    } catch (ex) {
+      err.textContent = ex.message || "Erro ao guardar.";
+      err.hidden = false;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function deactivateUser(id) {
+    if (!canDeleteUsersLocal()) return;
+    if (!window.confirm("Desativar este usuário? Não poderá iniciar sessão.")) return;
+    try {
+      await api(`/api/users/${encodeURIComponent(id)}`, { method: "DELETE" });
+      notify("Usuário desativado", "success");
+      await loadUsersSection();
+    } catch (ex) {
+      notify(ex.message || "Não foi possível desativar", "error");
+    }
+  }
+
   async function loadRolesSection() {
     const body = $("cfgRolesBody");
     if (!body) return;
@@ -4426,6 +4699,36 @@
   }
 
   function bindCatalogUi() {
+    $("cfgUserAddBtn")?.addEventListener("click", () => openUserEditor(null));
+    $("cfgUserForm")?.addEventListener("submit", submitUserForm);
+    $("cfgUsersSearchBtn")?.addEventListener("click", () => {
+      usersState.search = ($("cfgUsersSearch")?.value || "").trim();
+      usersState.status = ($("cfgUsersStatus")?.value || "").trim();
+      usersState.page = 1;
+      loadUsersSection();
+    });
+    $("cfgUsersClearBtn")?.addEventListener("click", () => {
+      usersState.search = "";
+      usersState.status = "";
+      usersState.page = 1;
+      if ($("cfgUsersSearch")) $("cfgUsersSearch").value = "";
+      if ($("cfgUsersStatus")) $("cfgUsersStatus").value = "";
+      loadUsersSection();
+    });
+    $("cfgUsersSearch")?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        $("cfgUsersSearchBtn")?.click();
+      }
+    });
+    $("cfgUsersPrev")?.addEventListener("click", () => {
+      usersState.page = Math.max(1, usersState.page - 1);
+      loadUsersSection();
+    });
+    $("cfgUsersNext")?.addEventListener("click", () => {
+      usersState.page += 1;
+      loadUsersSection();
+    });
     $("cfgRoleAddBtn")?.addEventListener("click", () => openRoleEditor(null));
     $("cfgRoleForm")?.addEventListener("submit", submitRoleForm);
     $("cfgCatAddBtn")?.addEventListener("click", () => openCatalogEditor("service_category", null));
@@ -4436,8 +4739,18 @@
 
     document.addEventListener("click", (e) => {
       const closeId = e.target.closest?.("[data-close]")?.getAttribute("data-close");
-      if (closeId === "cfgRoleModal" || closeId === "cfgCatalogModal" || closeId === "cfgCancelModal") {
+      if (closeId === "cfgUserModal" || closeId === "cfgRoleModal" || closeId === "cfgCatalogModal" || closeId === "cfgCancelModal") {
         closeCfgModal(closeId);
+        return;
+      }
+      const editUser = e.target.closest?.("[data-user-edit]");
+      if (editUser) {
+        openUserEditor(editUser.getAttribute("data-user-edit"));
+        return;
+      }
+      const delUser = e.target.closest?.("[data-user-del]");
+      if (delUser) {
+        deactivateUser(delUser.getAttribute("data-user-del"));
         return;
       }
       const editRole = e.target.closest?.("[data-role-edit]");
@@ -4478,6 +4791,7 @@
     if (id === "jobs") return loadJobsSettings();
     if (id === "indicacoes") return loadReferralsSettings();
     if (id === "regras-estimativa") return loadRules();
+    if (id === "usuarios") return loadUsersSection();
     if (id === "cargos") return loadRolesSection();
     if (id === "categorias-servico") return loadCatalogKind("service_category", "cfgCatsBody", "cfgCatAddBtn");
     if (id === "unidades") return loadCatalogKind("unit", "cfgUnitsBody", "cfgUnitAddBtn");
@@ -4532,6 +4846,7 @@
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
         if (!$("cfgLeaveModal").hidden) closeLeaveModal();
+        else if ($("cfgUserModal") && !$("cfgUserModal").hidden) closeCfgModal("cfgUserModal");
         else if ($("cfgRoleModal") && !$("cfgRoleModal").hidden) closeCfgModal("cfgRoleModal");
         else if ($("cfgCatalogModal") && !$("cfgCatalogModal").hidden) closeCfgModal("cfgCatalogModal");
         else if ($("cfgCancelModal") && !$("cfgCancelModal").hidden) closeCfgModal("cfgCancelModal");

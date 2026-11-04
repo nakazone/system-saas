@@ -345,7 +345,7 @@
     if (base === 'builder-pricing-admin.html') {
       return file === 'builder-pricing-admin.html' || file === 'quote-catalog.html';
     }
-    if (base === 'equipe.html') return file === 'equipe.html';
+    if (base === 'equipe.html') return file === 'configuracoes.html';
     if (base === 'payroll-module.html') return file === 'payroll-module.html';
     if (base === 'finance.html') return file === 'finance.html';
     if (base === 'schedule.html') return file === 'schedule.html';

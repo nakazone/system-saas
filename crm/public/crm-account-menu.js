@@ -26,12 +26,12 @@
   }
 
   function teamHref() {
-    return "/equipe.html";
+    return "/configuracoes.html#usuarios";
   }
 
   function goTeam(e) {
     if (e) e.preventDefault();
-    window.location.assign("/equipe.html");
+    window.location.assign("/configuracoes.html#usuarios");
   }
 
   function buildMenuHtml() {
