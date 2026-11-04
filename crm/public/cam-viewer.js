@@ -23,7 +23,11 @@
   const STAGES = [["before", "Antes"], ["during", "Durante"], ["after", "Depois"], ["", "Geral"]];
   const WD = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
   const MO = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
-  const COLORS = [["#FF3B30", "Vermelho"], ["#FFCC00", "Amarelo"], ["#FFFFFF", "Branco"], ["#1C1A17", "Preto"]];
+  const COLORS = [
+    ["#FF3B30", "Vermelho"], ["#FF9500", "Laranja"], ["#FFCC00", "Amarelo"], ["#34C759", "Verde"], ["#0A84FF", "Azul"],
+    ["#AF52DE", "Roxo"], ["#FF2D55", "Rosa"], ["#FFFFFF", "Branco"], ["#8E8E93", "Cinza"], ["#1C1A17", "Preto"],
+  ];
+  const colorName = (c) => (COLORS.find(([x]) => x.toLowerCase() === String(c).toLowerCase()) || [null, "Outra cor"])[1];
   const TOOLS = [["freehand", "Caneta"], ["arrow", "Seta"], ["rect", "Retângulo"], ["circle", "Círculo"], ["text", "Texto"]];
   const MAX_ZOOM = 5;
   const EASE = "cubic-bezier(.2, .8, .2, 1)";
@@ -50,6 +54,7 @@
     text: I('<path d="M5 6h14M12 6v13M9 19h6"/>'),
     note: I('<path d="M5 4h14v12l-4 4H5z"/><path d="M15 20v-4h4"/>'),
     tag: I('<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/>'),
+    info: I('<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5v.5"/>'),
   };
 
   let st = null;
@@ -229,6 +234,7 @@
     const n = st.photos.length;
     const stage = STAGE[p.stage] || "Geral";
     const editing = !!st.edit;
+    root.classList.toggle("is-editing", editing); // phones hide the details panel while marking up
     const strip =
       n > 1 && !editing
         ? `<div class="cv-strip" role="group" aria-label="Fotos">${st.photos
@@ -244,6 +250,7 @@
           ${editing ? "" : `<span class="cv-zoom"><button type="button" class="cv-round cv-round--sm" data-cv="zout" aria-label="Diminuir zoom">${ICON.zoomOut}</button><button type="button" class="cv-zl" data-cv="zreset" data-cv-zl aria-label="Voltar ao tamanho da tela">100%</button><button type="button" class="cv-round cv-round--sm" data-cv="zin" aria-label="Aumentar zoom">${ICON.zoomIn}</button></span>`}
           ${hasInk && !editing ? `<button type="button" class="cv-round${st.showInk ? " is-on" : ""}" data-cv="ink" aria-pressed="${st.showInk}" aria-label="${st.showInk ? "Esconder marcações" : "Mostrar marcações"}">${st.showInk ? ICON.eye : ICON.eyeOff}</button>` : ""}
           <span class="cv-phone-acts">
+            ${editing ? "" : `<button type="button" class="cv-round${st.sheet ? " is-on" : ""}" data-cv="info" aria-pressed="${!!st.sheet}" aria-label="${st.sheet ? "Esconder dados da foto" : "Ver dados da foto"}">${ICON.info}</button>`}
             ${st.canPortfolio && p.id && !editing ? `<button type="button" class="cv-round${p.in_portfolio ? " is-on" : ""}" data-cv="port" aria-label="${p.in_portfolio ? "Tirar do portfólio" : "Pôr no portfólio"}">${ICON.star}</button>` : ""}
             ${st.canDelete && p.id && !editing ? `<button type="button" class="cv-round cv-round--danger" data-cv="del" aria-label="Apagar foto">${ICON.trash}</button>` : ""}
           </span>
@@ -280,11 +287,17 @@
     wrap.innerHTML = shapes.length ? inkSvg(shapes, st.v.nw, st.v.nh) : "";
   }
 
+  /** The toolbar keeps one swatch (the current colour); tapping it opens the full palette above, so the bar never crowds. */
   function toolbarHtml() {
     const e = st.edit;
-    return `<div class="cv-tools" role="toolbar" aria-label="Marcar foto">
+    const palette = e.palette
+      ? `<div class="cv-palette" role="group" aria-label="Cores">${COLORS.map(([c, l]) => `<button type="button" class="cv-swatch${e.color.toLowerCase() === c.toLowerCase() ? " is-on" : ""}" data-cv-color="${c}" aria-pressed="${e.color.toLowerCase() === c.toLowerCase()}" aria-label="${l}" title="${l}" style="--sw:${c}"></button>`).join("")}
+          <label class="cv-swatch cv-swatch--custom${COLORS.some(([c]) => c.toLowerCase() === e.color.toLowerCase()) ? "" : " is-on"}" title="Outra cor" style="--sw:${esc(e.color)}"><input type="color" data-cv-custom value="${esc(e.color.length === 7 ? e.color : "#ff3b30")}" aria-label="Escolher outra cor" /></label>
+        </div>`
+      : "";
+    return `<div class="cv-toolwrap">${palette}<div class="cv-tools" role="toolbar" aria-label="Marcar foto">
       <span class="cv-tools__grp">${TOOLS.map(([k, l]) => `<button type="button" class="cv-tool${e.tool === k ? " is-on" : ""}" data-cv-tool="${k}" aria-pressed="${e.tool === k}" title="${l}" aria-label="${l}">${ICON[k]}</button>`).join("")}</span>
-      <span class="cv-tools__grp">${COLORS.map(([c, l]) => `<button type="button" class="cv-swatch${e.color === c ? " is-on" : ""}" data-cv-color="${c}" aria-pressed="${e.color === c}" aria-label="${l}" style="--sw:${c}"></button>`).join("")}
+      <span class="cv-tools__grp"><button type="button" class="cv-swatch cv-swatch--cur" data-cv="palette" aria-expanded="${!!e.palette}" aria-label="Cor: ${esc(colorName(e.color))}. Mudar cor" title="Cor" style="--sw:${esc(e.color)}"></button>
         <button type="button" class="cv-tool cv-tool--w" data-cv-w aria-label="Espessura: ${e.width > 4 ? "grossa" : "fina"}" title="Espessura"><i style="height:${e.width > 4 ? 6 : 3}px"></i></button></span>
       <span class="cv-tools__grp">
         <button type="button" class="cv-tool" data-cv="undo" aria-label="Desfazer"${e.shapes.length ? "" : " disabled"}>${ICON.undo}</button>
@@ -295,7 +308,7 @@
         <button type="button" class="cv-btn cv-btn--ghost" data-cv="edit-cancel"${e.saving ? " disabled" : ""}>Cancelar</button>
         <button type="button" class="cv-btn cv-btn--pri" data-cv="edit-save"${e.saving ? " disabled" : ""}>${e.saving ? "Salvando…" : "Salvar"}</button>
       </span>
-    </div>`;
+    </div></div>`;
   }
 
   function renderSide() {
@@ -321,6 +334,12 @@
     // An unsaved note survives a repaint (people list arriving, stage change): keep the text and the caret.
     const oldNote = side.querySelector("#cvNote");
     const draft = oldNote && oldNote.dataset.for === String(p.id) && oldNote.value !== (p.caption || "") ? { v: oldNote.value, focus: document.activeElement === oldNote, at: oldNote.selectionStart } : null;
+    if (st.focus && phone() && canEdit) {
+      side.innerHTML = focusHtml(p, canEdit);
+      const nt = side.querySelector("#cvNote");
+      if (draft && nt) nt.value = draft.v;
+      return;
+    }
     side.innerHTML = `
       <button type="button" class="cv-grab" data-cv="sheet" aria-expanded="${!!st.sheet}" aria-label="${st.sheet ? "Recolher dados da foto" : "Ver todos os dados da foto"}"><i></i></button>
       <header class="cv-job">
@@ -367,6 +386,20 @@
         note.setSelectionRange(draft.at, draft.at);
       }
     }
+  }
+
+  function focusHtml(p, canEdit) {
+    const title = st.focus === "note" ? "Nota" : "Stickers";
+    const body =
+      st.focus === "note"
+        ? `<section class="cv-note"><textarea id="cvNote" rows="4" maxlength="500" data-crm-rich="off" data-for="${esc(p.id)}" aria-label="Nota da foto" placeholder="Ex.: rodapé solto perto da porta da cozinha">${esc(p.caption || "")}</textarea><span class="cv-note__st" role="status" aria-live="polite"></span></section>`
+        : stickersHtml(p, canEdit).replace('class="cv-stks"', 'class="cv-stks cv-stks--focus"');
+    return `<div class="cv-focus" role="group" aria-labelledby="cvFocusT">
+      <div class="cv-focus__h"><b id="cvFocusT">${st.focus === "note" ? ICON.note : ICON.tag}${title}</b>
+        ${st.focus === "stickers" && st.onManageStickers ? `<button type="button" class="cv-link" data-cv="stk-manage">Gerenciar</button>` : ""}
+        <button type="button" class="cv-btn cv-btn--pri cv-btn--sm" data-cv="focus-done">Concluído</button></div>
+      ${body}
+    </div>`;
   }
 
   /** Phones: the panel starts collapsed, so the edits that matter most stay one tap away. */
@@ -661,11 +694,16 @@
     input.focus({ preventScroll: true });
   }
   function refreshTools() {
-    const t = root.querySelector(".cv-tools");
+    const t = root.querySelector(".cv-toolwrap");
     if (t && st.edit) t.outerHTML = toolbarHtml();
   }
   function startEdit() {
     const p = cur();
+    if (st.focus) {
+      st.focus = null;
+      root.classList.remove("is-focus");
+      root.classList.toggle("is-peek", !st.sheet);
+    }
     st.edit = { tool: "arrow", color: COLORS[0][0], width: 3, shapes: JSON.parse(JSON.stringify(shapesOf(p))), redo: [], saving: false };
     render();
   }
@@ -779,6 +817,7 @@
     const sw = e.target.closest("[data-cv-color]");
     if (sw && st.edit) {
       st.edit.color = sw.getAttribute("data-cv-color");
+      st.edit.palette = false;
       return refreshTools();
     }
     if (e.target.closest("[data-cv-w]") && st.edit) {
@@ -805,16 +844,25 @@
       st.tx = 0;
       st.ty = 0;
       apply(true);
+    } else if (a === "palette" && st.edit) {
+      st.edit.palette = !st.edit.palette;
+      refreshTools();
     } else if (a === "q-note" || a === "q-stk") {
-      openSheetAt(a === "q-note" ? "#cvNote" : "#cvStickers");
+      openFocus(a === "q-note" ? "note" : "stickers");
+    } else if (a === "focus-done") {
+      closeFocus();
+    } else if (a === "info") {
+      // phones: ⓘ opens the photo's details; tapping it again folds them back
+      st.focus = null;
+      st.sheet = !st.sheet;
+      syncPanel();
     } else if (a === "stk-manage" && st.onManageStickers) {
       st.onManageStickers();
     } else if (a === "sheet") {
       // phones: the details panel starts as a short peek so the photo gets the room; the handle opens it
+      st.focus = null;
       st.sheet = !st.sheet;
-      root.classList.toggle("is-peek", !st.sheet);
-      renderSide();
-      requestAnimationFrame(() => layout());
+      syncPanel();
     } else if (a === "ink") {
       st.showInk = !st.showInk;
       renderStage();
@@ -885,6 +933,11 @@
     if (!st || root.hidden) return;
     const typing = e.target.closest && e.target.closest("textarea, input, select");
     if (e.key === "Escape") {
+      if (st.focus) return closeFocus();
+      if (st.edit && st.edit.palette) {
+        st.edit.palette = false;
+        return refreshTools();
+      }
       if (typing) return e.target.blur();
       if (st.edit) {
         st.edit = null;
@@ -948,7 +1001,18 @@
     root.addEventListener("focusout", (e) => {
       if (e.target.id === "cvNote" && st && !root.hidden) saveNote(e.target);
     });
+    root.addEventListener("input", (e) => {
+      if (!e.target.matches("[data-cv-custom]") || !st || !st.edit) return;
+      st.edit.color = e.target.value.toUpperCase();
+      root.querySelector(".cv-swatch--custom")?.style.setProperty("--sw", st.edit.color);
+      root.querySelector(".cv-swatch--cur")?.style.setProperty("--sw", st.edit.color);
+    });
     root.addEventListener("change", async (e) => {
+      if (e.target.matches("[data-cv-custom]") && st && st.edit) {
+        st.edit.color = e.target.value.toUpperCase();
+        st.edit.palette = false;
+        return refreshTools();
+      }
       if (!e.target.matches("[data-cv-takenby]") || !st || !st.onTakenBy) return;
       const p = cur();
       try {
@@ -965,18 +1029,38 @@
     return root;
   }
 
-  /** Open the phone panel (if collapsed) and bring one section into view. */
-  function openSheetAt(sel) {
-    if (!st.sheet) {
-      st.sheet = true;
-      root.classList.remove("is-peek");
-      renderSide();
-      requestAnimationFrame(() => layout());
-    }
-    const el = root.querySelector(sel);
-    if (!el) return;
-    el.scrollIntoView({ block: "center", behavior: reduced() ? "auto" : "smooth" });
-    if (el.tagName === "TEXTAREA") el.focus({ preventScroll: true });
+  /**
+   * Phones: Nota and Stickers open as their own short panel over the bottom of the photo, with "Concluído".
+   * No scrolling down a long panel and back up again; closing returns to the collapsed view.
+   */
+  function openFocus(kind) {
+    st.focus = kind;
+    st.sheet = false;
+    syncPanel();
+    const t = root.querySelector(kind === "note" ? "#cvNote" : ".cv-stk");
+    if (t) t.focus({ preventScroll: true });
+  }
+  function closeFocus() {
+    if (!st || !st.focus) return;
+    if (st.focus === "note") flushNote();
+    st.focus = null;
+    syncPanel();
+    root.querySelector(`[data-cv="q-note"], [data-cv="q-stk"]`)?.focus({ preventScroll: true });
+  }
+  /** Panel state classes + repaint; the photo re-fits to the room the panel leaves. */
+  function syncPanel() {
+    root.classList.toggle("is-peek", !st.sheet && !st.focus);
+    root.classList.toggle("is-focus", !!st.focus);
+    renderSide();
+    renderTopInfo();
+    requestAnimationFrame(() => layout());
+  }
+  function renderTopInfo() {
+    const b = root.querySelector('[data-cv="info"]');
+    if (!b) return;
+    b.classList.toggle("is-on", !!st.sheet);
+    b.setAttribute("aria-pressed", String(!!st.sheet));
+    b.setAttribute("aria-label", st.sheet ? "Esconder dados da foto" : "Ver dados da foto");
   }
 
   function flushNote() {
@@ -1034,6 +1118,7 @@
     ensure();
     root.style.removeProperty("--cv-fade");
     root.classList.toggle("is-peek", true);
+    root.classList.remove("is-focus");
     root.hidden = false;
     document.body.classList.add("cv-open");
     render();
