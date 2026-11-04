@@ -2003,6 +2003,8 @@
     const m = /^(sh_[a-z_]+)@(.+)$/.exec(String(key || ''));
     return m ? { shower_item: m[1], shower_id: m[2] } : {};
   }
+  /** "ct_top_l2@ct1", "ct_edge"… : the quote line remembers its countertop item, so the editor can rebuild it. */
+  const topRef = (key) => (/^ct_[a-z0-9_]+(@.+)?$/.test(String(key || '')) ? { top_key: String(key) } : {});
   function optionGroupsFor(d, lines) {
     if (!d.option_b) return [];
     const idx = (o) => lines.map((l, i) => (l.option === o ? i : -1)).filter((i) => i >= 0);
@@ -2037,7 +2039,7 @@
         flooring_type: d.services.includes('installation') ? m.id : d.showers.length ? 'tile' : topPieces(d) ? 'countertops' : 'hardwood',
         area_sqft: totalArea(d) || topsSf(d),
         waste_percent: d.svc.installation.supply ? installWaste(d) : 0,
-        items: quoteLines(d).map((l) => ({ name: l.name, description: l.description || null, quantity: l.quantity, rate: l.rate, unit_type: l.unit, item_type: 'service', service_type: l.service_type, pricing_item_id: l.pricing_item_id || undefined, ...showerRef(l.key) })),
+        items: quoteLines(d).map((l) => ({ name: l.name, description: l.description || null, quantity: l.quantity, rate: l.rate, unit_type: l.unit, item_type: 'service', service_type: l.service_type, pricing_item_id: l.pricing_item_id || undefined, ...showerRef(l.key), ...topRef(l.key) })),
         // The showers go with the quote, so the quote editor can change them later.
         ...(d.showers.length ? { showers: d.showers } : {}),
         ...(topPieces(d) ? { tops: d.tops } : {}),

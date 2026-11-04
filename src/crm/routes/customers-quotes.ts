@@ -109,9 +109,13 @@ type QuoteLineBody = {
   /** Tile: the shower (quote payload.showers) and item a line comes from. */
   shower_id?: unknown;
   shower_item?: unknown;
+  /** Countertops: the countertop item a line comes from ("ct_top_l2@ct1" = the top of piece ct1). */
+  top_key?: unknown;
   cost_price?: unknown;
   markup_percentage?: unknown;
 };
+
+const TOP_KEY = /^ct_[a-z0-9_]{2,24}(@[A-Za-z0-9_-]{1,40})?$/;
 
 function lineItemName(it: QuoteLineBody): string | null {
   const name = it.name != null ? String(it.name).trim() : "";
@@ -142,6 +146,9 @@ function lineItemMetaJson(it: QuoteLineBody): Prisma.InputJsonValue | undefined 
   if (it.shower_id != null && String(it.shower_id).trim() && /^sh_[a-z_]{2,20}$/.test(String(it.shower_item || ""))) {
     meta.shower_id = String(it.shower_id).trim().slice(0, 40);
     meta.shower_item = String(it.shower_item);
+  }
+  if (it.top_key != null && TOP_KEY.test(String(it.top_key))) {
+    meta.top_key = String(it.top_key);
   }
   if (it.cost_price != null && Number.isFinite(Number(it.cost_price))) {
     meta.cost_price = Number(it.cost_price);
@@ -828,6 +835,7 @@ function mapQuote(q: {
         notes: meta.notes != null ? String(meta.notes) : null,
         shower_id: meta.shower_id != null ? String(meta.shower_id) : null,
         shower_item: meta.shower_item != null ? String(meta.shower_item) : null,
+        top_key: meta.top_key != null ? String(meta.top_key) : null,
       };
     }),
   };

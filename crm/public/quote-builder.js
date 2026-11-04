@@ -34,6 +34,8 @@
   let items = [];
   /** Tile showers kept on the quote (payload.showers): from the Field Quote or made here. */
   let quoteShowers = [];
+  /** Countertops: the tops measured on the visit (payload.tops = { spec, pieces }), editable here. */
+  let quoteTops = null;
   /** Sortable instances for drag-reorder (destroyed on each render). */
   let itemSortables = [];
 
@@ -5338,6 +5340,145 @@
     draw();
   }
 
+  /* ───────────── Countertops: tops (the same builder as the Field Quote) ───────────── */
+
+  const topCount = () => (quoteTops && Array.isArray(quoteTops.pieces) ? quoteTops.pieces.length : 0);
+  /** Countertops companies, or a quote that already has tops. */
+  function topsOn() {
+    return Boolean(window.ObTops) && ((window.__OM_TRADE || {}).id === 'countertops' || topCount() > 0);
+  }
+  const isTopLine = (it) => Boolean(it && it.top_key);
+
+  /** Quotes made before lines remembered their top: tie them by name and description. */
+  function adoptTopLines() {
+    if (!topCount()) return;
+    window.ObTops.quoteLines(quoteTops).forEach((w) => {
+      if (items.some((it) => it.top_key === w.key)) return;
+      const hit = items.find((it) => !isTopLine(it) && !isShowerLine(it) && it.name === w.name && String(it.description || '') === String(w.description || ''));
+      if (hit) hit.top_key = w.key;
+    });
+  }
+
+  function topRate(item) {
+    const row = window.ObTops.matchPrice(item, catalog.filter((r) => catalogPricingItemId(r)));
+    const rate = row ? effectiveCatalogRate(row, catalogPricingSource()) : 0;
+    if (rate > 0) return { rate, pricing_item_id: catalogPricingItemId(row) };
+    return { rate: (window.ObTops.PRICE_ITEMS[item] || {}).rate || 0, pricing_item_id: null };
+  }
+
+  /**
+   * Rebuild the countertop lines from the tops. A line that was already there keeps its price (and
+   * any price set by hand); new lines take the price list; a new level is a new line, at its price.
+   */
+  function applyTopsToItems(tops) {
+    adoptTopLines();
+    const old = new Map(items.filter(isTopLine).map((it) => [it.top_key, it]));
+    const at = items.findIndex(isTopLine);
+    const rest = items.filter((it) => !isTopLine(it));
+    const fresh = window.ObTops.quoteLines(tops).map((w) => {
+      const prev = old.get(w.key);
+      const unit = w.unit === 'each' ? 'fixed' : w.unit;
+      if (prev) return { ...prev, name: w.name, description: w.description, quantity: w.quantity, unit_type: unit };
+      const pr = topRate(w.item);
+      return { ...emptyLine(), name: w.name, description: w.description, quantity: w.quantity, unit_type: unit, rate: pr.rate, sell_price: pr.rate, pricing_item_id: pr.pricing_item_id, service_type: 'Countertops', top_key: w.key };
+    });
+    const pos = at >= 0 ? Math.min(at, rest.length) : rest.length;
+    items = [...rest.slice(0, pos), ...fresh, ...rest.slice(pos)].filter((it) => !isBlankLine(it));
+    quoteTops = tops;
+  }
+
+  /** The strip above the lines: one chip per top with its square feet and price, and "+ Bancada". */
+  function renderTopsStrip() {
+    let box = $('qbTops');
+    if (!topsOn()) {
+      if (box) box.hidden = true;
+      return;
+    }
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'qbTops';
+      box.className = 'qb-sh';
+      box.setAttribute('data-no-i18n', '');
+      $('itemsList').parentNode.insertBefore(box, $('itemsList'));
+      box.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-qb-ct]');
+        if (b) openTopsEditor(b.getAttribute('data-qb-ct') === 'new' ? null : Number(b.getAttribute('data-qb-ct')));
+      });
+    }
+    box.hidden = false;
+    const O = window.ObTops;
+    O.setLang(shLang());
+    adoptTopLines();
+    const t = O.normalize(quoteTops || {});
+    const q = O.quantities(t);
+    const by = new Map();
+    items.filter(isTopLine).forEach((it) => {
+      const pid = String(it.top_key).split('@')[1];
+      if (pid) by.set(pid, (by.get(pid) || 0) + lineAmount(Number(it.quantity) || 0, Number(it.rate) || 0));
+    });
+    box.innerHTML = `<div class="qb-sh__head"><b>${shT('Bancadas', 'Encimeras', 'Countertops')}</b><small>${shT('As linhas saem das medidas de cada bancada; o preço de cada linha continua editável abaixo.', 'Las líneas salen de las medidas de cada encimera; el precio de cada línea sigue editable abajo.', 'Lines come from each top’s measurements; prices stay editable below.')}</small></div>
+      <div class="qb-sh__chips">${t.pieces.map((p, i) => {
+        const c = O.chip(t, i);
+        return `<button type="button" class="qb-sh__chip" data-qb-ct="${i}"><span><b>${escapeHtmlText(c.name)}</b><small>${escapeHtmlText(c.sub)}</small></span><em>${money(by.get(p.id) || 0)}</em></button>`;
+      }).join('')}<button type="button" class="qb-sh__chip qb-sh__chip--add" data-qb-ct="new">+ ${shT('Bancada', 'Encimera', 'Countertop')}</button></div>
+      ${t.pieces.length ? `<p class="qb-ct__sum">${escapeHtmlText(shT(`${q.sf} pé² · ${q.edge_lf} pé lin. de borda · ${q.seams} emenda(s) · ${q.slabs} slab(s) estimados`, `${q.sf} pie² · ${q.edge_lf} pie lin. de borde · ${q.seams} unión(es) · ${q.slabs} slab(s) estimados`, `${q.sf} sq ft · ${q.edge_lf} lin ft of edge · ${q.seams} seam(s) · ${q.slabs} slab(s) estimated`))}</p>` : ''}`;
+  }
+
+  /** Edit the tops in a large sheet; "Aplicar" rebuilds their lines in the quote. */
+  function openTopsEditor(idx) {
+    const O = window.ObTops;
+    O.setLang(shLang());
+    const draft = { data: { tops: JSON.parse(JSON.stringify(O.normalize(quoteTops || {}))) }, idx: idx || 0 };
+    if (idx == null) {
+      draft.data.tops.pieces.push(O.normalize({ pieces: [{ id: `ct${Date.now().toString(36)}`, kind: 'run' }] }).pieces[0]);
+      draft.idx = draft.data.tops.pieces.length - 1;
+    }
+    const title = shT('Bancadas', 'Encimeras', 'Countertops');
+    const ov = document.createElement('div');
+    ov.className = 'qb-sh-modal';
+    ov.setAttribute('data-no-i18n', '');
+    ov.innerHTML = `<div class="qb-sh-modal__box" role="dialog" aria-modal="true" aria-label="${title}">
+      <header class="qb-sh-modal__bar"><button type="button" class="qb-sh-modal__x" data-qb-ct-close>${shT('Cancelar', 'Cancelar', 'Cancel')}</button><b>${title}</b><button type="button" class="qb-sh-modal__ok" data-qb-ct-apply>${shT('Aplicar<span class="qb-sh-modal__long"> ao orçamento</span>', 'Aplicar<span class="qb-sh-modal__long"> al presupuesto</span>', 'Apply<span class="qb-sh-modal__long"> to quote</span>')}</button></header>
+      <div class="qb-sh-modal__body" id="qbCtBody"></div>
+      <footer class="qb-sh-modal__foot" id="qbCtFoot"></footer>
+    </div>`;
+    document.body.appendChild(ov);
+    document.documentElement.classList.add('qb-sh-open');
+    const foot = () => {
+      const n = draft.data.tops.pieces.length;
+      const lines = O.quoteLines(draft.data.tops).length;
+      const el = $('qbCtFoot');
+      if (el) el.textContent = shT(`${n} bancada(s) · ${lines} linhas no orçamento ao aplicar`, `${n} encimera(s) · ${lines} líneas en el presupuesto al aplicar`, `${n} countertop(s) · ${lines} quote lines when applied`);
+    };
+    const draw = () => {
+      const body = $('qbCtBody');
+      if (!body) return;
+      body.innerHTML = O.html(draft);
+      O.bind(body, draft, { save: foot, redraw: draw });
+      foot();
+    };
+    const close = () => {
+      ov.remove();
+      document.documentElement.classList.remove('qb-sh-open');
+      document.removeEventListener('keydown', onKey);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') close();
+    };
+    document.addEventListener('keydown', onKey);
+    ov.addEventListener('click', (e) => {
+      if (e.target === ov || e.target.closest('[data-qb-ct-close]')) return close();
+      if (e.target.closest('[data-qb-ct-apply]')) {
+        applyTopsToItems(O.normalize(draft.data.tops));
+        close();
+        renderItems();
+        qbMarkDirty();
+        qbToast(shT('Bancadas aplicadas ao orçamento. Salve para guardar.', 'Encimeras aplicadas al presupuesto. Guarde para conservarlas.', 'Countertops applied to the quote. Save to keep them.'), 'success');
+      }
+    });
+    draw();
+  }
+
   /** Sections of a sectioned trade (Tile), in the PDF's order; Add On stays as a drop target. */
   function renderTradeSections(list) {
     const by = Object.fromEntries(QP.SECTIONS.map((x) => [x.key, []]));
@@ -5382,6 +5523,7 @@
     list.innerHTML = '';
     updateItemsCountLabel();
     renderShowersStrip();
+    renderTopsStrip();
 
     if (TRADE_SECTIONED) return renderTradeSections(list);
     const buckets = { Supply: [], Installation: [], 'Sand & Finishing': [], 'Add On': [], products: [] };
@@ -6602,10 +6744,12 @@
         sell_price: it.sell_price != null ? Number(it.sell_price) : rate,
         shower_id: it.shower_id || null,
         shower_item: it.shower_item || null,
+        top_key: it.top_key || null,
         estimateAuto: false,
       };
     });
     quoteShowers = Array.isArray(payload.showers) ? payload.showers : [];
+    quoteTops = payload.tops && typeof payload.tops === 'object' && Array.isArray(payload.tops.pieces) ? payload.tops : null;
     for (const it of items) {
       if (!it.pricing_item_id) {
         const pid = catalogPricingItemId(catalogRowForItem(it));
@@ -6744,9 +6888,11 @@
         markup_percentage: it.markup_percentage != null ? Number(it.markup_percentage) : null,
         sell_price: it.sell_price != null ? Number(it.sell_price) : Number(it.rate) || null,
         ...(it.shower_id && it.shower_item ? { shower_id: it.shower_id, shower_item: it.shower_item } : {}),
+        ...(it.top_key ? { top_key: it.top_key } : {}),
       })),
     };
     if (showersOn()) base.showers = quoteShowers;
+    if (topsOn() && topCount()) base.tops = quoteTops;
     if (lead_id != null) base.lead_id = lead_id;
     // Never send lead_id: null — a null wipe was clearing the Kanban link on every save.
     return base;

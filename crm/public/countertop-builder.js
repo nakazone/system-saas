@@ -217,7 +217,7 @@
   function topView(p, spec) {
     const deep = p.depth + p.overhang;
     const W = 560;
-    const k = Math.min((W - 80) / p.length, 240 / deep);
+    const k = Math.min((W - 110) / p.length, 240 / deep);
     const x0 = 40, y0 = 34, w = p.length * k, h = deep * k, cab = p.depth * k;
     const thick = 6;
     let g = `<rect x="${x0}" y="${y0}" width="${w}" height="${h}" rx="3" fill="#EFEAE3" stroke="#221E1A" stroke-width="1.5"/>`;
@@ -241,20 +241,27 @@
     const sinkW = (p.sink === 'farmhouse' ? 33 : p.kind === 'vanity' ? 19 : 30) * k;
     const sinkD = (p.kind === 'vanity' ? 15 : 18) * k;
     const sinkX = x0 + (p.cooktop ? w * 0.28 : w / 2) - sinkW / 2;
+    const keepOut = [];
     if (p.sink !== 'none') {
+      keepOut.push([sinkX, sinkX + sinkW]);
       const sy = p.sink === 'farmhouse' ? y0 + h - sinkD : midY - sinkD / 2 + 2 * k;
       g += `<rect x="${sinkX}" y="${sy}" width="${sinkW}" height="${sinkD}" rx="${p.sink === 'dropin' ? 4 : 8}" fill="#fff" stroke="#221E1A" stroke-width="1.3"/>`;
       for (let i = 0; i < p.faucet_holes; i++) g += `<circle cx="${sinkX + sinkW / 2 + (i - (p.faucet_holes - 1) / 2) * 3.2 * k}" cy="${sy - 2.2 * k}" r="${Math.max(2.5, 0.7 * k)}" fill="#221E1A"/>`;
     }
     if (p.cooktop) {
       const cw = 30 * k, cd = 20 * k, cx = x0 + w * (p.sink !== 'none' ? 0.72 : 0.5) - cw / 2, cy = midY - cd / 2;
+      keepOut.push([cx, cx + cw]);
       g += `<rect x="${cx}" y="${cy}" width="${cw}" height="${cd}" rx="3" fill="#2B2724"/>`;
       [[0.28, 0.32], [0.72, 0.32], [0.28, 0.7], [0.72, 0.7]].forEach(([a, b]) => (g += `<circle cx="${cx + cw * a}" cy="${cy + cd * b}" r="${Math.max(3, 3.2 * k)}" fill="none" stroke="#8A817A" stroke-width="1.2"/>`));
     }
     // seams (estimate)
     const seams = p.length > MAX_RUN ? Math.ceil(p.length / MAX_RUN) - 1 : 0;
+    // A seam never goes through a sink or a cooktop: it moves past it (the shop decides the real one).
     for (let i = 1; i <= seams; i++) {
-      const sx = x0 + (w * i) / (seams + 1);
+      let sx = x0 + (w * i) / (seams + 1);
+      keepOut.forEach(([a, b]) => {
+        if (sx > a - 3 * k && sx < b + 3 * k) sx = b + 4 * k < x0 + w - 6 * k ? b + 4 * k : a - 4 * k;
+      });
       g += `<line x1="${sx}" y1="${y0}" x2="${sx}" y2="${y0 + h}" stroke="#536249" stroke-width="1.5" stroke-dasharray="5 4"/>`;
     }
     // dims

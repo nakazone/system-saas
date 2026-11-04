@@ -290,6 +290,7 @@ body.qb-v3.om-has-dock .qb-topbar__desk-actions { display: inline-flex !importan
 .qb-sh__head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
 .qb-sh__head b { font-size: 12px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: #667085; }
 .qb-sh__head small { font-size: 12.5px; color: #98A2B3; }
+.qb-ct__sum { margin: 8px 0 0; font-size: 12.5px; color: #667085; font-variant-numeric: tabular-nums; }
 .qb-sh__chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .qb-sh__chip { display: flex; align-items: center; gap: 14px; min-height: 52px; padding: 8px 14px; border: 0; border-radius: 14px; background: #F7F8FA; box-shadow: 0 0 0 1px #E5E7EB; font: inherit; color: #221E1A; text-align: left; cursor: pointer; }
 .qb-sh__chip:hover { box-shadow: 0 0 0 1.5px #221E1A; }
