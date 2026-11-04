@@ -8,6 +8,13 @@
     <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
     <link rel="icon" href="/favicon.ico?v=20260924-pwa" sizes="any" />
     <link rel="apple-touch-icon" href="/assets/favicon-180.png?v=20260924-pwa" />
+    <script>
+      // Added to the Home Screen from this page, the ObraCalendar link must keep its own icon and name.
+      if (/[?&]app=obracalendar\b/.test(location.search)) {
+        document.querySelector('link[rel="apple-touch-icon"]').href = '/assets/obracalendar/apple-touch-icon.png?v=1';
+        document.write('<link rel="manifest" href="/obracalendar.webmanifest?v=1" /><meta name="apple-mobile-web-app-title" content="ObraCalendar" />');
+      }
+    </script>
     <link rel="stylesheet" href="styles.css?v=20261008-modulos1">
     <link rel="stylesheet" href="design-system.css?v=20261008-modulos1">
     <link rel="stylesheet" href="crm-toast.css?v=20261008-modulos1">
