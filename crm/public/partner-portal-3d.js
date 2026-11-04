@@ -1402,14 +1402,51 @@
       update(fl, selectedId) {
         const keep = c.view; const ns = shapeSig(fl);
         build(fl);
-        if (ns !== sig) { sig = ns; c.frameBox(box, 1.35); }
-        c.view = keep; select(selectedId);
+        // A new shape (steps added/removed, sizes changed) re-frames the camera; keeping the old
+        // view would leave it framed for the previous shape (blank drawing / stale zoom).
+        if (ns !== sig) { sig = ns; c.frameBox(box, 1.35); } else c.view = keep;
+        select(selectedId);
       },
       get view() { return c.view; },
       get counts() { return built.counts; },
+      /** A still of the current view (for thumbnails on cards). */
+      snapshot(type, quality) { c.renderer.render(c.scene, c.camera); return c.cv.toDataURL(type || 'image/webp', quality || 0.86); },
     };
     el.__ob3d = api;
     return api;
+  }
+
+  /**
+   * A small still of a stair, rendered off screen once and cached per key (measurement id + last update):
+   * cards show a real picture of the stair without keeping a live 3D view per card.
+   */
+  const thumbCache = new Map();
+  let thumbQueue = Promise.resolve();
+  function stairThumb(key, flights, w, h) {
+    if (!flights || !flights.some((f) => (f.steps || []).length)) return Promise.resolve(null);
+    if (thumbCache.has(key)) return thumbCache.get(key);
+    try { const hit = sessionStorage.getItem(`ob3d-thumb:${key}`); if (hit) { const p = Promise.resolve(hit); thumbCache.set(key, p); return p; } } catch (_) { /* private mode */ }
+    // One at a time: each render needs a WebGL context, and phones allow only a few.
+    const job = thumbQueue.then(async () => {
+      const box = document.createElement('div');
+      box.style.cssText = `position:fixed;left:-10000px;top:0;width:${w || 360}px;height:${h || 240}px;pointer-events:none`;
+      document.body.appendChild(box);
+      let v = null;
+      try {
+        v = await mountStair(box, flights, {});
+        const url = v.snapshot('image/webp', 0.82);
+        try { sessionStorage.setItem(`ob3d-thumb:${key}`, url); } catch (_) { /* full or private */ }
+        return url;
+      } catch (_) {
+        return null;
+      } finally {
+        if (v) v.destroy();
+        box.remove();
+      }
+    });
+    thumbQueue = job.catch(() => null);
+    thumbCache.set(key, job);
+    return job;
   }
 
   function dimLabel(THREE, text) {
@@ -1613,5 +1650,5 @@
     return api;
   }
 
-  window.ObPlan3D = { mount, mountStair, mountTread, mountVent, load: loadThree };
+  window.ObPlan3D = { mount, mountStair, mountTread, mountVent, stairThumb, load: loadThree };
 })();
