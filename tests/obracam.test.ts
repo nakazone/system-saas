@@ -175,7 +175,7 @@ describe.skipIf(!privileged)("GET /obracam", () => {
     const old = await fetch(`${base}/api/work-orders/${wo.data.id}/media`, { method: "POST", headers: json, body: JSON.stringify({ data_url: png, caption: "Stain sample #1 · Jacobean" }) }).then((r) => r.json());
 
     const first = await fetch(`${base}/api/job-media/stickers`, { headers: json }).then((r) => r.json());
-    expect(first.data.map((x: { name: string }) => x.name)).toEqual(["Samples", "Delivery", "Scan"]);
+    expect(first.data.map((x: { name: string }) => x.name)).toEqual(["Samples"]);
     const samples = first.data.find((x: { system: boolean }) => x.system);
     const media = await fetch(`${base}/api/work-orders/${wo.data.id}/media`, { headers: json }).then((r) => r.json());
     expect(media.data.find((m: { id: string }) => m.id === old.data.id).sticker_ids).toEqual([samples.id]);
@@ -187,7 +187,7 @@ describe.skipIf(!privileged)("GET /obracam", () => {
     const badColor = await fetch(`${base}/api/job-media/stickers`, { method: "POST", headers: json, body: JSON.stringify({ name: "X", color: "red" }) });
     expect(badColor.status).toBe(400);
 
-    const delivery = first.data.find((x: { name: string }) => x.name === "Delivery");
+    const delivery = (await fetch(`${base}/api/job-media/stickers`, { method: "POST", headers: json, body: JSON.stringify({ name: "Rodapé", color: "#1D6FB8" }) }).then((r) => r.json())).data;
     const url = `${base}/api/work-orders/${wo.data.id}/media/${old.data.id}`;
     const tagged = await fetch(url, { method: "PATCH", headers: json, body: JSON.stringify({ sticker_ids: [samples.id, delivery.id, created.data.id, "00000000-0000-0000-0000-000000000000"] }) }).then((r) => r.json());
     expect(tagged.data.sticker_ids).toEqual([samples.id, delivery.id, created.data.id]);
@@ -198,5 +198,34 @@ describe.skipIf(!privileged)("GET /obracam", () => {
     const again = await fetch(url, { method: "PATCH", headers: json, body: JSON.stringify({ sticker_ids: [created.data.id] }) }).then((r) => r.json());
     expect(again.data.sticker_ids).toEqual([]);
 
+  });
+
+  it("returns each photo's phase from the job dates, lets it be corrected, and turns old Delivery stickers into the phase", async () => {
+    const json = { "Content-Type": "application/json", Cookie: adminCookie };
+    const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const day = (n: number) => new Date(Date.now() + n * 86400e3).toISOString();
+    const wo = await fetch(`${base}/api/work-orders`, { method: "POST", headers: json, body: JSON.stringify({ title: "Phase test", scheduled_start: day(-3) }) }).then((r) => r.json());
+    const before = await fetch(`${base}/api/work-orders/${wo.data.id}/media`, { method: "POST", headers: json, body: JSON.stringify({ data_url: png, taken_at_device: day(-6) }) }).then((r) => r.json());
+    const during = await fetch(`${base}/api/work-orders/${wo.data.id}/media`, { method: "POST", headers: json, body: JSON.stringify({ data_url: png, taken_at_device: day(-1) }) }).then((r) => r.json());
+    expect(before.data).toMatchObject({ phase: "scan", phase_source: "auto" });
+    expect(during.data).toMatchObject({ phase: "installation", phase_source: "auto" });
+
+    const list = await fetch(`${base}/api/work-orders/${wo.data.id}/media`, { headers: json }).then((r) => r.json());
+    expect(list.meta.phases).toEqual(["scan", "installation", "walkthrough"]);
+
+    const url = `${base}/api/work-orders/${wo.data.id}/media/${during.data.id}`;
+    const fixed = await fetch(url, { method: "PATCH", headers: json, body: JSON.stringify({ phase: "walkthrough" }) }).then((r) => r.json());
+    expect(fixed.data).toMatchObject({ phase: "walkthrough", phase_source: "manual" });
+    const auto = await fetch(url, { method: "PATCH", headers: json, body: JSON.stringify({ phase: null }) }).then((r) => r.json());
+    expect(auto.data).toMatchObject({ phase: "installation", phase_source: "auto" });
+
+    // an org that still has the old Delivery sticker: its photos become Delivery and the sticker is archived and removed
+    const orgId = (await prisma.workOrder.findFirst({ where: { id: wo.data.id }, select: { organizationId: true } }))!.organizationId;
+    const legacy = await prisma.mediaSticker.create({ data: { organizationId: orgId, key: "delivery", name: "Delivery", color: "#1D6FB8" } });
+    await prisma.jobMedia.update({ where: { id: before.data.id }, data: { stickerIds: [legacy.id] } });
+    await fetch(`${base}/api/job-media/stickers`, { headers: json });
+    const row = await prisma.jobMedia.findUnique({ where: { id: before.data.id }, select: { phase: true, stickerIds: true } });
+    expect(row).toEqual({ phase: "delivery", stickerIds: [] });
+    expect((await prisma.mediaSticker.findUnique({ where: { id: legacy.id } }))!.archivedAt).not.toBeNull();
   });
 });

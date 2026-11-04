@@ -2812,6 +2812,9 @@ model JobMedia {
   cameraModel        String?
   /// MediaSticker ids on this photo (Samples, Delivery, Scan…)
   stickerIds         String[]     @default([]) @db.Uuid
+  /// Phase someone set by hand (delivery | scan | installation | sand_finish | walkthrough). Null = worked out from the
+  /// photo's date and the job's dates every time it is read, so it follows schedule changes.
+  phase              String?
   /// photo | video
   type               String       @default("photo")
   storageKey         String

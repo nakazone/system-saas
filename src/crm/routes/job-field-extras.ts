@@ -11,6 +11,7 @@ import { storage } from "../../lib/storage/index.js";
 import { JOB_MEDIA_PEOPLE, mapJobMedia, sha256Buffer } from "../../lib/job-media/index.js";
 import { normalizeAnnotations } from "../../lib/job-media/checklist.js";
 import { cleanStickerIds, ensureStickers, isStickerColor, mapSticker } from "../../lib/job-media/stickers.js";
+import { JOB_PHASES, PHASE_JOB_SELECT, jobPhaseContext, orgTimezone, phaseContextFromRow, photoPhaseFields } from "../../lib/job-media/phases.js";
 import { photoDistanceFields, resolveJobSiteGeo } from "../../lib/job-media/geo.js";
 import { extractLabelFromImageUrl, isFieldMeasureEnabled } from "../../lib/job-media/ocr.js";
 import { aiTranscribeAudio, aiChatJson, isAiConfigured } from "../../lib/ai/client.js";
@@ -78,6 +79,7 @@ jobFieldExtrasRouter.get(
       const since = new Date();
       since.setDate(since.getDate() - days);
       const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const tz = await orgTimezone(tx, req.organizationId!);
         const rows = await tx.workOrder.findMany({
           where: { status: { in: ["draft", "scheduled", "in_progress", "completed"] } },
           select: {
@@ -92,13 +94,17 @@ jobFieldExtrasRouter.get(
             sandScheduledStart: true,
             installationDoneAt: true,
             sandDoneAt: true,
+            scheduledEnd: true,
+            deliveryScheduledStart: true,
+            needsDelivery: true,
+            deliveries: true,
             geoLat: true,
             geoLng: true,
             sourceName: true,
             clientRef: true,
             customer: { select: { name: true, company: true, nickname: true, clientCode: true } },
             builder: { select: { company: true, firstName: true, lastName: true, nickname: true } },
-            lineItems: { select: { lineTotal: true } },
+            lineItems: { select: { lineTotal: true, pricingItem: { select: { category: true } } } },
             invoices: {
               select: {
                 amount: true,
@@ -126,6 +132,7 @@ jobFieldExtrasRouter.get(
                 author: { select: { name: true } },
                 takenBy: { select: { name: true } },
                 stickerIds: true,
+                phase: true,
               },
             },
             _count: { select: { media: { where: { deletedAt: null } } } },
@@ -147,6 +154,7 @@ jobFieldExtrasRouter.get(
               jobLat != null && jobLng != null && Number.isFinite(jobLat) && Number.isFinite(jobLng)
                 ? { lat: jobLat, lng: jobLng }
                 : null;
+            const phaseCtx = phaseContextFromRow(wo, tz);
             const photos = wo.media.map((m) => {
               const lat = m.lat != null ? Number(m.lat) : null;
               const lng = m.lng != null ? Number(m.lng) : null;
@@ -165,6 +173,7 @@ jobFieldExtrasRouter.get(
                 author_name: m.author?.name || null,
                 taken_by_name: m.takenBy?.name || m.author?.name || null,
                 sticker_ids: m.stickerIds || [],
+                ...photoPhaseFields(phaseCtx, m),
               };
               return { ...mapped, ...photoDistanceFields(mapped, jobGeo) };
             });
@@ -219,6 +228,7 @@ jobFieldExtrasRouter.get(
               geo_lat: jobGeo?.lat ?? null,
               geo_lng: jobGeo?.lng ?? null,
               last_photo: lastMapped,
+              phases: phaseCtx ? phaseCtx.phases : [],
               photos,
               stale: !last || last.createdAt < since,
               detail_url: `job-detail.html?id=${wo.id}`,
@@ -228,6 +238,7 @@ jobFieldExtrasRouter.get(
       });
 
       const feed = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const tz = await orgTimezone(tx, req.organizationId!);
         const photos = await tx.jobMedia.findMany({
           where: {
             organizationId: req.organizationId!,
@@ -238,11 +249,11 @@ jobFieldExtrasRouter.get(
           take: 40,
           include: {
             ...JOB_MEDIA_PEOPLE,
-            workOrder: { select: { id: true, number: true, title: true, status: true, geoLat: true, geoLng: true } },
+            workOrder: { select: { id: true, number: true, title: true, geoLat: true, geoLng: true, ...PHASE_JOB_SELECT } },
           },
         });
         return photos.map((p) => {
-          const mapped = mapJobMedia(p);
+          const mapped = { ...mapJobMedia(p), ...photoPhaseFields(phaseContextFromRow(p.workOrder, tz), p) };
           const jobLat = p.workOrder?.geoLat != null ? Number(p.workOrder.geoLat) : null;
           const jobLng = p.workOrder?.geoLng != null ? Number(p.workOrder.geoLng) : null;
           const jobGeo =
@@ -422,6 +433,8 @@ const mediaEditBody = z
     annotations: z.unknown().optional(),
     taken_by_id: z.string().uuid().nullable().optional(),
     sticker_ids: z.array(z.string().uuid()).max(12).optional(),
+    /** a job phase to set it by hand, or null to go back to the automatic phase */
+    phase: z.enum(JOB_PHASES).nullable().optional(),
   })
   .refine((b) => Object.keys(b).length > 0, "Nothing to change");
 
@@ -462,7 +475,7 @@ jobFieldExtrasRouter.patch(
             : undefined;
         const updated = await tx.jobMedia.update({
           where: { id: row.id },
-          data: { caption, stage: d.stage, annotationsJson: annotations, takenById, stickerIds },
+          data: { caption, stage: d.stage, annotationsJson: annotations, takenById, stickerIds, phase: d.phase },
           include: JOB_MEDIA_PEOPLE,
         });
         const changes: Record<string, { from: unknown; to: unknown }> = {};
@@ -471,6 +484,7 @@ jobFieldExtrasRouter.patch(
         if (annotations !== undefined) changes.annotations = { from: null, to: d.annotations ? "updated" : "cleared" };
         if (takenById !== undefined && takenById !== (row.takenById || null)) changes.taken_by = { from: row.takenById || null, to: takenById };
         if (stickerIds !== undefined && stickerIds.join() !== (row.stickerIds || []).join()) changes.stickers = { from: row.stickerIds || [], to: stickerIds };
+        if (d.phase !== undefined && d.phase !== (row.phase || null)) changes.phase = { from: row.phase || null, to: d.phase };
         if (Object.keys(changes).length) {
           await recordActivity(tx, {
             organizationId: req.organizationId!,
@@ -482,7 +496,7 @@ jobFieldExtrasRouter.patch(
             changes: { media_id: { from: null, to: mediaId }, ...changes },
           });
         }
-        return mapJobMedia(updated);
+        return { ...mapJobMedia(updated), ...photoPhaseFields(await jobPhaseContext(tx, req.organizationId!, jobId), updated) };
       });
       res.json({ success: true, data });
     } catch (error: unknown) {

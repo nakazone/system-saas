@@ -27,6 +27,7 @@ import {
 } from "../../lib/job-media/report.js";
 import { buildJobReportPdf } from "../../lib/job-media/report-pdf.js";
 import { cleanStickerIds } from "../../lib/job-media/stickers.js";
+import { jobPhaseContext, photoPhaseFields } from "../../lib/job-media/phases.js";
 import { isAiConfigured } from "../../lib/ai/client.js";
 import { recordActivity } from "../../lib/activity/record.js";
 import { storage } from "../../lib/storage/index.js";
@@ -143,9 +144,10 @@ jobReportsRouter.get(
           include: JOB_MEDIA_PEOPLE,
         });
         const jobGeo = await resolveJobSiteGeo(tx, jobId);
+        const phaseCtx = await jobPhaseContext(tx, req.organizationId!, jobId);
         const data = rows.map((row) => {
           const mapped = mapJobMedia(row);
-          return { ...mapped, ...photoDistanceFields(mapped, jobGeo) };
+          return { ...mapped, ...photoDistanceFields(mapped, jobGeo), ...photoPhaseFields(phaseCtx, row) };
         });
         return {
           data,
@@ -153,6 +155,7 @@ jobReportsRouter.get(
             ai_configured: isAiConfigured(),
             job_geo: jobGeo,
             far_threshold_m: 500,
+            phases: phaseCtx ? phaseCtx.phases : [],
           },
         };
       });
@@ -344,7 +347,8 @@ jobReportsRouter.post(
           changes: { sha256: { from: null, to: hash }, stage: { from: null, to: meta.stage } },
         });
 
-        return mapJobMedia(row);
+        const phaseCtx = await jobPhaseContext(tx, req.organizationId!, wo.id);
+        return { ...mapJobMedia(row), ...photoPhaseFields(phaseCtx, row) };
       });
 
       console.info("[job-media] uploaded", {

@@ -110,6 +110,15 @@ body.cv-open { overflow: hidden; }
 .cv-stages button { height: 34px; border: 0; border-radius: 9px; background: transparent; font: inherit; font-size: 13px; font-weight: 600; color: var(--cv-mu); cursor: pointer; }
 .cv-stages button.is-on { background: var(--cv-ink); color: #171513; }
 .cv-stages button:disabled { cursor: progress; opacity: .6; }
+/* job phase of the photo, in work order; scrolls sideways when the job has many */
+.cv-phase { display: grid; gap: 6px; }
+.cv-phases { display: flex; flex-wrap: wrap; gap: 6px; }
+.cv-phases button { height: 34px; padding: 0 12px; border: 0; border-radius: 999px; background: var(--cv-raise); box-shadow: inset 0 0 0 1px var(--cv-line); font: inherit; font-size: 13px; font-weight: 600; color: var(--cv-mu); cursor: pointer; white-space: nowrap; }
+.cv-phases button.is-on { background: var(--cv-ink); box-shadow: none; color: #171513; }
+.cv-phases button:disabled { cursor: progress; opacity: .6; }
+.cv-phase__src { font-size: 12px; color: var(--cv-mu2); }
+.cv-phase__src .cv-link { font-size: 12px; padding: 0; }
+.cv-box.is-dragging { cursor: grabbing; }
 .cv-kv { margin: 0; display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 10px 12px; font-size: 13.5px; }
 .cv-kv dt { color: var(--cv-mu); padding-top: 1px; }
 .cv-kv dd { margin: 0; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
@@ -228,6 +237,7 @@ span.cv-stk { cursor: default; }
   .cv-job h2 { font-size: 18px; }
   .cv-kv { font-size: 13px; gap: 8px 10px; grid-template-columns: 82px minmax(0, 1fr); }
   .cv-stages button { height: 40px; }
+  .cv-phases button { height: 40px; }
   .cv-sp { display: none; }
   .cv-btn { height: 46px; }
   .cv-note textarea { font-size: 16px; }

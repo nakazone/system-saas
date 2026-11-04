@@ -11,11 +11,10 @@ export const STICKER_COLORS = ["#B4561A", "#1D6FB8", "#2F7D4F", "#7A4BC2", "#B42
 
 export const SAMPLES_KEY = "samples";
 
-const DEFAULTS: { key: string; name: string; color: string }[] = [
-  { key: SAMPLES_KEY, name: "Samples", color: "#7A4BC2" },
-  { key: "delivery", name: "Delivery", color: "#1D6FB8" },
-  { key: "scan", name: "Scan", color: "#0F766E" },
-];
+const DEFAULTS: { key: string; name: string; color: string }[] = [{ key: SAMPLES_KEY, name: "Samples", color: "#7A4BC2" }];
+
+/** Stickers that became ObraCam job phases: their photos take that phase and the sticker is archived. */
+const BECAME_PHASE: Record<string, string> = { delivery: "delivery", scan: "scan" };
 
 export type StickerRow = { id: string; key: string | null; name: string; color: string; sortOrder: number; archivedAt: Date | null };
 
@@ -46,6 +45,15 @@ export async function ensureStickers(tx: Tx, organizationId: string): Promise<St
         WHERE "organizationId" = ${organizationId}::uuid AND ("caption" LIKE 'Stain sample #%' OR "caption" LIKE 'Stain samples ·%') AND NOT (${samples.id}::uuid = ANY("stickerIds"))`;
     }
   }
+  const legacy = rows.filter((r) => r.key && BECAME_PHASE[r.key] && !r.archivedAt);
+  for (const r of legacy) {
+    const phase = BECAME_PHASE[r.key as string];
+    // the photo takes the phase (unless someone already set one) and loses the sticker it replaces
+    await tx.$executeRaw`UPDATE "JobMedia" SET "phase" = COALESCE("phase", ${phase}), "stickerIds" = array_remove("stickerIds", ${r.id}::uuid)
+      WHERE "organizationId" = ${organizationId}::uuid AND ${r.id}::uuid = ANY("stickerIds")`;
+    await tx.mediaSticker.update({ where: { id: r.id }, data: { archivedAt: new Date() } });
+  }
+  if (legacy.length) rows = await tx.mediaSticker.findMany({ where: { organizationId }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] });
   return rows;
 }
 

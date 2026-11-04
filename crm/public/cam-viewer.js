@@ -21,6 +21,7 @@
 (function () {
   const STAGE = { before: "Antes", during: "Durante", after: "Depois" };
   const STAGES = [["before", "Antes"], ["during", "Durante"], ["after", "Depois"], ["", "Geral"]];
+  const PHASE_LABEL = { delivery: "Delivery", scan: "Scan", installation: "Installation", sand_finish: "Sand & Finish", walkthrough: "Walk Through" };
   const WD = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
   const MO = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
   const COLORS = [
@@ -100,7 +101,7 @@
    *  px of a ~400px canvas, so they scale by min(width, height) / 400 here. */
   function inkSvg(shapes, w, h, extraCls) {
     const k = Math.min(w, h) / 400;
-    const parts = shapes.map((s) => {
+    const parts = shapes.map((s, idx) => {
       const c = esc(s.color || "#FF3B30");
       const sw = (Number(s.width) || 3) * k;
       const base = `stroke="${c}" stroke-width="${sw.toFixed(2)}" stroke-linecap="round" stroke-linejoin="round" fill="none"`;
@@ -125,7 +126,7 @@
       if (s.type === "text") {
         const fs = (Number(s.size) || 16) * k;
         const halo = c.toUpperCase() === "#1C1A17" ? "#FFFFFF" : "#000000";
-        return `<text x="${(s.x * w).toFixed(1)}" y="${(s.y * h).toFixed(1)}" fill="${c}" font-size="${fs.toFixed(1)}" font-weight="700" font-family="Geist, system-ui, sans-serif" stroke="${halo}" stroke-opacity=".55" stroke-width="${(fs * 0.14).toFixed(2)}" paint-order="stroke" stroke-linejoin="round">${esc(s.text || "")}</text>`;
+        return `<text data-i="${idx}" x="${(s.x * w).toFixed(1)}" y="${(s.y * h).toFixed(1)}" fill="${c}" font-size="${fs.toFixed(1)}" font-weight="700" font-family="Geist, system-ui, sans-serif" stroke="${halo}" stroke-opacity=".55" stroke-width="${(fs * 0.14).toFixed(2)}" paint-order="stroke" stroke-linejoin="round">${esc(s.text || "")}</text>`;
       }
       return "";
     });
@@ -300,7 +301,7 @@
       <span class="cv-tools__grp"><button type="button" class="cv-swatch cv-swatch--cur" data-cv="palette" aria-expanded="${!!e.palette}" aria-label="Cor: ${esc(colorName(e.color))}. Mudar cor" title="Cor" style="--sw:${esc(e.color)}"></button>
         <button type="button" class="cv-tool cv-tool--w" data-cv-w aria-label="Espessura: ${e.width > 4 ? "grossa" : "fina"}" title="Espessura"><i style="height:${e.width > 4 ? 6 : 3}px"></i></button></span>
       <span class="cv-tools__grp">
-        <button type="button" class="cv-tool" data-cv="undo" aria-label="Desfazer"${e.shapes.length ? "" : " disabled"}>${ICON.undo}</button>
+        <button type="button" class="cv-tool" data-cv="undo" aria-label="Desfazer"${e.shapes.length || e.hist.length ? "" : " disabled"}>${ICON.undo}</button>
         <button type="button" class="cv-tool" data-cv="redo" aria-label="Refazer"${e.redo.length ? "" : " disabled"}>${ICON.redo}</button>
         <button type="button" class="cv-tool cv-tool--txt" data-cv="clear"${e.shapes.length ? "" : " disabled"}>Limpar</button>
       </span>
@@ -347,9 +348,11 @@
         <h2 id="cvTitle">${esc(job.name || job.title || "Foto")}</h2>
         ${sub ? `<p title="${esc(sub)}">${esc(sub)}</p>` : ""}
       </header>
-      ${st.canStage && p.id
+      ${st.onPhase && p.id && (p.phases || []).length
+        ? phaseHtml(p)
+        : st.canStage && p.id
         ? `<div class="cv-stages" role="group" aria-label="Etapa da foto">${STAGES.map(([k, l]) => `<button type="button" class="${(p.stage || "") === k ? "is-on" : ""}" data-cv-stage="${k}" aria-pressed="${(p.stage || "") === k}"${st.busy ? " disabled" : ""}>${l}</button>`).join("")}</div>`
-        : `<div class="cv-chips"><span class="cv-pill">${esc(STAGE[p.stage] || "Geral")}</span></div>`}
+        : `<div class="cv-chips"><span class="cv-pill">${esc(PHASE_LABEL[p.phase] || STAGE[p.stage] || "Geral")}</span></div>`}
       ${canEdit ? quickHtml(p, shapes) : ""}
       <dl class="cv-kv">
         <dt>Tirada</dt><dd>${esc(when(p.taken_at_device || p.created_at))}${TAKEN_NOTE[p.taken_at_source] ? `<small>${TAKEN_NOTE[p.taken_at_source]}</small>` : ""}</dd>
@@ -399,6 +402,17 @@
         ${st.focus === "stickers" && st.onManageStickers ? `<button type="button" class="cv-link" data-cv="stk-manage">Gerenciar</button>` : ""}
         <button type="button" class="cv-btn cv-btn--pri cv-btn--sm" data-cv="focus-done">Concluído</button></div>
       ${body}
+    </div>`;
+  }
+
+  /** Job phase of the photo: worked out from its date unless corrected; the job's phases in work order. */
+  function phaseHtml(p) {
+    const list = (p.phases || []).concat(p.phase && !(p.phases || []).includes(p.phase) ? [p.phase] : []);
+    return `<div class="cv-phase">
+      <div class="cv-phases" role="group" aria-label="Fase da foto" data-no-i18n>${list.map((k) => `<button type="button" class="${p.phase === k ? "is-on" : ""}" data-cv-phase="${k}" aria-pressed="${p.phase === k}"${st.busy ? " disabled" : ""}>${esc(PHASE_LABEL[k] || k)}</button>`).join("")}</div>
+      <small class="cv-phase__src">${p.phase_source === "manual"
+        ? `Corrigida à mão · <button type="button" class="cv-link" data-cv-phase-auto${st.busy ? " disabled" : ""}>usar a da data</button>`
+        : p.phase ? "Pela data da foto e as datas do job" : "Sem datas no job para definir a fase"}</small>
     </div>`;
   }
 
@@ -607,9 +621,26 @@
     const r = els().pan.getBoundingClientRect();
     return { x: clamp((e.clientX - r.left) / r.width, 0, 1), y: clamp((e.clientY - r.top) / r.height, 0, 1) };
   }
+  /** Index of the text shape under the pointer (with a little slack for fingers), or -1. */
+  function textAt(e) {
+    const pad = e.pointerType === "mouse" ? 4 : 12;
+    const hits = [...root.querySelectorAll(".cv-inkwrap text[data-i]")].filter((t) => {
+      const r = t.getBoundingClientRect();
+      return e.clientX >= r.left - pad && e.clientX <= r.right + pad && e.clientY >= r.top - pad && e.clientY <= r.bottom + pad;
+    });
+    return hits.length ? Number(hits[hits.length - 1].getAttribute("data-i")) : -1;
+  }
   function startInk(e) {
     const ed = st.edit;
     const p = norm(e);
+    // Any text already on the photo can be picked up and moved, whatever tool is active.
+    const ti = textAt(e);
+    if (ti >= 0 && ed.shapes[ti] && ed.shapes[ti].type === "text") {
+      const t = ed.shapes[ti];
+      ed.dragText = { i: ti, start: p, x0: t.x, y0: t.y, moved: false, before: { x: t.x, y: t.y } };
+      root.querySelector(".cv-box")?.classList.add("is-dragging");
+      return;
+    }
     if (ed.tool === "text") {
       ed.pendingText = p;
       return;
@@ -618,6 +649,16 @@
   }
   function moveInk(e) {
     const ed = st.edit;
+    if (ed.dragText) {
+      const d = ed.dragText;
+      const p = norm(e);
+      const t = ed.shapes[d.i];
+      if (Math.hypot((p.x - d.start.x) * st.v.w, (p.y - d.start.y) * st.v.h) > 3) d.moved = true;
+      t.x = clamp(d.x0 + (p.x - d.start.x), 0, 1);
+      t.y = clamp(d.y0 + (p.y - d.start.y), 0.02, 1);
+      paintInk();
+      return;
+    }
     if (!ed.drawing) return;
     const p = norm(e);
     const s = ed.drawing.start;
@@ -636,6 +677,21 @@
   }
   function endInk(e) {
     const ed = st.edit;
+    if (ed.dragText) {
+      const d = ed.dragText;
+      ed.dragText = null;
+      root.querySelector(".cv-box")?.classList.remove("is-dragging");
+      if (d.moved) {
+        ed.redo = [];
+        ed.hist.push({ t: "move", i: d.i, x: d.before.x, y: d.before.y });
+      } else if (ed.tool === "text") {
+        // a tap on a text with the Text tool edits its words
+        askText({ x: ed.shapes[d.i].x, y: ed.shapes[d.i].y }, e, d.i);
+      }
+      paintInk();
+      refreshTools();
+      return;
+    }
     if (ed.pendingText) {
       const at = ed.pendingText;
       ed.pendingText = null;
@@ -654,13 +710,14 @@
       (shape.type === "circle" && shape.r < 0.005);
     if (!tiny) {
       ed.shapes.push({ ...shape, id: `${shape.type[0]}-${Date.now()}` });
+      ed.hist.push({ t: "add" });
       ed.redo = [];
     }
     paintInk();
     refreshTools();
   }
   /** Text goes in where it was tapped, typed in place (no browser prompt). */
-  function askText(at, e) {
+  function askText(at, e, editIndex) {
     const { box } = els();
     const r = box.getBoundingClientRect();
     const input = document.createElement("input");
@@ -668,6 +725,8 @@
     input.className = "cv-textin";
     input.maxLength = 80;
     input.placeholder = "Escreva e aperte Enter";
+    const editing = editIndex != null && st.edit.shapes[editIndex];
+    if (editing) input.value = editing.text || "";
     input.style.left = `${clamp(e.clientX - r.left, 8, r.width - 220)}px`;
     input.style.top = `${clamp(e.clientY - r.top - 20, 8, r.height - 48)}px`;
 
@@ -678,7 +737,16 @@
       done = true;
       const text = input.value.trim();
       input.remove();
+      if (editing && st && st.edit) {
+        // editing words in place: empty removes the text
+        if (keep && text) editing.text = text;
+        else if (keep && !text) st.edit.shapes.splice(editIndex, 1);
+        paintInk();
+        refreshTools();
+        return;
+      }
       if (keep && text && st && st.edit) {
+        st.edit.hist.push({ t: "add" });
         st.edit.shapes.push({ id: `t-${Date.now()}`, type: "text", color: st.edit.color, x: at.x, y: at.y, text, size: st.edit.width > 4 ? 26 : 18 });
         st.edit.redo = [];
         paintInk();
@@ -704,7 +772,7 @@
       root.classList.remove("is-focus");
       root.classList.toggle("is-peek", !st.sheet);
     }
-    st.edit = { tool: "arrow", color: COLORS[0][0], width: 3, shapes: JSON.parse(JSON.stringify(shapesOf(p))), redo: [], saving: false };
+    st.edit = { tool: "arrow", color: COLORS[0][0], width: 3, shapes: JSON.parse(JSON.stringify(shapesOf(p))), redo: [], hist: [], saving: false };
     render();
   }
   async function saveEdit() {
@@ -790,6 +858,25 @@
       root.querySelector(`[data-cv-stage="${p.stage || ""}"]`)?.focus();
       return;
     }
+    const ph = e.target.closest("[data-cv-phase], [data-cv-phase-auto]");
+    if (ph && st.onPhase) {
+      const p = cur();
+      const next = ph.hasAttribute("data-cv-phase-auto") ? null : ph.getAttribute("data-cv-phase");
+      if (next && next === p.phase && p.phase_source === "manual") return;
+      st.busy = true;
+      renderSide();
+      try {
+        const res = await st.onPhase(p, next);
+        if (res) Object.assign(p, { phase: res.phase || null, phase_source: res.phase_source || null });
+        window.crmToast?.success?.(next ? `Fase: ${PHASE_LABEL[next]}` : "Fase pela data da foto");
+      } catch (err) {
+        window.crmToast?.error?.(err.message || "Não foi possível mudar a fase");
+      }
+      if (!st) return;
+      st.busy = false;
+      renderSide();
+      return;
+    }
     const stk = e.target.closest("[data-cv-stk]");
     if (stk && st.onStickers) {
       const p = cur();
@@ -872,8 +959,16 @@
       render();
     } else if (a === "edit-save") saveEdit();
     else if (a === "undo" && st.edit) {
-      const s = st.edit.shapes.pop();
-      if (s) st.edit.redo.push(s);
+      // the last thing done goes back: a move returns the text to where it was, otherwise the last shape comes off
+      const last = st.edit.hist.length ? st.edit.hist[st.edit.hist.length - 1] : null;
+      if (last && last.t === "move" && st.edit.shapes[last.i]) {
+        st.edit.hist.pop();
+        Object.assign(st.edit.shapes[last.i], { x: last.x, y: last.y });
+      } else {
+        if (last) st.edit.hist.pop();
+        const s = st.edit.shapes.pop();
+        if (s) st.edit.redo.push(s);
+      }
       paintInk();
       refreshTools();
     } else if (a === "redo" && st.edit) {
@@ -884,6 +979,7 @@
     } else if (a === "clear" && st.edit) {
       st.edit.redo = st.edit.shapes.slice().reverse();
       st.edit.shapes = [];
+      st.edit.hist = [];
       paintInk();
       refreshTools();
     } else if (a === "download") download();
@@ -1102,6 +1198,7 @@
       onNote: opts.onNote || null,
       onAnnotate: opts.onAnnotate || null,
       onTakenBy: opts.onTakenBy || null,
+      onPhase: opts.onPhase || null,
       stickers: opts.stickers || [],
       onStickers: opts.onStickers || null,
       onManageStickers: opts.onManageStickers || null,
