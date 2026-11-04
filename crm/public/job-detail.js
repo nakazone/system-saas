@@ -1204,11 +1204,18 @@
         window.CamViewer.open({
           photos: list.map((m) => ({
             id: m.legacy ? null : m.id, url: m.url, thumb_url: m.thumb_url, stage: m.stage, created_at: m.created_at, taken_at_device: m.taken_at_device,
-            author: m.author_name, device: m.device_label, caption: m.caption, uploaded_by_name: m.uploaded_by_name, taken_by_name: m.taken_by_name, taken_at_source: m.taken_at_source, location_source: m.location_source, camera_model: m.camera_model, annotations: m.annotations, address: m.address || job.address, lat: m.lat, lng: m.lng,
+            author: m.author_name, device: m.device_label, caption: m.caption, uploaded_by_name: m.uploaded_by_name, taken_by_name: m.taken_by_name, taken_at_source: m.taken_at_source, location_source: m.location_source, camera_model: m.camera_model, annotations: m.annotations, sticker_ids: m.sticker_ids || [], address: m.address || job.address, lat: m.lat, lng: m.lng,
             location_available: m.location_available, distance_m: m.distance_m, far_from_job: m.far_from_job, in_portfolio: m.in_portfolio,
             job: { number: job.number, title: job.title || clientName(), client: clientName() },
           })),
           index: idx,
+          // Managers edit here too: note, stage, markup and stickers, saved to the photo itself.
+          ...(canManage && window.CamViewer.jobEditing
+            ? window.CamViewer.jobEditing(jobId, (row) => {
+                media = media.map((x) => (x.id === row.id ? { ...x, ...row } : x));
+                renderPhotos();
+              })
+            : {}),
           canPortfolio: canManage,
           onPortfolio: async (photo, next) => {
             const j = await api(`/api/work-orders/${jobId}/media/${photo.id}/portfolio`, { method: "PATCH", body: JSON.stringify({ in_portfolio: next }) });

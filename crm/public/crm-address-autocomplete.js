@@ -34,11 +34,16 @@
     return one || null;
   }
 
+  /** Builder / partner portal pages have no staff session: staff config endpoints only answer 401 there. */
+  function isPartnerPage() {
+    return /\/partner-portal(\.html)?$/.test(String(global.location && global.location.pathname || ''));
+  }
+
   async function fetchOrgCountry() {
     if (orgCountryCode) return orgCountryCode;
     if (orgCountryPromise) return orgCountryPromise;
     orgCountryPromise = (async function () {
-      try {
+      if (!isPartnerPage()) try {
         var r = await fetch('/api/config/ui', { credentials: 'include', cache: 'no-store' });
         if (r.ok) {
           var j = await r.json().catch(function () {
@@ -52,7 +57,7 @@
           }
         }
       } catch (_) {}
-      try {
+      if (!isPartnerPage()) try {
         var r2 = await fetch('/api/settings/organization', { credentials: 'include', cache: 'no-store' });
         if (r2.ok) {
           var j2 = await r2.json().catch(function () {
@@ -366,7 +371,7 @@
   }
 
   async function fetchMapsKey() {
-    var r = await fetch('/api/config/ui', { credentials: 'include', cache: 'no-store' });
+    var r = await fetch(isPartnerPage() ? '/api/partner-portal/config' : '/api/config/ui', { credentials: 'include', cache: 'no-store' });
     if (!r.ok) {
       var builderToken = null;
       try {

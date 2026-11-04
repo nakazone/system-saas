@@ -142,6 +142,37 @@
 }
 .cam-up__stage svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
 .cam-up__stage.is-on { background: #FDF0E6; box-shadow: inset 0 0 0 2px #E7792C; color: #8F4314; }
+/* stickers to apply to the photos being sent */
+.cam-up__lbl span { font-weight: 500; text-transform: none; letter-spacing: 0; color: #98A2B3; }
+.cam-up__stks { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 4px; }
+.cam-up__stk { height: 38px; display: inline-flex; align-items: center; gap: 7px; padding: 0 13px 0 11px; border: 0; border-radius: 999px; background: #fff; box-shadow: inset 0 0 0 1px #E5E7EB; font: inherit; font-size: 14px; font-weight: 600; color: #221E1A; cursor: pointer; }
+.cam-up__stk i { width: 9px; height: 9px; border-radius: 50%; background: var(--stk); }
+.cam-up__stk.is-on { background: var(--stk); box-shadow: none; color: #fff; }
+.cam-up__stk.is-on i { background: #fff; }
+.cam-up__lbl + .cam-up__stks { margin-top: 0; }
+.cam-up__stages + .cam-up__lbl { margin-top: 16px; }
+
+/* sticker manager: above the photo viewer, since it opens from there too */
+.cam-stkm { z-index: 10070; }
+.cam-stkm__card { max-height: min(88vh, 720px); overflow-y: auto; overscroll-behavior: contain; }
+.cam-stkm__new { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px; border-radius: 14px; background: #fff; box-shadow: inset 0 0 0 1px #E5E7EB; }
+.cam-stkm__new input { flex: 1 1 180px; min-width: 0; height: 42px; padding: 0 12px; border: 0; border-radius: 10px; background: #F7F8FA; box-shadow: inset 0 0 0 1px #E5E7EB; font: inherit; font-size: 16px; color: #221E1A; }
+.cam-stkm__add { height: 42px; padding: 0 16px; border: 0; border-radius: 10px; background: #E7792C; color: #fff; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
+.cam-stkm__sws { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.cam-stkm__sw { width: 26px; height: 26px; border: 0; border-radius: 50%; background: var(--stk); cursor: pointer; }
+.cam-stkm__sw.is-on { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #221E1A; }
+.cam-stkm__list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.cam-stkm__row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 10px; align-items: center; padding: 10px 12px; border-radius: 14px; background: #fff; box-shadow: inset 0 0 0 1px #E5E7EB; }
+.cam-stkm__pv { display: none; }
+.cam-stkm__name { min-width: 0; height: 38px; padding: 0 10px; border: 0; border-radius: 9px; background: transparent; box-shadow: inset 0 0 0 1px transparent; font: inherit; font-size: 15px; font-weight: 650; color: #221E1A; }
+.cam-stkm__name:focus { outline: none; background: #F7F8FA; box-shadow: inset 0 0 0 1px #E7792C; }
+.cam-stkm__row .cam-stkm__sws { grid-column: 1 / -1; }
+.cam-stkm__row small { grid-column: 1 / -1; font-size: 12px; color: #667085; }
+.cam-stkm__arch { grid-row: 1; grid-column: 2; height: 34px; padding: 0 10px; border: 0; border-radius: 9px; background: transparent; font: inherit; font-size: 13px; font-weight: 600; color: #667085; cursor: pointer; }
+.cam-stkm__row.is-arch { opacity: .7; }
+.cam-stkm__row.is-arch .cam-stkm__name { text-decoration: line-through; }
+@media (hover: hover) and (pointer: fine) { .cam-stkm__arch:hover { background: #F1F3F5; color: #221E1A; } }
+
 /* "Tirada por": who took the photos when someone else uploads them */
 .cam-up__who { display: flex; align-items: center; gap: 10px; margin-top: 14px; font-size: 13px; font-weight: 600; color: #475467; }
 .cam-up__who select { flex: 1; min-width: 0; height: 44px; padding: 0 12px; border: 0; border-radius: 12px; background: #fff; box-shadow: inset 0 0 0 1px #E5E7EB; font: inherit; font-size: 16px; font-weight: 600; color: #221E1A; }
@@ -196,6 +227,13 @@ a.cam-dloc span { text-decoration: underline; text-decoration-color: #F2D9C6; te
 .cam-chip em { font-style: normal; color: var(--cam-ink3); }
 .cam-chip.is-on { background: var(--cam-ink); color: #fff; box-shadow: none; }
 .cam-chip.is-on em { color: #98A2B3; }
+.cam-chips__sep { flex: none; width: 1px; height: 20px; margin: 0 4px; background: var(--cam-line); }
+.cam-chip--stk i { width: 8px; height: 8px; border-radius: 50%; background: var(--stk); }
+.cam-chip--stk.is-on { background: var(--stk); color: #fff; }
+.cam-chip--stk.is-on i { background: #fff; }
+.cam-chip--stk.is-on em { color: rgba(255, 255, 255, .8); }
+.cam-chip--ghost { background: transparent; box-shadow: inset 0 0 0 1px var(--cam-line); color: var(--cam-ink2); }
+.cam-chip--ghost svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; }
 
 .cam-box { background: #fff; border-radius: 22px; box-shadow: 0 0 0 1px var(--cam-line); padding: 16px 18px; min-width: 0; }
 .cam-box h3 { margin: 0 0 10px; font-size: 12px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--cam-ink2); }
@@ -223,6 +261,10 @@ a.cam-dloc span { text-decoration: underline; text-decoration-color: #F2D9C6; te
 }
 .cam-ph__st { position: absolute; left: 6px; top: 6px; height: 19px; padding: 0 6px; border-radius: 6px; background: rgba(34, 30, 26, .78); color: #fff; font-size: 10.5px; font-weight: 650; display: inline-flex; align-items: center; gap: 4px; }
 .cam-ph__st svg { width: 11px; height: 11px; stroke-width: 2.4; }
+/* stickers on a tile: coloured name pills under the stage badge */
+.cam-ph__stk { position: absolute; left: 6px; top: 29px; right: 6px; display: flex; flex-wrap: wrap; gap: 3px; pointer-events: none; }
+.cam-ph__stk span { max-width: 100%; height: 18px; padding: 0 6px; border-radius: 6px; background: var(--stk); color: #fff; font-size: 10.5px; font-weight: 700; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 1px 2px rgba(0, 0, 0, .25); }
+.cam-ph__stk span.is-more { background: rgba(34, 30, 26, .78); }
 .cam-ph__st--ic { padding: 0 5px; }
 .cam-ph__jn { position: absolute; left: 6px; bottom: 6px; max-width: calc(100% - 12px); box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block !important; line-height: 19px; height: 19px; padding: 0 6px; border-radius: 6px; background: rgba(255, 255, 255, .92); color: var(--cam-ink); font-size: 10.5px; font-weight: 650; display: inline-flex; align-items: center; }
 .cam-tag { position: absolute; right: 6px; bottom: 6px; height: 19px; max-width: calc(100% - 12px); box-sizing: border-box; padding: 0 6px; border-radius: 6px; background: rgba(255, 255, 255, .92); color: var(--cam-ink2); font-size: 10.5px; font-weight: 650; display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

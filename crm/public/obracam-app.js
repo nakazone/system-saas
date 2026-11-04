@@ -56,8 +56,13 @@
     panel.innerHTML = `
       <h1 class="oc-title">Ajustes</h1>
       <div class="oc-list"><div class="oc-row" style="cursor:default"><span class="oc-row__t">${esc(u.name || u.email || '')}</span><span class="oc-row__s">${esc(org.name || '')}</span></div></div>
+      ${canManage(u) ? `<div class="oc-list"><button type="button" class="oc-row" data-oc-stickers><span class="oc-row__t">Stickers</span><span class="oc-row__s">Etiquetas das fotos: Samples, Delivery, Scan…</span></button></div>` : ""}
       <div class="oc-list"><a class="oc-row" href="/dashboard"><span class="oc-row__t">Abrir o ObraMate</span><span class="oc-row__s">Jobs, quotes, invoices e o resto do sistema</span></a></div>
       <div class="oc-list"><button type="button" class="oc-row oc-row--danger" data-oc-logout><span class="oc-row__t">Sair</span></button></div>`;
+  }
+
+  function canManage(u) {
+    return !!u && (u.role === "admin" || (u.permissions || []).includes("work_orders.manage"));
   }
 
   function markTab(id) {
@@ -206,6 +211,10 @@
   }, true);
 
   document.addEventListener('click', (ev) => {
+    if (ev.target.closest('[data-oc-stickers]')) {
+      if (window.__camApp && window.__camApp.manageStickers) window.__camApp.manageStickers();
+      return;
+    }
     const t = ev.target.closest('[data-oc-tab],[data-oc-stage],[data-oc-camera],[data-oc-library],[data-oc-close],[data-oc-logout]');
     if (!t) return;
     if (t.dataset.ocTab) return show(t.dataset.ocTab);
