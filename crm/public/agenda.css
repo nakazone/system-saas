@@ -449,20 +449,46 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
 .ag-dtl__editing--block { display: block; margin: 4px 0; }
 .ag-dtl__editing--when {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
   margin: 4px 0;
 }
 .ag-dtl__editing--when .ag-dtl__when {
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
 }
-.ag-dtl__editing--when .ag-dtl__done { flex: 0 0 auto; }
+.ag-dtl__editing--when .ag-dtl__done { align-self: flex-end; flex: 0 0 auto; }
+.ag-dtl__pick { width: 100%; max-width: 300px; }
+.ag-dtl__when-times { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ag-mini--pick {
+  padding: 8px 6px 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+.ag-mini--pick .ag-mini__nav .ag-mini__t {
+  cursor: default;
+  text-align: center;
+  padding: 4px 2px;
+  flex: 1;
+  display: block;
+}
+.ag-mini--pick .ag-mini__d.is-sel {
+  background: var(--terra);
+  color: #fff;
+  font-weight: 800;
+}
+.ag-mini--pick .ag-mini__d.is-today:not(.is-sel) {
+  background: transparent;
+  color: var(--terra);
+  box-shadow: inset 0 0 0 1.5px var(--terra);
+}
+.ag-mini--pick .ag-mini__d.is-sel.is-today { box-shadow: none; }
 .ag-dtl__editing--addr {
   padding: 12px 14px;
   display: flex;
@@ -608,19 +634,15 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
   box-shadow: 0 0 0 3px rgba(193, 101, 47, 0.08);
   background: #fff7ed;
 }
-.ag-dtl__notes-badge {
+.ag-dtl__notes-dot {
   display: inline-block;
+  width: 8px;
+  height: 8px;
   margin-left: 8px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 800;
-  font-style: normal;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: #9a3412;
-  background: rgba(193, 101, 47, 0.16);
+  border-radius: 50%;
+  background: var(--terra);
   vertical-align: middle;
+  box-shadow: 0 0 0 3px rgba(232, 121, 44, 0.22);
 }
 .ag-dtl__notes-tog {
   appearance: none; width: 100%; border: 0; background: transparent; cursor: pointer;

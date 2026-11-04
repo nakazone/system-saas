@@ -793,20 +793,28 @@
     const first = new Date(month.getFullYear(), month.getMonth(), 1);
     const gs = startOfWeek(first);
     const today = sod(new Date());
+    const pick = Boolean(opts && opts.pick);
     const colorsByDay = opts && opts.dots ? miniColorsByDay() : {};
     const ym = `${first.getFullYear()}-${first.getMonth()}`;
     const titleText = opts && opts.short ? MONTHS[month.getMonth()].slice(0, 3) : MONTHS[month.getMonth()] + (opts && opts.year ? ' ' + month.getFullYear() : '');
+    const navDir = pick ? 'data-ag-pick-nav' : 'data-ag-mini-nav';
+    const titleEl = pick
+      ? `<span class="ag-mini__t">${esc(titleText)}</span>`
+      : `<button type="button" class="ag-mini__t" data-ag-gomonth="${ymd(first)}">${esc(titleText)}</button>`;
     const nav =
       opts && opts.nav
         ? `<div class="ag-mini__nav">
-            <button type="button" class="ag-mini__navbtn" data-ag-mini-nav="-1" aria-label="Mês anterior">‹</button>
-            <button type="button" class="ag-mini__t" data-ag-gomonth="${ymd(first)}">${esc(titleText)}</button>
-            <button type="button" class="ag-mini__navbtn" data-ag-mini-nav="1" aria-label="Próximo mês">›</button>
+            <button type="button" class="ag-mini__navbtn" ${navDir}="-1" aria-label="Mês anterior">‹</button>
+            ${titleEl}
+            <button type="button" class="ag-mini__navbtn" ${navDir}="1" aria-label="Próximo mês">›</button>
           </div>`
         : opts && opts.title !== false
-          ? `<button type="button" class="ag-mini__t" data-ag-gomonth="${ymd(first)}">${esc(titleText)}</button>`
+          ? pick
+            ? `<span class="ag-mini__t">${esc(titleText)}</span>`
+            : `<button type="button" class="ag-mini__t" data-ag-gomonth="${ymd(first)}">${esc(titleText)}</button>`
           : '';
     let html = `<div class="ag-mini${opts && opts.cls ? ' ' + opts.cls : ''}" data-ag-mini-ym="${ym}">${nav}<div class="ag-mini__g">${WD1.map((w) => `<span class="ag-mini__wd">${w}</span>`).join('')}`;
+    const pickSel = pick ? String(opts.selectedYmd || '') : '';
     for (let i = 0; i < 42; i++) {
       const d = addDays(gs, i);
       if (i >= 35 && d.getMonth() !== month.getMonth()) break;
@@ -817,7 +825,9 @@
         colors.length > 0
           ? `<span class="ag-mini__dots" aria-hidden="true">${colors.map((c) => `<i style="background:${esc(c)}"></i>`).join('')}</span>`
           : '';
-      html += `<button type="button" class="ag-mini__d${out ? ' is-out' : ''}${sameDay(d, today) ? ' is-today' : ''}${sameDay(d, S.selected) && !out ? ' is-sel' : ''}${colors.length ? ' has-ev' : ''}" data-ag-goday="${k}">${out && opts && opts.hideOut ? '' : d.getDate()}${dots}</button>`;
+      const selected = pick ? Boolean(pickSel && k === pickSel && !out) : sameDay(d, S.selected) && !out;
+      const dayAttr = pick ? `data-ag-pickday="${k}"` : `data-ag-goday="${k}"`;
+      html += `<button type="button" class="ag-mini__d${out ? ' is-out' : ''}${sameDay(d, today) ? ' is-today' : ''}${selected ? ' is-sel' : ''}${colors.length ? ' has-ev' : ''}" ${dayAttr}>${out && opts && opts.hideOut ? '' : d.getDate()}${dots}</button>`;
     }
     return html + '</div></div>';
   }
@@ -1307,9 +1317,44 @@
     return MTG_STATUS[e.status] || e.status;
   }
 
+  function partyRoleOf(e) {
+    const m = (e && e.meta) || {};
+    if (!e) return '';
+    if (e.type === 'visit') return 'Lead';
+    if (e.type === 'meeting') return '';
+    const st = String(m.source_type || '').toLowerCase();
+    const ct = String(m.customer_type || (m.customer && m.customer.customer_type) || '').toLowerCase();
+    if (
+      st === 'contractor' ||
+      st === 'builder' ||
+      ct === 'builder' ||
+      ct === 'contractor' ||
+      m.builder_id ||
+      m.builder
+    ) {
+      return 'Builder';
+    }
+    if (st === 'loja' || ct === 'loja') return 'Loja';
+    if (st === 'particular' || ct === 'particular') return 'Particular';
+    if (m.customer_id || m.customer) return 'Particular';
+    return '';
+  }
+
   function contactOf(e) {
-    const m = e.meta;
-    if (e.type === 'visit' && m.lead) return { name: m.lead.name, phone: m.lead.phone, email: m.lead.email, href: `lead-detail.html?id=${encodeURIComponent(m.lead.id)}`, hrefLabel: 'Abrir lead' };
+    const m = e.meta || {};
+    const role = partyRoleOf(e);
+    if (e.type === 'visit' && m.lead) {
+      return {
+        name: String(m.lead.name || '').trim(),
+        role,
+        phone: m.lead.phone,
+        email: m.lead.email,
+        href: `lead-detail.html?id=${encodeURIComponent(m.lead.id)}`,
+        hrefLabel: 'Abrir lead',
+        homeowner_name: '',
+        homeowner_phone: '',
+      };
+    }
     if (e.type === 'job') {
       const c = m.customer || {};
       const b = m.builder || {};
@@ -1320,17 +1365,29 @@
         m.source_name;
       const jobHrefId = jobIdOf(e);
       return {
-        name,
-        phone: c.phone || b.phone || m.homeowner_phone || '',
+        name: String(name || '').trim(),
+        role,
+        phone: c.phone || b.phone || '',
         email: c.email || b.email || '',
         href: `jobs.html?id=${encodeURIComponent(jobHrefId)}`,
         hrefLabel: `Abrir job${m.number ? ' #' + m.number : ''}`,
+        homeowner_name: String(m.homeowner_name || '').trim(),
+        homeowner_phone: String(m.homeowner_phone || '').trim(),
       };
     }
     const c = m.customer;
     return c
-      ? { name: c.name, phone: c.phone || '', email: c.email || '', href: `customers.html?id=${encodeURIComponent(c.id)}`, hrefLabel: 'Abrir cliente' }
-      : {};
+      ? {
+          name: String(c.name || '').trim(),
+          role,
+          phone: c.phone || '',
+          email: c.email || '',
+          href: `customers.html?id=${encodeURIComponent(c.id)}`,
+          hrefLabel: 'Abrir cliente',
+          homeowner_name: '',
+          homeowner_phone: '',
+        }
+      : { role: '' };
   }
 
   let schedMsgCache = null;
@@ -1492,7 +1549,7 @@
     const notesBlock = notesTarget
       ? `<div class="ag-card ag-dtl__notes${hasNotes ? ' has-notes is-open' : ''}">
           <button type="button" class="ag-dtl__notes-tog" data-ag-notes-tog aria-expanded="${hasNotes ? 'true' : 'false'}">
-            <span>${esc(notesTarget.label)}${hasNotes ? `<em class="ag-dtl__notes-badge">Tem nota</em>` : ''}</span>
+            <span>${esc(notesTarget.label)}${hasNotes ? `<i class="ag-dtl__notes-dot" aria-label="Tem nota"></i>` : ''}</span>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10l4 4 4-4"/></svg>
           </button>
           <div class="ag-dtl__notes-panel"${hasNotes ? '' : ' hidden'}>
@@ -1533,7 +1590,9 @@
         ${e.status && e.status !== 'scheduled' ? `<span class="ag-dtl__st">${esc(statusText(e))}</span>` : ''}</div>
       ${
         ct.name || tel
-          ? `<div class="ag-card ag-dtl__row">${tel ? `<span class="ag-dtl__ic ag-dtl__ic--phone"><svg viewBox="0 0 24 24"><path d="M6.5 3.5l3 1 1 4-2 1.5a12 12 0 006 6l1.5-2 4 1 1 3c-1 2-3 2.5-5 2A17 17 0 013.5 8.5c-.5-2 0-4 3-5z"/></svg></span>` : ''}<div><b>${esc(ct.name || '')}</b>${
+          ? `<div class="ag-card ag-dtl__row">${tel ? `<span class="ag-dtl__ic ag-dtl__ic--phone"><svg viewBox="0 0 24 24"><path d="M6.5 3.5l3 1 1 4-2 1.5a12 12 0 006 6l1.5-2 4 1 1 3c-1 2-3 2.5-5 2A17 17 0 013.5 8.5c-.5-2 0-4 3-5z"/></svg></span>` : ''}<div><b>${esc(ct.name || '')}${
+              ct.role ? ` - ${esc(ct.role)}` : ''
+            }</b>${
               ct.phone ? `<small>${esc(typeof window.sfFormatPhone === 'function' ? window.sfFormatPhone(ct.phone) : ct.phone)}</small>` : ''
             }</div>${
               tel || sms
@@ -1546,6 +1605,35 @@
             }</div>`
           : ''
       }
+      ${(() => {
+        const hoName = String(ct.homeowner_name || '').trim();
+        if (!hoName) return '';
+        const hoPhone = String(ct.homeowner_phone || '').trim();
+        const hoDigits = hoPhone ? hoPhone.replace(/[^\d+]/g, '') : '';
+        const hoTel = hoDigits
+          ? typeof window.sfBuildTelHref === 'function'
+            ? window.sfBuildTelHref(hoPhone)
+            : 'tel:' + hoDigits
+          : '';
+        const hoSms = hoDigits
+          ? typeof window.sfBuildSmsHref === 'function'
+            ? window.sfBuildSmsHref(hoPhone)
+            : 'sms:' + hoDigits
+          : '';
+        return `<div class="ag-card ag-dtl__row">${hoTel ? `<span class="ag-dtl__ic ag-dtl__ic--phone"><svg viewBox="0 0 24 24"><path d="M6.5 3.5l3 1 1 4-2 1.5a12 12 0 006 6l1.5-2 4 1 1 3c-1 2-3 2.5-5 2A17 17 0 013.5 8.5c-.5-2 0-4 3-5z"/></svg></span>` : ''}<div><b>${esc(hoName)} - HomeOwner</b>${
+          hoPhone
+            ? `<small>${esc(typeof window.sfFormatPhone === 'function' ? window.sfFormatPhone(hoPhone) : hoPhone)}</small>`
+            : ''
+        }</div>${
+          hoTel || hoSms
+            ? `<span class="ag-dtl__chips">${hoTel ? `<a class="ag-chip" href="${esc(hoTel)}">Ligar</a>` : ''}${
+                hoSms
+                  ? `<button type="button" class="ag-chip" data-ag-sms-pick="${esc(e.id)}" data-ag-sms-phone="${esc(hoPhone)}">SMS</button>`
+                  : ''
+              }</span>`
+            : ''
+        }</div>`;
+      })()}
       ${
         e.address
           ? `<div class="ag-card ag-dtl__addr">${
@@ -1607,10 +1695,6 @@
           ? `<button type="button" class="ag-btn" data-ag-device-cal="${esc(e.id)}">Adicionar ao Apple Calendar</button>`
           : ''
       }${
-        canEdit
-          ? `<button type="button" class="ag-btn" data-ag-edit="${esc(e.id)}">${e.type === 'job' ? 'Editar Job' : 'Editar'}</button>`
-          : ''
-      }${
         canEdit && e.type === 'job' && e.meta.sector === 'installation'
           ? `<button type="button" class="ag-btn" data-ag-lixa="${esc(e.id)}">Agendar Lixa</button>`
           : ''
@@ -1633,16 +1717,28 @@
     if (field === 'title') {
       return `<input type="text" class="ag-dtl__in ag-dtl__in--wide" ${common} value="${esc(e.title)}" maxlength="200" />`;
     }
-    if (field === 'when' && e.type === 'job') {
-      return `<div class="ag-dtl__when" data-ag-when-wrap>
-        <input type="date" class="ag-dtl__in" data-ag-inline="date" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" value="${ymd(e.start)}" />
-      </div>`;
-    }
     if (field === 'when') {
+      const day = ymd(e.start);
+      const pick = `<div class="ag-dtl__pick" data-ag-date-pick>${miniMonthHtml(e.start, {
+        pick: true,
+        selectedYmd: day,
+        nav: true,
+        year: true,
+        cls: 'ag-mini--pick',
+      })}</div>`;
+      if (e.type === 'job') {
+        return `<div class="ag-dtl__when" data-ag-when-wrap>
+          <input type="hidden" data-ag-inline="date" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" value="${esc(day)}" />
+          ${pick}
+        </div>`;
+      }
       return `<div class="ag-dtl__when" data-ag-when-wrap>
-        <input type="date" class="ag-dtl__in" data-ag-inline="date" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" value="${ymd(e.start)}" />
-        ${timeWheelHtml('start', hm(e.start), { inline: true, id: e.id, type: e.type })}
-        ${e.type === 'visit' ? '' : timeWheelHtml('end', hm(e.end), { inline: true, id: e.id, type: e.type })}
+        <input type="hidden" data-ag-inline="date" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" value="${esc(day)}" />
+        ${pick}
+        <div class="ag-dtl__when-times">
+          ${timeWheelHtml('start', hm(e.start), { inline: true, id: e.id, type: e.type })}
+          ${e.type === 'visit' ? '' : timeWheelHtml('end', hm(e.end), { inline: true, id: e.id, type: e.type })}
+        </div>
       </div>`;
     }
     if (field === 'calendar') {
@@ -1915,7 +2011,11 @@
       const date = valOf('date');
       const st = valOf('start') || hm(ev.start);
       const en = valOf('end') || hm(ev.end);
-      if (date === ymd(ev.start) && st === hm(ev.start) && (type === 'visit' || en === hm(ev.end))) return;
+      if (date === ymd(ev.start) && st === hm(ev.start) && (type === 'visit' || en === hm(ev.end))) {
+        // Confirm with no change — leave edit mode so the button never looks broken.
+        openDetail(id, $(`[data-ag-ev="${CSS.escape(id)}"]`));
+        return;
+      }
     }
 
     try {
@@ -3349,6 +3449,50 @@
           return;
         }
         if (detail) dismissFieldEdit(detail);
+        return;
+      }
+      if ((el = t.closest('[data-ag-pick-nav]'))) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const wrap = el.closest('[data-ag-when-wrap]') || el.closest('[data-ag-editing]');
+        if (!wrap) return;
+        const mini = wrap.querySelector('[data-ag-mini-ym]');
+        const ym = mini && mini.getAttribute('data-ag-mini-ym');
+        const parts = String(ym || '').split('-');
+        const y = Number(parts[0]);
+        const m = Number(parts[1]);
+        if (!Number.isFinite(y) || !Number.isFinite(m)) return;
+        const dir = Number(el.getAttribute('data-ag-pick-nav')) || 0;
+        const next = new Date(y, m + dir, 1);
+        const dateInp = wrap.querySelector('[data-ag-inline="date"]');
+        const selectedYmd = dateInp ? String(dateInp.value || '') : '';
+        const host = wrap.querySelector('[data-ag-date-pick]');
+        if (host) {
+          host.innerHTML = miniMonthHtml(next, {
+            pick: true,
+            selectedYmd,
+            nav: true,
+            year: true,
+            cls: 'ag-mini--pick',
+          });
+        }
+        return;
+      }
+      if ((el = t.closest('[data-ag-pickday]'))) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (el.classList.contains('is-out')) return;
+        const day = el.getAttribute('data-ag-pickday');
+        const wrap = el.closest('[data-ag-when-wrap]') || el.closest('[data-ag-editing]');
+        if (!wrap || !day) return;
+        const dateInp = wrap.querySelector('[data-ag-inline="date"]');
+        if (dateInp) dateInp.value = day;
+        wrap.querySelectorAll('.ag-mini__d[data-ag-pickday]').forEach((btn) => {
+          btn.classList.toggle(
+            'is-sel',
+            btn.getAttribute('data-ag-pickday') === day && !btn.classList.contains('is-out'),
+          );
+        });
         return;
       }
       if ((el = t.closest('[data-ag-tap]'))) {
