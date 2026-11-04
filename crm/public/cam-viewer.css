@@ -120,6 +120,23 @@ body.cv-open { overflow: hidden; }
 .cv-note p { margin: 0; font-size: 14px; line-height: 1.45; }
 .cv-note p.is-mu { color: var(--cv-mu2); }
 .cv-note__st { display: block; min-height: 16px; margin-top: 4px; font-size: 12px; color: var(--cv-mu2); }
+/* stickers: photo labels; a chip lights up in its own colour when the photo carries it */
+.cv-stks__h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.cv-stks__h span { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; color: var(--cv-mu); }
+.cv-stks__h span svg { width: 14px; height: 14px; }
+.cv-stks__list { display: flex; flex-wrap: wrap; gap: 6px; }
+.cv-stk {
+  display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 12px 0 10px; border: 0; border-radius: 999px; background: var(--cv-raise);
+  box-shadow: inset 0 0 0 1px var(--cv-line); color: var(--cv-ink); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: background-color 120ms, transform 120ms;
+}
+.cv-stk i { width: 9px; height: 9px; border-radius: 50%; background: var(--stk); box-shadow: 0 0 0 2px rgba(255, 255, 255, .12); }
+.cv-stk.is-on { background: var(--stk); box-shadow: none; color: #fff; }
+.cv-stk.is-on i { background: #fff; box-shadow: none; }
+.cv-stk:active { transform: scale(.97); }
+span.cv-stk { cursor: default; }
+.cv-link { border: 0; padding: 4px 2px; background: none; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--cv-hot); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.cv-mu { font-size: 13px; color: var(--cv-mu2); }
+.cv-quick { display: none; }
 .cv-sp { flex: 1; }
 .cv-acts { display: grid; gap: 8px; }
 .cv-row { display: flex; gap: 8px; }
@@ -167,7 +184,17 @@ body.cv-open { overflow: hidden; }
   .cv-grab i { display: block; width: 36px; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, .28); }
   /* peek: name and stage only, so the photo keeps most of the screen; the handle opens the rest */
   .cv.is-peek .cv-side { overflow: hidden; }
-  .cv.is-peek .cv-side > :not(.cv-grab):not(.cv-job):not(.cv-stages):not(.cv-chips) { display: none; }
+  .cv.is-peek .cv-side > :not(.cv-grab):not(.cv-job):not(.cv-stages):not(.cv-chips):not(.cv-quick) { display: none; }
+  /* the edits a phone needs, always one tap away (the panel starts collapsed) */
+  .cv-quick { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
+  .cv-quick button {
+    height: 46px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 8px; border: 0; border-radius: 12px;
+    background: var(--cv-raise); box-shadow: inset 0 0 0 1px var(--cv-line); color: var(--cv-ink); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  .cv-quick button em { font-style: normal; font-size: 12px; color: var(--cv-hot); }
+  .cv-quick button:active { transform: scale(.97); }
+  .cv-btn--mark { display: none !important; }
+  .cv-stk { height: 38px; font-size: 14px; }
   .cv.is-peek .cv-job p { -webkit-line-clamp: 1; line-clamp: 1; }
   .cv-job h2 { font-size: 18px; }
   .cv-kv { font-size: 13px; gap: 8px 10px; grid-template-columns: 82px minmax(0, 1fr); }

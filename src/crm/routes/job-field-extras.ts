@@ -10,6 +10,7 @@ import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { storage } from "../../lib/storage/index.js";
 import { JOB_MEDIA_PEOPLE, mapJobMedia, sha256Buffer } from "../../lib/job-media/index.js";
 import { normalizeAnnotations } from "../../lib/job-media/checklist.js";
+import { cleanStickerIds, ensureStickers, isStickerColor, mapSticker } from "../../lib/job-media/stickers.js";
 import { photoDistanceFields, resolveJobSiteGeo } from "../../lib/job-media/geo.js";
 import { extractLabelFromImageUrl, isFieldMeasureEnabled } from "../../lib/job-media/ocr.js";
 import { aiTranscribeAudio, aiChatJson, isAiConfigured } from "../../lib/ai/client.js";
@@ -124,6 +125,7 @@ jobFieldExtrasRouter.get(
                 deviceLabel: true,
                 author: { select: { name: true } },
                 takenBy: { select: { name: true } },
+                stickerIds: true,
               },
             },
             _count: { select: { media: { where: { deletedAt: null } } } },
@@ -162,6 +164,7 @@ jobFieldExtrasRouter.get(
                 device_label: m.deviceLabel || null,
                 author_name: m.author?.name || null,
                 taken_by_name: m.takenBy?.name || m.author?.name || null,
+                sticker_ids: m.stickerIds || [],
               };
               return { ...mapped, ...photoDistanceFields(mapped, jobGeo) };
             });
@@ -305,6 +308,96 @@ jobFieldExtrasRouter.delete(
   },
 );
 
+/** ObraCam stickers (photo labels). Everyone who sees ObraCam reads them; managers create and edit. */
+jobFieldExtrasRouter.get(
+  "/api/job-media/stickers",
+  requireCrmAuth,
+  requireCrmPermission("work_orders.view"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const rows = await withTenantTransaction(req.organizationId!, (tx) => ensureStickers(tx, req.organizationId!));
+      res.json({ success: true, data: rows.map(mapSticker) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+const stickerName = z.string().trim().min(1).max(32);
+
+jobFieldExtrasRouter.post(
+  "/api/job-media/stickers",
+  requireCrmAuth,
+  requireCrmPermission("work_orders.manage"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const body = z.object({ name: stickerName, color: z.string().refine(isStickerColor) }).safeParse(req.body || {});
+      if (!body.success) {
+        res.status(400).json({ success: false, error: "Informe um nome (até 32 letras) e uma cor" });
+        return;
+      }
+      const row = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const all = await ensureStickers(tx, req.organizationId!);
+        const same = all.find((s) => !s.archivedAt && s.name.toLowerCase() === body.data.name.toLowerCase());
+        if (same) throw Object.assign(new Error("Já existe um sticker com esse nome"), { status: 409 });
+        const sortOrder = all.reduce((m, s) => Math.max(m, s.sortOrder), -1) + 1;
+        return tx.mediaSticker.create({ data: { organizationId: req.organizationId!, name: body.data.name, color: body.data.color, sortOrder } });
+      });
+      res.status(201).json({ success: true, data: mapSticker(row) });
+    } catch (error: unknown) {
+      const err = error as { status?: number; message?: string };
+      if (err?.status) {
+        res.status(err.status).json({ success: false, error: err.message || "Error" });
+        return;
+      }
+      next(error);
+    }
+  },
+);
+
+jobFieldExtrasRouter.patch(
+  "/api/job-media/stickers/:id",
+  requireCrmAuth,
+  requireCrmPermission("work_orders.manage"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const body = z
+        .object({ name: stickerName.optional(), color: z.string().refine(isStickerColor).optional(), archived: z.boolean().optional(), sort_order: z.number().int().min(0).max(999).optional() })
+        .safeParse(req.body || {});
+      if (!body.success) {
+        res.status(400).json({ success: false, error: "Dados do sticker inválidos" });
+        return;
+      }
+      const d = body.data;
+      const row = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const cur = await tx.mediaSticker.findFirst({ where: { id: String(req.params.id), organizationId: req.organizationId! } });
+        if (!cur) throw Object.assign(new Error("Sticker não encontrado"), { status: 404 });
+        if (d.name && d.name.toLowerCase() !== cur.name.toLowerCase()) {
+          const same = await tx.mediaSticker.findFirst({ where: { organizationId: req.organizationId!, archivedAt: null, name: { equals: d.name, mode: "insensitive" }, NOT: { id: cur.id } } });
+          if (same) throw Object.assign(new Error("Já existe um sticker com esse nome"), { status: 409 });
+        }
+        return tx.mediaSticker.update({
+          where: { id: cur.id },
+          data: {
+            name: d.name,
+            color: d.color,
+            sortOrder: d.sort_order,
+            archivedAt: d.archived === undefined ? undefined : d.archived ? cur.archivedAt || new Date() : null,
+          },
+        });
+      });
+      res.json({ success: true, data: mapSticker(row) });
+    } catch (error: unknown) {
+      const err = error as { status?: number; message?: string };
+      if (err?.status) {
+        res.status(err.status).json({ success: false, error: err.message || "Error" });
+        return;
+      }
+      next(error);
+    }
+  },
+);
+
 /** People a photo can be credited to ("Tirada por"): active users, name only. */
 jobFieldExtrasRouter.get(
   "/api/job-media/people",
@@ -313,7 +406,7 @@ jobFieldExtrasRouter.get(
   async (req: AuthedRequest, res, next) => {
     try {
       const rows = await withTenantTransaction(req.organizationId!, (tx) =>
-        tx.user.findMany({ where: { status: "active" }, select: { id: true, name: true }, orderBy: { name: "asc" }, take: 300 }),
+        tx.user.findMany({ where: { organizationId: req.organizationId!, status: "active" }, select: { id: true, name: true }, orderBy: { name: "asc" }, take: 300 }),
       );
       res.json({ success: true, data: rows.map((u) => ({ id: u.id, name: u.name || "" })) });
     } catch (error) {
@@ -328,6 +421,7 @@ const mediaEditBody = z
     stage: z.enum(["before", "during", "after"]).nullable().optional(),
     annotations: z.unknown().optional(),
     taken_by_id: z.string().uuid().nullable().optional(),
+    sticker_ids: z.array(z.string().uuid()).max(12).optional(),
   })
   .refine((b) => Object.keys(b).length > 0, "Nothing to change");
 
@@ -353,12 +447,13 @@ jobFieldExtrasRouter.patch(
         if (d.taken_by_id !== undefined) {
           if (d.taken_by_id === null || d.taken_by_id === row.authorId) takenById = null;
           else {
-            const u = await tx.user.findFirst({ where: { id: d.taken_by_id }, select: { id: true } });
+            const u = await tx.user.findFirst({ where: { id: d.taken_by_id, organizationId: req.organizationId! }, select: { id: true } });
             if (!u) throw Object.assign(new Error("Pessoa não encontrada"), { status: 400 });
             takenById = u.id;
           }
         }
         const caption = d.caption !== undefined ? (d.caption || "").trim() || null : undefined;
+        const stickerIds = d.sticker_ids !== undefined ? await cleanStickerIds(tx, req.organizationId!, d.sticker_ids) : undefined;
         const annotations =
           d.annotations !== undefined
             ? d.annotations === null
@@ -367,7 +462,7 @@ jobFieldExtrasRouter.patch(
             : undefined;
         const updated = await tx.jobMedia.update({
           where: { id: row.id },
-          data: { caption, stage: d.stage, annotationsJson: annotations, takenById },
+          data: { caption, stage: d.stage, annotationsJson: annotations, takenById, stickerIds },
           include: JOB_MEDIA_PEOPLE,
         });
         const changes: Record<string, { from: unknown; to: unknown }> = {};
@@ -375,6 +470,7 @@ jobFieldExtrasRouter.patch(
         if (d.stage !== undefined && d.stage !== (row.stage || null)) changes.stage = { from: row.stage || null, to: d.stage };
         if (annotations !== undefined) changes.annotations = { from: null, to: d.annotations ? "updated" : "cleared" };
         if (takenById !== undefined && takenById !== (row.takenById || null)) changes.taken_by = { from: row.takenById || null, to: takenById };
+        if (stickerIds !== undefined && stickerIds.join() !== (row.stickerIds || []).join()) changes.stickers = { from: row.stickerIds || [], to: stickerIds };
         if (Object.keys(changes).length) {
           await recordActivity(tx, {
             organizationId: req.organizationId!,

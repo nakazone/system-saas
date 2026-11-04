@@ -11,6 +11,7 @@
  *   canEdit,      onNote(photo, text|null) => Promise<{caption}>,
  *                 onAnnotate(photo, doc|null) => Promise<{annotations}>,
  *                 people: [{id, name}], onTakenBy(photo, userId|null) => Promise<{taken_by_id, taken_by_name}>,
+ *                 stickers: [{id, name, color, archived}], onStickers(photo, ids) => Promise<{sticker_ids}>, onManageStickers(),
  * })
  * photo = { id, url, thumb_url, stage, created_at, taken_at_device, taken_at_source, author, uploaded_by_name,
  *           taken_by_id, taken_by_name, device, camera_model, caption, annotations, address, lat, lng,
@@ -48,6 +49,7 @@
     circle: I('<circle cx="12" cy="12" r="8"/>'),
     text: I('<path d="M5 6h14M12 6v13M9 19h6"/>'),
     note: I('<path d="M5 4h14v12l-4 4H5z"/><path d="M15 20v-4h4"/>'),
+    tag: I('<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/>'),
   };
 
   let st = null;
@@ -329,6 +331,7 @@
       ${st.canStage && p.id
         ? `<div class="cv-stages" role="group" aria-label="Etapa da foto">${STAGES.map(([k, l]) => `<button type="button" class="${(p.stage || "") === k ? "is-on" : ""}" data-cv-stage="${k}" aria-pressed="${(p.stage || "") === k}"${st.busy ? " disabled" : ""}>${l}</button>`).join("")}</div>`
         : `<div class="cv-chips"><span class="cv-pill">${esc(STAGE[p.stage] || "Geral")}</span></div>`}
+      ${canEdit ? quickHtml(p, shapes) : ""}
       <dl class="cv-kv">
         <dt>Tirada</dt><dd>${esc(when(p.taken_at_device || p.created_at))}${TAKEN_NOTE[p.taken_at_source] ? `<small>${TAKEN_NOTE[p.taken_at_source]}</small>` : ""}</dd>
         <dt>Tirada por</dt><dd>${takenSel}</dd>
@@ -342,6 +345,7 @@
           ? `<textarea id="cvNote" rows="3" maxlength="500" data-crm-rich="off" data-for="${esc(p.id)}" placeholder="Ex.: rodapé solto perto da porta da cozinha">${esc(p.caption || "")}</textarea><span class="cv-note__st" role="status" aria-live="polite"></span>`
           : `<p class="${p.caption ? "" : "is-mu"}">${esc(p.caption || "Sem nota")}</p>`}
       </section>
+      ${stickersHtml(p, canEdit)}
       ${canEdit && st.onAnnotate
         ? `<button type="button" class="cv-btn cv-btn--mark" data-cv="edit"${st.edit ? " disabled" : ""}>${ICON.pen}${shapes.length ? `Editar marcações <em>${shapes.length}</em>` : "Marcar foto"}</button>`
         : ""}
@@ -363,6 +367,32 @@
         note.setSelectionRange(draft.at, draft.at);
       }
     }
+  }
+
+  /** Phones: the panel starts collapsed, so the edits that matter most stay one tap away. */
+  function quickHtml(p, shapes) {
+    const n = (p.sticker_ids || []).length;
+    return `<div class="cv-quick" role="group" aria-label="Editar foto">
+      ${st.onAnnotate ? `<button type="button" data-cv="edit">${ICON.pen}<span>Marcar${shapes.length ? ` <em>${shapes.length}</em>` : ""}</span></button>` : ""}
+      ${st.onNote ? `<button type="button" data-cv="q-note">${ICON.note}<span>Nota${p.caption ? " <em>•</em>" : ""}</span></button>` : ""}
+      ${st.onStickers ? `<button type="button" data-cv="q-stk">${ICON.tag}<span>Stickers${n ? ` <em>${n}</em>` : ""}</span></button>` : ""}
+    </div>`;
+  }
+
+  /** Stickers (photo labels): toggle chips for people who edit, plain badges for everyone else. */
+  function stickersHtml(p, canEdit) {
+    const all = (st.stickers || []).filter((x) => !x.archived || (p.sticker_ids || []).includes(x.id));
+    const on = new Set(p.sticker_ids || []);
+    if (!all.length && !canEdit) return "";
+    const editable = canEdit && st.onStickers;
+    const chips = editable
+      ? all.map((x) => `<button type="button" class="cv-stk${on.has(x.id) ? " is-on" : ""}" data-cv-stk="${esc(x.id)}" aria-pressed="${on.has(x.id)}" style="--stk:${esc(x.color)}"${st.busy ? " disabled" : ""}><i aria-hidden="true"></i>${esc(x.name)}</button>`).join("")
+      : all.filter((x) => on.has(x.id)).map((x) => `<span class="cv-stk is-on" style="--stk:${esc(x.color)}"><i aria-hidden="true"></i>${esc(x.name)}</span>`).join("");
+    if (!editable && !chips) return "";
+    return `<section class="cv-stks" id="cvStickers">
+      <div class="cv-stks__h"><span>${ICON.tag}Stickers</span>${editable && st.onManageStickers ? `<button type="button" class="cv-link" data-cv="stk-manage">Gerenciar</button>` : ""}</div>
+      <div class="cv-stks__list" data-no-i18n>${chips || '<span class="cv-mu">Nenhum sticker criado.</span>'}</div>
+    </section>`;
   }
 
   // ------------------------------------------------------------------ gestures
@@ -722,6 +752,25 @@
       root.querySelector(`[data-cv-stage="${p.stage || ""}"]`)?.focus();
       return;
     }
+    const stk = e.target.closest("[data-cv-stk]");
+    if (stk && st.onStickers) {
+      const p = cur();
+      const id = stk.getAttribute("data-cv-stk");
+      const prev = (p.sticker_ids || []).slice();
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : prev.concat(id);
+      p.sticker_ids = next; // optimistic: the chip flips at once
+      renderSide();
+      try {
+        const res = await st.onStickers(p, next);
+        if (res && Array.isArray(res.sticker_ids)) p.sticker_ids = res.sticker_ids;
+      } catch (err) {
+        p.sticker_ids = prev;
+        window.crmToast?.error?.(err.message || "Não foi possível mudar os stickers");
+      }
+      if (st) renderSide();
+      root.querySelector(`[data-cv-stk="${CSS.escape(id)}"]`)?.focus();
+      return;
+    }
     const tool = e.target.closest("[data-cv-tool]");
     if (tool && st.edit) {
       st.edit.tool = tool.getAttribute("data-cv-tool");
@@ -756,6 +805,10 @@
       st.tx = 0;
       st.ty = 0;
       apply(true);
+    } else if (a === "q-note" || a === "q-stk") {
+      openSheetAt(a === "q-note" ? "#cvNote" : "#cvStickers");
+    } else if (a === "stk-manage" && st.onManageStickers) {
+      st.onManageStickers();
     } else if (a === "sheet") {
       // phones: the details panel starts as a short peek so the photo gets the room; the handle opens it
       st.sheet = !st.sheet;
@@ -912,6 +965,20 @@
     return root;
   }
 
+  /** Open the phone panel (if collapsed) and bring one section into view. */
+  function openSheetAt(sel) {
+    if (!st.sheet) {
+      st.sheet = true;
+      root.classList.remove("is-peek");
+      renderSide();
+      requestAnimationFrame(() => layout());
+    }
+    const el = root.querySelector(sel);
+    if (!el) return;
+    el.scrollIntoView({ block: "center", behavior: reduced() ? "auto" : "smooth" });
+    if (el.tagName === "TEXTAREA") el.focus({ preventScroll: true });
+  }
+
   function flushNote() {
     const area = root && root.querySelector("#cvNote");
     if (area) saveNote(area);
@@ -951,6 +1018,9 @@
       onNote: opts.onNote || null,
       onAnnotate: opts.onAnnotate || null,
       onTakenBy: opts.onTakenBy || null,
+      stickers: opts.stickers || [],
+      onStickers: opts.onStickers || null,
+      onManageStickers: opts.onManageStickers || null,
       people: opts.people || null,
       showInk: true,
       sheet: false,
@@ -987,5 +1057,42 @@
     renderSide();
   }
 
-  window.CamViewer = { open, close, setPeople, inkSvg };
+  function setStickers(list) {
+    if (!st) return;
+    st.stickers = list || [];
+    renderSide();
+  }
+
+  /**
+   * Editing for pages outside ObraCam (the job page): note, stage, markup and stickers saved straight to the
+   * photo, then onSaved(row) so the page can refresh its own list. Spread the result into open().
+   */
+  function jobEditing(jobId, onSaved) {
+    const patch = async (photo, changes) => {
+      const r = await fetch(`/api/work-orders/${encodeURIComponent(jobId)}/media/${encodeURIComponent(photo.id)}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(changes),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j.success === false) throw new Error(j.error || "Não foi possível salvar");
+      if (onSaved) onSaved(j.data);
+      return j.data;
+    };
+    fetch("/api/job-media/stickers", { credentials: "include", headers: { Accept: "application/json" } })
+      .then((r) => r.json())
+      .then((j) => setStickers(j.data || []))
+      .catch(() => {});
+    return {
+      canEdit: true,
+      canStage: true,
+      onStage: (photo, stage) => patch(photo, { stage }),
+      onNote: (photo, text) => patch(photo, { caption: text }),
+      onAnnotate: (photo, doc) => patch(photo, { annotations: doc }),
+      onStickers: (photo, ids) => patch(photo, { sticker_ids: ids }),
+    };
+  }
+
+  window.CamViewer = { open, close, setPeople, setStickers, jobEditing, inkSvg };
 })();
