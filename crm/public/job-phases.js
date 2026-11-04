@@ -75,7 +75,7 @@
     const l = document.createElement("link");
     l.id = CSS_ID;
     l.rel = "stylesheet";
-    l.href = "/job-phases.css?v=20261103-off1";
+    l.href = "/job-phases.css?v=20261103-stone1";
     document.head.appendChild(l);
   }
 
@@ -122,8 +122,12 @@
 
   const failed = (p) => p.requires.some((r) => r.value && typeof r.value === "object" && r.value.passed === false);
 
+  /** Phases shown: a variant's phases (Tile: natural stone) only while the variant is on. */
+  const shown = (d) => d.phases.filter((p) => !(p.variant && p.status === "skipped"));
+
   /** Which phase is open, and is it waiting for the previous phase's cure. */
-  function shape(d, now) {
+  function shape(d0, now) {
+    const d = { ...d0, phases: shown(d0) };
     const cur = d.phases.find((p) => p.status !== "done" && p.status !== "skipped") || null;
     const readyAt = cur && cur.ready_at ? new Date(cur.ready_at) : null;
     const waiting = Boolean(readyAt && readyAt.getTime() > now.getTime());
@@ -148,7 +152,7 @@
         <div class="jp-form__acts"><button type="button" class="jp-b" data-req-cancel>Cancelar</button><button type="submit" class="jp-b jp-b--ink">Salvar</button></div>
       </form>`;
     }
-    const hint = r.key === "flatness" ? 'Ex.: 1/8" em 10 ft' : "Resultado";
+    const hint = r.key === "flatness" ? 'Ex.: 1/8" em 10 ft' : r.key === "sealer" ? "Ex.: selante penetrante, 2 demãos" : "Resultado";
     return `<form class="jp-form" data-req-form="${esc(r.key)}" data-phase="${esc(p.key)}">
       <label class="jp-form__wide">${esc(r.label)} <input name="text" placeholder="${esc(hint)}" required /></label>
       <div class="jp-form__acts"><button type="button" class="jp-b" data-req-cancel>Cancelar</button><button type="submit" class="jp-b jp-b--ink">Salvar</button></div>
@@ -245,7 +249,26 @@
     </div>`;
   }
 
-  function render(box, d, st) {
+  /** Job variants (Tile: "Pedra natural"): the office switches them; the crew sees which are on. */
+  function variantsBar(d, st) {
+    const list = Array.isArray(d.variants) ? d.variants : [];
+    if (!list.length) return "";
+    const office = d.can_force && st.canAct;
+    const items = list
+      .map((v) =>
+        office
+          ? `<button type="button" class="jp-var${v.on ? " is-on" : ""}" data-variant="${esc(v.key)}" aria-pressed="${v.on}" ${st.busy ? "disabled" : ""}><span class="jp-var__box" aria-hidden="true">${v.on ? "✓" : ""}</span>${esc(v.label)}</button>`
+          : v.on
+            ? `<span class="jp-var is-on is-static">${esc(v.label)}</span>`
+            : "",
+      )
+      .join("");
+    if (!items) return "";
+    return `<div class="jp-vars">${items}${office ? `<small>${list.some((v) => v.on) ? "Inclui recebimento, dry-lay e selagem da pedra." : "Ligue se o job tem mármore, travertino, ardósia…"}</small>` : ""}</div>`;
+  }
+
+  function render(box, d0, st) {
+    const d = { ...d0, phases: shown(d0) };
     const s = shape(d, st.now);
     const pending = d.phases.some((p) => p.pending || p.requires.some((r) => r.pending));
     const off = st.savedAt || !online() || pending
@@ -253,6 +276,7 @@
       : "";
     const list = `<div class="jd-card">${off}
       <div class="jd-ch"><h2>Fases do job</h2><span class="jp-n" translate="no" data-no-i18n>${s.done} de ${s.total}</span></div>
+      ${variantsBar(d0, st)}
       <ol class="jp-tl">${d.phases.map((p, i) => row(p, i, d, s, st)).join("")}</ol>
       ${!s.cur ? '<p class="jp-all">Todas as fases concluídas.</p>' : ""}
     </div>`;
@@ -457,6 +481,14 @@
       if (e.target.closest("[data-req-cancel]")) {
         st.editing = null;
         paint();
+        return;
+      }
+      const vb = e.target.closest("[data-variant]");
+      if (vb) {
+        if (!online()) return notify("Mudar o tipo do job precisa de internet.", "error");
+        const key = vb.getAttribute("data-variant");
+        const cur = (data.variants || []).find((v) => v.key === key);
+        run(async () => took(await api(`${base}/variant`, { method: "POST", body: JSON.stringify({ variant: key, on: !(cur && cur.on) }) }), cur && cur.on ? "Fases de pedra retiradas." : "Fases de pedra incluídas."));
         return;
       }
       const force = e.target.closest("[data-force]");

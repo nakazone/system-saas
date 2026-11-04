@@ -33,9 +33,10 @@ describe("Tile pack", () => {
     expect(both.filter((s) => s.name === "Delivery Fee")).toHaveLength(1);
   });
 
-  it("phases: 7 in the JobPhase table, with cure waits and evidence, labelled in both languages", () => {
+  it("phases: 7 in the JobPhase table (+3 for natural stone), with cure waits and evidence, labelled in both languages", () => {
     expect(tile.phaseStorage).toBe("table");
-    expect(tile.phases.map((p) => p.key)).toEqual(["site_ready", "prep", "waterproofing", "flood_test", "setting", "grout", "seal_clean"]);
+    expect(tile.phases.filter((p) => !p.variant).map((p) => p.key)).toEqual(["site_ready", "prep", "waterproofing", "flood_test", "setting", "grout", "seal_clean"]);
+    expect(tile.phases.filter((p) => p.variant === "stone").map((p) => p.key)).toEqual(["material_received", "dry_lay", "stone_seal"]);
     expect(tile.phases.find((p) => p.key === "waterproofing")!.waitAfterHours).toBe(24);
     expect(tile.phases.find((p) => p.key === "flood_test")!.requires!.map((r) => r.key)).toEqual(["flood_result", "water_line_photo"]);
     for (const p of tile.phases) {
@@ -179,12 +180,37 @@ describe.skipIf(!privileged)("Job phases API — a Tile company and a Hardwood c
     expect(n).toBe(tile.services.length);
   });
 
+  it("Tile: a marble job opens with the stone phases; the office can switch them off until one is done", async () => {
+    const { withTenantTransaction } = await import("../src/lib/tenant/prisma-tenant.js");
+    const id = orgs.tile!.id;
+    const job = (await withTenantTransaction(id, (tx) => tx.workOrder.create({ data: { organizationId: id, title: "Hall bath — Carrara marble floor", status: "scheduled" } }))).id;
+    const first = await call("tile", "GET", `/api/work-orders/${job}/phases`);
+    expect(first.json.data.variants[0].on).toBe(true);
+    expect(first.json.data.phases.find((p: any) => p.key === "material_received")).toMatchObject({ status: "pending", variant: "stone" });
+    const off = await call("tile", "POST", `/api/work-orders/${job}/phases/variant`, { variant: "stone", on: false });
+    expect(off.status).toBe(200);
+    expect(off.json.data.phases.filter((p: any) => p.variant).map((p: any) => p.status)).toEqual(["skipped", "skipped", "skipped"]);
+    const on = await call("tile", "POST", `/api/work-orders/${job}/phases/variant`, { variant: "stone", on: true });
+    expect(on.json.data.variants[0].on).toBe(true);
+    await call("tile", "POST", `/api/work-orders/${job}/phases/site_ready/evidence/ready_checklist`, { value: { confirmed: true } });
+    await call("tile", "POST", `/api/work-orders/${job}/phases/site_ready/complete`);
+    await call("tile", "POST", `/api/work-orders/${job}/phases/material_received/evidence/lot_photo`, { value: { confirmed: true } });
+    await call("tile", "POST", `/api/work-orders/${job}/phases/material_received/evidence/receiving_check`, { value: { confirmed: true } });
+    expect((await call("tile", "POST", `/api/work-orders/${job}/phases/material_received/complete`)).status).toBe(200);
+    const refused = await call("tile", "POST", `/api/work-orders/${job}/phases/variant`, { variant: "stone", on: false });
+    expect(refused.status).toBe(409);
+    expect(refused.json.code).toBe("variant_done");
+    expect((await call("tile", "POST", `/api/work-orders/${job}/phases/variant`, { variant: "brick", on: true })).status).toBe(400);
+  });
+
   it("Tile: phases appear on first read and close with order, evidence and cure waits", async () => {
     const job = orgs.tile!.job;
     const first = await call("tile", "GET", `/api/work-orders/${job}/phases`);
     expect(first.status).toBe(200);
     expect(first.json.data.trade).toBe("tile");
-    expect(first.json.data.phases.map((p: any) => [p.key, p.status])).toEqual(tile.phases.map((p) => [p.key, "pending"]));
+    // A porcelain job: the natural stone phases are there but skipped.
+    expect(first.json.data.phases.map((p: any) => [p.key, p.status])).toEqual(tile.phases.map((p) => [p.key, p.variant ? "skipped" : "pending"]));
+    expect(first.json.data.variants).toEqual([{ key: "stone", label: "Pedra natural", label_en: "Natural stone", on: false }]);
     expect(first.json.data.phases[0].requires[0]).toMatchObject({ key: "ready_checklist", done: false });
 
     // Order

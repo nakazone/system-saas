@@ -6,6 +6,8 @@
 import type { Prisma } from "@prisma/client";
 import type { TenantPrisma } from "../tenant/prisma-tenant.js";
 import {
+  activeVariants,
+  detectVariants,
   completePhase,
   planJobPhases,
   recordEvidence,
@@ -20,13 +22,58 @@ type Tx = TenantPrisma;
 
 /** Create the phase rows of a job once (no-op for "columns" packs or when they already exist). */
 export async function ensureJobPhases(tx: Tx, organizationId: string, workOrderId: string, pack: TradePack): Promise<number> {
-  const plan = planJobPhases(pack);
+  if (pack.phaseStorage !== "table") return 0;
+  const existing = await tx.jobPhase.findMany({ where: { workOrderId }, select: { id: true, phaseKey: true, sortOrder: true, status: true } });
+  // A new job starts with the variants its title and service lines point to (Tile: marble → stone).
+  const variants = existing.length
+    ? activeVariants(pack, existing)
+    : pack.variants?.length
+      ? detectVariants(pack, await jobTexts(tx, workOrderId))
+      : [];
+  const plan = planJobPhases(pack, variants);
   if (!plan.length) return 0;
   const res = await tx.jobPhase.createMany({
     data: plan.map((p) => ({ organizationId, workOrderId, trade: p.trade, phaseKey: p.phaseKey, sortOrder: p.sortOrder, status: p.status })),
     skipDuplicates: true,
   });
+  // Rows made before the pack gained a phase keep the pack's order.
+  for (const row of existing) {
+    const want = plan.find((x) => x.phaseKey === row.phaseKey)?.sortOrder;
+    if (want != null && want !== row.sortOrder) await tx.jobPhase.update({ where: { id: row.id }, data: { sortOrder: want } });
+  }
   return res.count;
+}
+
+/** Title, notes and service lines of a job (where "marble", "travertine"… would be written). */
+async function jobTexts(tx: Tx, workOrderId: string): Promise<Array<string | null>> {
+  const wo = await tx.workOrder.findUnique({
+    where: { id: workOrderId },
+    select: { title: true, notes: true, lineItems: { select: { serviceName: true, notes: true } } },
+  });
+  if (!wo) return [];
+  return [wo.title, wo.notes, ...wo.lineItems.flatMap((l) => [l.serviceName, l.notes])];
+}
+
+/**
+ * Turn a job variant on or off (Tile: natural stone). On: its skipped phases open again. Off: its
+ * phases are skipped — refused when one of them is already done.
+ */
+export async function setJobVariant(
+  tx: Tx,
+  pack: TradePack,
+  workOrderId: string,
+  variant: string,
+  on: boolean,
+): Promise<{ ok: true } | { ok: false; error: "unknown_variant" | "variant_done" }> {
+  if (!pack.variants?.some((v) => v.key === variant)) return { ok: false, error: "unknown_variant" };
+  const keys = pack.phases.filter((p) => p.variant === variant).map((p) => p.key);
+  const rows = await tx.jobPhase.findMany({ where: { workOrderId, phaseKey: { in: keys } }, select: { id: true, status: true } });
+  if (!on && rows.some((r) => r.status === "done")) return { ok: false, error: "variant_done" };
+  await tx.jobPhase.updateMany({
+    where: { workOrderId, phaseKey: { in: keys }, status: on ? "skipped" : { not: "done" } },
+    data: { status: on ? "pending" : "skipped" },
+  });
+  return { ok: true };
 }
 
 export async function listJobPhases(tx: Tx, workOrderId: string): Promise<JobPhaseRow[]> {

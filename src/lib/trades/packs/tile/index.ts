@@ -45,6 +45,17 @@ export const tile: TradePack = {
       label: L("Obra pronta", "Site ready"),
       requires: [{ key: "ready_checklist", kind: "checklist", label: L("Encanamento, reforços e altura do ralo conferidos", "Plumbing, blocking and drain height checked") }],
     },
+    // Natural stone (variant "stone"): count the crates against the BOL and photograph the lot
+    // before signing — hidden damage has to be claimed within about 48 h.
+    {
+      key: "material_received",
+      label: L("Recebimento da pedra", "Stone received"),
+      variant: "stone",
+      requires: [
+        { key: "lot_photo", kind: "photo", label: L("Foto das caixas / crates com o lote", "Crates with the lot number") },
+        { key: "receiving_check", kind: "checklist", label: L("Quantidade conferida com a nota de entrega e sem dano à vista", "Count checked against the bill of lading, no visible damage") },
+      ],
+    },
     {
       key: "prep",
       label: L("Demo e preparo", "Demo & prep"),
@@ -65,6 +76,16 @@ export const tile: TradePack = {
         { key: "water_line_photo", kind: "photo", label: L("Foto da marca d'água", "Water line photo") },
       ],
     },
+    // Stone: lay the pieces out dry and get the client's OK on color, veining and layout first.
+    {
+      key: "dry_lay",
+      label: L("Dry-lay aprovado", "Dry-lay approved"),
+      variant: "stone",
+      requires: [
+        { key: "dry_lay_photo", kind: "photo", label: L("Foto da paginação a seco", "Dry-lay layout") },
+        { key: "client_approval", kind: "checklist", label: L("Cliente aprovou cor, veios e paginação", "Client approved color, veining and layout") },
+      ],
+    },
     {
       key: "setting",
       label: L("Assentamento", "Setting"),
@@ -78,10 +99,25 @@ export const tile: TradePack = {
       // Grout cure before sealing (48 h default).
       waitAfterHours: 48,
     },
+    // Stone sealer (it doesn't stop etching; the client is told the stone may darken for ~30 days).
+    {
+      key: "stone_seal",
+      label: L("Selagem da pedra", "Stone sealing"),
+      variant: "stone",
+      requires: [{ key: "sealer", kind: "test", label: L("Selante usado e número de demãos", "Sealer used and number of coats") }],
+    },
     {
       key: "seal_clean",
       label: L("Selante e limpeza", "Seal & clean"),
       requires: [{ key: "finished_photo", kind: "photo", label: L("Foto do trabalho pronto", "Finished work") }],
+    },
+  ],
+  // Natural stone tile rides on the Tile pack: same surfaces, more waste, and three more phases.
+  variants: [
+    {
+      key: "stone",
+      label: L("Pedra natural", "Natural stone"),
+      words: ["marble", "travertine", "limestone", "slate", "granite tile", "quartzite", "natural stone", "onyx", "mármore", "marmore", "travertino", "pedra natural", "ardósia", "ardosia"],
     },
   ],
   combinedPhaseKey: "all",
@@ -122,6 +158,7 @@ export const tile: TradePack = {
       { key: "niche", label: L("Nicho", "Niche"), unit: "each" },
       { key: "bench", label: L("Banco", "Bench"), unit: "each" },
       { key: "trim_lf", label: L("Perfil / rodapé / bullnose", "Trim / base / bullnose"), unit: "lf" },
+      { key: "stone_seal_sf", label: L("Selagem de pedra", "Stone sealing"), unit: "sf" },
     ],
   },
   ai: {

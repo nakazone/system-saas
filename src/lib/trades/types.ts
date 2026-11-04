@@ -49,6 +49,19 @@ export type PhaseDef = {
   waitAfterHours?: number;
   /** Evidence required to close this phase. */
   requires?: readonly PhaseRequirement[];
+  /**
+   * Only for jobs with this variant on (Tile: "stone" adds receiving, dry-lay and stone sealing).
+   * The row exists on every job; it is "skipped" while the variant is off.
+   */
+  variant?: string;
+};
+
+/** A kind of job inside a trade that adds phases (Tile → natural stone). */
+export type PackVariant = {
+  key: string;
+  label: { "pt-BR": string; "en-US": string };
+  /** Words in the job's title or service lines that turn it on when the phases are first opened. */
+  words: readonly string[];
 };
 
 /** What the ObraBuilder plan takeoff measures for this trade (keys are plan legend kinds). */
@@ -112,6 +125,8 @@ export type TradePack = {
    * ObraBuilder measurement tabs for this trade, in order. Hardwood leaves this out (Stairs, Vents,
    * Plan, Summary); Tile measures showers instead of stairs and vents.
    */
+  /** Job variants that add phases (phaseStorage "table" only). */
+  variants?: readonly PackVariant[];
   measurement?: { tabs: readonly ("stairs" | "vents" | "showers" | "floors" | "summary")[] };
   combinedPhaseKey: string;
   ai: {

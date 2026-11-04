@@ -67,3 +67,12 @@
 /* Without signal: what waits on the phone */
 .jp-wait { display: inline-block; margin-left: 4px; padding: 1px 7px; border-radius: 999px; background: #FBF1EA; color: #9A4A14; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
 .jp-off { margin: 0 0 12px; padding: 9px 12px; border-radius: 12px; background: #FBF1EA; color: #7A3A12; font-size: 13px; font-weight: 600; line-height: 1.4; }
+
+/* Job variants (Tile: natural stone) */
+.jp-vars { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; margin: 0 0 12px; }
+.jp-vars small { color: #667085; font-size: 12.5px; }
+.jp-var { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 12px; border: 0; border-radius: 999px; background: #F1F3F5; color: #221E1A; font: inherit; font-size: 13.5px; font-weight: 650; cursor: pointer; }
+.jp-var.is-on { background: #221E1A; color: #fff; }
+.jp-var.is-static { cursor: default; min-height: 28px; font-size: 12.5px; }
+.jp-var__box { width: 16px; height: 16px; border-radius: 5px; box-shadow: inset 0 0 0 1.5px currentColor; display: grid; place-items: center; font-size: 11px; }
+.jp-var.is-on .jp-var__box { background: #fff; color: #221E1A; box-shadow: none; }

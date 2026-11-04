@@ -22,7 +22,7 @@ describe("production by item — rules", () => {
   it("only Tile has items; Hardwood keeps SF × one rate", () => {
     expect(pieceItemsFor(["hardwood"])).toEqual([]);
     expect(pieceItemsFor(undefined)).toEqual([]);
-    expect(pieceItemsFor(["tile"]).map((i) => i.key)).toEqual(["floor_sf", "wall_sf", "mosaic_sf", "waterproofing_sf", "demo_sf", "shower_pan", "niche", "bench", "trim_lf"]);
+    expect(pieceItemsFor(["tile"]).map((i) => i.key)).toEqual(["floor_sf", "wall_sf", "mosaic_sf", "waterproofing_sf", "demo_sf", "shower_pan", "niche", "bench", "trim_lf", "stone_seal_sf"]);
     for (const it of tileItems) expect(it.label["pt-BR"] && it.label["en-US"]).toBeTruthy();
   });
 

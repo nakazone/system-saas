@@ -38,6 +38,10 @@ export const TILE_SERVICES: PackService[] = [
   svc(270, "Shower Curb", "installation", "unit"),
   svc(280, "Shower Waterproofing Membrane", "installation", "sq ft", "Sheet or liquid membrane on walls and floor."),
   svc(290, "Flood Test", "installation", "unit", "Plug the drain, 2\" of water, recorded with photos."),
+  // Natural stone (marble, travertine, limestone, slate…)
+  svc(150, "Natural Stone Tile Installation", "installation", "sq ft", "Marble, travertine, limestone, slate. 95% mortar coverage; stiffer floor (L/720)."),
+  svc(160, "Stone Dry-Lay & Layout Approval", "installation", "unit", "Pieces laid out dry; client approves color, veining and layout before setting."),
+  svc(170, "Natural Stone Sealing", "installation", "sq ft", "Penetrating sealer, coats as the stone needs."),
   // Trims
   svc(300, "Metal Edge Profile / Trim", "installation", "linear ft"),
   svc(310, "Bullnose / Pencil Trim", "installation", "linear ft"),

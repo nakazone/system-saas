@@ -44,6 +44,8 @@ export type PhaseView = {
   doneAt: Date | null;
   /** Requirement keys still missing evidence. */
   missing: string[];
+  /** Set on phases that belong to a job variant (Tile: "stone"). */
+  variant?: string;
 };
 
 type Locale = keyof PhaseDef["label"];
@@ -86,6 +88,7 @@ export function readJobPhases(
       readyAt: row!.readyAt ?? null,
       doneAt: row!.doneAt ?? null,
       missing: row!.status === "done" || row!.status === "skipped" ? [] : missingFor(def, asEvidence(row!.evidence)),
+      ...(def.variant ? { variant: def.variant } : {}),
     }))
     .sort((a, b) => a.order - b.order);
 }
@@ -121,9 +124,26 @@ function readColumnPhases(pack: TradePack, job: ColumnsJob, locale: Locale): Pha
 /* ───────────────────────────── creating ───────────────────────────── */
 
 /** Rows to create for a new job of a "table" pack (empty for "columns" packs). */
-export function planJobPhases(pack: TradePack): Array<Pick<JobPhaseRow, "phaseKey" | "sortOrder" | "status"> & { trade: string }> {
+export function planJobPhases(
+  pack: TradePack,
+  variants: readonly string[] = [],
+): Array<Pick<JobPhaseRow, "phaseKey" | "sortOrder" | "status"> & { trade: string }> {
   if (pack.phaseStorage !== "table") return [];
-  return pack.phases.map((p, i) => ({ trade: pack.id, phaseKey: p.key, sortOrder: i, status: "pending" }));
+  // A variant's phases are planned on every job and skipped while the variant is off.
+  return pack.phases.map((p, i) => ({ trade: pack.id, phaseKey: p.key, sortOrder: i, status: p.variant && !variants.includes(p.variant) ? "skipped" : "pending" }));
+}
+
+/** Variants a job starts with, from words in its title and service lines (Tile: marble, travertine…). */
+export function detectVariants(pack: TradePack, texts: readonly (string | null | undefined)[]): string[] {
+  const hay = texts.filter(Boolean).join(" \n ").toLowerCase();
+  return (pack.variants ?? []).filter((v) => v.words.some((w) => hay.includes(w))).map((v) => v.key);
+}
+
+/** Variants on for a job: a variant is on while any of its phases is not skipped. */
+export function activeVariants(pack: TradePack, rows: readonly Pick<JobPhaseRow, "phaseKey" | "status">[]): string[] {
+  return (pack.variants ?? [])
+    .filter((v) => pack.phases.some((p) => p.variant === v.key && rows.some((r) => r.phaseKey === p.key && r.status !== "skipped")))
+    .map((v) => v.key);
 }
 
 /* ───────────────────────────── recording evidence ───────────────────────────── */

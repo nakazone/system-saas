@@ -18,8 +18,8 @@ import { requireCrmAuth } from "../http.js";
 import { withTenantTransaction, type TenantPrisma } from "../../lib/tenant/prisma-tenant.js";
 import { myJobAccessWhere } from "../lib/campo-shared.js";
 import { primaryPack, type TradePack } from "../../lib/trades/index.js";
-import { asEvidence, readJobPhases, type JobPhaseRow } from "../../lib/trades/job-phases.js";
-import { addPhaseEvidence, closeJobPhase, ensureJobPhases, listJobPhases } from "../../lib/trades/job-phases-db.js";
+import { activeVariants, asEvidence, readJobPhases, type JobPhaseRow } from "../../lib/trades/job-phases.js";
+import { addPhaseEvidence, closeJobPhase, ensureJobPhases, listJobPhases, setJobVariant } from "../../lib/trades/job-phases-db.js";
 
 export const jobPhasesRouter = Router();
 
@@ -78,6 +78,8 @@ async function phasesState(tx: TenantPrisma, req: AuthedRequest, jobId: string) 
     storage: pack.phaseStorage,
     status: job.status,
     can_force: perms(req).manage,
+    // Job variants (Tile: natural stone) and whether each is on for this job.
+    variants: (pack.variants ?? []).map((v) => ({ key: v.key, label: v.label[locale], label_en: v.label["en-US"], on: activeVariants(pack, rows).includes(v.key) })),
     phases: readJobPhases(pack, job, rows, locale).map((v) => {
       const def = pack.phases.find((d) => d.key === v.key);
       const row = rowByKey.get(v.key) as (JobPhaseRow & { doneByName?: string | null }) | undefined;
@@ -86,6 +88,7 @@ async function phasesState(tx: TenantPrisma, req: AuthedRequest, jobId: string) 
         key: v.key,
         label: v.label,
         label_en: def?.label["en-US"] ?? v.label,
+        variant: v.variant ?? null,
         status: v.status,
         scheduled_start: v.scheduledStart?.toISOString() ?? null,
         ready_at: v.readyAt?.toISOString() ?? null,
@@ -293,6 +296,36 @@ jobPhasesRouter.post("/api/work-orders/:id/phases/:phase/complete", requireCrmAu
       if (!r.ok) {
         const { ok: _ok, error, ...extra } = r;
         throw new PhaseError(COMPLETE_MESSAGES[error] || "Não foi possível concluir.", error === "unknown_phase" ? 404 : 409, error, extra);
+      }
+      return phasesState(tx, req, jobId);
+    });
+    res.json({ success: true, data });
+  } catch (error) {
+    fail(res, next, error);
+  }
+});
+
+const variantBody = z.object({ variant: z.string().trim().min(1).max(40), on: z.boolean() });
+
+/** Office: turn a job variant on or off (Tile: "Pedra natural" adds receiving, dry-lay and sealing). */
+jobPhasesRouter.post("/api/work-orders/:id/phases/variant", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const body = variantBody.safeParse(req.body || {});
+    if (!body.success) throw new PhaseError("Dados inválidos.", 400, "invalid");
+    if (!perms(req).manage) throw new PhaseError("Só o escritório muda o tipo do job.", 403, "manage_only");
+    const jobId = jobIdOf(req);
+    const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+      await reachJob(tx, req, jobId, true);
+      const pack = await packOf(tx, req.organizationId!);
+      if (pack.phaseStorage !== "table") throw new PhaseError("As fases deste ofício são fechadas pelo status do job.", 409, "columns_pack");
+      await ensureJobPhases(tx, req.organizationId!, jobId, pack);
+      const r = await setJobVariant(tx, pack, jobId, body.data.variant, body.data.on);
+      if (!r.ok) {
+        throw new PhaseError(
+          r.error === "variant_done" ? "Uma fase de pedra já foi concluída; não dá para desligar." : "Tipo de job desconhecido.",
+          r.error === "variant_done" ? 409 : 400,
+          r.error,
+        );
       }
       return phasesState(tx, req, jobId);
     });
