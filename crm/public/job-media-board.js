@@ -5,8 +5,14 @@
  */
 (function () {
   const $ = (id) => document.getElementById(id);
-  const STAGES = [["before", "Antes"], ["during", "Durante"], ["after", "Depois"], ["none", "Geral"]];
   const STAGE = { before: "Antes", during: "Durante", after: "Depois" };
+  /** Job phases in the order work happens; the server works each photo's phase out from its date and the job's dates. */
+  const PHASES = [["delivery", "Delivery"], ["scan", "Scan"], ["installation", "Installation"], ["sand_finish", "Sand & Finish"], ["walkthrough", "Walk Through"]];
+  const PHASE = Object.fromEntries(PHASES);
+  const phaseOf = (p) => (PHASE[p.phase] ? p.phase : "none");
+  const phaseName = (p) => PHASE[p.phase] || "Sem fase";
+  /** Phases this job has (from its services and dates); every phase when unknown. */
+  const jobPhaseList = (j) => (j && ((metaCache[j.id] && metaCache[j.id].phases) || j.phases)) || PHASES.map(([k]) => k);
   const WDL = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
   const MO = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
   const FEED_DAYS = 7;
@@ -18,12 +24,15 @@
     pen: '<svg viewBox="0 0 24 24" width="11" height="11" aria-label="com marcações"><path d="M4 20l4-1L19 8a2.1 2.1 0 00-3-3L5 16l-1 4z"/></svg>',
     note: '<svg viewBox="0 0 24 24" width="11" height="11" aria-label="com nota"><path d="M5 4h14v12l-4 4H5z"/></svg>',
     tag: '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/></svg>',
+    noteChip: '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M5 4h14v12l-4 4H5z"/><path d="M15 20v-4h4"/><path d="M8.5 9h7M8.5 12.5h4"/></svg>',
     check: '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
     sel: '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M8.5 12.2l2.4 2.4 4.6-5"/></svg>',
     dl: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
     trash: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>',
     layers: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg>',
     x: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    archive: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10h14V9M10 13h4"/></svg>',
+    restore: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/></svg>',
   };
 
   let jobs = [];
@@ -31,7 +40,10 @@
   let mode = "active";
   let q = "";
   let selId = null;
+  /** Phase the job grid / feed is narrowed to: "all", a phase key, or "none". */
   let stageFilter = "all";
+  /** Only photos that carry a note. */
+  let noteFilter = false;
   /** Sticker (photo label) the job grid or feed is narrowed to, "" for all. */
   let stickerFilter = "";
   /** Multi-select: on while picking photos; ids of the picked photos; the raw photos on screen (with their job). */
@@ -379,6 +391,7 @@
       uploaded_by_name: p.uploaded_by_name || p.author_name, taken_by_id: p.taken_by_id || p.author_id, taken_by_name: p.taken_by_name || p.author_name,
       taken_at_source: p.taken_at_source, location_source: p.location_source, camera_model: p.camera_model, annotations: p.annotations || null,
       sticker_ids: (p.sticker_ids || []).slice(),
+      phase: p.phase || null, phase_source: p.phase_source || null, phases: jobPhaseList(jobs.find((x) => String(x.id) === String(j.id)) || j),
       location_available: p.location_available != null ? p.location_available : p.lat != null, distance_m: p.distance_m, far_from_job: p.far_from_job,
       in_portfolio: p.in_portfolio, job: { id: j.id, number: j.number, title: j.title, client: j.client_name, name: viewerJobName(j) },
     };
@@ -407,6 +420,7 @@
     if ("annotations" in changes) patch.annotations = d.annotations ?? null;
     if ("taken_by_id" in changes) Object.assign(patch, { taken_by_id: d.taken_by_id, taken_by_name: d.taken_by_name });
     if ("sticker_ids" in changes) patch.sticker_ids = d.sticker_ids || [];
+    if ("phase" in changes) Object.assign(patch, { phase: d.phase || null, phase_source: d.phase_source || null });
     [feed, ...Object.values(mediaCache), ...jobs.map((x) => x.photos || [])].forEach((arr) =>
       arr.forEach((x) => {
         if (String(x.id) === String(photo.id)) Object.assign(x, patch);
@@ -433,21 +447,7 @@
       index,
       canPortfolio: canManage,
       canDelete: canManage,
-      canStage: canManage,
-      onStage: async (photo, next) => {
-        const r = await api(`/api/work-orders/${encodeURIComponent(photo.job.id)}/media/${encodeURIComponent(photo.id)}/stage`, { method: "PATCH", body: JSON.stringify({ stage: next }) });
-        const stage = r.data ? r.data.stage || null : next;
-        [feed, ...Object.values(mediaCache), ...jobs.map((x) => x.photos || [])].forEach((arr) =>
-          arr.forEach((x) => {
-            if (String(x.id) === String(photo.id)) x.stage = stage;
-          }),
-        );
-        window.crmToast?.success?.(`Etapa: ${STAGE[stage] || "Geral"}`);
-        // Repaint behind the viewer so the stage counts and tiles match when it closes.
-        if (mode === "photos") renderFeed();
-        else renderJob();
-        return { stage };
-      },
+      onPhase: canManage ? (photo, next) => editPhoto(photo, { phase: next }) : null,
       onPortfolio: async (photo, next) => {
         await api(`/api/work-orders/${encodeURIComponent(photo.job.id)}/media/${encodeURIComponent(photo.id)}/portfolio`, { method: "PATCH", body: JSON.stringify({ in_portfolio: next }) });
         [feed, ...Object.values(mediaCache), ...jobs.map((x) => x.photos || [])].forEach((arr) =>
@@ -490,13 +490,13 @@
   }
 
   function photoTile(p, i, opts) {
-    const st = STAGE[p.stage] || "Geral";
+    const st = phaseName(p);
     const tags = (p.sticker_ids || []).map(stickerById).filter(Boolean).map((x) => x.name);
     const what = `${st}${tags.length ? ` · ${tags.join(", ")}` : ""}${opts && opts.job ? ` · ${feedJobName(p)}` : ""}`;
     const pick = selecting && picked.has(String(p.id));
     return `<button type="button" class="cam-ph${opts && opts.job ? " cam-ph--job" : ""}${pick ? " is-pick" : ""}" data-ph-i="${i}" data-ph-id="${esc(p.id)}"${selecting ? ` aria-pressed="${pick}"` : ""} aria-label="${selecting ? "Selecionar" : "Ver"} foto: ${esc(what)}" style="background-image:url('${esc(p.thumb_url || p.url)}')">
       ${selecting ? `<span class="cam-ph__ck" aria-hidden="true">${SVG.check}</span>` : ""}
-      ${opts && opts.stage ? `<span class="cam-ph__st">${esc(st)}${marks(p)}</span>` : marks(p) ? `<span class="cam-ph__st cam-ph__st--ic">${marks(p)}</span>` : ""}
+      ${opts && opts.stage ? `<span class="cam-ph__st" data-no-i18n>${esc(st)}${marks(p)}</span>` : marks(p) ? `<span class="cam-ph__st cam-ph__st--ic">${marks(p)}</span>` : ""}
       ${tileStickers(p)}
       ${opts && opts.job ? `<span class="cam-ph__jn">${esc(feedJobName(p))}</span>` : ""}
       ${gpsTag(p)}
@@ -579,20 +579,24 @@
     }
     const list = mediaCache[j.id].slice().sort(byTaken);
     onScreen = list.map((p) => ({ ...p, job_id: j.id }));
-    const counts = { before: 0, during: 0, after: 0, none: 0 };
-    list.forEach((p) => (counts[STAGE[p.stage] ? p.stage : "none"] += 1));
+    const counts = { none: 0 };
+    PHASES.forEach(([k]) => (counts[k] = 0));
+    list.forEach((p) => (counts[phaseOf(p)] += 1));
     shown = list.map((p) => toViewer(j, p));
     let body;
     if (!list.length) {
       body = `<div class="cam-box cam-none"><span class="cam-none__ic">${SVG.cam}</span><b>Nenhuma foto ainda</b><p>A equipe tira as fotos pelo Campo (ticket do job). Você também pode adicionar aqui.</p><button type="button" class="cam-btn" data-cam-upload="${esc(j.id)}">Adicionar fotos</button></div>`;
     } else {
       // One grid for every width, filtered by stage: Antes, Durante and Depois always show (zero is information); Geral only when it has photos.
-      const chips = [["all", "Todas", list.length], ...STAGES.filter(([k]) => k !== "none" || counts.none).map(([k, l]) => [k, l, counts[k]])];
+      // Phase chips in work order: the job's own phases always show (zero is information), others only with photos.
+      const has = jobPhaseList(j);
+      const chips = [["all", "Todas", list.length], ...PHASES.filter(([k]) => has.includes(k) || counts[k]).map(([k, l]) => [k, l, counts[k]]), ...(counts.none ? [["none", "Sem fase", counts.none]] : [])];
       if (!chips.some(([k]) => k === stageFilter)) stageFilter = "all";
       if (stickerFilter && !list.some((p) => (p.sticker_ids || []).includes(stickerFilter))) stickerFilter = "";
       const sel = list
         .map((p, i) => [p, i])
-        .filter(([p]) => stageFilter === "all" || (stageFilter === "none" ? !STAGE[p.stage] : p.stage === stageFilter))
+        .filter(([p]) => stageFilter === "all" || phaseOf(p) === stageFilter)
+        .filter(([p]) => !noteFilter || p.caption)
         .filter(([p]) => !stickerFilter || (p.sticker_ids || []).includes(stickerFilter));
       onScreen = sel.map(([p]) => ({ ...p, job_id: j.id })); // "Todas" picks what the filters show
       const label = stickerFilter ? `${(chips.find(([k]) => k === stageFilter) || [])[1] || ""} com “${(stickerById(stickerFilter) || {}).name || ""}”` : (chips.find(([k]) => k === stageFilter) || [])[1] || "";
@@ -601,10 +605,12 @@
         pane === "map"
           ? mapPaneHtml()
           : sel.length
-            ? daysHtml(sel.map(([p, i]) => [{ ...p, job_id: j.id }, i]), "cam-pgrid", { tile: { stage: stageFilter === "all" } })
-            : `<p class="cam-col__none">Nenhuma foto ${stickerFilter ? `em ${esc(label)}` : `de ${esc(label.toLowerCase())}`} ainda.</p>`;
+            ? stageFilter === "all"
+              ? phaseSectionsHtml(sel.map(([p, i]) => [{ ...p, job_id: j.id }, i]))
+              : daysHtml(sel.map(([p, i]) => [{ ...p, job_id: j.id }, i]), "cam-pgrid", { tile: {} })
+            : `<p class="cam-col__none">Nenhuma foto ${noteFilter ? "com nota " : ""}${stickerFilter ? `em ${esc(label)}` : stageFilter === "all" ? "" : `em ${esc(label)}`} ainda.</p>`;
       body = `<div class="cam-box cam-box--photos">
-          <div class="cam-chips cam-chips--bar cam-chips--stick">${paneSwitchHtml("Local", far)}${pane === "photos" ? selectChipHtml() + chips.map(([k, l, c]) => chipHtml(k, l, c)).join("") + stickerChipsHtml(list) : ""}</div>
+          <div class="cam-chips cam-chips--bar cam-chips--stick">${paneSwitchHtml("Local", far)}${pane === "photos" ? selectChipHtml() + chips.map(([k, l, c]) => chipHtml(k, l, c)).join("") + noteChipHtml(list) + stickerChipsHtml(list) : ""}</div>
           ${content}
         </div>`;
     }
@@ -612,6 +618,24 @@
     movePbar();
     renderSelBar();
     if (list.length && pane === "map") renderJobMap(j, list).catch(() => {});
+  }
+
+  /** "Todas": one section per job phase, in work order (Delivery → Walk Through), each split by day. */
+  function phaseSectionsHtml(items) {
+    const keys = PHASES.map(([k]) => k).concat("none");
+    return keys
+      .map((k) => {
+        const its = items.filter(([p]) => phaseOf(p) === k);
+        if (!its.length) return "";
+        return `<section class="cam-phase" aria-label="${esc(PHASE[k] || "Sem fase")}"><h3 class="cam-phase__h" data-no-i18n><span>${esc(PHASE[k] || "Sem fase")}</span><em>${its.length} foto${its.length === 1 ? "" : "s"}</em></h3>${daysHtml(its, "cam-pgrid", { tile: {} })}</section>`;
+      })
+      .join("");
+  }
+  /** "Com nota": narrows to photos that carry a note. */
+  function noteChipHtml(list) {
+    const n = list.filter((p) => p.caption).length;
+    if (!n && !noteFilter) return "";
+    return `<button type="button" class="cam-chip cam-chip--note${noteFilter ? " is-on" : ""}" data-note-filter aria-pressed="${noteFilter}">${SVG.noteChip}Com nota <em>${n}</em></button>`;
   }
 
   /** Photos split by the day they were taken; in select mode each day can be picked at once. */
@@ -712,7 +736,7 @@
       <span class="cam-selbar__n" role="status" aria-live="polite"><b>${n}</b> ${n === 1 ? "foto" : "fotos"}</span>
       <button type="button" class="cam-link" data-sel-all="${all ? 0 : 1}">${all ? "Desmarcar todas" : "Todas"}</button>
       <span class="cam-selbar__acts">
-        ${canManage ? `<button type="button" data-sel-act="stage"${dis}>${SVG.layers}<span>Etapa</span></button><button type="button" data-sel-act="stickers"${dis}>${SVG.tag}<span>Stickers</span></button>` : ""}
+        ${canManage ? `<button type="button" data-sel-act="stage"${dis}>${SVG.layers}<span>Fase</span></button><button type="button" data-sel-act="stickers"${dis}>${SVG.tag}<span>Stickers</span></button>` : ""}
         <button type="button" data-sel-act="download"${dis}>${SVG.dl}<span>Baixar</span></button>
         ${canManage ? `<button type="button" class="is-danger" data-sel-act="delete"${dis}>${SVG.trash}<span>Apagar</span></button>` : ""}
       </span>`;
@@ -755,20 +779,22 @@
       }),
     );
   }
+  /** Phase for many photos at once; "Automático" hands them back to the date rules. */
   function openStageSheet() {
     const list = pickedPhotos();
-    const el = selSheet(`Etapa de ${list.length} foto${list.length === 1 ? "" : "s"}`, `<div class="cam-up__stages">${UPLOAD_STAGES.map((x) => `<button type="button" class="cam-up__stage" data-bulk-stage="${esc(x.id)}">${esc(x.label)}</button>`).join("")}</div>`);
+    const opts = PHASES.map(([k, l]) => [k, l]).concat([["", "Automático (pela data)"]]);
+    const el = selSheet(`Fase de ${list.length} foto${list.length === 1 ? "" : "s"}`, `<div class="cam-up__phases" data-no-i18n>${opts.map(([k, l]) => `<button type="button" class="cam-up__stage${k ? "" : " cam-up__stage--auto"}" data-bulk-phase="${esc(k)}">${esc(l)}</button>`).join("")}</div>`);
     el.addEventListener("click", async (e) => {
-      const b = e.target.closest("[data-bulk-stage]");
+      const b = e.target.closest("[data-bulk-phase]");
       if (!b) return;
-      const stage = b.getAttribute("data-bulk-stage") || null;
+      const phase = b.getAttribute("data-bulk-phase") || null;
       el.querySelectorAll("button").forEach((x) => (x.disabled = true));
       const ok = await eachPhoto(list, "Mudando", async (p) => {
-        await api(`/api/work-orders/${encodeURIComponent(p.job_id)}/media/${encodeURIComponent(p.id)}/stage`, { method: "PATCH", body: JSON.stringify({ stage }) });
-        patchCaches(p.id, { stage });
+        const r = await api(`/api/work-orders/${encodeURIComponent(p.job_id)}/media/${encodeURIComponent(p.id)}`, { method: "PATCH", body: JSON.stringify({ phase }) });
+        patchCaches(p.id, { phase: r.data ? r.data.phase : phase, phase_source: r.data ? r.data.phase_source : phase ? "manual" : null });
       }, el.querySelector(".cam-up__status"));
       el.remove();
-      window.crmToast?.success?.(`${ok} foto${ok === 1 ? "" : "s"} em ${STAGE[stage] || "Geral"}`);
+      window.crmToast?.success?.(`${ok} foto${ok === 1 ? "" : "s"} em ${PHASE[phase] || "fase automática"}`);
       renderRight();
     });
   }
@@ -858,7 +884,7 @@
   }
 
   function chipHtml(k, l, c) {
-    return `<button type="button" class="cam-chip${k === stageFilter ? " is-on" : ""}" data-stage="${k}" aria-pressed="${k === stageFilter}">${l} <em>${c}</em></button>`;
+    return `<button type="button" class="cam-chip${k === stageFilter ? " is-on" : ""}" data-no-i18n data-stage="${k}" aria-pressed="${k === stageFilter}">${l} <em>${c}</em></button>`;
   }
   /** Fotos | Local (or Mapa): the map is a place you open, not a column that is always half off screen. */
   function paneSwitchHtml(mapLabel, far) {
@@ -880,24 +906,26 @@
       movePbar();
     }
     const hit = feed.filter((p) => {
-      if (stageFilter !== "all" && (STAGE[p.stage] ? p.stage : "none") !== stageFilter) return false;
+      if (stageFilter !== "all" && phaseOf(p) !== stageFilter) return false;
+      if (noteFilter && !p.caption) return false;
       if (stickerFilter && !(p.sticker_ids || []).includes(stickerFilter)) return false;
       if (!q) return true;
       const tags = (p.sticker_ids || []).map(stickerById).filter(Boolean).map((x) => x.name);
-      return norm([p.job_number, p.job_title, feedJobName(p), STAGE[p.stage], p.caption, p.address, p.author_name, p.taken_by_name, p.camera_model, ...tags].filter(Boolean).join(" ")).includes(q);
+      return norm([p.job_number, p.job_title, feedJobName(p), phaseName(p), p.caption, p.address, p.author_name, p.taken_by_name, p.camera_model, ...tags].filter(Boolean).join(" ")).includes(q);
     }).sort(byTaken);
-    const counts = { all: feed.length, before: 0, during: 0, after: 0, none: 0 };
-    feed.forEach((p) => (counts[STAGE[p.stage] ? p.stage : "none"] += 1));
+    const counts = { all: feed.length, none: 0 };
+    PHASES.forEach(([k]) => (counts[k] = 0));
+    feed.forEach((p) => (counts[phaseOf(p)] += 1));
     shown = hit.map((p) => toViewer({ id: p.job_id, number: p.job_number, title: p.job_title, client_name: (jobs.find((x) => x.id === p.job_id) || {}).client_name }, p));
     onScreen = hit;
-    const chips = [["all", "Todas"], ["before", "Antes"], ["during", "Durante"], ["after", "Depois"], ["none", "Geral"]]
+    const chips = [["all", "Todas"], ...PHASES, ["none", "Sem fase"]]
       .filter(([k]) => k === "all" || counts[k])
       .map(([k, l]) => chipHtml(k, l, counts[k]))
       .join("");
     const grid = hit.length
       ? daysHtml(hit.map((p, i) => [p, i]), "cam-feedg", { jobs: true, tile: { stage: true, job: true } })
-      : `<p class="cam-empty">${q || stageFilter !== "all" || stickerFilter ? "Nenhuma foto com esse filtro." : "Ainda sem fotos."}</p>`;
-    $("camFeedBody").innerHTML = `<div class="cam-chips cam-chips--bar cam-chips--stick">${paneSwitchHtml("Mapa", 0)}${pane === "photos" ? selectChipHtml() + chips + stickerChipsHtml(feed) : ""}</div>${pane === "map" ? mapPaneHtml() : grid}`;
+      : `<p class="cam-empty">${q || stageFilter !== "all" || stickerFilter || noteFilter ? "Nenhuma foto com esse filtro." : "Ainda sem fotos."}</p>`;
+    $("camFeedBody").innerHTML = `<div class="cam-chips cam-chips--bar cam-chips--stick">${paneSwitchHtml("Mapa", 0)}${pane === "photos" ? selectChipHtml() + chips + noteChipHtml(feed) + stickerChipsHtml(feed) : ""}</div>${pane === "map" ? mapPaneHtml() : grid}`;
     renderSelBar();
     if (pane === "map") renderAllMap().catch(() => {});
   }
@@ -1015,6 +1043,7 @@
     selId = id;
     stageFilter = "all";
     stickerFilter = "";
+    noteFilter = false;
     pane = "photos";
     renderList();
     const feedView = mode === "photos";
@@ -1187,13 +1216,9 @@
     const keep = document.activeElement && uploadSheet.contains(document.activeElement) ? [...uploadSheet.querySelectorAll("button")].indexOf(document.activeElement) : -1;
     const dis = busy ? " disabled" : "";
     uploadSheet.innerHTML = `<div class="cam-up__card" role="dialog" aria-modal="true" aria-labelledby="camUpTitle">
-      <h2 id="camUpTitle">Classificar e enviar</h2>
+      <h2 id="camUpTitle">Enviar fotos</h2>
       <p>${esc(uploadTarget ? uploadTarget.label : "")}</p>
-      <p class="cam-up__lbl" id="camUpStageLbl">Etapa da obra</p>
-      <div class="cam-up__stages" role="group" aria-labelledby="camUpStageLbl">${UPLOAD_STAGES.map(
-        (s) =>
-          `<button type="button" class="cam-up__stage${s.id === uploadStage ? " is-on" : ""}" data-cam-up-stage="${esc(s.id)}" aria-pressed="${s.id === uploadStage}"${dis}>${s.id === uploadStage ? UP_ICON.check : ""}${esc(s.label)}</button>`,
-      ).join("")}</div>
+      <div class="cam-up__auto">${UP_ICON.check}<span><b>A fase é automática.</b> Delivery, Scan, Installation, Sand &amp; Finish ou Walk Through, pela data de cada foto e as datas do job. Dá para corrigir depois.</span></div>
       ${stickers.some((x) => !x.archived)
         ? `<p class="cam-up__lbl">Stickers <span>opcional</span></p><div class="cam-up__stks" role="group" aria-label="Stickers" data-no-i18n>${stickers
             .filter((x) => !x.archived)
@@ -1267,6 +1292,7 @@
     }
     stkReturnFocus = document.activeElement;
     stkStatus = "";
+    stkColorFor = null;
     paintStickerManager();
     stkSheet.hidden = false;
     stkSheet.querySelector("#camStkNew")?.focus({ preventScroll: true });
@@ -1276,31 +1302,38 @@
     stkSheet.hidden = true;
     if (stkReturnFocus && document.contains(stkReturnFocus)) stkReturnFocus.focus();
   }
+  /** Which row shows its colour choices ("new" for the new-sticker row), and whether archived ones are open. */
+  let stkColorFor = null;
+  let stkShowArchived = false;
   function swatches(cur, attr) {
     return STICKER_COLORS.map((c) => `<button type="button" class="cam-stkm__sw${c === cur ? " is-on" : ""}" ${attr}="${c}" aria-pressed="${c === cur}" aria-label="Cor ${c}" style="--stk:${c}"></button>`).join("");
   }
+  /** One compact row per sticker: colour dot (opens the colours for that row only), name, archive. */
   function paintStickerManager() {
     const active = stickers.filter((x) => !x.archived);
     const archived = stickers.filter((x) => x.archived);
-    const row = (x) => `<li class="cam-stkm__row${x.archived ? " is-arch" : ""}" data-stk-row="${esc(x.id)}">
-        <span class="cam-stkm__pv" style="--stk:${esc(x.color)}">${esc(x.name)}</span>
+    const keepNew = stkSheet.querySelector("#camStkNew")?.value || "";
+    const row = (x) => `<li class="cam-stkm__row${x.archived ? " is-arch" : ""}${stkColorFor === x.id ? " is-open" : ""}">
+        <button type="button" class="cam-stkm__dot" data-stk-pick="${esc(x.id)}" aria-expanded="${stkColorFor === x.id}" aria-label="Cor de ${esc(x.name)}" style="--stk:${esc(x.color)}"${x.archived ? " disabled" : ""}></button>
         <input type="text" class="cam-stkm__name" value="${esc(x.name)}" maxlength="32" aria-label="Nome do sticker" data-stk-name="${esc(x.id)}"${x.archived ? " disabled" : ""} />
-        ${x.archived ? "" : `<span class="cam-stkm__sws" role="group" aria-label="Cor">${swatches(x.color, `data-stk-color-for="${esc(x.id)}" data-stk-color`)}</span>`}
-        ${x.system ? `<small>aplicado nas fotos de samples</small>` : ""}
-        <button type="button" class="cam-stkm__arch" data-stk-arch="${esc(x.id)}" data-arch="${x.archived ? "0" : "1"}">${x.archived ? "Restaurar" : "Arquivar"}</button>
+        ${x.system ? `<span class="cam-stkm__tag" title="Aplicado sozinho nas fotos de samples">automático</span>` : ""}
+        <button type="button" class="cam-stkm__arch" data-stk-arch="${esc(x.id)}" data-arch="${x.archived ? "0" : "1"}" aria-label="${x.archived ? "Restaurar" : "Arquivar"} ${esc(x.name)}" title="${x.archived ? "Restaurar" : "Arquivar"}">${x.archived ? SVG.restore : SVG.archive}</button>
+        ${stkColorFor === x.id ? `<div class="cam-stkm__sws" role="group" aria-label="Cor de ${esc(x.name)}">${swatches(x.color, `data-stk-color-for="${esc(x.id)}" data-stk-color`)}</div>` : ""}
       </li>`;
     stkSheet.innerHTML = `<div class="cam-up__card cam-stkm__card" role="dialog" aria-modal="true" aria-labelledby="camStkTitle">
-      <h2 id="camStkTitle">Stickers</h2>
-      <p>Etiquetas para organizar as fotos, como Delivery ou Scan. Cada foto pode ter várias.</p>
-      <div class="cam-stkm__new">
-        <input type="text" id="camStkNew" maxlength="32" placeholder="Novo sticker, ex.: Delivery" aria-label="Nome do novo sticker" />
-        <span class="cam-stkm__sws" role="group" aria-label="Cor do novo sticker">${swatches(stkNewColor, "data-stk-newcolor")}</span>
+      <div class="cam-stkm__head"><h2 id="camStkTitle">Stickers</h2><button type="button" class="cam-stkm__x" data-stk-close aria-label="Fechar">${SVG.x}</button></div>
+      <p class="cam-stkm__lead">Etiquetas para organizar as fotos. Uma foto pode ter várias.</p>
+      <div class="cam-stkm__new${stkColorFor === "new" ? " is-open" : ""}">
+        <button type="button" class="cam-stkm__dot" data-stk-pick="new" aria-expanded="${stkColorFor === "new"}" aria-label="Cor do novo sticker" style="--stk:${stkNewColor}"></button>
+        <input type="text" id="camStkNew" maxlength="32" placeholder="Novo sticker, ex.: Medição" aria-label="Nome do novo sticker" value="${esc(keepNew)}" />
         <button type="button" class="cam-stkm__add" data-stk-create>Criar</button>
+        ${stkColorFor === "new" ? `<div class="cam-stkm__sws" role="group" aria-label="Cor do novo sticker">${swatches(stkNewColor, "data-stk-newcolor")}</div>` : ""}
       </div>
-      <div class="cam-up__status${/não|erro|já existe/i.test(stkStatus) ? " is-err" : ""}" role="status">${esc(stkStatus)}</div>
-      <ul class="cam-stkm__list" data-no-i18n>${active.map(row).join("") || '<li class="cam-empty">Nenhum sticker ainda.</li>'}</ul>
-      ${archived.length ? `<p class="cam-up__lbl">Arquivados</p><ul class="cam-stkm__list" data-no-i18n>${archived.map(row).join("")}</ul>` : ""}
-      <button type="button" class="cam-up__cancel" data-stk-close>Fechar</button>
+      <div class="cam-up__status${/não|erro|já existe|escreva/i.test(stkStatus) ? " is-err" : ""}" role="status">${esc(stkStatus)}</div>
+      <ul class="cam-stkm__list" data-no-i18n>${active.map(row).join("") || '<li class="cam-empty">Nenhum sticker ainda. Crie o primeiro acima.</li>'}</ul>
+      ${archived.length
+        ? `<button type="button" class="cam-stkm__more" data-stk-archived aria-expanded="${stkShowArchived}">${stkShowArchived ? "Esconder" : "Ver"} arquivados <em>${archived.length}</em></button>${stkShowArchived ? `<ul class="cam-stkm__list" data-no-i18n>${archived.map(row).join("")}</ul>` : ""}`
+        : ""}
     </div>`;
   }
   async function saveSticker(id, changes, msg) {
@@ -1326,6 +1359,7 @@
       const r = await api("/api/job-media/stickers", { method: "POST", body: JSON.stringify({ name, color: stkNewColor }) });
       stickers = stickers.concat(r.data);
       stkStatus = `“${r.data.name}” criado`;
+      if (input) input.value = "";
     } catch (e) {
       stkStatus = e.message || "Não foi possível criar";
     }
@@ -1339,19 +1373,32 @@
   }
   function onStickerSheetClick(e) {
     if (e.target === stkSheet || e.target.closest("[data-stk-close]")) return closeStickerManager();
+    const pick = e.target.closest("[data-stk-pick]");
+    if (pick) {
+      const id = pick.getAttribute("data-stk-pick");
+      stkColorFor = stkColorFor === id ? null : id;
+      paintStickerManager();
+      stkSheet.querySelector(`[data-stk-pick="${CSS.escape(id)}"]`)?.focus({ preventScroll: true });
+      return;
+    }
+    if (e.target.closest("[data-stk-archived]")) {
+      stkShowArchived = !stkShowArchived;
+      return paintStickerManager();
+    }
     const nc = e.target.closest("[data-stk-newcolor]");
     if (nc) {
       stkNewColor = nc.getAttribute("data-stk-newcolor");
-      const keep = stkSheet.querySelector("#camStkNew")?.value || "";
+      stkColorFor = null;
       paintStickerManager();
-      const inp = stkSheet.querySelector("#camStkNew");
-      inp.value = keep;
-      inp.focus({ preventScroll: true }); // Enter still creates after picking a colour
+      stkSheet.querySelector("#camStkNew")?.focus({ preventScroll: true }); // Enter still creates after picking a colour
       return;
     }
     if (e.target.closest("[data-stk-create]")) return createSticker();
     const col = e.target.closest("[data-stk-color]");
-    if (col) return saveSticker(col.getAttribute("data-stk-color-for"), { color: col.getAttribute("data-stk-color") }, "Cor atualizada");
+    if (col) {
+      stkColorFor = null;
+      return saveSticker(col.getAttribute("data-stk-color-for"), { color: col.getAttribute("data-stk-color") }, "Cor atualizada");
+    }
     const ar = e.target.closest("[data-stk-arch]");
     if (ar) {
       const archive = ar.getAttribute("data-arch") === "1";
@@ -1427,7 +1474,7 @@
           : { taken_at_device: new Date().toISOString(), taken_at_source: "upload" };
         const body = {
           data_url: await compressUpload(file),
-          stage: uploadStage || null,
+          stage: null,
           ...shot,
           taken_by_id: takenBy,
           sticker_ids: uploadStickers.slice(),
@@ -1538,6 +1585,11 @@
       if (up) {
         e.preventDefault();
         openUploadSheet(up.getAttribute("data-cam-upload"));
+        return;
+      }
+      if (e.target.closest("[data-note-filter]")) {
+        noteFilter = !noteFilter;
+        renderRight();
         return;
       }
       const sk = e.target.closest("[data-sticker]");
