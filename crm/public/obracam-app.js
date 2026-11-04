@@ -177,13 +177,26 @@
   camera.addEventListener('change', () => { upload(camera.files); camera.value = ''; });
   library.addEventListener('change', () => { upload(library.files); library.value = ''; });
 
-  // Runs before job-media-board.js: "Tirar foto" and "Adicionar fotos" stay in the app.
+  // Prefer the shared board upload sheet (stage chips). Keep a fallback for old #fotos links.
   document.addEventListener('click', (ev) => {
+    const up = ev.target.closest('[data-cam-upload]');
+    if (up) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (window.__camApp && typeof window.__camApp.openUpload === 'function') {
+        window.__camApp.openUpload(up.getAttribute('data-cam-upload'));
+      }
+      return;
+    }
     const link = ev.target.closest('a[href*="job-detail.html"][href$="#fotos"]');
     if (!link || link.classList.contains('cam-row')) return;
     ev.preventDefault();
     ev.stopPropagation();
     const id = new URL(link.href).searchParams.get('id');
+    if (window.__camApp && typeof window.__camApp.openUpload === 'function' && id) {
+      window.__camApp.openUpload(id);
+      return;
+    }
     const title = document.querySelector('#camDetail h2');
     target = { id, label: title ? title.textContent.trim() : '' };
     renderSheet('', false);

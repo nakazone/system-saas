@@ -56,6 +56,15 @@
   function statusLabel(s) {
     return { draft: "Rascunho", scheduled: "Agendado", in_progress: "Em campo", completed: "Concluído", canceled: "Cancelado" }[s] || s || "—";
   }
+  /** Same stage language as the Jobs list (Rascunho / Sem data / Lixa / Faturado…). */
+  function jobStageLabel(j) {
+    if (window.JobsInfo?.stageLabel) return window.JobsInfo.stageLabel(j);
+    if (window.JobsInfo?.listWhen) {
+      const w = window.JobsInfo.listWhen(j);
+      if (w && w.status) return w.status;
+    }
+    return statusLabel(j.status);
+  }
   function isActive(j) {
     return j.status === "scheduled" || j.status === "in_progress" || j.status === "draft";
   }
@@ -108,7 +117,7 @@
     if (!q) return true;
     const who = listWho(j);
     return norm(
-      [j.number, j.title, j.address, j.client_name, j.client_ref, who, j.builder?.nickname, j.builder?.company, statusLabel(j.status), ...(j.photos || []).map((p) => p.author_name)]
+      [j.number, j.title, j.address, j.client_name, j.client_ref, who, j.builder?.nickname, j.builder?.company, jobStageLabel(j), ...(j.photos || []).map((p) => p.author_name)]
         .filter(Boolean)
         .join(" "),
     ).includes(q);
@@ -127,17 +136,16 @@
       if (base.toLowerCase().includes(ref.toLowerCase())) return base;
       return `${base} - ${ref}`;
     }
-    return base || "";
+    return base || "Sem cliente";
   }
 
   function rowSub(j) {
-    const st = isActive(j) && !j.scheduled_start ? "Sem data" : statusLabel(j.status);
+    const st = jobStageLabel(j);
     if (!j.last_photo) return { text: `${st} · nenhuma foto`, hot: needsPhoto(j) && !!j.scheduled_start };
     return { text: `${st} · última ${ago(j.last_photo.created_at)}`, hot: needsPhoto(j) };
   }
 
   function useSwipeDelete() {
-    if (window.__OM_FOCUS_APP) return false; // Deleting a job does not belong in the photo app.
     return canManage && window.matchMedia("(max-width: 1024px), (pointer: coarse)").matches;
   }
 
@@ -319,10 +327,18 @@
   function mapsHref(address) {
     return `https://maps.google.com/?q=${encodeURIComponent(address)}`;
   }
+  function stagePillCls(label) {
+    const s = String(label || "");
+    if (s === "Em campo" || s === "Lixa") return "dk";
+    if (s === "Concluído" || s === "Faturado" || s === "Pago") return "ol";
+    return "";
+  }
+
   function headHtml(j, list) {
     const n = list ? list.length : j.photo_count || 0;
     const authors = list ? [...new Set(list.map((p) => p.author_name).filter(Boolean))] : [];
-    const st = j.status === "in_progress" ? "dk" : j.status === "completed" ? "ol" : "";
+    const stage = jobStageLabel(j);
+    const st = stagePillCls(stage);
     const lastTxt = j.last_photo ? `Última foto ${ago(j.last_photo.created_at)}` : "Nenhuma foto";
     const who = listWho(j);
     const meta = [who && who !== "Sem cliente" ? esc(who) : "", `${n} foto${n === 1 ? "" : "s"}`, authors.length ? `por ${esc(authors.slice(0, 3).join(", "))}` : ""].filter(Boolean);
@@ -332,20 +348,20 @@
     return `<a class="cam-back" href="#" data-cam-back>${SVG.back}ObraCam</a>
       <div class="cam-dh">
         <div class="cam-dh__t">
-          <div class="cam-chips"><span class="cam-pill${st ? ` cam-pill--${st}` : ""}">${esc(statusLabel(j.status))}</span><span class="cam-pill${needsPhoto(j) ? " cam-pill--hot" : ""}">${esc(lastTxt)}</span>${j.number != null ? `<span class="cam-num">Job #${esc(j.number)}</span>` : ""}</div>
+          <div class="cam-chips"><span class="cam-pill${st ? ` cam-pill--${st}` : ""}">${esc(stage)}</span><span class="cam-pill${needsPhoto(j) ? " cam-pill--hot" : ""}">${esc(lastTxt)}</span>${j.number != null ? `<span class="cam-num">Job #${esc(j.number)}</span>` : ""}</div>
           <h2><a href="job-detail.html?id=${encodeURIComponent(j.id)}">${esc(who && who !== "Sem cliente" ? who : j.title || "Job")}</a></h2>
           <p class="cam-dmeta">${meta.map((x) => `<span>${x}</span>`).join("")}</p>
           ${addr}
         </div>
         <div class="cam-dh__acts">
-          <a class="cam-btn" href="job-detail.html?id=${encodeURIComponent(j.id)}#fotos">${SVG.cam}Adicionar fotos</a>
+          <button type="button" class="cam-btn" data-cam-upload="${esc(j.id)}">${SVG.cam}Adicionar fotos</button>
           <a class="cam-btn cam-btn--pri" href="job-detail.html?id=${encodeURIComponent(j.id)}">Abrir job</a>
         </div>
       </div>`;
   }
 
   function pbarHtml(j) {
-    return `<div class="cam-pbar" id="camPbar"><a class="cam-btn" href="job-detail.html?id=${encodeURIComponent(j.id)}">Abrir job</a><a class="cam-btn cam-btn--pri" href="job-detail.html?id=${encodeURIComponent(j.id)}#fotos">${SVG.cam}Tirar foto</a></div>`;
+    return `<div class="cam-pbar" id="camPbar"><a class="cam-btn" href="job-detail.html?id=${encodeURIComponent(j.id)}">Abrir job</a><button type="button" class="cam-btn cam-btn--pri" data-cam-upload="${esc(j.id)}">${SVG.cam}Tirar foto</button></div>`;
   }
   function movePbar() {
     document.querySelectorAll("body > .cam-pbar").forEach((x) => x.remove());
@@ -380,7 +396,7 @@
     const mapBox = `<div class="cam-box cam-box--map"><h3>Onde foram tiradas</h3><div class="cam-map" id="camMap"></div><p class="cam-meta" id="camMapNote"></p></div>`;
     let body;
     if (!list.length) {
-      body = `<div class="cam-box cam-none"><span class="cam-none__ic">${SVG.cam}</span><b>Nenhuma foto ainda</b><p>${window.__OM_FOCUS_APP ? "A equipe tira as fotos pelo Campo (ticket do job). Você também pode adicionar aqui." : "A equipe tira as fotos pelo Campo (ticket do job). Você também pode adicionar pela página do job."}</p><a class="cam-btn" href="job-detail.html?id=${encodeURIComponent(j.id)}#fotos">Adicionar fotos</a></div>`;
+      body = `<div class="cam-box cam-none"><span class="cam-none__ic">${SVG.cam}</span><b>Nenhuma foto ainda</b><p>${window.__OM_FOCUS_APP ? "A equipe tira as fotos pelo Campo (ticket do job). Você também pode adicionar aqui." : "A equipe tira as fotos pelo Campo (ticket do job). Você também pode adicionar aqui."}</p><button type="button" class="cam-btn" data-cam-upload="${esc(j.id)}">Adicionar fotos</button></div>`;
     } else if (isPhone()) {
       const segs = [["all", "Todas", list.length], ...STAGES.filter(([k]) => counts[k]).map(([k, l]) => [k, l, counts[k]])];
       if (!segs.some(([k]) => k === stageFilter)) stageFilter = "all";
@@ -596,6 +612,164 @@
     }
   }
 
+  // ---------------------------------------------------------------- upload with stage
+  const UPLOAD_STAGES = [
+    { id: "before", label: "Antes" },
+    { id: "during", label: "Durante" },
+    { id: "after", label: "Depois" },
+    { id: "", label: "Geral" },
+  ];
+  let uploadTarget = null;
+  let uploadStage = "during";
+  let uploadSheet = null;
+  let uploadCamera = null;
+  let uploadLibrary = null;
+
+  function ensureUploadUi() {
+    if (uploadSheet) return;
+    uploadSheet = document.createElement("div");
+    uploadSheet.className = "cam-up";
+    uploadSheet.hidden = true;
+    uploadCamera = document.createElement("input");
+    uploadCamera.type = "file";
+    uploadCamera.accept = "image/*";
+    uploadCamera.setAttribute("capture", "environment");
+    uploadCamera.hidden = true;
+    uploadLibrary = document.createElement("input");
+    uploadLibrary.type = "file";
+    uploadLibrary.accept = "image/*";
+    uploadLibrary.multiple = true;
+    uploadLibrary.hidden = true;
+    document.body.append(uploadSheet, uploadCamera, uploadLibrary);
+    uploadCamera.addEventListener("change", () => {
+      void sendUpload(uploadCamera.files);
+      uploadCamera.value = "";
+    });
+    uploadLibrary.addEventListener("change", () => {
+      void sendUpload(uploadLibrary.files);
+      uploadLibrary.value = "";
+    });
+    uploadSheet.addEventListener("click", (e) => {
+      if (e.target === uploadSheet) {
+        uploadSheet.hidden = true;
+        return;
+      }
+      const t = e.target.closest("[data-cam-up-stage],[data-cam-up-camera],[data-cam-up-library],[data-cam-up-close]");
+      if (!t) return;
+      if (t.hasAttribute("data-cam-up-stage")) {
+        uploadStage = t.getAttribute("data-cam-up-stage") || "";
+        paintUploadSheet("", false);
+        return;
+      }
+      if (t.hasAttribute("data-cam-up-camera")) return uploadCamera.click();
+      if (t.hasAttribute("data-cam-up-library")) return uploadLibrary.click();
+      if (t.hasAttribute("data-cam-up-close")) uploadSheet.hidden = true;
+    });
+  }
+
+  function paintUploadSheet(status, busy) {
+    ensureUploadUi();
+    uploadSheet.innerHTML = `<div class="cam-up__card" role="dialog" aria-modal="true" aria-label="Enviar fotos">
+      <h2>Classificar e enviar</h2>
+      <p>${esc(uploadTarget ? uploadTarget.label : "")}</p>
+      <div class="cam-up__stages">${UPLOAD_STAGES.map(
+        (s) =>
+          `<button type="button" class="cam-up__stage${s.id === uploadStage ? " is-on" : ""}" data-cam-up-stage="${esc(s.id)}"${busy ? " disabled" : ""}>${esc(s.label)}</button>`,
+      ).join("")}</div>
+      <div class="cam-up__go">
+        <button type="button" data-cam-up-camera${busy ? " disabled" : ""}>Câmera</button>
+        <button type="button" class="is-sec" data-cam-up-library${busy ? " disabled" : ""}>Galeria</button>
+      </div>
+      <div class="cam-up__status" role="status">${esc(status || "")}</div>
+      <button type="button" class="cam-up__cancel" data-cam-up-close${busy ? " disabled" : ""}>Cancelar</button>
+    </div>`;
+  }
+
+  function openUploadSheet(jobId) {
+    const j = jobs.find((x) => String(x.id) === String(jobId));
+    if (!j) return;
+    const who = listWho(j);
+    uploadTarget = { id: j.id, label: who && who !== "Sem cliente" ? who : j.title || "Job" };
+    uploadStage = "during";
+    paintUploadSheet("", false);
+    uploadSheet.hidden = false;
+  }
+
+  function compressUpload(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, 1280 / Math.max(img.naturalWidth, img.naturalHeight));
+        const c = document.createElement("canvas");
+        c.width = Math.round(img.naturalWidth * scale);
+        c.height = Math.round(img.naturalHeight * scale);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        resolve(c.toDataURL("image/jpeg", 0.7));
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("Não foi possível ler esta imagem. Use JPG ou PNG."));
+      };
+      img.src = url;
+    });
+  }
+
+  function uploadGps() {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) return resolve(null);
+      const timer = setTimeout(() => resolve(null), 1500);
+      navigator.geolocation.getCurrentPosition(
+        (p) => {
+          clearTimeout(timer);
+          resolve({ lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy });
+        },
+        () => {
+          clearTimeout(timer);
+          resolve(null);
+        },
+        { enableHighAccuracy: true, timeout: 1500, maximumAge: 60000 },
+      );
+    });
+  }
+
+  async function sendUpload(files) {
+    const list = Array.from(files || []);
+    if (!list.length || !uploadTarget) return;
+    let sent = 0;
+    try {
+      const pos = await uploadGps();
+      for (const file of list) {
+        paintUploadSheet(`Enviando ${sent + 1} de ${list.length}…`, true);
+        const body = {
+          data_url: await compressUpload(file),
+          stage: uploadStage || null,
+          taken_at_device: new Date().toISOString(),
+          lat: pos ? pos.lat : null,
+          lng: pos ? pos.lng : null,
+          gps_accuracy_m: pos ? pos.acc : null,
+          client_upload_id: window.crypto?.randomUUID ? crypto.randomUUID() : `cam-${Date.now()}-${sent}`,
+          device_label: window.__OM_FOCUS_APP ? "ObraCam app" : "ObraCam",
+          is_public: false,
+        };
+        await api(`/api/work-orders/${encodeURIComponent(uploadTarget.id)}/media`, { method: "POST", body: JSON.stringify(body) });
+        sent += 1;
+      }
+      uploadSheet.hidden = true;
+      window.crmToast?.success?.(sent === 1 ? "Foto enviada" : `${sent} fotos enviadas`);
+      delete mediaCache[uploadTarget.id];
+      await load();
+      select(uploadTarget.id, false);
+    } catch (e) {
+      paintUploadSheet(`${sent ? `${sent} enviada${sent === 1 ? "" : "s"}. ` : ""}${e.message || "Falha ao enviar. Tente de novo."}`, false);
+      if (sent) {
+        delete mediaCache[uploadTarget.id];
+        load().then(() => select(uploadTarget.id, false)).catch(() => {});
+      }
+    }
+  }
+
   function bind() {
     $("camMode").addEventListener("click", (e) => {
       const b = e.target.closest("[data-mode]");
@@ -644,6 +818,12 @@
         back();
         return;
       }
+      const up = e.target.closest("[data-cam-upload]");
+      if (up) {
+        e.preventDefault();
+        openUploadSheet(up.getAttribute("data-cam-upload"));
+        return;
+      }
       const s = e.target.closest("[data-stage]");
       if (s) {
         stageFilter = s.getAttribute("data-stage");
@@ -652,6 +832,12 @@
       }
       const ph = e.target.closest("[data-ph-i]");
       if (ph) openViewer(shown, Number(ph.getAttribute("data-ph-i")) || 0);
+    });
+    document.addEventListener("click", (e) => {
+      const up = e.target.closest(".cam-pbar [data-cam-upload]");
+      if (!up) return;
+      e.preventDefault();
+      openUploadSheet(up.getAttribute("data-cam-upload"));
     });
     window.addEventListener("resize", () => {
       if (isWide() && document.body.classList.contains("cam-detail-open")) {
@@ -672,8 +858,9 @@
       title: wo.title,
       status: wo.status,
       field_status: wo.field_status || null,
+      sector: wo.sector || null,
       address: wo.address || null,
-      client_ref: wo.client_ref || null,
+      client_ref: wo.client_ref || wo.customer?.client_code || wo.customer?.clientCode || null,
       client_name: wo.customer?.name || wo.builder?.company || builderName || wo.source_name || null,
       customer: wo.customer
         ? {
@@ -693,6 +880,10 @@
       source_name: wo.source_name || null,
       photo_count: 0,
       scheduled_start: wo.scheduled_start || null,
+      sand_scheduled_start: wo.sand_scheduled_start || null,
+      installation_done_at: wo.installation_done_at || null,
+      sand_done_at: wo.sand_done_at || null,
+      billing: wo.billing || null,
       geo_lat: null,
       geo_lng: null,
       last_photo: null,
@@ -718,6 +909,7 @@
   // The ObraCam app (obracam-app.js) refreshes the job after sending photos.
   window.__camApp = {
     mode: () => mode,
+    openUpload: openUploadSheet,
     reload(id) {
       if (id) delete mediaCache[id];
       return load().then(() => {
@@ -736,6 +928,8 @@
       canManage = s?.user?.role === "admin" || perms.includes("work_orders.manage");
       const add = $("camAddJob");
       if (add) add.hidden = !canManage;
+      // Session arrives after the first paint — rebuild rows so swipe-delete appears.
+      renderList();
       if (window.__crmJobModal?.onSaved) {
         window.__crmJobModal.onSaved((data, meta) => {
           if (data && meta?.created) openNewJobTicket(data);

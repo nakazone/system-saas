@@ -18,6 +18,7 @@ import {
 } from "../lib/campo-shared.js";
 import { prisma } from "../../lib/prisma.js";
 import { recordActivity } from "../../lib/activity/record.js";
+import { jobBilling, jobBillingLabel } from "../../lib/invoices/job.js";
 
 export const jobFieldExtrasRouter = Router();
 
@@ -84,13 +85,25 @@ jobFieldExtrasRouter.get(
             status: true,
             address: true,
             fieldStatus: true,
+            sector: true,
             scheduledStart: true,
+            sandScheduledStart: true,
+            installationDoneAt: true,
+            sandDoneAt: true,
             geoLat: true,
             geoLng: true,
             sourceName: true,
             clientRef: true,
             customer: { select: { name: true, company: true, nickname: true, clientCode: true } },
             builder: { select: { company: true, firstName: true, lastName: true, nickname: true } },
+            lineItems: { select: { lineTotal: true } },
+            invoices: {
+              select: {
+                amount: true,
+                status: true,
+                receipts: { select: { amount: true } },
+              },
+            },
             media: {
               where: { deletedAt: null },
               orderBy: [{ createdAt: "desc" }],
@@ -153,14 +166,22 @@ jobFieldExtrasRouter.get(
             const builderName = wo.builder
               ? [wo.builder.firstName, wo.builder.lastName].filter(Boolean).join(" ").trim()
               : "";
+            const servicesTotal =
+              Math.round(
+                (wo.lineItems || []).reduce((sum, li) => sum + dec(li.lineTotal), 0) * 100,
+              ) / 100;
+            const billing = jobBilling(servicesTotal, wo.invoices || []);
+            const clientCode =
+              wo.customer?.clientCode != null ? String(wo.customer.clientCode).trim() || null : null;
             return {
               id: wo.id,
               number: wo.number,
               title: wo.title,
               status: wo.status,
               field_status: wo.fieldStatus,
+              sector: wo.sector || null,
               address: wo.address,
-              client_ref: (wo.clientRef && String(wo.clientRef).trim()) || null,
+              client_ref: (wo.clientRef && String(wo.clientRef).trim()) || clientCode || null,
               client_name:
                 wo.customer?.name ||
                 wo.builder?.company ||
@@ -185,6 +206,10 @@ jobFieldExtrasRouter.get(
               source_name: wo.sourceName || null,
               photo_count: wo._count.media,
               scheduled_start: wo.scheduledStart?.toISOString() ?? null,
+              sand_scheduled_start: wo.sandScheduledStart?.toISOString() ?? null,
+              installation_done_at: wo.installationDoneAt?.toISOString() ?? null,
+              sand_done_at: wo.sandDoneAt?.toISOString() ?? null,
+              billing: { ...billing, billing_status_label: jobBillingLabel(billing.billing_status) },
               geo_lat: jobGeo?.lat ?? null,
               geo_lng: jobGeo?.lng ?? null,
               last_photo: lastMapped,

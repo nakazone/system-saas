@@ -85,6 +85,37 @@
 .cam-row em { font-style: normal; font-size: 12px; font-weight: 600; color: var(--cam-ink2); white-space: nowrap; }
 .cam-swipe { margin: 0 0 2px; border-radius: 14px; }
 .cam-swipe .cam-row { margin: 0; background: transparent; }
+.cam-swipe .om-swipe__body { background: transparent; border-radius: 14px; }
+.cam-swipe .om-swipe__actions { visibility: hidden; }
+.cam-swipe.is-swiping .om-swipe__actions,
+.cam-swipe.om-swipe--open .om-swipe__actions { visibility: visible; }
+.cam-swipe.is-swiping .om-swipe__body,
+.cam-swipe.om-swipe--open .om-swipe__body { background: #fff; }
+@media (min-width: 1025px) and (pointer: fine) {
+  .cam-swipe .om-swipe__actions { display: none !important; }
+  .cam-swipe .om-swipe__body { display: contents; transform: none !important; background: transparent; }
+  .cam-swipe .cam-row { background: transparent; }
+  .cam-swipe { overflow: visible; }
+}
+
+/* upload sheet — classify Antes / Durante / Depois before sending */
+.cam-up { position: fixed; z-index: 2000; inset: 0; background: rgba(34, 30, 26, .5); display: flex; align-items: flex-end; }
+.cam-up[hidden] { display: none; }
+.cam-up__card { width: 100%; max-width: 480px; margin: 0 auto; box-sizing: border-box; background: #F7F8FA; color: #221E1A; border-radius: 24px 24px 0 0; padding: 18px 20px calc(24px + env(safe-area-inset-bottom)); }
+.cam-up h2 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+.cam-up p { margin: 4px 0 14px; font-size: 14px; color: #475467; }
+.cam-up__stages { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.cam-up__stage { appearance: none; min-height: 56px; border-radius: 14px; border: 1px solid #E5E7EB; background: #fff; color: #221E1A; font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; }
+.cam-up__stage.is-on { background: #E7792C; border-color: #E7792C; color: #fff; }
+.cam-up__go { display: flex; gap: 8px; margin-top: 12px; }
+.cam-up__go button { appearance: none; flex: 1; min-height: 52px; border-radius: 14px; border: 0; font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; background: #221E1A; color: #fff; }
+.cam-up__go button.is-sec { background: #F1F3F5; color: #221E1A; }
+.cam-up__cancel { appearance: none; width: 100%; min-height: 48px; margin-top: 4px; border: 0; background: transparent; color: #475467; font: inherit; font-size: 16px; font-weight: 500; cursor: pointer; }
+.cam-up__status { margin-top: 12px; font-size: 14px; font-weight: 500; color: #475467; min-height: 20px; }
+@media (min-width: 761px) {
+  .cam-up { align-items: center; padding: 24px; }
+  .cam-up__card { border-radius: 20px; padding: 22px 24px 20px; }
+}
 .cam-empty { margin: 0; padding: 24px 10px; text-align: center; font-size: 13.5px; color: var(--cam-ink2); }
 
 /* lado direito */
