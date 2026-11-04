@@ -27,7 +27,7 @@
   <link rel="stylesheet" href="om-gestures.css?v=20261102-ptr1" />
   <link rel="stylesheet" href="obracam.css?v=20261105-ph1" />
   <link rel="stylesheet" href="cam-viewer.css?v=20261105-ph1" />
-  <link rel="stylesheet" href="crm-list.css?v=20261104-list2" />
+  <link rel="stylesheet" href="crm-list.css?v=20261104-fold1" />
 </head>
 <body class="dashboard-app-body om-app sidebar-collapsed cam-app">
   <script src="/om-reload.js?v=20261013-rl8"></script>
@@ -98,8 +98,8 @@
                 <button type="button" data-mode="active" class="is-on">Ativos</button>
                 <button type="button" data-mode="done">Concluídos</button>
               </div>
-              <div class="cam-filters" id="camFilters" role="group" aria-label="Filtrar jobs"></div>
-              <div class="cam-order ol-bar">
+              <div class="cam-filters" id="camFilters" data-ol-filter role="group" aria-label="Filtrar jobs"></div>
+              <div class="cam-order ol-bar" data-ol-ignore>
                 <label>Agrupar <select id="camGroup"><option value="status">por status</option><option value="client">por cliente</option></select></label>
                 <label>Ordenar <select id="camSort"><option value="recent">última foto</option><option value="schedule">data agendada</option><option value="name">nome</option></select></label>
               </div>
@@ -127,5 +127,6 @@
   <script src="/photo-exif.js?v=20261104-exif1"></script>
   <script src="cam-viewer.js?v=20261105-ph1"></script>
   <script src="job-media-board.js?v=20261105-ph1"></script>
+  <script src="crm-list.js?v=20261104-fold1"></script>
 </body>
 </html>
