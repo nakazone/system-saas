@@ -14,7 +14,14 @@ body.cv-open { overflow: hidden; }
 .cv-round, .cv-nav {
   width: 42px; height: 42px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, .14); color: #fff; display: grid; place-items: center; cursor: pointer;
 }
-.cv-round:hover, .cv-nav:hover { background: rgba(255, 255, 255, .24); }
+@media (hover: hover) and (pointer: fine) {
+  .cv-round:hover, .cv-nav:hover { background: rgba(255, 255, 255, .24); }
+}
+.cv button, .cv a { -webkit-tap-highlight-color: transparent; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+.cv-round:active, .cv-nav:active, .cv-btn:active { transform: scale(.96); }
+.cv :focus-visible { outline: 2px solid #E7792C; outline-offset: 2px; }
+.cv-side { overscroll-behavior: contain; }
+.cv-strip { overscroll-behavior-x: contain; }
 .cv-round.is-on { background: #E7792C; color: #fff; }
 .cv-round.is-on svg { fill: currentColor; }
 .cv-top__acts { display: inline-flex; gap: 8px; }
@@ -31,12 +38,21 @@ body.cv-open { overflow: hidden; }
 .cv-side { background: #fff; padding: 22px 20px 20px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
 .cv-grab { display: none; }
 .cv-chips { display: flex; align-items: center; gap: 8px; }
+/* reclassify a photo right where its stage is shown */
+.cv-stages { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; padding: 3px; border-radius: 12px; background: #F1F3F5; }
+.cv-stages button { height: 34px; border: 0; border-radius: 9px; background: transparent; font: inherit; font-size: 13px; font-weight: 600; color: #667085; cursor: pointer; }
+.cv-stages button.is-on { background: #fff; color: #221E1A; box-shadow: 0 1px 2px rgba(16, 24, 40, .1); }
+.cv-stages button:disabled { cursor: progress; opacity: .6; }
+/* one control per action: labelled buttons in the side panel on wide screens, the round icons over the photo on phones */
+@media (min-width: 901px) {
+  .cv-top__acts { display: none; }
+}
 .cv-pill { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: 999px; background: #F1F3F5; font-size: 12px; font-weight: 650; }
 .cv-pill--dk { background: #221E1A; color: #fff; }
 .cv-sub { font-size: 12px; font-weight: 600; color: #667085; }
 .cv-job small { display: block; font-size: 12.5px; font-weight: 600; color: #667085; }
 .cv-job h2 { margin: 2px 0 0; font-size: 21px; font-weight: 700; letter-spacing: -.02em; line-height: 1.2; color: #221E1A; }
-.cv-job p { margin: 4px 0 0; font-size: 13px; color: #667085; }
+.cv-job p { margin: 4px 0 0; font-size: 13px; color: #667085; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
 .cv-kv { margin: 0; display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 9px 10px; font-size: 13.5px; }
 .cv-kv dt { color: #667085; }
 .cv-kv dd { margin: 0; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
@@ -73,6 +89,7 @@ body.cv-open { overflow: hidden; }
   .cv-acts { grid-template-columns: 1fr 1.4fr; }
   .cv-acts .cv-btn--pri { order: 2; height: 46px; }
   .cv-acts .cv-row { order: 1; }
-  .cv-acts .cv-row .cv-btn[data-cv="port"] { display: none; }
+  .cv-acts .cv-row .cv-btn[data-cv="port"], .cv-acts .cv-btn--danger { display: none; }
+  .cv-stages button { height: 38px; }
   .cv-btn { height: 46px; }
 }

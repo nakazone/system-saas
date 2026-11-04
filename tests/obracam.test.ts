@@ -112,4 +112,20 @@ describe.skipIf(!privileged)("GET /obracam", () => {
     expect(m.name).toBe("ObraCam");
     expect(m.scope).toBe("/obracam");
   });
+
+  it("lets an admin reclassify a photo's stage", async () => {
+    const json = { "Content-Type": "application/json", Cookie: adminCookie };
+    const wo = await fetch(`${base}/api/work-orders`, { method: "POST", headers: json, body: JSON.stringify({ title: "Stage test" }) }).then((r) => r.json());
+    const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const up = await fetch(`${base}/api/work-orders/${wo.data.id}/media`, { method: "POST", headers: json, body: JSON.stringify({ data_url: png, stage: "during" }) }).then((r) => r.json());
+    expect(up.success).toBe(true);
+    const url = `${base}/api/work-orders/${wo.data.id}/media/${up.data.id}/stage`;
+
+    const after = await fetch(url, { method: "PATCH", headers: json, body: JSON.stringify({ stage: "after" }) }).then((r) => r.json());
+    expect(after.data.stage).toBe("after");
+    const general = await fetch(url, { method: "PATCH", headers: json, body: JSON.stringify({ stage: null }) }).then((r) => r.json());
+    expect(general.data.stage).toBeNull();
+    const bad = await fetch(url, { method: "PATCH", headers: json, body: JSON.stringify({ stage: "someday" }) });
+    expect(bad.status).toBe(400);
+  });
 });

@@ -57,7 +57,7 @@
       <h1 class="oc-title">Ajustes</h1>
       <div class="oc-list"><div class="oc-row" style="cursor:default"><span class="oc-row__t">${esc(u.name || u.email || '')}</span><span class="oc-row__s">${esc(org.name || '')}</span></div></div>
       <div class="oc-list"><a class="oc-row" href="/dashboard"><span class="oc-row__t">Abrir o ObraMate</span><span class="oc-row__s">Jobs, quotes, invoices e o resto do sistema</span></a></div>
-      <div class="oc-list"><button type="button" class="oc-row" data-oc-logout><span class="oc-row__t">Sair</span></button></div>`;
+      <div class="oc-list"><button type="button" class="oc-row oc-row--danger" data-oc-logout><span class="oc-row__t">Sair</span></button></div>`;
   }
 
   function markTab(id) {
@@ -75,9 +75,11 @@
     document.body.classList.toggle('oc-settings', id === 'settings');
     document.body.classList.toggle('oc-feed', id === 'photos');
     if (id === 'settings') return renderSettings();
-    const modes = document.getElementById('camMode');
+    const app = window.__camApp;
     if (id === 'photos') {
-      modes.querySelector('[data-mode="photos"]').click();
+      if (app) app.setView('photos');
+    } else if (app && app.mode() === 'photos') {
+      app.setView('jobs');
     } else {
       const backLink = document.querySelector('#camDetail [data-cam-back]');
       if (backLink && document.body.classList.contains('cam-detail-open')) backLink.click();
