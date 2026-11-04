@@ -641,6 +641,9 @@ campoJobsRouter.post(
             isPublic: meta.isPublic,
             clientUploadId: meta.clientUploadId,
             deviceLabel: meta.deviceLabel,
+            takenAtSource: meta.takenAtDevice ? meta.takenAtSource || "upload" : null,
+            locationSource: meta.locationSource,
+            cameraModel: meta.cameraModel,
           },
         });
 

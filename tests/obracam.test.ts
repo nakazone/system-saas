@@ -128,4 +128,42 @@ describe.skipIf(!privileged)("GET /obracam", () => {
     const bad = await fetch(url, { method: "PATCH", headers: json, body: JSON.stringify({ stage: "someday" }) });
     expect(bad.status).toBe(400);
   });
+
+  it("stores capture metadata, a note, markup and who took the photo", async () => {
+    const json = { "Content-Type": "application/json", Cookie: adminCookie };
+    const wo = await fetch(`${base}/api/work-orders`, { method: "POST", headers: json, body: JSON.stringify({ title: "Edit test" }) }).then((r) => r.json());
+    const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const people = await fetch(`${base}/api/job-media/people`, { headers: json }).then((r) => r.json());
+    const other = people.data.find((u: { name: string }) => u.name === "Sales");
+    expect(other).toBeTruthy();
+    const up = await fetch(`${base}/api/work-orders/${wo.data.id}/media`, {
+      method: "POST",
+      headers: json,
+      body: JSON.stringify({
+        data_url: png,
+        taken_at_device: "2026-10-28T16:15:30.000Z",
+        taken_at_source: "exif",
+        lat: 33.4255,
+        lng: -111.94,
+        location_source: "exif",
+        camera_model: "Apple iPhone 15 Pro",
+        taken_by_id: other.id,
+      }),
+    }).then((r) => r.json());
+    expect(up.data).toMatchObject({ taken_at_source: "exif", location_source: "exif", camera_model: "Apple iPhone 15 Pro", taken_by_name: "Sales", uploaded_by_name: "Admin" });
+
+    const url = `${base}/api/work-orders/${wo.data.id}/media/${up.data.id}`;
+    const shapes = [{ type: "arrow", color: "#FF3B30", width: 3, x1: 0.1, y1: 0.1, x2: 0.5, y2: 0.5 }];
+    const ed = await fetch(url, { method: "PATCH", headers: json, body: JSON.stringify({ caption: "  Rodapé solto  ", annotations: { version: 1, shapes }, taken_by_id: null }) }).then((r) => r.json());
+    expect(ed.data.caption).toBe("Rodapé solto");
+    expect(ed.data.annotations.shapes).toHaveLength(1);
+    expect(ed.data.annotations.shapes[0].id).toBeTruthy();
+    expect(ed.data.taken_by_name).toBe("Admin");
+
+    const cleared = await fetch(url, { method: "PATCH", headers: json, body: JSON.stringify({ caption: "", annotations: null }) }).then((r) => r.json());
+    expect(cleared.data.caption).toBeNull();
+    expect(cleared.data.annotations).toBeNull();
+    const empty = await fetch(url, { method: "PATCH", headers: json, body: JSON.stringify({}) });
+    expect(empty.status).toBe(400);
+  });
 });

@@ -61,6 +61,22 @@
 .cam-add { margin-left: auto; height: 36px; padding: 0 14px; font-size: 13.5px; }
 .cam-split.is-feed { grid-template-columns: minmax(0, 1fr); }
 .cam-split.is-feed .cam-list { display: none; }
+/* quick filters and list order */
+.cam-filters { display: flex; gap: 6px; margin-top: 10px; overflow-x: auto; scrollbar-width: none; }
+.cam-filters::-webkit-scrollbar { display: none; }
+.cam-fchip { flex: none; height: 30px; display: inline-flex; align-items: center; gap: 5px; padding: 0 11px; border: 0; border-radius: 999px; background: #fff; box-shadow: inset 0 0 0 1px var(--cam-line); font: inherit; font-size: 12.5px; font-weight: 600; color: var(--cam-ink2); cursor: pointer; white-space: nowrap; }
+.cam-fchip em { font-style: normal; color: var(--cam-ink3); }
+.cam-fchip.is-hot em { color: var(--cam-deep); }
+.cam-fchip.is-on { background: var(--cam-ink); box-shadow: none; color: #fff; }
+.cam-fchip.is-on em { color: #D0D5DD; }
+@media (hover: hover) and (pointer: fine) { .cam-fchip:not(.is-on):hover { background: #F7F8FA; } }
+.cam-order { display: flex; gap: 14px; margin-top: 10px; font-size: 12px; color: var(--cam-ink2); }
+.cam-order label { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+.cam-order select { appearance: none; -webkit-appearance: none; height: 26px; padding: 0 18px 0 6px; border: 0; border-radius: 7px; background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23667085' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M7 10l5 5 5-5'/%3E%3C/svg%3E") no-repeat right 2px center / 12px; font: inherit; font-size: 12.5px; font-weight: 650; color: var(--cam-ink); cursor: pointer; min-height: 0 !important; box-shadow: none !important; }
+/* the app-wide select style (9px padding, border, white fill) would clip these compact pickers */
+.cam .cam-order select { padding: 0 18px 0 6px !important; border: 0 !important; background-color: transparent !important; line-height: 26px; }
+.cam-order select:focus-visible { outline: 2px solid var(--cam-or); outline-offset: 1px; }
+.cam-link { border: 0; padding: 0; background: none; font: inherit; font-weight: 650; color: var(--cam-deep); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .cam-stats { margin: 0 0 12px; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--cam-ink2); }
 .cam-stats b { font-size: 15px; font-weight: 700; color: var(--cam-ink); margin-right: 2px; }
 .cam-stats b.is-hot { color: var(--cam-deep); }
@@ -126,6 +142,9 @@
 }
 .cam-up__stage svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
 .cam-up__stage.is-on { background: #FDF0E6; box-shadow: inset 0 0 0 2px #E7792C; color: #8F4314; }
+/* "Tirada por": who took the photos when someone else uploads them */
+.cam-up__who { display: flex; align-items: center; gap: 10px; margin-top: 14px; font-size: 13px; font-weight: 600; color: #475467; }
+.cam-up__who select { flex: 1; min-width: 0; height: 44px; padding: 0 12px; border: 0; border-radius: 12px; background: #fff; box-shadow: inset 0 0 0 1px #E5E7EB; font: inherit; font-size: 16px; font-weight: 600; color: #221E1A; }
 .cam-up__go { display: flex; gap: 8px; margin-top: 16px; }
 .cam-up__go button {
   appearance: none; flex: 1; min-height: 52px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 14px; border: 0;
@@ -202,7 +221,9 @@ a.cam-dloc span { text-decoration: underline; text-decoration-color: #F2D9C6; te
 @media (hover: hover) and (pointer: fine) {
   .cam-ph:hover { box-shadow: 0 0 0 2px var(--cam-ink); }
 }
-.cam-ph__st { position: absolute; left: 6px; top: 6px; height: 19px; padding: 0 6px; border-radius: 6px; background: rgba(34, 30, 26, .78); color: #fff; font-size: 10.5px; font-weight: 650; display: inline-flex; align-items: center; }
+.cam-ph__st { position: absolute; left: 6px; top: 6px; height: 19px; padding: 0 6px; border-radius: 6px; background: rgba(34, 30, 26, .78); color: #fff; font-size: 10.5px; font-weight: 650; display: inline-flex; align-items: center; gap: 4px; }
+.cam-ph__st svg { width: 11px; height: 11px; stroke-width: 2.4; }
+.cam-ph__st--ic { padding: 0 5px; }
 .cam-ph__jn { position: absolute; left: 6px; bottom: 6px; max-width: calc(100% - 12px); box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block !important; line-height: 19px; height: 19px; padding: 0 6px; border-radius: 6px; background: rgba(255, 255, 255, .92); color: var(--cam-ink); font-size: 10.5px; font-weight: 650; display: inline-flex; align-items: center; }
 .cam-tag { position: absolute; right: 6px; bottom: 6px; height: 19px; max-width: calc(100% - 12px); box-sizing: border-box; padding: 0 6px; border-radius: 6px; background: rgba(255, 255, 255, .92); color: var(--cam-ink2); font-size: 10.5px; font-weight: 650; display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cam-tag.is-far { color: var(--cam-deep); }
@@ -255,6 +276,11 @@ a.cam-dloc span { text-decoration: underline; text-decoration-color: #F2D9C6; te
   .cam-views button { flex: 1; height: 38px; font-size: 14px; }
   .cam-search input { font-size: 16px; height: 44px !important; background: #fff !important; box-shadow: 0 0 0 1px var(--cam-line) !important; }
   .cam-seg button { height: 38px; font-size: 14px; }
+  .cam-filters { margin: 12px -14px 0; padding: 0 14px; }
+  .cam-fchip { height: 36px; padding: 0 13px; font-size: 13.5px; }
+  .cam-order { margin-top: 8px; }
+  .cam-order select { height: 36px; font-size: 16px; }
+  .cam .cam-order select { line-height: 36px; }
   .cam-rows { padding: 0; }
   .cam-grp { margin: 18px 4px 8px; }
   /* every job is its own card, with or without the swipe wrapper, so the list reads the same for every role */

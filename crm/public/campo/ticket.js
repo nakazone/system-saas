@@ -533,9 +533,12 @@
       stage: row.stage || null,
       caption: row.caption || null,
       taken_at_device: row.takenAtDevice,
+      taken_at_source: row.takenAtSource || null,
       lat: row.lat,
       lng: row.lng,
       gps_accuracy_m: row.gpsAccuracyM,
+      location_source: row.locationSource || null,
+      camera_model: row.cameraModel || null,
       address: row.address || null,
       client_upload_id: row.id,
       device_label: row.deviceLabel || deviceLabel(),
@@ -573,8 +576,12 @@
       toast("Fotos desativadas para esta organização");
       return;
     }
+    // Time, GPS and camera come from the photo itself when it has them (EXIF), before compression drops them.
+    const shot = window.PhotoExif
+      ? await window.PhotoExif.uploadMeta(file, { live: true, deviceGps: getGps })
+      : null;
     const dataUrl = await fileToUploadDataUrl(file);
-    const gps = await getGps();
+    const gps = shot ? (shot.lat != null ? { lat: shot.lat, lng: shot.lng, gpsAccuracyM: shot.gps_accuracy_m } : null) : await getGps();
     const caption = ($("cmPhotoCaption")?.value || "").trim() || null;
     const isPublic = Boolean($("cmPhotoPublic")?.checked);
     const payload = {
@@ -582,10 +589,13 @@
       dataUrl,
       stage: photoStage || null,
       caption,
-      takenAtDevice: new Date().toISOString(),
+      takenAtDevice: shot ? shot.taken_at_device : new Date().toISOString(),
+      takenAtSource: shot ? shot.taken_at_source : null,
       lat: gps?.lat ?? null,
       lng: gps?.lng ?? null,
       gpsAccuracyM: gps?.gpsAccuracyM ?? null,
+      locationSource: shot ? shot.location_source : gps ? "device" : null,
+      cameraModel: shot ? shot.camera_model : null,
       address: ticket?.address || null,
       deviceLabel: deviceLabel(),
       isPublic,

@@ -145,7 +145,7 @@ export function obraCamHtml(html: string): string {
     '<meta name="apple-mobile-web-app-title" content="ObraCam" />',
     '<meta name="apple-mobile-web-app-capable" content="yes" />',
     '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&display=swap" />',
-    '<link rel="stylesheet" href="/obracam-app.css?v=20261104-cam6" />',
+    '<link rel="stylesheet" href="/obracam-app.css?v=20261104-cam8" />',
     "<script>window.__OM_FOCUS_APP=true</script>",
   ].join("\n    ");
   return html
@@ -153,7 +153,7 @@ export function obraCamHtml(html: string): string {
     .replace(/<meta name="theme-color"[^>]*>/i, '<meta name="theme-color" content="#F7F8FA" />')
     .replace(/<link rel="apple-touch-icon"[^>]*>/i, '<link rel="apple-touch-icon" href="/assets/obracam/apple-touch-icon.png?v=1" />')
     .replace(/<\/head>/i, `    ${head}\n</head>`)
-    .replace(/<\/body>/i, '  <script src="/obracam-app.js?v=20261104-cam6"></script>\n</body>');
+    .replace(/<\/body>/i, '  <script src="/obracam-app.js?v=20261104-cam8"></script>\n</body>');
 }
 
 async function sendCrmHtml(req: Request, res: Response, filename: string) {

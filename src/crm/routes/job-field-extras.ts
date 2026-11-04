@@ -8,7 +8,8 @@ import type { AuthedRequest } from "../../middleware/auth.js";
 import { requireCrmAuth, requireCrmPermission, dec } from "../http.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { storage } from "../../lib/storage/index.js";
-import { mapJobMedia, sha256Buffer } from "../../lib/job-media/index.js";
+import { JOB_MEDIA_PEOPLE, mapJobMedia, sha256Buffer } from "../../lib/job-media/index.js";
+import { normalizeAnnotations } from "../../lib/job-media/checklist.js";
 import { photoDistanceFields, resolveJobSiteGeo } from "../../lib/job-media/geo.js";
 import { extractLabelFromImageUrl, isFieldMeasureEnabled } from "../../lib/job-media/ocr.js";
 import { aiTranscribeAudio, aiChatJson, isAiConfigured } from "../../lib/ai/client.js";
@@ -122,6 +123,7 @@ jobFieldExtrasRouter.get(
                 inPortfolio: true,
                 deviceLabel: true,
                 author: { select: { name: true } },
+                takenBy: { select: { name: true } },
               },
             },
             _count: { select: { media: { where: { deletedAt: null } } } },
@@ -159,6 +161,7 @@ jobFieldExtrasRouter.get(
                 in_portfolio: m.inPortfolio,
                 device_label: m.deviceLabel || null,
                 author_name: m.author?.name || null,
+                taken_by_name: m.takenBy?.name || m.author?.name || null,
               };
               return { ...mapped, ...photoDistanceFields(mapped, jobGeo) };
             });
@@ -231,7 +234,7 @@ jobFieldExtrasRouter.get(
           orderBy: [{ createdAt: "desc" }],
           take: 40,
           include: {
-            author: { select: { name: true } },
+            ...JOB_MEDIA_PEOPLE,
             workOrder: { select: { id: true, number: true, title: true, status: true, geoLat: true, geoLng: true } },
           },
         });
@@ -302,6 +305,101 @@ jobFieldExtrasRouter.delete(
   },
 );
 
+/** People a photo can be credited to ("Tirada por"): active users, name only. */
+jobFieldExtrasRouter.get(
+  "/api/job-media/people",
+  requireCrmAuth,
+  requireCrmPermission("work_orders.manage"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const rows = await withTenantTransaction(req.organizationId!, (tx) =>
+        tx.user.findMany({ where: { status: "active" }, select: { id: true, name: true }, orderBy: { name: "asc" }, take: 300 }),
+      );
+      res.json({ success: true, data: rows.map((u) => ({ id: u.id, name: u.name || "" })) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+const mediaEditBody = z
+  .object({
+    caption: z.string().max(500).nullable().optional(),
+    stage: z.enum(["before", "during", "after"]).nullable().optional(),
+    annotations: z.unknown().optional(),
+    taken_by_id: z.string().uuid().nullable().optional(),
+  })
+  .refine((b) => Object.keys(b).length > 0, "Nothing to change");
+
+/** ObraCam edits on one photo: note, stage, markup layer and who took it. The photo file itself never changes. */
+jobFieldExtrasRouter.patch(
+  "/api/work-orders/:jobId/media/:mediaId",
+  requireCrmAuth,
+  requireCrmPermission("work_orders.manage"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const jobId = String(req.params.jobId);
+      const mediaId = String(req.params.mediaId);
+      const body = mediaEditBody.safeParse(req.body || {});
+      if (!body.success) {
+        res.status(400).json({ success: false, error: "Invalid photo changes" });
+        return;
+      }
+      const d = body.data;
+      const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const row = await tx.jobMedia.findFirst({ where: { id: mediaId, workOrderId: jobId, deletedAt: null } });
+        if (!row) throw Object.assign(new Error("Foto não encontrada"), { status: 404 });
+        let takenById: string | null | undefined;
+        if (d.taken_by_id !== undefined) {
+          if (d.taken_by_id === null || d.taken_by_id === row.authorId) takenById = null;
+          else {
+            const u = await tx.user.findFirst({ where: { id: d.taken_by_id }, select: { id: true } });
+            if (!u) throw Object.assign(new Error("Pessoa não encontrada"), { status: 400 });
+            takenById = u.id;
+          }
+        }
+        const caption = d.caption !== undefined ? (d.caption || "").trim() || null : undefined;
+        const annotations =
+          d.annotations !== undefined
+            ? d.annotations === null
+              ? Prisma.DbNull
+              : (normalizeAnnotations(d.annotations) as unknown as Prisma.InputJsonValue)
+            : undefined;
+        const updated = await tx.jobMedia.update({
+          where: { id: row.id },
+          data: { caption, stage: d.stage, annotationsJson: annotations, takenById },
+          include: JOB_MEDIA_PEOPLE,
+        });
+        const changes: Record<string, { from: unknown; to: unknown }> = {};
+        if (caption !== undefined && caption !== (row.caption || null)) changes.caption = { from: row.caption || null, to: caption };
+        if (d.stage !== undefined && d.stage !== (row.stage || null)) changes.stage = { from: row.stage || null, to: d.stage };
+        if (annotations !== undefined) changes.annotations = { from: null, to: d.annotations ? "updated" : "cleared" };
+        if (takenById !== undefined && takenById !== (row.takenById || null)) changes.taken_by = { from: row.takenById || null, to: takenById };
+        if (Object.keys(changes).length) {
+          await recordActivity(tx, {
+            organizationId: req.organizationId!,
+            entityType: "work_order",
+            entityId: jobId,
+            action: "job_media.edited",
+            actorType: "user",
+            actorId: req.user!.id,
+            changes: { media_id: { from: null, to: mediaId }, ...changes },
+          });
+        }
+        return mapJobMedia(updated);
+      });
+      res.json({ success: true, data });
+    } catch (error: unknown) {
+      const err = error as { status?: number; message?: string };
+      if (err?.status) {
+        res.status(err.status).json({ success: false, error: err.message || "Error" });
+        return;
+      }
+      next(error);
+    }
+  },
+);
+
 /** Reclassify a photo (Antes / Durante / Depois, or null for Geral) from ObraCam. */
 jobFieldExtrasRouter.patch(
   "/api/work-orders/:jobId/media/:mediaId/stage",
@@ -324,7 +422,7 @@ jobFieldExtrasRouter.patch(
         const updated = await tx.jobMedia.update({
           where: { id: row.id },
           data: { stage: body.data.stage },
-          include: { author: { select: { id: true, name: true } } },
+          include: JOB_MEDIA_PEOPLE,
         });
         if ((row.stage || null) !== body.data.stage) {
           await recordActivity(tx, {
