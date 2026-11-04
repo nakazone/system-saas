@@ -1,0 +1,351 @@
+/* ObraMate — lista lateral compartilhada (Jobs, Quotes, Invoices, Clientes, Fluxo, ObraCam).
+ *
+ * Uma anatomia só para todo item de lista:
+ *
+ *   [lead]  Título ..................... Valor
+ *           Detalhe (endereço/meta) ...... Data
+ *           [Status] ▬▬▬▬▬ progresso (opcional)
+ *
+ * Carregar DEPOIS do CSS do módulo. As classes ol-* convivem com as do módulo
+ * (jx-row, qs-row…) — o JS dos módulos continua usando as próprias classes.
+ */
+
+:root {
+  --ol-ink: #221E1A;
+  --ol-ink2: #5B6475;      /* 5.9:1 em branco — texto secundário legível */
+  --ol-ink3: #7A8394;      /* 4.0:1 — só para rótulos curtos/maiúsculos */
+  --ol-line: #E5E7EB;
+  --ol-surface: #ffffff;
+  --ol-field: #F1F3F5;
+  --ol-hover: #F6F7F9;
+  --ol-accent: #E7792C;
+  --ol-accent-soft: #FFF4EC;
+  --ol-accent-ring: rgba(231, 121, 44, .38);
+  --ol-hot: #B4561A;
+  --ol-hot-bg: #FDEEE3;
+  --ol-ok: #4A5A3F;
+  --ol-ok-bg: #EDF1E8;
+  --ol-act-bg: #EEF0F3;
+  --ol-w: 360px;
+}
+
+/* ---------- divisão lista | detalhe */
+.ol-split { grid-template-columns: var(--ol-w) minmax(0, 1fr); }
+@media (max-width: 1279px) { .ol-split { --ol-w: 324px; } }
+@media (max-width: 1024px) { .ol-split { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- painel */
+.ol-list:not(.ol-list--bare) {
+  background: var(--ol-surface);
+  border-radius: 20px;
+  box-shadow: 0 0 0 1px var(--ol-line), 0 1px 2px rgba(16, 24, 40, .04);
+  overflow: hidden;
+}
+.ol-list .ol-top {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid var(--ol-line);
+}
+.ol-list .ol-top > * { margin-top: 0 !important; margin-bottom: 0 !important; }
+
+/* busca */
+.ol-list .ol-search input {
+  height: 38px !important;
+  border-radius: 10px !important;
+  background: var(--ol-field) !important;
+  font-size: 13.5px;
+  color: var(--ol-ink);
+}
+.ol-list .ol-search input::placeholder { color: var(--ol-ink3); opacity: 1; }
+.ol-list .ol-search input:focus { background: #fff !important; box-shadow: 0 0 0 1px var(--ol-accent-ring), 0 0 0 4px rgba(231, 121, 44, .12) !important; }
+
+/* filtro rápido: um único controle segmentado em todos os módulos */
+.ol-list .ol-seg {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  margin: 0;
+  border-radius: 10px;
+  background: var(--ol-field);
+  box-shadow: none;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ol-list .ol-seg::-webkit-scrollbar { display: none; }
+.ol-list .ol-seg[hidden] { display: none; }
+.ol-list .ol-seg > button {
+  flex: 1 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 30px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  box-shadow: none;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ol-ink2);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ol-list .ol-seg > button em {
+  font-style: normal;
+  font-weight: 600;
+  font-size: 11.5px;
+  color: var(--ol-ink3);
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+.ol-list .ol-seg > button em:empty { display: none; }
+/* is-active: abas do ObraChat */
+.ol-list .ol-seg > button.is-on,
+.ol-list .ol-seg > button.is-active { background: #fff; color: var(--ol-ink); box-shadow: 0 1px 2px rgba(16, 24, 40, .1); }
+.ol-list .ol-seg > button.is-on em,
+.ol-list .ol-seg > button.is-active em { color: var(--ol-ink2); }
+@media (hover: hover) and (pointer: fine) {
+  .ol-list .ol-seg > button:not(.is-on):not(.is-active):hover { color: var(--ol-ink); }
+}
+
+@media (max-width: 1279px) and (min-width: 1025px) {
+  .ol-list .ol-seg > button { font-size: 12px; padding: 0 4px; }
+  .ol-list .ol-seg > button em { font-size: 11px; }
+}
+
+/* selects compactos (Status / Origem / Agrupar / Ordenar) */
+.ol-list .ol-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; }
+
+/* contagem / linha de resultado */
+.ol-list .ol-count { margin: 0; font-size: 12px; color: var(--ol-ink2); }
+
+/* ---------- linhas */
+.ol-list .ol-rows { padding: 6px 8px 12px; scroll-padding: 8px; }
+
+.ol-list .ol-grp {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 14px 12px 6px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--ol-ink3);
+}
+.ol-list .ol-rows > .ol-grp:first-child,
+.ol-list .ol-rows > :first-child .ol-grp:first-child { margin-top: 8px; }
+.ol-list .ol-grp em { margin-left: auto; font-style: normal; letter-spacing: 0; text-transform: none; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.ol-list .ol-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "lead title value"
+    "lead meta  date"
+    "lead foot  foot";
+  align-items: baseline;
+  row-gap: 3px;
+  column-gap: 0;
+  min-height: 0;
+  margin: 0 0 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: transparent;
+  box-shadow: none;
+  width: 100%;
+  border: 0;
+  font: inherit;
+  text-align: left;
+  color: var(--ol-ink) !important;
+  text-decoration: none !important;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ol-list .ol-row:hover { background: var(--ol-hover); }
+}
+.ol-list .ol-row:focus-visible { outline: 2px solid var(--ol-accent); outline-offset: -2px; }
+.ol-list .ol-row.is-on,
+.ol-list .ol-row.is-on:hover,
+.ol-list .ol-row.is-active,
+.ol-list .ol-row.is-active:hover {
+  background: var(--ol-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--ol-accent-ring);
+}
+
+/* lead: avatar, miniatura, ícone ou checkbox — ocupa as três linhas */
+.ol-list .ol-lead { grid-area: lead; align-self: center; margin: 0 12px 0 0; }
+
+.ol-list .ol-t {
+  grid-area: title;
+  min-width: 0;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: -.005em;
+  color: var(--ol-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ol-list .ol-v {
+  grid-area: value;
+  justify-self: end;
+  padding-left: 12px;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em;
+  white-space: nowrap;
+  color: var(--ol-ink);
+}
+.ol-list .ol-v.is-in { color: var(--ol-ok); }
+.ol-list .ol-v.is-mu { color: var(--ol-ink2); font-weight: 600; }
+
+/* detalhe: uma linha só, com reticências — alturas estáveis */
+.ol-list .ol-m {
+  grid-area: meta;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: var(--ol-ink2);
+}
+.ol-list .ol-m > span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.ol-list .ol-m svg { flex: none; width: 13px; height: 13px; color: var(--ol-ink3); fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; margin: 0; }
+
+.ol-list .ol-d {
+  grid-area: date;
+  justify-self: end;
+  padding-left: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ol-ink2);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.ol-list .ol-d.is-hot { color: var(--ol-hot); }
+
+/* rodapé: status + progresso */
+.ol-list .ol-f {
+  grid-area: foot;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  margin-top: 5px;
+}
+.ol-list .ol-f:empty { display: none; }
+.ol-list .ol-f > .ol-note { min-width: 0; font-size: 12px; color: var(--ol-ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ol-list .ol-f > .ol-note.is-hot { color: var(--ol-hot); font-weight: 600; }
+.ol-list .ol-f > .jx-start { margin-left: auto; }
+
+/* status */
+.ol-st {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+  background: var(--ol-act-bg);
+  color: var(--ol-ink);
+}
+.ol-st::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .9; }
+.ol-st.is-act::before { background: var(--ol-accent); opacity: 1; }
+.ol-st.is-wait { background: var(--ol-act-bg); color: var(--ol-ink2); }
+.ol-st.is-hot { background: var(--ol-hot-bg); color: var(--ol-hot); }
+.ol-st.is-ok { background: var(--ol-ok-bg); color: var(--ol-ok); }
+.ol-st.is-off { background: transparent; color: var(--ol-ink2); box-shadow: inset 0 0 0 1px var(--ol-line); }
+.ol-st.is-off::before { display: none; }
+
+/* progresso: mesmas cores em Jobs e Invoices — feito = laranja, atual = laranja claro */
+.ol-list .ol-f .jx-prog,
+.ol-list .ol-f .ix-prog { flex: 1 1 auto; max-width: 160px; gap: 3px; margin-left: auto; }
+.ol-list .ol-f .jx-prog i,
+.ol-list .ol-f .ix-prog i,
+.ol-list .ol-f .jx-prog i.jx-prog__split b { height: 4px; border-radius: 2px; background: #E7E9ED; }
+.ol-list .ol-f .jx-prog i.jx-prog__split { background: transparent; }
+.ol-list .ol-f .jx-prog i.d,
+.ol-list .ol-f .ix-prog i.d,
+.ol-list .ol-f .jx-prog i.jx-prog__split b.d { background: var(--ol-accent); }
+.ol-list .ol-f .jx-prog i.n,
+.ol-list .ol-f .ix-prog i.n,
+.ol-list .ol-f .jx-prog i.jx-prog__split b.n { background: #F4BE96; }
+.ol-list .ol-f .jx-prog--x,
+.ol-list .ol-f .ix-prog--x { height: 4px; }
+
+/* lead: avatar de cliente / miniatura de foto / ícone de movimento */
+.ol-list .ol-lead.cam-row__th { width: 44px; height: 44px; border-radius: 10px; }
+.ol-list .ol-lead.cx-av { width: 36px; height: 36px; }
+.ol-list .ol-lead.fx-ico { width: 34px; height: 34px; }
+.ol-list .ol-lead.qs-row__merge { align-self: center; }
+
+/* vazio / carregando */
+.ol-list .ol-rows > p:only-child { margin: 28px 12px; text-align: center; font-size: 13px; color: var(--ol-ink2); }
+
+/* ---------- iPad em pé e celular: lista inteira, linhas num cartão só */
+@media (max-width: 1024px) {
+  .ol-list:not(.ol-list--bare) { background: transparent; box-shadow: none; border-radius: 0; overflow: visible; }
+  .ol-list .ol-top { padding: 0 0 10px; border: 0; }
+  .ol-list .ol-search input { height: 42px !important; font-size: 16px; background: #fff !important; box-shadow: 0 0 0 1px var(--ol-line) !important; }
+  .ol-list .ol-seg { background: #fff; box-shadow: 0 0 0 1px var(--ol-line); }
+  .ol-list .ol-seg > button { height: 34px; font-size: 13px; }
+  .ol-list .ol-rows {
+    padding: 4px 6px 6px;
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: 0 0 0 1px var(--ol-line);
+  }
+  .ol-list .ol-rows > p:only-child { margin: 22px 12px; }
+  .ol-list .ol-row,
+  .ol-list .om-swipe .ol-row { padding: 12px 10px; margin: 0; border-radius: 12px; background: transparent; box-shadow: none; }
+  .ol-list .ol-row.is-on { background: var(--ol-accent-soft); box-shadow: inset 0 0 0 1px var(--ol-accent-ring); }
+  .ol-list .ol-rows .om-swipe { margin: 0; border-radius: 12px; background: transparent; box-shadow: none; }
+  .ol-list .ol-rows > .ol-row + .ol-row,
+  .ol-list .ol-rows > .om-swipe + .om-swipe,
+  .ol-list .ol-rows > .jx-rowwrap + .jx-rowwrap { box-shadow: 0 -1px 0 #F0F1F3; }
+  .ol-list .ol-t { font-size: 15px; }
+  .ol-list .ol-v { font-size: 15px; }
+  .ol-list .ol-f .jx-prog,
+  .ol-list .ol-f .ix-prog { max-width: 200px; }
+}
+
+/* grupos sem faixas coloridas: o cabeçalho já separa */
+.ol-list .ol-band { margin: 0; padding: 0; border-radius: 0; background: transparent; box-shadow: none; }
+
+/* No celular, Quotes e Invoices já filtram pelos blocos do topo (com totais): sem filtro repetido na lista. */
+@media (max-width: 760px) {
+  .ol-list .ol-seg--dup { display: none; }
+}
+
+/* ---------- ObraChat: mesma anatomia, com hora e não lidas */
+.ol-list .ol-v.ol-time { font-size: 12px; font-weight: 600; color: var(--ol-ink2); letter-spacing: 0; }
+.ol-list .ol-row.is-unread .ol-t { font-weight: 750; }
+.ol-list .ol-row.is-unread .ol-v.ol-time { color: var(--ol-hot); }
+.ol-list .ol-row.is-unread .ol-note { color: var(--ol-ink); }
+.ol-list .ol-f > .chat-conv__badge,
+.ol-list .ol-f > .chat-conv__muted { flex: none; margin-left: auto; }
+.ol-list .ol-lead.chat-ava { width: 40px; height: 40px; }
+
+/* ---------- Jobs no celular: cada job é um cartão com ações, mesma leitura no topo */
+.ol-list .jmx-card .ol-row { padding: 0; margin: 0; background: transparent !important; box-shadow: none !important; border-radius: 0; }
+.ol-list .jmx-card .ol-row .ol-t { font-size: 15px; }
+.ol-list .jmx-card .ol-row .ol-f .jx-prog { max-width: none; }
+.ol-list .jmx-card .jmx-card__r3 { margin-top: 10px; }

@@ -280,7 +280,7 @@
     return Number.isNaN(d.getTime()) ? null : d;
   }
   function bandHtml(label, rows, tone) {
-    return `<section class="qs-band qs-band--${tone}"><div class="qs-grp"><span>${esc(label)}</span><em>${rows.length}</em></div>${rows.map(rowHtml).join('')}</section>`;
+    return `<section class="qs-band ol-band"><div class="qs-grp ol-grp"><span>${esc(label)}</span><em>${rows.length}</em></div>${rows.map(rowHtml).join('')}</section>`;
   }
   /** Approved quotes: chronological by week (newest first), alternating colors like Jobs. */
   function approvedBandsHtml(rows, startIdx, prefix) {
@@ -467,23 +467,22 @@
     const addr = addressOf(q);
     const mergeOn = (st.mergeIds || []).some((id) => String(id) === String(q.id));
     const showMerge = canMergeQuote(q);
-    return `<a class="qs-row${on ? ' is-on' : ''}${mergeOn ? ' is-merge' : ''}" role="listitem" href="quotes.html?id=${encodeURIComponent(q.id)}" data-id="${esc(q.id)}">
+    const g = groupOf(q);
+    const tone = hot ? 'hot' : g === 'approved' ? 'ok' : g === 'archived' ? 'off' : g === 'draft' ? 'wait' : 'act';
+    const next = rowNext(q);
+    return `<a class="qs-row ol-row${on ? ' is-on' : ''}${mergeOn ? ' is-merge' : ''}" role="listitem" href="quotes.html?id=${encodeURIComponent(q.id)}" data-id="${esc(q.id)}">
       ${
         showMerge
-          ? `<label class="qs-row__merge" title="Selecionar para unificar">
+          ? `<label class="qs-row__merge ol-lead" title="Selecionar para unificar">
               <input type="checkbox" data-qs-merge="${esc(q.id)}"${mergeOn ? ' checked' : ''} />
             </label>`
           : ''
       }
-      <span class="qs-row__b">
-        <span class="qs-row__l1"><b>${esc(clientOf(q))}</b></span>
-        ${addr ? `<span class="qs-row__addr">${PIN}<span>${esc(addr)}</span></span>` : ''}
-      </span>
-      <span class="qs-row__side">
-        <span class="qs-row__amt">${money(q.total_amount ?? q.total)}</span>
-        ${when.text ? `<span class="qs-row__when${when.hot ? ' is-hot' : ''}">${esc(when.text)}</span>` : ''}
-        ${status ? `<span class="qs-row__st${hot ? ' is-hot' : ''}">${esc(status)}</span>` : ''}
-      </span>
+      <b class="ol-t" title="${esc(clientOf(q))}">${esc(clientOf(q))}</b>
+      <span class="ol-v">${money(q.total_amount ?? q.total)}</span>
+      ${addr ? `<span class="ol-m qs-row__addr" title="${esc(addr)}">${PIN}<span>${esc(addr)}</span></span>` : ''}
+      ${when.text ? `<span class="ol-d${when.hot ? ' is-hot' : ''}">${esc(when.text)}</span>` : ''}
+      <span class="ol-f">${status ? `<span class="ol-st is-${tone}">${esc(status)}</span>` : ''}${next && next.text && g !== 'draft' && g !== 'archived' ? `<span class="ol-note${next.hot ? ' is-hot' : ''}">${esc(next.text)}</span>` : ''}</span>
     </a>`;
   }
 

@@ -216,12 +216,13 @@
       sub2 = ago(s.last_activity_at);
     }
     const on = String(c.id) === String(selectedId);
-    return `<a class="cx-row${on ? " is-on" : ""}" role="listitem" href="customers.html?id=${encodeURIComponent(c.id)}" data-id="${esc(c.id)}">
-      ${av(c)}
-      <span class="cx-row__b">
-        <span class="cx-row__l1"><b>${esc(c.display_name || (c.client_code ? `${c.name || "Sem nome"} - ${c.client_code}` : c.name) || "Sem nome")}</b>${right ? `<em>${right}</em>` : ""}</span>
-        <span class="cx-row__l2"><span>${esc(meta.join(" · "))}</span>${sub2 ? `<em class="${hot ? "is-hot" : ""}">${esc(sub2)}</em>` : ""}</span>
-      </span>
+    const name = c.display_name || (c.client_code ? `${c.name || "Sem nome"} - ${c.client_code}` : c.name) || "Sem nome";
+    return `<a class="cx-row ol-row${on ? " is-on" : ""}" role="listitem" href="customers.html?id=${encodeURIComponent(c.id)}" data-id="${esc(c.id)}">
+      ${av(c, "ol-lead")}
+      <b class="ol-t" title="${esc(name)}">${esc(name)}</b>
+      ${right ? `<span class="ol-v" title="Saldo em aberto">${right}</span>` : ""}
+      <span class="ol-m"><span>${esc(meta.join(" · "))}</span></span>
+      ${sub2 ? `<span class="ol-d${hot ? " is-hot" : ""}">${esc(sub2)}</span>` : ""}
     </a>`;
   }
 
@@ -248,8 +249,8 @@
     withBal.sort((a, b) => (Number(st(b).overdue_balance) || 0) - (Number(st(a).overdue_balance) || 0) || (Number(st(b).open_balance) || 0) - (Number(st(a).open_balance) || 0));
     rest.sort((a, b) => new Date(st(b).last_activity_at || b.created_at || 0) - new Date(st(a).last_activity_at || a.created_at || 0));
     let html = "";
-    if (withBal.length) html += `<p class="cx-grp">Com saldo</p>` + withBal.map(rowHtml).join("");
-    if (rest.length) html += (withBal.length ? `<p class="cx-grp">Atividade recente</p>` : "") + rest.map(rowHtml).join("");
+    if (withBal.length) html += `<p class="cx-grp ol-grp">Com saldo<em>${withBal.length}</em></p>` + withBal.map(rowHtml).join("");
+    if (rest.length) html += (withBal.length ? `<p class="cx-grp ol-grp">Atividade recente<em>${rest.length}</em></p>` : "") + rest.map(rowHtml).join("");
     host.innerHTML = html;
   }
 

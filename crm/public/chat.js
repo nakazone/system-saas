@@ -189,6 +189,14 @@
   }
 
   // —— List ——
+  /** Selo de status no padrão das listas (crm-list.css). */
+  function jobStatusBadge(status) {
+    const label = jobStatusLabel(status);
+    if (!label) return "";
+    const tone = { in_progress: "act", completed: "ok", canceled: "off" }[status] || "wait";
+    return `<span class="ol-st is-${tone}">${escapeHtml(label)}</span>`;
+  }
+
   function jobStatusLabel(status) {
     const map = {
       draft: "Rascunho",
@@ -332,21 +340,17 @@
           ? `${(c.members || []).length} membros`
           : "Direta";
     const muted = c.muted && !unread ? `<span class="chat-conv__muted" title="Silenciada">${SVG.mute}</span>` : "";
-    return `<button type="button" class="chat-conv${active}${unread ? " is-unread" : ""}${
+    const time = fmtTime(c.last_message?.created_at || c.updated_at);
+    const lead = convAvatarHtml(c).replace('class="chat-ava', 'class="ol-lead chat-ava');
+    const st = c.type === "job" && c.work_order?.status ? jobStatusBadge(c.work_order.status) : "";
+    return `<button type="button" class="chat-conv ol-row${active}${unread ? " is-unread" : ""}${
       c.type === "job" ? " chat-conv--job" : ""
     }" data-id="${c.id}">
-      ${convAvatarHtml(c)}
-      <span class="chat-conv__body">
-        <span class="chat-conv__top">
-          <span class="chat-conv__title">${escapeHtml(company)}</span>
-          <span class="chat-conv__time">${fmtTime(c.last_message?.created_at || c.updated_at)}</span>
-        </span>
-        ${sub ? `<span class="chat-conv__addr">${escapeHtml(sub)}</span>` : ""}
-        <span class="chat-conv__bottom">
-          <span class="chat-conv__preview">${escapeHtml(String(preview || "").slice(0, 100))}</span>
-          ${badge}${muted}
-        </span>
-      </span>
+      ${lead}
+      <b class="ol-t" title="${escapeHtml(company)}">${escapeHtml(company)}</b>
+      ${time ? `<span class="ol-v ol-time">${escapeHtml(time)}</span>` : ""}
+      ${sub ? `<span class="ol-m"><span title="${escapeHtml(sub)}">${escapeHtml(sub)}</span></span>` : ""}
+      <span class="ol-f">${st}<span class="ol-note">${escapeHtml(String(preview || "").slice(0, 100))}</span>${badge}${muted}</span>
     </button>`;
   }
 
@@ -368,25 +372,14 @@
       ? fmtTime(job.last_message.created_at)
       : fmtJobSchedule(job.scheduled_start);
     const status = jobStatusLabel(job.status);
-    return `<button type="button" class="chat-conv chat-conv--job${active}${unread ? " is-unread" : ""}" data-work-order-id="${escapeHtml(
+    return `<button type="button" class="chat-conv chat-conv--job ol-row${active}${unread ? " is-unread" : ""}" data-work-order-id="${escapeHtml(
       job.id,
     )}"${job.conversation_id ? ` data-id="${escapeHtml(job.conversation_id)}"` : ""}>
-      <span class="chat-ava chat-ava--job" aria-hidden="true">${SVG.building}</span>
-      <span class="chat-conv__body">
-        <span class="chat-conv__top">
-          <span class="chat-conv__title">${escapeHtml(company)}</span>
-          <span class="chat-conv__time">${escapeHtml(time)}</span>
-        </span>
-        ${
-          addr || status
-            ? `<span class="chat-conv__addr">${escapeHtml([status, addr].filter(Boolean).join(" · "))}</span>`
-            : ""
-        }
-        <span class="chat-conv__bottom">
-          <span class="chat-conv__preview">${escapeHtml(String(preview || "").slice(0, 100))}</span>
-          ${badge}
-        </span>
-      </span>
+      <span class="ol-lead chat-ava chat-ava--job" aria-hidden="true">${SVG.building}</span>
+      <b class="ol-t" title="${escapeHtml(company)}">${escapeHtml(company)}</b>
+      ${time ? `<span class="ol-v ol-time">${escapeHtml(time)}</span>` : ""}
+      ${addr ? `<span class="ol-m"><span title="${escapeHtml(addr)}">${escapeHtml(addr)}</span></span>` : ""}
+      <span class="ol-f">${status ? jobStatusBadge(job.status) : ""}<span class="ol-note">${escapeHtml(String(preview || "").slice(0, 100))}</span>${badge}</span>
     </button>`;
   }
 
@@ -413,7 +406,7 @@
     empty.hidden = true;
     root.hidden = false;
     const label = state.jobStatus === "completed" ? "Finalizados" : "Em andamento";
-    root.innerHTML = `<p class="chat-section">${label}</p>${state.jobs.map(jobRowHtml).join("")}`;
+    root.innerHTML = `<p class="chat-section ol-grp">${label}</p>${state.jobs.map(jobRowHtml).join("")}`;
   }
 
   function renderList() {
@@ -448,7 +441,7 @@
         .map(([type, label]) => {
           const part = rows.filter((c) => (type === "dm" ? c.type !== "job" && c.type !== "group" : c.type === type));
           if (!part.length) return "";
-          return `<p class="chat-section">${label}</p>${part.map(convRowHtml).join("")}`;
+          return `<p class="chat-section ol-grp">${label}</p>${part.map(convRowHtml).join("")}`;
         })
         .join("");
       return;

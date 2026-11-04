@@ -350,8 +350,23 @@
     return out;
   }
 
+  /**
+   * Tom do selo de status na lista lateral (crm-list.css .ol-st.is-*).
+   * hot = precisa de ação (atrasado, sem data); act = em andamento; ok = fechado; off = cancelado.
+   */
+  function stageTone(wo) {
+    if (!wo) return "wait";
+    if (wo.status === "canceled") return "off";
+    if (late(wo)) return "hot";
+    const label = stageLabel(wo);
+    if (label === "Sem data") return "hot";
+    if (label === "Em campo" || label === "Lixa") return "act";
+    if (label === "Concluído" || label === "Faturado" || label === "Pago") return "ok";
+    return "wait";
+  }
+
   window.JobsInfo = {
-    esc, money, money0, client, builderName, findLine, searchText, displayName, isActive, late, step, STEP_NAMES, STATUS_BY_STEP, STATUS_STEP_MSG,
+    esc, stageTone, money, money0, client, builderName, findLine, searchText, displayName, isActive, late, step, STEP_NAMES, STATUS_BY_STEP, STATUS_STEP_MSG,
     statusForStep, atStatus, stageLabel, progHtml, sectorProgress, nextFinish, fieldHalves, bill, dateRange, listWhen, listAnchorIso, awaitingSand, dayShort, completeLabel, compareNearest, startMs, isToday, initials, team,
   };
 })();
