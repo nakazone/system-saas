@@ -27,7 +27,7 @@ import { ensureWorkOrderOnApprove } from "../../lib/work-orders/from-quote.js";
 import { cancelPendingMessages } from "../../lib/automations/schedule.js";
 import { moveLeadForQuoteEvent } from "../../lib/pipeline/move.js";
 import { formatPersonName } from "../../lib/name.js";
-import { buildFieldQuoteTour, quoteShowers, tourDeposit, type Tour } from "../../lib/field-quote/tour.js";
+import { buildFieldQuoteTour, quoteShowers, quoteTops, tourDeposit, type Tour } from "../../lib/field-quote/tour.js";
 import { publishAppNotification, quoteLabel, usd } from "../../lib/notifications/publish.js";
 import { primaryPack } from "../../lib/trades/index.js";
 
@@ -156,8 +156,9 @@ async function loadPublicTour(
       taxRate: quote.taxRate ?? 0,
       schedule: quote.paymentSchedule,
       showers: quoteShowers(quote.payload),
+        tops: quoteTops(quote.payload),
     });
-    return tour.rooms.length || tour.showers.length ? tour : null;
+    return tour.rooms.length || tour.showers.length || tour.tops ? tour : null;
   } catch {
     return null;
   }

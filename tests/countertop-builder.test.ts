@@ -112,3 +112,46 @@ describe("the countertop builder on screen", () => {
     expect(O.html({ data: { tops: { pieces: [] } } })).toContain("Ninguna encimera medida");
   });
 });
+
+describe("the server computes the same countertop numbers as the builder", () => {
+  it("topsQuantities matches ObTops.quantities", async () => {
+    const { topsQuantities, normalizeTops } = await import("../src/lib/trades/packs/countertops/tops.js");
+    const O = load();
+    const cases = [
+      kitchen,
+      { spec: { thickness: "2 cm", splash: "full", full_h: 18, edge: "mitered" }, pieces: [{ id: "a", kind: "run", length: 150, depth: 25.5, overhang: 8, sink: "farmhouse" }] },
+      { spec: { splash: "none" }, pieces: [{ id: "v", kind: "vanity" }, { id: "i", kind: "island", length: 999, waterfall: { left: true, right: true } }] },
+    ];
+    for (const c of cases) {
+      expect(topsQuantities(c)).toEqual(O.quantities(c));
+      expect(normalizeTops(c)).toEqual(O.normalize(c));
+    }
+  });
+});
+
+describe("client tour of a countertops quote", () => {
+  it("brings the tops, each with its own top line and a share of the rest", async () => {
+    const { buildFieldQuoteTour } = await import("../src/lib/field-quote/tour.js");
+    const O = load();
+    const lines = O.quoteLines(kitchen).map((l: any) => ({ name: l.name, description: l.description, quantity: l.quantity, unit: l.unit, amount: Math.round(l.quantity * (O.PRICE_ITEMS[l.item].rate) * 100) / 100, meta: { top_key: l.key } }));
+    const total = lines.reduce((a: number, l: any) => a + l.amount, 0);
+    const tour = buildFieldQuoteTour({ data: {}, clientName: "Laura Bennett", companyName: "Summit Stone Tops", quoteNumber: "Q-1003", total, lines, tops: kitchen });
+    expect(tour.rooms).toEqual([]);
+    expect(tour.tops).not.toBeNull();
+    const t = tour.tops!;
+    expect(t).toMatchObject({ sf: 70.8, edge_lf: 30.5, seams: 0, slabs: 2, waterfalls: 1, supports: 3, edge_label: "Eased edge", splash_label: '4" backsplash' });
+    expect(t.pieces.map((p) => p.name)).toEqual(["Sink wall", "Island"]);
+    // Every dollar lands on a top: own top line + the shared lines by square feet.
+    expect(Math.abs(t.pieces.reduce((a, p) => a + p.price, 0) - total)).toBeLessThanOrEqual(1);
+    expect(t.cutouts).toEqual([{ label: "Undermount sink", qty: 1 }, { label: "Cooktop", qty: 1 }, { label: "Faucet holes", qty: 1 }]);
+    expect(tour.categories.map((c) => c.label)).toEqual(expect.arrayContaining(["Countertops", "Edges", "Sink, cooktop & cutouts", "Backsplash", "Supports & removal"]));
+    expect(tour.sqft).toBe(70.8);
+    expect(tour.details).toEqual([]);
+  });
+
+  it("a flooring visit has no tops", async () => {
+    const { buildFieldQuoteTour } = await import("../src/lib/field-quote/tour.js");
+    const tour = buildFieldQuoteTour({ data: { rooms: [{ label: "Living", l_ft: 12, w_ft: 10 }] }, clientName: "A", companyName: "B", quoteNumber: "1", total: 100, lines: [{ name: "LVP installation", quantity: 120, unit: "sq_ft", amount: 100 }] });
+    expect(tour.tops).toBeNull();
+  });
+});

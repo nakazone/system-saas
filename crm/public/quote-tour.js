@@ -11,6 +11,10 @@
  * Tile visits bring showers (tour.showers): the tour draws each one unfolded — side walls,
  * back wall, floor and curb — and walks the client through it: measured, sealed and
  * flood-tested, then tiled with the niche, bench and trim.
+ *
+ * Countertops visits bring tops (tour.tops): each piece drawn from above, to scale — templated,
+ * laid out on the slab and fabricated (polished edges, seams), then installed with the sink,
+ * cooktop and backsplash.
  */
 (function () {
   'use strict';
@@ -78,6 +82,7 @@
 
   const showersOf = (t) => (Array.isArray(t.showers) ? t.showers : []);
   const roomsOf = (t) => (Array.isArray(t.rooms) ? t.rooms : []);
+  const topsOf = (t) => (t.tops && Array.isArray(t.tops.pieces) && t.tops.pieces.length ? t.tops : null);
 
   function stepsFor(t) {
     const sh = showersOf(t).length;
@@ -86,6 +91,11 @@
       s.push({ id: 'shower', name: sh > 1 ? 'Your showers' : 'Your shower' });
       s.push({ id: 'shower_wp', name: 'Sealed & tested' });
       s.push({ id: 'shower_tile', name: 'Tile & details' });
+    }
+    if (topsOf(t)) {
+      s.push({ id: 'tops', name: topsOf(t).pieces.length > 1 ? 'Your countertops' : 'Your countertop' });
+      s.push({ id: 'tops_fab', name: 'Templated & fabricated' });
+      s.push({ id: 'tops_install', name: 'Installed' });
     }
     if (t.removal) s.push({ id: 'removal', name: 'Out with the old' });
     if (t.floor) s.push({ id: 'floor', name: 'Your new floor' });
@@ -114,8 +124,20 @@
     return `Then the tile goes in${s.wall_tile ? `: ${s.wall_tile} on the walls` : ''}${s.floor_tile ? ` and ${s.floor_tile} on the floor` : ''}${s.niches ? ', with the niche' : ''}${s.bench ? ' and the bench' : ''}, finished with clean edges.`;
   }
 
+  const SINK_SAY = { undermount: 'undermount sink', farmhouse: 'farmhouse sink', dropin: 'drop-in sink' };
+  function sayTops(t, id) {
+    const c = topsOf(t);
+    const n = c.pieces.length;
+    const stone = [c.color, c.material].filter(Boolean).join(' ');
+    if (id === 'tops') return `${roomsOf(t).length || showersOf(t).length ? 'And' : `Hi ${t.client_first}! Here are`} your ${n > 1 ? `${n} countertops` : 'countertop'} in ${stone || 'your stone'}, about ${fmt(c.sf)} square feet, measured on site.`;
+    if (id === 'tops_fab') return `Once your cabinets are set, we template every top digitally, lay the pieces out on your slab for you to approve${c.seams ? ', seams included' : ''}, then cut and polish the ${c.edge_label.toLowerCase()}.`;
+    const sinks = c.pieces.filter((p) => p.sink !== 'none').length;
+    return `On install day the tops go in${sinks ? `, the ${sinks > 1 ? 'sinks are' : SINK_SAY[c.pieces.find((p) => p.sink !== 'none').sink] + ' is'} mounted` : ''}${c.splash !== 'none' ? ' and the backsplash goes on' : ''}. We give the silicone a day to cure before reconnecting the plumbing.`;
+  }
+
   function sayFor(t, id) {
     if (id.startsWith('shower')) return sayShower(t, id);
+    if (id.startsWith('tops')) return sayTops(t, id);
     const rooms = t.rooms.length;
     if (id === 'home') return `Hi ${t.client_first}! Here is your home as we measured it: ${rooms} room${rooms === 1 ? '' : 's'}${t.stairs ? ' and the stairs' : ''}, about ${fmt(t.sqft)} square feet.`;
     if (id === 'removal') return `First we take out the ${t.removal.existing.length ? t.removal.existing.join(' and ') : 'old flooring'} and clear it away.`;
@@ -247,8 +269,109 @@
     return `<div class="qt-shower" style="--r:${r};aspect-ratio:${r}"><svg viewBox="${vb}" width="100%" height="100%" role="img" aria-label="${esc(s.name)}, unfolded"><defs>${defs}</defs>${g}</svg>${['invest', 'approve'].includes(id) ? `<span class="qt-tag" style="left:50%;top:${((H + D / 2 + pad) / (TH + pad * 2)) * 100}%">${id === 'approve' ? '✓ ' : ''}${money(s.price)}</span>` : ''}</div>`;
   }
 
+  /**
+   * The countertops from above, to scale, in inches: wall runs and vanities on the first row(s),
+   * islands below. Layers by step: the stone (measured), polished edges + seams + waterfalls
+   * (fabricated), sink + cooktop + backsplash (installed), prices (investment).
+   */
+  function topsSvg(c, id) {
+    const G = 18;
+    const deep = (p) => p.depth + p.overhang;
+    const order = c.pieces.map((p, i) => ({ p, i })).sort((a, b) => (a.p.kind === 'island') - (b.p.kind === 'island'));
+    const rowW = Math.max(150, ...c.pieces.map((p) => p.length + (p.waterfall.left || p.waterfall.right ? 6 : 0)));
+    let x = 0, y = 0, rowH = 0, prevIsland = null;
+    const at = [];
+    order.forEach(({ p, i }) => {
+      const isl = p.kind === 'island';
+      if ((x > 0 && x + p.length > rowW + 0.01) || (prevIsland !== null && prevIsland !== isl && x > 0)) {
+        y += rowH + G + 14;
+        x = 0;
+        rowH = 0;
+      }
+      at[i] = { x, y };
+      x += p.length + G;
+      rowH = Math.max(rowH, deep(p));
+      prevIsland = isl;
+    });
+    const TW = Math.max(...c.pieces.map((p, i) => at[i].x + p.length), 40);
+    const TH = y + rowH + 14 + (['invest', 'approve'].includes(id) ? 8 : 0);
+    const pad = Math.max(10, TW * 0.05);
+    const fs = Math.max(5, Math.min(TW / 24, 9));
+    const fab = ['tops_fab', 'tops_install', 'invest', 'approve'].includes(id);
+    const inst = ['tops_install', 'invest', 'approve'].includes(id);
+    const anim = (name, delay) => (reduce() ? '' : ` style="animation:${name} 1s cubic-bezier(.2,.7,.2,1) ${delay}s both"`);
+    const defs = '<pattern id="qtStone" width="90" height="60" patternUnits="userSpaceOnUse"><rect width="90" height="60" fill="#F2EFEA"/><path d="M-5 48C18 30 30 52 52 30S80 18 96 8" stroke="#D2CCC3" stroke-width="1.1" fill="none"/><path d="M-4 12C12 20 26 6 44 16S70 40 94 34" stroke="#E0DBD3" stroke-width="0.7" fill="none"/></pattern>' +
+      '<pattern id="qtWf" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="4" height="4" fill="#F2EFEA"/><path d="M0 0V4" stroke="#E7792C" stroke-width="1"/></pattern>';
+    let g = '';
+    const tags = [];
+    order.forEach(({ p, i }, k) => {
+      const ox = at[i].x, oy = at[i].y, w = p.length, h = deep(p), cab = p.depth;
+      const d = (0.12 * k).toFixed(2);
+      g += `<rect x="${ox}" y="${oy}" width="${w}" height="${h}" fill="#fff"/>`;
+      g += `<g${anim('qt-sweep', d)}><rect x="${ox}" y="${oy}" width="${w}" height="${h}" fill="url(#qtStone)"/></g>`;
+      g += `<rect x="${ox}" y="${oy}" width="${w}" height="${h}" fill="none" stroke="#221E1A" stroke-width="0.6"/>`;
+      if (p.overhang) g += `<line x1="${ox}" y1="${oy + cab}" x2="${ox + w}" y2="${oy + cab}" stroke="#98A2B3" stroke-width="0.6" stroke-dasharray="3 3"/>`;
+      if (inst && c.splash !== 'none') {
+        const t2 = 2.5;
+        if (p.splash.back) g += `<rect x="${ox}" y="${oy - t2}" width="${w}" height="${t2}" fill="#221E1A"${id === 'tops_install' ? anim('qt-sweep', 1.1) : ''}/>`;
+        if (p.splash.left) g += `<rect x="${ox - t2}" y="${oy}" width="${t2}" height="${cab}" fill="#221E1A"/>`;
+        if (p.splash.right) g += `<rect x="${ox + w}" y="${oy}" width="${t2}" height="${cab}" fill="#221E1A"/>`;
+      }
+      if (fab) {
+        const e = (x1, y1, x2, y2, dl) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#E7792C" stroke-width="1.6" stroke-linecap="round"${id === 'tops_fab' ? anim('qt-pop', 0.5 + dl) : ''}/>`;
+        if (p.edges.front) g += e(ox, oy + h, ox + w, oy + h, 0);
+        if (p.edges.back) g += e(ox, oy, ox + w, oy, 0.1);
+        if (p.edges.left && !p.waterfall.left) g += e(ox, oy, ox, oy + h, 0.2);
+        if (p.edges.right && !p.waterfall.right) g += e(ox + w, oy, ox + w, oy + h, 0.2);
+        if (p.waterfall.left) g += `<rect x="${ox - 5}" y="${oy}" width="4" height="${h}" fill="url(#qtWf)" stroke="#E7792C" stroke-width="0.8"/>`;
+        if (p.waterfall.right) g += `<rect x="${ox + w + 1}" y="${oy}" width="4" height="${h}" fill="url(#qtWf)" stroke="#E7792C" stroke-width="0.8"/>`;
+      }
+      // sink, cooktop and holes
+      const midY = oy + Math.min(cab, h) / 2;
+      const sw = p.sink === 'farmhouse' ? 33 : p.kind === 'vanity' ? 19 : 30, sd = p.kind === 'vanity' ? 15 : 18;
+      const sx = ox + (p.cooktop ? w * 0.28 : w / 2) - sw / 2;
+      const keep = [];
+      if (p.sink !== 'none') {
+        keep.push([sx, sx + sw]);
+        if (inst || fab) {
+          const sy = p.sink === 'farmhouse' ? oy + h - sd : midY - sd / 2 + 2;
+          g += `<rect x="${sx}" y="${sy}" width="${sw}" height="${sd}" rx="${p.sink === 'dropin' ? 2 : 4}" fill="${inst ? '#fff' : 'none'}" stroke="#221E1A" stroke-width="${inst ? 0.9 : 0.6}"${inst ? '' : ' stroke-dasharray="2 2"'}${id === 'tops_install' ? anim('qt-pop', 0.5) : ''}/>`;
+          if (inst) for (let j = 0; j < p.faucet_holes; j++) g += `<circle cx="${sx + sw / 2 + (j - (p.faucet_holes - 1) / 2) * 3.2}" cy="${sy - 2.4}" r="0.9" fill="#221E1A"/>`;
+        }
+      }
+      if (p.cooktop) {
+        const cw = 30, cd = 20, cx = ox + w * (p.sink !== 'none' ? 0.72 : 0.5) - cw / 2, cy = midY - cd / 2;
+        keep.push([cx, cx + cw]);
+        if (inst || fab) {
+          g += `<rect x="${cx}" y="${cy}" width="${cw}" height="${cd}" rx="1.5" fill="${inst ? '#2B2724' : 'none'}" stroke="#221E1A" stroke-width="0.7"${inst ? '' : ' stroke-dasharray="2 2"'}${id === 'tops_install' ? anim('qt-pop', 0.7) : ''}/>`;
+          if (inst) [[0.28, 0.32], [0.72, 0.32], [0.28, 0.7], [0.72, 0.7]].forEach(([a, b]) => (g += `<circle cx="${cx + cw * a}" cy="${cy + cd * b}" r="3.2" fill="none" stroke="#8A817A" stroke-width="0.6"/>`));
+        }
+      }
+      if (fab) {
+        for (let j = 1; j <= p.seams; j++) {
+          let sx2 = ox + (w * j) / (p.seams + 1);
+          keep.forEach(([a, b]) => {
+            if (sx2 > a - 3 && sx2 < b + 3) sx2 = b + 4 < ox + w - 6 ? b + 4 : a - 4;
+          });
+          g += `<line x1="${sx2}" y1="${oy}" x2="${sx2}" y2="${oy + h}" stroke="#536249" stroke-width="0.9" stroke-dasharray="3 2"${id === 'tops_fab' ? anim('qt-pop', 0.9) : ''}/>`;
+        }
+      }
+      // name and size under the piece
+      g += `<text x="${ox + w / 2}" y="${oy + h + fs * 1.3}" font-size="${fs}" font-weight="700" text-anchor="middle" fill="#221E1A">${esc(p.name)}</text>`;
+      if (id === 'tops') g += `<text x="${ox + w / 2}" y="${oy + h + fs * 2.4}" font-size="${fs * 0.8}" text-anchor="middle" fill="#475467">${fmt(p.length)}″ × ${fmt(h)}″ · ${fmt(p.sf)} sq ft</text>`;
+      // the price goes under the name, clear of the sink and cooktop
+      if (['invest', 'approve'].includes(id)) tags.push({ x: ox + w / 2, y: oy + h + fs * 2.9, price: p.price });
+    });
+    const vbH = TH + pad * 2 + fs * 1.2;
+    const vb = `${-pad} ${-pad} ${TW + pad * 2} ${vbH}`;
+    const r = ((TW + pad * 2) / vbH).toFixed(4);
+    const tagHtml = tags.map((tg) => `<span class="qt-tag" style="left:${((tg.x + pad) / (TW + pad * 2)) * 100}%;top:${((tg.y + pad) / vbH) * 100}%">${id === 'approve' ? '✓ ' : ''}${money(tg.price)}</span>`).join('');
+    return `<div class="qt-shower qt-tops" style="--r:${r};aspect-ratio:${r}"><svg viewBox="${vb}" width="100%" height="100%" role="img" aria-label="Your countertops, from above"><defs>${defs}</defs>${g}</svg>${tagHtml}</div>`;
+  }
+
   function stageHtml(id) {
     const t = view();
+    if (id.startsWith('tops') || (!roomsOf(t).length && !showersOf(t).length && topsOf(t))) return topsSvg(topsOf(t), id);
     if (id.startsWith('shower') || (!roomsOf(t).length && showersOf(t).length)) return showerSvg(curShower(t), id);
     const L = layout(t);
     const order = (r) => (L.rooms.indexOf(r) * 0.16).toFixed(2);
@@ -313,9 +436,33 @@
       <p class="qt-p qt-mut">Grout, and flexible caulk where walls meet, are part of the job.</p>`;
   }
 
+  function topsPanel(t, id) {
+    const c = topsOf(t);
+    const li = (a, b, k) => `<div class="qt-li" style="animation-delay:${(0.15 + (k || 0) * 0.2).toFixed(2)}s"><span>${esc(a)}</span><b>${esc(b)}</b></div>`;
+    const stone = [c.material, c.color].filter(Boolean).join(' · ');
+    if (id === 'tops') {
+      return `<p class="qt-p">${esc(stone || 'Your stone')}, ${esc(c.thickness)} thick — every top measured on site and drawn to scale.</p>
+        <div class="qt-big"><b>${fmt(c.sf)}</b><span>sq ft of countertop</span></div>
+        <div class="qt-list">${c.pieces.map((p, k) => li(p.name, `${fmt(p.length)}″ × ${fmt(p.depth + p.overhang)}″${p.overhang ? ` · ${fmt(p.overhang)}″ overhang` : ''}`, k)).join('')}</div>
+        <p class="qt-p qt-mut">A dashed line marks the cabinet line under a bar overhang.</p>`;
+    }
+    if (id === 'tops_fab') {
+      return `<p class="qt-p">After your cabinets are set, we make a digital template of every top. You approve the layout on your slab — where the seams fall and how the veins run — before we cut.</p>
+        <div class="qt-list">${li('Edge profile', `${c.edge_label} · ${fmt(c.edge_lf)} ft`, 0)}${c.waterfalls ? li('Waterfall', `${c.waterfalls} side${c.waterfalls > 1 ? 's' : ''}`, 1) : ''}${li('Seams', c.seams ? `${c.seams}, placed with you` : 'None expected', 2)}${li('Slabs', `About ${c.slabs}`, 3)}</div>
+        <p class="qt-p qt-mut">Orange lines are the polished edges; green dashes, the seams. Final seams are set at the template.</p>`;
+    }
+    if (id === 'tops_install') {
+      return `<p class="qt-p">Install day: the tops are set and leveled, ${c.supports ? 'the overhang supported, ' : ''}the sink mounted and sealed, and the silicone cures for a day before the plumbing is reconnected.</p>
+        <div class="qt-list">${c.cutouts.map((x, k) => li(x.label, String(x.qty), k)).join('')}${li('Backsplash', c.splash_label, c.cutouts.length)}${c.tearout ? li('Old countertops', 'Removed and hauled away', c.cutouts.length + 1) : ''}</div>
+        ${c.price ? `<div class="qt-li qt-li--hl"><span>${c.pieces.length > 1 ? 'Your countertops' : 'Your countertop'}</span><b>${money(c.price, true)}</b></div>` : ''}`;
+    }
+    return '';
+  }
+
   function panelHtml(id) {
     const t = view();
     if (id.startsWith('shower')) return showerPanel(t, id);
+    if (id.startsWith('tops')) return topsPanel(t, id);
     if (id === 'home') return `<p class="qt-p">We measured every room, ${t.stairs ? 'and the stairs, ' : ''}so the numbers you see are for your home.</p><div class="qt-big"><b>${fmt(t.sqft)}</b><span>sq ft${t.stairs ? ` + ${t.stairs} stair treads` : ''}</span></div>`;
     if (id === 'removal') return `<p class="qt-p">We remove the ${esc(t.removal.existing.join(', ') || 'old flooring')} from ${t.rooms.length === 1 ? 'the room' : 'every room in the scope'} and leave the subfloor clean and ready.</p>${t.categories.some((c) => c.label === 'Haul away') ? '<p class="qt-p">Everything we take out is hauled away.</p>' : ''}`;
     if (id === 'floor') return optionPicker(t) ? `${optionPicker(t)}<h3 class="qt-h3">${esc(t.floor.label)}</h3><p class="qt-p">${esc(t.floor.note)}</p><p class="qt-p qt-mut">Tap an option to see it in your home.</p>` : `<div class="qt-swatch ${texture(t, true)}" aria-hidden="true"></div><h3 class="qt-h3">${esc(t.floor.label)}</h3><p class="qt-p">${esc(t.floor.note)}</p>`;
@@ -370,7 +517,7 @@
         </div>
       </header>
       <nav class="qt-steps" aria-label="Proposal steps">${steps.map((s, k) => `<button type="button" class="qt-step${k === state.i ? ' is-on' : k < state.i ? ' is-done' : ''}" data-qt-go="${k}"><span class="qt-step__n">${k < state.i ? '✓' : k + 1}</span><span class="qt-step__name">${esc(s.name)}</span></button>`).join('')}</nav>
-      <main class="qt-stage" aria-label="${roomsOf(t).length ? 'Your home' : 'Your shower'}">${stageHtml(st.id)}${state.narr ? `<p class="qt-say"><span class="qt-mate" aria-hidden="true"><img src="/assets/img/mascot/mate-head-talking.webp?v=20261027-m2" alt="" width="40" height="40"></span>${esc(say)}</p>` : ''}</main>
+      <main class="qt-stage" aria-label="${roomsOf(t).length ? 'Your home' : showersOf(t).length ? 'Your shower' : 'Your countertops'}">${stageHtml(st.id)}${state.narr ? `<p class="qt-say"><span class="qt-mate" aria-hidden="true"><img src="/assets/img/mascot/mate-head-talking.webp?v=20261027-m2" alt="" width="40" height="40"></span>${esc(say)}</p>` : ''}</main>
       <section class="qt-panel" aria-live="polite">
         <span class="qt-kicker">STEP ${state.i + 1} OF ${steps.length}</span>
         <h2 class="qt-h2">${esc(st.name)}</h2>
@@ -451,7 +598,7 @@
   }
 
   function open(tour, opts) {
-    if (!tour || (!roomsOf(tour).length && !showersOf(tour).length)) return false;
+    if (!tour || (!roomsOf(tour).length && !showersOf(tour).length && !topsOf(tour))) return false;
     close();
     state.t = tour;
     state.opts = opts || {};

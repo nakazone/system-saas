@@ -7,6 +7,7 @@
  */
 
 import { SHAPE_INFO, showerQuantities, showerSchema, wallsOf } from "../trades/packs/tile/shower.js";
+import { normalizeTops, pieceQuantities, topsQuantities } from "../trades/packs/countertops/tops.js";
 
 type Num = number | string | { toString(): string } | null | undefined;
 
@@ -41,6 +42,8 @@ export type TourInput = {
   schedule?: unknown;
   /** The quote's own showers (payload.showers, edited in the quote editor); win over the visit's. */
   showers?: unknown;
+  /** The quote's own countertops (payload.tops, edited in the quote editor); win over the visit's. */
+  tops?: unknown;
 };
 
 export type TourOption = {
@@ -87,6 +90,43 @@ export type TourShower = {
   price: number;
 };
 
+/** Countertops from the visit (Field Quote → Bancadas), drawn from above, with their share of the price. */
+export type TourTopPiece = {
+  name: string;
+  kind: "run" | "island" | "vanity";
+  length: number;
+  depth: number;
+  overhang: number;
+  edges: { front: boolean; back: boolean; left: boolean; right: boolean };
+  splash: { back: boolean; left: boolean; right: boolean };
+  waterfall: { left: boolean; right: boolean };
+  sink: string;
+  cooktop: boolean;
+  faucet_holes: number;
+  sf: number;
+  seams: number;
+  price: number;
+};
+export type TourTops = {
+  material: string;
+  color: string;
+  thickness: string;
+  edge: string;
+  edge_label: string;
+  splash: "none" | "4in" | "full";
+  splash_label: string;
+  tearout: boolean;
+  sf: number;
+  edge_lf: number;
+  seams: number;
+  slabs: number;
+  waterfalls: number;
+  supports: number;
+  cutouts: Array<{ label: string; qty: number }>;
+  pieces: TourTopPiece[];
+  price: number;
+};
+
 export type TourRoom = { name: string; sqft: number; l: number; w: number; services: string[]; price: number; perimeter: number };
 
 export type Tour = {
@@ -104,6 +144,8 @@ export type Tour = {
   rooms: TourRoom[];
   /** Tile showers; empty for flooring visits. */
   showers: TourShower[];
+  /** Countertops; null for other visits. */
+  tops: TourTops | null;
   stairs: number;
   trim: boolean;
   transitions: number;
@@ -156,6 +198,20 @@ export function isShowerLine(l: TourLine): boolean {
   return /^(shower |linear drain installation$|flood test$)/i.test(String(l.name || "").trim());
 }
 
+/** Lines the countertop builder makes (meta.top_key), or the Countertops services by name. */
+export function isTopLine(l: TourLine): boolean {
+  if (obj(l.meta).top_key) return true;
+  return /^(countertop – level|countertop - level|waterfall edge|edge upgrade|mitered edge|undermount sink cutout|farmhouse \/ apron sink cutout|drop-in sink|cooktop cutout|faucet \/ accessory hole|outlet cutout|4" backsplash|full-height backsplash|support bracket|countertop tear-out)/i.test(String(l.name || "").trim());
+}
+function topCategory(l: TourLine): string {
+  const name = String(l.name || "").toLowerCase();
+  if (/^countertop .*level/.test(name)) return "Countertops";
+  if (/edge/.test(name)) return "Edges";
+  if (/cutout|hole/.test(name)) return "Sink, cooktop & cutouts";
+  if (/backsplash/.test(name)) return "Backsplash";
+  return "Supports & removal";
+}
+
 function showerCategory(l: TourLine): string {
   const name = String(l.name || "").toLowerCase();
   if (/walls|floor/.test(name)) return "Shower tile";
@@ -166,6 +222,7 @@ function showerCategory(l: TourLine): string {
 
 function category(l: TourLine): string {
   if (isShowerLine(l)) return showerCategory(l);
+  if (isTopLine(l)) return topCategory(l);
   const name = String(l.name || l.description || "").toLowerCase();
   const unit = String(l.unit || "").toLowerCase();
   const svc = lineService(l);
@@ -222,9 +279,11 @@ function buildOne(input: TourInput, materialOverride?: string | null): Tour {
 
   const lines = input.lines.filter((l) => n(l.amount) !== 0);
   const showers = toursShowers(Array.isArray(input.showers) ? { ...d, showers: input.showers } : d, lines);
+  const tops = toursTops(input.tops !== undefined ? input.tops : d.tops, lines);
   // Spread each line over the rooms it belongs to, so each room can show its share.
   for (const l of lines) {
     if (showers.length && isShowerLine(l)) continue;
+    if (tops && isTopLine(l)) continue;
     const unit = String(l.unit || "").toLowerCase();
     const amount = n(l.amount);
     const svcId = lineService(l) === "supply" ? "installation" : lineService(l);
@@ -250,7 +309,7 @@ function buildOne(input: TourInput, materialOverride?: string | null): Tour {
   const stairsLine = lines.find((l) => category(l) === "Stairs");
   const transitionsLine = lines.find((l) => /transition|threshold/i.test(String(l.name || "")));
   const details = lines
-    .filter((l) => !isShowerLine(l) && ["Stairs", "Trim & transitions", "Subfloor prep", "Furniture moving", "Other work", "Haul away"].includes(category(l)))
+    .filter((l) => !isShowerLine(l) && !isTopLine(l) && ["Stairs", "Trim & transitions", "Subfloor prep", "Furniture moving", "Other work", "Haul away"].includes(category(l)))
     .map((l) => {
       const unit = UNIT_EN[String(l.unit || "").toLowerCase()] ?? "";
       const qty = n(l.quantity);
@@ -258,7 +317,9 @@ function buildOne(input: TourInput, materialOverride?: string | null): Tour {
     })
     .slice(0, 6);
 
-  const sqft = r2(rooms.reduce((s, r) => s + r.sqft, 0));
+  const roomSqft = r2(rooms.reduce((s, r) => s + r.sqft, 0));
+  // A countertops visit is priced by the square foot of top.
+  const sqft = roomSqft || (tops ? tops.sf : 0);
   const total = r2(n(input.total));
   const demo = obj(answers.demolition);
   const existing = (Array.isArray(demo.existing) ? demo.existing : []).map((m) => EXISTING[String(m)] || "old flooring");
@@ -281,6 +342,7 @@ function buildOne(input: TourInput, materialOverride?: string | null): Tour {
     refinish: services.includes("sanding") ? { label: SANDING[sandType] || SANDING.sand_finish } : null,
     rooms,
     showers,
+    tops,
     stairs: stairsLine ? Math.round(n(stairsLine.quantity)) : 0,
     trim: lines.some((l) => !isShowerLine(l) && /quarter round|baseboard|trim/i.test(String(l.name || ""))),
     transitions: transitionsLine ? Math.round(n(transitionsLine.quantity)) : 0,
@@ -346,6 +408,89 @@ function toursShowers(d: Record<string, unknown>, lines: TourLine[]): TourShower
       price: Math.round(price.get(s.id) || 0),
     };
   });
+}
+
+const EDGE_EN: Record<string, string> = { eased: "Eased edge", bevel: "Bevel edge", ogee: "Ogee edge", mitered: "Mitered edge" };
+const SPLASH_EN: Record<string, string> = { none: "No backsplash", "4in": '4" backsplash', full: "Full-height backsplash" };
+
+/**
+ * The visit's countertops with their drawing data. Each top gets its own line (meta.top_key
+ * "ct_top_l2@<piece id>", else the description starting with its name) plus a share of the job's
+ * edges, cutouts and backsplash by square feet.
+ */
+function toursTops(raw: unknown, lines: TourLine[]): TourTops | null {
+  const t = normalizeTops(raw);
+  if (!t.pieces.length) return null;
+  const q = topsQuantities(t);
+  const own = new Map<string, number>();
+  let shared = 0;
+  let total = 0;
+  for (const l of lines) {
+    if (!isTopLine(l)) continue;
+    const amount = n(l.amount);
+    total += amount;
+    const key = String(obj(l.meta).top_key || "");
+    const pid = key.includes("@") ? key.split("@")[1] : "";
+    const desc = String(l.description || "");
+    const who =
+      (pid ? t.pieces.find((p) => p.id === pid) : undefined) ||
+      (/^countertop .*level/i.test(String(l.name || "")) ? t.pieces.filter((p) => p.name && desc.startsWith(`${p.name} · `)).sort((a, b) => b.name.length - a.name.length)[0] : undefined);
+    if (who) own.set(who.id, (own.get(who.id) || 0) + amount);
+    else shared += amount;
+  }
+  const kindEn = { run: "Wall run", island: "Island", vanity: "Vanity" } as const;
+  const pieces = t.pieces.map((p, i) => {
+    const pq = pieceQuantities(p, t.spec);
+    return {
+      name: (p.name || `${kindEn[p.kind]} ${i + 1}`).slice(0, 60),
+      kind: p.kind,
+      length: p.length,
+      depth: p.depth,
+      overhang: p.overhang,
+      edges: p.edges,
+      splash: p.splash,
+      waterfall: p.waterfall,
+      sink: p.sink,
+      cooktop: p.cooktop,
+      faucet_holes: p.faucet_holes,
+      sf: pq.sf,
+      seams: pq.seams,
+      price: Math.round((own.get(p.id) || 0) + (q.sf > 0 ? (shared * pq.sf) / q.sf : 0)),
+    };
+  });
+  const cut = [
+    { label: "Undermount sink", qty: q.sinks.undermount },
+    { label: "Farmhouse sink", qty: q.sinks.farmhouse },
+    { label: "Drop-in sink", qty: q.sinks.dropin },
+    { label: "Cooktop", qty: q.cooktops },
+    { label: "Faucet holes", qty: q.faucet_holes },
+    { label: "Outlets", qty: q.outlets },
+  ].filter((c) => c.qty > 0);
+  return {
+    material: t.spec.material,
+    color: t.spec.color,
+    thickness: t.spec.thickness,
+    edge: t.spec.edge,
+    edge_label: EDGE_EN[t.spec.edge],
+    splash: t.spec.splash,
+    splash_label: t.spec.splash === "full" ? `${SPLASH_EN.full}, ${t.spec.full_h}" high` : SPLASH_EN[t.spec.splash],
+    tearout: t.spec.tearout,
+    sf: q.sf,
+    edge_lf: q.edge_lf,
+    seams: q.seams,
+    slabs: q.slabs,
+    waterfalls: q.waterfalls,
+    supports: q.supports,
+    cutouts: cut,
+    pieces,
+    price: Math.round(total),
+  };
+}
+
+/** Countertops kept on the quote (payload.tops, from the Field Quote or the quote editor), or undefined. */
+export function quoteTops(payload: unknown): unknown {
+  const t = obj(obj(payload).tops);
+  return Array.isArray(t.pieces) ? t : undefined;
 }
 
 /** Showers kept on the quote (payload.showers, from the Field Quote or the quote editor), or undefined. */

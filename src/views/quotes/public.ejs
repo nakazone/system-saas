@@ -466,7 +466,7 @@
     <% if (typeof tour !== 'undefined' && tour) { %>
       <button type="button" class="qp-tour-cta no-print" id="qpTourOpen">
         <span class="qp-tour-cta__ic qp-tour-cta__ic--mate" aria-hidden="true"><img src="/assets/img/mascot/mate-head-talking.webp?v=20261027-m2" alt="" width="46" height="46"></span>
-        <span class="qp-tour-cta__txt"><b>See your project, room by room</b><span>A 1-minute walk-through of the work and where every dollar goes.</span></span>
+        <span class="qp-tour-cta__txt"><b><%= tour.rooms.length ? 'See your project, room by room' : 'See your project' %></b><span>A 1-minute walk-through of the work and where every dollar goes.</span></span>
         <span class="qp-tour-cta__go">Start</span>
       </button>
     <% } %>
@@ -1121,7 +1121,7 @@
   </script>
   <% if (typeof tour !== 'undefined' && tour) { %>
   <script id="qpTourData" type="application/json"><%- JSON.stringify(tour).replace(/</g, '\\u003c') %></script>
-  <script src="/quote-tour.js?v=20261103-box2"></script>
+  <script src="/quote-tour.js?v=20261104-ct1"></script>
   <script>
     (function () {
       var btn = document.getElementById('qpTourOpen');

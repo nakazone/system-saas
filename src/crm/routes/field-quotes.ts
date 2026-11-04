@@ -24,7 +24,7 @@ import { storage } from "../../lib/storage/index.js";
 import { resolveImagesForAi } from "../../lib/storage/resolve.js";
 import { formatPersonName } from "../../lib/name.js";
 import { aiChatJson, aiListElevenLabsVoices, aiTextToSpeech, isAiConfigured } from "../../lib/ai/client.js";
-import { buildFieldQuoteTour, quoteShowers, tourDeposit } from "../../lib/field-quote/tour.js";
+import { buildFieldQuoteTour, quoteShowers, quoteTops, tourDeposit } from "../../lib/field-quote/tour.js";
 import { persistQuoteTotals, recomputeTotalsFromQuote } from "../../modules/quotes/service.js";
 import { getPack } from "../../lib/trades/index.js";
 
@@ -934,6 +934,7 @@ fieldQuotesRouter.get("/api/field-quotes/:id/tour", requireCrmAuth, async (req: 
         taxRate: quote.taxRate,
         schedule: quote.paymentSchedule,
         showers: quoteShowers(quote.payload),
+        tops: quoteTops(quote.payload),
       }),
     });
   } catch (e) {
