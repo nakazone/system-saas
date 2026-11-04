@@ -2504,6 +2504,11 @@
     };
     const direct = fromInput('qbTotalSqft') || fromInput('quoteProjectSqft');
     if (direct) return direct;
+    // Countertops: each top is its own piece, so the area is the sum of the tops.
+    if (TRADE_SECTIONED && (window.__OM_TRADE || {}).id === 'countertops') {
+      const tops = items.filter((it) => String(it.unit_type || '') === 'sq_ft' && tradeSection(it) === 'tops').reduce((a, it) => a + (Number(it.quantity) || 0), 0);
+      if (tops) return Math.round(tops * 10) / 10;
+    }
     let work = 0;
     let any = 0;
     for (const it of items) {

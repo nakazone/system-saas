@@ -1,0 +1,11 @@
+/* Countertop builder: what it adds to the shower builder's look (partner-portal-showers.css). */
+.ct .ps-tile { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+.ct-sides { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.ct-side { border: 1px solid #E5E7EB; background: #fff; border-radius: 999px; min-height: 34px; padding: 0 14px; font: inherit; font-size: 13.5px; font-weight: 650; color: #475467; cursor: pointer; transition: background-color .15s ease, color .15s ease, border-color .15s ease; }
+.ct-side.is-on { background: #FBF1EA; border-color: #E7792C; color: #9A4A12; }
+.ct-side:active { transform: scale(.97); }
+.ct-side:focus-visible { outline: 2px solid #E7792C; outline-offset: 2px; }
+@media (max-width: 560px) {
+  .ct .ps-tile { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .ct .ps-tile select { grid-column: 1 / -1; }
+}
