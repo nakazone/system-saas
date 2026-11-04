@@ -302,6 +302,55 @@ jobFieldExtrasRouter.delete(
   },
 );
 
+/** Reclassify a photo (Antes / Durante / Depois, or null for Geral) from ObraCam. */
+jobFieldExtrasRouter.patch(
+  "/api/work-orders/:jobId/media/:mediaId/stage",
+  requireCrmAuth,
+  requireCrmPermission("work_orders.manage"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const jobId = String(req.params.jobId);
+      const mediaId = String(req.params.mediaId);
+      const body = z.object({ stage: z.enum(["before", "during", "after"]).nullable() }).safeParse(req.body || {});
+      if (!body.success) {
+        res.status(400).json({ success: false, error: "stage must be before, during, after or null" });
+        return;
+      }
+      const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const row = await tx.jobMedia.findFirst({
+          where: { id: mediaId, workOrderId: jobId, deletedAt: null },
+        });
+        if (!row) throw Object.assign(new Error("Foto não encontrada"), { status: 404 });
+        const updated = await tx.jobMedia.update({
+          where: { id: row.id },
+          data: { stage: body.data.stage },
+          include: { author: { select: { id: true, name: true } } },
+        });
+        if ((row.stage || null) !== body.data.stage) {
+          await recordActivity(tx, {
+            organizationId: req.organizationId!,
+            entityType: "work_order",
+            entityId: jobId,
+            action: "job_media.stage_changed",
+            actorType: "user",
+            actorId: req.user!.id,
+            changes: { stage: { from: row.stage || null, to: body.data.stage } },
+          });
+        }
+        return mapJobMedia(updated);
+      });
+      res.json({ success: true, data });
+    } catch (error: unknown) {
+      const err = error as { status?: number; message?: string };
+      if (err?.status) {
+        res.status(err.status).json({ success: false, error: err.message || "Error" });
+        return;
+      }
+      next(error);
+    }
+  },
+);
+
 jobFieldExtrasRouter.patch(
   "/api/work-orders/:jobId/media/:mediaId/portfolio",
   requireCrmAuth,

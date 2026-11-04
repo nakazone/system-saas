@@ -2725,6 +2725,8 @@
   var milestoneBusy = false;
 
   function checkMilestones() {
+    // Focused apps (ObraCam, ObraCalendar) stay on their one task, like the welcome below.
+    if (window.__OM_CAL_APP || window.__OM_FOCUS_APP) return;
     if (agentMode || milestoneBusy || !window.MateFace) return;
     milestoneBusy = true;
     api('GET', '/api/mate-ai/milestones')

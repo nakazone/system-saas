@@ -24,9 +24,24 @@
   height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 14px; border-radius: 12px; border: 0; background: #fff;
   box-shadow: 0 0 0 1px var(--cam-line); font: inherit; font-size: 13.5px; font-weight: 600; color: var(--cam-ink) !important; cursor: pointer; white-space: nowrap; text-decoration: none !important;
 }
-.cam-btn:hover { background: #F7F8FA; }
 .cam-btn--pri { background: var(--cam-or) !important; box-shadow: none; color: #fff !important; }
-.cam-btn--pri:hover { background: #EF8A44 !important; color: #fff !important; }
+@media (hover: hover) and (pointer: fine) {
+  .cam-btn:hover { background: #F7F8FA; }
+  .cam-btn--pri:hover { background: #EF8A44 !important; color: #fff !important; }
+}
+
+/* toque: resposta ao encostar o dedo, sem flash cinza, sem selecionar o texto do botão */
+.cam button, .cam a, .cam-pbar button, .cam-pbar a, .cam-up button {
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+.cam-btn, .cam-row, .cam-ph, .cam-chip, .cam-up__stage, .cam-up__go button {
+  transition: transform 120ms cubic-bezier(.2, .8, .2, 1), background-color 120ms, box-shadow 120ms;
+}
+.cam-btn:active, .cam-chip:active, .cam-up__stage:active, .cam-up__go button:active { transform: scale(.97); }
+.cam-row:active { background: var(--cam-sur); }
+.cam-ph:active { transform: scale(.98); }
+.cam :focus-visible, .cam-pbar :focus-visible, .cam-up :focus-visible { outline: 2px solid var(--cam-or, #E7792C); outline-offset: 2px; }
+.cam-ph:focus-visible { outline-offset: -2px; }
 
 /* divisão */
 .cam-split { display: grid; grid-template-columns: 372px minmax(0, 1fr); gap: 16px; align-items: start; }
@@ -36,23 +51,17 @@
   display: flex; flex-direction: column; background: #fff; border-radius: 22px; box-shadow: 0 0 0 1px var(--cam-line); overflow: hidden;
 }
 .cam-list__top { padding: 16px 14px 12px; border-bottom: 1px solid var(--cam-line); }
-.cam-list__h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.cam-list__h h1 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -.035em; line-height: 1; }
-.cam-list__h > span { font-size: 15px; font-weight: 600; color: var(--cam-ink3); }
-.cam-add { margin-left: auto; height: 34px; padding: 0 12px; font-size: 13px; }
-.cam-addr {
-  display: flex; align-items: flex-start; gap: 10px; margin-top: 12px; padding: 12px 14px;
-  border-radius: 14px; background: #F7F8FA; box-shadow: 0 0 0 1px var(--cam-line); color: inherit !important; text-decoration: none !important;
-}
-.cam-addr:hover { background: #FDF0E6; box-shadow: 0 0 0 1px #F2D9C6; }
-.cam-addr--empty { cursor: default; }
-.cam-addr--empty:hover { background: #F7F8FA; box-shadow: 0 0 0 1px var(--cam-line); }
-.cam-addr__ic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: #fff; color: var(--cam-deep); flex: none; box-shadow: 0 0 0 1px var(--cam-line); }
-.cam-addr__ic svg { width: 16px; height: 16px; }
-.cam-addr__txt { min-width: 0; display: grid; gap: 2px; }
-.cam-addr__txt strong { font-size: 14px; font-weight: 650; line-height: 1.35; overflow-wrap: anywhere; }
-.cam-addr__txt small { font-size: 12px; color: var(--cam-ink2); }
-.cam-stats { margin: 8px 0 12px; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--cam-ink2); }
+/* top bar: the page title and the two views (Jobs | Fotos) sit above the split, so Fotos is a place, not a list filter */
+.cam-top { display: flex; align-items: center; gap: 14px; margin: 0 0 14px; }
+.cam-top h1 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -.035em; line-height: 1; }
+.cam-views { display: flex; gap: 2px; padding: 3px; border-radius: 12px; background: #EEF0F3; }
+.cam-views button { height: 32px; padding: 0 14px; border: 0; border-radius: 9px; background: transparent; font: inherit; font-size: 13.5px; font-weight: 600; color: var(--cam-ink2); cursor: pointer; white-space: nowrap; }
+.cam-views button em { font-style: normal; font-weight: 600; color: var(--cam-ink3); margin-left: 2px; }
+.cam-views button.is-on { background: #fff; color: var(--cam-ink); box-shadow: 0 1px 2px rgba(16, 24, 40, .08); }
+.cam-add { margin-left: auto; height: 36px; padding: 0 14px; font-size: 13.5px; }
+.cam-split.is-feed { grid-template-columns: minmax(0, 1fr); }
+.cam-split.is-feed .cam-list { display: none; }
+.cam-stats { margin: 0 0 12px; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--cam-ink2); }
 .cam-stats b { font-size: 15px; font-weight: 700; color: var(--cam-ink); margin-right: 2px; }
 .cam-stats b.is-hot { color: var(--cam-deep); }
 .cam-search { position: relative; display: flex; align-items: center; margin: 0; }
@@ -70,7 +79,9 @@
 .cam-grp { display: flex; margin: 12px 10px 4px; font-size: 11.5px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--cam-ink3); }
 .cam-grp em { margin-left: auto; font-style: normal; letter-spacing: 0; }
 .cam-row { display: flex; align-items: center; gap: 11px; padding: 8px 10px; border-radius: 14px; cursor: pointer; color: var(--cam-ink) !important; }
-.cam-row:hover { background: #FAFBFC; }
+@media (hover: hover) and (pointer: fine) {
+  .cam-row:hover { background: #FAFBFC; }
+}
 .cam-row.is-on { background: var(--cam-sur); }
 .cam-row__th { width: 46px; height: 46px; border-radius: 11px; flex: none; background-size: cover; background-position: center; background-color: var(--cam-sur); display: grid; place-items: center; color: var(--cam-ink3); }
 .cam-row.is-on .cam-row__th.is-empty { background-color: #fff; }
@@ -78,7 +89,8 @@
 .cam-row__l1 { display: flex; align-items: baseline; min-width: 0; }
 .cam-row__l1 b { flex: 1; min-width: 0; display: block; font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cam-row__addr { display: flex; align-items: flex-start; gap: 6px; margin-top: 4px; font-size: 12.5px; color: var(--cam-ink2); }
-.cam-row__addr span { min-width: 0; white-space: normal; line-height: 1.35; }
+/* addresses can be an email or a 150-character lot description: break anywhere, and in the list keep at most two lines (the job view shows it in full) */
+.cam-row__addr span { min-width: 0; white-space: normal; line-height: 1.35; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
 .cam-row__addr svg { width: 14px; height: 14px; margin-top: 1px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .cam-row__b small { display: block; margin-top: 4px; font-size: 12px; color: var(--cam-ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cam-row__b small.is-hot { color: var(--cam-deep); font-weight: 600; }
@@ -103,13 +115,27 @@
 .cam-up[hidden] { display: none; }
 .cam-up__card { width: 100%; max-width: 480px; margin: 0 auto; box-sizing: border-box; background: #F7F8FA; color: #221E1A; border-radius: 24px 24px 0 0; padding: 18px 20px calc(24px + env(safe-area-inset-bottom)); }
 .cam-up h2 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
-.cam-up p { margin: 4px 0 14px; font-size: 14px; color: #475467; }
+.cam-up p { margin: 4px 0 14px; font-size: 14px; color: #475467; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.cam-up p.cam-up__lbl { display: block; }
+.cam-up__lbl { margin: 0 0 8px; font-size: 12px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: #667085; }
 .cam-up__stages { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.cam-up__stage { appearance: none; min-height: 56px; border-radius: 14px; border: 1px solid #E5E7EB; background: #fff; color: #221E1A; font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; }
-.cam-up__stage.is-on { background: #E7792C; border-color: #E7792C; color: #fff; }
-.cam-up__go { display: flex; gap: 8px; margin-top: 12px; }
-.cam-up__go button { appearance: none; flex: 1; min-height: 52px; border-radius: 14px; border: 0; font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; background: #221E1A; color: #fff; }
-.cam-up__go button.is-sec { background: #F1F3F5; color: #221E1A; }
+/* the chosen stage is a selection, not an action: tinted and ringed, so "Câmera" stays the one primary button */
+.cam-up__stage {
+  appearance: none; min-height: 52px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: 14px; border: 0;
+  box-shadow: inset 0 0 0 1px #E5E7EB; background: #fff; color: #221E1A; font: inherit; font-size: 16px; font-weight: 600; cursor: pointer;
+}
+.cam-up__stage svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.cam-up__stage.is-on { background: #FDF0E6; box-shadow: inset 0 0 0 2px #E7792C; color: #8F4314; }
+.cam-up__go { display: flex; gap: 8px; margin-top: 16px; }
+.cam-up__go button {
+  appearance: none; flex: 1; min-height: 52px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 14px; border: 0;
+  font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; background: #E7792C; color: #fff;
+}
+.cam-up__go button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.cam-up__go button.is-sec { background: #fff; box-shadow: inset 0 0 0 1px #E5E7EB; color: #221E1A; }
+.cam-up__go button:disabled, .cam-up__stage:disabled, .cam-up__cancel:disabled { opacity: .55; cursor: default; transform: none; }
+.cam-up__status:empty { display: none; }
+.cam-up__status.is-err { color: #B4561A; }
 .cam-up__cancel { appearance: none; width: 100%; min-height: 48px; margin-top: 4px; border: 0; background: transparent; color: #475467; font: inherit; font-size: 16px; font-weight: 500; cursor: pointer; }
 .cam-up__status { margin-top: 12px; font-size: 14px; font-weight: 500; color: #475467; min-height: 20px; }
 @media (min-width: 761px) {
@@ -122,19 +148,26 @@
 .cam-detail { min-width: 0; container-type: inline-size; container-name: camd; }
 .cam-blank { display: grid; place-items: center; min-height: 360px; border-radius: 22px; background: #fff; box-shadow: 0 0 0 1px var(--cam-line); color: var(--cam-ink2); font-size: 14px; }
 .cam-back { display: none; align-items: center; gap: 3px; font-size: 13px; font-weight: 600; color: var(--cam-ink2) !important; margin-bottom: 8px; }
-.cam-dh { display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap; background: #fff; border-radius: 22px; box-shadow: 0 0 0 1px var(--cam-line); padding: 18px 20px; margin-bottom: 14px; }
-.cam-dh__t { flex: 1; min-width: 260px; }
+/* job header: one compact block (name, one quiet line, status + facts + address on a single wrapping row) so the photos start high */
+.cam-dh { display: flex; align-items: center; gap: 14px; background: #fff; border-radius: 22px; box-shadow: 0 0 0 1px var(--cam-line); padding: 14px 18px; margin-bottom: 14px; }
+.cam-dh__t { flex: 1; min-width: 0; }
 .cam-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.cam-pill { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: 999px; background: var(--cam-sur); font-size: 12px; font-weight: 650; white-space: nowrap; }
+.cam-pill { display: inline-flex; align-items: center; height: 22px; padding: 0 9px; border-radius: 999px; background: var(--cam-sur); font-size: 12px; font-weight: 650; white-space: nowrap; flex: none; }
 .cam-pill--dk { background: var(--cam-ink); color: #fff; }
 .cam-pill--ol { background: var(--cam-ols); color: var(--cam-ol); }
 .cam-pill--hot { background: var(--cam-ors); color: var(--cam-deep); }
-.cam-num { font-size: 12px; font-weight: 600; color: var(--cam-ink2); }
-.cam-dh h2 { margin: 7px 0 0; font-size: 24px; font-weight: 700; letter-spacing: -.03em; line-height: 1.15; }
+.cam-dh h2 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.03em; line-height: 1.2; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
 .cam-dh h2 a:hover { text-decoration: underline; text-decoration-color: var(--cam-or); text-decoration-thickness: 2px; text-underline-offset: 4px; }
-.cam-dmeta { margin: 5px 0 0; display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 12.5px; color: var(--cam-ink2); }
-.cam-dmeta span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
-.cam-dot { font-style: normal; color: var(--cam-ink3); margin: 0 6px; }
+.cam-dsub { margin: 3px 0 0; font-size: 13px; color: var(--cam-ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cam-dmeta { margin: 8px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 12.5px; color: var(--cam-ink2); }
+.cam-dmeta .cam-pill + .cam-pill { margin-left: -6px; }
+.cam-dfact { white-space: nowrap; }
+.cam-dloc { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; color: var(--cam-ink) !important; font-weight: 600; }
+.cam-dloc span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cam-dloc svg { width: 13px; height: 13px; color: var(--cam-deep); }
+a.cam-dloc span { text-decoration: underline; text-decoration-color: #F2D9C6; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.cam-dloc--none { color: var(--cam-ink3) !important; font-weight: 500; }
+.cam-dh--feed .cam-search--feed { width: 300px; flex: none; }
 .cam-dh__acts { display: flex; gap: 8px; flex-wrap: wrap; }
 .cam-chips--bar { margin-bottom: 12px; }
 .cam-chip {
@@ -145,27 +178,36 @@
 .cam-chip.is-on { background: var(--cam-ink); color: #fff; box-shadow: none; }
 .cam-chip.is-on em { color: #98A2B3; }
 
-.cam-body { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; align-items: start; }
 .cam-box { background: #fff; border-radius: 22px; box-shadow: 0 0 0 1px var(--cam-line); padding: 16px 18px; min-width: 0; }
 .cam-box h3 { margin: 0 0 10px; font-size: 12px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--cam-ink2); }
-.cam-box--map { position: sticky; top: calc(var(--crm-topbar-height, 56px) + 12px); }
 .cam-map { height: 240px; border-radius: 14px; overflow: hidden; background: #EEF0F3; z-index: 0; }
+/* "Local" opens the map in the photos' own space, tall enough to read the pins */
+.cam-map--big { height: min(560px, calc(100vh - var(--crm-topbar-height, 56px) - 260px)); min-height: 320px; }
+.cam-pane { display: inline-flex; flex: none; gap: 2px; padding: 3px; margin-right: 6px; border-radius: 999px; background: #EEF0F3; }
+.cam-pane button { height: 28px; display: inline-flex; align-items: center; gap: 5px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--cam-ink2); cursor: pointer; white-space: nowrap; }
+.cam-pane button svg { width: 13px; height: 13px; }
+.cam-pane button em { font-style: normal; font-weight: 650; color: var(--cam-deep); }
+.cam-pane button.is-on { background: #fff; color: var(--cam-ink); box-shadow: 0 1px 2px rgba(16, 24, 40, .08); }
 .cam-map.is-off { display: grid; place-items: center; }
 .cam-meta { margin: 8px 0 0; font-size: 12px; color: var(--cam-ink2); }
-.cam-cols { display: grid; grid-template-columns: repeat(var(--cam-cols, 3), minmax(0, 1fr)); gap: 14px; }
-.cam-col h4 { margin: 0 0 8px; display: flex; font-size: 12px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--cam-ink2); }
-.cam-col h4 em { margin-left: auto; font-style: normal; letter-spacing: 0; }
-.cam-col__g { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+/* one photo grid for the job, same model as the phone: tiles never drop below 140px, the stage chips stay pinned while the grid scrolls */
+.cam-pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.cam-chips--stick { position: sticky; top: calc(var(--crm-topbar-height, 56px) + 8px); z-index: 2; margin: -6px -6px 10px; padding: 6px; border-radius: 14px; background: #fff; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.cam-chips--stick::-webkit-scrollbar { display: none; }
 .cam-col__none { margin: 0; padding: 26px 8px; border-radius: 12px; background: var(--cam-bg); text-align: center; font-size: 12.5px; color: var(--cam-ink3); }
 .cam-ph {
   position: relative; aspect-ratio: 1; width: 100%; border: 0; padding: 0; border-radius: 12px; cursor: zoom-in;
   background-color: var(--cam-sur); background-size: cover; background-position: center; overflow: hidden;
 }
-.cam-ph:hover { box-shadow: 0 0 0 2px var(--cam-ink); }
+@media (hover: hover) and (pointer: fine) {
+  .cam-ph:hover { box-shadow: 0 0 0 2px var(--cam-ink); }
+}
 .cam-ph__st { position: absolute; left: 6px; top: 6px; height: 19px; padding: 0 6px; border-radius: 6px; background: rgba(34, 30, 26, .78); color: #fff; font-size: 10.5px; font-weight: 650; display: inline-flex; align-items: center; }
-.cam-ph__jn { position: absolute; left: 6px; bottom: 6px; height: 19px; padding: 0 6px; border-radius: 6px; background: rgba(255, 255, 255, .92); color: var(--cam-ink); font-size: 10.5px; font-weight: 650; display: inline-flex; align-items: center; }
-.cam-tag { position: absolute; right: 6px; bottom: 6px; height: 19px; padding: 0 6px; border-radius: 6px; background: rgba(255, 255, 255, .92); color: var(--cam-ink2); font-size: 10.5px; font-weight: 650; display: inline-flex; align-items: center; gap: 2px; }
+.cam-ph__jn { position: absolute; left: 6px; bottom: 6px; max-width: calc(100% - 12px); box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block !important; line-height: 19px; height: 19px; padding: 0 6px; border-radius: 6px; background: rgba(255, 255, 255, .92); color: var(--cam-ink); font-size: 10.5px; font-weight: 650; display: inline-flex; align-items: center; }
+.cam-tag { position: absolute; right: 6px; bottom: 6px; height: 19px; max-width: calc(100% - 12px); box-sizing: border-box; padding: 0 6px; border-radius: 6px; background: rgba(255, 255, 255, .92); color: var(--cam-ink2); font-size: 10.5px; font-weight: 650; display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cam-tag.is-far { color: var(--cam-deep); }
+/* feed tiles carry the job name along the bottom, so the GPS tag moves to the top-right corner */
+.cam-ph--job .cam-tag { top: 6px; bottom: auto; max-width: calc(62% - 9px); }
 .cam-day { margin: 16px 0 8px; display: flex; align-items: baseline; gap: 8px; font-size: 13.5px; font-weight: 650; }
 .cam-day:first-child { margin-top: 0; }
 .cam-day em { font-style: normal; font-size: 12px; font-weight: 500; color: var(--cam-ink2); }
@@ -174,16 +216,8 @@
 .cam-none__ic { width: 52px; height: 52px; border-radius: 16px; background: var(--cam-sur); display: grid; place-items: center; color: var(--cam-ink2); }
 .cam-none b { font-size: 16px; font-weight: 650; }
 .cam-none p { margin: 0 0 6px; max-width: 360px; font-size: 13px; color: var(--cam-ink2); line-height: 1.45; }
-.cam-pseg, .cam-pgrid, .cam-pbar { display: none; }
+.cam-pbar { display: none; }
 
-@container camd (max-width: 820px) {
-  .cam-body { grid-template-columns: minmax(0, 1fr); }
-  .cam-box--map { position: static; }
-}
-@container camd (max-width: 640px) {
-  .cam-cols { grid-template-columns: minmax(0, 1fr); }
-  .cam-col__g { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
 
 /* pinos */
 .jmb-marker { background: transparent; border: none; }
@@ -202,8 +236,12 @@
   .cam-rows { overflow: visible; }
   .cam-detail { display: none; }
   .cam-split.is-detail .cam-list { display: none; }
-  .cam-split.is-detail .cam-detail { display: block; }
+  .cam-split.is-detail .cam-detail, .cam-split.is-feed .cam-detail { display: block; }
   .cam-back { display: inline-flex; }
+  /* an open job replaces the list on narrow screens; its own back link leads home, so the top bar steps aside */
+  body.cam-detail-open .cam-top { display: none; }
+  .cam-dh--feed { flex-wrap: wrap; }
+  .cam-dh--feed .cam-search--feed { width: 100%; }
 }
 
 /* iPhone */
@@ -211,38 +249,49 @@
   .cam { padding-top: 0; }
   .cam-list { background: transparent; box-shadow: none; border-radius: 0; overflow: visible; }
   .cam-list__top { padding: 0 0 4px; border: 0; }
-  .cam-list__h h1 { font-size: 34px; }
-  .cam-search input { font-size: 16px; height: 40px !important; background: #fff !important; box-shadow: 0 0 0 1px var(--cam-line) !important; }
-  .cam-seg button { height: 32px; font-size: 13px; }
+  .cam-top { flex-wrap: wrap; gap: 10px 12px; margin-bottom: 12px; }
+  .cam-top h1 { font-size: 34px; }
+  .cam-views { order: 3; flex-basis: 100%; }
+  .cam-views button { flex: 1; height: 38px; font-size: 14px; }
+  .cam-search input { font-size: 16px; height: 44px !important; background: #fff !important; box-shadow: 0 0 0 1px var(--cam-line) !important; }
+  .cam-seg button { height: 38px; font-size: 14px; }
   .cam-rows { padding: 0; }
-  .cam-grp { margin: 16px 4px 6px; }
-  .cam-rows .cam-grp + .cam-row { border-radius: 18px 18px 0 0; }
-  .cam-row { background: #fff; border-radius: 0; padding: 11px 14px; box-shadow: 0 0 0 1px var(--cam-line); margin-bottom: 1px; }
-  .cam-row:last-child, .cam-row:has(+ .cam-grp) { border-radius: 0 0 18px 18px; }
-  .cam-rows .cam-grp + .cam-row:last-child, .cam-rows .cam-grp + .cam-row:has(+ .cam-grp) { border-radius: 18px; }
+  .cam-grp { margin: 18px 4px 8px; }
+  /* every job is its own card, with or without the swipe wrapper, so the list reads the same for every role */
+  .cam-row, .cam-swipe { background: #fff; border-radius: 18px; box-shadow: 0 0 0 1px var(--cam-line); margin: 0 0 8px; }
+  .cam-row { padding: 12px 14px; }
   .cam-row.is-on { background: #fff; }
   .cam-row__th { width: 52px; height: 52px; border-radius: 12px; }
   .cam-row__l1 b { font-size: 15px; font-weight: 650; }
   .cam-row__b small { font-size: 12.5px; }
-  .cam-swipe { margin: 0 0 8px; border-radius: 18px; }
-  .cam-swipe .cam-row { box-shadow: none; border-radius: 0; }
+  .cam-swipe { overflow: hidden; }
+  .cam-swipe .cam-row { box-shadow: none; border-radius: 0; margin: 0; }
+  .cam-swipe .om-swipe__body { background: #fff; }
 
+  .cam-back { min-height: 44px; margin: -6px 0 2px; padding-right: 12px; font-size: 14px; }
   .cam-dh { background: transparent; box-shadow: none; padding: 0; margin-bottom: 12px; }
-  .cam-dh h2 { font-size: 27px; }
+  .cam-dh__t { min-width: 0; }
+  .cam-dh h2 { font-size: 24px; line-height: 1.2; }
+  .cam-dmeta { gap: 6px 10px; }
   .cam-dh__acts { display: none; }
-  .cam-chips--bar { margin: 0 -16px 12px; padding: 0 16px; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
-  .cam-pseg { display: flex; gap: 2px; padding: 3px; border-radius: 11px; background: #EEF0F3; margin-bottom: 12px; overflow-x: auto; scrollbar-width: none; }
-  .cam-pseg button { flex: 1 0 auto; height: 32px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; font: inherit; font-size: 13px; font-weight: 600; color: var(--cam-ink2); }
-  .cam-pseg button em { font-style: normal; color: var(--cam-ink3); }
-  .cam-pseg button.is-on { background: #fff; color: var(--cam-ink); box-shadow: 0 1px 2px rgba(16, 24, 40, .08); }
-  .cam-pgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; margin: 0 -16px 14px; }
+  .cam-chips--bar { margin: 0 -14px 12px; padding: 0 14px; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
+  .cam-chip { height: 36px; padding: 0 14px; font-size: 13px; }
+  /* on the phone the photos box drops its card and the chips stick to the top of the scrolling page */
+  .cam-box.cam-box--photos { background: transparent; box-shadow: none; padding: 0; border-radius: 0; }
+  .cam-chips--stick { top: 0; margin: 0 -14px 10px; padding: 8px 14px; border-radius: 0; background: var(--cam-bg); }
+  body.oc-app .cam-chips--stick { top: env(safe-area-inset-top, 0px); }
+  .cam-pgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; margin: 0 -14px 14px; }
   .cam-pgrid .cam-ph, .cam-feedg .cam-ph { border-radius: 0; }
   .cam-pgrid .cam-ph:hover { box-shadow: none; }
-  .cam-feedg { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; margin: 0 -18px; }
-  .cam-body { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .cam-feedg { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; margin: 0 -14px; }
+  /* the feed grid bleeds edge to edge, so its box drops the card around it */
+  .cam-box.cam-box--feed { background: transparent; box-shadow: none; padding: 0; border-radius: 0; }
+  .cam-day { margin: 18px 0 8px; }
+  .cam-none .cam-btn { display: none; }
   .cam-box { border-radius: 18px; padding: 14px; }
-  .cam-box--map { position: static; }
   .cam-map { height: 220px; }
+  .cam-map--big { height: calc(100dvh - 300px); min-height: 300px; margin: 0 -14px; border-radius: 0; }
+  .cam-pane button { height: 32px; font-size: 13px; }
   .cam-pbar {
     display: flex; gap: 8px; position: fixed; left: 12px; right: 12px; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); z-index: 60;
     padding: 8px; border-radius: 20px; background: rgba(255, 255, 255, .94); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);

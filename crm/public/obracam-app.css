@@ -10,19 +10,23 @@ body.oc-app .crm-shared-dock,
 body.oc-app .crm-pwa-install,
 body.oc-app .mate-fab,
 body.oc-app #camAddJob,
-body.oc-app #camMode [data-mode="photos"] { display: none !important; }
+body.oc-app .cam-views { display: none !important; }
 body.oc-app .dashboard-container,
 body.oc-app .dashboard-main { margin: 0 !important; width: 100% !important; max-width: none !important; }
-body.oc-app .dashboard-main { padding-bottom: 0 !important; }
-body.oc-app .cam { padding-top: env(safe-area-inset-top); padding-bottom: calc(var(--oc-tabs) + 16px); }
+/* the hidden mobile header still reserved 64px above the title */
+body.oc-app .dashboard-main { padding-top: 0 !important; padding-bottom: 0 !important; }
+body.oc-app .cam { padding-top: calc(12px + env(safe-area-inset-top)); }
+body.oc-app .cam { padding-bottom: calc(var(--oc-tabs) + 16px); }
 body.oc-app.cam-detail-open .cam { padding-bottom: 90px; }
 body.oc-app.oc-feed .cam { padding-bottom: calc(var(--oc-tabs) + 16px); }
-body.oc-app.oc-feed .cam-back { display: none; }
+body.oc-app.oc-feed .cam-back, body.oc-app.oc-feed .cam-top { display: none; }
 body.oc-app #camDetail .cam-acts .cam-btn:not(.cam-btn--pri) { display: none; }
 
 .oc-tabs { position: fixed; z-index: 30; left: 34px; right: 34px; bottom: calc(22px + env(safe-area-inset-bottom)); height: 64px; box-sizing: border-box; padding: 6px; border-radius: 32px; background: rgba(255, 255, 255, .96); border: 1px solid #E5E7EB; box-shadow: 0 8px 24px rgba(34, 30, 26, .12); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
 body.cam-detail-open:not(.oc-feed):not(.oc-settings) .oc-tabs { display: none; }
-.oc-tab { appearance: none; border: 0; background: transparent; border-radius: 26px; color: #475467; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font: inherit; font-size: 11px; font-weight: 500; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.oc-tab { appearance: none; border: 0; background: transparent; border-radius: 26px; color: #475467; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font: inherit; font-size: 11px; font-weight: 500; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; transition: background-color 120ms, transform 120ms cubic-bezier(.2, .8, .2, 1); }
+.oc-tab:active { transform: scale(.95); }
+.oc-tab:focus-visible, .oc-row:focus-visible { outline: 2px solid #E7792C; outline-offset: -2px; }
 .oc-tab svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: square; }
 .oc-tab.is-on { background: #FCEFE5; color: #B4561A; font-weight: 600; }
 
@@ -32,6 +36,10 @@ body.cam-detail-open:not(.oc-feed):not(.oc-settings) .oc-tabs { display: none; }
 .oc-list { background: #fff; border: 1px solid #E5E7EB; border-radius: 16px; overflow: hidden; margin-bottom: 16px; }
 .oc-row { appearance: none; width: 100%; border: 0; border-bottom: 1px solid #F1F3F5; background: transparent; display: block; min-height: 60px; padding: 11px 14px; box-sizing: border-box; text-align: left; font: inherit; color: inherit; cursor: pointer; text-decoration: none; }
 .oc-row:last-child { border-bottom: 0; }
+a.oc-row, button.oc-row { -webkit-tap-highlight-color: transparent; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
+a.oc-row:active, button.oc-row:active { background: #F7F8FA; }
+.oc-row--danger .oc-row__t { color: #B4561A; }
+.oc-panel { overscroll-behavior: contain; }
 .oc-row__t { display: block; font-size: 15px; font-weight: 600; }
 .oc-row__s { display: block; font-size: 13px; color: #667085; margin-top: 1px; }
 

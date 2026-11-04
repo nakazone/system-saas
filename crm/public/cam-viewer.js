@@ -1,12 +1,13 @@
 /**
  * Visualizador de fotos do ObraCam (computador, iPad e iPhone).
  * window.CamViewer.open({ photos, index, canPortfolio, onPortfolio(photo, next) => Promise<photo|void>,
- *                         canDelete, onDelete(photo) => Promise<void> })
+ *                         canDelete, onDelete(photo) => Promise<void>, canStage, onStage(photo, stage|null) => Promise<{stage}> })
  * photo = { id, url, thumb_url, stage, when, author, device, caption, address, lat, lng, distance_m,
  *           far_from_job, location_available, in_portfolio, job: { id, number, title, client } }
  */
 (function () {
   const STAGE = { before: "Antes", during: "Durante", after: "Depois" };
+  const STAGES = [["before", "Antes"], ["during", "Durante"], ["after", "Depois"], ["", "Geral"]];
   const WD = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
   const MO = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
   const ICON = {
@@ -81,6 +82,8 @@
     const g = gpsText(p);
     const job = p.job || {};
     const stage = STAGE[p.stage] || "Geral";
+    // The heading matches the ObraCam header (client first); the job's own title and the address go underneath.
+    const sub = [job.name && job.title && job.title !== job.name ? job.title : job.name ? "" : job.client, p.address].filter(Boolean).join(" · ");
     const strip =
       n > 1
         ? `<div class="cv-strip">${st.photos
@@ -97,8 +100,10 @@
       </div>
       <aside class="cv-side">
         <span class="cv-grab" aria-hidden="true"></span>
-        <div class="cv-chips"><span class="cv-pill cv-pill--dk">${esc(stage)}</span>${n > 1 ? `<span class="cv-sub">Foto ${st.index + 1} de ${n}</span>` : ""}</div>
-        ${job.title || job.number != null ? `<div class="cv-job">${job.number != null ? `<small>Job #${esc(job.number)}</small>` : ""}<h2>${esc(job.title || "Job")}</h2>${job.client || p.address ? `<p>${esc([job.client, p.address].filter(Boolean).join(" · "))}</p>` : ""}</div>` : ""}
+        ${job.title || job.number != null ? `<div class="cv-job">${job.number != null ? `<small>Job #${esc(job.number)}</small>` : ""}<h2>${esc(job.name || job.title || "Job")}</h2>${sub ? `<p>${esc(sub)}</p>` : ""}</div>` : ""}
+        ${st.canStage && p.id
+          ? `<div class="cv-stages" role="group" aria-label="Etapa da foto">${STAGES.map(([k, l]) => `<button type="button" class="${(p.stage || "") === k ? "is-on" : ""}" data-cv-stage="${k}" aria-pressed="${(p.stage || "") === k}"${st.busy ? " disabled" : ""}>${l}</button>`).join("")}</div>`
+          : `<div class="cv-chips"><span class="cv-pill cv-pill--dk">${esc(stage)}</span></div>`}
         <dl class="cv-kv">
           <dt>Tirada</dt><dd>${esc(when(p.taken_at_device || p.created_at))}</dd>
           ${p.author ? `<dt>Por</dt><dd>${esc(p.author)}</dd>` : ""}
@@ -119,6 +124,25 @@
   }
 
   async function onClick(e) {
+    const sb = e.target.closest("[data-cv-stage]");
+    if (sb && st.onStage) {
+      const p = st.photos[st.index];
+      const next = sb.getAttribute("data-cv-stage") || null;
+      if ((p.stage || null) === next || st.busy) return;
+      st.busy = true;
+      render();
+      try {
+        const res = await st.onStage(p, next);
+        p.stage = res && "stage" in res ? res.stage : next;
+      } catch (err) {
+        window.crmToast?.error?.(err.message || "Não foi possível mudar a etapa");
+      }
+      if (!st) return;
+      st.busy = false;
+      render();
+      root.querySelector(`[data-cv-stage="${p.stage || ""}"]`)?.focus();
+      return;
+    }
     const b = e.target.closest("[data-cv],[data-cv-i]");
     if (!b) {
       if (e.target === root || e.target.classList.contains("cv-stage")) close();
@@ -177,6 +201,9 @@
       onPortfolio: opts.onPortfolio || null,
       canDelete: !!opts.canDelete,
       onDelete: opts.onDelete || null,
+      canStage: !!opts.canStage && typeof opts.onStage === "function",
+      onStage: opts.onStage || null,
+      busy: false,
     };
     ensure();
     render();
