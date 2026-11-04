@@ -86,6 +86,7 @@ import {
   photoStream,
   saveMeasurement,
 } from "../../lib/builders/measurements.js";
+import { presentationInputSchema, presentationPdf } from "../../lib/builders/presentation-pdf.js";
 import { builderReferralCoupon, couponTextEn } from "../../lib/billing/coupons.js";
 import { intakeItemsSchema, isIntakeReaderConfigured, readWorkOrder, type IntakeFile } from "../../lib/partner-intake/extract.js";
 
@@ -667,6 +668,20 @@ builderAccountRouter.get("/api/builder/measurements/:id/quote-pdf", requireBuild
     const out = await floorQuotePdf(req.builderMember!, String(req.params.id), typeof req.query.company === "string" ? req.query.company : null);
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", pdfDisposition(req.query.download ? "attachment" : "inline", out.name));
+    res.send(out.body);
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
+/** The Present chapters as a landscape PDF; the browser sends the 3D stills and the quote lines it shows. */
+builderAccountRouter.post("/api/builder/measurements/:id/presentation-pdf", requireBuilder, async (req: BuilderReq, res, next) => {
+  try {
+    const parsed = presentationInputSchema.safeParse(req.body || {});
+    if (!parsed.success) { res.status(400).json({ success: false, error: "Could not read the presentation. Reload the page and try again." }); return; }
+    const out = await presentationPdf(req.builderMember!, String(req.params.id), parsed.data);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", pdfDisposition("inline", out.name));
     res.send(out.body);
   } catch (error) {
     sendError(res, error, next);

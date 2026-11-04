@@ -5545,6 +5545,7 @@
           <div class="pp-shero-t">${mate(m.status === 'draft' ? (empty ? 'head-thinking' : 'head-happy') : 'head-talking', 52)}<div><h2>${esc(status[0])}</h2><p>${esc(status[1])}</p></div></div>
           <div class="pp-shero-acts">
             <a class="pp-btn pp-btn--sec" href="/api/builder/measurements/${encodeURIComponent(m.id)}/pdf" target="_blank" rel="noopener">${icon('download')}Measurement PDF</a>
+            ${empty ? '' : `<button type="button" class="pp-btn pp-btn--sec" data-present-pdf>${icon('download')}Presentation PDF</button>`}
             ${quotePdf ? `<a class="pp-btn pp-btn--sec" href="${quotePdf}" target="_blank" rel="noopener">${icon('download')}Quote PDF</a>` : ''}
             ${locked || !canDo('jobs.send') || empty ? '' : `<button type="button" class="pp-btn ${m.status === 'done' ? 'pp-btn--pri' : 'pp-btn--sec'}" data-send-wo>${icon('send')}Send work order</button>`}
             ${locked || m.status === 'done' || empty ? '' : '<button type="button" class="pp-btn pp-btn--pri" data-sum-done>Complete</button>'}
@@ -6321,7 +6322,7 @@
         ${secs.map(([s, ls]) => `<section><h4>${esc(s)}<small>${money_ && ls.some((l) => l.rate != null) ? esc(money(ls.reduce((a, l) => a + (l.rate != null ? l.rate * l.qty : 0), 0))) : money_ ? 'To price' : ''}</small></h4>
           ${ls.map((l) => `<div class="obp-q-row"><div><strong>${l.color ? `<i style="background:${esc(l.color)}"></i>` : ''}${esc(l.name)}</strong>${l.spec ? `<small>${esc(l.spec)}</small>` : ''}</div><div class="obp-q-num"><span>${num(l.qty)} ${esc(l.uom)}${money_ && l.rate != null ? ` × ${esc(money(l.rate))}` : ''}</span>${money_ ? `<b>${l.rate != null ? esc(money(l.rate * l.qty)) : '—'}</b>` : ''}</div></div>`).join('')}</section>`).join('')}
         ${money_ ? `<div class="obp-q-total"><span>Total</span><b>${esc(money(total))}</b></div>${missing ? `<p class="obp-q-note">${missing} line${missing === 1 ? '' : 's'} without a price yet — ${esc(co ? co.company_name : 'the company')} prices them on their side.</p>` : ''}` : ''}
-        <div class="obp-q-acts"><a class="pp-btn pp-btn--sec" href="/api/builder/measurements/${encodeURIComponent(m.id)}/pdf" target="_blank" rel="noopener">${icon('download')}Measurement PDF</a>${canDo('jobs.send') && m.status !== 'used' ? `<button type="button" class="pp-btn pp-btn--pri" data-obp-send>${icon('send')}Send to ${esc(co ? co.company_name : 'the company')}</button>` : ''}</div>`;
+        <div class="obp-q-acts"><button type="button" class="pp-btn pp-btn--sec" data-present-pdf>${icon('download')}Presentation PDF</button>${canDo('jobs.send') && m.status !== 'used' ? `<button type="button" class="pp-btn pp-btn--pri" data-obp-send>${icon('send')}Send to ${esc(co ? co.company_name : 'the company')}</button>` : ''}</div>`;
     };
 
     async function chapter(i, animate) {
@@ -6396,6 +6397,105 @@
     if (root.requestFullscreen && window.matchMedia('(min-width: 1024px)').matches) root.requestFullscreen().catch(() => {});
     go(0, true); playing = true; paintPlay();
   }
+
+  /* ── presentation PDF: the Present chapters as pages, with stills of the 3D ── */
+
+  /** Renders one 3D view off screen (one WebGL context at a time) and returns what `shoot` returns. */
+  async function offscreen3d(w, h, shoot) {
+    const box = document.createElement('div');
+    box.style.cssText = `position:fixed;left:-10000px;top:0;width:${w}px;height:${h}px;pointer-events:none`;
+    document.body.appendChild(box);
+    try { return await shoot(box); } catch (_) { return null; } finally { box.remove(); }
+  }
+
+  /** A still with a transparent background flattened onto the stage color, as JPEG (the PDF takes JPEG). */
+  function flattenJpeg(url, bg) {
+    return new Promise((resolve) => {
+      if (!url) { resolve(null); return; }
+      const im = new Image();
+      im.onload = () => {
+        const cv = document.createElement('canvas'); cv.width = im.naturalWidth; cv.height = im.naturalHeight;
+        const g = cv.getContext('2d'); g.fillStyle = bg || '#F3F1EE'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(im, 0, 0);
+        resolve(cv.toDataURL('image/jpeg', 0.9));
+      };
+      im.onerror = () => resolve(null);
+      im.src = url;
+    });
+  }
+
+  /**
+   * JPEG stills for the PDF, each rendered at the shape of its place on the page: the house wide for
+   * the cover, the house and the vents on the plan tall for their chapters, the stair, the vent kinds.
+   */
+  async function presentationShots(m) {
+    const P3 = window.ObPlan3D; if (!P3) return {};
+    const d = m.data || {}; const plan = d.plan || { levels: [], materials: [] };
+    const levels = (plan.levels || []).filter((l) => l.include && l.grid && l.rooms && l.rooms.length);
+    const stairs = (d.stairs || []).filter((s) => (s.steps || []).length);
+    const vents = d.vents || [];
+    const house = (w, h, take) => offscreen3d(w, h, async (box) => {
+      const v = await P3.mount(box, plan, { separate: levels.length > 1, stairs: d.stairs || [], vents, still: true, legend: false });
+      try { return take(v.present); } finally { v.destroy(); }
+    });
+    const out = {};
+    if (levels.length || stairs.length) out.cover = await house(1584, 800, (P) => P.still('home', { quality: 0.9, zoom: levels.length ? 1 : 1.3 }));
+    if (levels.length) {
+      await house(840, 1012, (P) => {
+        out.house = P.still('home', { labels: true, theta: 0.15, phi: 0.95 });
+        if (vents.length) out.ventsMap = P.still('vents');
+      });
+    }
+    if (stairs.length) {
+      out.stairs = await offscreen3d(840, 1012, async (box) => {
+        const v = await P3.mountStair(box, d.stairs, { fit: 1.85 });
+        try { return v.snapshot('image/png'); } finally { v.destroy(); }
+      }).then((u) => flattenJpeg(u));
+    }
+    if (vents.length) {
+      const kinds = ventKinds(vents).slice(0, 4).map((k) => vents.find((x) => String(x.size || '4x10').trim() === k.size && (x.type || 'flush') === k.type)).filter(Boolean);
+      const [vw, vh] = out.ventsMap ? [1200, 600] : [1400, 500];
+      out.vents = await offscreen3d(vw, vh, async (box) => {
+        const v = await P3.mountVent(box, kinds, { still: true });
+        try { return v.snapshot('image/png'); } finally { v.destroy(); }
+      }).then((u) => flattenJpeg(u));
+    }
+    if (!out.cover) out.cover = out.stairs || out.vents || null;
+    Object.keys(out).forEach((k) => { if (!out[k] || !/^data:image\/jpeg;base64,/.test(out[k])) delete out[k]; });
+    return out;
+  }
+
+  async function presentationPdf(m, btn) {
+    const d = m.data || {}; const plan = d.plan || {};
+    const coId = plan.quote_link_id || (state.company && state.company.id) || '';
+    const money_ = canDo('money.view');
+    const label = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); btn.innerHTML = `${icon('download')}Preparing the PDF…`; }
+    const win = window.open('', '_blank');
+    try {
+      const prices = money_ && coId ? await api(`/api/builder/prices?company=${encodeURIComponent(coId)}`).then((r) => (r.data || []).filter((p) => !p.company_id || p.company_id === coId)).catch(() => []) : [];
+      const lines = presentQuote(m, prices).slice(0, 80).map((l) => ({
+        sec: l.sec, name: String(l.name || '').slice(0, 160), spec: String(l.spec || '').slice(0, 300),
+        qty: Number(l.qty) || 0, uom: String(l.uom || 'EA').slice(0, 20), rate: money_ && l.rate != null ? Number(l.rate) : null, color: l.color || '',
+      }));
+      const images = await presentationShots(m);
+      const res = await fetch(`/api/builder/measurements/${encodeURIComponent(m.id)}/presentation-pdf`, {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ company: coId || null, lines, images }),
+      });
+      if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || 'Could not make the PDF.'); }
+      const url = URL.createObjectURL(await res.blob());
+      if (win) win.location.href = url; else window.open(url, '_blank');
+    } catch (e) {
+      if (win) win.close();
+      mateToast('head-sorry', 'Presentation PDF', e.message);
+    } finally {
+      if (btn) { btn.disabled = false; btn.removeAttribute('aria-busy'); btn.innerHTML = label; }
+    }
+  }
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest && e.target.closest('[data-present-pdf]');
+    if (b && state.meas && !b.disabled) { e.preventDefault(); presentationPdf(state.meas, b); }
+  });
 
   function floors3dHtml(m) {
     const lv = (m.data.plan.levels || []).filter((l) => l.include && l.rooms.length).sort((a, b) => a.floor - b.floor);
