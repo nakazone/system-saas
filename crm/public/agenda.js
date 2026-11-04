@@ -742,22 +742,71 @@
     }
   }
 
+  /** Cache event→day colors for mini months (sidebar + year). Invalidates when events change. */
+  let miniDotsCache = { sig: '', map: null };
+  function miniEventsSig() {
+    const list = S.events || [];
+    let sig = String(list.length) + '|';
+    for (let i = 0; i < list.length; i++) {
+      const e = list[i];
+      sig +=
+        String(e.id) +
+        ':' +
+        (e.start && e.start.getTime ? e.start.getTime() : '') +
+        ':' +
+        (e.lastDay && e.lastDay.getTime ? e.lastDay.getTime() : '') +
+        ':' +
+        String(e.color || '') +
+        ':' +
+        String(e.status || '') +
+        ';';
+    }
+    return sig;
+  }
+  function miniColorsByDay() {
+    const sig = miniEventsSig();
+    if (miniDotsCache.sig === sig && miniDotsCache.map) return miniDotsCache.map;
+    const colorsByDay = {};
+    sortDayEvents(evs()).forEach((e) => {
+      if (e.status === 'canceled') return;
+      const color = String(e.color || typeInfo(e.type).color || '#98a2b3').toLowerCase();
+      for (let d = sod(e.start); d <= e.lastDay; d = addDays(d, 1)) {
+        const k = ymd(d);
+        if (!colorsByDay[k]) colorsByDay[k] = [];
+        if (!colorsByDay[k].includes(color)) colorsByDay[k].push(color);
+      }
+    });
+    miniDotsCache = { sig, map: colorsByDay };
+    return colorsByDay;
+  }
+
+  function syncMiniSelection(root) {
+    const host = root || document;
+    const sel = S.selected ? ymd(sod(S.selected)) : '';
+    host.querySelectorAll('.ag-mini__d[data-ag-goday]').forEach((btn) => {
+      const on = sel && btn.dataset.agGoday === sel && !btn.classList.contains('is-out');
+      btn.classList.toggle('is-sel', !!on);
+    });
+  }
+
   function miniMonthHtml(month, opts) {
     const first = new Date(month.getFullYear(), month.getMonth(), 1);
     const gs = startOfWeek(first);
     const today = sod(new Date());
-    const colorsByDay = {};
-    if (opts && opts.dots)
-      sortDayEvents(evs()).forEach((e) => {
-        if (e.status === 'canceled') return;
-        const color = String(e.color || typeInfo(e.type).color || '#98a2b3').toLowerCase();
-        for (let d = sod(e.start); d <= e.lastDay; d = addDays(d, 1)) {
-          const k = ymd(d);
-          if (!colorsByDay[k]) colorsByDay[k] = [];
-          if (!colorsByDay[k].includes(color)) colorsByDay[k].push(color);
-        }
-      });
-    let html = `<div class="ag-mini${opts && opts.cls ? ' ' + opts.cls : ''}">${opts && opts.title !== false ? `<button type="button" class="ag-mini__t" data-ag-gomonth="${ymd(first)}">${opts && opts.short ? MONTHS[month.getMonth()].slice(0, 3) : MONTHS[month.getMonth()] + (opts && opts.year ? ' ' + month.getFullYear() : '')}</button>` : ''}<div class="ag-mini__g">${WD1.map((w) => `<span class="ag-mini__wd">${w}</span>`).join('')}`;
+    const colorsByDay = opts && opts.dots ? miniColorsByDay() : {};
+    const ym = `${first.getFullYear()}-${first.getMonth()}`;
+    const titleText = opts && opts.short ? MONTHS[month.getMonth()].slice(0, 3) : MONTHS[month.getMonth()] + (opts && opts.year ? ' ' + month.getFullYear() : '');
+    const nav =
+      opts && opts.nav
+        ? `<div class="ag-mini__nav">
+            <button type="button" class="ag-mini__navbtn" data-ag-mini-nav="-1" aria-label="Mês anterior">‹</button>
+            <button type="button" class="ag-mini__t" data-ag-gomonth="${ymd(first)}">${esc(titleText)}</button>
+            <button type="button" class="ag-mini__navbtn" data-ag-mini-nav="1" aria-label="Próximo mês">›</button>
+          </div>`
+        : opts && opts.title !== false
+          ? `<button type="button" class="ag-mini__t" data-ag-gomonth="${ymd(first)}">${esc(titleText)}</button>`
+          : '';
+    let html = `<div class="ag-mini${opts && opts.cls ? ' ' + opts.cls : ''}" data-ag-mini-ym="${ym}">${nav}<div class="ag-mini__g">${WD1.map((w) => `<span class="ag-mini__wd">${w}</span>`).join('')}`;
     for (let i = 0; i < 42; i++) {
       const d = addDays(gs, i);
       if (i >= 35 && d.getMonth() !== month.getMonth()) break;
@@ -892,6 +941,8 @@
   // ---------- year
   function renderYear() {
     const y = S.cursor.getFullYear();
+    // Warm the shared dots cache once, then build 12 months cheaply.
+    miniColorsByDay();
     let html = `<div class="ag-year">`;
     for (let m = 0; m < 12; m++) html += miniMonthHtml(new Date(y, m, 1), { dots: true, cls: 'ag-mini--year', hideOut: true, short: isPhone() });
     $('#agStage').innerHTML = html + '</div>';
@@ -924,7 +975,22 @@
   }
 
   // ---------- sidebar
-  function renderSide() {
+  function renderSide(opts) {
+    opts = opts || {};
+    const side = $('#agSide');
+    if (!side) return;
+    const ym = `${S.cursor.getFullYear()}-${S.cursor.getMonth()}`;
+    const existingMini = side.querySelector('.ag-mini');
+    // Selection-only: patch is-sel without rebuilding the whole sidebar.
+    if (
+      opts.selectionOnly &&
+      existingMini &&
+      existingMini.dataset.agMiniYm === ym &&
+      side.dataset.agSideSig === miniEventsSig()
+    ) {
+      syncMiniSelection(side);
+      return;
+    }
     const counts = {};
     S.events.forEach((e) => (counts[e.calendar] = (counts[e.calendar] || 0) + 1));
     const people = new Map();
@@ -939,7 +1005,8 @@
     const tc = (t) => td.filter((e) => e.type === t).length;
     const todayBlk = `<button type="button" class="ag-today-blk" data-ag-goday="${ymd(sod(new Date()))}" title="Abrir o dia de hoje"><span class="ag-today-blk__t">Hoje · ${esc(WD[new Date().getDay()].toLowerCase())} ${new Date().getDate()}</span>
       <span class="ag-today-blk__g"><span><b>${tc('job')}</b>${tc('job') === 1 ? 'job' : 'jobs'}</span><span><b>${tc('visit')}</b>${tc('visit') === 1 ? 'visita' : 'visitas'}</span><span><b>${tc('meeting')}</b>${tc('meeting') === 1 ? 'compromisso' : 'compromissos'}</span></span></button>`;
-    $('#agSide').innerHTML = `${miniMonthHtml(S.cursor, { dots: true, year: true })}${todayBlk}
+    side.dataset.agSideSig = miniEventsSig();
+    side.innerHTML = `${miniMonthHtml(S.cursor, { dots: true, year: true, nav: true })}${todayBlk}
       <div class="ag-side__sec"><h3>Calendários ${
         canEditCals() ? '<button type="button" class="ag-link" data-ag-act="mcal" data-ag-cal-open="edit">Editar</button>' : ''
       }</h3>${calList()
@@ -3493,15 +3560,20 @@
           $$('.ag-md.is-sel, .ag-day.is-sel').forEach((x) => x.classList.remove('is-sel'));
           el.classList.add('is-sel');
           renderDayPanel();
-          if (S.sidebar) renderSide();
+          if (S.sidebar) renderSide({ selectionOnly: true });
           return openDayEventsSheet(el.dataset.agMday);
         }
         S.selected = day;
         $$('.ag-md.is-sel, .ag-day.is-sel').forEach((x) => x.classList.remove('is-sel'));
         el.classList.add('is-sel');
         renderDayPanel();
-        if (S.sidebar) renderSide();
+        if (S.sidebar) renderSide({ selectionOnly: true });
         return;
+      }
+      if ((el = t.closest('[data-ag-mini-nav]'))) {
+        const dir = Number(el.dataset.agMiniNav) || 0;
+        S.cursor = addMonths(new Date(S.cursor.getFullYear(), S.cursor.getMonth(), 1), dir);
+        return go();
       }
       if ((el = t.closest('[data-ag-strip]'))) return goDay(parseYmd(el.dataset.agStrip));
       if ((el = t.closest('[data-ag-users-all]'))) {
@@ -3517,14 +3589,14 @@
           $$('.ag-day.is-sel, .ag-md.is-sel').forEach((x) => x.classList.remove('is-sel'));
           el.classList.add('is-sel');
           renderDayPanel();
-          if (S.sidebar) renderSide();
+          if (S.sidebar) renderSide({ selectionOnly: true });
           return openDayEventsSheet(el.dataset.agDay);
         }
         S.selected = day;
         $$('.ag-day.is-sel, .ag-md.is-sel').forEach((x) => x.classList.remove('is-sel'));
         el.classList.add('is-sel');
         renderDayPanel();
-        if (S.sidebar) renderSide();
+        if (S.sidebar) renderSide({ selectionOnly: true });
         return;
       }
       if ((el = t.closest('[data-ag-dp-new]'))) {

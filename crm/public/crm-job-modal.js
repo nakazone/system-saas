@@ -10,7 +10,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261103-cal6";
+  const CSS_HREF = "crm-job-modal.css?v=20261103-addr1";
   const QPE_CSS = "quote-services-popup.css?v=20261102-svc2";
   const QPE_JS = "quote-services-popup.js?v=20261102-qfix";
   const PAPER_CSS = "quote-paper.css?v=20261027-om1";
@@ -119,6 +119,8 @@
       pendingTemps: [],
       pickerOpen: true,
       pickerQuery: "",
+      /** Keyboard highlight index in the client picker list (-1 = none). */
+      pickerKb: -1,
       teamMenuOpen: false,
       teamQuery: "",
       moreOpen: false,
@@ -1191,20 +1193,24 @@
     const list = rows.slice(0, q ? 12 : 6);
     const fixed = list.filter((r) => r.type !== "particular");
     const part = list.filter((r) => r.type === "particular");
-    const item = (r) => {
+    const flat = [...fixed, ...part];
+    if (typeof st.pickerKb !== "number" || st.pickerKb >= flat.length) st.pickerKb = flat.length ? 0 : -1;
+    const item = (r, idx) => {
       const label = r.kind === "customer" ? clientDisplayLabel(r.raw || r) : r.name;
-      return `<button type="button" class="jm-opt" data-act="pick" data-kind="${r.kind}" data-id="${esc(r.id)}">
+      const on = idx === st.pickerKb;
+      return `<button type="button" class="jm-opt${on ? " is-active" : ""}" role="option" aria-selected="${on ? "true" : "false"}" data-act="pick" data-kind="${r.kind}" data-id="${esc(r.id)}" data-pick-i="${idx}">
         <span class="jm-av jm-av--sm">${esc(initials(r.name))}</span>
         <span class="jm-opt__txt"><b>${esc(label)}</b><small>${esc(r.sub)}</small></span>
         <span class="jm-tag jm-tag--soft">${esc(TYPE_LABEL[r.type] || r.type)}</span>
       </button>`;
     };
+    let fi = 0;
     box.innerHTML = `<div class="jm-picker">
       <span class="jm-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-        <input type="search" id="jmClientQ" class="jm-in" placeholder="Buscar builder ou cliente…" autocomplete="off" value="${esc(st.pickerQuery)}" /></span>
-      <div class="jm-opts">
-        ${fixed.length ? `<p class="jm-grp">Builders</p>${fixed.map(item).join("")}` : ""}
-        ${part.length ? `<p class="jm-grp">Particulares</p>${part.map(item).join("")}` : ""}
+        <input type="search" id="jmClientQ" class="jm-in" role="combobox" aria-autocomplete="list" aria-expanded="true" placeholder="Buscar builder ou cliente…" autocomplete="off" value="${esc(st.pickerQuery)}" /></span>
+      <div class="jm-opts" role="listbox" aria-label="Clientes">
+        ${fixed.length ? `<p class="jm-grp">Builders</p>${fixed.map((r) => item(r, fi++)).join("")}` : ""}
+        ${part.length ? `<p class="jm-grp">Particulares</p>${part.map((r) => item(r, fi++)).join("")}` : ""}
         ${!list.length ? `<p class="jm-empty">${q ? "Ninguém com esse nome." : "Nenhum cliente cadastrado ainda."}</p>` : ""}
         ${
           q
@@ -1215,6 +1221,17 @@
         ${card ? `<button type="button" class="jm-link jm-link--back" data-act="keep-client">Manter ${esc(card.name)}</button>` : ""}
       </div>
     </div>`;
+  }
+
+  function clientPickerButtons() {
+    return Array.from($("jmClient")?.querySelectorAll(".jm-opt[data-act='pick']") || []);
+  }
+
+  function selectClientPickerActive() {
+    const btns = clientPickerButtons();
+    const i = typeof st.pickerKb === "number" ? st.pickerKb : 0;
+    const btn = btns[i] || btns[0];
+    if (btn) btn.click();
   }
 
   function renderAddrHint() {
@@ -4018,6 +4035,7 @@
         return;
       case "jmClientQ":
         st.pickerQuery = t.value;
+        st.pickerKb = 0;
         renderPickerKeepFocus();
         remoteSearch(t.value.trim());
         return;
@@ -4297,6 +4315,46 @@
 
   function onKey(e) {
     if (!st) return;
+    // Address suggestions open: let address helper own Enter/Esc; don't close modal.
+    if (
+      (e.target.id === "jobAddress" || e.target.getAttribute?.("data-del-f") === "pickup") &&
+      typeof window.sfAddressSuggestionsOpen === "function" &&
+      window.sfAddressSuggestionsOpen()
+    ) {
+      if (e.key === "Enter" || e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      return;
+    }
+    if (e.target.id === "jmClientQ" && st.pickerOpen) {
+      const handled =
+        typeof window.sfHandleListboxKeydown === "function" &&
+        window.sfHandleListboxKeydown(e, {
+          isOpen: () => clientPickerButtons().length > 0,
+          options: () => clientPickerButtons(),
+          getActiveIndex: () => (typeof st.pickerKb === "number" ? st.pickerKb : -1),
+          setActiveIndex: (i) => {
+            st.pickerKb = i;
+            if (typeof window.sfSyncListboxActive === "function") {
+              window.sfSyncListboxActive(clientPickerButtons(), i, "is-active");
+            } else {
+              clientPickerButtons().forEach((btn, idx) => btn.classList.toggle("is-active", idx === i));
+            }
+          },
+          selectIndex: () => selectClientPickerActive(),
+          close: () => {
+            st.pickerKb = -1;
+            clientPickerButtons().forEach((btn) => btn.classList.remove("is-active"));
+          },
+        });
+      if (handled) return;
+      if (e.key === "Enter") {
+        e.preventDefault();
+        selectClientPickerActive();
+        return;
+      }
+    }
     const inSvc = e.target.closest?.("[data-svc-editor]");
     if (inSvc && (e.key === "ArrowDown" || e.key === "ArrowUp") && e.target.getAttribute?.("data-f") === "panel-q") {
       if (st.svcPanel && !st.svcPanel.open) {
@@ -4363,11 +4421,6 @@
         return;
       }
       $("jmSvc")?.querySelector('[data-act="svc-save"]')?.click();
-      return;
-    }
-    if (e.key === "Enter" && e.target.id === "jmClientQ") {
-      e.preventDefault();
-      $("jmClient").querySelector('[data-act="pick"]')?.click();
       return;
     }
     if (e.key === "Enter" && e.target.id === "jmClientCode") {
@@ -4491,8 +4544,11 @@
         }
         // Let the address suggestions close first.
         if (
-          (document.activeElement?.id === "jobAddress" || document.activeElement?.id === "jmDeliveryPickup") &&
-          document.querySelector(".crm-photon-ac:not([hidden]), .pac-container[style*='block']")
+          (document.activeElement?.id === "jobAddress" ||
+            document.activeElement?.getAttribute?.("data-del-f") === "pickup") &&
+          (typeof window.sfAddressSuggestionsOpen === "function"
+            ? window.sfAddressSuggestionsOpen()
+            : document.querySelector(".crm-photon-ac:not([hidden]), .pac-container"))
         )
           return;
         close();

@@ -4096,6 +4096,20 @@
     });
     search.addEventListener('keydown', (e) => {
       const open = box && !box.classList.contains('hidden') && box.querySelector('.qb-client-search__item');
+      if (typeof window.sfHandleListboxKeydown === 'function') {
+        const handled = window.sfHandleListboxKeydown(e, {
+          isOpen: () => !!open,
+          options: () => Array.from(box.querySelectorAll('.qb-client-search__item')),
+          getActiveIndex: () => clientSearchActive,
+          setActiveIndex: (i) => {
+            clientSearchActive = i;
+            syncClientSearchActive();
+          },
+          selectIndex: () => selectActiveClientResult(),
+          close: () => hideClientSearchResults(),
+        });
+        if (handled) return;
+      }
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         if (!open) return;
         e.preventDefault();
@@ -4490,6 +4504,21 @@
   function handleModalServiceNameKeydown(e) {
     const box = $('modalServiceResults');
     const open = box && !box.classList.contains('hidden') && modalServiceVisibleRows.length > 0;
+    if (typeof window.sfHandleListboxKeydown === 'function') {
+      const handled = window.sfHandleListboxKeydown(e, {
+        isOpen: () => !!(box && !box.classList.contains('hidden') && modalServiceVisibleRows.length > 0),
+        options: () => Array.from((box && box.querySelectorAll('[data-catalog-id]')) || []),
+        getActiveIndex: () => modalServiceActiveIndex,
+        setActiveIndex: (i) => {
+          modalServiceActiveIndex = i;
+          syncModalServiceActiveHighlight();
+        },
+        selectIndex: () => selectActiveModalServiceResult(),
+        close: () => hideModalServiceResults(),
+        open: () => scheduleModalServiceSearch(),
+      });
+      if (handled) return;
+    }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       if (!open) {

@@ -133,10 +133,18 @@ body.om-app .dashboard-main.ag-main { padding-left: 0 !important; padding-right:
 .ag-check--big { padding: 12px 6px; font-size: 16px; }
 
 /* ---------- mini month */
-.ag-mini__t { appearance: none; border: 0; background: none; font-size: 14px; font-weight: 800; padding: 2px 4px 8px; text-align: left; }
+.ag-mini__nav { display: flex; align-items: center; gap: 2px; margin-bottom: 2px; }
+.ag-mini__nav .ag-mini__t { flex: 1; text-align: center; padding: 4px 2px; }
+.ag-mini__navbtn {
+  appearance: none; border: 0; background: none; width: 32px; height: 32px;
+  border-radius: 8px; font-size: 18px; font-weight: 700; color: var(--ink2); cursor: pointer;
+  display: grid; place-items: center; flex: none;
+}
+.ag-mini__navbtn:hover { background: var(--cream); color: var(--ink); }
+.ag-mini__t { appearance: none; border: 0; background: none; font-size: 14px; font-weight: 800; padding: 2px 4px 8px; text-align: left; cursor: pointer; }
 .ag-mini__g { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; text-align: center; }
 .ag-mini__wd { font-size: 10.5px; font-weight: 800; color: var(--mut); padding-bottom: 4px; }
-.ag-mini__d { appearance: none; border: 0; background: none; aspect-ratio: 1; border-radius: 50%; font-size: 12px; font-weight: 600; display: grid; place-items: center; position: relative; padding: 0; }
+.ag-mini__d { appearance: none; border: 0; background: none; aspect-ratio: 1; border-radius: 50%; font-size: 12px; font-weight: 600; display: grid; place-items: center; position: relative; padding: 0; cursor: pointer; }
 .ag-mini__d:hover { background: var(--cream); }
 .ag-mini__d.is-out { color: var(--mut2); }
 .ag-mini__d.has-ev::after { display: none; }
@@ -1048,13 +1056,17 @@ body.ag-readonly [data-ag-act="new"] { display: none; }
 /* The quick-action dock would cover the last week row; the agenda has its own + button. */
 body.ag-body #omDock { display: none !important; }
 .ag-search input, .ag-search input:focus { border: 0 !important; box-shadow: none !important; padding: 0 !important; height: auto !important; min-height: 0 !important; background: transparent !important; outline: 0 !important; }
-.ag-mini__d { aspect-ratio: auto; height: 30px; width: 30px; justify-self: center; }
-.ag-mini--year .ag-mini__d { height: 26px; width: 26px; }
+.ag-mini__d { aspect-ratio: auto; height: 32px; width: 32px; min-height: 32px; min-width: 32px; justify-self: center; }
+.ag-mini--year .ag-mini__d { height: 28px; width: 28px; min-height: 28px; min-width: 28px; }
 .ag-dayside > * { min-width: 0; }
 .ag-li { min-width: 0; overflow: hidden; }
 .ag-li > div { flex: 1; }
 .ag-side + .ag-stage .ag-dayside .ag-mini { display: none; }
-@media (max-width: 767px) { .ag-mini--year .ag-mini__d { height: 15px; width: auto; font-size: 9px; } .ag-mini--year .ag-mini__d.is-today { border-radius: 4px; } }
+@media (max-width: 767px) {
+  .ag-mini--year .ag-mini__d { height: 22px; width: auto; min-height: 22px; font-size: 10px; }
+  .ag-mini--year .ag-mini__d.is-today { border-radius: 4px; }
+  .ag-mini__d { height: 36px; width: 36px; min-height: 36px; min-width: 36px; }
+}
 
 /* Drag & drop + long-press targets — keep form fields selectable / tabbable */
 .ag-stage,
