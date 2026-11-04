@@ -135,6 +135,7 @@ export function obraCalendarHtml(html: string): string {
     .replace(/<\/body>/i, '  <script src="/obracalendar.js?v=1"></script>\n</body>');
 }
 
+const OBRACREW_ROLES = new Set(["installer", "crew_lead", "subcontractor"]);
 const OBRACAM_ROLES = new Set(["admin", "general_manager", "office"]);
 
 /** The ObraCam page dressed as its own app; lists, photos and viewer are shared with job-media-board.html. */
@@ -245,6 +246,20 @@ export function createCrmRouter(): Router {
     } catch (e) {
       next(e);
     }
+  });
+
+  // ObraCrew: field roles go to their day (Campo); other roles see a short explanation.
+  router.get("/obracrew", (req: AuthedRequest, res) => {
+    if (!req.user) {
+      res.redirect("/login.html?app=obracrew");
+      return;
+    }
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    if (OBRACREW_ROLES.has(req.user.roleKey ?? "")) {
+      res.redirect(302, "/campo/hoje.html");
+      return;
+    }
+    res.type("html").send(fs.readFileSync(path.join(CRM_PUBLIC_DIR, "obracrew-sem-acesso.html"), "utf8"));
   });
 
   router.get(["/mate-ai", "/mate-ai.html"], requireAuth, async (req, res, next) => {

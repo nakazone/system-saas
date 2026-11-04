@@ -10,11 +10,11 @@
     <link rel="apple-touch-icon" href="/assets/favicon-180.png?v=20260924-pwa" />
     <script>
       // Added to the Home Screen from this page, an app link must keep its own icon and name.
-      window.__omLoginApp = (/[?&]app=(obracalendar|obracam)\b/.exec(location.search) || [])[1] || null;
+      window.__omLoginApp = (/[?&]app=(obracalendar|obracam|obracrew)\b/.exec(location.search) || [])[1] || null;
       if (window.__omLoginApp) {
         var omApp = window.__omLoginApp;
         document.querySelector('link[rel="apple-touch-icon"]').href = '/assets/' + omApp + '/apple-touch-icon.png?v=1';
-        document.write('<link rel="manifest" href="/' + omApp + '.webmanifest?v=1" /><meta name="apple-mobile-web-app-title" content="' + (omApp === 'obracam' ? 'ObraCam' : 'ObraCalendar') + '" />');
+        document.write('<link rel="manifest" href="/' + omApp + '.webmanifest?v=1" /><meta name="apple-mobile-web-app-title" content="' + ({ obracam: 'ObraCam', obracrew: 'ObraCrew', obracalendar: 'ObraCalendar' })[omApp] + '" />');
       }
     </script>
     <link rel="stylesheet" href="styles.css?v=20261008-modulos1">

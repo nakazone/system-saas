@@ -176,6 +176,12 @@ export function createApp() {
     res.setHeader("Cache-Control", "no-cache");
     res.sendFile(path.resolve(process.cwd(), "crm/public/obracam.webmanifest"));
   });
+  // ObraCrew (the field team's app) — the Campo pages installed under their own name and icon.
+  app.get("/obracrew.webmanifest", (_req, res) => {
+    res.type("application/manifest+json");
+    res.setHeader("Cache-Control", "no-cache");
+    res.sendFile(path.resolve(process.cwd(), "crm/public/obracrew.webmanifest"));
+  });
   app.get("/obramateLogoSmallTransp.png", (_req, res) => {
     const candidates = [
       path.join(CRM_ASSETS_DIR, "obramateLogoSmallTransp.png"),
