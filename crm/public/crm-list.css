@@ -276,19 +276,19 @@
 .ol-st.is-off::before { display: none; }
 
 /* progresso: mesmas cores em Jobs e Invoices — feito = laranja, atual = laranja claro */
-.ol-list .ol-f .jx-prog,
+.ol-list .jx-prog,
 .ol-list .ol-f .ix-prog { flex: 1 1 auto; max-width: 160px; gap: 3px; margin-left: auto; }
-.ol-list .ol-f .jx-prog i,
+.ol-list .jx-prog i,
 .ol-list .ol-f .ix-prog i,
-.ol-list .ol-f .jx-prog i.jx-prog__split b { height: 4px; border-radius: 2px; background: #E7E9ED; }
-.ol-list .ol-f .jx-prog i.jx-prog__split { background: transparent; }
-.ol-list .ol-f .jx-prog i.d,
+.ol-list .jx-prog i.jx-prog__split b { height: 4px; border-radius: 2px; background: #E7E9ED; }
+.ol-list .jx-prog i.jx-prog__split { background: transparent; }
+.ol-list .jx-prog i.d,
 .ol-list .ol-f .ix-prog i.d,
-.ol-list .ol-f .jx-prog i.jx-prog__split b.d { background: var(--ol-accent); }
-.ol-list .ol-f .jx-prog i.n,
+.ol-list .jx-prog i.jx-prog__split b.d { background: var(--ol-accent); }
+.ol-list .jx-prog i.n,
 .ol-list .ol-f .ix-prog i.n,
-.ol-list .ol-f .jx-prog i.jx-prog__split b.n { background: #F4BE96; }
-.ol-list .ol-f .jx-prog--x,
+.ol-list .jx-prog i.jx-prog__split b.n { background: #F4BE96; }
+.ol-list .jx-prog--x,
 .ol-list .ol-f .ix-prog--x { height: 4px; }
 
 /* lead: avatar de cliente / miniatura de foto / ícone de movimento */
@@ -461,7 +461,34 @@
   background: var(--ol-accent-soft);
   box-shadow: 0 0 0 1px var(--ol-accent-ring);
 }
-.ol-list .ol-rows .jx-rowwrap.jmx-card .jmx-card__r3 { margin-top: 10px; }
-.ol-list .ol-rows .jx-rowwrap.jmx-card .jmx-b { height: 32px; }
-.ol-list .ol-rows .jx-rowwrap.jmx-card .jmx-b--sq { width: 32px; }
+.ol-list .ol-rows .jx-rowwrap.jmx-card .ol-row { row-gap: 3px; }
+.ol-list .ol-rows .jx-rowwrap.jmx-card .ol-row .ol-t { font-size: 14.5px; }
+/* rodapé: status à esquerda, mapa + ação à direita; o progresso fica na linha de cima */
+.ol-list .ol-rows .jx-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+  gap: 8px;
+  margin-top: 9px;
+  cursor: pointer;
+}
+/* o status cede espaço (reticências) para a ação caber na coluna estreita (324px) */
+.ol-list .ol-rows .jx-foot > .ol-st { flex: 0 1 auto; min-width: 0; margin-right: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ol-list .ol-rows .jx-rowwrap.jmx-card .ol-row > .jx-prog { grid-column: 1 / -1; display: flex; margin: 8px 0 0; max-width: none; }
+.ol-list .ol-rows .jx-foot > .jmx-b { flex: none; height: 32px; padding: 0 12px; border-radius: 10px; font-size: 12.5px; }
+.ol-list .ol-rows .jx-foot > .jmx-b--sq { width: 32px; padding: 0; color: var(--ol-ink2) !important; }
+.ol-list .ol-rows .jx-foot > .jmx-b:not(.jmx-b--or):not(.jmx-b--sq) { background: var(--ol-field); color: var(--ol-ink) !important; }
+.ol-list .ol-rows .jx-foot > .jmx-b:not(.jmx-b--or):hover { background: #E6E9ED; }
+.ol-list .ol-rows .jx-foot > .jmx-b:focus-visible { outline: 2px solid var(--ol-accent); outline-offset: 2px; }
 .ol-list .ol-rows .ol-band > .jx-rowwrap.jmx-card:last-child { margin-bottom: 4px; }
+
+/* "Recolher tudo" na linha dos selects, quando a lista tem uma */
+.ol-list .ol-bar > .ol-foldall {
+  margin-left: auto; height: 26px; padding: 0 8px; border: 0; border-radius: 8px;
+  background: transparent; color: var(--ol-ink2); font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; white-space: nowrap;
+}
+.ol-list .ol-bar > .ol-foldall--icon { flex: none; width: 30px; height: 30px; padding: 0; display: inline-grid; place-items: center; }
+.ol-list .ol-bar > .ol-foldall--icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ol-list .ol-bar > .ol-foldall:hover { background: var(--ol-hover); color: var(--ol-ink); }
+.ol-list .ol-bar > .ol-foldall:focus-visible { outline: 2px solid var(--ol-accent); outline-offset: 1px; }
