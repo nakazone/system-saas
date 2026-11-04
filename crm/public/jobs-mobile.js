@@ -76,13 +76,6 @@
     return map[status] || status || "—";
   }
 
-  function statusCls(status) {
-    if (status === "in_progress") return "jcm-badge--progress";
-    if (status === "scheduled") return "jcm-badge--sched";
-    if (status === "completed") return "jcm-badge--done";
-    return "jcm-badge--open";
-  }
-
   function fmtTimeRange(start, end) {
     if (!start) return "Sem horário";
     const s = new Date(start);
@@ -227,24 +220,25 @@
               : `<a class="jmx-b" href="${detailHref}">Ver job</a>`
           : `<a class="jmx-b" href="${detailHref}">Ver job</a>`;
     const listed = J && J.listWhen ? J.listWhen(wo) : null;
-    const when = listed
-      ? [listed.date, listed.status].filter(Boolean).join(" · ")
-      : !wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start)
-        ? "Sem data"
-        : fmtDay(wo.scheduled_start);
+    const undated = !wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start);
+    const date = listed ? listed.date : undated ? "" : fmtDay(wo.scheduled_start);
+    const lt = J && J.late ? J.late(wo) : null;
+    const stText = lt ? lt.short : listed && listed.status ? listed.status : undated ? "Sem data" : "";
+    const tone = J && J.stageTone ? J.stageTone(wo) : "wait";
+    const title = cardTitle(wo);
     return `<article class="om-swipe jcm-job-swipe" data-job-id="${escapeHtml(wo.id)}">
       <div class="om-swipe__actions" aria-hidden="true">
         <a class="om-swipe__act--edit" href="${detailHref}">Abrir</a>
         ${canManage && wo.status !== "canceled" ? `<button type="button" class="om-swipe__act--delete" data-job-delete="${escapeHtml(wo.id)}" data-job-label="${escapeHtml(wo.title || clientLabel(wo))}">Excluir</button>` : `<a class="om-swipe__act--open" href="${detailHref}">Detalhe</a>`}
       </div>
       <div class="om-swipe__body jmx-card">
-        <a class="jmx-card__a" href="${detailHref}">
-          <b class="jmx-card__t">${escapeHtml(cardTitle(wo))}</b>
-          ${wo.address ? `<span class="jmx-card__s jmx-card__addr"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><span>${escapeHtml(wo.address)}</span></span>` : ""}
-          ${J ? J.progHtml(wo) : ""}
+        <a class="jmx-card__a ol-row" href="${detailHref}">
+          <b class="ol-t" title="${escapeHtml(title)}">${escapeHtml(title)}</b>
+          ${date && !undated ? `<span class="ol-v">${escapeHtml(date)}</span>` : ""}
+          ${wo.address ? `<span class="ol-m"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><span>${escapeHtml(wo.address)}</span></span>` : `<span class="ol-m"><span>Sem endereço</span></span>`}
+          <span class="ol-f">${stText ? `<span class="ol-st is-${tone}">${escapeHtml(stText)}</span>` : ""}${J ? J.progHtml(wo) : ""}</span>
         </a>
         <div class="jmx-card__r3">
-          <span class="jmx-card__when">${escapeHtml(when)}</span>
           ${maps ? `<a class="jmx-b jmx-b--sq" href="${maps}" target="_blank" rel="noopener" aria-label="Mapa"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></a>` : ""}
           ${cta}
         </div>
@@ -280,7 +274,7 @@
               <span class="jcm-job__day${today ? " is-today" : ""}">${escapeHtml(today ? "Hoje" : day || "Sem data")}</span>
               <span class="jcm-job__time">${escapeHtml(fmtTimeRange(wo.scheduled_start, wo.scheduled_end))}</span>
             </div>
-            <span class="jcm-badge ${statusCls(wo.status)}">${escapeHtml(statusPt(wo.status))}</span>
+            <span class="ol-st is-${window.JobsInfo?.stageTone ? window.JobsInfo.stageTone(wo) : "wait"}">${escapeHtml(statusPt(wo.status))}</span>
           </div>
           <p class="jcm-job__title">${escapeHtml(cardTitle(wo))}</p>
           <p class="jcm-job__client">${escapeHtml(window.JobsInfo?.findLine ? window.JobsInfo.findLine(wo) : clientLabel(wo))}</p>

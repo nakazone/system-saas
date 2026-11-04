@@ -163,35 +163,30 @@
     return base || "Sem cliente";
   }
 
-  function rowSub(j) {
-    const st = jobStageLabel(j);
-    if (!j.last_photo) return { text: `${st} · nenhuma foto`, hot: needsPhoto(j) && !!j.scheduled_start };
-    return { text: `${st} · última ${ago(j.last_photo.created_at)}`, hot: needsPhoto(j) };
-  }
-
   function useSwipeDelete() {
     return canManage && window.matchMedia("(max-width: 1024px), (pointer: coarse)").matches;
   }
 
   function rowHtml(j) {
     const last = j.last_photo;
-    const th = last ? `<span class="cam-row__th" style="background-image:url('${esc(last.url)}')"></span>` : `<span class="cam-row__th is-empty">${SVG.cam}</span>`;
-    const sub = rowSub(j);
+    const th = last ? `<span class="cam-row__th ol-lead" style="background-image:url('${esc(last.url)}')"></span>` : `<span class="cam-row__th ol-lead is-empty">${SVG.cam}</span>`;
     const n = j.photo_count != null ? j.photo_count : (j.photos || []).length;
     const who = listWho(j);
     const head = who && who !== "Sem cliente" ? who : j.title || "Job";
     const href = `job-detail.html?id=${encodeURIComponent(j.id)}#fotos`;
     const addr = j.address
-      ? `<span class="cam-row__addr">${SVG.pin}<span>${esc(j.address)}</span></span>`
-      : "";
-    const body = `<a class="cam-row${String(j.id) === String(selId) && mode !== "photos" ? " is-on" : ""}" href="${href}" data-cam-id="${esc(j.id)}">
+      ? `<span class="ol-m cam-row__addr" title="${esc(j.address)}">${SVG.pin}<span>${esc(j.address)}</span></span>`
+      : `<span class="ol-m"><span>Sem endereço</span></span>`;
+    const stale = needsPhoto(j);
+    const lt = window.JobsInfo?.late ? window.JobsInfo.late(j) : null;
+    const tone = window.JobsInfo?.stageTone ? window.JobsInfo.stageTone(j) : "wait";
+    const note = last ? `última foto ${ago(last.created_at)}` : "nenhuma foto";
+    const body = `<a class="cam-row ol-row${String(j.id) === String(selId) && mode !== "photos" ? " is-on" : ""}" href="${href}" data-cam-id="${esc(j.id)}">
       ${th}
-      <span class="cam-row__b">
-        <span class="cam-row__l1"><b title="${esc(head)}">${esc(head)}</b></span>
-        ${addr}
-        <small class="${sub.hot ? "is-hot" : ""}">${esc(sub.text)}</small>
-      </span>
-      ${n ? `<em>${n} foto${n === 1 ? "" : "s"}</em>` : ""}
+      <b class="ol-t" title="${esc(head)}">${esc(head)}</b>
+      <span class="ol-v${n ? "" : " is-mu"}">${n ? `${n} foto${n === 1 ? "" : "s"}` : "0 fotos"}</span>
+      ${addr}
+      <span class="ol-f"><span class="ol-st is-${tone}">${esc(lt ? lt.short : jobStageLabel(j))}</span><span class="ol-note${stale ? " is-hot" : ""}">${esc(note)}</span></span>
     </a>`;
     if (useSwipeDelete() && j.status !== "canceled") {
       return `<article class="om-swipe cam-swipe" data-cam-swipe="${esc(j.id)}">
@@ -345,7 +340,7 @@
     });
     const html = groups()
       .filter(([, rows]) => rows.length)
-      .map(([label, rows]) => `<p class="cam-grp"><span>${label}</span><em>${rows.length}</em></p>${rows.map(rowHtml).join("")}`)
+      .map(([label, rows]) => `<p class="cam-grp ol-grp"><span>${label}</span><em>${rows.length}</em></p>${rows.map(rowHtml).join("")}`)
       .join("");
     $("camRows").innerHTML =
       html ||

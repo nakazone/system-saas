@@ -258,10 +258,13 @@
   function rowHtml(m) {
     const ico = m.dir === "in" ? ICO.up : m.dir === "draft" ? ICO.receipt : ICO.down;
     const amt = m.dir === "draft" ? (m.amount == null ? "—" : short(m.amount)) : `${m.dir === "in" ? "+" : "−"}${money(m.amount)}`;
-    return `<a class="fx-row${S.sel === m.id ? " is-on" : ""}" href="#" data-id="${esc(m.id)}">
-      <span class="fx-ico is-${m.dir}">${ico}</span>
-      <span class="fx-row__b"><b>${esc(m.title)}</b><small class="${m.dir === "draft" ? "is-hot" : ""}">${esc(m.sub)}</small></span>
-      <span class="fx-amt is-${m.dir}">${amt}</span></a>`;
+    return `<a class="fx-row ol-row${S.sel === m.id ? " is-on" : ""}" href="#" data-id="${esc(m.id)}">
+      <span class="fx-ico ol-lead is-${m.dir}">${ico}</span>
+      <b class="ol-t" title="${esc(m.title)}">${esc(m.title)}</b>
+      <span class="ol-v fx-amt is-${m.dir}">${amt}</span>
+      <span class="ol-m"><span class="${m.dir === "draft" ? "is-hot" : ""}">${esc(m.sub)}</span></span>
+      ${m.dir === "draft" ? `<span class="ol-d is-hot">a classificar</span>` : ""}
+    </a>`;
   }
 
   function renderList() {
@@ -289,7 +292,7 @@
       const flush = () => {
         if (!day) return;
         const t = tot ? `${tot > 0 ? "+" : "−"}${money(Math.abs(tot))}` : drafts ? `${drafts} a classificar` : "";
-        h += `<div class="fx-day"><span>${esc(dayLabel(day))}</span><em>${t}</em></div>${buf}`;
+        h += `<div class="fx-day ol-grp"><span>${esc(dayLabel(day))}</span><em>${t}</em></div>${buf}`;
       };
       list.forEach((m) => {
         if (m.date !== day) {

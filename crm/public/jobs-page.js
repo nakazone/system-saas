@@ -212,19 +212,16 @@
     const href = `job-detail.html?id=${encodeURIComponent(wo.id)}`;
     const startBtn = undated && canManage ? `<button type="button" class="jx-start" data-jx-start="${J.esc(wo.id)}">Schedule Job</button>` : "";
     const showDel = canManage && wo.status !== "canceled";
-    const addr = wo.address ? `<span class="jx-row__addr">${SVG.pin}<span>${J.esc(wo.address)}</span></span>` : "";
+    const addr = wo.address ? `<span class="ol-m jx-row__addr" title="${J.esc(wo.address)}">${SVG.pin}<span>${J.esc(wo.address)}</span></span>` : `<span class="ol-m"><span>Sem endereço</span></span>`;
+    const lt = J.late ? J.late(wo) : null;
+    const stText = lt ? lt.short : when.status;
+    const tone = J.stageTone ? J.stageTone(wo) : "wait";
     const body = `<div class="jx-rowwrap">
-    <a class="jx-row${String(wo.id) === String(selId) ? " is-on" : ""}" href="${href}" data-jx-id="${J.esc(wo.id)}">
-      <span class="jx-row__b">
-        <span class="jx-row__l1"><b>${J.esc(head)}</b></span>
-        ${addr}
-        <span class="jx-row__l3">${J.progHtml(wo)}</span>
-      </span>
-      <span class="jx-row__side">
-        ${when.date ? `<span class="jx-row__when">${J.esc(when.date)}</span>` : ""}
-        ${when.status ? `<span class="jx-row__st">${J.esc(when.status)}</span>` : ""}
-        ${startBtn}
-      </span>
+    <a class="jx-row ol-row${String(wo.id) === String(selId) ? " is-on" : ""}" href="${href}" data-jx-id="${J.esc(wo.id)}">
+      <b class="ol-t" title="${J.esc(head)}">${J.esc(head)}</b>
+      ${when.date && !undated ? `<span class="ol-v">${J.esc(when.date)}</span>` : ""}
+      ${addr}
+      <span class="ol-f">${stText ? `<span class="ol-st is-${tone}">${J.esc(stText)}</span>` : ""}${startBtn || J.progHtml(wo)}</span>
     </a></div>`;
     // Swipe-to-delete only on touch / narrow — desktop list stays clean (no inline buttons).
     if (showDel && useSwipeDelete()) {
@@ -376,17 +373,12 @@
       ? `job-detail.html?id=${encodeURIComponent(jobId)}`
       : `partner-requests-admin.html?id=${encodeURIComponent(item.id)}`;
     const who = item.partner_company || item.partner_name || "Builder";
-    const addr = item.address && item.address !== "—" ? `<span class="jx-row__addr">${SVG.pin}<span>${J.esc(item.address)}</span></span>` : "";
-    return `<div class="jx-rowwrap"><a class="jx-row" href="${href}" ${jobId ? `data-jx-id="${J.esc(jobId)}"` : ""}>
-      <span class="jx-row__b">
-        <span class="jx-row__l1"><b>${J.esc(who)}</b></span>
-        ${addr}
-        <span class="jx-row__l3">${J.esc(item.title || "Pedido do builder")}</span>
-      </span>
-      <span class="jx-row__side">
-        <span class="jx-row__when">Pedido</span>
-        <span class="jx-row__st">Aguardando</span>
-      </span>
+    const addr = item.address && item.address !== "—" ? `<span class="ol-m jx-row__addr" title="${J.esc(item.address)}">${SVG.pin}<span>${J.esc(item.address)}</span></span>` : "";
+    return `<div class="jx-rowwrap"><a class="jx-row ol-row" href="${href}" ${jobId ? `data-jx-id="${J.esc(jobId)}"` : ""}>
+      <b class="ol-t" title="${J.esc(who)}">${J.esc(who)}</b>
+      <span class="ol-d">Pedido</span>
+      ${addr}
+      <span class="ol-f"><span class="ol-st is-hot">Aguardando</span><span class="ol-note">${J.esc(item.title || "Pedido do builder")}</span></span>
     </a></div>`;
   }
   function renderList() {
@@ -427,15 +419,15 @@
     const keys = [...weeks.keys()].sort((a, b) => weekRank(a) - weekRank(b));
     let html = "";
     if (pending.length || portal.length) {
-      html += `<section class="jx-week jx-week--portal"><p class="jx-grp jx-grp--portal"><span>Do portal</span><em>${pending.length + portal.length}</em></p>${pending.map(pendingRequestHtml).join("")}${portal.map(rowHtml).join("")}</section>`;
+      html += `<section class="jx-week jx-week--portal ol-band"><p class="jx-grp jx-grp--portal ol-grp"><span>Do portal</span><em>${pending.length + portal.length}</em></p>${pending.map(pendingRequestHtml).join("")}${portal.map(rowHtml).join("")}</section>`;
     }
     keys.forEach((key, i) => {
       const g = sortRows(weeks.get(key));
       const [yy, mm, dd] = key.split("-").map(Number);
-      html += `<section class="jx-week jx-week--${i % 2 ? "b" : "a"}"><p class="jx-grp"><span>${weekTitle(new Date(yy, mm - 1, dd))}</span><em>${g.length}</em></p>${g.map(rowHtml).join("")}</section>`;
+      html += `<section class="jx-week ol-band"><p class="jx-grp ol-grp"><span>${weekTitle(new Date(yy, mm - 1, dd))}</span><em>${g.length}</em></p>${g.map(rowHtml).join("")}</section>`;
     });
     if (undated.length) {
-      html += `<section class="jx-week"><p class="jx-grp"><span>Sem data</span><em>${undated.length}</em></p>${undated.map(rowHtml).join("")}</section>`;
+      html += `<section class="jx-week ol-band"><p class="jx-grp ol-grp"><span>Sem data</span><em>${undated.length}</em></p>${undated.map(rowHtml).join("")}</section>`;
     }
     host.innerHTML = html;
     if (window.OmGestures) window.OmGestures.bindSwipeRow?.(host);
