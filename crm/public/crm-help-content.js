@@ -441,6 +441,8 @@
   /** Map current page filename → contextual help */
   var PAGE_CONTEXT = {
     "home.html": { moduleId: "home", problems: ["new-lead", "send-quote"], tutorials: ["getting-started"] },
+    dashboard: { moduleId: "home", problems: ["new-lead", "send-quote", "invoice-job"], tutorials: ["getting-started"] },
+    "pipeline-lab.html": { moduleId: "home", problems: ["new-lead", "send-quote", "invoice-job"], tutorials: ["getting-started"] },
     "dashboard.html": { moduleId: "home", problems: ["new-lead", "send-quote"], tutorials: ["getting-started"] },
     "leads.html": { moduleId: "leads", problems: ["new-lead", "schedule-visit", "send-quote"], tutorials: ["lead-to-quote"] },
     "lead-detail.html": { moduleId: "leads", problems: ["new-lead", "send-quote", "schedule-visit"], tutorials: ["lead-to-quote"] },

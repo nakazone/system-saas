@@ -1,0 +1,222 @@
+/* Mate tours: spotlight around the part being taught + the Mate's coach card. */
+
+.om-tour[hidden] {
+  display: none;
+}
+
+.om-tour__spot {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 12500;
+  width: 0;
+  height: 0;
+  border-radius: 14px;
+  box-shadow: 0 0 0 9999px rgba(34, 30, 26, 0.5), 0 0 0 3px #E7792C;
+  pointer-events: none;
+  opacity: 0;
+  transition: transform 260ms cubic-bezier(0.77, 0, 0.175, 1), width 260ms cubic-bezier(0.77, 0, 0.175, 1),
+    height 260ms cubic-bezier(0.77, 0, 0.175, 1), opacity 200ms ease;
+}
+
+.om-tour.has-target .om-tour__spot {
+  opacity: 1;
+}
+
+/* No target (intro step): dim the page evenly. */
+.om-tour:not(.has-target)::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 12499;
+  background: rgba(34, 30, 26, 0.42);
+}
+
+.om-tour__card {
+  position: fixed;
+  z-index: 12501;
+  left: 50%;
+  top: 50%;
+  width: min(360px, calc(100vw - 24px));
+  box-sizing: border-box;
+  padding: 16px 18px 14px;
+  border-radius: 20px;
+  background: #fff;
+  color: #221E1A;
+  box-shadow: 0 24px 60px rgba(34, 30, 26, 0.28), 0 2px 6px rgba(34, 30, 26, 0.1);
+  font-family: inherit;
+  transition: left 260ms cubic-bezier(0.77, 0, 0.175, 1), top 260ms cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+.om-tour__card.is-in {
+  animation: omTourIn 220ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+@keyframes omTourIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+
+.om-tour__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.om-tour__face {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: rgba(231, 121, 44, 0.12);
+}
+
+.om-tour__face img {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+}
+
+.om-tour__kicker {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #B4561A;
+}
+
+.om-tour__x {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #667085;
+  cursor: pointer;
+}
+
+.om-tour__x svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.85;
+  stroke-linecap: round;
+}
+
+.om-tour__title {
+  margin: 12px 0 4px;
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.om-tour__text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #4A443E;
+}
+
+.om-tour__foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.om-tour__foot--center {
+  justify-content: center;
+}
+
+.om-tour__dots {
+  display: inline-flex;
+  gap: 5px;
+  margin-right: auto;
+}
+
+.om-tour__dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 99px;
+  background: #E2E4E8;
+  transition: width 200ms ease, background-color 200ms ease;
+}
+
+.om-tour__dots i.is-past {
+  background: #F2B184;
+}
+
+.om-tour__dots i.is-on {
+  width: 18px;
+  background: #E7792C;
+}
+
+.om-tour__btn {
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1.5px solid #E7792C;
+  border-radius: 11px;
+  background: #E7792C;
+  color: #fff;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 120ms ease, background-color 150ms ease;
+}
+
+.om-tour__btn:active {
+  transform: scale(0.97);
+}
+
+.om-tour__btn--ghost {
+  border-color: #E5E7EB;
+  background: #fff;
+  color: #221E1A;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .om-tour__btn:hover {
+    background: #D96B20;
+  }
+
+  .om-tour__btn--ghost:hover {
+    background: #F6F5F3;
+  }
+
+  .om-tour__x:hover {
+    background: #F6F5F3;
+    color: #221E1A;
+  }
+}
+
+.om-tour__done {
+  text-align: center;
+}
+
+.om-tour__done img {
+  width: 96px;
+  height: 88px;
+  object-fit: contain;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .om-tour__spot,
+  .om-tour__card {
+    transition: none;
+  }
+
+  .om-tour__card.is-in {
+    animation: none;
+  }
+}
