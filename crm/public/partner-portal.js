@@ -3974,10 +3974,8 @@
     const tools = $('ppProviderTools');
     const companies = state.builder.companies || [];
     tools.hidden = false;
-    // Secondary places live in the account menu, so the dock keeps only the daily work.
-    tools.innerHTML = `<a class="pp-menu-item" href="#documents" style="text-decoration:none">Photos & docs</a><a class="pp-menu-item" href="#companies" style="text-decoration:none">${companies.length ? `Companies · ${companies.length}` : canDo('companies.manage') ? 'Connect a company' : 'Companies'}</a><a class="pp-menu-item" href="#team" style="text-decoration:none">Team</a><a class="pp-menu-item" href="#settings" style="text-decoration:none">Settings</a>`;
+    tools.innerHTML = `<label>${companies.length ? `Companies · ${companies.length}` : 'Companies'}</label><a class="pp-menu-item" href="#companies" style="text-decoration:none">${canDo('companies.manage') ? 'Connect or invite a company' : 'View companies'}</a><a class="pp-menu-item" href="#team" style="text-decoration:none">Team</a>${canDo('team.manage') ? '<a class="pp-menu-item" href="#settings" style="text-decoration:none">Settings</a>' : ''}`;
     document.querySelectorAll('[data-builder-only]').forEach((el) => { el.hidden = false; });
-    document.querySelectorAll('[data-legacy-only]').forEach((el) => { el.hidden = true; });
     document.querySelectorAll('[data-nav="invoices"]').forEach((el) => { el.hidden = !canDo('money.view'); });
     document.querySelectorAll('[data-nav="measurements"]').forEach((el) => { el.hidden = !canDo('measure'); });
     document.querySelectorAll('[data-nav="settings"]').forEach((el) => { el.hidden = false; });
