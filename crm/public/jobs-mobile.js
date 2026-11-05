@@ -261,41 +261,62 @@
     </article>`;
   }
 
+  function fieldDayParts(iso) {
+    if (!iso) return { top: "—", bot: "—", today: false };
+    const d = new Date(iso);
+    const today = isToday(iso);
+    if (today) {
+      const pad = (n) => String(n).padStart(2, "0");
+      return { top: "Hoje", bot: `${pad(d.getHours())}:${pad(d.getMinutes())}`, today: true };
+    }
+    const wd = d.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "");
+    return {
+      top: wd.charAt(0).toUpperCase() + wd.slice(1),
+      bot: String(d.getDate()),
+      today: false,
+    };
+  }
+
   function renderFieldCard(wo) {
     const J = window.JobsInfo;
     const maps = wo.address ? `https://maps.google.com/?q=${encodeURIComponent(wo.address)}` : "";
     const anchor = (J && J.listAnchorIso(wo)) || wo.scheduled_start;
-    const listed = J && J.listWhen ? J.listWhen(wo) : null;
-    const day = listed?.date || fmtDay(anchor);
-    const today = isToday(anchor);
+    const when = fieldDayParts(anchor);
+    const time = anchor ? fmtTimeRange(anchor, wo.scheduled_end) : "";
     const tone = J && J.stageTone ? J.stageTone(wo) : "wait";
+    const listed = J && J.listWhen ? J.listWhen(wo) : null;
     const stText = listed?.status || statusPt(wo.status);
+    const title = cardTitle(wo);
+    const jobName = String(wo.title || "").trim();
+    const sub = jobName && jobName.toLowerCase() !== title.toLowerCase() ? jobName : "";
     const campoHref = `/campo/ticket.html?id=${encodeURIComponent(wo.id)}`;
     const detailHref = `job-detail.html?id=${encodeURIComponent(wo.id)}`;
-    const ctaLabel =
-      wo.status === "in_progress" ? "Continuar" : wo.status === "completed" ? "Ver" : "Abrir";
     return `<article class="om-swipe jcm-job-swipe" data-job-id="${escapeHtml(wo.id)}">
       <div class="om-swipe__actions" aria-hidden="true">
         <a class="om-swipe__act--edit" href="${campoHref}">Abrir</a>
         <a class="om-swipe__act--open" href="${detailHref}">Detalhe</a>
       </div>
-      <div class="om-swipe__body jmx-card jmx-card--crew">
-        <a class="jmx-card__a" href="${campoHref}">
-          <div class="jmx-card__r1">
-            <span class="${today ? "is-today" : ""}">${escapeHtml(today ? "Hoje" : day || "Sem data")}</span>
-            ${stText ? `<span class="ol-st is-${tone}">${escapeHtml(stText)}</span>` : ""}
+      <div class="om-swipe__body crew-job${when.today ? " is-today" : ""}">
+        <a class="crew-job__main" href="${campoHref}">
+          <div class="crew-job__when" aria-label="${escapeHtml(when.today ? `Hoje ${time}` : `${when.top} ${when.bot}${time ? `, ${time}` : ""}`)}">
+            <b>${escapeHtml(when.top)}</b>
+            <span>${escapeHtml(when.bot)}</span>
           </div>
-          <b class="jmx-card__t">${escapeHtml(cardTitle(wo))}</b>
-          ${
-            wo.address
-              ? `<span class="jmx-card__s jmx-card__addr"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><span>${escapeHtml(wo.address)}</span></span>`
-              : ""
-          }
+          <div class="crew-job__copy">
+            <b class="crew-job__title">${escapeHtml(title)}</b>
+            ${sub ? `<span class="crew-job__sub">${escapeHtml(sub)}</span>` : ""}
+            ${wo.address ? `<span class="crew-job__addr">${escapeHtml(wo.address)}</span>` : ""}
+            <span class="crew-job__meta">
+              ${stText ? `<span class="ol-st is-${tone}">${escapeHtml(stText)}</span>` : ""}
+              ${!when.today && time ? `<span class="crew-job__clock">${escapeHtml(time)}</span>` : ""}
+            </span>
+          </div>
         </a>
-        <div class="jmx-card__r3">
-          ${maps ? `<a class="jmx-b jmx-b--sq" href="${maps}" target="_blank" rel="noopener" aria-label="Mapa"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></a>` : ""}
-          <a class="jmx-b jmx-b--or" href="${campoHref}">${escapeHtml(ctaLabel)}</a>
-        </div>
+        ${
+          maps
+            ? `<a class="crew-job__map" href="${maps}" target="_blank" rel="noopener" aria-label="Abrir mapa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></a>`
+            : `<span class="crew-job__map is-off" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></span>`
+        }
       </div>
     </article>`;
   }

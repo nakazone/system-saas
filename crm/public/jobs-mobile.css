@@ -113,18 +113,127 @@ body.om-device-mobile.jobs-app .jcm-empty { padding: 28px 8px; text-align: cente
 body.om-device-mobile.jobs-app .jcm-portal { margin: 6px 2px 2px; font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: #B4561A; }
 body.om-device-mobile.jobs-app .jcm-portal-card { margin-bottom: 8px; }
 
-/* cartão Obra Crew */
-body.jcm-field .jmx-card--crew {
-  padding: 14px 14px 12px;
+/* cartão Obra Crew — horário | conteúdo | mapa */
+body.jcm-field .jcm-list { gap: 8px; margin-top: 12px; }
+.crew-job {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: stretch;
+  gap: 0;
+  background: #fff;
+  border: 1px solid #E5E7EB;
+  border-radius: 16px;
+  overflow: hidden;
 }
-body.jcm-field .jmx-card--crew .jmx-card__r1 > span.is-today { color: #B4561A; font-weight: 700; }
-body.jcm-field .jmx-card--crew .jmx-card__t { margin-top: 6px; font-size: 16px; line-height: 1.3; }
-body.jcm-field .jmx-card--crew .jmx-card__addr { margin-top: 6px; color: #667085; font-size: 13px; line-height: 1.35; }
-body.jcm-field .jmx-card--crew .jmx-card__r3 { margin-top: 12px; gap: 8px; }
-body.jcm-field .jmx-card--crew .jmx-b { height: 40px; border-radius: 12px; font-size: 13.5px; }
-body.jcm-field .jmx-card--crew .jmx-b--sq { width: 40px; }
-body.jcm-field .jmx-card--crew .jmx-b--or { flex: 1; }
-body.jcm-field .jcm-list { gap: 10px; margin-top: 12px; }
+.crew-job.is-today { border-color: #E5C9B0; }
+.crew-job__main {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  min-width: 0;
+  padding: 12px 4px 12px 12px;
+  color: #221E1A !important;
+  text-decoration: none !important;
+  -webkit-tap-highlight-color: transparent;
+}
+.crew-job__when {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 52px;
+  padding: 8px 4px;
+  border-radius: 12px;
+  background: #F4F5F7;
+  text-align: center;
+}
+.crew-job.is-today .crew-job__when { background: #FDF0E6; }
+.crew-job__when b {
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #667085;
+  line-height: 1;
+}
+.crew-job.is-today .crew-job__when b { color: #B4561A; }
+.crew-job__when span {
+  font-size: 15px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  color: #221E1A;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.crew-job__copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-top: 2px;
+}
+.crew-job__title {
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.crew-job__sub,
+.crew-job__addr {
+  font-size: 12.5px;
+  font-weight: 550;
+  color: #667085;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.crew-job__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 5px;
+  min-width: 0;
+}
+.crew-job__clock {
+  font-size: 12px;
+  font-weight: 650;
+  color: #98A2B3;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.crew-job__map {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  align-self: stretch;
+  border: 0;
+  border-left: 1px solid #EEF0F3;
+  background: transparent;
+  color: #667085;
+  text-decoration: none !important;
+  -webkit-tap-highlight-color: transparent;
+}
+.crew-job__map:active { background: #F4F5F7; }
+.crew-job__map.is-off { opacity: 0.28; pointer-events: none; }
+.crew-job__map svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.85;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+@media (pointer: coarse) {
+  .crew-job__main { padding: 14px 4px 14px 14px; min-height: 72px; }
+  .crew-job__map { width: 52px; }
+}
 
 /* status (lista e página) */
 .jcm-badge { margin-top: 0; height: 22px; padding: 0 9px; font-size: 12px; font-weight: 650; background: #F1F3F5; color: #221E1A; }
