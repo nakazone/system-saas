@@ -255,6 +255,62 @@
       .join("");
   }
 
+  function renderOps() {
+    const card = $("homeOpsCard");
+    const s = overview.jobs_status;
+    if (!s) {
+      card.hidden = true;
+      return;
+    }
+    card.hidden = false;
+    const v = D.jobsStatusView(s);
+    $("homeOpsStats").innerHTML = v.stats
+      .map(
+        (st) => `<a class="home-stat${st.tone ? ` is-${esc(st.tone)}` : ""}${st.value ? "" : " is-zero"}" href="${esc(st.href)}">
+          <span class="home-stat__value">${esc(String(st.value))}</span>
+          <span class="home-stat__label">${esc(st.label)}</span>
+        </a>`,
+      )
+      .join("");
+    const bill = $("homeOpsBill");
+    if (v.bill) {
+      bill.hidden = false;
+      bill.innerHTML = `<span>A faturar</span><b>${esc(v.bill.value)}</b><small>${esc(v.bill.meta)}</small>`;
+    } else {
+      bill.hidden = true;
+    }
+  }
+
+  function renderQuotesWaiting() {
+    const card = $("homeQuotesCard");
+    const q = overview.quotes_waiting;
+    if (!q) {
+      card.hidden = true;
+      return;
+    }
+    card.hidden = false;
+    const list = $("homeQuotesList");
+    $("homeQuotesEmpty").hidden = q.count > 0;
+    list.innerHTML = q.items
+      .slice(0, 5)
+      .map((it) => {
+        const v = D.quoteWaitView(it);
+        return `<li>
+          <a class="home-quote${v.stale ? " is-stale" : ""}" href="${esc(v.href)}">
+            <div>
+              <p class="home-quote__title">${esc(v.title)}</p>
+              <p class="home-quote__sub">${esc(v.sub)}</p>
+            </div>
+            <div class="home-quote__aside">
+              ${v.amount ? `<b>${esc(v.amount)}</b>` : ""}
+              <span class="is-${esc(v.seenTone)}">${esc(v.seen)}</span>
+            </div>
+          </a>
+        </li>`;
+      })
+      .join("");
+  }
+
   function applyPermissions() {
     document.querySelectorAll("[data-home-perm]").forEach((el) => {
       el.hidden = !can(el.getAttribute("data-home-perm"));
@@ -284,6 +340,8 @@
       renderKpis();
       renderAttention();
       renderToday();
+      renderOps();
+      renderQuotesWaiting();
       saveLayout(D.kpiCards(overview).length, overview.today_events != null);
     } catch (err) {
       if (err && err.status === 401) {

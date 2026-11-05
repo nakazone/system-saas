@@ -499,7 +499,7 @@ describe("dashboard overview (database, tenant isolation, permissions)", () => {
 
   it("returns only the sections the viewer may see", async () => {
     const access = viewerAccess({ roleKey: "custom", permissions: ["leads.view"] });
-    expect(access).toEqual({ leads: true, quotes: false, invoices: false, schedule: false, pricing: false });
+    expect(access).toEqual({ leads: true, quotes: false, invoices: false, schedule: false, jobs: false, pricing: false });
     const ov = await withTenantTransaction(orgB, (tx) =>
       loadDashboardOverview(tx, { organizationId: orgB, timezone: TZ, access }),
     );
@@ -509,6 +509,8 @@ describe("dashboard overview (database, tenant isolation, permissions)", () => {
     expect(ov.kpis.receivables).toBeNull();
     expect(ov.today_events).toBeNull();
     expect(ov.jobs_forecast).toBeNull();
+    expect(ov.quotes_waiting).toBeNull();
+    expect(ov.jobs_status).toBeNull();
     expect(ov.board).not.toBeNull();
   });
 });
