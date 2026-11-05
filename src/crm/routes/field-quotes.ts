@@ -387,14 +387,20 @@ fieldQuotesRouter.get("/api/field-quotes", requireCrmAuth, async (req: AuthedReq
   try {
     if (!(await guard(req, res, "view"))) return;
     const leadId = req.query.lead_id && UUID_RE.test(String(req.query.lead_id)) ? String(req.query.lead_id) : null;
-    const rows = await txFor(req, (tx) =>
-      tx.fieldQuote.findMany({
+    const { rows, statusById } = await txFor(req, async (tx) => {
+      const found = await tx.fieldQuote.findMany({
         where: leadId ? { leadId } : {},
         orderBy: { updatedAt: "desc" },
         take: 100,
-      }),
-    );
-    res.json({ success: true, data: rows.map((r) => mapRow(r)) });
+      });
+      const quoteIds = found.map((r) => r.quoteId).filter((id): id is string => Boolean(id));
+      const quotes = quoteIds.length ? await tx.quote.findMany({ where: { id: { in: quoteIds } }, select: { id: true, status: true } }) : [];
+      return { rows: found, statusById: new Map(quotes.map((q) => [q.id, q.status])) };
+    });
+    res.json({
+      success: true,
+      data: rows.map((r) => ({ ...mapRow(r), quote_status: (r.quoteId && statusById.get(r.quoteId)) || null })),
+    });
   } catch (e) {
     next(e);
   }
