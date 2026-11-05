@@ -2465,6 +2465,134 @@ html.omd-morphing::view-transition-group(root) {
   font-weight: 600;
 }
 
+/* Barras semanais */
+.omd-wk :is(.omd-wk__bar, .omd-wk__shadow) {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  transition: opacity 150ms ease;
+}
+
+.omd-wk__label {
+  fill: rgba(255, 255, 255, 0.56);
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.omd-wk.is-now .omd-wk__label {
+  fill: #fff;
+  font-weight: 750;
+}
+
+.omd-wk.is-future .omd-wk__label {
+  fill: rgba(255, 255, 255, 0.36);
+}
+
+.omd-wk__value {
+  fill: #fff;
+  font-size: 11.5px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.omd-wk.is-hover .omd-wk__shadow {
+  fill: rgba(255, 255, 255, 0.26);
+}
+
+/* Funil vivo (bloco laranja do pipeline) */
+@media (min-width: 1180px) {
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-chart--funnel {
+    display: block;
+    flex: 1 1 0;
+    min-height: 0;
+    margin: 12px 0 0;
+  }
+
+  /* The funnel takes only the room left over; the number and the boxes never shrink. */
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] > :not(.omd-chart--funnel) {
+    flex-shrink: 0;
+  }
+}
+
+/* Short screens: conversão / leads novos become one inline line so the funnel keeps its room. */
+@media (min-width: 1180px) and (max-height: 860px) {
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__boxes {
+    gap: 16px;
+    margin-top: 8px;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__boxes > span {
+    flex: none;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 5px;
+    padding: 0;
+    background: none;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__boxes b {
+    order: -1;
+    font-size: 15px;
+  }
+}
+
+.omd-fn__name {
+  fill: rgba(255, 255, 255, 0.92);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.omd-fn__count {
+  fill: #fff;
+  font-size: 12.5px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.omd-fn__track {
+  fill: rgba(255, 255, 255, 0.12);
+}
+
+.omd-fn__bar {
+  fill: rgba(255, 255, 255, 0.9);
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  transition: fill 150ms ease;
+}
+
+.omd-fn__stage.is-hover .omd-fn__bar {
+  fill: #fff;
+}
+
+.omd-fn__stage.is-hover .omd-fn__track {
+  fill: rgba(255, 255, 255, 0.2);
+}
+
+/* Leads caindo de uma etapa para a próxima: o funil andando. */
+@keyframes omdFnDrop {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(var(--fall, 12px));
+    opacity: 0;
+  }
+}
+
+.omd-fn__dot {
+  fill: #fff;
+  opacity: 0;
+  animation: omdFnDrop 1.8s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  animation-delay: var(--d, 0s);
+}
+
 /* "Hoje": linha do tempo do dia */
 .omd-tl {
   flex: none;
@@ -2658,19 +2786,33 @@ html.omd-morphing::view-transition-group(root) {
 }
 
 /* Entrada (primeira visita da sessão): as linhas se desenham, os blocos do dia crescem. */
-@keyframes omdDraw {
+/* Semanas: as barras sobem da linha de base, uma de cada vez. */
+@keyframes omdBarUp {
   from {
-    stroke-dashoffset: 1;
+    transform: scaleY(0.04);
   }
 }
 
-.omd--enter .omd-chart__line {
-  stroke-dasharray: 1;
-  animation: omdDraw 500ms var(--om-ease-out, cubic-bezier(0.23, 1, 0.32, 1)) 300ms both;
+.omd--enter :is(.omd-wk__bar, .omd-wk__shadow) {
+  animation: omdBarUp 400ms var(--om-ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+  animation-delay: calc(320ms + var(--i, 0) * 60ms);
 }
 
-.omd--enter :is(.omd-chart__area, .omd-chart__dot) {
-  animation: omdFadeIn 200ms ease-out 650ms both;
+.omd--enter .omd-wk__value {
+  animation: omdFadeIn 200ms ease-out both;
+  animation-delay: calc(620ms + var(--i, 0) * 60ms);
+}
+
+/* Funil: cada etapa se abre do centro. */
+@keyframes omdBarOpen {
+  from {
+    transform: scaleX(0.06);
+  }
+}
+
+.omd--enter .omd-fn__bar {
+  animation: omdBarOpen 420ms var(--om-ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+  animation-delay: calc(300ms + var(--i, 0) * 60ms);
 }
 
 .omd--enter .omd-tl__block {
@@ -2679,7 +2821,11 @@ html.omd-morphing::view-transition-group(root) {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .omd--enter :is(.omd-chart__line, .omd-chart__area, .omd-chart__dot, .omd-tl__block) {
+  .omd--enter :is(.omd-wk__bar, .omd-wk__shadow, .omd-wk__value, .omd-fn__bar, .omd-tl__block) {
     animation: none;
+  }
+
+  .omd-fn__dot {
+    display: none;
   }
 }

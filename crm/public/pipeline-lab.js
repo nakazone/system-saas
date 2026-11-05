@@ -127,7 +127,8 @@
       const boxes = [];
       if (c) boxes.push(`<span><b>${esc(c.rate == null ? "—" : `${Math.round(c.rate)}%`)}</b>conversão</span>`);
       if (l) boxes.push(`<span><b>${esc(String(l.count))}</b>${esc(l.count === 1 ? "lead novo" : "leads novos")}</span>`);
-      return boxes.length ? `<span class="omd-kpi__boxes" aria-hidden="true">${boxes.join("")}</span>` : "";
+      const funnel = overview.board ? `<span class="omd-chart omd-chart--funnel" data-omd-chart="funnel"></span>` : "";
+      return funnel + (boxes.length ? `<span class="omd-kpi__boxes" aria-hidden="true">${boxes.join("")}</span>` : "");
     }
     if (key === "gross_profit" && k.gross_profit && k.gross_profit.value != null) {
       const g = k.gross_profit;
@@ -729,7 +730,20 @@
     }
   }
 
-  /** "Fechado no mês": running total this month vs last month (one axis, two lines, legend + direct end-dot). */
+  /**
+   * "Fechado no mês": closed per week of the month (1–7, 8–14, 15–21, 22–28, 29+).
+   * This month in orange; the same week of last month as a light shadow behind it.
+   */
+  function weekTotals(running, days) {
+    const out = [];
+    const at = (d) => (d <= 0 ? 0 : running[Math.min(running.length, d) - 1] || 0);
+    for (let start = 1; start <= days; start += 7) {
+      const end = Math.min(days, start + 6);
+      out.push({ start, end, value: Math.max(0, at(end) - at(start - 1)), reached: start <= running.length });
+    }
+    return out;
+  }
+
   function drawWonChart() {
     const host = document.querySelector('[data-omd-chart="won"]');
     const daily = overview && overview.kpis && overview.kpis.won_month && overview.kpis.won_month.daily;
@@ -737,83 +751,167 @@
     const W = Math.round(host.clientWidth);
     const H = Math.round(host.clientHeight);
     host.textContent = "";
-    if (W < 60 || H < 36) return;
+    if (W < 80 || H < 48) return;
 
-    const cur = daily.current || [];
-    const prev = daily.previous || [];
     const today = overview.today || "";
     const y = Number(today.slice(0, 4)) || new Date().getFullYear();
     const m = Number(today.slice(5, 7)) || new Date().getMonth() + 1;
     const daysInMonth = new Date(y, m, 0).getDate();
-    const maxDay = Math.max(daysInMonth, prev.length, cur.length);
-    const maxVal = Math.max(1, ...cur, ...prev);
+    const cur = weekTotals(daily.current || [], daysInMonth);
+    const prevWeeks = weekTotals(daily.previous || [], (daily.previous || []).length || 30);
+    const n = cur.length;
+    const prevOf = (i) => (prevWeeks[i] ? prevWeeks[i].value : 0);
+    const maxVal = Math.max(1, ...cur.map((w) => w.value), ...cur.map((w, i) => prevOf(i)));
     const fmt = (v) => (daily.unit === "money" ? D.money(v) : D.plural(v, "quote", "quotes"));
+    const fmtShort = (v) => (daily.unit === "money" ? D.moneyCompact(v) : String(v));
     const nowName = monthShort(overview.period && overview.period.month_start);
     const prevName = monthShort(overview.period && overview.period.previous_month_start);
+    const curWeek = Math.max(0, Math.min(n - 1, Math.floor(((daily.current || []).length - 1) / 7)));
 
     const legendH = 16;
-    const padT = 6;
-    const padB = 4;
-    const plotH = H - legendH - padT - padB;
-    const x = (i) => 4 + (i / Math.max(1, maxDay - 1)) * (W - 8);
-    const yv = (v) => legendH + padT + plotH - (v / maxVal) * plotH;
+    const labelH = 14;
+    const plotTop = legendH + 14;
+    const plotH = Math.max(20, H - plotTop - labelH - 4);
+    const base = plotTop + plotH;
+    const slot = W / n;
+    const barW = Math.min(24, Math.max(10, slot * 0.42));
+    const shadowW = Math.min(30, barW + 8);
 
     const svg = svgEl("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img" });
-    const lastCur = cur.length ? cur[cur.length - 1] : 0;
-    const samePrev = prev.length ? prev[Math.min(prev.length, cur.length) - 1] || 0 : 0;
     svg.setAttribute(
       "aria-label",
-      `Fechado acumulado: ${nowName} ${fmt(lastCur)} até o dia ${cur.length}; ${prevName} ${fmt(samePrev)} no mesmo dia.`,
+      `Fechado por semana em ${nowName}: ` +
+        cur.map((w, i) => `${w.start}–${w.end}: ${w.reached ? fmt(w.value) : "ainda não"}${prevOf(i) ? ` (${prevName} ${fmt(prevOf(i))})` : ""}`).join("; "),
     );
 
-    // Legend (two series → legend always; line keys, text in ink).
     const leg = svgEl("g", { class: "omd-chart__legend" });
-    [
-      [nowName, CHART.won.now],
-      [prevName, CHART.won.prev],
-    ].forEach(([name, color], i) => {
-      const gx = i * 52;
-      leg.appendChild(svgEl("line", { x1: gx, x2: gx + 12, y1: 7, y2: 7, stroke: color, "stroke-width": 2, "stroke-linecap": "round" }));
-      const t = svgEl("text", { x: gx + 17, y: 11 });
-      t.textContent = name;
-      leg.appendChild(t);
-    });
+    leg.appendChild(svgEl("rect", { x: 0, y: 3, width: 10, height: 8, rx: 2, fill: CHART.won.now }));
+    const t1 = svgEl("text", { x: 15, y: 11 });
+    t1.textContent = nowName;
+    leg.appendChild(t1);
+    leg.appendChild(svgEl("rect", { x: 52, y: 3, width: 10, height: 8, rx: 2, fill: "rgba(255,255,255,0.22)" }));
+    const t2 = svgEl("text", { x: 67, y: 11 });
+    t2.textContent = prevName;
+    leg.appendChild(t2);
     svg.appendChild(leg);
 
-    // Baseline hairline
-    svg.appendChild(svgEl("line", { x1: 0, x2: W, y1: yv(0) + 0.5, y2: yv(0) + 0.5, stroke: CHART.won.grid, "stroke-width": 1 }));
+    svg.appendChild(svgEl("line", { x1: 0, x2: W, y1: base + 0.5, y2: base + 0.5, stroke: CHART.won.grid, "stroke-width": 1 }));
 
-    const pathOf = (arr) => arr.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${yv(v).toFixed(1)}`).join(" ");
-    if (prev.length) {
-      svg.appendChild(svgEl("path", { d: pathOf(prev), fill: "none", stroke: CHART.won.prev, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round", class: "omd-chart__line", pathLength: 1 }));
-    }
-    if (cur.length) {
-      const area = `${pathOf(cur)} L${x(cur.length - 1).toFixed(1)},${yv(0)} L${x(0).toFixed(1)},${yv(0)} Z`;
-      svg.appendChild(svgEl("path", { d: area, fill: CHART.won.now, "fill-opacity": 0.1, class: "omd-chart__area" }));
-      svg.appendChild(svgEl("path", { d: pathOf(cur), fill: "none", stroke: CHART.won.now, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round", class: "omd-chart__line", pathLength: 1 }));
-      svg.appendChild(svgEl("circle", { cx: x(cur.length - 1), cy: yv(lastCur), r: 4, fill: CHART.won.now, stroke: CHART.won.surface, "stroke-width": 2, class: "omd-chart__dot" }));
-    }
-
-    // Crosshair + tooltip (snaps to the nearest day; one readout with both months).
-    const cross = svgEl("line", { y1: legendH, y2: yv(0), stroke: "rgba(255,255,255,0.35)", "stroke-width": 1, visibility: "hidden" });
-    svg.appendChild(cross);
-    const hit = svgEl("rect", { x: 0, y: legendH, width: W, height: H - legendH, fill: "transparent" });
-    svg.appendChild(hit);
-    const onMove = (e) => {
-      const r = svg.getBoundingClientRect();
-      const i = Math.max(0, Math.min(maxDay - 1, Math.round(((e.clientX - r.left - 4) / Math.max(1, W - 8)) * (maxDay - 1))));
-      cross.setAttribute("x1", x(i));
-      cross.setAttribute("x2", x(i));
-      cross.setAttribute("visibility", "visible");
-      const rows = [];
-      if (i < cur.length) rows.push({ color: CHART.won.now, value: fmt(cur[i]), name: nowName });
-      if (i < prev.length) rows.push({ color: CHART.won.prev, value: fmt(prev[i]), name: prevName });
-      showTip(r.left + x(i), r.top + legendH, `Dia ${i + 1}`, rows);
+    // Bar with a 4px rounded top, square on the baseline.
+    const barPath = (cx, w, h) => {
+      if (h <= 0) return "";
+      const r = Math.min(4, w / 2, h);
+      const x0 = cx - w / 2;
+      const top = base - h;
+      return `M${x0},${base} L${x0},${top + r} Q${x0},${top} ${x0 + r},${top} L${x0 + w - r},${top} Q${x0 + w},${top} ${x0 + w},${top + r} L${x0 + w},${base} Z`;
     };
-    hit.addEventListener("pointermove", onMove);
-    hit.addEventListener("pointerleave", () => {
-      cross.setAttribute("visibility", "hidden");
-      hideTip();
+    const hv = (v) => (v / maxVal) * plotH;
+
+    cur.forEach((w, i) => {
+      const cx = slot * i + slot / 2;
+      const g = svgEl("g", { class: `omd-wk${i === curWeek ? " is-now" : ""}${w.reached ? "" : " is-future"}`, style: `--i:${i}` });
+      const shadow = barPath(cx, shadowW, hv(prevOf(i)));
+      if (shadow) g.appendChild(svgEl("path", { d: shadow, fill: "rgba(255,255,255,0.14)", class: "omd-wk__shadow" }));
+      const bar = barPath(cx, barW, hv(w.value));
+      if (bar && w.reached) g.appendChild(svgEl("path", { d: bar, fill: CHART.won.now, class: "omd-wk__bar" }));
+      // Only the current week is labelled on the chart; the rest live in the tooltip.
+      if (i === curWeek && w.value > 0) {
+        const lab = svgEl("text", { x: cx, y: base - hv(w.value) - 5, "text-anchor": "middle", class: "omd-wk__value" });
+        lab.textContent = fmtShort(w.value);
+        g.appendChild(lab);
+      }
+      const day = svgEl("text", { x: cx, y: base + labelH, "text-anchor": "middle", class: "omd-wk__label" });
+      // Narrow tile: only the first day of each week ("1", "8", "15"…); the tooltip has the range.
+      day.textContent = slot >= 38 ? `${w.start}–${w.end}` : String(w.start);
+      g.appendChild(day);
+      // Hit area: the whole column, not just the bar.
+      const hit = svgEl("rect", { x: slot * i, y: legendH, width: slot, height: H - legendH, fill: "transparent" });
+      const show = () => {
+        const r = hit.getBoundingClientRect();
+        const rows = [{ color: CHART.won.now, value: w.reached ? fmt(w.value) : "ainda não chegou", name: nowName }];
+        rows.push({ color: "rgba(255,255,255,0.5)", value: fmt(prevOf(i)), name: prevName });
+        showTip(r.left + r.width / 2, r.top + 8, `Dias ${w.start}–${w.end}`, rows);
+        g.classList.add("is-hover");
+      };
+      hit.addEventListener("pointerenter", show);
+      hit.addEventListener("pointerleave", () => {
+        hideTip();
+        g.classList.remove("is-hover");
+      });
+      g.appendChild(hit);
+      svg.appendChild(g);
+    });
+    host.appendChild(svg);
+  }
+
+  /**
+   * "Pipeline aberto": the open stages as a funnel (bar width = leads in the stage),
+   * with dots flowing from each stage into the next.
+   */
+  const FUNNEL_STAGES = ["new_lead", "contacted", "meeting_scheduled", "quote_sent", "follow_up_1"];
+
+  function drawFunnel() {
+    const host = document.querySelector('[data-omd-chart="funnel"]');
+    const board = overview && overview.board;
+    if (!host || !board) return;
+    const W = Math.round(host.clientWidth);
+    const H = Math.round(host.clientHeight);
+    host.textContent = "";
+    if (W < 80 || H < 44) return;
+    const stages = FUNNEL_STAGES.map((slug) => board.find((c) => c.slug === slug)).filter(Boolean);
+    if (!stages.length) return;
+    const n = stages.length;
+    const gap = Math.max(5, Math.min(9, (H - n * 10) / Math.max(1, n - 1)));
+    const barH = Math.max(8, Math.min(18, (H - gap * (n - 1)) / n));
+    const labelW = Math.min(118, Math.round(W * 0.42));
+    const countW = 28;
+    const trackW = Math.max(30, W - labelW - countW - 8);
+    const maxCount = Math.max(1, ...stages.map((c) => c.count || 0));
+    const total = stages.reduce((sum, c) => sum + (c.count || 0), 0);
+
+    const svg = svgEl("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img" });
+    svg.setAttribute("aria-label", "Leads por etapa: " + stages.map((c) => `${D.stageLabel(c.slug, c.name)} ${c.count || 0}`).join(", "));
+    stages.forEach((c, i) => {
+      const yTop = i * (barH + gap);
+      const w = c.count ? Math.max(barH, (c.count / maxCount) * trackW) : 3;
+      const cx = labelW + trackW / 2;
+      const g = svgEl("g", { class: "omd-fn__stage", style: `--i:${i}` });
+      const name = svgEl("text", { x: 0, y: yTop + barH / 2 + 4, class: "omd-fn__name" });
+      name.textContent = D.stageLabel(c.slug, c.name);
+      g.appendChild(name);
+      g.appendChild(svgEl("rect", { x: labelW, y: yTop, width: trackW, height: barH, rx: barH / 2, class: "omd-fn__track" }));
+      g.appendChild(svgEl("rect", { x: cx - w / 2, y: yTop, width: w, height: barH, rx: barH / 2, class: "omd-fn__bar" }));
+      const num = svgEl("text", { x: W, y: yTop + barH / 2 + 4, "text-anchor": "end", class: "omd-fn__count" });
+      num.textContent = String(c.count || 0);
+      g.appendChild(num);
+      // Dots drop from this stage into the next: the pipeline moving.
+      if (i < n - 1 && c.count) {
+        for (let k = 0; k < 3; k++) {
+          const dot = svgEl("circle", {
+            cx: cx + (k - 1) * Math.min(14, w / 4),
+            cy: yTop + barH,
+            r: 2,
+            class: "omd-fn__dot",
+            style: `--fall:${gap + barH / 2}px; --d:${(i * 0.35 + k * 0.6).toFixed(2)}s`,
+          });
+          g.appendChild(dot);
+        }
+      }
+      const hit = svgEl("rect", { x: 0, y: yTop - gap / 2, width: W, height: barH + gap, fill: "transparent" });
+      hit.addEventListener("pointerenter", () => {
+        const r = hit.getBoundingClientRect();
+        const share = total ? Math.round(((c.count || 0) / total) * 100) : 0;
+        const rows = [{ color: "#fff", value: D.plural(c.count || 0, "lead", "leads"), name: `${share}% do funil` }];
+        if (c.value) rows.push({ color: "rgba(255,255,255,0.6)", value: D.money(c.value), name: "estimado" });
+        showTip(r.left + r.width / 2, r.top, D.stageLabel(c.slug, c.name), rows);
+        g.classList.add("is-hover");
+      });
+      hit.addEventListener("pointerleave", () => {
+        hideTip();
+        g.classList.remove("is-hover");
+      });
+      g.appendChild(hit);
+      svg.appendChild(g);
     });
     host.appendChild(svg);
   }
@@ -941,13 +1039,18 @@
 
   function drawCharts() {
     drawWonChart();
+    drawFunnel();
     drawDayTimeline();
   }
 
   let chartResizeTimer = null;
   window.addEventListener("resize", () => {
     clearTimeout(chartResizeTimer);
-    chartResizeTimer = setTimeout(() => overview && drawWonChart(), 120);
+    chartResizeTimer = setTimeout(() => {
+      if (!overview) return;
+      drawWonChart();
+      drawFunnel();
+    }, 120);
   });
 
   function applyPermissions() {
