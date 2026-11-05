@@ -1077,80 +1077,7 @@ html body.dashboard-app-body:not(.om-device-mobile) .mobile-app-header img {
   object-fit: contain !important;
 }
 
-/* ===================== Menu "Mais" (crm-shared-nav) =====================
-   Vertical sidebar / phone drawer: no toggle, the extra modules are listed inline.
-   Desktop and iPad dock: a "Mais" button opens a grouped popover above the dock. */
-html body .nav-more-toggle,
-html body #dashboardSidebar .nav-item.nav-more-toggle {
-  display: none !important;
-}
-.nav-more-panel {
-  display: block;
-}
-.nav-more-section__items {
-  display: contents;
-}
-
 @media (min-width: 768px) {
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-more-toggle {
-    display: flex !important;
-    font: inherit;
-    cursor: pointer;
-    -webkit-appearance: none;
-    appearance: none;
-  }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .sidebar-nav-group--more.is-open .nav-more-toggle > svg {
-    background: #fff !important;
-    color: var(--om-accent) !important;
-    box-shadow: 0 0 0 1px var(--om-line) !important;
-  }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-more-panel {
-    position: absolute;
-    right: -6px;
-    bottom: calc(100% + 18px);
-    display: grid;
-    grid-template-columns: repeat(2, auto);
-    gap: 14px 18px;
-    padding: 14px 16px 12px;
-    background: rgba(255, 255, 255, 0.97);
-    border-radius: 20px;
-    box-shadow: 0 0 0 1px var(--om-line), 0 24px 48px -20px rgba(16, 24, 40, 0.35);
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transform: translateY(8px) scale(0.97);
-    transform-origin: bottom right;
-    transition: opacity 0.15s ease-out, transform 0.2s cubic-bezier(0.23, 1, 0.32, 1), visibility 0s linear 0.2s;
-  }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .sidebar-nav-group--more.is-open .nav-more-panel {
-    opacity: 1;
-    visibility: visible;
-    pointer-events: auto;
-    transform: none;
-    transition: opacity 0.15s ease-out, transform 0.2s cubic-bezier(0.23, 1, 0.32, 1), visibility 0s;
-  }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-more-panel .nav-more-section__title {
-    display: block !important;
-    margin: 0 0 6px 4px !important;
-    padding: 0 !important;
-    font-size: 11px !important;
-    font-weight: 650 !important;
-    letter-spacing: 0.02em !important;
-    text-transform: none !important;
-    color: #667085 !important;
-  }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-more-section__items {
-    display: flex;
-    gap: 2px;
-  }
-  /* Inside the popover there is no room to hop; keep the hover to color only. */
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-more-panel .nav-item:hover {
-    transform: none !important;
-  }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-more-panel .nav-item.active::after {
-    bottom: -4px !important;
-  }
-
   /* The dock is a high-frequency surface: a small, quick lift instead of a bouncy hop. */
   html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-item,
   html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar a.nav-item.sidebar-footer-link {
@@ -1162,33 +1089,9 @@ html body #dashboardSidebar .nav-item.nav-more-toggle {
   html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-item:active {
     transform: scale(0.96) !important;
   }
-  /* 8 entries instead of 15: a bit more width so 11.5px labels fit on one line. */
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-item,
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar a.nav-item.sidebar-footer-link {
-    width: 64px !important;
-    min-width: 64px !important;
-    max-width: 64px !important;
-  }
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-item .nav-item__label {
-    font-size: 11.5px !important;
-    max-width: 62px !important;
-    hyphens: manual !important;
-  }
-}
-
-/* iPad: with 8 entries the dock fits, so it stays centred and must not clip the popover. */
-@media (min-width: 768px) and (max-width: 1179px) {
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar.dashboard-sidebar,
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) .dashboard-sidebar {
-    left: 50% !important;
-    right: auto !important;
-    transform: translateX(-50%) !important;
-    overflow: visible !important;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  html body.dashboard-app-body #dashboardSidebar .nav-more-panel,
   html body.dashboard-app-body #dashboardSidebar .nav-item {
     transition: none !important;
   }
@@ -1197,12 +1100,6 @@ html body #dashboardSidebar .nav-item.nav-more-toggle {
   }
 }
 
-/* While "Mais" is open the dock (and its popover) sits above floating buttons such as the Mate FAB. */
-@media (min-width: 768px) {
-  html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar.dashboard-sidebar:has(.sidebar-nav-group--more.is-open) {
-    z-index: 1400 !important;
-  }
-}
 
 /* Barra superior: "Atualizar" e "Instalar app" moram no menu da conta (avatar).
    A barra fica com as ações do dia a dia: voltar, buscar, criar, notificações, ajuda, conta. */
