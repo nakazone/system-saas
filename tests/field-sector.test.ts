@@ -8,8 +8,10 @@ import {
 } from "../src/crm/lib/field-sector.js";
 
 describe("field-sector", () => {
-  it("matches Folha sand staff to sand_finish + both only", () => {
-    expect(jobSectorMatchWhere("sand_finish")).toEqual({ sector: { in: ["sand_finish", "both"] } });
+  it("matches Folha sand staff to sand_finish, both, or any job with a sand day", () => {
+    expect(jobSectorMatchWhere("sand_finish")).toEqual({
+      OR: [{ sector: { in: ["sand_finish", "both"] } }, { sandScheduledStart: { not: null } }],
+    });
     expect(jobSectorMatchWhere("installation")).toMatchObject({
       OR: expect.arrayContaining([{ sector: "installation" }, { sector: "both" }, { sector: null }]),
     });
@@ -38,7 +40,7 @@ describe("field-sector", () => {
     expect(fieldSlotMatchesSector("delivery", "both", "sand_finish")).toBe(true);
   });
 
-  it("builds a sand date window that ignores install-only overlap", () => {
+  it("builds a sand date window for sand-only and sandScheduledStart", () => {
     const from = new Date("2026-11-12T00:00:00.000Z");
     const to = new Date("2026-11-18T00:00:00.000Z");
     const sand = fieldJobDateWindowWhere(from, to, "sand_finish");
@@ -53,20 +55,16 @@ describe("field-sector", () => {
             },
           ],
         },
-        {
-          AND: [{ sector: "both" }, { sandScheduledStart: { gte: from, lte: to } }],
-        },
+        { sandScheduledStart: { gte: from, lte: to } },
       ],
     });
   });
 
-  it("ANDs assignment access with sector", () => {
-    const where = myFieldJobsWhere("user-1", "sand_finish");
-    expect(where).toMatchObject({
-      AND: [
-        { OR: expect.any(Array) },
-        { sector: { in: ["sand_finish", "both"] } },
-      ],
+  it("uses whole Folha sector without requiring assignment", () => {
+    expect(myFieldJobsWhere("user-1", "sand_finish")).toEqual({
+      OR: [{ sector: { in: ["sand_finish", "both"] } }, { sandScheduledStart: { not: null } }],
     });
+    expect(myFieldJobsWhere("user-1", null)).toMatchObject({ OR: expect.any(Array) });
   });
 });
+
