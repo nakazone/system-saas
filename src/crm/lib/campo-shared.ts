@@ -61,13 +61,19 @@ export function dayBoundsLocal(d = new Date()) {
   return { start, end };
 }
 
+/** Field-facing client name: homeowner / customer full name — never builder nickname. */
 export function clientLabel(wo: {
-  customer?: { name: string } | null;
-  builder?: { company?: string | null; firstName?: string | null; lastName?: string | null } | null;
+  homeownerName?: string | null;
+  customer?: { name?: string | null; company?: string | null } | null;
+  builder?: { company?: string | null; firstName?: string | null; lastName?: string | null; nickname?: string | null } | null;
   sourceName?: string | null;
 }) {
-  if (wo.customer?.name) return wo.customer.name;
-  if (wo.builder?.company) return wo.builder.company;
+  const homeowner = String(wo.homeownerName || "").trim();
+  if (homeowner) return homeowner;
+  const customer = String(wo.customer?.name || wo.customer?.company || "").trim();
+  if (customer) return customer;
+  const company = String(wo.builder?.company || "").trim();
+  if (company) return company;
   if (wo.builder?.firstName) {
     return `${wo.builder.firstName}${wo.builder.lastName ? ` ${wo.builder.lastName}` : ""}`.trim();
   }
@@ -138,7 +144,7 @@ export function ctaLabel(fieldStatus: string) {
 }
 
 export const woListInclude = {
-  customer: { select: { id: true, name: true } },
+  customer: { select: { id: true, name: true, company: true } },
   builder: { select: { id: true, firstName: true, lastName: true, company: true } },
   crew: { select: { id: true, name: true } },
   assignedUser: { select: { id: true, name: true } },
@@ -235,11 +241,12 @@ export function mapJobCard(
     fieldStatus?: string | null;
     address: string | null;
     sector?: string | null;
+    homeownerName?: string | null;
     scheduledStart: Date | null;
     scheduledEnd: Date | null;
     sandScheduledStart?: Date | null;
     sourceName?: string | null;
-    customer?: { name: string } | null;
+    customer?: { name?: string | null; company?: string | null } | null;
     builder?: { company?: string | null; firstName?: string | null; lastName?: string | null } | null;
     crew?: { name: string } | null;
     assignedUser?: { name: string } | null;
@@ -261,6 +268,7 @@ export function mapJobCard(
     title: wo.title,
     client,
     client_short: shortClient(client),
+    homeowner_name: wo.homeownerName || null,
     address: wo.address || "",
     start: at ? dayOnlyLabel(at) : null,
     end: null,

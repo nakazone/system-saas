@@ -29,9 +29,29 @@
     return `${n} - ${code}`;
   }
 
-  /** Who the job is for, without Client ID — for Campo / Obra Crew lists. */
+  /** Real client/homeowner name — no nickname, no Client ID (Campo / Obra Crew). */
   function fieldClient(wo) {
+    const homeowner = String(wo.homeowner_name || wo.homeownerName || "").trim();
     const lead = String(wo.lead_name || "").trim();
+    const customer = String(
+      (wo.customer && (wo.customer.name || wo.customer.company)) || wo.customer_name || "",
+    ).trim();
+    const builder = String(
+      wo.builder?.company ||
+        wo.builder?.name ||
+        [wo.builder?.firstName, wo.builder?.lastName].filter(Boolean).join(" ") ||
+        "",
+    ).trim();
+    const base = String(
+      homeowner || customer || builder || lead || wo.source_name || wo.client || "",
+    ).trim();
+    return base || "Sem cliente";
+  }
+
+  /** Admin label: nickname when set, plus optional client code ("Name - ID"). */
+  function client(wo) {
+    const lead = String(wo.lead_name || "").trim();
+    const ref = String(wo.client_ref || "").trim();
     const nick = String(wo.builder?.nickname || wo.customer?.nickname || "").trim();
     const base = String(
       nick ||
@@ -40,23 +60,14 @@
         wo.builder?.name ||
         lead ||
         wo.source_name ||
-        wo.client ||
-        wo.customer_name ||
         "",
     ).trim();
-    return base || "Sem cliente";
-  }
-
-  /** Admin label with optional client code: "Name - ID". */
-  function client(wo) {
-    const ref = String(wo.client_ref || "").trim();
-    const base = fieldClient(wo);
-    if (!base || base === "Sem cliente") return ref || "Sem cliente";
     if (ref) {
+      if (!base) return ref;
       if (base.toLowerCase().includes(ref.toLowerCase())) return base;
       return `${base} - ${ref}`;
     }
-    return base;
+    return base || "Sem cliente";
   }
 
   function builderName(wo) {

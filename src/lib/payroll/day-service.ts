@@ -78,6 +78,7 @@ export const jobSelect = {
   address: true,
   status: true,
   sector: true,
+  homeownerName: true,
   scheduledStart: true,
   scheduledEnd: true,
   sandScheduledStart: true,
@@ -85,7 +86,7 @@ export const jobSelect = {
   geoLng: true,
   needsDelivery: true,
   deliveryPickupAddress: true,
-  customer: { select: { name: true } },
+  customer: { select: { name: true, company: true } },
   builder: { select: { company: true, firstName: true, lastName: true } },
 } satisfies Prisma.WorkOrderSelect;
 

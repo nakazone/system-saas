@@ -232,7 +232,12 @@
   }
 
   function clientName(j) {
-    return (j && (j.client || j.title)) || "Job";
+    if (!j) return "Job";
+    const homeowner = String(j.homeowner_name || "").trim();
+    if (homeowner) return homeowner;
+    const client = String(j.client || "").trim();
+    if (client && client !== "—") return client;
+    return "Job";
   }
   /** Field-facing label: client only (no job # / admin title). */
   function jobLine(j) {

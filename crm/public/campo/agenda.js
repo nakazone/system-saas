@@ -106,7 +106,7 @@
         .map((j) => {
           const st = statusLabel(j.status);
           const cls = statusBadgeClass(j.status);
-          const who = j.client || j.title || "Job";
+          const who = j.homeowner_name || (j.client && j.client !== "—" ? j.client : "") || "Job";
           return `
         <a class="cm-job-card" data-om-press href="ticket.html?id=${encodeURIComponent(j.id)}">
           <div class="cm-job-card__top">
