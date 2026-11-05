@@ -312,13 +312,14 @@
   function render() {
     if (!isMobile() || !$("jobsMobile")) return;
     const base = roleFiltered(allJobs);
+    // Mesmos critérios de tabFiltered(): o número da aba é o que a lista mostra (job pago não conta).
     const todayN = base.filter(
-      (wo) => isToday(window.JobsInfo?.listAnchorIso?.(wo) || wo.scheduled_start) && wo.status !== "canceled" && wo.status !== "completed",
+      (wo) => isToday(window.JobsInfo?.listAnchorIso?.(wo) || wo.scheduled_start) && wo.status !== "canceled" && wo.status !== "completed" && !isPaidJob(wo),
     ).length;
-    const activeN = base.filter((wo) => isActive(wo) && wo.status !== "canceled").length;
+    const activeN = base.filter((wo) => isActive(wo) && wo.status !== "canceled" && !isPaidJob(wo)).length;
     const doneN = base.filter((wo) => wo.status === "completed" && !isPaidJob(wo)).length;
     const activeRows = base.filter((wo) => isActive(wo) && wo.status !== "canceled");
-    const billN = base.filter(toBill).length;
+    const billN = base.filter((wo) => toBill(wo) && !isPaidJob(wo)).length;
     if (!tabChosen && tab === "today" && todayN === 0 && activeN > 0) tab = "active";
     const J = window.JobsInfo;
     const lateN = J ? base.filter((wo) => J.late(wo)).length : 0;
