@@ -36,6 +36,7 @@
       st.items = d.items || [];
       st.summary = d.summary || null;
       st.canManage = Boolean(d.can_manage);
+      st.canReadTag = Boolean(d.can_read_tag);
       if (st.filter === "used") st.used = (await api("/api/slabs?status=used")).items || [];
       $("slAdd").hidden = !st.canManage;
       $("slExport").hidden = !st.canManage;
@@ -152,6 +153,7 @@
     const facts = [
       ["Pedra", subOf(s)],
       ["Tamanho", sizeOf(s)],
+      ...(s.finish ? [["Acabamento", (FINISHES.find(([k]) => k === s.finish) || [, s.finish])[1]]] : []),
       ["Lote", s.serial || "—"],
       ["Local", s.location || "—"],
       ["Fornecedor", s.supplier || "—"],
@@ -188,7 +190,15 @@
     const opt = (list, cur) => list.map(([k, l]) => `<option value="${k}"${(cur || "") === k ? " selected" : ""}>${l}</option>`).join("");
     const kind = s ? s.kind : "slab";
     const th = s ? s.thickness_cm : 3;
+    const tag = !s && st.canReadTag
+      ? `<div class="sl-box sl-tag full" id="slTagBox">${
+          st.tagPhoto
+            ? `<div class="sl-tag__row"><img src="${esc(st.tagPhoto)}" alt="Foto da etiqueta" /><p id="slTagMsg">${esc(st.tagMsg || "")}</p></div>`
+            : `<h3>Ler a etiqueta pela foto</h3><p>Tire uma foto da etiqueta do slab: o Mate preenche pedra, cor, medidas e lote. Você confere antes de salvar.</p>`
+        }<label class="sl-btn" style="text-align:center">${st.tagPhoto ? "Outra foto" : "Foto da etiqueta"}<input type="file" accept="image/jpeg,image/png" capture="environment" data-sl-tag hidden /></label></div>`
+      : "";
     return `<form class="sl-form" id="slForm" novalidate>
+      ${tag}
       <label class="full">Tipo<div class="sl-seg" role="group" aria-label="Tipo"><button type="button" data-sl-kind="slab" class="${kind === "slab" ? "is-on" : ""}">Slab</button><button type="button" data-sl-kind="remnant" class="${kind === "remnant" ? "is-on" : ""}">Sobra</button></div></label>
       <label class="full">Cor / nome<input name="color" required maxlength="80" value="${v("color")}" placeholder="Ex.: Calacatta Laza" /></label>
       <label>Pedra<select name="material">${opt(MATERIALS, s ? s.material : "quartz")}</select></label>
@@ -234,6 +244,12 @@
     const id = st.open;
     try {
       const row = id ? await api(`/api/slabs/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) }) : await api("/api/slabs", { method: "POST", body: JSON.stringify(body) });
+      // The tag photo the Mate read becomes the slab's photo.
+      if (!id && st.tagPhoto) {
+        await api(`/api/slabs/${encodeURIComponent(row.id)}/photo`, { method: "POST", body: JSON.stringify({ data_url: st.tagPhoto }) }).catch(() => null);
+      }
+      st.tagPhoto = null;
+      st.tagMsg = "";
       toast(id ? "Slab salvo" : "Slab cadastrado");
       await load();
       showDetail(row.id);
@@ -344,6 +360,53 @@
     }
   }
 
+  /** The Mate reads the tag: fills the empty fields of the new-slab form, the office checks them. */
+  async function readTag(file) {
+    if (!file) return;
+    if (!/^image\/(jpeg|png)$/.test(file.type)) return toast("Use uma foto JPG ou PNG.", "error");
+    const f = $("slForm");
+    const keep = f ? readForm() : null;
+    st.tagPhoto = await shrink(file);
+    st.tagMsg = "Lendo a etiqueta…";
+    openSheet(formHtml(null), "Novo slab");
+    if (keep) fillForm(keep, true);
+    try {
+      const t = await api("/api/slabs/read-tag", { method: "POST", body: JSON.stringify({ data_url: st.tagPhoto }) });
+      const got = fillForm(t, false);
+      st.tagMsg = got ? `O Mate leu ${got} campo${got === 1 ? "" : "s"} (em laranja). Confira antes de cadastrar.` : "O Mate não achou dados na etiqueta. Preencha à mão.";
+    } catch (e) {
+      st.tagMsg = e.message || "Não deu para ler a etiqueta.";
+    }
+    const msg = $("slTagMsg");
+    if (msg) msg.textContent = st.tagMsg;
+  }
+
+  /** Put values in the form; `all` false = only where the form is empty. Returns how many were set. */
+  function fillForm(v, all) {
+    const f = $("slForm");
+    if (!f || !v) return 0;
+    let n = 0;
+    const set = (name, val) => {
+      if (val == null || val === "") return;
+      const el = f.elements[name];
+      if (!el || (!all && String(el.value).trim() !== "" && !(name === "material" && el.value === "quartz"))) return;
+      el.value = String(val);
+      if (!all) el.classList.add("is-ai");
+      n++;
+    };
+    ["color", "material", "brand", "finish", "length_in", "width_in", "serial", "supplier", "location", "cost", "notes"].forEach((k) => set(k, v[k]));
+    const seg = (attr, val) => {
+      if (val == null) return;
+      const b = f.querySelector(`[${attr}="${val}"]`);
+      if (!b) return;
+      b.parentElement.querySelectorAll("button").forEach((x) => x.classList.toggle("is-on", x === b));
+      if (!all) n++;
+    };
+    seg("data-sl-th", v.thickness_cm);
+    if (all) seg("data-sl-kind", v.kind);
+    return n;
+  }
+
   async function uploadPhoto(file) {
     const id = st.open;
     if (!id || !file) return;
@@ -382,6 +445,8 @@
   function bind() {
     $("slAdd").addEventListener("click", () => {
       st.open = null;
+      st.tagPhoto = null;
+      st.tagMsg = "";
       openSheet(formHtml(null), "Novo slab");
     });
     $("slQ").addEventListener("input", (e) => {
@@ -447,6 +512,7 @@
     });
     sheet.addEventListener("change", (e) => {
       if (e.target.matches("[data-sl-photo]")) uploadPhoto(e.target.files && e.target.files[0]);
+      if (e.target.matches("[data-sl-tag]")) readTag(e.target.files && e.target.files[0]);
     });
     sheet.addEventListener("submit", async (e) => {
       e.preventDefault();

@@ -13,6 +13,8 @@ import { withTenantTransaction, type TenantPrisma } from "../../lib/tenant/prism
 import { primaryPack } from "../../lib/trades/index.js";
 import { storage } from "../../lib/storage/index.js";
 import { recordActivity } from "../../lib/activity/record.js";
+import { isAiConfigured } from "../../lib/ai/client.js";
+import { readSlabTag } from "../../lib/trades/slab-tag-ai.js";
 import { SLAB_KINDS, SLAB_STATUSES, createSlabSchema, mapSlab, parseFits, slabFits, updateSlabSchema, yardSummary } from "../../lib/trades/slabs.js";
 
 export const slabsRouter = Router();
@@ -113,7 +115,7 @@ slabsRouter.get("/api/slabs", requireCrmAuth, async (req: AuthedRequest, res, ne
         .filter((r) => (kind && (SLAB_KINDS as readonly string[]).includes(kind) ? r.kind === kind : true))
         .filter((r) => !q || [r.color, r.brand, r.serial, r.supplier, r.location, r.material, r.notes].filter(Boolean).join(" ").toLowerCase().includes(q))
         .filter((r) => !fits || slabFits({ lengthIn: Number(r.lengthIn), widthIn: Number(r.widthIn) }, fits[0], fits[1]));
-      return { items: rows.map((r) => mapSlab(r, p.manage)), summary: yardSummary(all), can_manage: p.manage };
+      return { items: rows.map((r) => mapSlab(r, p.manage)), summary: yardSummary(all), can_manage: p.manage, can_read_tag: p.manage && isAiConfigured() };
     });
     res.json({ success: true, data });
   } catch (e) {
@@ -283,6 +285,21 @@ slabsRouter.post("/api/slabs/:id/remnant", requireCrmAuth, async (req: AuthedReq
       return mapSlab(row, p.manage);
     });
     res.status(201).json({ success: true, data });
+  } catch (e) {
+    fail(res, next, e);
+  }
+});
+
+/** The Mate reads the tag in a photo and proposes the fields; nothing is saved. */
+slabsRouter.post("/api/slabs/read-tag", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const { data_url } = z.object({ data_url: z.string().max(20 * 1024 * 1024) }).parse(req.body || {});
+    if (!/^data:image\/(jpeg|png|webp);base64,/i.test(data_url)) throw new SlabError("Use uma foto JPG ou PNG.", 400, "invalid_photo");
+    await withTenantTransaction(req.organizationId!, (tx) => gate(tx, req, true));
+    if (!isAiConfigured()) throw new SlabError("O Mate não está ligado nesta conta.", 503, "ai_off");
+    const r = await readSlabTag(data_url);
+    if (!r.ok) throw new SlabError(r.error || "Não deu para ler a etiqueta.", 502, "ai_failed");
+    res.json({ success: true, data: r.tag });
   } catch (e) {
     fail(res, next, e);
   }
