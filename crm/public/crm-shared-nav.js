@@ -726,7 +726,13 @@
     window.__crmUpdateChatBadge = updateChatBadge;
     updateChatBadge();
     if (chatBadgeTimer) clearInterval(chatBadgeTimer);
-    chatBadgeTimer = setInterval(updateChatBadge, 45000);
+    // A hidden tab skips the poll and catches up when it is shown again.
+    chatBadgeTimer = setInterval(function () {
+      if (document.visibilityState !== 'hidden') updateChatBadge();
+    }, 45000);
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') updateChatBadge();
+    });
   }
 
   if (document.readyState === 'loading') {

@@ -8,7 +8,7 @@
   "use strict";
   if (global.OmOffline) return;
 
-  const VER = "20261013-off1";
+  const VER = "20261105-off2";
   const DB_NAME = "om_offline_v1";
   const DB_VER = 1;
   const STORE_CACHE = "snapshots";
@@ -101,6 +101,8 @@
       return true;
     }
     if (/\/api\/work-orders\/[^/]+$/.test(key) && m === "PUT") return true;
+    // Clock-in: the body carries the tap time (device_at) and offline_queued, so a late replay keeps it.
+    if (key === "/api/campo/dia/start" && m === "POST") return true;
     return false;
   }
 
@@ -306,6 +308,12 @@
             body: row.body,
           });
           if (res.status === 401) break;
+          // A 4xx will never succeed on replay; keeping it would block every item queued after it.
+          if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {
+            await removeMutation(row.id);
+            fail += 1;
+            continue;
+          }
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           await removeMutation(row.id);
           ok += 1;
@@ -335,6 +343,10 @@
                 address: item.address,
                 device_label: item.deviceLabel,
                 is_public: item.isPublic,
+                taken_at_source: item.takenAtSource || null,
+                location_source: item.locationSource || null,
+                camera_model: item.cameraModel || null,
+                client_upload_id: item.id,
               }),
             });
             const json = await res.json().catch(() => ({}));
@@ -449,6 +461,7 @@ body.om-offline .cm-tabbar{padding-bottom:env(safe-area-inset-bottom,0)}
     warm,
     flush: flushMutations,
     pendingCount,
+    listMutations,
     isOnline,
     onChange,
     mountBanner,

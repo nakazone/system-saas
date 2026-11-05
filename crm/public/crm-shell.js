@@ -1048,7 +1048,7 @@
       css.href = "notification-center.css?v=20261105-nc2";
       document.head.appendChild(css);
     }
-    ensureScript("notification-center.js?v=20261105-nc1", "notification-center.js");
+    ensureScript("notification-center.js?v=20261105-nc2", "notification-center.js");
     ensureScript("crm-push.js?v=20261022-inbox1", "crm-push.js");
   }
 

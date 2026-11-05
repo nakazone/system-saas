@@ -1226,9 +1226,28 @@
     document.body.classList.add("cv-open");
     render();
     root.querySelector('[data-cv="close"]')?.focus({ preventScroll: true });
+    // One history entry per open viewer, so Android back and the edge swipe close the photo instead of leaving the app.
+    if (!historyPushed) {
+      try {
+        history.pushState({ ...(history.state || {}), cvOpen: true }, "");
+        historyPushed = true;
+      } catch (_) {}
+    }
   }
-  function close() {
+  let historyPushed = false;
+  window.addEventListener("popstate", () => {
+    if (!historyPushed) return;
+    historyPushed = false;
+    if (st) close(true);
+  });
+  function close(fromHistory) {
     if (!root || !st) return;
+    if (historyPushed && fromHistory !== true) {
+      historyPushed = false;
+      try {
+        history.back();
+      } catch (_) {}
+    }
     flushNote();
     root.hidden = true;
     root.style.removeProperty("--cv-fade");

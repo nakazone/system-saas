@@ -62,8 +62,8 @@
     if (window.OmOffline && typeof window.OmOffline.api === "function") {
       const json = await window.OmOffline.api(path, {
         credentials: "same-origin",
-        ...(opts || {}),
         allowQueue: true,
+        ...(opts || {}),
       });
       if (json && json.queued) {
         toast(json.message || "Guardado offline — envia ao reconectar.", "success");
@@ -560,6 +560,8 @@
     };
     const json = await api(`/api/campo/jobs/${jobId}/photos`, {
       method: "POST",
+      // Already in the media queue: a dropped connection must fail here, not move to the generic queue.
+      allowQueue: false,
       body: JSON.stringify(body),
     });
     return json.data;

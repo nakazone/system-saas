@@ -1074,8 +1074,18 @@
     }
   }
 
-  async function refresh(force) {
-    if (!force && Date.now() - loadedAt < STALE_AFTER_MS) return;
+  // focus and visibilitychange fire together when the tab comes back: one load, not two.
+  let refreshing = null;
+  function refresh(force) {
+    // A forced refresh (new lead, button) must see data saved after the one already running started.
+    if (refreshing) return force ? refreshing.then(() => refresh(true)) : refreshing;
+    if (!force && Date.now() - loadedAt < STALE_AFTER_MS) return Promise.resolve();
+    refreshing = doRefresh().finally(() => {
+      refreshing = null;
+    });
+    return refreshing;
+  }
+  async function doRefresh() {
     const btn = $("omdRefresh");
     btn.classList.add("is-spinning");
     try {

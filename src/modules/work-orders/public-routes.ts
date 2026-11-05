@@ -29,6 +29,7 @@ import {
   stripLockbox,
   ticketStatus,
 } from "./public-ticket.js";
+import { uploadPhotoThumb } from "../../lib/job-media/thumb.js";
 
 export const publicJobsRouter = Router();
 
@@ -304,6 +305,7 @@ publicJobsRouter.post("/:token/photos", async (req, res, next) => {
       body: parsed.body,
       contentType: parsed.contentType === "image/jpg" ? "image/jpeg" : parsed.contentType,
     });
+    const thumbUrl = await uploadPhotoThumb(stored.key, parsed.body, stored.url);
     const row = await withTenantTransaction(ref.organizationId, async (tx) => {
       const created = await tx.jobMedia.create({
         data: {
@@ -313,7 +315,7 @@ publicJobsRouter.post("/:token/photos", async (req, res, next) => {
           type: "photo",
           storageKey: stored.key,
           url: stored.url,
-          thumbUrl: stored.url,
+          thumbUrl,
           sha256: sha256Buffer(parsed.body),
           takenAtDevice: meta.takenAtDevice,
           receivedAtServer: new Date(),

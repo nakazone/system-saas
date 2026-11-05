@@ -74,6 +74,63 @@
     stop: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2.5"/></svg>',
   };
 
+  // ------------------------------------------------------------ offline clock-in
+  const PENDING_START_KEY = "om-campo-pending-start";
+  function savePendingStart(p) {
+    try {
+      localStorage.setItem(PENDING_START_KEY, JSON.stringify(p));
+    } catch (_) {}
+  }
+  function readPendingStart() {
+    try {
+      const p = JSON.parse(localStorage.getItem(PENDING_START_KEY) || "null");
+      return p && p.at ? p : null;
+    } catch (_) {
+      return null;
+    }
+  }
+  function clearPendingStart() {
+    try {
+      localStorage.removeItem(PENDING_START_KEY);
+    } catch (_) {}
+  }
+  function hhmm(iso) {
+    const d = new Date(iso);
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  }
+  /** Shows a started day built from the queued clock-in, until the server has it. */
+  function applyPendingStart() {
+    const p = readPendingStart();
+    if (!p || !S || !S.linked) return false;
+    if (S.day || (p.today && S.today_label && p.today !== S.today_label)) {
+      clearPendingStart();
+      return false;
+    }
+    const job = (S.jobs_today || []).find((j) => j.id === p.jobId) || (p.jobId ? null : (S.jobs_today || [])[0]);
+    S.day = {
+      status: "in_progress",
+      pending_sync: true,
+      clock_in: p.at,
+      clock_in_label: hhmm(p.at),
+      expected_end_label: S.employee && S.employee.schedule ? S.employee.schedule.end_time : "",
+      overtime_minutes: 0,
+      jobs: job ? [job] : [],
+      sqft: 0,
+      amount: 0,
+      flags: [],
+    };
+    return true;
+  }
+  /** Online again with fresh data and nothing left in the queue: the pending start is settled (or was dropped). */
+  async function settlePendingStart() {
+    if (!readPendingStart() || !S || S.__offline || navigator.onLine === false) return;
+    if (S.day) return clearPendingStart();
+    try {
+      const rows = window.OmOffline && window.OmOffline.listMutations ? await window.OmOffline.listMutations() : [];
+      if (!rows.some((r) => r.url === "/api/campo/dia/start")) clearPendingStart();
+    } catch (_) {}
+  }
+
   // ------------------------------------------------------------ load
   async function load() {
     try {
@@ -84,6 +141,8 @@
         /* ignore */
       }
       S = await api("/api/campo/dia");
+      await settlePendingStart();
+      applyPendingStart();
       await refreshQueue();
       render();
       // Warm ticket caches for today's jobs so Campo works offline on site.
@@ -190,7 +249,7 @@
         return Math.min(1, elapsed / total);
       })();
       const otNow = Math.max(d.overtime_minutes, 0);
-      box.innerHTML = `<div class="dy-card__lbl"><span>Dia em andamento</span><span class="dy-pill dy-pill--in_progress">desde ${esc(d.clock_in_label)}</span></div>
+      box.innerHTML = `<div class="dy-card__lbl"><span>Dia em andamento</span><span class="dy-pill dy-pill--in_progress">desde ${esc(d.clock_in_label)}${d.pending_sync ? " · aguardando sinal" : ""}</span></div>
         <div class="dy-time"><b>${esc(minLabel(elapsed))}</b><span>trabalhando</span></div>
         <div class="dy-bar" aria-hidden="true"><i style="width:${(pctBase * 100).toFixed(1)}%"></i></div>
         <div class="dy-bar__lbl"><span>${esc(d.clock_in_label)}</span><span>${esc(endAt || endLbl)}</span></div>
@@ -309,10 +368,29 @@
     toast("Pegando sua localização…");
     const g = await gps();
     try {
-      S = await api("/api/campo/dia/start", {
+      const deviceAtIso = new Date().toISOString();
+      const out = await api("/api/campo/dia/start", {
         method: "POST",
-        body: JSON.stringify({ work_order_id: jobId || null, lat: g?.lat, lng: g?.lng, accuracy: g?.accuracy, device_at: new Date().toISOString() }),
+        body: JSON.stringify({
+          work_order_id: jobId || null,
+          lat: g?.lat,
+          lng: g?.lng,
+          accuracy: g?.accuracy,
+          device_at: deviceAtIso,
+          offline_queued: navigator.onLine === false,
+        }),
       });
+      if (out && out.queued) {
+        // No signal: the start waits in the offline queue with the tap time; show the day as started.
+        savePendingStart({ at: deviceAtIso, jobId: jobId || null, today: S.today_label });
+        applyPendingStart();
+        closeSheet();
+        render();
+        toast("Dia começou. Sem sinal: o horário fica guardado e envia quando voltar.");
+        return;
+      }
+      S = out;
+      clearPendingStart();
       closeSheet();
       render();
       const d = S.day;
@@ -410,6 +488,8 @@
   function postPhoto(row) {
     return api(`/api/campo/jobs/${encodeURIComponent(row.jobId)}/photos`, {
       method: "POST",
+      // The photo already waits in the media queue; never let it move to the generic queue and count as sent.
+      allowQueue: false,
       body: JSON.stringify({
         data_url: row.dataUrl,
         stage: row.stage,
@@ -435,7 +515,7 @@
 
   let flushing = false;
   async function flushPhotos() {
-    if (!Q || flushing) return;
+    if (!Q || flushing || navigator.onLine === false) return;
     flushing = true;
     try {
       const res = await Q.flush(null, async (row) => {
@@ -852,6 +932,7 @@
         return;
       }
       case "finish":
+        if (S && S.day && S.day.pending_sync) return toast("O início do dia ainda está esperando sinal. Finalize quando a conexão voltar.");
         return openFinish();
       case "photo":
         return takePhoto(job);
@@ -926,6 +1007,8 @@
   window.addEventListener("online", () => {
     $("dyNet").hidden = true;
     flushPhotos();
+    // Give the offline queue a moment to replay the clock-in, then show the server's day.
+    if (readPendingStart()) setTimeout(() => !sheet && load(), 2500);
   });
   window.addEventListener("offline", () => ($("dyNet").hidden = false));
   document.addEventListener("visibilitychange", () => {

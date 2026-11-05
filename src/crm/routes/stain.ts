@@ -18,6 +18,7 @@ import { recordActivity } from "../../lib/activity/record.js";
 import { DURASEAL_COLORS, SAMPLE_KINDS, parseBlend, sampleColorText } from "../../lib/stain/catalog.js";
 import { jobStainState, mediaIdsOf } from "../../lib/stain/service.js";
 import { StainError, approvalPdf, sendApprovalToBuilder, sendRound } from "../../lib/stain/flow.js";
+import { uploadPhotoThumb } from "../../lib/job-media/thumb.js";
 
 export const stainRouter = Router();
 
@@ -103,6 +104,7 @@ async function savePhoto(req: AuthedRequest, workOrderId: string, raw: Record<st
     body: photo.body,
     contentType: photo.contentType,
   });
+  const thumbUrl = await uploadPhotoThumb(stored.key, photo.body, stored.url);
   // Every photo from the stain flow carries the Samples sticker, so ObraCam can filter them.
   const row = await withTenantTransaction(req.organizationId!, async (tx) => tx.jobMedia.create({
     data: {
@@ -112,7 +114,7 @@ async function savePhoto(req: AuthedRequest, workOrderId: string, raw: Record<st
       type: "photo",
       storageKey: stored.key,
       url: stored.url,
-      thumbUrl: stored.url,
+      thumbUrl,
       sha256: sha256Buffer(photo.body),
       takenAtDevice: meta.takenAtDevice,
       receivedAtServer: new Date(),
