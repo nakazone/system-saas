@@ -200,12 +200,21 @@
     document.body.classList.add("jcm-field");
     const roleEl = document.querySelector(".jcm-role");
     if (roleEl) roleEl.hidden = true;
+    const nav = document.querySelector(".jcm-nav");
+    if (nav) nav.hidden = true;
     const add = $("jobsMobAdd");
     if (add) add.style.display = "none";
     const partner = document.querySelector(".jcm-partner-requests");
     if (partner) partner.hidden = true;
+    const statusWrap = $("jxStatusWrapMob");
+    if (statusWrap) statusWrap.hidden = true;
+    const sub = $("jobsMobSub");
+    if (sub) {
+      sub.hidden = true;
+      sub.textContent = "";
+    }
     const title = document.querySelector(".jcm-title");
-    if (title) title.textContent = "Meus jobs";
+    if (title) title.textContent = "Jobs";
   }
 
   function renderOfficeCard(wo) {
@@ -253,54 +262,39 @@
   }
 
   function renderFieldCard(wo) {
-    const maps = wo.address
-      ? `https://maps.google.com/?q=${encodeURIComponent(wo.address)}`
-      : "";
-    const crewColor = wo.crew?.color || "#e8792c";
-    const day = fmtDay(wo.scheduled_start);
-    const today = isToday(wo.scheduled_start);
-    const detailHref = `job-detail.html?id=${encodeURIComponent(wo.id)}`;
+    const J = window.JobsInfo;
+    const maps = wo.address ? `https://maps.google.com/?q=${encodeURIComponent(wo.address)}` : "";
+    const anchor = (J && J.listAnchorIso(wo)) || wo.scheduled_start;
+    const listed = J && J.listWhen ? J.listWhen(wo) : null;
+    const day = listed?.date || fmtDay(anchor);
+    const today = isToday(anchor);
+    const tone = J && J.stageTone ? J.stageTone(wo) : "wait";
+    const stText = listed?.status || statusPt(wo.status);
     const campoHref = `/campo/ticket.html?id=${encodeURIComponent(wo.id)}`;
-    const openHref = isField ? campoHref : detailHref;
+    const detailHref = `job-detail.html?id=${encodeURIComponent(wo.id)}`;
     const ctaLabel =
-      wo.status === "in_progress"
-        ? "Continuar no campo"
-        : wo.status === "completed"
-          ? "Ver detalhes"
-          : "Abrir no campo";
-    return `<article class="om-swipe jcm-job-swipe" data-job-id="${escapeHtml(wo.id)}" style="--job-accent:${escapeHtml(crewColor)}">
+      wo.status === "in_progress" ? "Continuar" : wo.status === "completed" ? "Ver" : "Abrir";
+    return `<article class="om-swipe jcm-job-swipe" data-job-id="${escapeHtml(wo.id)}">
       <div class="om-swipe__actions" aria-hidden="true">
-        <a class="om-swipe__act--edit" href="${openHref}">Abrir</a>
+        <a class="om-swipe__act--edit" href="${campoHref}">Abrir</a>
         <a class="om-swipe__act--open" href="${detailHref}">Detalhe</a>
       </div>
-      <div class="om-swipe__body jcm-job jcm-job--field">
-        <a class="jcm-job__body" href="${openHref}">
-          <div class="jcm-job__top">
-            <div class="jcm-job__when">
-              <span class="jcm-job__day${today ? " is-today" : ""}">${escapeHtml(today ? "Hoje" : day || "Sem data")}</span>
-              <span class="jcm-job__time">${escapeHtml(fmtTimeRange(wo.scheduled_start, wo.scheduled_end))}</span>
-            </div>
-            <span class="ol-st is-${window.JobsInfo?.stageTone ? window.JobsInfo.stageTone(wo) : "wait"}">${escapeHtml(statusPt(wo.status))}</span>
+      <div class="om-swipe__body jmx-card jmx-card--crew">
+        <a class="jmx-card__a" href="${campoHref}">
+          <div class="jmx-card__r1">
+            <span class="${today ? "is-today" : ""}">${escapeHtml(today ? "Hoje" : day || "Sem data")}</span>
+            ${stText ? `<span class="ol-st is-${tone}">${escapeHtml(stText)}</span>` : ""}
           </div>
-          <p class="jcm-job__title">${escapeHtml(cardTitle(wo))}</p>
-          <p class="jcm-job__client">${escapeHtml(window.JobsInfo?.findLine ? window.JobsInfo.findLine(wo) : clientLabel(wo))}</p>
+          <b class="jmx-card__t">${escapeHtml(cardTitle(wo))}</b>
           ${
             wo.address
-              ? `<p class="jcm-job__addr"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><span>${escapeHtml(wo.address)}</span></p>`
+              ? `<span class="jmx-card__s jmx-card__addr"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><span>${escapeHtml(wo.address)}</span></span>`
               : ""
           }
-          <div class="jcm-job__foot">
-            <span class="jcm-job__num">#${escapeHtml(wo.number != null ? wo.number : "—")}</span>
-            <span class="jcm-job__team"><span class="jcm-job__team-dot" style="background:${escapeHtml(crewColor)}"></span>${escapeHtml(teamLabel(wo))}</span>
-          </div>
         </a>
-        <div class="jcm-job__actions">
-          ${
-            maps
-              ? `<a class="jcm-job__map" href="${maps}" target="_blank" rel="noopener" aria-label="Abrir mapa"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></a>`
-              : `<span class="jcm-job__map" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></span>`
-          }
-          <a class="jcm-job__cta jcm-job__cta--start" href="${openHref}">${ctaLabel}</a>
+        <div class="jmx-card__r3">
+          ${maps ? `<a class="jmx-b jmx-b--sq" href="${maps}" target="_blank" rel="noopener" aria-label="Mapa"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></a>` : ""}
+          <a class="jmx-b jmx-b--or" href="${campoHref}">${escapeHtml(ctaLabel)}</a>
         </div>
       </div>
     </article>`;
@@ -324,11 +318,10 @@
     const sub = $("jobsMobSub");
     if (sub) {
       if (isField) {
-        sub.textContent =
-          todayN > 0
-            ? `${todayN} hoje · ${activeN} ativo${activeN === 1 ? "" : "s"}`
-            : `${activeN} job${activeN === 1 ? "" : "s"} ativo${activeN === 1 ? "" : "s"}`;
+        sub.hidden = true;
+        sub.textContent = "";
       } else {
+        sub.hidden = false;
         sub.textContent = `${activeN} ativo${activeN === 1 ? "" : "s"} · ${money(contractTotal(activeRows))} em contratos`;
       }
     }
