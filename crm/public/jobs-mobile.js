@@ -221,16 +221,16 @@
         ? `<button type="button" class="jmx-b jmx-b--or" data-job-action="complete" data-id="${escapeHtml(wo.id)}">${escapeHtml(nxt ? nxt.label : "Concluir")}</button>`
         : wo.status === "scheduled" || wo.status === "draft"
           ? canManage
-            ? !wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start)
+            ? !(J && J.listAnchorIso(wo))
               ? `<button type="button" class="jmx-b jmx-b--or" data-job-action="edit" data-id="${escapeHtml(wo.id)}">Schedule Job</button>`
               : `<button type="button" class="jmx-b jmx-b--or" data-job-action="start" data-id="${escapeHtml(wo.id)}">Iniciar</button><button type="button" class="jmx-b" data-job-action="complete" data-id="${escapeHtml(wo.id)}">Já concluído</button>`
-            : wo.scheduled_start
+            : J && J.listAnchorIso(wo)
               ? `<a class="jmx-b jmx-b--or" href="campo/ticket.html?id=${encodeURIComponent(wo.id)}">Campo</a>`
               : `<a class="jmx-b" href="${detailHref}">Ver job</a>`
           : `<a class="jmx-b" href="${detailHref}">Ver job</a>`;
     const listed = J && J.listWhen ? J.listWhen(wo) : null;
-    const undated = !wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start);
-    const date = listed ? listed.date : undated ? "" : fmtDay(wo.scheduled_start);
+    const undated = !(J && J.listAnchorIso(wo));
+    const date = listed ? listed.date : undated ? "" : fmtDay((J && J.listAnchorIso(wo)) || wo.scheduled_start);
     const lt = J && J.late ? J.late(wo) : null;
     const stText = lt ? lt.short : listed && listed.status ? listed.status : undated ? "Sem data" : "";
     const tone = J && J.stageTone ? J.stageTone(wo) : "wait";

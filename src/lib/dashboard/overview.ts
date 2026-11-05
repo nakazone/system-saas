@@ -153,6 +153,8 @@ export type WorkOrderRow = {
   /** Installation start when it can differ from scheduledStart (null = no installation date). */
   installationStart?: Date | null;
   sandScheduledStart?: Date | null;
+  installationDoneAt?: Date | null;
+  sandDoneAt?: Date | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -223,6 +225,8 @@ export type TodayEvent = {
   lead_id: string | null;
   lat: number | null;
   lng: number | null;
+  /** Job calendar phase for Home tags (install vs sand). */
+  phase?: "installation" | "sand_finish" | null;
 };
 
 export type JobsForecastDay = {
@@ -923,26 +927,81 @@ export function rankAttention(items: AttentionItem[]): AttentionItem[] {
   });
 }
 
-export function buildTodayEvents(meetings: MeetingRow[], workOrders: WorkOrderRow[]): TodayEvent[] {
-  const events: TodayEvent[] = [
-    ...workOrders.map((wo) => ({
-      id: wo.id,
+function overlapsLocalDay(start: Date, end: Date | null | undefined, dayStart: Date, dayEnd: Date): boolean {
+  const e = end && end.getTime() > start.getTime() ? end : new Date(start.getTime() + 24 * 3600_000);
+  return start.getTime() < dayEnd.getTime() && e.getTime() > dayStart.getTime();
+}
+
+function inLocalDay(at: Date, dayStart: Date, dayEnd: Date): boolean {
+  return at.getTime() >= dayStart.getTime() && at.getTime() < dayEnd.getTime();
+}
+
+/**
+ * Home "Hoje" — one row per calendar slot (install + sand), matching the Schedule agenda.
+ * `dayStart`/`dayEnd` are org-local today bounds; when omitted, every WO becomes one install row (legacy).
+ */
+export function buildTodayEvents(
+  meetings: MeetingRow[],
+  workOrders: WorkOrderRow[],
+  day?: { start: Date; end: Date },
+): TodayEvent[] {
+  const events: TodayEvent[] = [];
+  for (const wo of workOrders) {
+    const status = wo.fieldStatus && wo.status === "in_progress" ? wo.fieldStatus : wo.status;
+    const person = wo.crewName || wo.assigneeName || null;
+    const href = `job-detail.html?id=${encodeURIComponent(wo.id)}`;
+    const base = {
       type: "job" as const,
       title: wo.title,
-      start: wo.scheduledStart.toISOString(),
-      end: wo.scheduledEnd.toISOString(),
-      status: wo.fieldStatus && wo.status === "in_progress" ? wo.fieldStatus : wo.status,
-      person: wo.crewName || wo.assigneeName || null,
+      status,
+      person,
       address: wo.address,
       color: wo.crewColor,
-      href: `job-detail.html?id=${encodeURIComponent(wo.id)}`,
-      lead_id: null,
+      href,
+      lead_id: null as string | null,
       lat: wo.geoLat,
       lng: wo.geoLng,
-    })),
-    ...meetings.map((m) => ({
+    };
+    const instStart = wo.installationStart !== undefined ? wo.installationStart : wo.scheduledStart;
+    const sandStart = wo.sandScheduledStart || null;
+
+    if (!day) {
+      events.push({
+        ...base,
+        id: wo.id,
+        start: wo.scheduledStart.toISOString(),
+        end: wo.scheduledEnd.toISOString(),
+        phase: wo.sector === "sand_finish" ? "sand_finish" : "installation",
+      });
+      continue;
+    }
+
+    const waitingSand =
+      wo.sector === "both" && Boolean(wo.installationDoneAt) && !wo.sandDoneAt && wo.status !== "canceled";
+
+    if (instStart && !waitingSand && overlapsLocalDay(instStart, wo.scheduledEnd, day.start, day.end)) {
+      events.push({
+        ...base,
+        id: wo.id,
+        start: instStart.toISOString(),
+        end: (wo.scheduledEnd && wo.scheduledEnd > instStart ? wo.scheduledEnd : instStart).toISOString(),
+        phase: wo.sector === "sand_finish" ? "sand_finish" : "installation",
+      });
+    }
+    if (sandStart && wo.sector !== "sand_finish" && inLocalDay(sandStart, day.start, day.end)) {
+      events.push({
+        ...base,
+        id: `${wo.id}:sand`,
+        start: sandStart.toISOString(),
+        end: sandStart.toISOString(),
+        phase: "sand_finish",
+      });
+    }
+  }
+  for (const m of meetings) {
+    events.push({
       id: m.id,
-      type: "visit" as const,
+      type: "visit",
       title: m.title.replace(/^Visit\s+—\s+/i, "Visita — "),
       start: m.scheduledStart.toISOString(),
       end: m.scheduledEnd.toISOString(),
@@ -952,10 +1011,11 @@ export function buildTodayEvents(meetings: MeetingRow[], workOrders: WorkOrderRo
       color: null,
       href: m.leadId ? `lead-detail.html?id=${encodeURIComponent(m.leadId)}` : "schedule.html",
       lead_id: m.leadId,
-      lat: null as number | null,
-      lng: null as number | null,
-    })),
-  ];
+      lat: null,
+      lng: null,
+      phase: null,
+    });
+  }
   return events.sort((a, b) => a.start.localeCompare(b.start));
 }
 
@@ -1245,8 +1305,16 @@ export async function loadDashboardOverview(
       tx.workOrder.findMany({
         where: {
           status: { not: "canceled" },
-          scheduledStart: { not: null, lt: tomorrowStart },
-          scheduledEnd: { not: null, gt: todayStart },
+          OR: [
+            {
+              scheduledStart: { not: null, lt: tomorrowStart },
+              OR: [
+                { scheduledEnd: null, scheduledStart: { gte: todayStart } },
+                { scheduledEnd: { gt: todayStart } },
+              ],
+            },
+            { sandScheduledStart: { gte: todayStart, lt: tomorrowStart } },
+          ],
         },
         orderBy: { scheduledStart: "asc" },
         select: {
@@ -1255,8 +1323,12 @@ export async function loadDashboardOverview(
           title: true,
           status: true,
           fieldStatus: true,
+          sector: true,
           scheduledStart: true,
           scheduledEnd: true,
+          sandScheduledStart: true,
+          installationDoneAt: true,
+          sandDoneAt: true,
           address: true,
           geoLat: true,
           geoLng: true,
@@ -1270,7 +1342,7 @@ export async function loadDashboardOverview(
           status: { not: "canceled" },
           OR: [
             { scheduledStart: { not: null, gte: todayStart, lt: forecastEnd } },
-            { sector: "both", sandScheduledStart: { not: null, gte: todayStart, lt: forecastEnd } },
+            { sandScheduledStart: { not: null, gte: todayStart, lt: forecastEnd } },
           ],
         },
         orderBy: { scheduledStart: "asc" },
@@ -1347,14 +1419,37 @@ export async function loadDashboardOverview(
       if (loc) meetingGeo.set(id, loc);
     }
 
-    const mapWo = (wo: (typeof workOrdersToday)[number]): WorkOrderRow => ({
+    const mapWo = (wo: {
+      id: string;
+      number: number | null;
+      title: string;
+      status: string;
+      fieldStatus: string;
+      sector?: string | null;
+      scheduledStart: Date | null;
+      scheduledEnd: Date | null;
+      sandScheduledStart?: Date | null;
+      installationDoneAt?: Date | null;
+      sandDoneAt?: Date | null;
+      address: string | null;
+      geoLat: unknown;
+      geoLng: unknown;
+      customer: { name: string } | null;
+      assignedUser: { name: string } | null;
+      crew: { name: string; color: string | null } | null;
+    }): WorkOrderRow => ({
       id: wo.id,
       number: wo.number,
       title: wo.title,
       status: wo.status,
       fieldStatus: wo.fieldStatus,
-      scheduledStart: wo.scheduledStart!,
-      scheduledEnd: wo.scheduledEnd ?? wo.scheduledStart!,
+      sector: wo.sector ?? null,
+      scheduledStart: (wo.scheduledStart ?? wo.sandScheduledStart)!,
+      scheduledEnd: wo.scheduledEnd ?? wo.scheduledStart ?? wo.sandScheduledStart!,
+      sandScheduledStart: wo.sandScheduledStart ?? null,
+      installationStart: wo.scheduledStart,
+      installationDoneAt: wo.installationDoneAt ?? null,
+      sandDoneAt: wo.sandDoneAt ?? null,
       address: wo.address,
       customerName: wo.customer?.name ?? null,
       assigneeName: wo.assignedUser?.name ?? null,
@@ -1377,6 +1472,7 @@ export async function loadDashboardOverview(
         leadId: meetingLead.get(m.id) ?? null,
       })),
       workOrdersToday.map(mapWo),
+      { start: todayStart, end: tomorrowStart },
     );
     for (const ev of todayEvents) {
       if (ev.type !== "visit") continue;

@@ -238,7 +238,7 @@
   function rowHtml(wo, now = false) {
     const J = I();
     const finished = wo.status === "completed" || wo.status === "canceled";
-    const undated = !finished && !wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start);
+    const undated = !finished && !J.listAnchorIso(wo);
     const when = J.listWhen ? J.listWhen(wo) : { date: undated ? "Sem data" : J.dateRange(wo), status: "" };
     const who = J.client(wo);
     const head = who && who !== "Sem cliente" ? who : wo.title || "Job";
