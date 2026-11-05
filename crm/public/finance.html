@@ -13,12 +13,13 @@
   <link rel="stylesheet" href="design-system.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="mobile-design-system.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-shared-nav.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="crm-toast.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="crm-toast.css?v=20261104-ux2" />
   <link rel="stylesheet" href="crm-shell.css?v=20261019-logout2" />
   <link rel="stylesheet" href="crm-module-panel.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="obramate-app.css?v=20261019-logout2" />
   <link rel="stylesheet" href="om-mobile-nav.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="finance-v2.css?v=20261009-fx1" />
+  <link rel="stylesheet" href="finance.css?v=20261104-ux3" />
+  <link rel="stylesheet" href="crm-list.css?v=20261104-ux2" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="om-device.js?v=20261013-badge1"></script>
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
@@ -73,9 +74,9 @@
     <div class="mobile-overlay" id="mobileOverlay"></div>
     <main class="dashboard-main">
       <div class="fx" id="fx">
-        <div class="fx-split" id="fxSplit">
-          <section class="fx-list" aria-label="Movimentos">
-            <div class="fx-list__top">
+        <div class="fx-split ol-split" id="fxSplit">
+          <section class="fx-list ol-list" aria-label="Movimentos">
+            <div class="fx-list__top ol-top">
               <div class="fx-title">
                 <h1>Fluxo de caixa</h1>
                 <button type="button" class="fx-btn fx-btn--pri fx-btn--sm" id="fxScanBtn" data-crm-permission="finance.manage"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg><span>Scan</span></button>
@@ -99,16 +100,15 @@
                 <label>Até<input type="date" id="finTo" /></label>
               </div>
               <div class="fx-phero" id="fxPhero"></div>
-              <dl class="fx-sums" id="fxSums"></dl>
-              <label class="fx-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input type="search" id="fxQ" placeholder="Buscar movimento" autocomplete="off" aria-label="Buscar movimento" /></label>
-              <div class="fx-seg" id="fxSeg" role="group" aria-label="Filtrar">
+              <label class="fx-search ol-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input type="search" id="fxQ" placeholder="Buscar movimento" autocomplete="off" aria-label="Buscar movimento" /></label>
+              <div class="fx-seg ol-seg" id="fxSeg" role="group" aria-label="Filtrar">
                 <button type="button" data-f="all" class="is-on">Tudo <em></em></button>
                 <button type="button" data-f="in">Entradas <em></em></button>
                 <button type="button" data-f="out">Saídas <em></em></button>
                 <button type="button" data-f="draft">Revisar <em></em></button>
               </div>
             </div>
-            <div class="fx-rows" id="fxRows"><p class="fx-empty">Carregando…</p></div>
+            <div class="fx-rows ol-rows" id="fxRows"><p class="fx-empty">Carregando…</p></div>
           </section>
           <section class="fx-main" id="fxMain">
             <a class="fx-back" href="#" id="fxBack"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>Fluxo de caixa</a>
@@ -173,12 +173,13 @@
   </div>
 
   <script src="crm-toast.js"></script>
-  <script src="crm-i18n.js?v=20261001-refresh1"></script>
+  <script src="crm-i18n.js?v=20261104-ux1"></script>
   <script src="saas-branding.js"></script>
   <script src="om-device.js?v=20261013-badge1"></script>
-  <script src="crm-shared-nav.js?v=20261015-refnav1"></script>
-  <script src="crm-shell.js?v=20261102-ptr1"></script>
-  <script src="om-mobile-nav.js?v=20261014-perfil1"></script>
-  <script src="finance.js?v=20261009-fx1"></script>
+  <script src="crm-shared-nav.js?v=20261105-dockall"></script>
+  <script src="crm-shell.js?v=20261104-ux2"></script>
+  <script src="om-mobile-nav.js?v=20261105-camswipe1"></script>
+  <script src="finance.js?v=20261104-ux3"></script>
+  <script src="crm-list.js?v=20261105-agd1"></script>
 </body>
 </html>

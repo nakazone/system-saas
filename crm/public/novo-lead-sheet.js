@@ -143,6 +143,11 @@
     document.body.classList.remove("nls-open");
   }
 
+  function sheetToast(msg, type) {
+    if (window.crmToast && typeof window.crmToast[type] === "function") window.crmToast[type](msg);
+    else console.warn(msg);
+  }
+
   async function onSubmit(e, force) {
     if (e && typeof e.preventDefault === "function") e.preventDefault();
     const name = (document.getElementById("nlsName")?.value || "").trim();
@@ -150,11 +155,13 @@
     const address = (document.getElementById("nlsAddress")?.value || "").trim();
     const areaRaw = (document.getElementById("nlsArea")?.value || "").trim();
     if (name.length < 2) {
-      alert("Indique o nome do cliente.");
+      sheetToast("Indique o nome do cliente.", "warning");
+      document.getElementById("nlsName")?.focus();
       return;
     }
     if (phone.length < 3) {
-      alert("Indique um telefone válido.");
+      sheetToast("Indique um telefone válido.", "warning");
+      document.getElementById("nlsPhone")?.focus();
       return;
     }
     const area = areaRaw ? Number(String(areaRaw).replace(/[^\d.]/g, "")) : null;
@@ -198,7 +205,7 @@
       else if (id) location.href = "lead-detail.html?id=" + encodeURIComponent(String(id));
       else location.reload();
     } catch (err) {
-      alert(err.message || "Erro ao criar lead");
+      sheetToast(err.message || "Erro ao criar lead", "error");
     } finally {
       if (submit) submit.disabled = false;
     }

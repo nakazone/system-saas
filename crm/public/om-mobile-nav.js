@@ -1,13 +1,14 @@
 /**
- * Mobile bottom nav — Início / Leads / Calendar / Quotes / Mais
+ * Mobile bottom nav — Início / Leads / Calendar / Jobs / Mais
+ * (Jobs is the daily centre of a flooring company; Quotes lives in Mais and in + Criar.)
  * Field staff: Hoje / Calendar / Jobs / Chat / Horas (Campo shell links)
  */
 (function () {
-  const VER = "20261013-quotes1";
+  const VER = "20261105-camswipe1";
   const MQ = window.matchMedia("(max-width: 900px)");
   const FIELD_ROLES = new Set(["installer", "crew_lead", "subcontractor"]);
   const SHEET_MS = 380;
-  const TAB_HREFS = ["home.html", "/dashboard", "schedule.html", "quotes.html", "mais.html"];
+  const TAB_HREFS = ["home.html", "/dashboard", "schedule.html", "jobs.html", "mais.html"];
   let edgeSwipeBound = false;
 
   const ICONS = {
@@ -50,7 +51,7 @@
       if (f === "agenda.html" || f === "schedule.html") return "agenda";
       if (f === "jobs.html" || f === "job-detail.html") return "jobs";
       if (f === "chat.html") return "chat";
-      if (f === "horas.html" || f === "payroll-module.html") return "horas";
+      if (f === "horas.html") return "horas";
       return "";
     }
     if (f === "home.html" || f === "") return "home";
@@ -64,21 +65,20 @@
       return "pipeline";
     }
     if (f === "schedule.html") return "agenda";
-    if (f === "quotes.html" || f === "quote-builder.html" || f === "quote-catalog.html") return "quotes";
+    if (f === "jobs.html" || f === "job-detail.html") return "jobs";
     if (
       f === "mais.html" ||
+      f === "quotes.html" ||
+      f === "quote-builder.html" ||
+      f === "quote-catalog.html" ||
       f === "chat.html" ||
       f === "invoices.html" ||
       f === "invoice.html" ||
       f === "customers.html" ||
-      f === "jobs.html" ||
-      f === "job-detail.html" ||
       f === "job-media-board.html" ||
       f === "equipe.html" ||
       f === "configuracoes.html" ||
       f === "finance.html" ||
-      f === "financial.html" ||
-      f === "payroll-module.html" ||
       f === "folha.html"
     ) {
       return "more";
@@ -278,7 +278,7 @@
   function bindEdgeSwipeBack() {
     if (edgeSwipeBound) return;
     const f = fileName();
-    const primary = new Set(["home.html", "pipeline-lab.html", "schedule.html", "mais.html", "", "dashboard.html", "dashboard", "/dashboard"]);
+    const primary = new Set(["home.html", "pipeline-lab.html", "schedule.html", "jobs.html", "mais.html", "", "dashboard.html", "dashboard", "/dashboard"]);
     if (primary.has(f)) return;
     edgeSwipeBound = true;
 
@@ -289,8 +289,10 @@
     let pageLeft = false;
     // Edge swipe-right (iOS) + full-screen swipe-left = back.
     const EDGE_PX = 36;
+    // Horizontal chip/filter tracks must own left/right pans — otherwise back-swipe
+    // fires mid-scroll (ObraCam filters, stage chips, etc.).
     const BLOCK_SEL =
-      ".om-swipe, .lcard, .mleads-swipe, .sf-quote-card, .kanban-card, .kanban-board, .chiptrack, .om-sheet, .fo-tabs, [data-om-no-back-swipe], input, textarea, select";
+      ".om-swipe, .lcard, .mleads-swipe, .sf-quote-card, .kanban-card, .kanban-board, .chiptrack, .cam-filters, .cam-chips, .cam-chips--bar, .cam-chips--stick, .oc-stages, .cv-strip, .om-sheet, .fo-tabs, [data-om-no-back-swipe], input, textarea, select";
 
     function goBack() {
       haptic(10);
@@ -303,9 +305,34 @@
       }
     }
 
+    function isHorizScrollSurface(el) {
+      let n = el;
+      while (n && n !== document.body && n !== document.documentElement) {
+        if (n instanceof HTMLElement) {
+          try {
+            if (n.matches && n.matches(BLOCK_SEL)) return true;
+          } catch (_) {
+            /* ignore */
+          }
+          const st = getComputedStyle(n);
+          const ox = st.overflowX;
+          if (
+            (ox === "auto" || ox === "scroll" || ox === "overlay") &&
+            n.scrollWidth > n.clientWidth + 8
+          ) {
+            return true;
+          }
+        }
+        n = n.parentElement;
+      }
+      return false;
+    }
+
     function blockedTarget(el) {
       try {
-        return !!(el && el.closest && el.closest(BLOCK_SEL));
+        if (!el) return true;
+        if (el.closest && el.closest(BLOCK_SEL)) return true;
+        return isHorizScrollSurface(el);
       } catch (_) {
         return true;
       }
@@ -565,7 +592,7 @@
       item("home", "home.html", ICONS.home, "Início"),
       item("pipeline", "/dashboard", ICONS.pipeline, "Leads"),
       item("agenda", "schedule.html", ICONS.agenda, "Calendar"),
-      item("quotes", "quotes.html", ICONS.quote, "Quotes", "quotes.view"),
+      item("jobs", "jobs.html", ICONS.jobs, "Jobs", "work_orders.view"),
       item("more", "mais.html", ICONS.more, "Mais"),
     ].join("");
 
@@ -769,6 +796,8 @@
       ensureAppTop();
       return;
     }
+    // ObraCalendar and ObraCam bring their own tabs.
+    if (window.__OM_CAL_APP || window.__OM_FOCUS_APP) return;
 
     const field = await resolveFieldRole();
     if (field) {

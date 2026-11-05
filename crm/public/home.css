@@ -836,7 +836,12 @@ body.home-app.om-device-mobile .home-kpi:not(:first-child) .home-kpi__label {
   background: none;
   cursor: pointer;
   transform-origin: 50% 100%;
-  animation: home-mate-in 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.15) 0.15s both;
+  /* Entrance plays once per session (home.js adds .home-mate--seen afterwards); no overshoot. */
+  animation: home-mate-in 0.3s var(--om-ease-out, cubic-bezier(0.23, 1, 0.32, 1)) 0.1s both;
+}
+
+.home-mate.home-mate--seen {
+  animation: none;
 }
 
 .home-mate img {
@@ -860,4 +865,156 @@ body.home-app.om-device-mobile .home-kpi:not(:first-child) .home-kpi__label {
   .home-mate {
     animation: none;
   }
+}
+
+
+/* —— Jobs e Orçamentos aguardando (mesmos dados da Home do desktop) —— */
+.home-ops__stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.home-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #F1F3F5;
+  color: #221E1A;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 100ms ease-out;
+}
+
+.home-stat:active {
+  transform: scale(0.98);
+}
+
+.home-stat__value {
+  font-size: 20px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.home-stat__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #667085;
+}
+
+.home-stat.is-zero .home-stat__value {
+  color: #98A2B3;
+}
+
+.home-stat.is-danger {
+  background: #FDF0E6;
+}
+
+.home-stat.is-danger .home-stat__value,
+.home-stat.is-danger .home-stat__label {
+  color: #B4561A;
+}
+
+.home-ops__bill {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 8px;
+  min-height: 44px;
+  padding: 11px 14px;
+  border-radius: 14px;
+  background: #221E1A;
+  color: #fff;
+  text-decoration: none;
+}
+
+.home-ops__bill span,
+.home-ops__bill small {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.home-ops__bill b {
+  font-size: 18px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.home-ops__bill small {
+  margin-left: auto;
+}
+
+.home-quotes__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-quote {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 10px 0;
+  border-top: 1px solid #F0F2F5;
+  color: #221E1A;
+  text-decoration: none;
+}
+
+.home-quotes__list li:first-child .home-quote {
+  border-top: 0;
+}
+
+.home-quote > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.home-quote__title,
+.home-quote__sub {
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.home-quote__title {
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.home-quote__sub {
+  margin-top: 2px;
+  font-size: 13px;
+  color: #667085;
+}
+
+.home-quote.is-stale .home-quote__sub {
+  color: #B4561A;
+}
+
+.home-quote__aside {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.home-quote__aside b {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.home-quote__aside span {
+  font-size: 12px;
+  font-weight: 650;
+  color: #667085;
+}
+
+.home-quote__aside span.is-ok {
+  color: #536249;
 }

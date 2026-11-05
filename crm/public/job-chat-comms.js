@@ -267,7 +267,7 @@
       if (e.target.closest("[data-comms-open-channel]")) {
         openJobChannel(jobId).catch((err) => {
           if (typeof options.onError === "function") options.onError(err);
-          else alert(err.message || "Erro");
+          else if (window.crmToast) window.crmToast.error(err.message || "Não foi possível abrir a conversa.");
         });
       }
     });

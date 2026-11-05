@@ -2535,6 +2535,8 @@
     }
     const leadId = p.get('lead_id');
     const meetingId = p.get('meeting_id');
+    const customerId = p.get('customer_id');
+    const builderId = p.get('builder_id');
     const presentationQuoteId = p.get('presentation_quote');
     if (presentationQuoteId) {
       S.presentationQuoteOnly = true;
@@ -2556,9 +2558,17 @@
       }
       return;
     }
-    if (!p.get('id') && (leadId || meetingId)) {
+    if (!p.get('id') && (leadId || meetingId || customerId || builderId)) {
       try {
-        const j = await api('/api/field-quotes', { method: 'POST', body: { lead_id: leadId || undefined, meeting_id: meetingId || undefined } });
+        const j = await api('/api/field-quotes', {
+          method: 'POST',
+          body: {
+            lead_id: leadId || undefined,
+            meeting_id: meetingId || undefined,
+            customer_id: customerId || undefined,
+            builder_id: builderId || undefined,
+          },
+        });
         history.replaceState(null, '', 'field-quote.html?id=' + encodeURIComponent(j.data.id));
         return loadPanel(j.data.id, j.data);
       } catch (e) {

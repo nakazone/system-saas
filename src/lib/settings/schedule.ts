@@ -5,8 +5,13 @@
 import { z } from "zod";
 import { randomUUID } from "crypto";
 import { PHASE_KEYS, isPhaseKey } from "../trades/phases.js";
+import {
+  defaultScheduleClientMessages,
+  parseScheduleClientMessages,
+  type ScheduleClientMessages,
+} from "./schedule-messages.js";
 
-export type ScheduleCalendarKind = "jobs" | "visits" | "meetings" | "custom";
+export type ScheduleCalendarKind = "jobs" | "visits" | "meetings" | "delivery" | "custom";
 /** "all" or a phase key of the trade pack (hardwood: installation | sand_finish). */
 export type ScheduleJobSector = string;
 
@@ -21,6 +26,8 @@ export type ScheduleCalendar = {
 
 export type ScheduleSettings = {
   calendars: ScheduleCalendar[];
+  /** SMS templates to the client (job / visit / meeting / delivery). */
+  clientMessages: ScheduleClientMessages;
 };
 
 const COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
@@ -28,13 +35,31 @@ const UUID_RE = /^[0-9a-f-]{36}$/i;
 
 export const DEFAULT_SCHEDULE_CALENDARS: ScheduleCalendar[] = [
   { id: "jobs", name: "Jobs", color: "#221e1a", kind: "jobs", sector: "all" },
+  { id: "delivery", name: "Delivery", color: "#0f766e", kind: "delivery" },
   { id: "visits", name: "Visitas", color: "#8a7460", kind: "visits" },
   { id: "meetings", name: "Meetings", color: "#98a2b3", kind: "meetings" },
 ];
 
+const DEFAULT_DELIVERY_CALENDAR: ScheduleCalendar = {
+  id: "delivery",
+  name: "Delivery",
+  color: "#0f766e",
+  kind: "delivery",
+};
+
+/** Ensure every org has a Delivery agenda (legacy settings may omit it). */
+export function ensureDeliveryCalendar(settings: ScheduleSettings): ScheduleSettings {
+  if (settings.calendars.some((c) => c.kind === "delivery" || c.id === "delivery")) return settings;
+  return {
+    calendars: [...settings.calendars, { ...DEFAULT_DELIVERY_CALENDAR }],
+    clientMessages: settings.clientMessages || defaultScheduleClientMessages(),
+  };
+}
+
 export function defaultScheduleSettings(): ScheduleSettings {
   return {
     calendars: DEFAULT_SCHEDULE_CALENDARS.map((c) => ({ ...c })),
+    clientMessages: defaultScheduleClientMessages(),
   };
 }
 
@@ -52,12 +77,13 @@ function normalizeName(raw: unknown, fallback: string): string {
 }
 
 function kindOf(r: Record<string, unknown>): ScheduleCalendarKind {
-  if (r.kind === "jobs" || r.kind === "visits" || r.kind === "meetings" || r.kind === "custom") {
+  if (r.kind === "jobs" || r.kind === "visits" || r.kind === "meetings" || r.kind === "delivery" || r.kind === "custom") {
     return r.kind;
   }
   if (r.id === "jobs") return "jobs";
   if (r.id === "visits") return "visits";
   if (r.id === "meetings") return "meetings";
+  if (r.id === "delivery") return "delivery";
   return "custom";
 }
 
@@ -73,7 +99,7 @@ function stableId(r: Record<string, unknown>, kind: ScheduleCalendarKind): strin
   if (typeof r.id === "string" && r.id.trim()) {
     const id = r.id.trim();
     // Keep legacy fixed ids and UUIDs.
-    if (id === "jobs" || id === "visits" || id === "meetings" || UUID_RE.test(id)) return id;
+    if (id === "jobs" || id === "visits" || id === "meetings" || id === "delivery" || UUID_RE.test(id)) return id;
   }
   if (kind === "visits") return randomUUID();
   if (kind === "meetings") return randomUUID();
@@ -101,9 +127,25 @@ export function parseScheduleSettings(raw: unknown): ScheduleSettings {
     if (seen.has(id)) continue;
     seen.add(id);
     const fallbackName =
-      kind === "jobs" ? "Jobs" : kind === "visits" ? "Visitas" : kind === "meetings" ? "Meetings" : "Agenda";
+      kind === "jobs"
+        ? "Jobs"
+        : kind === "visits"
+          ? "Visitas"
+          : kind === "meetings"
+            ? "Meetings"
+            : kind === "delivery"
+              ? "Delivery"
+              : "Agenda";
     const fallbackColor =
-      kind === "jobs" ? "#221e1a" : kind === "visits" ? "#8a7460" : kind === "meetings" ? "#98a2b3" : "#667085";
+      kind === "jobs"
+        ? "#221e1a"
+        : kind === "visits"
+          ? "#8a7460"
+          : kind === "meetings"
+            ? "#98a2b3"
+            : kind === "delivery"
+              ? "#0f766e"
+              : "#667085";
     const cal: ScheduleCalendar = {
       id,
       kind,
@@ -115,7 +157,10 @@ export function parseScheduleSettings(raw: unknown): ScheduleSettings {
     out.push(cal);
   }
 
-  return out.length ? { calendars: out } : defaultScheduleSettings();
+  const clientMessages = parseScheduleClientMessages(o.clientMessages);
+  return ensureDeliveryCalendar(
+    out.length ? { calendars: out, clientMessages } : defaultScheduleSettings(),
+  );
 }
 
 export function serializeScheduleSettings(settings: ScheduleSettings) {
@@ -127,6 +172,7 @@ export function serializeScheduleSettings(settings: ScheduleSettings) {
       kind: c.kind,
       ...(c.kind === "jobs" ? { sector: c.sector || "all" } : {}),
     })),
+    clientMessages: settings.clientMessages || defaultScheduleClientMessages(),
   };
 }
 
@@ -134,7 +180,7 @@ const calendarSchema = z.object({
   id: z.string().min(1).max(64).optional(),
   name: z.string().trim().min(1, "Nome obrigatório").max(80),
   color: z.string().regex(COLOR_RE, "Cor inválida"),
-  kind: z.enum(["jobs", "visits", "meetings", "custom"]).optional(),
+  kind: z.enum(["jobs", "visits", "meetings", "delivery", "custom"]).optional(),
   sector: z.enum(["all", ...PHASE_KEYS] as [string, ...string[]]).optional().nullable(),
 });
 
@@ -144,8 +190,11 @@ export const scheduleSettingsPutSchema = z.object({
 
 export type ScheduleSettingsPut = z.infer<typeof scheduleSettingsPutSchema>;
 
-/** Apply PUT body as the full calendar list (no forced built-ins). */
-export function applyScheduleSettingsPut(body: ScheduleSettingsPut): ScheduleSettings {
+/** Apply PUT body as the full calendar list (no forced built-ins). Preserves clientMessages when provided. */
+export function applyScheduleSettingsPut(
+  body: ScheduleSettingsPut,
+  previous?: ScheduleSettings | null,
+): ScheduleSettings {
   const out: ScheduleCalendar[] = [];
   const seen = new Set<string>();
 
@@ -158,9 +207,16 @@ export function applyScheduleSettingsPut(body: ScheduleSettingsPut): ScheduleSet
           ? "visits"
           : row.id === "meetings"
             ? "meetings"
-            : "custom");
+            : row.id === "delivery"
+              ? "delivery"
+              : "custom");
     const id =
-      row.id && (row.id === "jobs" || row.id === "visits" || row.id === "meetings" || UUID_RE.test(row.id))
+      row.id &&
+      (row.id === "jobs" ||
+        row.id === "visits" ||
+        row.id === "meetings" ||
+        row.id === "delivery" ||
+        UUID_RE.test(row.id))
         ? row.id
         : randomUUID();
     if (seen.has(id)) continue;
@@ -168,7 +224,17 @@ export function applyScheduleSettingsPut(body: ScheduleSettingsPut): ScheduleSet
     const cal: ScheduleCalendar = {
       id,
       kind,
-      name: row.name.trim() || (kind === "jobs" ? "Jobs" : kind === "visits" ? "Visitas" : kind === "meetings" ? "Meetings" : "Agenda"),
+      name:
+        row.name.trim() ||
+        (kind === "jobs"
+          ? "Jobs"
+          : kind === "visits"
+            ? "Visitas"
+            : kind === "meetings"
+              ? "Meetings"
+              : kind === "delivery"
+                ? "Delivery"
+                : "Agenda"),
       color: row.color.toLowerCase(),
     };
     if (kind === "jobs") {
@@ -180,7 +246,10 @@ export function applyScheduleSettingsPut(body: ScheduleSettingsPut): ScheduleSet
     out.push(cal);
   }
 
-  return { calendars: out };
+  return ensureDeliveryCalendar({
+    calendars: out,
+    clientMessages: previous?.clientMessages || defaultScheduleClientMessages(),
+  });
 }
 
 /** Attach custom agendas found on meetings but missing from settings. */
@@ -205,7 +274,13 @@ export function mergeOrphanCalendars(
     added = true;
   }
   if (!added) return { settings, added: false };
-  return { settings: { calendars: [...settings.calendars, ...extras] }, added: true };
+  return {
+    settings: {
+      calendars: [...settings.calendars, ...extras],
+      clientMessages: settings.clientMessages || defaultScheduleClientMessages(),
+    },
+    added: true,
+  };
 }
 
 export function resolveMeetingColor(
@@ -265,4 +340,16 @@ export function resolveJobColor(
 ): string {
   if (crewColor && COLOR_RE.test(crewColor)) return crewColor.toLowerCase();
   return resolveJobCalendar(settings, sector).color;
+}
+
+export function resolveDeliveryCalendar(settings: ScheduleSettings): ScheduleCalendar {
+  return (
+    settings.calendars.find((c) => c.kind === "delivery") ||
+    settings.calendars.find((c) => c.id === "delivery") ||
+    { ...DEFAULT_DELIVERY_CALENDAR }
+  );
+}
+
+export function resolveDeliveryColor(settings: ScheduleSettings): string {
+  return resolveDeliveryCalendar(settings).color;
 }

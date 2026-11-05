@@ -163,7 +163,8 @@
     });
     const j = await r.json();
     if (!r.ok) {
-      crmNotify?.(j.error || 'Erro', 'error') || alert(j.error || 'Erro');
+      if (typeof crmNotify === 'function') crmNotify(j.error || 'Erro', 'error');
+      else window.crmToast?.error(j.error || 'Erro');
       return;
     }
     document.getElementById('msgInput').value = '';

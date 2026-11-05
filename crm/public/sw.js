@@ -1,7 +1,7 @@
 /**
  * ObraMate — service worker (static cache + Campo offline + Web Push).
  */
-const CACHE = "om-static-v63";
+const CACHE = "om-static-v65";
 const API_CACHE = "om-api-v1";
 const BADGE_CACHE = "om-badge-v1";
 const BADGE_URL = "/__om_app_badge_count";
@@ -14,14 +14,15 @@ const PRECACHE = [
   "/campo/agenda.html",
   "/campo/horas.html",
   "/campo/ticket.html",
-  "/campo/campo.css?v=20261008-modulos1",
-  "/campo/dia.css?v=20261027-m2",
+  "/campo/campo.css?v=20261104-ux2",
+  "/campo/dia.css?v=20261104-ux2",
   "/campo/campo-nav.js?v=20261013-off1",
-  "/campo/campo-media-queue.js?v=20260928-media1",
-  "/campo/dia.js?v=20261027-m2",
-  "/campo/agenda.js?v=20261013-off1",
+  "/campo/campo-media-queue.js?v=20261104-exif1",
+  "/photo-exif.js?v=20261104-exif1",
+  "/campo/dia.js?v=20261105-tp0",
+  "/campo/agenda.js?v=20261104-ux2",
   "/campo/horas.js?v=20261013-off1",
-  "/campo/ticket.js?v=20261013-off1",
+  "/campo/ticket.js?v=20261104-ux2",
   "/om-offline.js?v=20261013-off1",
   "/om-device.js?v=20261013-badge1",
   "/styles.css",

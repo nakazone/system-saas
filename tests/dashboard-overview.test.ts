@@ -183,7 +183,20 @@ describe("dashboard quote + invoice sections", () => {
       TZ,
       true,
     );
-    expect(won_month).toEqual({ value: 23800, count: 3, previous_value: 19800, previous_count: 1 });
+    expect(won_month).toMatchObject({ value: 23800, count: 3, previous_value: 19800, previous_count: 1 });
+    // Running totals by day: a (signed Sep 23) 14600, b (Sep 20) 8200, c (Sep 27, no signature) 1000;
+    // last month d on Aug 24.
+    const daily = won_month.daily!;
+    expect(daily.unit).toBe("money");
+    expect(daily.current).toHaveLength(29);
+    expect(daily.current[18]).toBe(0);
+    expect(daily.current[19]).toBe(8200);
+    expect(daily.current[22]).toBe(22800);
+    expect(daily.current[28]).toBe(23800);
+    expect(daily.previous).toHaveLength(31);
+    expect(daily.previous[22]).toBe(0);
+    expect(daily.previous[23]).toBe(19800);
+    expect(daily.previous[30]).toBe(19800);
   });
 
   it("sums open sent quotes for pipeline (excludes won/lost/draft)", () => {
@@ -499,7 +512,7 @@ describe("dashboard overview (database, tenant isolation, permissions)", () => {
 
   it("returns only the sections the viewer may see", async () => {
     const access = viewerAccess({ roleKey: "custom", permissions: ["leads.view"] });
-    expect(access).toEqual({ leads: true, quotes: false, invoices: false, schedule: false, pricing: false });
+    expect(access).toEqual({ leads: true, quotes: false, invoices: false, schedule: false, jobs: false, pricing: false });
     const ov = await withTenantTransaction(orgB, (tx) =>
       loadDashboardOverview(tx, { organizationId: orgB, timezone: TZ, access }),
     );
@@ -509,6 +522,8 @@ describe("dashboard overview (database, tenant isolation, permissions)", () => {
     expect(ov.kpis.receivables).toBeNull();
     expect(ov.today_events).toBeNull();
     expect(ov.jobs_forecast).toBeNull();
+    expect(ov.quotes_waiting).toBeNull();
+    expect(ov.jobs_status).toBeNull();
     expect(ov.board).not.toBeNull();
   });
 });

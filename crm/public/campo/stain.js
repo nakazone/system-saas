@@ -389,7 +389,7 @@
       }
     });
 
-    document.addEventListener("click", (e) => {
+    document.addEventListener("click", async (e) => {
       const t = e.target.closest("[data-act],[data-sample],[data-wood],[data-kind],[data-color],[data-rm-photo],[data-rm-pending]");
       if (!t) return;
       const act = t.getAttribute("data-act");
@@ -401,7 +401,12 @@
       if (t.hasAttribute("data-wood")) {
         let w = t.getAttribute("data-wood");
         if (w === "__other") {
-          w = (prompt("Qual madeira?") || "").trim();
+          w = ((await window.crmPrompt({
+            title: "Qual madeira?",
+            label: "Espécie da madeira",
+            placeholder: "Ex.: Hickory",
+            ok: "Usar madeira",
+          })) || "").trim();
           if (!w) return;
         }
         guarded(async () => {
@@ -449,7 +454,13 @@
         render();
       }
       if (act === "delete-sample") {
-        if (!confirm(`Excluir o sample #${draft.number}?`)) return;
+        const okDel = await window.crmConfirm({
+          title: `Excluir o sample #${draft.number}?`,
+          text: "O sample e as fotos dele saem desta rodada.",
+          ok: "Excluir sample",
+          danger: true,
+        });
+        if (!okDel) return;
         guarded(async () => {
           data = await del(`/api/stain/samples/${encodeURIComponent(draft.id)}`);
           draft = null;
@@ -458,7 +469,13 @@
         });
       }
       if (act === "discard") {
-        if (!confirm("Descartar esta rodada e os samples dela?")) return;
+        const okDiscard = await window.crmConfirm({
+          title: "Descartar esta rodada?",
+          text: "A rodada e todos os samples dela serão apagados.",
+          ok: "Descartar rodada",
+          danger: true,
+        });
+        if (!okDiscard) return;
         guarded(async () => {
           data = await del(`/api/stain/rounds/${encodeURIComponent(current().id)}`);
           render();

@@ -17,11 +17,10 @@
   <link rel="stylesheet" href="crm-shell.css?v=20261019-logout2" />
   <link rel="stylesheet" href="mobile-design-system.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-shared-nav.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="crm-toast.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="crm-toast.css?v=20261104-ux2" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-push.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="configuracoes.css?v=20261016-cb1" />
-  <link rel="stylesheet" href="configuracoes-v2.css?v=20261014-perfil5" />
+  <link rel="stylesheet" href="configuracoes.css?v=20261104-ux3" />
   <link rel="stylesheet" href="cfg-meu-perfil.css?v=20261015-sig2" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -236,7 +235,7 @@
                 <h2 class="cfg-title">Agenda e calendários</h2>
                 <p class="cfg-lead">Crie e edite agendas do Schedule. Para separar Instalação e Lixa, use duas agendas do tipo Jobs com setores diferentes.</p>
               </header>
-              <article class="cfg-card" data-form="agenda">
+              <article class="cfg-card" data-form="agenda" data-sub="agenda">
                 <div class="cfg-card__head">
                   <div>
                     <h3 class="cfg-card__title">Calendários</h3>
@@ -247,7 +246,7 @@
                 <div class="cfg-sched-cals" id="schedCalList"></div>
                 <p class="cfg-hint">No Schedule, use a lista à esquerda para mostrar ou ocultar cada agenda. Meetings novos podem escolher a agenda no formulário. Jobs sem setor caem na agenda Jobs com setor “Todos”.</p>
               </article>
-              <article class="cfg-card" id="cfgCalFeedCard">
+              <article class="cfg-card" id="cfgCalFeedCard" data-sub="agenda">
                 <div class="cfg-card__head">
                   <div>
                     <h3 class="cfg-card__title">Calendário no iPhone / Apple Calendar</h3>
@@ -261,6 +260,62 @@
                 </div>
                 <div id="cfgCalFeedList" class="cfg-calfeed-list" hidden style="margin-top:14px"></div>
               </article>
+              <form id="schedMsgForm" class="cfg-form" novalidate autocomplete="off" data-form="sched-msg">
+                <article class="cfg-card" data-sub="msg-agenda">
+                  <h3 class="cfg-card__title">Mensagens SMS ao cliente</h3>
+                  <p class="cfg-card__desc">Textos usados no botão SMS da Agenda (job, visita, meeting, delivery). Use <code>[name]</code>, <code>[company]</code>, <code>[date]</code>, <code>[address]</code>, <code>[job]</code> e <code>[client_id]</code>.</p>
+                  <div class="cfg-field" style="max-width:22rem;margin-top:0.75rem">
+                    <label for="sm_company">Nome da empresa nas mensagens</label>
+                    <input id="sm_company" maxlength="120" placeholder="Ex.: ObraMate Floors" />
+                    <p class="cfg-hint">Substitui <code>[company]</code>. Se vazio, usa o nome da organização.</p>
+                  </div>
+                  <div class="cfg-lm-tabs" id="smKindTabs" role="tablist" aria-label="Tipo de agendamento" style="margin-top:1rem"></div>
+                  <div id="smKindPanels"></div>
+                </article>
+              </form>
+              <form id="calAutoForm" class="cfg-form" novalidate autocomplete="off" data-form="cal-auto">
+                <article class="cfg-card" data-sub="agenda">
+                  <h3 class="cfg-card__title">Avisos automáticos (equipe)</h3>
+                  <p class="cfg-card__desc">Push interno para a equipe do job e lembretes de visita. Não envia SMS ao cliente.</p>
+                  <label class="cfg-check" style="display:flex;align-items:flex-start;gap:0.65rem;margin-top:0.85rem">
+                    <input type="checkbox" id="ca_job_before" style="margin-top:0.2rem" />
+                    <span>
+                      <strong style="display:block;font-weight:800">Lembrete antes do job</strong>
+                      <span class="cfg-hint" style="display:block;margin:0.2rem 0 0">Notifica a equipe X minutos antes do início.</span>
+                    </span>
+                  </label>
+                  <div class="cfg-field" style="max-width:12rem;margin-top:0.65rem">
+                    <label for="ca_job_minutes">Minutos antes</label>
+                    <input id="ca_job_minutes" type="number" min="0" max="1440" step="5" />
+                  </div>
+                  <label class="cfg-check" style="display:flex;align-items:flex-start;gap:0.65rem;margin-top:1rem">
+                    <input type="checkbox" id="ca_job_at" style="margin-top:0.2rem" />
+                    <span>
+                      <strong style="display:block;font-weight:800">Aviso na hora do início</strong>
+                      <span class="cfg-hint" style="display:block;margin:0.2rem 0 0">Segundo push quando chega o horário agendado.</span>
+                    </span>
+                  </label>
+                  <label class="cfg-check" style="display:flex;align-items:flex-start;gap:0.65rem;margin-top:0.85rem">
+                    <input type="checkbox" id="ca_job_status" style="margin-top:0.2rem" />
+                    <span>
+                      <strong style="display:block;font-weight:800">Marcar job em andamento no horário</strong>
+                      <span class="cfg-hint" style="display:block;margin:0.2rem 0 0">No escritório: Agendado → Em andamento. O status no Campo (a caminho / no local) continua com a equipe.</span>
+                    </span>
+                  </label>
+                  <hr style="border:0;border-top:1px solid rgba(33,29,26,.08);margin:1.25rem 0" />
+                  <label class="cfg-check" style="display:flex;align-items:flex-start;gap:0.65rem">
+                    <input type="checkbox" id="ca_visit" style="margin-top:0.2rem" />
+                    <span>
+                      <strong style="display:block;font-weight:800">Lembrete de visita</strong>
+                      <span class="cfg-hint" style="display:block;margin:0.2rem 0 0">Avisa quem está na visita antes do horário.</span>
+                    </span>
+                  </label>
+                  <div class="cfg-field" style="max-width:12rem;margin-top:0.65rem">
+                    <label for="ca_visit_hours">Horas antes</label>
+                    <input id="ca_visit_hours" type="number" min="0" max="168" step="1" />
+                  </div>
+                </article>
+              </form>
             </section>
 
             <!-- ---------- Marca e aparência ---------- -->
@@ -715,6 +770,12 @@
                     </span>
                   </label>
                 </article>
+                <article class="cfg-card">
+                  <h3 class="cfg-card__title">Locais de Delivery</h3>
+                  <p class="cfg-card__desc">Endereços padrão com horário de funcionamento para escolher no job (ex.: loja, depósito).</p>
+                  <div id="jobsDeliveryLocs" class="cfg-delivery-locs" style="margin-top:0.75rem;display:grid;gap:0.65rem"></div>
+                  <button type="button" class="btn btn-secondary" id="jobsDeliveryLocAdd" style="margin-top:0.75rem">+ Local</button>
+                </article>
               </form>
             </section>
 
@@ -848,6 +909,49 @@
                 </div>
               </article>
               <p class="cfg-hint">Valores diferentes do padrão ObraMate ficam marcados. “Padrão” volta a linha aos valores originais.</p>
+            </section>
+
+            <!-- ---------- Usuários ---------- -->
+            <section class="cfg-section" data-section="usuarios" hidden>
+              <header class="cfg-head cfg-head--row">
+                <div>
+                  <h2 class="cfg-title">Usuários</h2>
+                  <p class="cfg-lead">Quem acessa o workspace. Cargos e permissões padrão ficam em <a href="#cargos">Cargos</a>.</p>
+                </div>
+                <button type="button" class="btn btn-primary cfg-btn-sm" id="cfgUserAddBtn">+ Novo usuário</button>
+              </header>
+              <div class="cfg-toolbar" role="search" aria-label="Filtrar usuários">
+                <input type="search" id="cfgUsersSearch" class="cfg-toolbar__search" placeholder="Buscar nome, e-mail ou telefone…" autocomplete="off" aria-label="Buscar usuários" />
+                <select id="cfgUsersStatus" class="cfg-toolbar__select" aria-label="Status">
+                  <option value="">Todos</option>
+                  <option value="active">Ativos</option>
+                  <option value="inactive">Inativos</option>
+                </select>
+                <button type="button" class="btn btn-secondary cfg-btn-sm" id="cfgUsersSearchBtn">Buscar</button>
+                <button type="button" class="btn btn-secondary cfg-btn-sm" id="cfgUsersClearBtn">Limpar</button>
+              </div>
+              <article class="cfg-card cfg-card--flush">
+                <div class="cfg-table-wrap">
+                  <table class="cfg-table" id="cfgUsersTable">
+                    <thead>
+                      <tr>
+                        <th scope="col">Usuário</th>
+                        <th scope="col">Contacto</th>
+                        <th scope="col">Cargo</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Desde</th>
+                        <th scope="col"><span class="cfg-sr">Ações</span></th>
+                      </tr>
+                    </thead>
+                    <tbody id="cfgUsersBody"><tr><td colspan="6"><div class="cfg-skeleton"></div></td></tr></tbody>
+                  </table>
+                </div>
+              </article>
+              <div class="cfg-pager" id="cfgUsersPager">
+                <button type="button" class="btn btn-secondary cfg-btn-sm" id="cfgUsersPrev">Anterior</button>
+                <span id="cfgUsersPageInfo">Página 1</span>
+                <button type="button" class="btn btn-secondary cfg-btn-sm" id="cfgUsersNext">Seguinte</button>
+              </div>
             </section>
 
             <!-- ---------- Cargos ---------- -->
@@ -1155,7 +1259,7 @@
                   <div><dt>Conta desde</dt><dd id="mpMetaCreated">—</dd></div>
                   <div><dt>Última atualização</dt><dd id="mpMetaUpdated">—</dd></div>
                 </dl>
-                <p class="cfg-hint" style="margin-top:8px">Gestão de utilizadores em <a href="equipe.html">Equipe</a>.</p>
+                <p class="cfg-hint" style="margin-top:8px">Gestão de utilizadores em <a href="#usuarios">Usuários</a>.</p>
               </article>
             </section>
 
@@ -1191,6 +1295,38 @@
         <button type="button" class="btn btn-secondary" data-close>Continuar editando</button>
         <button type="button" class="btn btn-primary" id="cfgLeaveConfirm">Descartar e sair</button>
       </div>
+    </div>
+  </div>
+
+  <!-- User editor -->
+  <div class="cfg-modal" id="cfgUserModal" role="dialog" aria-modal="true" aria-labelledby="cfgUserModalTitle" hidden>
+    <div class="cfg-modal__scrim" data-close="cfgUserModal"></div>
+    <div class="cfg-modal__box cfg-modal__box--wide">
+      <h3 id="cfgUserModalTitle">Usuário</h3>
+      <form id="cfgUserForm" autocomplete="off">
+        <input type="hidden" id="cfgUserId" value="" />
+        <div class="cfg-field"><label for="cfgUserName">Nome</label><input id="cfgUserName" required maxlength="255" autocomplete="name" /></div>
+        <div class="cfg-grid2">
+          <div class="cfg-field"><label for="cfgUserEmail">E-mail</label><input id="cfgUserEmail" type="email" required autocomplete="email" /></div>
+          <div class="cfg-field"><label for="cfgUserPhone">Telefone</label><input id="cfgUserPhone" maxlength="50" autocomplete="tel" /></div>
+        </div>
+        <div class="cfg-grid2">
+          <div class="cfg-field"><label for="cfgUserRole">Cargo</label><select id="cfgUserRole"></select></div>
+          <div class="cfg-field"><label for="cfgUserPassword">Senha <span class="cfg-muted" id="cfgUserPasswordHint">(opcional ao editar)</span></label><input id="cfgUserPassword" type="password" minlength="8" autocomplete="new-password" placeholder="Mín. 8 caracteres" /></div>
+        </div>
+        <div class="cfg-field cfg-field--check"><label><input type="checkbox" id="cfgUserForcePw" checked /> Obrigar troca de senha no próximo login</label></div>
+        <div class="cfg-field cfg-field--check"><label><input type="checkbox" id="cfgUserActive" checked /> Conta ativa</label></div>
+        <div class="cfg-field" id="cfgUserPermsSection" hidden>
+          <label>Módulos e permissões</label>
+          <p class="cfg-hint" id="cfgUserPermsHelp">Marque o que este usuário pode fazer. Administradores têm acesso total.</p>
+          <div id="cfgUserPermsGroups" class="cfg-perm-groups"></div>
+        </div>
+        <p class="cfg-err" id="cfgUserFormError" hidden></p>
+        <div class="cfg-row cfg-row--end">
+          <button type="button" class="btn btn-secondary" data-close="cfgUserModal">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="cfgUserFormSubmit">Guardar</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -1278,16 +1414,16 @@
       </section>
     </div>
   </div>
-  <script src="crm-i18n.js?v=20261014-perfil5"></script>
-  <script src="crm-shell.js?v=20261102-ptr1"></script>
-  <script src="crm-shared-nav.js?v=20261015-refnav1"></script>
-  <script src="crm-account-menu.js?v=20261014-perfil5"></script>
+  <script src="crm-i18n.js?v=20261104-ux1"></script>
+  <script src="crm-shell.js?v=20261104-ux2"></script>
+  <script src="crm-shared-nav.js?v=20261105-dockall"></script>
+  <script src="crm-account-menu.js?v=20261104-ux1"></script>
   <script src="crm-toast.js"></script>
-  <script src="crm-pwa-install.js?v=20260923-pwa"></script>
+  <script src="crm-pwa-install.js?v=20261104-ux1"></script>
   <script src="crm-push.js?v=20261022-inbox1"></script>
-  <script src="crm-address-autocomplete.js?v=20261028-pac"></script>
+  <script src="crm-address-autocomplete.js?v=20261103-addr1"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
-  <script src="cfg-meu-perfil.js?v=20261019-i18n2"></script>
-  <script src="configuracoes.js?v=20261029-inv1"></script>
+  <script src="cfg-meu-perfil.js?v=20261104-ux2"></script>
+  <script src="configuracoes.js?v=20261104-ux3"></script>
 </body>
 </html>

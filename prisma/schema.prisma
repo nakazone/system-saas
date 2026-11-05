@@ -853,6 +853,7 @@ model Organization {
   campoWeekSubmissions     CampoWeekSubmission[]
   campoManualEntries       CampoManualEntry[]
   jobMedia                 JobMedia[]
+  mediaStickers            MediaSticker[]
   jobReports               JobReport[]
   jobInspections           JobInspection[]
   jobMeasurements          JobMeasurement[]
@@ -981,6 +982,7 @@ model User {
   campoWeekSubmissions          CampoWeekSubmission[]
   campoManualEntries            CampoManualEntry[]
   jobMedia                      JobMedia[]                @relation("JobMediaAuthor")
+  jobMediaTaken                 JobMedia[]                @relation("JobMediaTakenBy")
   jobReports                    JobReport[]               @relation("JobReportAuthor")
   jobInspections                JobInspection[]           @relation("JobInspectionAuthor")
   jobMeasurements               JobMeasurement[]          @relation("JobMeasurementAuthor")
@@ -2728,6 +2730,10 @@ model WorkOrder {
   address                              String?
   /// Client ID for this job only (the quote note). Not stored on the customer.
   clientRef                            String?
+  /// Homeowner name when the job is for a Builder (site contact).
+  homeownerName                        String?
+  /// Homeowner phone when the job is for a Builder (site contact).
+  homeownerPhone                       String?
   /// Manager of the builder company for this job (id inside Customer.managers).
   managerId                            String?      @db.Uuid
   notes                                String?      @db.Text
@@ -2739,6 +2745,11 @@ model WorkOrder {
   deliveryPickupAddress                String?
   /// Delivery notes (PO number, instructions, etc.)
   deliveryNotes                        String?      @db.Text
+  /// Day the crew should pick up leftover material (all-day Delivery calendar event).
+  deliveryScheduledStart               DateTime?
+  /// Extra / multiple delivery stops: [{ id, scheduled_start, pickup_address, location_id, location_name, hours, notes }]
+  /// The first stop stays mirrored on the scalar delivery* columns for calendar/Campo.
+  deliveries                           Json?
   deliveryAttachmentUrl                String?
   deliveryAttachmentKey                String?
   deliveryAttachmentName               String?
@@ -2827,6 +2838,20 @@ model JobMedia {
   workOrder          WorkOrder    @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
   authorId           String?      @db.Uuid
   author             User?        @relation("JobMediaAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  /// Who took the photo when someone else uploads it (null = the uploader took it)
+  takenById          String?      @db.Uuid
+  takenBy            User?        @relation("JobMediaTakenBy", fields: [takenById], references: [id], onDelete: SetNull)
+  /// Where takenAtDevice came from: exif | file | upload
+  takenAtSource      String?
+  /// Where lat/lng came from: exif | device
+  locationSource     String?
+  /// Camera make + model read from the photo's EXIF, e.g. "Apple iPhone 15 Pro"
+  cameraModel        String?
+  /// MediaSticker ids on this photo (Samples, Delivery, Scan…)
+  stickerIds         String[]     @default([]) @db.Uuid
+  /// Phase someone set by hand (delivery | scan | installation | sand_finish | walkthrough). Null = worked out from the
+  /// photo's date and the job's dates every time it is read, so it follows schedule changes.
+  phase              String?
   /// photo | video
   type               String       @default("photo")
   storageKey         String
@@ -2857,6 +2882,7 @@ model JobMedia {
   updatedAt          DateTime     @updatedAt
   deletedAt          DateTime?
 
+  @@index([takenById])
   @@index([organizationId])
   @@index([workOrderId])
   @@index([organizationId, workOrderId, deletedAt])
@@ -3956,4 +3982,23 @@ model BuilderPriceItem {
   updatedAt        DateTime       @updatedAt
 
   @@index([builderAccountId, builderLinkId])
+}
+
+/// Photo labels a company defines for ObraCam (Samples, Delivery, Scan…). Photos keep the ids in JobMedia.stickerIds.
+model MediaSticker {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// System sticker the app applies on its own, e.g. "samples" for stain sample photos; null for ones people create
+  key            String?
+  name           String
+  /// Hex colour of the badge, e.g. "#B4561A"
+  color          String
+  sortOrder      Int          @default(0)
+  archivedAt     DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, key])
+  @@index([organizationId])
 }

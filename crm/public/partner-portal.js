@@ -116,6 +116,7 @@
 
   function icon(name) {
     const paths = {
+      doc: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>',
       back: '<path d="M15 18l-6-6 6-6"/>',
       play: '<path d="M8 5.5v13l10.5-6.5z"/>',
       tally: '<path d="M6 5v14M10 5v14M14 5v14M18 5v14M3 15l18-6"/>',
@@ -154,6 +155,7 @@
     const response = await fetch(url, { credentials: 'include', ...opts });
     const body = await response.json().catch(() => ({}));
     if (response.status === 401) {
+      try { if (location.hash && location.hash !== '#home') sessionStorage.setItem('ob_after_login', location.hash); } catch (_) { /* private mode */ }
       location.replace('partner-login.html');
       throw new Error('Please sign in again.');
     }
@@ -201,7 +203,7 @@
   function jobWhen(job) {
     const start = toDate(job.scheduledStart);
     const i = jobStepIndex(job);
-    if (i === 3) return `Completed · ${fmtDay(job.updatedAt)}`;
+    if (i === 3) return `Completed · ${fmtDay(job.scheduledEnd || job.scheduledStart || job.updatedAt)}`;
     if (!start) return 'Not scheduled yet';
     const late = jobLate(job);
     if (late && i === 1) return `<span class="pp-late">Not started · ${plural(late, 'day', 'days')} past the date</span>`;
@@ -246,7 +248,8 @@
     if (due) {
       const days = daysBetween(today, due);
       if (days <= 7) return { key: 'soon', label: days === 0 ? 'Due today' : `Due in ${plural(days, 'day', 'days')}`, chip: `<span class="pp-chip pp-chip--late">${days === 0 ? 'Due today' : `Due in ${plural(days, 'day', 'days')}`}</span>`, days };
-      return { key: 'open', label: `Due ${fmtDay(due)}`, chip: '<span class="pp-chip">Open</span>', days };
+      const partly = Number(inv.paid_amount) > 0;
+      return { key: 'open', label: `${partly ? 'Partly paid · ' : ''}Due ${fmtDay(due)}`, chip: `<span class="pp-chip">${partly ? 'Partly paid' : 'Open'}</span>`, days };
     }
     return { key: 'open', label: 'Open', chip: '<span class="pp-chip">Open</span>', days: 0 };
   }
@@ -393,7 +396,13 @@
     const due = state.invoices.filter((inv) => ['overdue', 'soon'].includes(invoiceState(inv).key)).length;
     const declined = state.requests.filter((r) => r.status === 'declined' && daysBetween(toDate(r.created_at) || new Date(), new Date()) <= 30).length;
     document.querySelectorAll('[data-count="invoices"]').forEach((el) => { el.textContent = String(due); el.hidden = !due; });
-    document.querySelectorAll('[data-count="pedidos"]').forEach((el) => { el.textContent = String(declined); el.hidden = !declined; });
+    document.querySelectorAll('[data-count="pedidos"]').forEach((el) => {
+      // On the phone, Invoices can live inside More: its badge then carries the invoices due too.
+      const tab = el.closest('.pp-tab');
+      const invTab = document.querySelector('.pp-tab[data-nav="invoices"]');
+      const n = declined + (tab && invTab && invTab.hidden ? due : 0);
+      el.textContent = String(n); el.hidden = !n;
+    });
   }
 
   /* ─────────────────────────── router ─────────────────────────── */
@@ -528,7 +537,7 @@
     const waiting = active.filter((j) => j.status === 'draft').length;
     const scheduled = active.filter((j) => j.status === 'scheduled').length;
     const onSite = active.filter((j) => j.status === 'in_progress').length;
-    const done30 = state.jobs.filter((j) => !jobIsActive(j) && daysBetween(toDate(j.updatedAt) || now, now) <= 30).length;
+    const done30 = state.jobs.filter((j) => !jobIsActive(j) && daysBetween(toDate(j.scheduledEnd || j.scheduledStart || j.updatedAt) || now, now) <= 30).length;
     const open = state.invoices.filter((inv) => invoiceState(inv).key !== 'paid');
     const openSum = open.reduce((s, inv) => s + Number(inv.balance || 0), 0);
     const overdue = open.filter((inv) => invoiceState(inv).key === 'overdue');
@@ -565,12 +574,14 @@
           ${state.builder ? '' : '<div class="pp-head-actions"><a class="pp-btn pp-btn--sec" href="#calendar">Calendar</a><a class="pp-btn pp-btn--sec" href="#documents">Photos & docs</a><a class="pp-btn pp-btn--pri" href="#send">Send work</a></div>'}
         </div>
         ${installBannerHtml() ? `<div style="grid-column: span 12">${installBannerHtml()}</div>` : ''}
-        ${state.builder ? homeQuickHtml(now, setupCardHtml()) : ''}
+        ${state.builder ? homeQuickHtml(now, '') : ''}
+        ${state.builder && attention.length ? `<section class="pp-tile pp-foryou" style="grid-column: span 12; gap: 4px" aria-labelledby="ppAtt"><h2 id="ppAtt" style="margin-bottom:8px">Needs you <span class="pp-badge">${attention.length}</span></h2>${attention.slice(0, 4).join('')}</section>` : ''}
+        ${state.builder ? setupCardHtml() || '' : ''}
 
         <section class="pp-tile pp-tile--orange" style="grid-column: span 4; grid-row: span 3" aria-label="Active jobs">
           <div style="font-size:14px;font-weight:500">Active jobs</div>
           <div class="pp-big" style="font-size:52px">${active.length}</div>
-          <div style="font-size:14px">${state.builder ? `${plural(done30, 'completed', 'completed')} in the last 30 days` : `with ${esc(providerName())}`}</div>
+          <div style="font-size:14px">${state.builder ? `${done30} completed in the last 30 days${pending ? ` · ${plural(pending, 'request', 'requests')} waiting` : ''}` : `with ${esc(providerName())}`}</div>
           <div class="pp-inbox-grid">
             <div class="pp-inbox"><span style="font-size:12px">Awaiting schedule</span><b>${waiting}</b></div>
             <div class="pp-inbox"><span style="font-size:12px">Scheduled</span><b>${scheduled}</b></div>
@@ -583,7 +594,7 @@
           <div class="pp-lbl">Open invoices</div>
           <div class="pp-big">${money(openSum)}</div>
           <div class="pp-meter" aria-hidden="true"><i style="width:${openSum ? Math.round((overdueSum / openSum) * 100) : 0}%"></i></div>
-          <div style="display:flex;justify-content:space-between;gap:8px;font-size:13px" class="pp-sub"><span>${money(overdueSum)} overdue</span><span>${money(soonSum)} due in 7 days</span></div>
+          <div style="display:flex;justify-content:space-between;gap:8px;font-size:13px" class="pp-sub"><span>${money(overdueSum)} overdue</span><span>${money(soonSum)} due this week</span></div>
           <a class="pp-tile-link" href="#invoices">View invoices →</a>
         </section>` : `<section class="pp-tile pp-tile--dark" style="grid-column: span 4; grid-row: span 2" aria-label="Photos & docs">
           <div class="pp-lbl">Photos & documents</div>
@@ -597,10 +608,10 @@
           ${upcoming.length ? upcoming.map((j) => `<a class="pp-inbox" href="#jobs/${encodeURIComponent(j.id)}" style="text-decoration:none"><span class="pp-lbl">${jobWhen(j)}</span><strong style="font-size:15px">${esc(j.title || 'Job')}</strong><span class="pp-muted" style="font-size:13px">${esc(j.address || '')}</span></a>`).join('') : '<div class="pp-empty" style="padding:16px 8px"><strong>Nothing scheduled</strong>When the company schedules a job, it shows up here.</div>'}
         </section>
 
-        <section class="pp-tile pp-hide-phone" style="grid-column: span 2" aria-label="Completed"><div class="pp-lbl">Completed · 30 days</div><div class="pp-big" style="font-size:28px">${done30}</div></section>
-        <section class="pp-tile pp-hide-phone" style="grid-column: span 2" aria-label="Requests"><div class="pp-lbl">Requests waiting</div><div class="pp-big" style="font-size:28px">${pending}</div></section>
+        ${state.builder ? '' : `<section class="pp-tile pp-hide-phone" style="grid-column: span 2" aria-label="Completed"><div class="pp-lbl">Completed · 30 days</div><div class="pp-big" style="font-size:28px">${done30}</div></section>
+        <section class="pp-tile pp-hide-phone" style="grid-column: span 2" aria-label="Requests"><div class="pp-lbl">Requests waiting</div><div class="pp-big" style="font-size:28px">${pending}</div></section>`}
 
-        <section class="pp-tile" style="grid-column: span 6; grid-row: span 3; gap: 4px" aria-labelledby="ppAtt">
+        ${state.builder ? '' : `<section class="pp-tile" style="grid-column: span 6; grid-row: span 3; gap: 4px" aria-labelledby="ppAtt">
           <h2 id="ppAtt" style="margin-bottom:8px">For you ${attention.length ? `<span class="pp-badge">${attention.length}</span>` : ''}</h2>
           ${attention.length ? attention.slice(0, 5).join('') : '<div class="pp-empty" style="padding:16px 8px"><strong>Nothing waiting on you</strong>Invoices coming due and replies from the company show up here.</div>'}
         </section>
@@ -614,9 +625,13 @@
         <button type="button" class="pp-drop" id="ppHomeDrop" style="grid-column: span 6">
           <span class="pp-drop-icon">${icon('upload')}</span>
           <span><strong>Drop a work order, PO or schedule here</strong><span>PDF, screenshot, photo or e-mail. We read it and you check before sending.</span></span>
-        </button>
+        </button>`}
       </div>`;
-    bindDrop($('ppHomeDrop'), (files) => startSendWithFiles(files));
+    if ($('ppHomeDrop')) bindDrop($('ppHomeDrop'), (files) => startSendWithFiles(files));
+    view.querySelectorAll('[data-qa-present]').forEach((a) => a.addEventListener('click', async (e) => {
+      e.preventDefault();
+      try { const r = await api(`/api/builder/measurements/${encodeURIComponent(a.getAttribute('data-qa-present'))}`); await openPresentation(r.data); } catch (ex) { mateToast('head-curious', 'Could not open it', ex.message); }
+    }));
     bindNowPanel(view);
     view.querySelectorAll('[data-qa-camera]').forEach((a) => a.addEventListener('click', (e) => { e.preventDefault(); $('ppCameraInput').click(); }));
     view.querySelectorAll('[data-setup-hide]').forEach((b) => b.addEventListener('click', () => {
@@ -624,7 +639,7 @@
       const card = b.closest('.pp-setup2');
       if (card) card.remove();
     }));
-    $('ppHomeDrop').addEventListener('click', () => { location.hash = '#send'; });
+    if ($('ppHomeDrop')) $('ppHomeDrop').addEventListener('click', () => { location.hash = '#send'; });
   }
 
   /** One line under the greeting: what the day looks like. */
@@ -643,7 +658,13 @@
         ${canDo('jobs.send') ? act('#send', 'upload', 'Send work order', 'PDF, photo or text') : ''}
         ${canDo('measure') ? act('#measurements/new', 'ruler', 'Measure', 'Stairs & vents on site') : ''}
         ${canDo('jobs.send') ? act('#send', 'camera', 'Snap a work order', 'Use the camera', 'data-qa-camera') : ''}
-        ${act('#calendar', 'cal', 'Calendar', today.length ? `${plural(today.length, 'job', 'jobs')} today` : 'Nothing today')}
+        ${(() => {
+          // The showcase: the latest measurement with something to show in 3D.
+          const show = canDo('measure') && (state.homeMeas || []).find((m) => m.counts && (m.counts.treads || m.counts.vents || m.counts.floor_sf));
+          return show
+            ? act(`#measurements/${encodeURIComponent(show.id)}`, 'play', 'Present', String(show.address || '').split(',')[0], `data-qa-present="${esc(show.id)}"`)
+            : act('#calendar', 'cal', 'Calendar', today.length ? `${plural(today.length, 'job', 'jobs')} today` : 'Nothing today');
+        })()}
       </section>
       ${nowPanelHtml(today)}
       ${setupHtml || ''}`;
@@ -675,7 +696,7 @@
     };
     const measCard = (m) => {
       const c = m.counts || {};
-      const pills = [c.treads ? `${c.treads} treads` : '', c.risers ? `${c.risers} risers` : '', c.vents ? `${c.vents} vents` : '', c.floor_sf ? `${Number(c.floor_sf).toLocaleString('en-US')} sf` : ''].filter(Boolean);
+      const pills = [c.treads ? plural(c.treads, 'tread', 'treads') : '', c.risers ? plural(c.risers, 'riser', 'risers') : '', c.vents ? plural(c.vents, 'vent', 'vents') : '', c.floor_sf ? `${Number(c.floor_sf).toLocaleString('en-US')} sf` : ''].filter(Boolean);
       return `<article class="pp-now-card is-meas">
         <a class="pp-now-hit" href="#measurements/${esc(m.id)}" aria-label="Continue measurement at ${esc(m.address)}"></a>
         <div class="pp-now-top"><span class="pp-now-time">${icon('ruler')}${esc(noteAgo(m.updated_at) || 'Draft')}</span><span class="pp-chip pp-chip--late">In progress</span></div>
@@ -685,7 +706,7 @@
       </article>`;
     };
     const cards = tab === 'today'
-      ? today.map(jobCard).join('') + `<a class="pp-now-card pp-now-more" href="#calendar">${icon('cal')}<span>Calendar</span></a>`
+      ? today.map(jobCard).join('') + `<a class="pp-now-card pp-now-more" href="#calendar">${icon('cal')}<span>The rest of the week</span></a>`
       : drafts.slice(0, 8).map(measCard).join('') + `<a class="pp-now-card pp-now-more" href="#measurements/new">${icon('ruler')}<span>New measurement</span></a>${drafts.length > 8 ? `<a class="pp-now-card pp-now-more" href="#measurements">See all ${drafts.length}</a>` : ''}`;
     const tabBtn = (key, label, n) => (n ? `<button type="button" role="tab" data-now-tab="${key}" aria-selected="${tab === key}">${label}<b>${n}</b></button>` : '');
     return `<section class="pp-tile pp-now" style="grid-column: span 12" aria-label="Right now">
@@ -840,7 +861,7 @@
     await loadInvoices().catch(() => {});
     if (token !== renderToken) return;
     const openSum = state.invoices.filter((inv) => invoiceState(inv).key !== 'paid').reduce((s, inv) => s + Number(inv.balance || 0), 0);
-    const done30 = all.filter((j) => !jobIsActive(j) && daysBetween(toDate(j.updatedAt) || now, now) <= 30).length;
+    const done30 = all.filter((j) => !jobIsActive(j) && daysBetween(toDate(j.scheduledEnd || j.scheduledStart || j.updatedAt) || now, now) <= 30).length;
 
     const stage = (key, label) => `<button type="button" data-stage="${key}" aria-pressed="${state.jobStage === key}">${esc(label)}<span class="pp-jtab-n">${counts[key]}</span></button>`;
     const STAT = [['Awaiting schedule', 'wait'], ['Scheduled', 'sched'], ['On site', 'site'], ['Completed', 'done']];
@@ -853,7 +874,8 @@
     };
     const row = (j) => {
       const i = jobStepIndex(j);
-      const d = toDate(i === 3 ? j.updatedAt : j.scheduledStart);
+      // Completed jobs show when the work was done (the scheduled end), not the last edit.
+      const d = toDate(i === 3 ? (j.scheduledEnd || j.scheduledStart || j.updatedAt) : j.scheduledStart);
       const late = jobLate(j);
       const today = d && daysBetween(new Date(), d) === 0 && i < 3;
       const [stLabel, stKey] = late && i === 1 ? ['Past date', 'late'] : STAT[i];
@@ -891,7 +913,6 @@
     const search = $('ppJobSearch');
     search.addEventListener('input', () => {
       state.q = search.value;
-      $('ppSearch').value = state.q;
       const pos = search.selectionStart;
       render().then(() => { const s = $('ppJobSearch'); if (s) { s.focus(); s.setSelectionRange(pos, pos); } });
     });
@@ -982,7 +1003,7 @@
         <div class="tk-steps">${barsWithLabels(i, JOB_STEPS, i === 3)}</div>
         <div class="tk-facts">
           ${(() => { const openInv = invoices.filter((inv) => invoiceState(inv).key !== 'paid'); const due = openInv.reduce((a, inv) => a + Number(inv.balance || 0), 0); return [
-            t.total && canDo('money.view') ? `<div class="tk-fact"><small>Job value</small><b>${money(t.total)}</b></div>` : '',
+            // the job value is already in the header
             canDo('money.view') ? `<button type="button" class="tk-fact" data-tk-go="tkInv"><small>Invoices</small><b class="${openInv.some((inv) => invoiceState(inv).key === 'overdue') ? 'pp-late' : ''}">${invoices.length ? (due ? `${money(due)} open` : 'Paid') : '—'}</b></button>` : '',
             `<button type="button" class="tk-fact" data-tk-go="tkMsgs"><small>Messages</small><b>${messages.length || '—'}</b></button>`,
             `<button type="button" class="tk-fact" data-tk-go="ppPhotos"><small>Photos</small><b>${photos.length || '—'}</b></button>`,
@@ -991,6 +1012,8 @@
         </div>
         ${canDo('jobs.send') && i < 3 ? `<div class="tk-hero-acts"><button type="button" class="pp-btn pp-btn--pri pp-btn--sm" data-update-job>${icon('send')}Send update</button>${office ? `<a class="pp-btn pp-btn--sec pp-btn--sm" href="tel:+${esc(office.digits)}">Call ${esc(office.name)}</a>` : ''}</div>` : ''}
       </section>
+
+      <div id="tkMeas" hidden></div>
 
       ${jobMessagesHtml(data)}
 
@@ -1138,9 +1161,33 @@
     });
   }
 
+  /** The builder's measurement for this job's address: open it or present it (stairs/vents in 3D). */
+  async function paintJobMeasurement(data) {
+    const slot = document.getElementById('tkMeas');
+    const job = data && data.job;
+    if (!slot || !job || !job.address || !state.builder || !canDo('measure')) return;
+    const m = await api(`/api/builder/measurements/match?address=${encodeURIComponent(job.address)}`).then((r) => r.data).catch(() => null);
+    if (!m || !document.body.contains(slot)) return;
+    const c = m.counts || {};
+    const showable = c.treads || c.vents || c.floor_sf;
+    slot.outerHTML = `<section class="tk-sec tk-meas" id="tkMeas">
+        <h3>Measurement <small>${esc([m.measured_by, m.measured_at ? fmtDay(m.measured_at) : ''].filter(Boolean).join(' · '))}</small></h3>
+        <div class="tk-meas-row">${c.treads ? `<span class="tk-meas-thumb" data-stair-thumb="${esc(m.id)}" data-thumb-key="${esc(`${m.id}:${m.measured_at || ''}:${c.treads}:${c.vents || 0}`)}" aria-hidden="true"></span>` : ''}<p class="tk-addr">${esc(countsText(c) || 'Nothing measured yet')}</p></div>
+        <div class="tk-two">${showable ? `<button type="button" class="tk-btn tk-btn--accent" data-tk-present="${esc(m.id)}">${icon('play')}Present</button>` : ''}<a class="tk-btn" href="#measurements/${encodeURIComponent(m.id)}">Open measurement</a></div>
+      </section>`;
+    paintStairThumbs(document.getElementById('tkMeas') || document);
+    const b = document.querySelector('[data-tk-present]');
+    if (b) b.addEventListener('click', async () => {
+      b.disabled = true;
+      try { const r = await api(`/api/builder/measurements/${encodeURIComponent(m.id)}`); await openPresentation(r.data); } catch (ex) { mateToast('head-curious', 'Could not open it', ex.message); }
+      b.disabled = false;
+    });
+  }
+
   function bindJobDetail(data) {
     if (!data || data.error) return;
     bindJobMessages(data);
+    paintJobMeasurement(data).catch(() => {});
     // opened from a message notification: go to the conversation
     if (/\/messages$/.test(location.hash)) setTimeout(() => { const el = document.getElementById('tkMsgs'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 80);
     view.querySelectorAll('[data-back]').forEach((b) => b.addEventListener('click', () => { location.hash = b.getAttribute('data-back'); }));
@@ -1189,7 +1236,7 @@
     const list = withState.filter(filters[state.invoiceFilter] || filters.open).filter(matches);
     const groups = [
       ['Overdue', list.filter((x) => x.st.key === 'overdue')],
-      ['Due in 7 days', list.filter((x) => x.st.key === 'soon')],
+      ['Due this week', list.filter((x) => x.st.key === 'soon')],
       ['Open', list.filter((x) => x.st.key === 'open')],
       ['Paid', list.filter((x) => x.st.key === 'paid')],
     ].filter(([, rows]) => rows.length);
@@ -1500,8 +1547,19 @@
   function emptyFields() {
     return FIELD_ORDER.reduce((o, k) => { o[k] = ''; return o; }, {});
   }
+  /** The company's services (for "Service in … price list") and the builder's agreed prices, when not loaded yet. */
+  async function loadQuoteRefs(s) {
+    const jobs = [];
+    if (!(s.catalog && s.catalog.length)) jobs.push(api('/api/partner-portal/price-list').then((r) => { if (Array.isArray(r.data)) s.catalog = r.data; }).catch(() => {}));
+    if (state.builder && canDo('money.view') && !(s.agreed && s.agreed.length) && sendCo()) {
+      jobs.push(api(`/api/builder/prices?company=${encodeURIComponent(sendCo().id)}`).then((r) => { s.agreed = r.data || []; applyAgreed(s); }).catch(() => {}));
+    }
+    await Promise.all(jobs);
+  }
+
   function manualEntry() {
     const s = state.send;
+    loadQuoteRefs(s).then(() => { if (state.send === s) renderSendBody(); });
     s.fields = emptyFields();
     s.ai = false;
     s.check = [];
@@ -1587,10 +1645,14 @@
     const key = phase === 'review' ? (s.step || 'measure') : phase === 'reading' ? 'pick' : phase;
     const idx = Math.max(0, WZ_STEPS.findIndex(([k]) => k === key));
     const canJump = phase === 'review';
+    // A step passed without content (no measurement, no quote lines) reads "skipped", never done.
+    const empty = { measure: !s.measurement, quote: !(s.items || []).some((it) => !it.remove) };
     return WZ_STEPS.map(([k, label], i) => {
-      const cls = i === idx ? 'on' : i < idx ? 'done' : '';
+      const skipped = i < idx && empty[k];
+      const cls = i === idx ? 'on' : skipped ? 'skipped' : i < idx ? 'done' : '';
       const jump = canJump && i >= 1 && i <= 3 && i !== idx;
-      return `<li class="${cls}">${jump ? `<button type="button" data-wz-go="${k}">` : '<span>'}<b>${i + 1}</b>${esc(label)}${jump ? '</button>' : '</span>'}</li>`;
+      const tail = skipped ? '<small> · add</small>' : '';
+      return `<li class="${cls}">${jump ? `<button type="button" data-wz-go="${k}"${skipped ? ` aria-label="${esc(label)}: skipped, add it"` : ''}>` : '<span>'}<b>${skipped ? '–' : i + 1}</b>${esc(label)}${tail}${jump ? '</button>' : '</span>'}</li>`;
     }).join('');
   }
 
@@ -1629,7 +1691,7 @@
           ? `${updated ? 'The change is already' : 'The job is already'} in ${esc(providerName())}’s system, and their office was notified.`
           : `${esc(providerName())} checks it and replies here. ${updated ? 'It stays the same job, with its photos and invoices together.' : 'Once they accept it, the job shows up in Jobs.'}`;
       const track = [
-        ['Sent', 'Work order, measurement and quote', 'done'],
+        ['Sent', (() => { const parts = ['Work order', s.measurement && s.useMeasurement !== false ? 'measurement' : '', (s.items || []).some((it) => !it.remove) ? 'quote' : ''].filter(Boolean); return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0]; })(), 'done'],
         [sent.direct ? 'Created in their system' : 'Approved & scheduled', sent.direct ? 'They set the date next' : `${esc(providerName())} approves it and picks the date`, sent.direct ? 'done' : 'now'],
         ['On site', 'Photos of the work as the crew shares them', ''],
         ['Completed', 'Photos, report and invoice', ''],
@@ -1765,7 +1827,7 @@
       </div>` : '';
     const top = `
       <div class="pp-card pp-wz-top">
-        <div style="display:flex;gap:10px;align-items:center">${s.ai || s.fromMeas ? `<span class="pp-mateface" aria-hidden="true"><img src="/assets/img/mascot/mate-head-neutral.webp?v=20261027-m2" alt="" width="36" height="36"></span>` : ''}<div><strong style="font-size:17px">${esc(f.title || (s.fromMeas ? 'Work order from your measurement' : s.ai ? 'Work order read by Mate' : 'New work order'))}</strong><div class="pp-muted" style="font-size:14px">${esc(f.address || 'No address yet')}${f.external_ref ? ` · PO ${esc(f.external_ref)}` : ''}${s.ai && checked ? ` · <span class="pp-late">${plural(checked, 'field', 'fields')} to check</span>` : ''}</div></div></div>
+        <div style="display:flex;gap:10px;align-items:center">${s.ai || s.fromMeas ? `<span class="pp-mateface" aria-hidden="true"><img src="/assets/img/mascot/mate-head-neutral.webp?v=20261027-m2" alt="" width="36" height="36"></span>` : ''}<div><strong style="font-size:17px">${esc(f.title || (s.fromMeas ? 'Work order from your measurement' : s.ai ? 'Work order read by Mate' : 'New work order'))}</strong><div class="pp-muted" style="font-size:14px">${esc(f.address || 'No address yet')}${f.external_ref ? ` · ${/^po/i.test(String(f.external_ref).trim()) ? '' : 'PO '}${esc(f.external_ref)}` : ''}${s.ai && checked ? ` · <span class="pp-late">${plural(checked, 'field', 'fields')} to check</span>` : ''}</div></div></div>
         <span class="pp-wz-orderacts"><button type="button" class="pp-link" id="ppRestart">${s.files.length || s.ai ? 'Change file' : 'Start over'}</button><button type="button" class="pp-link pp-send-cancel-m" data-send-cancel>Cancel</button></span>
       </div>`;
     if (s.step === 'measure') return `${top}${measureStepHtml(s)}${wizardNav(s)}`;
@@ -1875,7 +1937,7 @@
       const open = s.editItem === i;
       return `<article class="pp-q-row ${it.remove ? 'is-off' : ''} ${open ? 'is-editing' : ''}" role="listitem">
         <div class="pp-q-name" role="button" tabindex="0" data-it-edit="${i}" title="Edit service">
-          <b>${esc(itemTitle(s, it))}</b>${it.remove ? '<span class="pp-q-badge">removed</span>' : MODE_BADGE[itemMode(it)]}
+          <b>${esc(itemTitle(s, it))}</b>${it.remove ? '<span class="pp-q-badge">removed</span>' : itemMode(it) === 'none' && agreedFor(s, it) ? '' : MODE_BADGE[itemMode(it)]}
           ${itemSub(it) ? `<small>${esc(itemSub(it))}</small>` : ''}
           ${it.area ? `<small class="pp-q-area">${esc(it.area)}</small>` : ''}
           ${agreedChip(s, it)}
@@ -1962,7 +2024,8 @@
   }
   /** Checks a stair line's step count against the stairs: sanding = all treads; tread install = that width's treads. */
   function stairQtyChip(s, it) {
-    if (it.remove) return '';
+    // Lines built from the measurement carry its exact counts (one line per flight).
+    if (it.remove || it.from_meas) return '';
     const st = orderStairCounts(s);
     if (!st || !st.treads) return '';
     const kind = serviceKindOf(`${it.service_name || ''} ${it.description || ''} ${it.detail || ''}`);
@@ -2151,7 +2214,7 @@
     return `<div class="pp-field pp-field--wide pp-attach ${s.fromMeas && !s.files.length ? 'is-invite' : ''}" id="ppFileBox">
       <span class="pp-attach-lbl">${s.fromMeas ? 'Your work order (optional)' : 'Attachments'}</span>
       ${s.fromMeas && !s.files.length ? '<span class="pp-muted" style="font-size:14px">Have the builder’s work order or PO? Add the PDF or a photo — it goes with the job, and Mate can read the PO #, date and pickup from it.</span>' : chips}
-      ${s.fromMeas ? '<span class="pp-attach-auto">' + icon('check') + 'The measurement PDF' + (s.fromMeas.hasPlans ? ' and the plans' : '') + ' are attached automatically.</span>' : ''}
+      ${s.fromMeas ? '<span class="pp-attach-auto">' + icon('check') + 'The measurement PDF' + (s.fromMeas.hasPlans ? ' and the plans' : '') + (s.fromMeas.hasPlans ? ' are' : ' is') + ' attached automatically.</span>' : ''}
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
         <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" id="ppAddFiles">${icon('upload')}Add files</button>
         <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" id="ppAddCamera">${icon('camera')}Take a photo</button>
@@ -2189,7 +2252,9 @@
   /* ─────────── work order wizard: Measure (3D) and Quote steps ─────────── */
 
   /** Stairs and vents the order asks for, read from its service lines. */
-  function orderTakeoff(items) {
+  function orderTakeoff(allItems) {
+    // Lines that came from the measurement itself describe it already; they are not the order's request.
+    const items = (allItems || []).filter((it) => !it.from_meas);
     const stairs = new Map(); const vents = [];
     const species = (t) => (t.match(/white oak|red oak|hickory|maple|walnut|ash|birch/i) || [''])[0].replace(/\b\w/g, (c) => c.toUpperCase());
     (items || []).filter((it) => !it.remove).forEach((it) => {
@@ -2364,7 +2429,7 @@
           if (s.measBuilt || !det.stairs.length || m.status === 'used') return '';
           const want = det.stairs.reduce((a, g) => a + g.treads, 0);
           const have = (m.counts && m.counts.treads) || 0;
-          const flightsHave = (m.counts && m.counts.stairs) || 0;
+          const flightsHave = (m.counts && (m.counts.flights || m.counts.stairs)) || 0;
           if (want === have && det.stairs.length === flightsHave) return '';
           return `<div class="pp-wz-diff">${mate('head-curious', 40)}<div><strong>The work order asks for ${det.stairs.length > 1 ? `${det.stairs.length} flights` : '1 stair'} · ${want} treads</strong><small>This saved measurement has ${flightsHave} stair${flightsHave === 1 ? '' : 's'} · ${have} treads. Build a new one from the order, or keep this one.</small></div>${canMeasure ? '<button type="button" class="pp-btn pp-btn--pri pp-btn--sm" data-wz-build>Build from the order</button>' : ''}</div>`;
         })()}
@@ -2419,7 +2484,7 @@
     const live = (s.items || []).filter((it) => !it.remove);
     const noPrice = live.filter((it) => it.rate == null || it.rate === '').length;
     return `<section class="pp-card pp-wz pp-wz-q">
-        <div class="pp-wz-head"><div><span class="pp-lbl">Step 3 · Quote</span><h2>Services at ${esc(co ? co.company_name : 'the company')}’s prices</h2><p class="pp-muted">${live.length ? `${plural(live.length, 'service', 'services')} from the order, priced from your agreed price list.${noPrice ? ` <span class="pp-late">${plural(noPrice, 'line has', 'lines have')} no price yet.</span>` : ''}` : 'Add the services for this job.'}</p></div>
+        <div class="pp-wz-head"><div><span class="pp-lbl">Step 3 · Quote</span><h2>Services at ${esc(co ? `${co.company_name}${/s$/i.test(co.company_name) ? '’' : '’s'}` : 'the company’s')} prices</h2><p class="pp-muted">${live.length ? `${plural(live.length, 'service', 'services')} from the order, priced from your agreed price list.${noPrice ? ` <span class="pp-late">${plural(noPrice, 'line has', 'lines have')} no price yet.</span>` : ''}` : 'Add the services for this job.'}</p></div>
           <div class="pp-wz-qacts">${canDo('money.view') && live.length && co && !companyInvited() ? `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-wz-qpdf>${icon('download')}Quote PDF</button>` : ''}</div></div>
       </section>
       <div class="pp-card pp-q-card">${itemsEditor(s)}</div>`;
@@ -3915,8 +3980,8 @@
     document.querySelectorAll('[data-nav="measurements"]').forEach((el) => { el.hidden = !canDo('measure'); });
     document.querySelectorAll('[data-nav="settings"]').forEach((el) => { el.hidden = false; });
     $('ppMateBtn').hidden = !state.builder.ai_reader;
-    // Phone tab bar: Measure replaces Calendar for builders who measure (Calendar moves to More).
-    document.querySelectorAll('.pp-tab[data-nav="calendario"]').forEach((el) => { el.hidden = canDo('measure'); });
+    // Phone tab bar: builders who measure get Measure; Invoices moves to More so Calendar ("where am I tomorrow") stays one tap away.
+    document.querySelectorAll('.pp-tab[data-nav="invoices"]').forEach((el) => { el.hidden = canDo('measure') || !canDo('money.view'); });
     paintInstall();
   }
 
@@ -3934,7 +3999,7 @@
   const OPEN_OPTS = [['none', 'Closed'], ['left', 'Left open'], ['right', 'Right open'], ['both', 'Both open']];
   const RET_OPTS = [['45', '45° (mitered)'], ['flat', 'Flat'], ['bullnose', 'Bullnose']];
   const VENT_TYPES = [['flush', 'Flush mount'], ['self_rimming', 'Self-rimming (drop-in)'], ['return_air', 'Return air']];
-  const RISER_OPTS = [['same', 'Same wood'], ['primed', 'Primed'], ['paint_grade', 'Paint grade'], ['none', 'No riser']];
+  const RISER_OPTS = [['same', 'Same wood'], ['primed', 'White (primed)'], ['paint_grade', 'Paint grade'], ['none', 'No riser']];
   const FRAC = { '¼': 0.25, '½': 0.5, '¾': 0.75, '⅛': 0.125, '⅜': 0.375, '⅝': 0.625, '⅞': 0.875 };
 
   function uid() {
@@ -3988,7 +4053,7 @@
         if (hasRiser && (st.riser_w || st.riser_h)) { const k = `${fmtIn(st.riser_w) || '?'}" × ${fmtIn(st.riser_h) || '?'}"`; ri.set(k, (ri.get(k) || 0) + 1); }
       });
       tr.forEach((n, k) => out.push({ kind: 'Tread', group: label, text: `${wood ? `${wood} · ` : ''}${k}`, qty: n }));
-      const rw = s.riser_material === 'primed' ? 'Primed' : s.riser_material === 'paint_grade' ? 'Paint grade' : wood;
+      const rw = s.riser_material === 'primed' ? 'White (primed)' : s.riser_material === 'paint_grade' ? 'Paint grade' : wood;
       ri.forEach((n, k) => out.push({ kind: 'Riser', group: label, text: `${rw ? `${rw} · ` : ''}${k}`, qty: n }));
       (s.nosings || []).forEach((ns) => { if (ns.length) out.push({ kind: 'Nosing', group: label, text: `${fmtIn(ns.length)}" · ${{ flush: 'flush', overlap: 'overlap', stair_nose: 'stair nose' }[ns.type] || ns.type} · ${nosingPositionLabel(s, ns)}`, qty: ns.qty || 1 }); });
       if (s.landing && s.landing.enabled) out.push({ kind: 'Landing', group: label, text: `${fmtIn(s.landing.width) || '?'}" × ${fmtIn(s.landing.depth) || '?'}" · after final riser`, qty: 1 });
@@ -4014,10 +4079,10 @@
     });
     const vents = (data.vents || []).reduce((a, v) => a + (v.qty || 1), 0);
     const landings = (data.stairs || []).filter((s) => s.landing && s.landing.enabled).length;
-    return { stairs: (data.stairs || []).length, treads, risers, nosings, landings, vents };
+    return { stairs: (data.stairs || []).filter((s) => !s.starts_on_landing_of).length, flights: (data.stairs || []).length, treads, risers, nosings, landings, vents };
   }
   function countsText(c) {
-    return [c.stairs ? `${c.stairs} ${c.stairs === 1 ? 'stair' : 'stairs'}` : '', c.treads ? `${c.treads} treads` : '', c.risers ? `${c.risers} risers` : '', c.nosings ? `${c.nosings} ${c.nosings === 1 ? 'nosing' : 'nosings'}` : '', c.landings ? `${c.landings} ${c.landings === 1 ? 'landing' : 'landings'}` : '', c.vents ? `${c.vents} ${c.vents === 1 ? 'vent' : 'vents'}` : '', c.floor_text || ''].filter(Boolean).join(' · ') || 'Nothing measured yet';
+    return [c.stairs ? `${c.stairs} ${c.stairs === 1 ? 'stair' : 'stairs'}` : '', c.flights && c.flights > (c.stairs || 0) ? `${c.flights} flights` : '', c.treads ? `${c.treads} treads` : '', c.risers ? `${c.risers} risers` : '', c.nosings ? `${c.nosings} ${c.nosings === 1 ? 'nosing' : 'nosings'}` : '', c.landings ? `${c.landings} ${c.landings === 1 ? 'landing' : 'landings'}` : '', c.vents ? `${c.vents} ${c.vents === 1 ? 'vent' : 'vents'}` : '', c.floor_text || ''].filter(Boolean).join(' · ') || 'Nothing measured yet';
   }
   /** Asks before deleting a measurement (photos and plans go with it). */
   function confirmMeasDelete(m, done) {
@@ -4067,6 +4132,21 @@
 
   const MEAS_FILTERS = [['all', 'All'], ['draft', 'In progress'], ['done', 'Complete'], ['used', 'Sent with job']];
 
+  /** Replaces the ruler icon on measurement cards with a real still of the stair (rendered once, cached). */
+  function paintStairThumbs(root, data) {
+    if (!window.ObPlan3D || !window.ObPlan3D.stairThumb) return;
+    [...root.querySelectorAll('[data-stair-thumb]')].slice(0, 8).forEach(async (slot) => {
+      try {
+        const id = slot.getAttribute('data-stair-thumb');
+        const m = data && data.id === id ? data : (await api(`/api/builder/measurements/${encodeURIComponent(id)}`)).data;
+        const url = await window.ObPlan3D.stairThumb(slot.getAttribute('data-thumb-key'), (m.data && m.data.stairs) || [], 320, 240);
+        if (!url || !document.body.contains(slot)) return;
+        slot.classList.add('has-thumb');
+        slot.innerHTML = `<img src="${url}" alt="" width="160" height="120" />`;
+      } catch (_) { /* keep the icon */ }
+    });
+  }
+
   async function renderMeasurements(id, token) {
     if (id && id !== 'new') return renderMeasurement(id, token);
     const r = await api('/api/builder/measurements');
@@ -4079,7 +4159,7 @@
     const list = rows.filter((m) => (f === 'all' || m.status === f) && (!q || String(m.address || '').toLowerCase().includes(q)));
     const pills = (c) => [c.treads ? `<span><b>${c.treads}</b> treads</span>` : '', c.risers ? `<span><b>${c.risers}</b> risers</span>` : '', c.nosings ? `<span><b>${c.nosings}</b> nosings</span>` : '', c.vents ? `<span><b>${c.vents}</b> vents</span>` : '', c.floor_sf ? `<span><b>${Number(c.floor_sf).toLocaleString('en-US')}</b> sf floors</span>` : ''].filter(Boolean).join('') || '<span class="pp-muted">Nothing measured yet</span>';
     const card = (m) => `<div class="pp-mcard-wrap">${m.status === 'used' ? '' : `<button type="button" class="pp-mcard-del" data-meas-del="${esc(m.id)}" aria-label="Delete measurement at ${esc(m.address)}" title="Delete">${icon('trash')}</button>`}<a class="pp-card pp-mcard is-${esc(m.status)}" href="#measurements/${esc(m.id)}">
-        <span class="pp-mcard-ic" aria-hidden="true">${icon('ruler')}</span>
+        <span class="pp-mcard-ic" aria-hidden="true" ${m.counts && m.counts.treads ? `data-stair-thumb="${esc(m.id)}" data-thumb-key="${esc(`${m.id}:${m.updated_at || ''}`)}"` : ''}>${icon('ruler')}</span>
         <span class="pp-mcard-main">
           <span class="pp-mcard-top"><strong>${esc(m.address)}</strong>${measStatusChip(m)}</span>
           <span class="pp-mcard-pills">${pills(m.counts || {})}</span>
@@ -4095,6 +4175,7 @@
       </div>
       <div class="pp-mlist">${list.length ? list.map(card).join('') : `<div class="pp-card pp-empty">${mate('head-curious', 64)}<strong>No measurements match</strong>Change the search or the filter.</div>`}</div>`
       : `<div class="pp-card pp-empty pp-mempty">${mate('measure', 150)}<strong>Measure stairs and vents on site</strong>Stand at the house and tap <b>New measurement</b> — Mate finds the address. Each measurement goes with the Work Order for that house.<div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center"><button type="button" class="pp-btn pp-btn--pri" data-meas-new>${icon('locate')}New measurement</button><button type="button" class="pp-btn pp-btn--sec" data-meas-plan>${icon('upload')}From plans</button></div></div>`}`;
+    paintStairThumbs(view);
     view.querySelectorAll('#ppMeasNewBtn, [data-meas-new]').forEach((b) => b.addEventListener('click', () => openNewMeasurement(false)));
     view.querySelectorAll('#ppMeasPlanBtn, [data-meas-plan]').forEach((b) => b.addEventListener('click', () => openPlanUpload()));
     view.querySelectorAll('[data-mfilter]').forEach((b) => b.addEventListener('click', () => { state.measFilter = b.getAttribute('data-mfilter'); render(); }));
@@ -4224,8 +4305,9 @@
     const locked = m.status === 'used';
     return `<div class="pp-meas-photos">${(list || []).map((k, i) => `<span class="pp-meas-ph"><img src="/api/builder/measurements/${encodeURIComponent(m.id)}/photo?key=${encodeURIComponent(k)}" alt="Photo ${i + 1}" loading="lazy" />${locked ? '' : `<button type="button" data-ph-rm="${esc(path)}" data-ph-i="${i}" aria-label="Remove photo ${i + 1}">×</button>`}</span>`).join('')}${locked ? '' : `<label class="pp-meas-addph"><input type="file" accept="image/*" capture="environment" data-ph-add="${esc(path)}" hidden />${icon('camera')}<span>Photo</span></label>`}</div>`;
   }
-  function inch(path, value, label, locked) {
-    return `<input class="pp-in" inputmode="decimal" data-in="${esc(path)}" value="${esc(fmtIn(value))}" placeholder="—" aria-label="${esc(label)}" ${locked ? 'disabled' : ''} />`;
+  function inch(path, value, label, locked, hint) {
+    // The hint (width / depth / height) stays visible while the field is empty, so W and D are never swapped.
+    return `<input class="pp-in" inputmode="decimal" data-in="${esc(path)}" value="${esc(fmtIn(value))}" placeholder="${esc(hint || '—')}" aria-label="${esc(label)}" ${locked ? 'disabled' : ''} />`;
   }
 
   /* ─────────────────────────── measurement visuals (SVG drawn from the numbers) ─────────────────────────── */
@@ -4826,7 +4908,7 @@
   function treadStageHtml(s, si, i) {
     const st = (s.steps || [])[i];
     if (!st || st.kind === 'riser' || !window.ObPlan3D) return '';
-    const n = treadSteps(s).findIndex((x) => x.id === st.id) + 1;
+    const n = (s.steps || []).filter((x) => x.kind !== 'riser').findIndex((x) => x.id === st.id) + 1;
     return `<section class="pp-3dcard pp-3dcard--tread"><div class="pp-3dcard-head"><strong>Tread ${n}</strong><small>${esc([fmtIn(st.tread_w) && fmtIn(st.tread_d) ? `${fmtIn(st.tread_w)}" × ${fmtIn(st.tread_d)}"` : '', openText(st.open || 'none', st.ret || '45'), s.species].filter(Boolean).join(' · '))}</small></div>
       <div class="pp-tread3d-stage" data-tread3d="${si}:${i}"><span class="pp-tread3d-wait">Building the tread…</span></div></section>`;
   }
@@ -4897,22 +4979,24 @@
     const p = 'stairs.' + si;
     const selStep = Math.min(Math.max(0, (m.vizSel && m.vizSel[si]) || 0), Math.max(0, (s.steps || []).length - 1));
     const selectedStep = (s.steps || [])[selStep];
-    const selectedTreadNo = selectedStep ? treadSteps(s).findIndex((step) => step.id === selectedStep.id) + 1 : 0;
+    // Treads are numbered by position (every non-riser step), not only once they have sizes.
+    const treadOrder = (s.steps || []).filter((step) => step.kind !== 'riser');
+    const selectedTreadNo = selectedStep ? treadOrder.findIndex((step) => step.id === selectedStep.id) + 1 : 0;
     const selectedLabel = !selectedStep ? 'No components' : selectedStep.kind === 'riser' ? 'Riser only ' + (selStep + 1) : 'Tread ' + selectedTreadNo;
     const stepRows = (s.steps || []).map((st, i) => {
       const riserOnly = st.kind === 'riser';
-      const treadIndex = treadSteps(s).findIndex((step) => step.id === st.id);
+      const treadIndex = treadOrder.findIndex((step) => step.id === st.id);
       const treadNo = treadIndex >= 0 ? treadIndex + 1 : i + 1;
       const path = p + '.steps.' + i;
       const tread = riserOnly
         ? '<div class="pp-step-riser-only-label"><strong>Riser only</strong><small>No tread on this component</small></div>'
         : '<div class="pp-step-dim pp-step-dim--tread"><span class="pp-step-lbl">Tread ' + treadNo + '</span>'
-          + inch(path + '.tread_w', st.tread_w, 'Tread ' + treadNo + ' width', locked) + '<em>×</em>'
-          + inch(path + '.tread_d', st.tread_d, 'Tread ' + treadNo + ' depth', locked) + '</div>';
+          + inch(path + '.tread_w', st.tread_w, 'Tread ' + treadNo + ' width in inches', locked, 'width') + '<em>×</em>'
+          + inch(path + '.tread_d', st.tread_d, 'Tread ' + treadNo + ' depth in inches', locked, 'depth') + '</div>';
       const riserDisabled = locked || s.riser_material === 'none' || (!riserOnly && st.no_riser);
       const riser = '<div class="pp-step-dim pp-step-dim--riser ' + (riserDisabled ? 'is-off' : '') + '"><span class="pp-step-lbl">Riser ' + (i + 1) + '</span>'
-        + inch(path + '.riser_w', st.riser_w, 'Riser ' + (i + 1) + ' width', riserDisabled) + '<em>×</em>'
-        + inch(path + '.riser_h', st.riser_h, 'Riser ' + (i + 1) + ' height', riserDisabled) + '</div>';
+        + inch(path + '.riser_w', st.riser_w, 'Riser ' + (i + 1) + ' width in inches', riserDisabled, 'width') + '<em>×</em>'
+        + inch(path + '.riser_h', st.riser_h, 'Riser ' + (i + 1) + ' height in inches', riserDisabled, 'height') + '</div>';
       const sides = riserOnly ? '' : '<div class="pp-step-side"><span class="pp-step-lbl">Side</span>'
         + sel(OPEN_OPTS, st.open, 'data-set="' + path + '.open" aria-label="Open side of tread ' + treadNo + '"' + (locked ? ' disabled' : '')) + '</div>'
         + '<div class="pp-step-ret"><span class="pp-step-lbl">Return</span>'
@@ -4927,7 +5011,7 @@
     const selectedRow = stepRows[selStep] || '';
     const stepOptions = (s.steps || []).map((st, i) => {
       const riserOnly = st.kind === 'riser';
-      const treadIndex = treadSteps(s).findIndex((step) => step.id === st.id);
+      const treadIndex = treadOrder.findIndex((step) => step.id === st.id);
       const treadNo = treadIndex >= 0 ? treadIndex + 1 : i + 1;
       const label = riserOnly ? 'Riser only ' + (i + 1) : 'Tread ' + treadNo;
       const w = fmtIn(riserOnly ? st.riser_w : st.tread_w);
@@ -4939,7 +5023,7 @@
         + (i === selStep ? '<span class="pp-step-option-dot" aria-hidden="true">✓</span>' : '') + '</button>';
     }).join('');
     const nosingOptions = [
-      ...treadSteps(s).map((step, i) => [step.id, 'Tread ' + (i + 1)]),
+      ...treadOrder.map((step, i) => [step.id, 'Tread ' + (i + 1)]),
       ...(s.landing && s.landing.enabled ? [['landing', 'Landing edge']] : []),
       ...(!treadSteps(s).length && !(s.landing && s.landing.enabled) ? [['', 'Top of stair']] : []),
     ];
@@ -4988,7 +5072,13 @@
         : '<button type="button" class="pp-btn pp-btn--sec pp-btn--sm pp-stair-add-upper" data-stair-above="' + si + '"' + (locked ? ' disabled' : '') + '>+ Add upper flight on this landing</button>'
       : '';
     const landingLocked = locked || Boolean(upperFlight);
-    const setupSummary = (s.layout === 'round' ? 'Round stair' : 'Straight flight')
+    // The shape follows the landing: a flight above it that turns makes an L or a U.
+    const turnTo = upperFlight && upperFlight.turn;
+    const shape = s.layout === 'round' ? 'Round stair'
+      : turnTo === 'left' || turnTo === 'right' ? `L-shaped · turns ${turnTo} at the landing`
+        : turnTo === 'u_left' || turnTo === 'u_right' ? `U-shaped · turns ${turnTo === 'u_left' ? 'left' : 'right'} at the landing`
+          : upperFlight ? 'Straight · continues past the landing' : 'Straight flight';
+    const setupSummary = shape
       + ' · ' + (s.species || 'Wood not selected')
       + (s.landing && s.landing.enabled ? ' · Landing enabled' : '');
     return `<section class="pp-card pp-stair" aria-label="${esc(s.name || 'Stair')}">
@@ -5027,7 +5117,7 @@
             ${locked ? '' : '<div class="pp-stair-add"><button type="button" class="pp-q-add" data-step-add="' + si + '">+ Step (tread + riser)</button><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-riser-add="' + si + '"' + (s.riser_material === 'none' ? ' disabled' : '') + '>+ Riser only</button>'
             + ((s.steps || []).length ? '<span class="pp-stair-many"><label for="ppMany-' + si + '">Add</label><input id="ppMany-' + si + '" type="number" min="1" max="40" value="5" /><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-step-many="' + si + '">equal steps</button></span>' : '') + '</div>'}
             <details class="pp-stair-measurements" data-stair-measures="${esc(s.id)}" aria-label="${esc(s.name || 'Stair')} components" ${expandedMeasurements ? 'open' : ''}>
-              <summary class="pp-stair-measures-head"><span>All measurements · ${(s.steps || []).length} components</span><i aria-hidden="true"></i></summary>
+              <summary class="pp-stair-measures-head"><span>All measurements · ${plural((s.steps || []).length, 'component', 'components')}</span><i aria-hidden="true"></i></summary>
               <div class="pp-stair-step-index" role="group" aria-label="Select a stair component">${stepOptions || '<p class="pp-q-empty">No components yet.</p>'}</div>
             </details>
           </div>
@@ -5453,6 +5543,7 @@
           <div class="pp-shero-t">${mate(m.status === 'draft' ? (empty ? 'head-thinking' : 'head-happy') : 'head-talking', 52)}<div><h2>${esc(status[0])}</h2><p>${esc(status[1])}</p></div></div>
           <div class="pp-shero-acts">
             <a class="pp-btn pp-btn--sec" href="/api/builder/measurements/${encodeURIComponent(m.id)}/pdf" target="_blank" rel="noopener">${icon('download')}Measurement PDF</a>
+            ${empty ? '' : `<button type="button" class="pp-btn pp-btn--sec" data-present-pdf>${icon('download')}Presentation PDF</button>`}
             ${quotePdf ? `<a class="pp-btn pp-btn--sec" href="${quotePdf}" target="_blank" rel="noopener">${icon('download')}Quote PDF</a>` : ''}
             ${locked || !canDo('jobs.send') || empty ? '' : `<button type="button" class="pp-btn ${m.status === 'done' ? 'pp-btn--pri' : 'pp-btn--sec'}" data-send-wo>${icon('send')}Send work order</button>`}
             ${locked || m.status === 'done' || empty ? '' : '<button type="button" class="pp-btn pp-btn--pri" data-sum-done>Complete</button>'}
@@ -5809,7 +5900,8 @@
     const kinds = [...new Set(totals.map((t) => (t.kind === 'hardwood' ? 'Hardwood' : t.kind === 'lvp' ? 'LVP' : t.label)))];
     const parts = [...kinds, c.treads ? 'stairs' : '', c.vents ? 'vents' : ''].filter(Boolean);
     f.service_type = (parts.length ? `Install – ${parts.join(', ')}` : 'Flooring').slice(0, 100);
-    f.title = `${kinds.length ? `${kinds.join(' + ')} floors` : parts.length ? parts.join(' & ') : 'Work'} · ${m.address}`.slice(0, 160);
+    const what = kinds.length ? `${kinds.join(' + ')} floors` : parts.length ? parts.join(' & ') : 'Work';
+    f.title = `${what.charAt(0).toUpperCase()}${what.slice(1)} · ${m.address}`.slice(0, 160);
     if (totals.length) f.square_feet = String(Math.round(totals.reduce((a, t) => a + t.area, 0)));
     f.material = totals.map((t) => `${t.label}${specText(t) ? `: ${specText(t)}` : ''}`).join('; ').slice(0, 120);
     f.notes = [m.notes || '', totals.length ? `Floors measured from the plans: ${totals.map((t) => `${t.label} ${fmtSf(t.area)} (order ${fmtSf(orderQty(t).sf)} with ${orderQty(t).waste}% waste)`).join('; ')}.` : ''].filter(Boolean).join('\n').slice(0, 4000);
@@ -5818,6 +5910,7 @@
     let prices = [];
     if (canDo('money.view') && s.co) prices = await api(`/api/builder/prices?company=${encodeURIComponent(s.co)}`).then((r) => (r.data || []).filter((p) => p.company_id === s.co)).catch(() => []);
     s.agreed = prices;
+    s.items = [];
     if (plan) {
       const planForQuote = { ...m, data: { ...m.data, plan: { ...plan, quote_prices: plan.quote_link_id === s.co ? plan.quote_prices : {}, quote_rates: plan.quote_link_id === s.co ? plan.quote_rates || {} : {} } } };
       s.items = quoteLines(planForQuote, prices).map((l) => ({
@@ -5827,12 +5920,21 @@
         service_name: l.price && !l.price.typed ? l.price.name : l.name, create_service: true, remove: false,
       }));
     }
+    // Stairs and vents from the measurement become quote lines too (same lines as the presentation),
+    // priced from the agreed price list when there is a match.
+    presentQuote({ ...m, data: { ...m.data, plan: null } }, prices).forEach((l) => s.items.push({
+      area: l.name.includes(' · ') ? l.name.split(' · ').slice(1).join(' · ') : '', description: l.name.split(' · ')[0], detail: l.spec || '',
+      quantity: l.qty, uom: l.uom === 'steps' ? 'STEP' : 'EA', rate: l.rate, total: null,
+      // Without a service of the company's price list, the line is for this job only (no new services in their list).
+      pricing_item_id: l.pricing_item_id || null, service_name: l.service_name || l.name.split(' · ')[0], create_service: Boolean(l.pricing_item_id), remove: false, from_meas: true,
+    }));
     s.measurement = {
       id: m.id, address: m.address, status: m.status, counts: { ...c, floor_text: totals.map((t) => `${t.label} ${fmtSf(t.area)}`).join(' · ') },
       summary: measSummary(m.data).map((l) => ({ text: `${l.kind} · ${l.text}`, qty: Number(l.qty).toLocaleString('en-US'), uom: l.uom || 'EA' })),
       measured_by: m.completed_by || m.updated_by || m.created_by, measured_at: m.completed_at || m.updated_at,
     };
     s.useMeasurement = m.status !== 'used';
+    loadQuoteRefs(s).catch(() => {});
     s.fromMeas = { id: m.id, hasPlans: Boolean(plan && plan.file) };
     s.ai = false; s.mode = 'new'; s.phase = 'review'; s.step = 'measure';
     s.measData = m.data;
@@ -6114,24 +6216,27 @@
   /** Lines of the quote to the subcontractor: floors from the plan, stairs and vents from the measurement. */
   function presentQuote(m, prices) {
     const d = m.data; const out = [];
-    const findPrice = (re, unitOk) => prices.find((p) => re.test(p.name) && (!unitOk || unitOk(p.unit))) || null;
+    // Agreed prices are matched by the kind of work ("Stair tread install" → treads), not by the first
+    // name that happens to contain a word — "Sand & finish stair treads" must not price the treads.
+    const each = prices.filter((p) => p.unit !== 'sq_ft' && p.unit !== 'linear_ft');
+    const byKind = (kind) => each.find((p) => !/landing/i.test(p.name) && serviceKindOf(p.name) === kind) || null;
+    const landing = () => each.find((p) => /landing/i.test(p.name)) || null;
+    const nosing = () => prices.find((p) => serviceKindOf(p.name) === 'nosing') || null;
+    const priced = (p) => ({ rate: p ? p.price : null, price_id: p ? p.id : null, pricing_item_id: p ? p.pricing_item_id || null : null, service_name: p ? p.name : null });
     if (d.plan && (d.plan.levels || []).length) {
-      quoteLines(m, prices).forEach((l) => out.push({ sec: 'Floors', name: l.name, spec: l.spec, qty: l.qty, uom: 'sq ft', rate: l.price ? l.price.price : null, color: l.color }));
+      quoteLines(m, prices).forEach((l) => out.push({ sec: 'Floors', name: l.name, spec: l.spec, qty: l.qty, uom: 'sq ft', color: l.color, ...priced(l.price && !l.price.typed ? l.price : null), rate: l.price ? l.price.price : null }));
     }
     const sum = measSummary(d);
-    const stairWords = { Tread: /tread/i, Riser: /riser/i, Nosing: /nos(e|ing)/i, Landing: /landing/i };
-    sum.filter((x) => stairWords[x.kind]).forEach((x) => {
-      const p = findPrice(stairWords[x.kind], (u) => u !== 'sq_ft');
-      out.push({ sec: 'Stairs', name: `${x.kind} · ${x.group}`, spec: x.text, qty: x.qty, uom: 'EA', rate: p ? p.price : null });
+    const stairKind = { Tread: () => byKind('stair_tread'), Riser: () => byKind('stair_riser'), Nosing: nosing, Landing: landing };
+    sum.filter((x) => stairKind[x.kind]).forEach((x) => {
+      out.push({ sec: 'Stairs', name: `${x.kind} · ${x.group}`, spec: x.text, qty: x.qty, uom: x.kind === 'Nosing' ? 'EA' : 'EA', ...priced(stairKind[x.kind]()) });
     });
     const c = measCounts(d);
-    if (c.treads && (d.stairs || []).some((s) => /unfinished|site/i.test(s.finish || ''))) {
-      const p = findPrice(/sand|finish/i, (u) => u !== 'sq_ft') ;
-      out.push({ sec: 'Stairs', name: 'Sand & finish stair treads', spec: 'Site finished', qty: c.treads, uom: 'steps', rate: p && /stair|tread|step/i.test(p.name) ? p.price : null });
+    if (c.treads && (d.stairs || []).some((st) => /unfinished|site/i.test(st.finish || ''))) {
+      out.push({ sec: 'Stairs', name: 'Sand & finish stair treads', spec: 'Site finished', qty: c.treads, uom: 'steps', ...priced(byKind('stair_sand_finish')) });
     }
     sum.filter((x) => x.kind === 'Vent').forEach((x) => {
-      const p = findPrice(/vent|register/i, (u) => u !== 'sq_ft');
-      out.push({ sec: 'Vents', name: 'Wood vent', spec: x.text, qty: x.qty, uom: 'EA', rate: p ? p.price : null });
+      out.push({ sec: 'Vents', name: 'Wood vent', spec: x.text, qty: x.qty, uom: 'EA', ...priced(byKind('vent')) });
     });
     return out;
   }
@@ -6217,7 +6322,7 @@
         ${secs.map(([s, ls]) => `<section><h4>${esc(s)}<small>${money_ && ls.some((l) => l.rate != null) ? esc(money(ls.reduce((a, l) => a + (l.rate != null ? l.rate * l.qty : 0), 0))) : money_ ? 'To price' : ''}</small></h4>
           ${ls.map((l) => `<div class="obp-q-row"><div><strong>${l.color ? `<i style="background:${esc(l.color)}"></i>` : ''}${esc(l.name)}</strong>${l.spec ? `<small>${esc(l.spec)}</small>` : ''}</div><div class="obp-q-num"><span>${num(l.qty)} ${esc(l.uom)}${money_ && l.rate != null ? ` × ${esc(money(l.rate))}` : ''}</span>${money_ ? `<b>${l.rate != null ? esc(money(l.rate * l.qty)) : '—'}</b>` : ''}</div></div>`).join('')}</section>`).join('')}
         ${money_ ? `<div class="obp-q-total"><span>Total</span><b>${esc(money(total))}</b></div>${missing ? `<p class="obp-q-note">${missing} line${missing === 1 ? '' : 's'} without a price yet — ${esc(co ? co.company_name : 'the company')} prices them on their side.</p>` : ''}` : ''}
-        <div class="obp-q-acts"><a class="pp-btn pp-btn--sec" href="/api/builder/measurements/${encodeURIComponent(m.id)}/pdf" target="_blank" rel="noopener">${icon('download')}Measurement PDF</a>${canDo('jobs.send') && m.status !== 'used' ? `<button type="button" class="pp-btn pp-btn--pri" data-obp-send>${icon('send')}Send to ${esc(co ? co.company_name : 'the company')}</button>` : ''}</div>`;
+        <div class="obp-q-acts"><button type="button" class="pp-btn pp-btn--sec" data-present-pdf>${icon('download')}Presentation PDF</button>${canDo('jobs.send') && m.status !== 'used' ? `<button type="button" class="pp-btn pp-btn--pri" data-obp-send>${icon('send')}Send to ${esc(co ? co.company_name : 'the company')}</button>` : ''}</div>`;
     };
 
     async function chapter(i, animate) {
@@ -6240,7 +6345,7 @@
         P.labels(true);
       } else if (c.key === 'stairs') {
         const sp = [...new Set((d.stairs || []).map((s) => [s.species, s.finish].filter(Boolean).join(' · ')).filter(Boolean))];
-        setCard(eb, 'Stairs, built from the site measurement', `<b data-t>0</b><span>treads</span><b data-r>0</b><span>risers</span>${counts.landings ? `<b data-l>0</b><span>landing${counts.landings > 1 ? 's' : ''}</span>` : ''}`, `${counts.stairs} flight${counts.stairs === 1 ? '' : 's'}${counts.nosings ? ` · ${counts.nosings} nosings` : ''} · every tread and riser sized`, sp.map((t) => ({ color: '#C9A57A', text: t })));
+        setCard(eb, 'Stairs, built from the site measurement', `<b data-t>0</b><span>treads</span><b data-r>0</b><span>risers</span>${counts.landings ? `<b data-l>0</b><span>landing${counts.landings > 1 ? 's' : ''}</span>` : ''}`, `${counts.flights} flight${counts.flights === 1 ? '' : 's'}${counts.nosings ? ` · ${counts.nosings} nosings` : ''} · every tread and riser sized`, sp.map((t) => ({ color: '#C9A57A', text: t })));
         const paint = (x) => { const t = $q('[data-t]'); const r = $q('[data-r]'); const l = $q('[data-l]'); if (t) t.textContent = x.treads; if (r) r.textContent = x.risers; if (l) l.textContent = x.landings; };
         if (animate) {
           // floors stay; the stairs come in one step at a time
@@ -6256,7 +6361,11 @@
       } else {
         P.showAll(); P.pins(false); P.home(1400); P.tour(true);
         const total = lines.reduce((a, l) => a + (l.rate != null ? l.rate * l.qty : 0), 0);
-        setCard(eb, `Ready for ${co ? co.company_name : 'the subcontractor'}`, money_ && total ? `<b>${esc(money(total))}</b><span>quote total</span>` : `<b>${lines.length}</b><span>lines</span>`, 'Floors, stairs and vents in one work order — with the plans, the 3D and the measurement PDF.', []);
+        setCard(eb, `Ready for ${co ? co.company_name : 'the subcontractor'}`, money_ && total ? `<b>${esc(money(total))}</b><span>quote total</span>` : `<b>${lines.length}</b><span>lines</span>`, (() => {
+          const what = [totals.length ? 'floors' : '', counts.treads ? 'stairs' : '', counts.vents ? 'vents' : ''].filter(Boolean);
+          const list = what.length > 1 ? `${what.slice(0, -1).join(', ')} and ${what[what.length - 1]}` : (what[0] || 'the work');
+          return `${list.charAt(0).toUpperCase()}${list.slice(1)} in one work order — with ${plan.file ? 'the plans, ' : ''}the 3D and the measurement PDF.`;
+        })(), []);
         q.innerHTML = quoteHtml(); q.hidden = false; requestAnimationFrame(() => q.classList.add('is-in'));
         bindSend();
       }
@@ -6288,6 +6397,105 @@
     if (root.requestFullscreen && window.matchMedia('(min-width: 1024px)').matches) root.requestFullscreen().catch(() => {});
     go(0, true); playing = true; paintPlay();
   }
+
+  /* ── presentation PDF: the Present chapters as pages, with stills of the 3D ── */
+
+  /** Renders one 3D view off screen (one WebGL context at a time) and returns what `shoot` returns. */
+  async function offscreen3d(w, h, shoot) {
+    const box = document.createElement('div');
+    box.style.cssText = `position:fixed;left:-10000px;top:0;width:${w}px;height:${h}px;pointer-events:none`;
+    document.body.appendChild(box);
+    try { return await shoot(box); } catch (_) { return null; } finally { box.remove(); }
+  }
+
+  /** A still with a transparent background flattened onto the stage color, as JPEG (the PDF takes JPEG). */
+  function flattenJpeg(url, bg) {
+    return new Promise((resolve) => {
+      if (!url) { resolve(null); return; }
+      const im = new Image();
+      im.onload = () => {
+        const cv = document.createElement('canvas'); cv.width = im.naturalWidth; cv.height = im.naturalHeight;
+        const g = cv.getContext('2d'); g.fillStyle = bg || '#F3F1EE'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(im, 0, 0);
+        resolve(cv.toDataURL('image/jpeg', 0.9));
+      };
+      im.onerror = () => resolve(null);
+      im.src = url;
+    });
+  }
+
+  /**
+   * JPEG stills for the PDF, each rendered at the shape of its place on the page: the house wide for
+   * the cover, the house and the vents on the plan tall for their chapters, the stair, the vent kinds.
+   */
+  async function presentationShots(m) {
+    const P3 = window.ObPlan3D; if (!P3) return {};
+    const d = m.data || {}; const plan = d.plan || { levels: [], materials: [] };
+    const levels = (plan.levels || []).filter((l) => l.include && l.grid && l.rooms && l.rooms.length);
+    const stairs = (d.stairs || []).filter((s) => (s.steps || []).length);
+    const vents = d.vents || [];
+    const house = (w, h, take) => offscreen3d(w, h, async (box) => {
+      const v = await P3.mount(box, plan, { separate: levels.length > 1, stairs: d.stairs || [], vents, still: true, legend: false });
+      try { return take(v.present); } finally { v.destroy(); }
+    });
+    const out = {};
+    if (levels.length || stairs.length) out.cover = await house(1584, 800, (P) => P.still('home', { quality: 0.9, zoom: levels.length ? 1 : 1.3 }));
+    if (levels.length) {
+      await house(840, 1012, (P) => {
+        out.house = P.still('home', { labels: true, theta: 0.15, phi: 0.95 });
+        if (vents.length) out.ventsMap = P.still('vents');
+      });
+    }
+    if (stairs.length) {
+      out.stairs = await offscreen3d(840, 1012, async (box) => {
+        const v = await P3.mountStair(box, d.stairs, { fit: 1.85 });
+        try { return v.snapshot('image/png'); } finally { v.destroy(); }
+      }).then((u) => flattenJpeg(u));
+    }
+    if (vents.length) {
+      const kinds = ventKinds(vents).slice(0, 4).map((k) => vents.find((x) => String(x.size || '4x10').trim() === k.size && (x.type || 'flush') === k.type)).filter(Boolean);
+      const [vw, vh] = out.ventsMap ? [1200, 600] : [1400, 500];
+      out.vents = await offscreen3d(vw, vh, async (box) => {
+        const v = await P3.mountVent(box, kinds, { still: true });
+        try { return v.snapshot('image/png'); } finally { v.destroy(); }
+      }).then((u) => flattenJpeg(u));
+    }
+    if (!out.cover) out.cover = out.stairs || out.vents || null;
+    Object.keys(out).forEach((k) => { if (!out[k] || !/^data:image\/jpeg;base64,/.test(out[k])) delete out[k]; });
+    return out;
+  }
+
+  async function presentationPdf(m, btn) {
+    const d = m.data || {}; const plan = d.plan || {};
+    const coId = plan.quote_link_id || (state.company && state.company.id) || '';
+    const money_ = canDo('money.view');
+    const label = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); btn.innerHTML = `${icon('download')}Preparing the PDF…`; }
+    const win = window.open('', '_blank');
+    try {
+      const prices = money_ && coId ? await api(`/api/builder/prices?company=${encodeURIComponent(coId)}`).then((r) => (r.data || []).filter((p) => !p.company_id || p.company_id === coId)).catch(() => []) : [];
+      const lines = presentQuote(m, prices).slice(0, 80).map((l) => ({
+        sec: l.sec, name: String(l.name || '').slice(0, 160), spec: String(l.spec || '').slice(0, 300),
+        qty: Number(l.qty) || 0, uom: String(l.uom || 'EA').slice(0, 20), rate: money_ && l.rate != null ? Number(l.rate) : null, color: l.color || '',
+      }));
+      const images = await presentationShots(m);
+      const res = await fetch(`/api/builder/measurements/${encodeURIComponent(m.id)}/presentation-pdf`, {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ company: coId || null, lines, images }),
+      });
+      if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || 'Could not make the PDF.'); }
+      const url = URL.createObjectURL(await res.blob());
+      if (win) win.location.href = url; else window.open(url, '_blank');
+    } catch (e) {
+      if (win) win.close();
+      mateToast('head-sorry', 'Presentation PDF', e.message);
+    } finally {
+      if (btn) { btn.disabled = false; btn.removeAttribute('aria-busy'); btn.innerHTML = label; }
+    }
+  }
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest && e.target.closest('[data-present-pdf]');
+    if (b && state.meas && !b.disabled) { e.preventDefault(); presentationPdf(state.meas, b); }
+  });
 
   function floors3dHtml(m) {
     const lv = (m.data.plan.levels || []).filter((l) => l.include && l.rooms.length).sort((a, b) => a.floor - b.floor);
@@ -6637,7 +6845,7 @@
             <p>${measStatusChip(m)} <span id="ppMeasSaved" class="pp-meas-saved">Saved</span> <span class="pp-meas-by" id="ppMeasBy"></span>${m.notes ? `<button type="button" class="pp-link pp-meas-notes" data-mtab-go="summary">Notes</button>` : ''}</p></div>
           <div class="pp-head-actions">
             ${empty3d(m) ? '' : `<button type="button" class="pp-btn pp-btn--dark" data-present>${icon('play')}<span>Present</span></button>`}
-            <a class="pp-btn pp-btn--sec pp-hide-phone" href="/api/builder/measurements/${encodeURIComponent(m.id)}/pdf" target="_blank" rel="noopener">${icon('download')}PDF</a>
+            ${empty3d(m) ? `<a class="pp-btn pp-btn--sec pp-hide-phone" href="/api/builder/measurements/${encodeURIComponent(m.id)}/pdf" target="_blank" rel="noopener">${icon('download')}PDF</a>` : `<button type="button" class="pp-btn pp-btn--sec pp-hide-phone" data-present-pdf title="Presentation PDF: cover, 3D, stairs, vents and the quote">${icon('download')}PDF</button>`}
             ${locked || !canDo('jobs.send') ? '' : `<button type="button" class="pp-btn pp-btn--sec" data-send-wo>${icon('send')}<span>Send<span class="pp-hide-phone"> work order</span></span></button>`}
             ${locked ? '' : m.status === 'done' ? '<button type="button" class="pp-btn pp-btn--sec" id="ppMeasReopen">Reopen</button>' : '<button type="button" class="pp-btn pp-btn--pri" id="ppMeasDone">Complete</button>'}
             ${locked ? '' : `<button type="button" class="pp-btn pp-btn--sec pp-btn--icon" data-meas-del-head aria-label="Delete measurement" title="Delete measurement">${icon('trash')}</button>`}
@@ -6647,7 +6855,7 @@
       ${state.send && state.send.phase === 'review' && state.send.measurement && state.send.measurement.id === m.id ? `<div class="pp-wz-back"><span>${mate('head-happy', 28)}You’re sending a work order with this measurement.</span><a class="pp-btn pp-btn--pri pp-btn--sm" href="#send">Back to the work order</a></div>` : ''}
       ${locked ? `<div class="pp-match"><strong>This measurement was already sent with the Work Order</strong><span class="pp-muted" style="font-size:14px">${m.work_order_id ? `<a class="pp-link" href="#jobs/${encodeURIComponent(m.work_order_id)}">Open the job</a> · ` : ''}To measure again, start a new measurement for this address.</span></div>` : ''}
       <div class="pp-mtabs" role="tablist" aria-label="Measurement sections">
-        ${tab('stairs', 'Stairs', c.treads + c.risers ? `${c.treads}·${c.risers}` : null)}${tab('vents', 'Vents', c.vents || null)}${tab('floors', '<span class="pp-hide-phone">Floor </span>Plan', ft ? (ft >= 1000 ? `${(Math.round(ft / 100) / 10).toLocaleString('en-US')}k sf` : `${Math.round(ft)} sf`) : null)}${tab('summary', 'Summary', null)}
+        ${tab('stairs', 'Stairs', c.treads + c.risers ? `${c.treads}·${c.risers}` : null)}${tab('vents', 'Vents', c.vents || null)}${tab('floors', '<span><span class="pp-hide-phone">Floor </span>Plan</span>', ft ? (ft >= 1000 ? `${(Math.round(ft / 100) / 10).toLocaleString('en-US')}k sf` : `${Math.round(ft)} sf`) : null)}${tab('summary', 'Summary', null)}
       </div>
       <div class="pp-mpanel" role="tabpanel">
         ${m.tab === 'stairs'
@@ -7665,6 +7873,7 @@
         ${group('Work', `
           ${row('#send', 'send', 'Send work', waiting ? `${waiting} waiting for the company` : 'PDF, photo or text', declined ? `<span class="pp-badge">${declined}</span>` : '')}
           ${row('#calendar', 'cal', 'Calendar', 'Every job by day')}
+          ${b && canDo('money.view') ? row('#invoices', 'doc', 'Invoices', state.invoices && state.invoices.length ? `${state.invoices.filter((inv) => invoiceState(inv).key !== 'paid').length} open` : 'What you owe and what is paid') : ''}
           ${row('#documents', 'camera', 'Photos & docs', 'Shared by the company')}`)}
         ${b ? group('Account', `
           ${row('#companies', 'globe', 'Companies', activeCompanies().length ? `${activeCompanies().length} connected` : 'Connect or invite flooring companies')}
@@ -7741,12 +7950,103 @@
     box.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => { $('ppSearchSheet').hidden = true; }));
   }
 
+  /* ─────────────── ⌘K palette: jobs, measurements, invoices, companies and actions ─────────────── */
+
+  let palMeas = null;
+  function palItems(q) {
+    const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+    const hit = (...parts) => { const h = parts.filter(Boolean).join(' ').toLowerCase(); return words.every((w) => h.includes(w)); };
+    const out = [];
+    const push = (group, title, sub, go, ic) => out.push({ group, title, sub, go, ic });
+    const meas = state.builder && canDo('measure') ? (palMeas || state.homeMeas || []) : [];
+    // actions
+    const acts = [];
+    if (canDo('jobs.send')) acts.push(['Send work', 'Work order, measurement or plans', '#send', 'send']);
+    if (state.builder && canDo('measure')) acts.push(['New measurement', 'Stairs and vents on site', '#measurements/new', 'ruler']);
+    meas.filter((m) => m.counts && (m.counts.treads || m.counts.vents || m.counts.floor_sf)).slice(0, 3)
+      .forEach((m) => acts.push([`Present ${String(m.address || '').split(',')[0]}`, 'Show the stair, vents and quote in 3D', { present: m.id }, 'play']));
+    acts.push(['Calendar', 'Every job by day', '#calendar', 'cal']);
+    if (canDo('money.view')) acts.push(['Invoices', 'Open, overdue and paid', '#invoices', 'doc']);
+    acts.push(['Photos & docs', 'Everything shared on your jobs', '#documents', 'camera']);
+    if (state.builder) { acts.push(['Companies', 'Flooring companies you work with', '#companies', 'globe']); acts.push(['Team', 'People on your account', '#team', 'user']); acts.push(['Settings', 'Profile, company, pickups and prices', '#settings', 'gear']); }
+    acts.filter((a) => !words.length || hit(a[0], a[1])).slice(0, words.length ? 6 : 4).forEach((a) => push('Actions', a[0], a[1], a[2], a[3]));
+    // jobs
+    const jobs = state.jobs.filter((j) => !words.length ? jobIsActive(j) : hit(j.title, j.address, j.number && `#${j.number}`, j.number, j._coName));
+    jobs.slice(0, words.length ? 6 : 4).forEach((j) => push('Jobs', j.title || 'Job', [j.number ? `#${j.number}` : '', j.address, jobWhen(j)].filter(Boolean).join(' · '), `#jobs/${encodeURIComponent(j.id)}`, 'home'));
+    if (words.length) {
+      meas.filter((m) => hit(m.address, m.community, m.lot && `lot ${m.lot}`)).slice(0, 4)
+        .forEach((m) => push('Measurements', m.address, countsText(m.counts || {}) || 'Nothing measured yet', `#measurements/${encodeURIComponent(m.id)}`, 'ruler'));
+      (canDo('money.view') ? state.invoices : []).filter((inv) => hit(inv.number, invoiceRef(inv), inv.job && inv.job.title, inv.job && inv.job.address))
+        .slice(0, 4).forEach((inv) => push('Invoices', `${inv.number ? `Invoice ${inv.number}` : 'Invoice'} · ${money(inv.balance || inv.amount)}`, [invoiceState(inv).label, inv.job && inv.job.title].filter(Boolean).join(' · '), `#invoices/${encodeURIComponent(inv.id)}`, 'doc'));
+      (state.builder ? state.builder.companies || [] : []).filter((c) => hit(c.company_name)).slice(0, 3)
+        .forEach((c) => push('Companies', c.company_name, c.status === 'active' ? 'Connected' : 'Invited', `#companies/${encodeURIComponent(c.id)}`, 'globe'));
+    }
+    return out;
+  }
+
+  function openPalette(initial) {
+    if (document.querySelector('.pp-pal')) return;
+    const back = document.activeElement;
+    const root = document.createElement('div');
+    root.className = 'pp-pal';
+    root.innerHTML = `<div class="pp-pal-card" role="dialog" aria-modal="true" aria-label="Search ObraBuilder">
+        <label class="pp-pal-in"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+          <span class="pp-sr">Search</span><input id="ppPalQ" type="search" autocomplete="off" spellcheck="false" placeholder="Jobs, measurements, invoices, companies…" role="combobox" aria-expanded="true" aria-controls="ppPalList" />
+          <button type="button" class="pp-pal-esc" data-pal-close aria-label="Close search">esc</button></label>
+        <div class="pp-pal-list" id="ppPalList" role="listbox" aria-label="Results"></div>
+        <div class="pp-pal-foot" aria-hidden="true"><span><kbd>↑</kbd><kbd>↓</kbd> move</span><span><kbd>↵</kbd> open</span><span><kbd>esc</kbd> close</span></div>
+      </div>`;
+    document.body.appendChild(root);
+    document.body.classList.add('pp-pal-open');
+    const input = root.querySelector('#ppPalQ');
+    const list = root.querySelector('#ppPalList');
+    let items = []; let active = 0;
+    const close = () => { root.remove(); document.body.classList.remove('pp-pal-open'); if (back && back.focus && back.id !== 'ppSearch') back.focus(); };
+    const go = async (it) => {
+      close();
+      if (it.go && it.go.present) {
+        try { const r = await api(`/api/builder/measurements/${encodeURIComponent(it.go.present)}`); await openPresentation(r.data); } catch (ex) { mateToast('head-curious', 'Could not open it', ex.message); }
+        return;
+      }
+      location.hash = it.go;
+    };
+    const paint = () => {
+      const q = input.value.trim();
+      items = palItems(q);
+      active = Math.min(active, Math.max(0, items.length - 1));
+      let last = '';
+      list.innerHTML = items.length ? items.map((it, i) => {
+        const head = it.group !== last ? `<div class="pp-pal-group">${esc(it.group)}</div>` : '';
+        last = it.group;
+        return `${head}<button type="button" class="pp-pal-item" role="option" id="ppPal-${i}" data-pal="${i}" aria-selected="${i === active}"><span class="pp-pal-ic">${icon(it.ic || 'search')}</span><span class="pp-pal-txt"><strong>${esc(it.title)}</strong>${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</span></button>`;
+      }).join('') : `<div class="pp-pal-empty"><strong>Nothing for “${esc(q)}”</strong><span>Try an address, a job number or an invoice number.</span></div>`;
+      input.setAttribute('aria-activedescendant', items.length ? `ppPal-${active}` : '');
+      const sel = list.querySelector('[aria-selected="true"]'); if (sel) sel.scrollIntoView({ block: 'nearest' });
+    };
+    input.value = initial || '';
+    input.addEventListener('input', () => { active = 0; paint(); });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); active = Math.min(items.length - 1, active + 1); paint(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); active = Math.max(0, active - 1); paint(); }
+      else if (e.key === 'Enter') { e.preventDefault(); if (items[active]) go(items[active]); }
+      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
+    });
+    list.addEventListener('click', (e) => { const b = e.target.closest('[data-pal]'); if (b) go(items[Number(b.getAttribute('data-pal'))]); });
+    list.addEventListener('mousemove', (e) => { const b = e.target.closest('[data-pal]'); if (b && Number(b.getAttribute('data-pal')) !== active) { active = Number(b.getAttribute('data-pal')); list.querySelectorAll('[data-pal]').forEach((x) => x.setAttribute('aria-selected', String(Number(x.getAttribute('data-pal')) === active))); } });
+    root.addEventListener('mousedown', (e) => { if (e.target === root) close(); });
+    root.querySelector('[data-pal-close]').addEventListener('click', close);
+    paint();
+    setTimeout(() => input.focus(), 0);
+    // measurements are searchable even when Home has not loaded them yet
+    if (state.builder && canDo('measure') && !palMeas) api('/api/builder/measurements').then((r) => { palMeas = r.data || []; if (document.body.contains(root)) paint(); }).catch(() => {});
+  }
+
   function bindShell() {
     $('ppChip').addEventListener('click', (e) => { e.stopPropagation(); openMenu($('ppMenu').hidden); });
     document.addEventListener('click', (e) => { if (!$('ppMenu').hidden && !e.target.closest('#ppMenu')) openMenu(false); });
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') { openMenu(false); $('ppSearchSheet').hidden = true; }
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); $('ppSearch').focus(); }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openPalette(''); }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j' && !$('ppMateBtn').hidden) { e.preventDefault(); openMate(); }
     });
     $('ppLogout').addEventListener('click', logout);
@@ -7766,15 +8066,13 @@
         window.alert(err.message || 'Could not switch company.');
       }
     });
+    // The top search opens the palette (it never moves you to another page while you type).
     const search = $('ppSearch');
-    search.addEventListener('input', () => {
-      state.q = search.value;
-      const r = route();
-      if (r.name === 'invoices') { location.hash = '#invoices'; render().then(() => search.focus()); }
-      else if (r.name !== 'jobs' || r.id) { location.hash = '#jobs'; }
-      else render().then(() => search.focus());
-    });
-    $('ppSearchFab').addEventListener('click', () => { $('ppSearchSheet').hidden = false; renderSearchResults(); $('ppSearchMobile').focus(); });
+    search.readOnly = true;
+    const fromTop = () => { search.blur(); openPalette(''); };
+    search.addEventListener('focus', fromTop);
+    search.addEventListener('click', fromTop);
+    $('ppSearchFab').addEventListener('click', () => openPalette(''));
     $('ppSearchClose').addEventListener('click', () => { $('ppSearchSheet').hidden = true; });
     $('ppSearchMobile').addEventListener('input', renderSearchResults);
     $('ppFileInput').addEventListener('change', async (e) => {
@@ -7789,13 +8087,25 @@
       e.target.value = '';
       if (route().name !== 'enviar') location.hash = '#send'; else renderSendBody();
     });
-    window.addEventListener('hashchange', () => { window.scrollTo({ top: 0 }); render(); });
+    let lastRoute = route().name;
+    window.addEventListener('hashchange', () => {
+      // Jobs and Invoices each have their own search box: a filter typed on one never carries over to the other.
+      const now = route().name;
+      if (now !== lastRoute) state.q = '';
+      lastRoute = now;
+      window.scrollTo({ top: 0 });
+      render();
+    });
     window.addEventListener('resize', (() => { let mobile = window.matchMedia('(max-width: 1023px)').matches; return () => { const now = window.matchMedia('(max-width: 1023px)').matches; if (now !== mobile) { mobile = now; if (['jobs', 'invoices'].includes(route().name)) render(); } }; })());
   }
 
   async function boot() {
     const session = await api('/api/partner-auth/session');
-    if (!session.authenticated) { location.replace('partner-login.html'); return; }
+    if (!session.authenticated) {
+      try { if (location.hash && location.hash !== '#home') sessionStorage.setItem('ob_after_login', location.hash); } catch (_) { /* private mode */ }
+      location.replace('partner-login.html');
+      return;
+    }
     state.user = session.data || {};
     if (state.user.builder_account) {
       await loadMe();

@@ -45,7 +45,7 @@
             <span class="sidebar-user-bar__name" id="sidebarUserName">—</span>
             <span class="sidebar-user-bar__role" id="sidebarUserRole"></span>
           </div>
-          <button type="button" id="logoutBtn" class="sidebar-logout-btn" title="Sair" aria-label="Terminar sessão">
+          <button type="button" id="logoutBtn" class="sidebar-logout-btn" title="Sair" aria-label="Sair">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
           </button>
         </div>
@@ -132,7 +132,7 @@
         <div class="mk-table-card">
           <div class="mk-table-card__head">
             <div>
-              <h2 id="mk-spend-heading" class="mk-table-card__title">Registos de gasto</h2>
+              <h2 id="mk-spend-heading" class="mk-table-card__title">Registros de gasto</h2>
               <p class="mk-table-card__sub">Linhas importadas ou criadas manualmente</p>
             </div>
           </div>
@@ -170,7 +170,7 @@
             <span id="mkPageInfo" class="mk-table-footer__info"></span>
             <div class="mk-table-footer__nav">
               <button type="button" class="mk-btn mk-btn--ghost" id="mkPrev">Anterior</button>
-              <button type="button" class="mk-btn mk-btn--ghost" id="mkNext">Seguinte</button>
+              <button type="button" class="mk-btn mk-btn--ghost" id="mkNext">Próximo</button>
             </div>
           </div>
         </div>
@@ -219,7 +219,7 @@
       </div>
       <div class="mk-modal__foot">
         <button type="button" class="mk-btn" data-close="modalGoals">Cancelar</button>
-        <button type="button" class="mk-btn mk-btn--primary" id="goalSave">Guardar</button>
+        <button type="button" class="mk-btn mk-btn--primary" id="goalSave">Salvar</button>
       </div>
     </div>
   </div>
@@ -228,7 +228,7 @@
   <div id="modalManual" class="mk-modal-backdrop" hidden>
     <div class="mk-modal mk-modal--wide">
       <div class="mk-modal__head">
-        <h2 style="margin: 0; font-size: 1.1rem">Novo registo de gasto</h2>
+        <h2 style="margin: 0; font-size: 1.1rem">Novo registro de gasto</h2>
         <button type="button" class="mk-modal__close" data-close="modalManual" aria-label="Fechar"><span aria-hidden="true">×</span></button>
       </div>
       <div class="mk-modal__body">
@@ -274,7 +274,7 @@
       </div>
       <div class="mk-modal__foot">
         <button type="button" class="mk-btn" data-close="modalManual">Cancelar</button>
-        <button type="button" class="mk-btn mk-btn--primary" id="mSave">Guardar</button>
+        <button type="button" class="mk-btn mk-btn--primary" id="mSave">Salvar</button>
       </div>
     </div>
   </div>
@@ -290,7 +290,7 @@
         <div class="mk-import-steps">
           <span id="st1" class="active">① Plataforma</span>
           <span>→</span>
-          <span id="st2">② Ficheiro</span>
+          <span id="st2">② Arquivo</span>
           <span>→</span>
           <span id="st3">③ Importar</span>
         </div>
@@ -311,13 +311,13 @@
           </div>
           <div style="display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem">
             <button type="button" class="mk-btn" id="impBack2">Voltar</button>
-            <button type="button" class="mk-btn mk-btn--primary" id="impNext2">Seguinte</button>
+            <button type="button" class="mk-btn mk-btn--primary" id="impNext2">Próximo</button>
           </div>
         </div>
         <div id="importStep3" hidden>
           <p id="importSummary" class="mk-kpi-card__sub"></p>
           <label style="display: flex; gap: 0.5rem; align-items: center; margin: 1rem 0; font-size: 0.875rem">
-            <input type="checkbox" id="impReplace" /> Substituir registos existentes deste período e plataforma
+            <input type="checkbox" id="impReplace" /> Substituir registros existentes deste período e plataforma
           </label>
           <div id="importErr" style="color: #b91c1c; font-size: 0.85rem; margin-bottom: 0.5rem"></div>
           <div id="importOk" style="color: #15803d; font-weight: 600; margin-bottom: 0.5rem"></div>
@@ -359,14 +359,14 @@
       </div>
       <div class="mk-modal__foot">
         <button type="button" class="mk-btn" data-close="modalEdit">Cancelar</button>
-        <button type="button" class="mk-btn mk-btn--primary" id="eSave">Guardar</button>
+        <button type="button" class="mk-btn mk-btn--primary" id="eSave">Salvar</button>
       </div>
     </div>
   </div>
 
-  <script src="crm-shell.js?v=20261102-ptr1"></script>
-  <script src="crm-shared-nav.js?v=20261015-refnav1"></script>
-  <script src="marketing.js?v=4"></script>
+  <script src="crm-shell.js?v=20261104-ux2"></script>
+  <script src="crm-shared-nav.js?v=20261105-dockall"></script>
+  <script src="marketing.js?v=20261104-ux2"></script>
   <script>
     (function () {
       var t = document.getElementById('mobileMenuToggle');

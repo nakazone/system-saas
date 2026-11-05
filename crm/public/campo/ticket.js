@@ -11,6 +11,8 @@
   let tab = "details";
   let photoStage = "";
   let pendingCount = 0;
+  /** Photos being prepared/sent right now: { key, previewUrl }. Shown as tiles so the crew sees the shot instantly. */
+  const uploadsInFlight = [];
   let latestReport = null;
   let annotMediaId = null;
   let annotShapes = [];
@@ -86,7 +88,7 @@
 
   function toast(msg, type) {
     if (window.crmToast?.show) window.crmToast.show(msg, { type: type || "error" });
-    else if (type !== "success") alert(msg);
+    else if (type !== "success") console.warn(msg);
   }
 
   function deviceLabel() {
@@ -175,27 +177,60 @@
   function lockboxBadgeHtml(notes) {
     const code = parseLockbox(notes);
     if (!code) return "";
-    return `<span class="job-lockbox-badge" title="Lockbox ${escapeHtml(code)}" aria-label="Lockbox ${escapeHtml(code)}"><span class="job-lockbox-badge__icon" aria-hidden="true">🔐</span><span class="job-lockbox-badge__code">${escapeHtml(code)}</span></span>`;
+    const cells = [...String(code)]
+      .map((ch) => `<span class="job-lockbox-badge__cell">${escapeHtml(ch)}</span>`)
+      .join("");
+    return `<div class="cm-lockbox" title="LockBox ${escapeHtml(code)}" aria-label="LockBox ${escapeHtml(code)}">
+      <span class="cm-lockbox__pad" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="5" y="11" width="14" height="10" rx="2"/>
+          <path d="M8 11V8a4 4 0 018 0v3"/>
+          <circle cx="12" cy="16" r="1.2" fill="currentColor" stroke="none"/>
+        </svg>
+      </span>
+      <span class="cm-lockbox__cells">${cells}</span>
+    </div>`;
   }
 
   function deliveryBlockHtml(t) {
-    if (!t.needs_delivery) return "";
-    const bits = [];
-    bits.push(`<span class="job-delivery-badge">Delivery</span>`);
-    if (t.delivery_pickup_address) {
-      bits.push(
-        `<div class="cm-delivery__row"><small>Retirada</small><button type="button" class="cm-linkish" data-maps-addr="${escapeHtml(t.delivery_pickup_address)}">${escapeHtml(t.delivery_pickup_address)}</button></div>`,
-      );
-    }
-    if (t.delivery_notes) {
-      bits.push(`<div class="cm-delivery__row"><small>Notas / PO</small><span>${escapeHtml(t.delivery_notes)}</span></div>`);
-    }
+    const stops = Array.isArray(t.deliveries) && t.deliveries.length
+      ? t.deliveries
+      : t.needs_delivery
+        ? [
+            {
+              pickup_address: t.delivery_pickup_address,
+              location_name: null,
+              hours: null,
+              notes: t.delivery_notes,
+              scheduled_start: null,
+            },
+          ]
+        : [];
+    if (!stops.length && !(t.delivery_attachment && t.delivery_attachment.url)) return "";
+    const blocks = stops.map((stop, i) => {
+      const bits = [];
+      bits.push(`<span class="job-delivery-badge">Delivery${stops.length > 1 ? ` ${i + 1}` : ""}</span>`);
+      if (stop.location_name) {
+        bits.push(`<div class="cm-delivery__row"><small>Local</small><span>${escapeHtml(stop.location_name)}${stop.hours ? ` · ${escapeHtml(stop.hours)}` : ""}</span></div>`);
+      }
+      if (stop.pickup_address) {
+        bits.push(
+          `<div class="cm-delivery__row"><small>Retirada</small><button type="button" class="cm-linkish" data-maps-addr="${escapeHtml(stop.pickup_address)}">${escapeHtml(stop.pickup_address)}</button></div>`,
+        );
+      } else if (stop.hours) {
+        bits.push(`<div class="cm-delivery__row"><small>Horário</small><span>${escapeHtml(stop.hours)}</span></div>`);
+      }
+      if (stop.notes) {
+        bits.push(`<div class="cm-delivery__row"><small>Notas / PO</small><span>${escapeHtml(stop.notes)}</span></div>`);
+      }
+      return `<div class="cm-delivery">${bits.join("")}</div>`;
+    });
     if (t.delivery_attachment && t.delivery_attachment.url) {
-      bits.push(
-        `<div class="cm-delivery__row"><small>Arquivo</small><a href="${escapeHtml(t.delivery_attachment.url)}" target="_blank" rel="noopener">${escapeHtml(t.delivery_attachment.name || "Anexo")}</a></div>`,
+      blocks.push(
+        `<div class="cm-delivery"><div class="cm-delivery__row"><small>Arquivo</small><a href="${escapeHtml(t.delivery_attachment.url)}" target="_blank" rel="noopener">${escapeHtml(t.delivery_attachment.name || "Anexo")}</a></div></div>`,
       );
     }
-    return `<div class="cm-delivery">${bits.join("")}</div>`;
+    return blocks.join("");
   }
 
   function stripLockboxText(notes) {
@@ -281,12 +316,41 @@
     const notes = $("cmNotes");
     const lockbox = t.notes ? lockboxBadgeHtml(t.notes) : "";
     const delivery = deliveryBlockHtml(t);
-    const text = t.notes && !t.attention ? stripLockboxText(t.notes) : "";
-    if (lockbox || delivery || text) {
+    const homeowner =
+      t.homeowner_name || t.homeowner_phone
+        ? `<div class="cm-delivery"><span class="job-delivery-badge">HomeOwner</span><div class="cm-delivery__row"><small>Contato</small><span>${escapeHtml([t.homeowner_name, t.homeowner_phone].filter(Boolean).join(" · "))}</span></div></div>`
+        : "";
+    // Always surface office Notes (even when "Atenção" is also set / derived from notes).
+    const text = stripLockboxText(t.notes || "").trim();
+    const hasNote = Boolean(text);
+    const cue = $("cmNoteCue");
+    const cueText = $("cmNoteCueText");
+    if (cue) {
+      if (hasNote) {
+        cue.hidden = false;
+        if (cueText) cueText.textContent = text;
+      } else {
+        cue.hidden = true;
+        if (cueText) cueText.textContent = "";
+      }
+    }
+    const tabDetails = $("cmTabDetails");
+    if (tabDetails) {
+      tabDetails.classList.toggle("has-note", hasNote);
+      tabDetails.setAttribute("data-note", hasNote ? "1" : "0");
+      tabDetails.innerHTML = hasNote
+        ? `Detalhes<span class="cm-ticket-tabs__dot" aria-label="Tem nota" title="Tem nota do escritório"></span>`
+        : "Detalhes";
+    }
+    const badge = $("cmTicketNoteBadge");
+    if (badge) badge.hidden = !hasNote;
+    document.body.classList.toggle("cm-ticket-has-note", hasNote);
+    if (lockbox || delivery || homeowner) {
       notes.hidden = false;
-      notes.innerHTML = `${lockbox}${delivery}${text ? `<div class="cm-notes__text">${escapeHtml(text)}</div>` : ""}`;
+      notes.innerHTML = `${lockbox}${homeowner}${delivery}`;
     } else {
       notes.hidden = true;
+      notes.innerHTML = "";
     }
   }
 
@@ -316,7 +380,7 @@
     if ($("cmCheckCount")) $("cmCheckCount").textContent = `${done} de ${total}`;
     if (tabBtn) tabBtn.textContent = `Checklist ${done}/${total}`;
     const pct = total ? Math.round((done / total) * 100) : 0;
-    if ($("cmCheckBarFill")) $("cmCheckBarFill").style.width = `${pct}%`;
+    if ($("cmCheckBarFill")) $("cmCheckBarFill").style.transform = `scaleX(${Math.max(0, Math.min(100, Number(pct) || 0)) / 100})`;
 
     $("cmCheckList").innerHTML = (t.checklist || [])
       .map((item) => {
@@ -354,14 +418,17 @@
     if (!el) return;
     if (!pendingCount) {
       el.hidden = true;
-      el.textContent = "";
       return;
     }
     el.hidden = false;
-    el.textContent =
-      pendingCount === 1
-        ? "1 foto pendente de envio (offline). Será enviada ao reconectar."
-        : `${pendingCount} fotos pendentes de envio (offline). Serão enviadas ao reconectar.`;
+    const text = $("cmPhotosPendingText");
+    if (text) {
+      text.textContent =
+        pendingCount === 1 ? "1 foto na fila para enviar" : `${pendingCount} fotos na fila para enviar`;
+    }
+    const send = $("cmPhotosPendingSend");
+    if (send) send.hidden = !navigator.onLine;
+    if (ticket) renderPhotos();
   }
 
   function renderReportCard() {
@@ -394,7 +461,7 @@
   function renderPhotos() {
     const t = ticket;
     const photos = photoList();
-    const total = photos.length + pendingCount;
+    const total = photos.length + pendingCount + uploadsInFlight.length;
     $("cmTabPhotos").textContent = `Fotos · ${total}`;
     const grid = $("cmPhotosGrid");
     renderReportCard();
@@ -405,12 +472,21 @@
         renderLightbox();
       }
     }
-    if (!photos.length) {
+    const inFlightHtml = uploadsInFlight
+      .map(
+        (u) => `
+      <div class="cm-photo cm-photo--uploading" aria-label="Enviando foto">
+        <img src="${escapeHtml(u.previewUrl)}" alt="" />
+        <span class="cm-photo__uploading"><i aria-hidden="true"></i>Enviando…</span>
+      </div>`,
+      )
+      .join("");
+    if (!photos.length && !inFlightHtml) {
       grid.innerHTML =
         '<p class="cm-subtitle" style="margin:0.5rem 0">Nenhuma foto ainda.</p>';
       return;
     }
-    grid.innerHTML = photos
+    grid.innerHTML = inFlightHtml + photos
       .map((p, idx) => {
         const stage = p.stage && STAGE_LABEL[p.stage] ? STAGE_LABEL[p.stage] : "";
         const gps = p.location_available ? " · GPS" : "";
@@ -471,9 +547,12 @@
       stage: row.stage || null,
       caption: row.caption || null,
       taken_at_device: row.takenAtDevice,
+      taken_at_source: row.takenAtSource || null,
       lat: row.lat,
       lng: row.lng,
       gps_accuracy_m: row.gpsAccuracyM,
+      location_source: row.locationSource || null,
+      camera_model: row.cameraModel || null,
       address: row.address || null,
       client_upload_id: row.id,
       device_label: row.deviceLabel || deviceLabel(),
@@ -504,6 +583,30 @@
         "success",
       );
     }
+    return results;
+  }
+
+  async function sendQueuedNow(btn) {
+    if (btn.disabled) return;
+    btn.disabled = true;
+    const label = btn.textContent;
+    btn.textContent = "Enviando…";
+    try {
+      const results = (await flushQueue()) || [];
+      if (results.some((r) => !r.ok)) {
+        toast("Ainda não foi possível enviar. Tentamos de novo quando a conexão melhorar.", "warning");
+      }
+    } catch (_) {
+      toast("Ainda não foi possível enviar. Tentamos de novo quando a conexão melhorar.", "warning");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = label;
+    }
+  }
+
+  function refreshPendingUi() {
+    if (!window.__campoMediaQueue) return;
+    window.__campoMediaQueue.list().then(updatePendingUi).catch(() => {});
   }
 
   async function uploadOrQueue(file) {
@@ -511,8 +614,28 @@
       toast("Fotos desativadas para esta organização");
       return;
     }
+    // Show the shot right away; EXIF, compression and the upload can take seconds on 4G.
+    const inFlight = { key: `f-${Date.now()}-${Math.random()}`, previewUrl: URL.createObjectURL(file) };
+    uploadsInFlight.unshift(inFlight);
+    showTab("photos");
+    renderPhotos();
+    try {
+      await sendOrQueue(file);
+    } finally {
+      const i = uploadsInFlight.indexOf(inFlight);
+      if (i >= 0) uploadsInFlight.splice(i, 1);
+      URL.revokeObjectURL(inFlight.previewUrl);
+      renderPhotos();
+    }
+  }
+
+  async function sendOrQueue(file) {
+    // Time, GPS and camera come from the photo itself when it has them (EXIF), before compression drops them.
+    const shot = window.PhotoExif
+      ? await window.PhotoExif.uploadMeta(file, { live: true, deviceGps: getGps })
+      : null;
     const dataUrl = await fileToUploadDataUrl(file);
-    const gps = await getGps();
+    const gps = shot ? (shot.lat != null ? { lat: shot.lat, lng: shot.lng, gpsAccuracyM: shot.gps_accuracy_m } : null) : await getGps();
     const caption = ($("cmPhotoCaption")?.value || "").trim() || null;
     const isPublic = Boolean($("cmPhotoPublic")?.checked);
     const payload = {
@@ -520,20 +643,21 @@
       dataUrl,
       stage: photoStage || null,
       caption,
-      takenAtDevice: new Date().toISOString(),
+      takenAtDevice: shot ? shot.taken_at_device : new Date().toISOString(),
+      takenAtSource: shot ? shot.taken_at_source : null,
       lat: gps?.lat ?? null,
       lng: gps?.lng ?? null,
       gpsAccuracyM: gps?.gpsAccuracyM ?? null,
+      locationSource: shot ? shot.location_source : gps ? "device" : null,
+      cameraModel: shot ? shot.camera_model : null,
       address: ticket?.address || null,
       deviceLabel: deviceLabel(),
       isPublic,
     };
 
-    showTab("photos");
-
     if (!navigator.onLine && window.__campoMediaQueue) {
       await window.__campoMediaQueue.enqueue(payload);
-      toast("Sem rede — foto guardada para enviar depois", "success");
+      toast("Sem rede. A foto ficou na fila e sobe quando a conexão voltar.", "warning");
       return;
     }
 
@@ -559,7 +683,7 @@
     } catch (err) {
       if (window.__campoMediaQueue) {
         await window.__campoMediaQueue.enqueue(payload);
-        toast("Upload falhou — foto na fila offline", "success");
+        toast("Não deu para enviar agora. A foto ficou na fila.", "warning");
       } else {
         toast(err.message || "Falha no upload");
       }
@@ -696,7 +820,13 @@
         return;
       }
       if (action === "apagar") {
-        if (!confirm("Apagar esta foto?")) return;
+        const okDel = await window.crmConfirm({
+          title: "Apagar esta foto?",
+          text: "Ela sai do job e não pode ser recuperada.",
+          ok: "Apagar foto",
+          danger: true,
+        });
+        if (!okDel) return;
         const json = await api(`/api/campo/jobs/${jobId}/media/${mediaId}`, {
           method: "DELETE",
         });
@@ -723,7 +853,14 @@
         return;
       }
       if (action === "legenda") {
-        const next = window.prompt("Legenda", photo.caption || "");
+        const next = await window.crmPrompt({
+          title: "Legenda da foto",
+          type: "textarea",
+          value: photo.caption || "",
+          placeholder: "Ex.: Subfloor nivelado na sala",
+          rows: 3,
+          ok: "Salvar legenda",
+        });
         if (next == null) return;
         const json = await api(`/api/campo/jobs/${jobId}/media/${mediaId}`, {
           method: "PATCH",
@@ -889,9 +1026,21 @@
   }
 
   async function addMeasurement() {
-    const label = window.prompt("Área / divisão", "Living room");
+    const label = await window.crmPrompt({
+      title: "Nova medição",
+      label: "Área / divisão",
+      value: "Living room",
+      ok: "Continuar",
+    });
     if (!label || !label.trim()) return;
-    const raw = window.prompt("Área em sqft", "");
+    const raw = await window.crmPrompt({
+      title: `Área de “${label.trim()}”`,
+      label: "Área em sqft",
+      type: "number",
+      inputMode: "decimal",
+      placeholder: "Ex.: 350",
+      ok: "Salvar medição",
+    });
     if (raw == null) return;
     const value = Number(String(raw).replace(",", "."));
     if (!Number.isFinite(value) || value <= 0) {
@@ -1051,11 +1200,16 @@
       }
     });
 
-    const onStart = (e) => {
+    const onStart = async (e) => {
       e.preventDefault();
       const p = pointerNorm(e, canvas);
       if (annotTool === "text") {
-        const text = window.prompt("Texto na foto", "");
+        const text = await window.crmPrompt({
+          title: "Texto na foto",
+          label: "Texto",
+          placeholder: "Ex.: Trinca aqui",
+          ok: "Adicionar texto",
+        });
         if (!text) return;
         annotShapes.push({
           id: `t-${Date.now()}`,
@@ -1173,8 +1327,18 @@
     try {
       const json = await api(`/api/campo/jobs/${jobId}/checklist/templates`);
       const list = json.data || [];
-      const labels = list.map((t, i) => `${i + 1}) ${t.name}`).join("\n");
-      const pick = window.prompt(`Escolha o template:\n${labels}`, "1");
+      if (!list.length) {
+        toast("Nenhum template disponível");
+        return;
+      }
+      const pick = await window.crmPrompt({
+        title: "Escolha o template",
+        type: "select",
+        label: "Template",
+        options: list.map((t, i) => ({ value: String(i + 1), label: t.name })),
+        value: "1",
+        ok: "Continuar",
+      });
       if (!pick) return;
       const idx = Number(pick) - 1;
       const tpl = list[idx];
@@ -1182,7 +1346,13 @@
         toast("Template inválido");
         return;
       }
-      if (!confirm(`Substituir checklist por “${tpl.name}”?`)) return;
+      const okTpl = await window.crmConfirm({
+        title: `Substituir checklist por “${tpl.name}”?`,
+        text: "Os itens atuais do checklist serão trocados pelos do template.",
+        ok: "Substituir checklist",
+        danger: true,
+      });
+      if (!okTpl) return;
       const res = await api(`/api/campo/jobs/${jobId}/checklist/from-template`, {
         method: "POST",
         body: JSON.stringify({ template_key: tpl.key }),
@@ -1200,7 +1370,15 @@
       try {
         transcript = await voiceCaptionOnDevice();
       } catch (_) {
-        transcript = window.prompt("Digite os itens (separados por vírgula)", "") || "";
+        transcript =
+          (await window.crmPrompt({
+            title: "Itens do checklist",
+            label: "Digite os itens (separados por vírgula)",
+            type: "textarea",
+            rows: 3,
+            placeholder: "Ex.: Proteger rodapé, tirar foto do subfloor",
+            ok: "Propor itens",
+          })) || "";
       }
       if (!transcript) return;
       toast("A propor checklist…", "success");
@@ -1213,8 +1391,13 @@
         toast("Nenhum item proposto");
         return;
       }
-      const preview = items.map((i) => `• ${i.text}${i.photo_required ? " (foto)" : ""}`).join("\n");
-      if (!confirm(`Aplicar estes itens?\n\n${preview}`)) return;
+      const preview = items.map((i) => `${i.text}${i.photo_required ? " (foto)" : ""}`).join(" · ");
+      const okApply = await window.crmConfirm({
+        title: `Adicionar ${items.length} ite${items.length === 1 ? "m" : "ns"} ao checklist?`,
+        text: preview,
+        ok: "Adicionar itens",
+      });
+      if (!okApply) return;
       const res = await api(`/api/campo/jobs/${jobId}/checklist/apply`, {
         method: "POST",
         body: JSON.stringify({
@@ -1423,7 +1606,13 @@
     });
 
     window.addEventListener("online", () => {
+      refreshPendingUi();
       flushQueue().catch(() => {});
+    });
+    window.addEventListener("offline", refreshPendingUi);
+
+    $("cmPhotosPendingSend")?.addEventListener("click", (e) => {
+      sendQueuedNow(e.currentTarget).catch(() => {});
     });
 
     if (window.__campoMediaQueue) {
