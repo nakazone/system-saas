@@ -1714,3 +1714,542 @@ body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-c
 html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .mate-fab {
   display: none !important;
 }
+
+/* =====================================================================
+ * Início — mosaico (bento) em tela inteira.
+ * Desktop e tablet deitado: 12 colunas, duas faixas de indicadores grandes e a faixa de cartões.
+ * Recolhido (.omd--kpi-compact) ou com menos de 6 indicadores (.omd--kpi-partial): faixa fina.
+ * Abaixo de 1180px (tablets, janelas estreitas) a faixa fina é sempre usada: o mosaico não cabe.
+ * ===================================================================== */
+@media (min-width: 1180px) {
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-rows: minmax(132px, 0.82fr) minmax(104px, 0.66fr) minmax(0, 2.2fr);
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) :is(.omd-kpis, .omd-grid) {
+    display: contents;
+  }
+
+  /* Saudação grande, ações embaixo */
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-head {
+    grid-column: 1 / 5;
+    grid-row: 1;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-content: center;
+    gap: 10px 14px;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-head__actions {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    flex-wrap: wrap;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-title {
+    font-size: clamp(28px, 2.4vw, 38px);
+    letter-spacing: -0.04em;
+  }
+
+  /* Indicadores: blocos grandes */
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi {
+    justify-content: flex-start;
+    gap: 2px;
+    margin: 0;
+    padding: 16px 18px;
+    border-radius: 24px;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi__label {
+    font-size: 13.5px;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi__value {
+    margin-top: auto;
+    font-size: clamp(24px, 2vw, 30px);
+    letter-spacing: -0.04em;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi__meta {
+    margin-top: 4px;
+    font-size: 13px;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="conversion"] { grid-column: 1 / 3; grid-row: 2; }
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="leads"] { grid-column: 3 / 5; grid-row: 2; }
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] { grid-column: 5 / 8; grid-row: 1 / 3; }
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] { grid-column: 8 / 10; grid-row: 1 / 3; }
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="receivables"] { grid-column: 10 / 13; grid-row: 1; }
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="gross_profit"] { grid-column: 10 / 13; grid-row: 2; }
+
+  /* Short tiles in the second row: value and caption side by side, the margin bar underneath. */
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi:is([data-kpi="conversion"], [data-kpi="leads"], [data-kpi="gross_profit"]) {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto 1fr auto;
+    column-gap: 10px;
+    padding-top: 13px;
+    padding-bottom: 13px;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi:is([data-kpi="conversion"], [data-kpi="leads"], [data-kpi="gross_profit"]) .omd-kpi__label {
+    grid-column: 1 / -1;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi:is([data-kpi="conversion"], [data-kpi="leads"], [data-kpi="gross_profit"]) .omd-kpi__value {
+    grid-row: 2;
+    align-self: end;
+    margin: 0;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi:is([data-kpi="conversion"], [data-kpi="leads"], [data-kpi="gross_profit"]) .omd-kpi__meta {
+    grid-row: 2;
+    align-self: end;
+    margin: 0 0 4px;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi:is([data-kpi="conversion"], [data-kpi="leads"], [data-kpi="gross_profit"]) .omd-kpi__split {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+
+  /* Pipeline aberto: bloco laranja alto */
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] {
+    background: var(--omd-accent);
+    border-color: var(--omd-accent);
+    color: #fff;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] :is(.omd-kpi__label, .omd-kpi__meta) {
+    color: rgba(255, 255, 255, 0.88);
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__value {
+    font-size: clamp(36px, 3.6vw, 56px);
+  }
+
+  /* Fechado no mês: bloco grafite */
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] {
+    background: var(--omd-ink);
+    border-color: var(--omd-ink);
+    color: #fff;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] .omd-kpi__label {
+    color: #C8CDD5;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] .omd-kpi__value {
+    font-size: clamp(30px, 2.8vw, 42px);
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] .omd-kpi__meta {
+    align-self: flex-start;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #C8CDD5;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] .omd-kpi__meta.is-up {
+    color: #C9D6BE;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] .omd-kpi__meta.is-down {
+    color: #F2C3A1;
+  }
+
+  /* Detalhes extras: só no mosaico */
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) :is(.omd-kpi__boxes, .omd-kpi__split, .omd-kpi__seg) {
+    display: flex;
+  }
+
+  /* Cartões na faixa de baixo */
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-attn { grid-column: 1 / 6; grid-row: 3; }
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-stack--day { grid-column: 6 / 9; grid-row: 3; }
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-stack--ops { grid-column: 9 / 13; grid-row: 3; }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-card {
+    border-radius: 24px;
+    padding: 16px 18px 10px;
+  }
+}
+
+/* Detalhes dos blocos (escondidos na faixa fina) */
+.omd-kpi__boxes,
+.omd-kpi__split,
+.omd-kpi__seg {
+  display: none;
+}
+
+.omd-kpi__boxes {
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.omd-kpi__boxes > span {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.omd-kpi__boxes b {
+  font-size: 18px;
+  font-weight: 750;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.omd-kpi__split {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.omd-kpi__bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: #F1F3F5;
+  overflow: hidden;
+}
+
+.omd-kpi__bar i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--omd-ok);
+  transform-origin: left center;
+}
+
+.omd-kpi__split .omd-kpi__line {
+  display: none;
+}
+
+.omd-kpi__line {
+  display: flex;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--omd-muted);
+  white-space: nowrap;
+}
+
+.omd-kpi__line b {
+  font-weight: 650;
+  color: var(--omd-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.omd-kpi__seg {
+  gap: 3px;
+  height: 6px;
+  margin-top: 8px;
+  transform-origin: left center;
+}
+
+.omd-kpi__seg i {
+  display: block;
+  border-radius: 3px;
+  background: #F1F3F5;
+  box-shadow: inset 0 0 0 1px #E5E7EB;
+}
+
+.omd-kpi__seg i.is-overdue {
+  background: var(--omd-danger-strong);
+  box-shadow: none;
+}
+
+/* —— Recolher: botões e cartões recolhidos —— */
+.omd-fold {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--omd-muted);
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.omd-fold svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.omd-fold__chev {
+  transition: transform 200ms var(--om-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.omd-fold[aria-expanded="false"] .omd-fold__chev {
+  transform: rotate(-90deg);
+}
+
+.omd-fold:focus-visible {
+  outline: 2px solid var(--omd-accent);
+  outline-offset: 2px;
+}
+
+.omd-fold--kpis {
+  width: auto;
+  height: 26px;
+  gap: 5px;
+  grid-auto-flow: column;
+  padding: 0 8px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--omd-faint);
+}
+
+.omd-fold--kpis svg {
+  width: 13px;
+  height: 13px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .omd-fold:hover {
+    background: var(--omd-soft);
+    color: var(--omd-ink);
+  }
+}
+
+@media (pointer: coarse) {
+  .omd-fold {
+    width: 44px;
+    height: 44px;
+  }
+
+  .omd-fold--kpis {
+    width: auto;
+    height: 36px;
+  }
+}
+
+.omd-card__summary {
+  display: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--omd-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.omd-card.is-folded .omd-card__summary {
+  display: block;
+  animation: omdFadeIn 150ms ease-out both;
+}
+
+@keyframes omdFadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+.omd-card__head .omd-link {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.omd-card__head .omd-jobs__nav {
+  margin-left: auto;
+}
+
+.omd-card__head h2 {
+  flex: none;
+}
+
+/* A folded card keeps only its header; the card beside it in the stack takes the height.
+   (Portrait tablets flatten the stacks into a 2-column grid, so there a folded card just sits at the top of its cell.) */
+@media (min-width: 1100px), (orientation: landscape) {
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-stack {
+    display: flex;
+    flex-direction: column;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-stack > .omd-card {
+    flex: 1 1 0;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-stack > .omd-card.is-folded {
+    flex: 0 0 auto;
+    align-self: stretch;
+  }
+}
+
+html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-card.is-folded {
+  align-self: start;
+  padding-bottom: 12px;
+}
+
+.omd-card.is-folded > :not(.omd-card__head) {
+  display: none !important;
+}
+
+.omd-card.is-folded .omd-card__head {
+  margin-bottom: 0;
+}
+
+.omd-card.is-folded .omd-link,
+.omd-card.is-folded .omd-jobs__nav {
+  display: none;
+}
+
+/* —— Movimento —— */
+
+/* Hover e toque nos blocos: retorno discreto (o mouse passa por aqui dezenas de vezes por dia). */
+html body.plab.dashboard-app-body a.omd-kpi {
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 100ms ease-out;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  html body.plab.dashboard-app-body a.omd-kpi:hover {
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 10px 24px -14px rgba(16, 24, 40, 0.28);
+  }
+}
+
+html body.plab.dashboard-app-body a.omd-kpi:active {
+  transform: scale(0.98);
+}
+
+/* Recolher/abrir: as caixas deslizam até o novo tamanho (view transition, só transform/opacity). */
+.omd-kpi[data-kpi="pipeline"] { view-transition-name: omd-k-pipeline; }
+.omd-kpi[data-kpi="won"] { view-transition-name: omd-k-won; }
+.omd-kpi[data-kpi="conversion"] { view-transition-name: omd-k-conversion; }
+.omd-kpi[data-kpi="leads"] { view-transition-name: omd-k-leads; }
+.omd-kpi[data-kpi="receivables"] { view-transition-name: omd-k-receivables; }
+.omd-kpi[data-kpi="gross_profit"] { view-transition-name: omd-k-gross; }
+.omd-head { view-transition-name: omd-head; }
+.omd-attn { view-transition-name: omd-c-attn; }
+.omd-today { view-transition-name: omd-c-today; }
+.omd-jobs { view-transition-name: omd-c-week; }
+.omd-ops { view-transition-name: omd-c-ops; }
+.omd-quotes { view-transition-name: omd-c-quotes; }
+
+::view-transition-group(omd-head),
+::view-transition-group(omd-k-pipeline),
+::view-transition-group(omd-k-won),
+::view-transition-group(omd-k-conversion),
+::view-transition-group(omd-k-leads),
+::view-transition-group(omd-k-receivables),
+::view-transition-group(omd-k-gross),
+::view-transition-group(omd-c-attn),
+::view-transition-group(omd-c-today),
+::view-transition-group(omd-c-week),
+::view-transition-group(omd-c-ops),
+::view-transition-group(omd-c-quotes) {
+  animation-duration: 250ms;
+  animation-timing-function: var(--om-ease-in-out, cubic-bezier(0.77, 0, 0.175, 1));
+}
+
+/* Keep card contents at their real size while the box resizes (no stretched text):
+   the box is clipped to its rounded corners and the old/new snapshots crossfade in place. */
+::view-transition-image-pair(omd-c-attn),
+::view-transition-image-pair(omd-c-today),
+::view-transition-image-pair(omd-c-week),
+::view-transition-image-pair(omd-c-ops),
+::view-transition-image-pair(omd-c-quotes),
+::view-transition-image-pair(omd-k-pipeline),
+::view-transition-image-pair(omd-k-won),
+::view-transition-image-pair(omd-k-conversion),
+::view-transition-image-pair(omd-k-leads),
+::view-transition-image-pair(omd-k-receivables),
+::view-transition-image-pair(omd-k-gross) {
+  overflow: clip;
+  border-radius: 20px;
+}
+
+::view-transition-old(omd-c-attn), ::view-transition-new(omd-c-attn),
+::view-transition-old(omd-c-today), ::view-transition-new(omd-c-today),
+::view-transition-old(omd-c-week), ::view-transition-new(omd-c-week),
+::view-transition-old(omd-c-ops), ::view-transition-new(omd-c-ops),
+::view-transition-old(omd-c-quotes), ::view-transition-new(omd-c-quotes),
+::view-transition-old(omd-k-pipeline), ::view-transition-new(omd-k-pipeline),
+::view-transition-old(omd-k-won), ::view-transition-new(omd-k-won),
+::view-transition-old(omd-k-conversion), ::view-transition-new(omd-k-conversion),
+::view-transition-old(omd-k-leads), ::view-transition-new(omd-k-leads),
+::view-transition-old(omd-k-receivables), ::view-transition-new(omd-k-receivables),
+::view-transition-old(omd-k-gross), ::view-transition-new(omd-k-gross) {
+  width: 100%;
+  height: auto;
+  object-fit: none;
+  object-position: left top;
+  animation-duration: 200ms;
+  animation-timing-function: ease-out;
+}
+
+/* The rest of the page (top bar, dock) stays put during a fold. */
+html.omd-morphing::view-transition-group(root) {
+  animation: none;
+}
+
+/* Primeira visita da sessão: blocos e cartões sobem de leve, um após o outro (40 ms). */
+@keyframes omdRise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes omdGrow {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+.omd--enter :where(.omd-head, .omd-kpi, .omd-attn, .omd-stack > .omd-card) {
+  animation: omdRise 220ms var(--om-ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+}
+
+.omd--enter .omd-kpi { animation-delay: calc(40ms + var(--i, 0) * 40ms); }
+.omd--enter .omd-attn { animation-delay: 280ms; }
+.omd--enter .omd-stack--day > .omd-card:first-child { animation-delay: 320ms; }
+.omd--enter .omd-stack--day > .omd-card:last-child { animation-delay: 360ms; }
+.omd--enter .omd-stack--ops > .omd-card:first-child { animation-delay: 340ms; }
+.omd--enter .omd-stack--ops > .omd-card:last-child { animation-delay: 380ms; }
+
+/* Barras de margem e de vencido crescem até o valor, logo depois do bloco aparecer. */
+.omd--enter :is(.omd-kpi__bar i, .omd-kpi__seg) {
+  animation: omdGrow 300ms var(--om-ease-out, cubic-bezier(0.23, 1, 0.32, 1)) 360ms both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .omd--enter :is(.omd-head, .omd-kpi, .omd-attn, .omd-stack > .omd-card, .omd-kpi__bar i, .omd-kpi__seg) {
+    animation: none;
+  }
+
+  html body.plab.dashboard-app-body a.omd-kpi:active {
+    transform: none;
+  }
+}
+
+
+/* "Recolher indicadores" only where the bento exists (wide screens, all six tiles). */
+@media (max-width: 1179px) {
+  .omd-fold--kpis {
+    display: none !important;
+  }
+}
+
+.omd--kpi-partial .omd-fold--kpis {
+  display: none !important;
+}

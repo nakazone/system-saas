@@ -93,27 +93,188 @@
     el.textContent = mins < 1 ? "Atualizado agora" : `Atualizado há ${mins} min`;
   }
 
-  /** KPI strip: sales numbers, then money, each tile opening the screen behind it. */
+  /** Extra detail drawn only in the bento tiles (all from values the overview already returns). */
+  function kpiExtra(key, k) {
+    if (key === "pipeline" && k.pipeline_open) {
+      const p = k.pipeline_open;
+      return `<span class="omd-kpi__boxes" aria-hidden="true">
+        <span><b>${esc(String(p.count))}</b>${esc(p.count === 1 ? "quote enviado" : "quotes enviados")}</span>
+        <span><b>${esc(String(p.without_value || 0))}</b>sem valor</span>
+      </span>`;
+    }
+    if (key === "gross_profit" && k.gross_profit && k.gross_profit.value != null) {
+      const g = k.gross_profit;
+      const revenue = Number(g.revenue) || 0;
+      const margin = revenue > 0 ? Math.round((Number(g.value) / revenue) * 100) : null;
+      const bar = margin != null ? Math.max(0, Math.min(100, margin)) : 0;
+      return `<span class="omd-kpi__split" aria-hidden="true">
+        ${margin != null ? `<span class="omd-kpi__bar"><i style="transform:scaleX(${bar / 100})"></i></span>` : ""}
+        <span class="omd-kpi__line"><span>Receita</span><b>${esc(D.money(revenue))}</b></span>
+        <span class="omd-kpi__line"><span>Custo</span><b>${esc(D.money(g.cost || 0))}</b></span>
+      </span>`;
+    }
+    if (key === "receivables" && k.receivables && Number(k.receivables.open_value) > 0) {
+      const open = Number(k.receivables.open_value) || 0;
+      const overdue = Math.max(0, Math.min(open, Number(k.receivables.overdue_value) || 0));
+      return `<span class="omd-kpi__seg" aria-hidden="true"><i class="is-overdue" style="flex:${overdue}"></i><i style="flex:${open - overdue}"></i></span>`;
+    }
+    return "";
+  }
+
+  /** KPI tiles: a bento of big tiles on wide screens, a slim strip when folded or narrow. */
   function renderKpis() {
     const host = $("omdKpis");
     const tiles = D.kpiStrip(overview);
+    const root = $("omdRoot");
     if (!tiles.length) {
       host.hidden = true;
       return;
     }
     host.hidden = false;
     host.style.setProperty("--omd-kpi-count", String(tiles.length));
+    // The bento has a fixed slot for each of the six tiles; with fewer (permissions) use the strip.
+    root.classList.toggle("omd--kpi-partial", tiles.length < 6);
+    const k = (overview && overview.kpis) || {};
     host.innerHTML = tiles
       .map(
-        (t, i) => `<a class="omd-kpi${t.group === "money" && tiles[i - 1] && tiles[i - 1].group !== "money" ? " is-group-start" : ""}" data-kpi="${esc(t.key)}" href="${esc(t.href)}"${
+        (t, i) => `<a class="omd-kpi${t.group === "money" && tiles[i - 1] && tiles[i - 1].group !== "money" ? " is-group-start" : ""}" data-kpi="${esc(t.key)}" href="${esc(t.href)}" style="--i:${i}"${
           t.title ? ` title="${esc(t.title)}"` : ""
         }>
           <span class="omd-kpi__label">${esc(t.label)}</span>
           <span class="omd-kpi__value">${esc(t.value)}</span>
           <span class="omd-kpi__meta${t.metaTone ? ` is-${esc(t.metaTone)}` : ""}">${esc(t.meta)}</span>
+          ${kpiExtra(t.key, k)}
         </a>`,
       )
       .join("");
+  }
+
+  /* ---------------------------------------------------------------------------
+   * Folding: the KPI bento folds into a slim strip, and stacked cards fold into a
+   * one-line summary so the card beside them gets the room. Per viewer, per browser.
+   * ------------------------------------------------------------------------- */
+  const FOLD_KEY = "omd_home_fold_v1";
+  let folded = {};
+  try {
+    folded = JSON.parse(localStorage.getItem(FOLD_KEY) || "{}") || {};
+  } catch (_) {
+    folded = {};
+  }
+
+  function saveFolds() {
+    try {
+      localStorage.setItem(FOLD_KEY, JSON.stringify(folded));
+    } catch (_) {}
+  }
+
+  function reducedMotion() {
+    return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  /** Layout changes morph through a view transition (boxes glide to their new size); instant without support. */
+  function morph(update) {
+    if (!document.startViewTransition || reducedMotion()) {
+      update();
+      return;
+    }
+    document.documentElement.classList.add("omd-morphing");
+    const vt = document.startViewTransition(update);
+    vt.finished.finally(() => document.documentElement.classList.remove("omd-morphing"));
+  }
+
+  function applyFolds() {
+    const root = $("omdRoot");
+    root.classList.toggle("omd--kpi-compact", !!folded.kpis);
+    const kb = $("omdKpiFold");
+    if (kb) {
+      kb.setAttribute("aria-expanded", folded.kpis ? "false" : "true");
+      kb.querySelector("span").textContent = folded.kpis ? "Abrir indicadores" : "Recolher indicadores";
+    }
+    document.querySelectorAll("[data-omd-card]").forEach((card) => {
+      const key = card.getAttribute("data-omd-card");
+      const isFolded = !!folded[key];
+      card.classList.toggle("is-folded", isFolded);
+      const btn = card.querySelector("[data-omd-fold]");
+      if (btn) {
+        btn.setAttribute("aria-expanded", isFolded ? "false" : "true");
+        const title = card.querySelector("h2");
+        btn.setAttribute("aria-label", `${isFolded ? "Abrir" : "Recolher"} ${title ? title.textContent : ""}`.trim());
+      }
+    });
+  }
+
+  function bindFolds() {
+    const kb = $("omdKpiFold");
+    if (kb && !kb.dataset.bound) {
+      kb.dataset.bound = "1";
+      kb.addEventListener("click", () => {
+        folded.kpis = !folded.kpis;
+        saveFolds();
+        morph(applyFolds);
+      });
+    }
+    document.querySelectorAll("[data-omd-fold]").forEach((btn) => {
+      if (btn.dataset.bound) return;
+      btn.dataset.bound = "1";
+      btn.addEventListener("click", () => {
+        const key = btn.getAttribute("data-omd-fold");
+        folded[key] = !folded[key];
+        saveFolds();
+        morph(applyFolds);
+      });
+    });
+  }
+
+  function setSummary(key, text) {
+    const el = document.querySelector(`[data-omd-summary="${key}"]`);
+    if (el) el.textContent = text || "";
+  }
+
+  /** One-line summaries shown on a folded card. */
+  function renderSummaries() {
+    const ev = overview.today_events || [];
+    const jobsToday = ev.filter((e) => e.type === "job").length;
+    const visits = ev.length - jobsToday;
+    setSummary(
+      "today",
+      ev.length
+        ? [visits ? D.plural(visits, "visita", "visitas") : "", jobsToday ? D.plural(jobsToday, "instalação", "instalações") : ""].filter(Boolean).join(" · ")
+        : "agenda livre",
+    );
+    const week = (overview.jobs_forecast || []).reduce((n, d) => n + (d.count || 0), 0);
+    setSummary("week", week ? D.plural(week, "job na semana", "jobs na semana") : "sem jobs na semana");
+    const s = overview.jobs_status;
+    if (s) {
+      setSummary(
+        "ops",
+        [
+          s.late ? D.plural(s.late, "atrasado", "atrasados") : "",
+          s.in_field ? `${s.in_field} em campo` : "",
+          s.to_invoice && s.to_invoice.count ? `${D.moneyCompact(s.to_invoice.value)} a faturar` : "",
+        ]
+          .filter(Boolean)
+          .join(" · ") || "tudo em dia",
+      );
+    }
+    const q = overview.quotes_waiting;
+    if (q) {
+      const unopened = q.count - q.viewed;
+      setSummary("quotes", q.count ? [D.plural(q.count, "enviado", "enviados"), unopened ? `${unopened} não ${unopened === 1 ? "aberto" : "abertos"}` : ""].filter(Boolean).join(" · ") : "nenhum aguardando");
+    }
+  }
+
+  /** First visit of the session: tiles and cards rise in once; later loads appear instantly. */
+  const ENTER_KEY = "omd_home_entered";
+  function playEntranceOnce() {
+    let seen = false;
+    try {
+      seen = sessionStorage.getItem(ENTER_KEY) === "1";
+      sessionStorage.setItem(ENTER_KEY, "1");
+    } catch (_) {}
+    if (seen || reducedMotion()) return;
+    const root = $("omdRoot");
+    root.classList.add("omd--enter");
+    setTimeout(() => root.classList.remove("omd--enter"), 1100);
   }
 
   function attentionRow(it) {
@@ -419,6 +580,7 @@
     renderJobsForecast();
     renderOps();
     renderQuotesWaiting();
+    renderSummaries();
     renderUpdated();
     $("omdRoot").setAttribute("aria-busy", "false");
   }
@@ -452,7 +614,12 @@
       loadedAt = Date.now();
       $("omdError").hidden = true;
       applyPermissions();
+      const firstPaint = !overview || !$("omdRoot").dataset.painted;
       renderAll();
+      if (firstPaint) {
+        $("omdRoot").dataset.painted = "1";
+        playEntranceOnce();
+      }
     } catch (err) {
       if (err && err.status === 401) {
         location.href = "/login.html";
@@ -483,6 +650,8 @@
   function bootDesktop() {
     document.title = "Início | ObraMate";
     bindJobsForecastNav();
+    applyFolds();
+    bindFolds();
     $("omdNewLead").addEventListener("click", () => openNewLead(() => refresh(true)));
     $("plabDockNew").addEventListener("click", () => openNewLead(() => refresh(true)));
     $("plabDockSearch").addEventListener("click", () => openSearch());

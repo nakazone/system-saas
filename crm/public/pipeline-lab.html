@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="om-mobile-nav.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="leads-mobile.css?v=20261013-listbg2" />
   <link rel="stylesheet" href="crm-command-palette.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="om-dashboard.css?v=20261105-home1" />
+  <link rel="stylesheet" href="om-dashboard.css?v=20261105-bento1" />
   <link rel="stylesheet" href="leads-board.css?v=20261104-ux2" />
   <script src="om-device.js?v=20261013-badge1"></script>
   <script src="crm-field-gate.js?v=20261104-ux3"></script>
@@ -133,6 +133,10 @@
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 11-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
                 <span id="omdUpdated">Atualizar</span>
               </button>
+              <button type="button" class="omd-fold omd-fold--kpis" id="omdKpiFold" aria-controls="omdKpis" aria-expanded="true">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg>
+                <span>Recolher indicadores</span>
+              </button>
             </p>
           </div>
           <div class="omd-head__actions" id="omdActions">
@@ -180,10 +184,12 @@
           </section>
 
           <div class="omd-stack omd-stack--day">
-            <section class="omd-card omd-today" id="omdTodayCard" aria-labelledby="omdTodayTitle">
+            <section class="omd-card omd-today" id="omdTodayCard" data-omd-card="today" aria-labelledby="omdTodayTitle">
               <header class="omd-card__head">
                 <h2 id="omdTodayTitle">Hoje</h2>
+                <span class="omd-card__summary" data-omd-summary="today"></span>
                 <a class="omd-link" href="schedule.html">Ver agenda</a>
+                <button type="button" class="omd-fold" data-omd-fold="today" aria-expanded="true" aria-controls="omdTodayList" aria-label="Recolher Hoje"><svg class="omd-fold__chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
               </header>
               <ol class="omd-card__scroll omd-today__list" id="omdTodayList">
                 <li class="omd-row is-skeleton"></li>
@@ -191,9 +197,10 @@
               </ol>
             </section>
 
-            <section class="omd-card omd-jobs" id="omdJobsCard" aria-labelledby="omdJobsTitle">
+            <section class="omd-card omd-jobs" id="omdJobsCard" data-omd-card="week" aria-labelledby="omdJobsTitle">
               <header class="omd-card__head">
                 <h2 id="omdJobsTitle">Próximos 7 dias</h2>
+                <span class="omd-card__summary" data-omd-summary="week"></span>
                 <div class="omd-jobs__nav" id="omdJobsNav" hidden>
                   <button type="button" class="omd-jobs__nav-btn" id="omdJobsPrev" aria-label="Dia anterior">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
@@ -202,6 +209,7 @@
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
                   </button>
                 </div>
+                <button type="button" class="omd-fold" data-omd-fold="week" aria-expanded="true" aria-controls="omdJobsList" aria-label="Recolher Próximos 7 dias"><svg class="omd-fold__chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
               </header>
               <div class="omd-jobs__days" id="omdJobsDays" role="tablist" aria-label="Dias da semana"></div>
               <ol class="omd-card__scroll omd-jobs__list" id="omdJobsList">
@@ -211,20 +219,24 @@
           </div>
 
           <div class="omd-stack omd-stack--ops">
-            <section class="omd-card omd-ops" id="omdOpsCard" aria-labelledby="omdOpsTitle" hidden>
+            <section class="omd-card omd-ops" id="omdOpsCard" data-omd-card="ops" aria-labelledby="omdOpsTitle" hidden>
               <header class="omd-card__head">
                 <h2 id="omdOpsTitle">Jobs</h2>
+                <span class="omd-card__summary" data-omd-summary="ops"></span>
                 <a class="omd-link" href="jobs.html">Ver jobs</a>
+                <button type="button" class="omd-fold" data-omd-fold="ops" aria-expanded="true" aria-controls="omdOpsStats" aria-label="Recolher Jobs"><svg class="omd-fold__chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
               </header>
               <div class="omd-ops__stats" id="omdOpsStats"></div>
               <a class="omd-ops__bill" id="omdOpsBill" href="jobs.html?filter=toinvoice" hidden></a>
               <ul class="omd-card__scroll omd-ops__list" id="omdOpsList"></ul>
             </section>
 
-            <section class="omd-card omd-quotes" id="omdQuotesCard" aria-labelledby="omdQuotesTitle" hidden>
+            <section class="omd-card omd-quotes" id="omdQuotesCard" data-omd-card="quotes" aria-labelledby="omdQuotesTitle" hidden>
               <header class="omd-card__head">
                 <h2 id="omdQuotesTitle">Orçamentos aguardando</h2>
+                <span class="omd-card__summary" data-omd-summary="quotes"></span>
                 <a class="omd-link" href="quotes.html?status=sent">Ver quotes</a>
+                <button type="button" class="omd-fold" data-omd-fold="quotes" aria-expanded="true" aria-controls="omdQuotesList" aria-label="Recolher Orçamentos aguardando"><svg class="omd-fold__chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
               </header>
               <p class="omd-quotes__sum" id="omdQuotesSum"></p>
               <ul class="omd-card__scroll omd-quotes__list" id="omdQuotesList"></ul>
@@ -263,6 +275,6 @@
   <script src="om-dashboard.js?v=20261105-home1"></script>
   <script src="lead-signals.js?v=20261015-leads4"></script>
   <script src="lead-origin.js?v=20261013-origin1"></script>
-  <script src="pipeline-lab.js?v=20261105-home1"></script>
+  <script src="pipeline-lab.js?v=20261105-bento1"></script>
 </body>
 </html>
