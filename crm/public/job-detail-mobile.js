@@ -422,7 +422,15 @@
     if (!job || !$("jobMobRoot")) return;
     const wo = job;
     const J = window.JobsInfo;
-    $("jobMobId").textContent = wo.number != null ? `#${wo.number}` : "";
+    const who = (J && J.fieldClient ? J.fieldClient(wo) : null) || clientLabel(wo);
+    const idEl = $("jobMobId");
+    if (isField) {
+      idEl.textContent = "";
+      idEl.hidden = true;
+    } else {
+      idEl.hidden = false;
+      idEl.textContent = wo.number != null ? `#${wo.number}` : "";
+    }
     const badge = $("jobMobStatus");
     badge.textContent = statusPt(wo.status);
     badge.className = `jcm-badge ${statusCls(wo.status)}`;
@@ -432,8 +440,13 @@
       lateEl.hidden = !lt;
       lateEl.textContent = lt ? lt.short : "";
     }
-    $("jobMobName").textContent = wo.title || `Job para ${clientLabel(wo)}`;
-    $("jobMobType").textContent = [clientLabel(wo), J ? J.dateRange(wo) : fmtDay(wo.scheduled_start), sqftTotal(wo)].filter(Boolean).join(" · ");
+    if (isField) {
+      $("jobMobName").textContent = who && who !== "—" && who !== "Sem cliente" ? who : "Job";
+      $("jobMobType").textContent = wo.address || "Sem endereço";
+    } else {
+      $("jobMobName").textContent = wo.title || `Job para ${clientLabel(wo)}`;
+      $("jobMobType").textContent = [clientLabel(wo), J ? J.dateRange(wo) : fmtDay(wo.scheduled_start), sqftTotal(wo)].filter(Boolean).join(" · ");
+    }
     const stepsEl = $("jobMobSteps");
     if (stepsEl && J) {
       const st = J.step(wo);

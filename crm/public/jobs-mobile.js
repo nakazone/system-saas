@@ -65,6 +65,18 @@
     return who && who !== "—" ? who : wo.title || "Job";
   }
 
+  /** Field lists: client name only — no Client ID, job #, or admin title. */
+  function fieldCardTitle(wo) {
+    const J = window.JobsInfo;
+    if (J && J.fieldClient) {
+      const who = J.fieldClient(wo);
+      if (who && who !== "Sem cliente") return who;
+    }
+    const who = clientLabel(wo);
+    if (who && who !== "—") return who.replace(/\s+-\s+[A-Za-z0-9_-]{2,12}$/, "").trim() || who;
+    return "Job";
+  }
+
   function statusPt(status) {
     const map = {
       draft: "Rascunho",
@@ -290,9 +302,7 @@
     const tone = J && J.stageTone ? J.stageTone(wo) : "wait";
     const listed = J && J.listWhen ? J.listWhen(wo) : null;
     const stText = listed?.status || statusPt(wo.status);
-    const title = cardTitle(wo);
-    const jobName = String(wo.title || "").trim();
-    const sub = jobName && jobName.toLowerCase() !== title.toLowerCase() ? jobName : "";
+    const title = fieldCardTitle(wo);
     const time = fieldTimeText(wo);
     const campoHref = `/campo/ticket.html?id=${encodeURIComponent(wo.id)}`;
     const detailHref = `job-detail.html?id=${encodeURIComponent(wo.id)}`;
@@ -306,8 +316,7 @@
           ${fieldDayBlock(wo)}
           <div class="crew-job__copy">
             <b class="crew-job__title">${escapeHtml(title)}</b>
-            ${sub ? `<span class="crew-job__sub">${escapeHtml(sub)}</span>` : ""}
-            ${wo.address ? `<span class="crew-job__addr">${escapeHtml(wo.address)}</span>` : ""}
+            ${wo.address ? `<span class="crew-job__addr">${escapeHtml(wo.address)}</span>` : `<span class="crew-job__addr">Sem endereço</span>`}
             <span class="crew-job__meta">
               ${stText ? `<span class="ol-st is-${tone}">${escapeHtml(stText)}</span>` : ""}
               ${time ? `<span class="crew-job__clock">${escapeHtml(time)}</span>` : ""}

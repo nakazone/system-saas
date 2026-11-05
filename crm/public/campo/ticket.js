@@ -240,15 +240,12 @@
 
   function renderHero() {
     const t = ticket;
-    $("cmTicketTitle").textContent = `Ticket #${t.number ?? "—"}`;
+    const who = t.client || t.title || "Job";
+    $("cmTicketTitle").textContent = who;
     $("cmTicketWhen").textContent = t.when_label || "—";
     $("cmTicketBadge").textContent = t.field_status_label || "—";
-    $("cmTicketJob").textContent = t.title || "—";
-    const sqft =
-      t.sqft_total > 0
-        ? ` · ${Number(t.sqft_total).toLocaleString("en-US")} sq ft`
-        : "";
-    $("cmTicketSub").textContent = `${t.client || "—"}${sqft}`;
+    $("cmTicketJob").textContent = who;
+    $("cmTicketSub").textContent = t.address || "Sem endereço";
     $("cmTicketAddr").textContent = t.address || "Sem endereço";
     const nav = $("cmTicketNav");
     if (t.address) {

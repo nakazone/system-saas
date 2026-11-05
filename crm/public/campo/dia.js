@@ -231,8 +231,12 @@
       .join("");
   }
 
+  function clientName(j) {
+    return (j && (j.client || j.title)) || "Job";
+  }
+  /** Field-facing label: client only (no job # / admin title). */
   function jobLine(j) {
-    return `${j.number != null ? `#${j.number} · ` : ""}${j.title}`;
+    return clientName(j);
   }
 
   // The Mate (fox) greets before the day starts and thanks at the end. Plain <img>: no dependency on the panel.
@@ -255,8 +259,8 @@
     if (!d) {
       const j = S.jobs_today[0];
       box.innerHTML = `${mateLine("wave", "Bora começar?", "Quando chegar, toque em Começar o dia. Precisa de algo? É só me chamar.")}<div class="dy-card__lbl"><span>Seu dia</span></div>
-        <h2>${j ? esc(jobLine(j)) : "Nenhum job na agenda hoje"}</h2>
-        <p class="dy-card__sub">${j ? `${j.start_label ? `${esc(j.start_label)} · ` : ""}${esc(j.client || "")}${j.address ? ` · ${esc(j.address)}` : ""}` : "Você pode começar e escolher o job."}</p>
+        <h2>${j ? esc(clientName(j)) : "Nenhum job na agenda hoje"}</h2>
+        <p class="dy-card__sub">${j ? esc(j.address || "Sem endereço") : "Você pode começar e escolher o job."}</p>
         <div style="margin-top:16px"><button type="button" class="dy-btn dy-btn--terra dy-btn--full" data-act="start" data-om-press>${ICON.play} Começar o dia</button></div>
         <p class="dy-card__hint"><button type="button" data-act="manual">Esqueci de bater o ponto</button></p>`;
       return;
@@ -286,7 +290,7 @@
           <div class="dy-stat"><small>Jobs</small><b>${d.jobs.length}</b></div>
           <div class="dy-stat"><small>${emp.pay_type === "production" ? "Produção" : "Hoje"}</small><b>${emp.pay_type === "production" ? `${d.sqft || 0} sq ft` : esc(money(d.amount))}</b></div>
         </div>
-        ${here ? `<div class="dy-now"><span class="dy-now__dot" aria-hidden="true"></span><div><small>Onde você está</small><b>${esc(jobLine(here))}</b></div></div>` : ""}
+        ${here ? `<div class="dy-now"><span class="dy-now__dot" aria-hidden="true"></span><div><small>Onde você está</small><b>${esc(clientName(here))}</b>${here.address ? `<span>${esc(here.address)}</span>` : ""}</div></div>` : ""}
         <div style="margin-top:14px"><button type="button" class="dy-btn dy-btn--terra dy-btn--full" data-act="finish" data-om-press>${ICON.stop} Finalizar o dia</button></div>`;
       return;
     }
@@ -349,11 +353,13 @@
           ? list
               .map(
                 (j) => `<div class="dy-job${here && here.id === j.id ? " dy-job--here" : ""}">
-            <div class="dy-job__top">
-              <span class="dy-job__time">${esc(j.arrived_label || j.start_label || (j.continuing ? "Cont." : "—"))}</span>
-              <div class="dy-job__main"><b>${esc(jobLine(j))}</b><small>${esc([j.client, j.needs_delivery ? "Delivery" : null, j.address].filter(Boolean).join(" · "))}</small></div>
-              ${inDay ? photoTag(j) : ""}
-            </div>
+            <a class="dy-job__body" href="ticket.html?id=${encodeURIComponent(j.id)}">
+              <span class="dy-job__head">
+                <b class="dy-job__name">${esc(clientName(j))}</b>
+                ${inDay ? photoTag(j) : ""}
+              </span>
+              <span class="dy-job__addr">${esc(j.address || "Sem endereço")}</span>
+            </a>
             <div class="dy-job__act">
               ${inDay ? `<button class="dy-btn dy-btn--sm dy-btn--ink" data-act="photo" data-job="${esc(j.id)}">${ICON.cam} Foto</button>` : ""}
               ${inDay && here && here.id !== j.id ? `<button class="dy-btn dy-btn--sm dy-btn--line" data-act="goto" data-job="${esc(j.id)}">Estou aqui</button>` : ""}
@@ -619,7 +625,7 @@
       .map((j) => {
         const on = selected.includes(j.id);
         return `<button type="button" class="${on ? "is-on" : ""}" data-act="${multi ? "toggle" : "pick"}" data-job="${esc(j.id)}" data-om-press>
-          <span class="dy-pick__ck">${on ? "✓" : ""}</span><div><b>${esc(jobLine(j))}</b><small>${esc([j.start_label, j.client, j.address].filter(Boolean).join(" · "))}</small></div></button>`;
+          <span class="dy-pick__ck">${on ? "✓" : ""}</span><div><b>${esc(jobLine(j))}</b><small>${esc([j.start_label, j.address].filter(Boolean).join(" · ") || "Sem endereço")}</small></div></button>`;
       })
       .join("")}</div>`;
   }
@@ -710,7 +716,7 @@
             const q = queued[j.id] || 0;
             const miss = emp.require_photos && !n;
             return `<div class="dy-fjob${miss ? " dy-fjob--miss" : ""}">
-              <div class="dy-fjob__top"><div><b>${esc(jobLine(j))}</b><small>${esc(j.address || j.client || "")}</small></div>
+              <div class="dy-fjob__top"><div><b>${esc(jobLine(j))}</b><small>${esc(j.address || "Sem endereço")}</small></div>
                 <span class="dy-fjob__ph">${q ? `${q} na fila` : n ? `✓ ${n} foto${n > 1 ? "s" : ""}` : "Falta foto"}</span></div>
               <div class="dy-fjob__row">
                 <button class="dy-btn dy-btn--sm ${miss ? "dy-btn--terra" : "dy-btn--line"}" data-act="photo" data-job="${esc(j.id)}">${ICON.cam} ${n ? "Mais foto" : "Tirar foto"}</button>

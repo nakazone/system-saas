@@ -110,7 +110,7 @@ body.st-app { padding-bottom: 0; background: var(--om-bg); }
 /* one action at a time: the tapped button spins (OmUI.busy); without a button the view dims */
 .st-busy { pointer-events: none; }
 .st-busy--dim .st-view, .st-busy--dim .st-bar { opacity: .6; transition: opacity var(--om-dur-1) ease; }
-/* with the Campo tab bar (campo-nav.js?v=20261105-apps3): the action bar and toast sit above it */
+/* with the Campo tab bar (campo-nav.js?v=20261105-field1 the action bar and toast sit above it */
 body.st-app.cm-has-tabbar .st { padding-bottom: calc(150px + var(--cm-tabbar-h, 68px) + env(safe-area-inset-bottom, 0px)); }
 body.st-app.cm-has-tabbar .st-bar { bottom: calc(var(--cm-tabbar-h, 68px) + env(safe-area-inset-bottom, 0px)); padding-bottom: 12px; box-shadow: var(--om-shadow-1); }
 body.st-app.cm-has-tabbar .st-toast { bottom: calc(170px + var(--cm-tabbar-h, 68px) + env(safe-area-inset-bottom, 0px)); }

@@ -116,7 +116,7 @@
   // ------------------------------------------------------------------ views
   function render() {
     if (!data) return;
-    $("stJobLine").textContent = [data.job.number ? `Job #${data.job.number}` : null, data.job.title].filter(Boolean).join(" · ");
+    $("stJobLine").textContent = data.job.customer_name || data.job.builder_name || data.job.title || "Job";
     if (view === "sample") return renderSample();
     if (view === "review") return renderReview();
     const r = current();

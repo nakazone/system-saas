@@ -58,7 +58,7 @@
   // Same versioned URLs the pages had.
   const LAZY = {
     autocomplete: "/crm-address-autocomplete.js?v=20261105-u1",
-    dayRoute: "/crm-day-route.js?v=20261104-ux2",
+    dayRoute: "/crm-day-route.js?v=20261105-field1",
   };
   const loading = {};
   function loadScript(src) {

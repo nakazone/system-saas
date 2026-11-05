@@ -762,6 +762,11 @@ button {
   font-size: 0.8125rem;
   color: var(--cm-muted);
   font-weight: 500;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  line-height: 1.35;
 }
 
 .cm-job-card__team {

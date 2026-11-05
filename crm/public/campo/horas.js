@@ -57,7 +57,7 @@
           <div class="dy-job__top">
             <span class="dy-job__time">${esc(d.date_label.split(", ")[0])}<br><small style="font-weight:600;color:var(--om-ink-2)">${esc(d.date_label.split(", ")[1] || "")}</small></span>
             <div class="dy-job__main"><b>${esc(d.clock_in_label)}${d.clock_out_label ? ` – ${esc(d.clock_out_label)}` : " · em andamento"} · ${esc(d.worked_label)}${d.overtime_minutes ? ` · <span style="color:var(--om-accent-strong)">+${esc(minLabel(d.overtime_minutes))} extra</span>` : ""}</b>
-              <small>${esc(d.jobs.map((j) => (j.number != null ? `#${j.number} ` : "") + j.title).join(" · ") || "Sem job")}</small></div>
+              <small>${esc(d.jobs.map((j) => j.client || j.title || "Job").join(" · ") || "Sem job")}</small></div>
             <span class="dy-pill dy-pill--${d.status}" style="${d.status === "approved" ? "background:var(--om-ink);color:#fff" : d.status === "in_progress" ? "background:var(--om-bg);color:var(--om-ink-3)" : ""}">${esc(d.status_label)}</span>
           </div>
           <div class="dy-job__act" style="align-items:center">

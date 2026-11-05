@@ -29,9 +29,9 @@
     return `${n} - ${code}`;
   }
 
-  function client(wo) {
+  /** Who the job is for, without Client ID — for Campo / Obra Crew lists. */
+  function fieldClient(wo) {
     const lead = String(wo.lead_name || "").trim();
-    const ref = String(wo.client_ref || "").trim();
     const nick = String(wo.builder?.nickname || wo.customer?.nickname || "").trim();
     const base = String(
       nick ||
@@ -40,14 +40,23 @@
         wo.builder?.name ||
         lead ||
         wo.source_name ||
+        wo.client ||
+        wo.customer_name ||
         "",
     ).trim();
+    return base || "Sem cliente";
+  }
+
+  /** Admin label with optional client code: "Name - ID". */
+  function client(wo) {
+    const ref = String(wo.client_ref || "").trim();
+    const base = fieldClient(wo);
+    if (!base || base === "Sem cliente") return ref || "Sem cliente";
     if (ref) {
-      if (!base) return ref;
       if (base.toLowerCase().includes(ref.toLowerCase())) return base;
       return `${base} - ${ref}`;
     }
-    return base || "Sem cliente";
+    return base;
   }
 
   function builderName(wo) {
@@ -407,7 +416,7 @@
   }
 
   window.JobsInfo = {
-    esc, stageTone, money, money0, client, builderName, findLine, searchText, displayName, isActive, late, step, STEP_NAMES, STATUS_BY_STEP, STATUS_STEP_MSG,
+    esc, stageTone, money, money0, client, fieldClient, builderName, findLine, searchText, displayName, isActive, late, step, STEP_NAMES, STATUS_BY_STEP, STATUS_STEP_MSG,
     statusForStep, atStatus, stageLabel, fieldPhaseLabel, isInFieldStage, progHtml, sectorProgress, nextFinish, fieldHalves, bill, dateRange, listWhen, listAnchorIso, listOnSandDay, awaitingSand, dayShort, completeLabel, compareNearest, startMs, isToday, initials, team,
   };
 })();

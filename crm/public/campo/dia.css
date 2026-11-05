@@ -69,6 +69,7 @@
 .dy-now div { min-width: 0; }
 .dy-now small { display: block; font-size: 11.5px; color: rgba(255, 255, 255, 0.6); font-weight: 700; }
 .dy-now b { display: block; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dy-now span { display: block; margin-top: 2px; font-size: 12.5px; font-weight: 600; color: rgba(255, 255, 255, 0.72); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Buttons */
 /* Press feedback is the shared one (om-ui.css?v=20261105-apps3): scale .97, 120ms --om-ease-out — same for .cm-btn. */
@@ -114,16 +115,26 @@
 .dy-link { border: 0; background: none; font: inherit; font-size: 13.5px; font-weight: 800; color: var(--terra-d); cursor: pointer; padding: 0 4px; min-height: 44px; display: inline-flex; align-items: center; touch-action: manipulation; }
 .dy-empty { background: #fff; border: 1px dashed var(--line); border-radius: 16px; padding: 16px; color: var(--muted); font-size: 14px; font-weight: 600; text-align: center; }
 
-.dy-job { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 13px 14px; margin-bottom: 8px; }
-.dy-job__top { display: flex; gap: 10px; align-items: flex-start; }
-.dy-job__time { flex: none; width: 50px; font-weight: 800; font-size: 14px; font-variant-numeric: tabular-nums; color: var(--ink); padding-top: 1px; }
-.dy-job__main { min-width: 0; flex: 1; }
-.dy-job__main b { display: block; font-size: 15px; line-height: 1.3; }
-.dy-job__main small { display: block; color: var(--muted); font-size: 13px; font-weight: 600; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dy-job__ph { flex: none; font-size: 12px; font-weight: 800; padding: 3px 9px; border-radius: 999px; background: var(--cream); color: var(--ink-2); white-space: nowrap; }
+.dy-job { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; margin-bottom: 8px; }
+.dy-job__body {
+  display: block; min-width: 0; color: inherit; text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.dy-job__head { display: flex; align-items: flex-start; gap: 8px; }
+.dy-job__name {
+  flex: 1; min-width: 0; margin: 0;
+  font-size: 16px; font-weight: 750; letter-spacing: -0.015em; line-height: 1.25;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dy-job__addr {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  overflow: hidden; margin-top: 4px;
+  color: var(--muted); font-size: 13.5px; font-weight: 600; line-height: 1.35;
+}
+.dy-job__ph { flex: none; font-size: 11.5px; font-weight: 750; padding: 3px 8px; border-radius: 999px; background: var(--cream); color: var(--ink-2); white-space: nowrap; margin-top: 1px; }
 .dy-job__ph--miss { background: var(--terra-soft); color: var(--terra-d); }
 .dy-job__ph--ok { background: var(--ink); color: #fff; }
-.dy-job__act { display: flex; gap: 8px; margin-top: 10px; }
+.dy-job__act { display: flex; gap: 8px; margin-top: 12px; }
 .dy-job__act > * { flex: 1; }
 .dy-job--here { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink) inset; }
 

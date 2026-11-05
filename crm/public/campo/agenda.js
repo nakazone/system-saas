@@ -91,7 +91,7 @@
 
     const jobs = data.jobs || [];
     const list = $("cmAgendaList");
-    // The route panel script loads on the first tap (campo-nav.js?v=20261105-apps3 → loadDayRoute).
+    // The route panel script loads on the first tap (campo-nav.js?v=20261105-field1 → loadDayRoute).
     const canRoute = jobs.some((j) => j.address || j.delivery_pickup_address);
     if (!jobs.length) {
       list.innerHTML =
@@ -106,22 +106,15 @@
         .map((j) => {
           const st = statusLabel(j.status);
           const cls = statusBadgeClass(j.status);
+          const who = j.client || j.title || "Job";
           return `
         <a class="cm-job-card" data-om-press href="ticket.html?id=${encodeURIComponent(j.id)}">
           <div class="cm-job-card__top">
             <p class="cm-job-card__time">${escapeHtml(j.start || "—")}${j.end ? ` – ${escapeHtml(j.end)}` : ""}</p>
             <span class="cm-badge ${cls}">${st}</span>
           </div>
-          <p class="cm-job-card__title">${escapeHtml(j.title)}</p>
-          <p class="cm-job-card__sub">#${j.number ?? "—"} · ${escapeHtml(j.client)}${j.needs_delivery ? " · Delivery" : ""}${j.address ? ` · ${escapeHtml(j.address)}` : ""}</p>
-          ${
-            j.team
-              ? `<p class="cm-job-card__team">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
-            ${escapeHtml(j.team)}
-          </p>`
-              : ""
-          }
+          <p class="cm-job-card__title">${escapeHtml(who)}</p>
+          <p class="cm-job-card__sub">${escapeHtml(j.address || "Sem endereço")}</p>
         </a>`;
         })
         .join("");
