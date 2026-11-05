@@ -25,6 +25,7 @@ import { isPhaseKey } from "../../lib/trades/phases.js";
 import { primaryPack } from "../../lib/trades/index.js";
 import { reworksReport } from "../../lib/trades/reworks-report.js";
 import { slabsReport } from "../../lib/trades/slabs-report.js";
+import { jobProfitReport } from "../../lib/trades/job-profit.js";
 import { MATERIAL_LABEL, slabSf } from "../../lib/trades/slabs.js";
 
 export const reportsHubRouter = Router();
@@ -606,6 +607,8 @@ async function buildHubPayload(tx: TenantPrisma, period: PeriodFilter, req: Auth
   const reworks = canJobs ? await reworksReport(tx, period, primaryPack(org?.tradePacks), showPricing) : null;
   // Trades with a slab yard (Countertops): stone used on jobs in the period.
   const slabs = canJobs ? await slabsReport(tx, period, primaryPack(org?.tradePacks), showPricing) : null;
+  // Trades with per-job phases (Tile, Countertops): what each job sold and cost.
+  const jobProfit = showPricing && canJobs ? await jobProfitReport(tx, period, primaryPack(org?.tradePacks)) : null;
 
   return {
     period: { from: ymd(period.from), to: ymd(period.to) },
@@ -637,6 +640,7 @@ async function buildHubPayload(tx: TenantPrisma, period: PeriodFilter, req: Auth
     cashflow,
     folha,
     profitability: showPricing ? profitability : null,
+    job_profit: jobProfit,
     sales_summary: salesSummary,
     money_in: moneyIn,
     compare: {
@@ -783,6 +787,20 @@ async function buildKind(tx: TenantPrisma, kind: string, period: PeriodFilter, r
             r.notes ?? "",
             r.createdByName ?? "",
           ]),
+        },
+      };
+    }
+    case "job-profit": {
+      if (!showPricing || !hasPerm(req, "work_orders.view")) return null;
+      const org = await tx.organization.findFirst({ where: { id: req.organizationId! }, select: { tradePacks: true } });
+      const data = await jobProfitReport(tx, period, primaryPack(org?.tradePacks));
+      if (!data) return null;
+      return {
+        title: "Lucro por job",
+        data,
+        csv: {
+          headers: ["job", "customer", "status", "revenue", "labor", ...(data.has_stone ? ["stone"] : []), ...(data.has_rework ? ["remakes"] : []), "other_costs", "cost", "profit", "margin_pct"],
+          rows: data.rows.map((r) => [r.job, r.customer ?? "", r.status, r.revenue, r.labor, ...(data.has_stone ? [r.stone ?? 0] : []), ...(data.has_rework ? [r.rework ?? 0] : []), r.other, r.cost, r.profit, r.margin ?? ""]),
         },
       };
     }

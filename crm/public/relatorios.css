@@ -543,3 +543,7 @@ body.om-device-mobile .rx .rx-table td > * { min-width: 0; }
 body.om-device-mobile .rx .rx-table td:first-child { font-size: 14.5px; font-weight: 650; justify-content: flex-start; }
 body.om-device-mobile .rx .rx-table td:first-child::before { display: none; }
 body.om-device-mobile .rx .rx-table tbody tr:hover td { background: transparent !important; }
+
+/* Lucro por job */
+.rx-neg { color: #B42318; }
+.rx-muted { color: #6B7280; font-size: 12px; }

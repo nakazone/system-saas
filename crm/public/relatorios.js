@@ -744,7 +744,8 @@
           ])
         : ""
     }
-    ${card(
+    ${renderJobProfit(d.job_profit)}
+    ${d.job_profit && !floors.length ? "" : card(
       "",
       "Por tipo de piso",
       "",
@@ -761,6 +762,47 @@
               floors.map((r) => [esc(r.flooringType), num(r.count), money(r.revenue), money(r.actual), money(r.margin)]),
             )
         : `<p class="rx-empty">Aparece quando houver projetos com custos reais lançados.</p>`,
+    )}`;
+  }
+
+  /** Trades with per-job phases (Tile, Countertops): what each job sold and what it cost. */
+  function renderJobProfit(jp) {
+    if (!jp) return "";
+    if (!jp.jobs) return card("rx-span-12", "Lucro por job", "", '<p class="rx-empty">Nenhum job na agenda neste período nem em campo.</p>');
+    const cols = [
+      { label: "Job" },
+      { label: "Vendido", num: true },
+      { label: "Equipe", num: true },
+      ...(jp.has_stone ? [{ label: "Pedra", num: true }] : []),
+      ...(jp.has_rework ? [{ label: "Refações", num: true }] : []),
+      { label: "Outros", num: true },
+      { label: "Lucro", num: true },
+      { label: "Margem", num: true },
+    ];
+    const cell = (v) => (v ? money2(v) : "—");
+    return `${kpiStrip([
+      { l: "Vendido nos jobs", v: money(jp.revenue), n: `${num(jp.jobs)} job${jp.jobs === 1 ? "" : "s"} no período` },
+      { l: "Custo dos jobs", v: money(jp.cost), n: "equipe, pedra, refações e custos lançados" },
+      { l: "Lucro dos jobs", v: money(jp.profit), hot: jp.profit < 0 },
+      { l: "Margem", v: pct(jp.margin), n: jp.without_revenue ? `${num(jp.without_revenue)} sem serviços no job` : "" },
+    ])}
+    ${card(
+      "rx-span-12",
+      "Lucro por job",
+      "",
+      table(
+        cols,
+        jp.rows.map((r) => [
+          `<a class="rx-link" href="job-detail.html?id=${encodeURIComponent(r.job_id)}">${esc(r.job)}</a>${r.customer ? `<br><small class="rx-muted">${esc(r.customer)}</small>` : ""}`,
+          r.revenue ? money2(r.revenue) : "—",
+          cell(r.labor),
+          ...(jp.has_stone ? [cell(r.stone)] : []),
+          ...(jp.has_rework ? [cell(r.rework)] : []),
+          cell(r.other),
+          `<b${r.profit < 0 ? ' class="rx-neg"' : ""}>${money2(r.profit)}</b>`,
+          r.margin == null ? "—" : pct(r.margin),
+        ]),
+      ) + '<p class="rx-note rx-note--top">Jobs na agenda no período e os que estão em campo agora, a margem mais baixa primeiro. Equipe: dias aprovados na Folha, divididos pelo pé² de cada job no dia.</p>',
     )}`;
   }
 
@@ -870,7 +912,9 @@
     const menu = $("rxExportMenu");
     if (!menu) return;
     const extra = activeTab === "irss" ? { ...(irssFilters.sector ? { sector: irssFilters.sector } : {}), ...(irssFilters.employee_id ? { employee_id: irssFilters.employee_id } : {}) } : null;
-    const list = [...(EXPORTS[activeTab] || []), ...(activeTab === "jobs" && hubData?.reworks ? [["reworks", "Peças refeitas"]] : []), ...(activeTab === "jobs" && hubData?.slabs ? [["slabs-used", "Slabs usados"], ["slab-yard", "Pátio de slabs (agora)"]] : [])];
+    // Trades with profit per job and no flooring projects: the floor-type export would be empty.
+    const base = activeTab === "lucro" && hubData?.job_profit && !(hubData?.profitability?.byFlooringType || []).length ? [] : EXPORTS[activeTab] || [];
+    const list = [...base, ...(activeTab === "jobs" && hubData?.reworks ? [["reworks", "Peças refeitas"]] : []), ...(activeTab === "jobs" && hubData?.slabs ? [["slabs-used", "Slabs usados"], ["slab-yard", "Pátio de slabs (agora)"]] : []), ...(activeTab === "lucro" && hubData?.job_profit ? [["job-profit", "Lucro por job"]] : [])];
     menu.innerHTML = `<p>CSV do período</p>${list
       .map(([kind, label]) => `<a href="${esc(csvUrl(kind, extra))}" download>${esc(label)}</a>`)
       .join("")}`;
