@@ -4,7 +4,7 @@
  * Field staff: Hoje / Calendar / Jobs / Chat / Horas (Campo shell links)
  */
 (function () {
-  const VER = "20261104-ux3";
+  const VER = "20261105-camswipe1";
   const MQ = window.matchMedia("(max-width: 900px)");
   const FIELD_ROLES = new Set(["installer", "crew_lead", "subcontractor"]);
   const SHEET_MS = 380;
@@ -289,8 +289,10 @@
     let pageLeft = false;
     // Edge swipe-right (iOS) + full-screen swipe-left = back.
     const EDGE_PX = 36;
+    // Horizontal chip/filter tracks must own left/right pans — otherwise back-swipe
+    // fires mid-scroll (ObraCam filters, stage chips, etc.).
     const BLOCK_SEL =
-      ".om-swipe, .lcard, .mleads-swipe, .sf-quote-card, .kanban-card, .kanban-board, .chiptrack, .om-sheet, .fo-tabs, [data-om-no-back-swipe], input, textarea, select";
+      ".om-swipe, .lcard, .mleads-swipe, .sf-quote-card, .kanban-card, .kanban-board, .chiptrack, .cam-filters, .cam-chips, .cam-chips--bar, .cam-chips--stick, .oc-stages, .cv-strip, .om-sheet, .fo-tabs, [data-om-no-back-swipe], input, textarea, select";
 
     function goBack() {
       haptic(10);
@@ -303,9 +305,34 @@
       }
     }
 
+    function isHorizScrollSurface(el) {
+      let n = el;
+      while (n && n !== document.body && n !== document.documentElement) {
+        if (n instanceof HTMLElement) {
+          try {
+            if (n.matches && n.matches(BLOCK_SEL)) return true;
+          } catch (_) {
+            /* ignore */
+          }
+          const st = getComputedStyle(n);
+          const ox = st.overflowX;
+          if (
+            (ox === "auto" || ox === "scroll" || ox === "overlay") &&
+            n.scrollWidth > n.clientWidth + 8
+          ) {
+            return true;
+          }
+        }
+        n = n.parentElement;
+      }
+      return false;
+    }
+
     function blockedTarget(el) {
       try {
-        return !!(el && el.closest && el.closest(BLOCK_SEL));
+        if (!el) return true;
+        if (el.closest && el.closest(BLOCK_SEL)) return true;
+        return isHorizScrollSurface(el);
       } catch (_) {
         return true;
       }

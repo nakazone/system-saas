@@ -61,8 +61,11 @@
 .cam-add { margin-left: auto; height: 36px; padding: 0 14px; font-size: 13.5px; }
 .cam-split.is-feed { grid-template-columns: minmax(0, 1fr); }
 .cam-split.is-feed .cam-list { display: none; }
-/* quick filters and list order */
-.cam-filters { display: flex; gap: 6px; margin-top: 10px; overflow-x: auto; scrollbar-width: none; }
+/* quick filters and list order — pan-x so the chip track scrolls instead of fighting page/back gestures */
+.cam-filters {
+  display: flex; gap: 6px; margin-top: 10px; overflow-x: auto; scrollbar-width: none;
+  -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; touch-action: pan-x;
+}
 .cam-filters::-webkit-scrollbar { display: none; }
 .cam-fchip { flex: none; height: 30px; display: inline-flex; align-items: center; gap: 5px; padding: 0 11px; border: 0; border-radius: 999px; background: #fff; box-shadow: inset 0 0 0 1px var(--cam-line); font: inherit; font-size: 12.5px; font-weight: 600; color: var(--cam-ink2); cursor: pointer; white-space: nowrap; }
 .cam-fchip em { font-style: normal; color: var(--cam-ink3); }
@@ -275,7 +278,10 @@ a.cam-dloc span { text-decoration: underline; text-decoration-color: #F2D9C6; te
 .cam-meta { margin: 8px 0 0; font-size: 12px; color: var(--cam-ink2); }
 /* one photo grid for the job, same model as the phone: tiles never drop below 140px, the stage chips stay pinned while the grid scrolls */
 .cam-pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
-.cam-chips--stick { position: sticky; top: calc(var(--crm-topbar-height, 56px) + 8px); z-index: 2; margin: -6px -6px 10px; padding: 6px; border-radius: 14px; background: #fff; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.cam-chips--stick {
+  position: sticky; top: calc(var(--crm-topbar-height, 56px) + 8px); z-index: 2; margin: -6px -6px 10px; padding: 6px; border-radius: 14px; background: #fff; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
+  -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; touch-action: pan-x;
+}
 .cam-chips--stick::-webkit-scrollbar { display: none; }
 .cam-col__none { margin: 0; padding: 26px 8px; border-radius: 12px; background: var(--cam-bg); text-align: center; font-size: 12.5px; color: var(--cam-ink3); }
 .cam-ph {
@@ -407,7 +413,11 @@ body.cam-selecting .cam-pbar, body.cam-selecting .oc-tabs { display: none !impor
   .cam-dh h2 { font-size: 24px; line-height: 1.2; }
   .cam-dmeta { gap: 6px 10px; }
   .cam-dh__acts { display: none; }
-  .cam-chips--bar { margin: 0 -14px 12px; padding: 0 14px; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
+  .cam-chips--bar {
+    margin: 0 -14px 12px; padding: 0 14px; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none;
+    -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; touch-action: pan-x;
+  }
+  .cam-chips--bar::-webkit-scrollbar { display: none; }
   .cam-chip { height: 36px; padding: 0 14px; font-size: 13px; }
   /* on the phone the photos box drops its card and the chips stick to the top of the scrolling page */
   .cam-box.cam-box--photos { background: transparent; box-shadow: none; padding: 0; border-radius: 0; }
