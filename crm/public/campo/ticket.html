@@ -49,7 +49,6 @@
           <small>Abrir no mapa</small>
         </span>
       </button>
-      <div class="cm-stepper" id="cmStepper" aria-label="Status da visita"></div>
     </section>
 
     <div class="cm-ticket-tabs" role="tablist">
@@ -108,20 +107,18 @@
     <div class="cm-ticket-panel" id="cmPanelPhotos" data-panel="photos" hidden>
       <div class="cm-photos-head">
         <h3>Fotos da obra</h3>
-        <label class="cm-btn cm-btn--dark cm-btn--sm" style="width:auto;min-height:44px;padding:0.45rem 0.9rem">
-          Capturar
-          <input type="file" id="cmPhotoInput" accept="image/*" capture="environment" hidden />
-        </label>
       </div>
+      <input type="file" id="cmPhotoInput" accept="image/*" capture="environment" hidden />
       <div class="cm-photos-pending" id="cmPhotosPending" role="status" hidden>
         <span id="cmPhotosPendingText"></span>
         <button type="button" class="cm-photos-pending__btn" id="cmPhotosPendingSend">Enviar agora</button>
       </div>
-      <div class="cm-photo-stage cm-chip-row" role="group" aria-label="Etapa da foto">
-        <button type="button" class="cm-chip is-selected" data-photo-stage="">Geral</button>
-        <button type="button" class="cm-chip" data-photo-stage="before">Antes</button>
-        <button type="button" class="cm-chip" data-photo-stage="during">Durante</button>
-        <button type="button" class="cm-chip" data-photo-stage="after">Depois</button>
+      <div class="cm-photo-stage cm-chip-row" id="cmPhaseFilters" role="group" aria-label="Fase da obra">
+        <button type="button" class="cm-chip is-selected" data-photo-phase="all">Todas</button>
+        <button type="button" class="cm-chip" data-photo-phase="delivery">Delivery</button>
+        <button type="button" class="cm-chip" data-photo-phase="scan">Scan</button>
+        <button type="button" class="cm-chip" data-photo-phase="installation">Installation</button>
+        <button type="button" class="cm-chip" data-photo-phase="sand_finish">Sand &amp; Finish</button>
       </div>
       <label class="cm-photo-caption-label" for="cmPhotoCaption">Legenda (opcional)</label>
       <input type="text" id="cmPhotoCaption" class="cm-input" maxlength="500" placeholder="Ex.: piso instalado, parede oeste" autocomplete="off" />
@@ -149,7 +146,7 @@
     </div>
 
     <div class="cm-ticket-cta" id="cmTicketCtaWrap">
-      <button type="button" class="cm-btn cm-btn--accent" id="cmTicketCta" data-om-press>Estou a caminho</button>
+      <button type="button" class="cm-btn cm-btn--accent" id="cmTicketCta" data-om-press>Tirar Foto</button>
     </div>
   </main>
 
@@ -236,7 +233,8 @@
     </div>
     <p class="cm-lightbox__cap" id="cmLightboxCap"></p>
     <div class="cm-lightbox__actions" id="cmLightboxActions" hidden>
-      <button type="button" class="cm-chip" data-lb-action="anotar">Anotar</button>
+      <button type="button" class="cm-chip" data-lb-action="anotar">Editar</button>
+      <button type="button" class="cm-chip" data-lb-action="fase">Fase</button>
       <button type="button" class="cm-chip" data-lb-action="legenda">Legenda</button>
       <button type="button" class="cm-chip" data-lb-action="voz">Voz</button>
       <button type="button" class="cm-chip" data-lb-action="ocr">OCR</button>
@@ -248,11 +246,11 @@
 
   <script src="/crm-toast.js?v=20261104-ux2"></script>
   <script src="/om-offline.js?v=20261105-apps3"></script>
-  <script src="campo-nav.js?v=20261105-field1"></script>
+  <script src="campo-nav.js?v=20261105-crewcam1"></script>
   <script src="/photo-exif.js?v=20261104-exif1"></script>
   <script src="campo-photo.js?v=20261105-apps3"></script>
   <script src="campo-media-queue.js?v=20261104-exif1"></script>
-  <script src="ticket.js?v=20261105-field2"></script>
+  <script src="ticket.js?v=20261105-crew-phases1"></script>
   <link rel="stylesheet" href="/mate-panel.css?v=20261027-m2" />
   <script src="/mate-panel.js?v=20261104-ux2"></script>
 </body>

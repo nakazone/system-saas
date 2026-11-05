@@ -111,20 +111,43 @@ export function parsePhotos(raw: unknown): PhotoItem[] {
 export function fieldStatusLabel(status: string) {
   const map: Record<string, string> = {
     scheduled: "Agendada",
-    en_route: "A caminho",
-    on_site: "No local",
+    en_route: "Em andamento",
+    on_site: "Em andamento",
     completed: "Concluída",
+    in_progress: "Em andamento",
   };
   return map[status] || status;
 }
 
+/** Local calendar day YYYY-MM-DD (device/server local — list badges only). */
+function ymdLocal(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Job is treated as started once its scheduled calendar day arrives (no en-route check-in). */
+export function isStartedBySchedule(
+  scheduledStart: Date | string | null | undefined,
+  officeStatus: string,
+  fieldStatus?: string | null,
+) {
+  if (officeStatus === "completed" || fieldStatus === "completed") return false;
+  if (officeStatus === "canceled") return false;
+  if (officeStatus === "in_progress" || fieldStatus === "on_site" || fieldStatus === "en_route") return true;
+  if (!scheduledStart) return false;
+  const d = scheduledStart instanceof Date ? scheduledStart : new Date(scheduledStart);
+  if (Number.isNaN(d.getTime())) return false;
+  return ymdLocal(d) <= ymdLocal(new Date());
+}
+
 /** UI status key used by Campo lists */
-export function uiStatusFromField(fieldStatus: string | null | undefined, officeStatus: string) {
+export function uiStatusFromField(
+  fieldStatus: string | null | undefined,
+  officeStatus: string,
+  scheduledStart?: Date | string | null,
+) {
   if (fieldStatus === "completed" || officeStatus === "completed") return "done";
-  if (fieldStatus === "on_site") return "on_site";
-  if (fieldStatus === "en_route") return "en_route";
+  if (isStartedBySchedule(scheduledStart, officeStatus, fieldStatus)) return "in_progress";
   if (fieldStatus === "scheduled") return "scheduled";
-  if (officeStatus === "in_progress") return "in_progress";
   if (officeStatus === "scheduled" || officeStatus === "draft") return "scheduled";
   return officeStatus;
 }
@@ -136,10 +159,8 @@ export function nextFieldStatus(current: string): FieldStatus | null {
   return null;
 }
 
-export function ctaLabel(fieldStatus: string) {
-  if (fieldStatus === "scheduled") return "Estou a caminho";
-  if (fieldStatus === "en_route") return "Cheguei no local";
-  if (fieldStatus === "on_site") return "Concluir visita";
+/** Path CTAs removed — field opens the camera instead. */
+export function ctaLabel(_fieldStatus: string) {
   return null;
 }
 
@@ -256,12 +277,14 @@ export function mapJobCard(
 ) {
   const client = clientLabel(wo);
   const field = wo.fieldStatus || "scheduled";
-  let status = uiStatusFromField(field, wo.status);
-  if (opts?.currentWoId === wo.id && field !== "completed") {
-    status = "on_site";
-  }
   const at = fieldAgendaAt(wo, opts?.fieldSector ?? null) || wo.scheduledStart;
+  let status = uiStatusFromField(field, wo.status, at);
+  if (opts?.currentWoId === wo.id && field !== "completed" && wo.status !== "completed") {
+    status = "in_progress";
+  }
   const sandView = opts?.fieldSector === "sand_finish" && (wo.sector === "both" || wo.sector === "sand_finish");
+  const done = field === "completed" || wo.status === "completed";
+  const started = !done && isStartedBySchedule(at, wo.status, field);
   return {
     id: wo.id,
     number: wo.number,
@@ -279,7 +302,7 @@ export function mapJobCard(
     phase: sandView ? "sand_finish" : wo.sector === "both" ? "installation" : wo.sector ?? null,
     status,
     field_status: field,
-    field_status_label: fieldStatusLabel(field),
+    field_status_label: done ? "Concluída" : started ? "Em andamento" : "Agendada",
     raw_status: wo.status,
     team: teamLabel(wo),
     crew_name: wo.crew?.name || null,

@@ -13,10 +13,9 @@ import {
   assertMyJob,
   assertMyJobTicket,
   canUseCampo,
-  ctaLabel,
   clientLabel,
   FIELD_STATUSES,
-  fieldStatusLabel,
+  isStartedBySchedule,
   mapJobCard,
   nextFieldStatus,
   parseChecklist,
@@ -40,6 +39,14 @@ import {
   parsePhotoUploadMeta,
   sha256Buffer,
 } from "../../lib/job-media/index.js";
+import {
+  dayIn,
+  jobPhaseContext,
+  orgTimezone,
+  photoPhaseFields,
+  type PhaseContext,
+  JOB_PHASES,
+} from "../../lib/job-media/phases.js";
 import { isJobChecklistEnabled } from "../../lib/settings/jobs.js";
 import { resolveDeliveryStops } from "../../lib/work-orders/deliveries.js";
 import { sectorFinishPatch } from "../../lib/work-orders/sector-finish.js";
@@ -142,12 +149,51 @@ async function syncPontoForFieldStatus(
   }
 }
 
-function mapTicket(wo: Awaited<ReturnType<typeof assertMyJobTicket>>) {
+/** Persist office/field start when the scheduled calendar day arrives (no path check-in). */
+async function ensureStartedOnSchedule(
+  tx: Parameters<Parameters<typeof withTenantTransaction>[1]>[0],
+  organizationId: string,
+  wo: Awaited<ReturnType<typeof assertMyJobTicket>>,
+) {
+  if (wo.status === "completed" || wo.status === "canceled" || wo.fieldStatus === "completed") return wo;
+  if (!wo.scheduledStart) return wo;
+  const tz = await orgTimezone(tx, organizationId);
+  const today = dayIn(tz, new Date());
+  const start = dayIn(tz, wo.scheduledStart);
+  if (!today || !start || start > today) return wo;
+
+  const data: { status?: string; fieldStatus?: string } = {};
+  if (wo.status === "scheduled" || wo.status === "draft") data.status = "in_progress";
+  if (wo.fieldStatus === "scheduled" || wo.fieldStatus === "en_route" || !wo.fieldStatus) {
+    data.fieldStatus = "on_site";
+  }
+  if (!Object.keys(data).length) return wo;
+  return tx.workOrder.update({
+    where: { id: wo.id },
+    data,
+    include: woTicketInclude,
+  });
+}
+
+async function ticketFromWo(
+  tx: Parameters<Parameters<typeof withTenantTransaction>[1]>[0],
+  organizationId: string,
+  wo: Awaited<ReturnType<typeof assertMyJobTicket>>,
+) {
+  const started = await ensureStartedOnSchedule(tx, organizationId, wo);
+  const phaseCtx = await jobPhaseContext(tx, organizationId, started.id);
+  return mapTicket(started, phaseCtx);
+}
+
+function mapTicket(wo: Awaited<ReturnType<typeof assertMyJobTicket>>, phaseCtx: PhaseContext | null = null) {
   const client = clientLabel(wo);
   const field = (wo.fieldStatus || "scheduled") as FieldStatus;
   const checklist = parseChecklist(wo.campoChecklist);
   const legacy = parsePhotos(wo.campoPhotos);
-  const mediaRows = (wo.media || []).map(mapJobMedia);
+  const mediaRows = (wo.media || []).map((row) => ({
+    ...mapJobMedia(row),
+    ...photoPhaseFields(phaseCtx, row),
+  }));
   const mediaUrls = new Set(mediaRows.map((m) => m.url));
   const legacyOnly = legacy.filter((p) => !mediaUrls.has(p.url));
   const photos = [
@@ -167,6 +213,8 @@ function mapTicket(wo: Awaited<ReturnType<typeof assertMyJobTicket>>) {
       address: null as string | null,
       caption: null as string | null,
       stage: null as string | null,
+      phase: null as string | null,
+      phase_source: null as string | null,
       annotations: null,
       is_public: false,
       in_portfolio: false,
@@ -205,6 +253,9 @@ function mapTicket(wo: Awaited<ReturnType<typeof assertMyJobTicket>>) {
     wo.campoAttention ||
     (wo.notes && /aten[cç][aã]o/i.test(wo.notes) ? wo.notes : null);
 
+  const done = wo.status === "completed" || field === "completed";
+  const started = !done && isStartedBySchedule(wo.scheduledStart, wo.status, field);
+
   return {
     id: wo.id,
     number: wo.number,
@@ -224,7 +275,7 @@ function mapTicket(wo: Awaited<ReturnType<typeof assertMyJobTicket>>) {
       : null,
     attention,
     field_status: field,
-    field_status_label: fieldStatusLabel(field),
+    field_status_label: done ? "Concluída" : started ? "Em andamento" : "Agendada",
     raw_status: wo.status,
     when_label: whenLabel,
     start: null,
@@ -241,16 +292,12 @@ function mapTicket(wo: Awaited<ReturnType<typeof assertMyJobTicket>>) {
     photos,
     photos_count: photos.length,
     problem_note: wo.campoProblemNote || null,
-    cta_label: ctaLabel(field),
-    next_status: nextFieldStatus(field),
-    stepper: FIELD_STATUSES.map((s) => ({
-      key: s,
-      label: fieldStatusLabel(s),
-      active: s === field,
-      done:
-        FIELD_STATUSES.indexOf(s) < FIELD_STATUSES.indexOf(field) ||
-        (field === "completed" && s === "completed"),
-    })),
+    cta_label: null,
+    next_status: null,
+    stepper: [],
+    phases: phaseCtx?.phases?.length
+      ? phaseCtx.phases
+      : (["delivery", "scan", "installation", "sand_finish"] as const),
     job_media_enabled: true,
     job_media_ai_enabled: false,
     checklist_enabled: true,
@@ -386,7 +433,7 @@ campoJobsRouter.get(
             include: woTicketInclude,
           });
         }
-        const ticket = mapTicket(wo);
+        const ticket = await ticketFromWo(tx, req.organizationId!, wo);
         ticket.job_media_enabled = isJobMediaEnabled(org?.featureFlags);
         ticket.job_media_ai_enabled = isJobReportAiEnabled(org?.featureFlags);
         ticket.checklist_enabled = checklistOn;
@@ -478,7 +525,7 @@ campoJobsRouter.post(
           next,
         );
 
-        return mapTicket(updated);
+        return ticketFromWo(tx, req.organizationId!, updated);
       });
       res.json({ success: true, data });
     } catch (error: unknown) {
@@ -537,7 +584,7 @@ campoJobsRouter.patch(
           data: { campoChecklist: applied.items },
           include: woTicketInclude,
         });
-        return mapTicket(updated);
+        return ticketFromWo(tx, req.organizationId!, updated);
       });
       res.json({ success: true, data });
     } catch (error: unknown) {
@@ -604,7 +651,7 @@ campoJobsRouter.post(
             },
           });
           if (!row) return null;
-          return assertMyJobTicket(tx, req.user!.id, jobId).then(mapTicket);
+          return assertMyJobTicket(tx, req.user!.id, jobId).then((wo) => ticketFromWo(tx, req.organizationId!, wo));
         });
         if (existing) {
           res.json({ success: true, data: existing, deduped: true });
@@ -645,6 +692,7 @@ campoJobsRouter.post(
             address: meta.address,
             caption: meta.caption,
             stage: meta.stage,
+            phase: meta.phase,
             isPublic: meta.isPublic,
             clientUploadId: meta.clientUploadId,
             deviceLabel: meta.deviceLabel,
@@ -671,10 +719,14 @@ campoJobsRouter.post(
           action: "job_media.created",
           actorType: "user",
           actorId: req.user!.id,
-          changes: { sha256: { from: null, to: hash }, stage: { from: null, to: meta.stage } },
+          changes: {
+            sha256: { from: null, to: hash },
+            stage: { from: null, to: meta.stage },
+            phase: { from: null, to: meta.phase },
+          },
         });
 
-        return mapTicket(await assertMyJobTicket(tx, req.user!.id, jobId));
+        return ticketFromWo(tx, req.organizationId!, await assertMyJobTicket(tx, req.user!.id, jobId));
       });
       res.json({ success: true, data });
     } catch (error: unknown) {
@@ -703,6 +755,7 @@ campoJobsRouter.patch(
         .object({
           caption: z.string().max(500).nullable().optional(),
           stage: z.enum(["before", "during", "after"]).nullable().optional(),
+          phase: z.enum(JOB_PHASES).nullable().optional(),
           is_public: z.boolean().optional(),
           annotations: z.unknown().optional(),
         })
@@ -724,6 +777,7 @@ campoJobsRouter.patch(
           data: {
             caption: body.data.caption !== undefined ? body.data.caption : undefined,
             stage: body.data.stage !== undefined ? body.data.stage : undefined,
+            phase: body.data.phase !== undefined ? body.data.phase : undefined,
             isPublic: body.data.is_public !== undefined ? body.data.is_public : undefined,
             annotationsJson:
               body.data.annotations !== undefined
@@ -731,7 +785,7 @@ campoJobsRouter.patch(
                 : undefined,
           },
         });
-        return mapTicket(await assertMyJobTicket(tx, req.user!.id, jobId));
+        return ticketFromWo(tx, req.organizationId!, await assertMyJobTicket(tx, req.user!.id, jobId));
       });
       res.json({ success: true, data });
     } catch (error: unknown) {
@@ -836,7 +890,7 @@ campoJobsRouter.delete(
           actorId: req.user!.id,
           changes: { media_id: { from: mediaId, to: null } },
         });
-        return mapTicket(await assertMyJobTicket(tx, req.user!.id, jobId));
+        return ticketFromWo(tx, req.organizationId!, await assertMyJobTicket(tx, req.user!.id, jobId));
       });
       res.json({ success: true, data });
     } catch (error: unknown) {
@@ -875,7 +929,10 @@ campoJobsRouter.post(
           data: { campoProblemNote: body.data.note.trim() },
           include: woTicketInclude,
         });
-        return { ticket: mapTicket(updated), job: { id: updated.id, number: updated.number, title: updated.title, customerName: clientLabel(updated) } };
+        return {
+          ticket: await ticketFromWo(tx, req.organizationId!, updated),
+          job: { id: updated.id, number: updated.number, title: updated.title, customerName: clientLabel(updated) },
+        };
       });
       // The office hears it on the phone right away (bell + push).
       void alertFieldProblem({
@@ -951,7 +1008,7 @@ campoJobsRouter.post(
           where: { id: mediaId },
           data: { caption },
         });
-        return mapTicket(await assertMyJobTicket(tx, req.user!.id, jobId));
+        return ticketFromWo(tx, req.organizationId!, await assertMyJobTicket(tx, req.user!.id, jobId));
       });
       res.json({ success: true, data, meta: { caption, model: tr.model } });
     } catch (error: unknown) {
@@ -1174,7 +1231,7 @@ campoJobsRouter.post(
           data: { campoChecklist: items },
           include: woTicketInclude,
         });
-        return mapTicket(updated);
+        return ticketFromWo(tx, req.organizationId!, updated);
       });
       res.json({ success: true, data });
     } catch (error: unknown) {
@@ -1298,7 +1355,7 @@ campoJobsRouter.post(
           data: { campoChecklist: checklist },
           include: woTicketInclude,
         });
-        return mapTicket(updated);
+        return ticketFromWo(tx, req.organizationId!, updated);
       });
       res.json({ success: true, data });
     } catch (error: unknown) {

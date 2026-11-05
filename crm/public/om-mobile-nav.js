@@ -1,13 +1,13 @@
 /**
  * Mobile bottom nav — Início / Leads / Agenda / Jobs / Mais
  * (Jobs is the daily centre of a flooring company; Orçamentos lives in Mais and in + Criar.)
- * Field staff: Hoje / Agenda / Jobs / Chat / Horas (Campo shell links)
+ * Field staff: Hoje / Agenda / ObraCam / Chat / Horas (Campo shell links)
  *
  * Rótulos, ordem e URLs das abas e do menu "Criar" vêm de window.OmNav (crm-shared-nav.js,
  * fonte única do menu). FALLBACK_* abaixo só vale se aquele arquivo não carregou.
  */
 (function () {
-  const VER = "20261105-shell9";
+  const VER = "20261105-crewcam1";
   const MQ = window.matchMedia("(max-width: 900px)");
   const FIELD_ROLES = new Set(["installer", "crew_lead", "subcontractor"]);
   const SHEET_MS = 380;
@@ -71,6 +71,8 @@
     invoice:
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16l3-1.5 3 1.5 3-1.5 3 1.5V4a2 2 0 00-2-2z"/><path d="M8 7h6M8 11h6"/></svg>',
     jobs: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>',
+    camera:
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8.5A2.5 2.5 0 015.5 6h1.6l1.4-2h7l1.4 2h1.6A2.5 2.5 0 0121 8.5v9a2.5 2.5 0 01-2.5 2.5h-13A2.5 2.5 0 013 17.5z"/><circle cx="12" cy="13" r="3.6"/></svg>',
     chat: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>',
     horas:
       '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
@@ -80,7 +82,19 @@
   // One drawing per meaning across the apps (om-shell.js).
   if (window.OmShell) {
     const I = window.OmShell.icons;
-    Object.assign(ICONS, { home: I.home, pipeline: I.leads, agenda: I.calendar, jobs: I.jobs, invoice: I.invoice, chat: I.chat, horas: I.clock, more: I.more, search: I.search, plus: I.plus });
+    Object.assign(ICONS, {
+      home: I.home,
+      pipeline: I.leads,
+      agenda: I.calendar,
+      jobs: I.jobs,
+      camera: I.camera,
+      invoice: I.invoice,
+      chat: I.chat,
+      horas: I.clock,
+      more: I.more,
+      search: I.search,
+      plus: I.plus,
+    });
   }
 
   function fileName() {
@@ -96,7 +110,7 @@
     if (field) {
       if (f === "hoje.html") return "hoje";
       if (f === "agenda.html" || f === "schedule.html") return "agenda";
-      if (f === "jobs.html" || f === "job-detail.html") return "jobs";
+      if (f === "job-media-board.html" || f === "jobs.html" || f === "job-detail.html") return "obracam";
       if (f === "chat.html") return "chat";
       if (f === "horas.html") return "horas";
       return "";
@@ -765,7 +779,7 @@
     }, MENU_EXIT_MS);
   }
 
-  /** Field worker nav — mirrors Campo tabs on Jobs / Schedule / Chat pages. */
+  /** Field worker nav — mirrors Campo tabs on ObraCam / Schedule / Chat pages. */
   function ensureFieldTabbar() {
     if (document.getElementById("omTabbar")) {
       document.body.classList.add("om-has-tabbar", "om-field-nav");
@@ -779,6 +793,7 @@
     nav.className = "om-tabbar om-tabbar--field om-shell-tabs";
     nav.setAttribute("aria-label", "Campo");
     const tab = activeTab(true);
+    const camIcon = ICONS.camera || ICONS.jobs;
     nav.innerHTML = `
       <a class="om-tabbar__item om-shell-tab${tab === "hoje" ? " is-active" : ""}" href="/campo/hoje.html" data-om-tab="hoje"${
         tab === "hoje" ? ' aria-current="page"' : ""
@@ -792,11 +807,11 @@
         ${ICONS.agenda}
         <span>Agenda</span>
       </a>
-      <a class="om-tabbar__item om-shell-tab${tab === "jobs" ? " is-active" : ""}" href="/jobs.html" data-om-tab="jobs"${
-        tab === "jobs" ? ' aria-current="page"' : ""
+      <a class="om-tabbar__item om-shell-tab${tab === "obracam" ? " is-active" : ""}" href="/job-media-board.html" data-om-tab="obracam"${
+        tab === "obracam" ? ' aria-current="page"' : ""
       }>
-        ${ICONS.jobs}
-        <span>Jobs</span>
+        ${camIcon}
+        <span>ObraCam</span>
       </a>
       <a class="om-tabbar__item om-shell-tab${tab === "chat" ? " is-active" : ""}" href="/chat.html" data-om-tab="chat"${
         tab === "chat" ? ' aria-current="page"' : ""

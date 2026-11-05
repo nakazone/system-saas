@@ -70,6 +70,8 @@
   /** Each job and the feed show either the photos or "Local" (the map); the map loads only when asked for. */
   let pane = "photos";
   let canManage = false;
+  /** Field crew can edit/upload photos on their jobs without office manage. */
+  let canEditMedia = false;
   const mediaCache = {};
   const metaCache = {};
   let map = null;
@@ -577,20 +579,20 @@
     if (!window.CamViewer || !list.length) return;
     if (canManage && !people) loadPeople().then((pp) => window.CamViewer.setPeople?.(pp));
     window.CamViewer.open({
-      canEdit: canManage,
+      canEdit: canEditMedia,
       people,
       onNote: (photo, text) => editPhoto(photo, { caption: text }),
       onAnnotate: (photo, doc) => editPhoto(photo, { annotations: doc }),
-      onTakenBy: (photo, id) => editPhoto(photo, { taken_by_id: id }),
+      onTakenBy: canManage ? (photo, id) => editPhoto(photo, { taken_by_id: id }) : null,
       stickers,
-      onStickers: canManage ? (photo, ids) => editPhoto(photo, { sticker_ids: ids }) : null,
+      onStickers: canEditMedia ? (photo, ids) => editPhoto(photo, { sticker_ids: ids }) : null,
       onManageStickers: canManage ? () => openStickerManager() : null,
       photos: list,
       index,
       from: from || null,
       canPortfolio: canManage,
-      canDelete: canManage,
-      onPhase: canManage ? (photo, next) => editPhoto(photo, { phase: next }) : null,
+      canDelete: canEditMedia,
+      onPhase: canEditMedia ? (photo, next) => editPhoto(photo, { phase: next }) : null,
       onPortfolio: async (photo, next) => {
         await api(`/api/work-orders/${encodeURIComponent(photo.job.id)}/media/${encodeURIComponent(photo.id)}/portfolio`, { method: "PATCH", body: JSON.stringify({ in_portfolio: next }) });
         [feed, ...Object.values(mediaCache), ...jobs.map((x) => x.photos || [])].forEach((arr) =>
@@ -919,10 +921,10 @@
       <span class="cam-selbar__n" role="status" aria-live="polite"><b>${n}</b> ${n === 1 ? "foto" : "fotos"}</span>
       <button type="button" class="cam-link" data-sel-all="${all ? 0 : 1}">${all ? "Desmarcar todas" : "Todas"}</button>
       <span class="cam-selbar__acts">
-        ${canManage ? `<button type="button" data-sel-act="stage"${dis}>${SVG.layers}<span>Fase</span></button><button type="button" data-sel-act="stickers"${dis}>${SVG.tag}<span>Etiquetas</span></button>` : ""}
+        ${canEditMedia ? `<button type="button" data-sel-act="stage"${dis}>${SVG.layers}<span>Fase</span></button>` : ""}${canManage ? `<button type="button" data-sel-act="stickers"${dis}>${SVG.tag}<span>Etiquetas</span></button>` : ""}
         ${share ? `<button type="button" class="is-share" data-sel-act="share"${dis}>${SVG.share}<span>Compartilhar</span></button>` : ""}
         ${dl ? `<button type="button" data-sel-act="download"${dis}>${SVG.dl}<span>Baixar</span></button>` : ""}
-        ${canManage ? `<button type="button" class="is-danger" data-sel-act="delete"${dis}>${SVG.trash}<span>Apagar</span></button>` : ""}
+        ${canEditMedia ? `<button type="button" class="is-danger" data-sel-act="delete"${dis}>${SVG.trash}<span>Apagar</span></button>` : ""}
       </span>`;
   }
 
@@ -2151,7 +2153,11 @@
     .then((r) => r.json())
     .then((s) => {
       const perms = s?.user?.permissions || [];
-      canManage = s?.user?.role === "admin" || perms.includes("work_orders.manage");
+      const role = String(s?.user?.role || "").toLowerCase();
+      const field = role === "installer" || role === "crew_lead" || role === "subcontractor";
+      // Office-only: create/delete jobs, stickers admin, portfolio. Field never gets these.
+      canManage = !field && (role === "admin" || perms.includes("work_orders.manage"));
+      canEditMedia = canManage || field || perms.includes("work_orders.view");
       meId = s?.user?.id || "";
       const add = $("camAddJob");
       if (add) add.hidden = !canManage;

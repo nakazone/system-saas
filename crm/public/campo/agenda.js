@@ -19,9 +19,9 @@
 
   function statusLabel(status) {
     const map = {
-      on_site: "No local",
+      on_site: "Em andamento",
       scheduled: "Agendada",
-      en_route: "A caminho",
+      en_route: "Em andamento",
       done: "Concluída",
       in_progress: "Em andamento",
     };
@@ -29,8 +29,7 @@
   }
 
   function statusBadgeClass(status) {
-    if (status === "on_site") return "cm-badge--site";
-    if (status === "en_route" || status === "in_progress") return "cm-badge--progress";
+    if (status === "on_site" || status === "en_route" || status === "in_progress") return "cm-badge--progress";
     return "cm-badge--sched";
   }
 

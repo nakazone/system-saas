@@ -1,8 +1,8 @@
 /**
- * Campo tabbar — Hoje / Agenda / Jobs / Chat / Horas
+ * Campo tabbar — Hoje / Agenda / ObraCam / Chat / Horas
  */
 (function () {
-  const VER = "20261105-shell1";
+  const VER = "20261105-crewcam1";
 
   function fileName() {
     return (location.pathname || "").split("/").pop() || "";
@@ -13,7 +13,9 @@
     const path = (location.pathname || "").toLowerCase();
     if (f === "hoje.html" || f === "" || f === "index.html") return "hoje";
     if (f === "agenda.html") return "agenda";
-    if (f === "jobs.html" || f === "job-detail.html" || path.includes("/jobs")) return "jobs";
+    if (f === "job-media-board.html" || f === "jobs.html" || f === "job-detail.html" || path.includes("/jobs")) {
+      return "obracam";
+    }
     if (f === "chat.html") return "chat";
     if (f === "horas.html") return "horas";
     return "";
@@ -38,7 +40,7 @@
       items: [
         item("hoje", "Hoje", "home", "/campo/hoje.html"),
         item("agenda", "Agenda", "calendar", "/campo/agenda.html"),
-        item("jobs", "Jobs", "jobs", "/jobs.html"),
+        item("obracam", "ObraCam", "camera", "/job-media-board.html"),
         item("chat", "ObraChat", "chat", "/chat.html"),
         item("horas", "Horas", "clock", "/campo/horas.html"),
       ],

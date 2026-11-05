@@ -33,8 +33,31 @@ import { recordActivity } from "../../lib/activity/record.js";
 import { storage } from "../../lib/storage/index.js";
 import { prisma } from "../../lib/prisma.js";
 import { uploadPhotoThumb } from "../../lib/job-media/thumb.js";
+import { assertMyJob } from "../lib/campo-shared.js";
 
 export const jobReportsRouter = Router();
+
+const FIELD_ROLES = new Set(["installer", "crew_lead", "subcontractor"]);
+
+async function assertUploadJobAccess(
+  tx: Parameters<Parameters<typeof withTenantTransaction>[1]>[0],
+  req: AuthedRequest,
+  jobId: string,
+) {
+  const manage =
+    req.user?.roleKey === "admin" || (req.user?.permissions || []).includes("work_orders.manage");
+  const field = FIELD_ROLES.has(String(req.user?.roleKey || "").toLowerCase());
+  if (manage && !field) {
+    const wo = await tx.workOrder.findFirst({
+      where: { id: jobId, status: { not: "canceled" } },
+      select: { id: true, address: true },
+    });
+    if (!wo) throw Object.assign(new Error("Job not found"), { status: 404 });
+    return wo;
+  }
+  const mine = await assertMyJob(tx, req.user!.id, jobId);
+  return { id: mine.id, address: mine.address };
+}
 
 function clientLabel(wo: {
   customer?: { name?: string | null } | null;
@@ -133,11 +156,7 @@ jobReportsRouter.get(
     try {
       const jobId = String(req.params.id);
       const { data, meta } = await withTenantTransaction(req.organizationId!, async (tx) => {
-        const wo = await tx.workOrder.findFirst({
-          where: { id: jobId },
-          select: { id: true, address: true },
-        });
-        if (!wo) throw Object.assign(new Error("Job not found"), { status: 404 });
+        await assertUploadJobAccess(tx, req, jobId);
         const rows = await tx.jobMedia.findMany({
           where: { workOrderId: jobId, deletedAt: null },
           orderBy: [{ createdAt: "desc" }],
@@ -222,11 +241,11 @@ function parseDataUrl(dataUrl: string): { contentType: string; body: Buffer } | 
   return { contentType: match[1]!, body: Buffer.from(match[2]!, "base64") };
 }
 
-/** Office upload — any staff with work_orders.manage (not limited to assigned crew). */
+/** Upload a photo to a job — office (any job) or ObraCrew (their jobs). */
 jobReportsRouter.post(
   "/api/work-orders/:id/media",
   requireCrmAuth,
-  requireCrmPermission("work_orders.manage"),
+  requireCrmPermission("work_orders.view"),
   async (req: AuthedRequest, res, next) => {
     try {
       const jobId = String(req.params.id);
@@ -297,11 +316,7 @@ jobReportsRouter.post(
       const thumbUrl = await uploadPhotoThumb(stored.key, parsed.body, stored.url);
 
       const data = await withTenantTransaction(req.organizationId!, async (tx) => {
-        const wo = await tx.workOrder.findFirst({
-          where: { id: jobId, status: { not: "canceled" } },
-          select: { id: true, address: true },
-        });
-        if (!wo) throw Object.assign(new Error("Job not found"), { status: 404 });
+        const wo = await assertUploadJobAccess(tx, req, jobId);
         // "Tirada por" must be someone in this company; anyone else is ignored and the uploader stands.
         const takenBy =
           meta.takenById && meta.takenById !== req.user!.id

@@ -2,14 +2,24 @@
  * Campo · Ticket — status, checklist, job media (photo proof)
  */
 (function () {
-  const VER = "20261006-photoview1";
+  const VER = "20261105-crew-phases1";
   const $ = (id) => document.getElementById(id);
-  const STAGE_LABEL = { before: "Antes", during: "Durante", after: "Depois" };
+  const PHASE_LABEL = {
+    delivery: "Delivery",
+    scan: "Scan",
+    installation: "Installation",
+    sand_finish: "Sand & Finish",
+    walkthrough: "Walk Through",
+  };
+  const PHASE_KEYS = Object.keys(PHASE_LABEL);
 
   let jobId = null;
   let ticket = null;
   let tab = "details";
-  let photoStage = "";
+  /** Phase for the next capture: "" = auto, else a phase key. */
+  let photoPhase = "";
+  /** Gallery filter: "all" or a phase key. */
+  let phaseFilter = "all";
   let pendingCount = 0;
   /** Photos being prepared/sent right now: { key, previewUrl }. Shown as tiles so the crew sees the shot instantly. */
   const uploadsInFlight = [];
@@ -258,26 +268,12 @@
       delete nav.dataset.address;
     }
 
-    $("cmStepper").innerHTML = (t.stepper || [])
-      .map(
-        (s) => `
-      <div class="cm-stepper__item${s.active ? " is-active" : ""}${s.done && !s.active ? " is-done" : ""}">
-        <span class="cm-stepper__bar"></span>
-        <span class="cm-stepper__label">${escapeHtml(s.label)}</span>
-      </div>`,
-      )
-      .join("");
-
     const cta = $("cmTicketCta");
     const wrap = $("cmTicketCtaWrap");
-    if (t.cta_label) {
-      wrap.hidden = false;
-      cta.textContent = t.cta_label;
-      cta.disabled = false;
-    } else {
-      wrap.hidden = false;
-      cta.textContent = "Visita concluída";
-      cta.disabled = true;
+    if (wrap) wrap.hidden = false;
+    if (cta) {
+      cta.textContent = "Tirar Foto";
+      cta.disabled = t.job_media_enabled === false;
     }
   }
 
@@ -449,16 +445,27 @@
     return (ticket?.photos || []).filter((p) => p && (p.url || p.thumb_url));
   }
 
+  function photoPhaseOf(p) {
+    return p && PHASE_LABEL[p.phase] ? p.phase : "";
+  }
+
   function photoMetaLabel(p) {
-    const stage = p.stage && STAGE_LABEL[p.stage] ? STAGE_LABEL[p.stage] : "";
+    const phase = photoPhaseOf(p) ? PHASE_LABEL[photoPhaseOf(p)] : "";
     const cap = (p.caption || "").trim();
-    return [cap, stage].filter(Boolean).join(" · ") || "Foto da obra";
+    return [cap, phase].filter(Boolean).join(" · ") || "Foto da obra";
+  }
+
+  function filteredPhotos() {
+    const all = photoList();
+    if (phaseFilter === "all") return all;
+    return all.filter((p) => photoPhaseOf(p) === phaseFilter);
   }
 
   function renderPhotos() {
     const t = ticket;
-    const photos = photoList();
-    const total = photos.length + pendingCount + uploadsInFlight.length;
+    const all = photoList();
+    const photos = filteredPhotos();
+    const total = all.length + pendingCount + uploadsInFlight.length;
     $("cmTabPhotos").textContent = `Fotos · ${total}`;
     const grid = $("cmPhotosGrid");
     renderReportCard();
@@ -480,24 +487,28 @@
       .join("");
     if (!photos.length && !inFlightHtml) {
       grid.innerHTML =
-        '<p class="cm-subtitle" style="margin:0.5rem 0">Nenhuma foto ainda.</p>';
+        phaseFilter !== "all" && all.length
+          ? '<p class="cm-subtitle" style="margin:0.5rem 0">Nenhuma foto nesta fase.</p>'
+          : '<p class="cm-subtitle" style="margin:0.5rem 0">Nenhuma foto ainda.</p>';
       return;
     }
-    grid.innerHTML = inFlightHtml + photos
-      .map((p, idx) => {
-        const stage = p.stage && STAGE_LABEL[p.stage] ? STAGE_LABEL[p.stage] : "";
-        const gps = p.location_available ? " · GPS" : "";
-        const pub = p.is_public ? " · público" : "";
-        const meta = photoMetaLabel(p);
-        const src = p.thumb_url || p.url || "";
-        return `
+    grid.innerHTML =
+      inFlightHtml +
+      photos
+        .map((p, idx) => {
+          const phase = photoPhaseOf(p) ? PHASE_LABEL[photoPhaseOf(p)] : "";
+          const gps = p.location_available ? " · GPS" : "";
+          const pub = p.is_public ? " · público" : "";
+          const meta = photoMetaLabel(p);
+          const src = p.thumb_url || p.url || "";
+          return `
       <button type="button" class="cm-photo" data-media-id="${escapeHtml(p.id || "")}" data-photo-idx="${idx}" ${p.legacy ? "data-legacy=1" : ""}>
-        ${stage ? `<span class="cm-photo__badge">${escapeHtml(stage)}</span>` : ""}
+        ${phase ? `<span class="cm-photo__badge">${escapeHtml(phase)}</span>` : ""}
         <img src="${escapeHtml(src)}" alt="${escapeHtml(meta)}" loading="lazy" onerror="this.classList.add('is-broken');this.parentElement&&this.parentElement.classList.add('is-broken')" />
         <span class="cm-photo__meta">${escapeHtml(meta)}${gps}${pub}</span>
       </button>`;
-      })
-      .join("");
+        })
+        .join("");
   }
 
   function renderAll() {
@@ -538,6 +549,7 @@
     const body = {
       data_url: row.dataUrl,
       stage: row.stage || null,
+      phase: row.phase || null,
       caption: row.caption || null,
       taken_at_device: row.takenAtDevice,
       taken_at_source: row.takenAtSource || null,
@@ -636,7 +648,8 @@
     const payload = {
       jobId,
       dataUrl,
-      stage: photoStage || null,
+      stage: null,
+      phase: photoPhase || null,
       caption,
       takenAtDevice: shot ? shot.taken_at_device : new Date().toISOString(),
       takenAtSource: shot ? shot.taken_at_source : null,
@@ -712,7 +725,7 @@
   }
 
   function currentLightboxPhoto() {
-    const photos = photoList();
+    const photos = filteredPhotos();
     if (lightboxIndex < 0 || lightboxIndex >= photos.length) return null;
     return photos[lightboxIndex];
   }
@@ -721,7 +734,7 @@
     const photo = currentLightboxPhoto();
     const box = $("cmLightbox");
     if (!box || !photo) return;
-    const photos = photoList();
+    const photos = filteredPhotos();
     const src = photo.url || photo.thumb_url || "";
     const img = $("cmLightboxImg");
     if (img) {
@@ -735,8 +748,8 @@
     if (count) count.textContent = `${lightboxIndex + 1} / ${photos.length}`;
     const cap = $("cmLightboxCap");
     if (cap) {
-      const stage = photo.stage && STAGE_LABEL[photo.stage] ? STAGE_LABEL[photo.stage] : "";
-      const bits = [photo.caption || "", stage, photo.is_public ? "público" : ""]
+      const phase = photoPhaseOf(photo) ? PHASE_LABEL[photoPhaseOf(photo)] : "";
+      const bits = [photo.caption || "", phase, photo.is_public ? "público" : ""]
         .map((s) => String(s || "").trim())
         .filter(Boolean);
       cap.textContent = bits.join(" · ") || "Foto da obra";
@@ -750,7 +763,7 @@
   }
 
   function openLightbox(index) {
-    const photos = photoList();
+    const photos = filteredPhotos();
     if (!photos.length) return;
     lightboxIndex = Math.max(0, Math.min(index, photos.length - 1));
     const box = $("cmLightbox");
@@ -773,10 +786,29 @@
   }
 
   function stepLightbox(delta) {
-    const photos = photoList();
+    const photos = filteredPhotos();
     if (photos.length < 2 || lightboxIndex < 0) return;
     lightboxIndex = (lightboxIndex + delta + photos.length) % photos.length;
     renderLightbox();
+  }
+
+  async function pickPhotoPhase(current) {
+    const phases = (ticket && ticket.phases && ticket.phases.length ? ticket.phases : PHASE_KEYS).filter(
+      (k) => PHASE_LABEL[k],
+    );
+    const choices = ["(Automática)", ...phases.map((k) => PHASE_LABEL[k])];
+    const labels = [null, ...phases];
+    const picked = await window.crmPrompt({
+      title: "Fase da foto",
+      type: "select",
+      options: choices.map((label, i) => ({ value: String(i), label })),
+      value: String(Math.max(0, labels.indexOf(current || null))),
+      ok: "Salvar fase",
+    });
+    if (picked == null) return undefined;
+    const idx = Number(picked);
+    if (!Number.isFinite(idx) || idx < 0 || idx >= labels.length) return undefined;
+    return labels[idx];
   }
 
   async function runPhotoAction(action) {
@@ -787,6 +819,17 @@
       if (action === "anotar") {
         closeLightbox();
         openAnnotator(photo);
+        return;
+      }
+      if (action === "fase") {
+        const next = await pickPhotoPhase(photo.phase_source === "manual" ? photo.phase : null);
+        if (next === undefined) return;
+        const json = await api(`/api/campo/jobs/${jobId}/media/${mediaId}`, {
+          method: "PATCH",
+          body: JSON.stringify({ phase: next }),
+        });
+        apply(json.data);
+        toast(next ? `Fase: ${PHASE_LABEL[next] || next}` : "Fase automática", "success");
         return;
       }
       if (action === "ocr") {
@@ -1430,45 +1473,27 @@
       btn.addEventListener("click", () => showTab(btn.getAttribute("data-tab")));
     });
 
-    document.querySelectorAll("[data-photo-stage]").forEach((btn) => {
+    document.querySelectorAll("[data-photo-phase]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        photoStage = btn.getAttribute("data-photo-stage") || "";
-        document.querySelectorAll("[data-photo-stage]").forEach((b) => {
+        const next = btn.getAttribute("data-photo-phase") || "all";
+        phaseFilter = next;
+        // Selecting a phase also tags the next capture; "Todas" leaves phase automatic.
+        photoPhase = next === "all" ? "" : next;
+        document.querySelectorAll("[data-photo-phase]").forEach((b) => {
           b.classList.toggle("is-selected", b === btn);
         });
+        renderPhotos();
       });
     });
 
-    $("cmTicketCta")?.addEventListener("click", async (e) => {
-      if (!ticket?.next_status) return;
-      const btn = e.currentTarget;
-      if (btn.classList.contains("om-busy")) return;
-      if (window.OmUI) {
-        window.OmUI.haptic("tap");
-        window.OmUI.busy(btn, true);
+    $("cmTicketCta")?.addEventListener("click", () => {
+      if (ticket?.job_media_enabled === false) {
+        toast("Fotos desativadas para esta organização");
+        return;
       }
-      try {
-        const json = await api(`/api/campo/jobs/${jobId}/field-status`, {
-          method: "POST",
-          body: JSON.stringify({ advance: true }),
-        });
-        if (json && json.queued) {
-          if (ticket?.next_status) {
-            ticket.field_status = ticket.next_status;
-            ticket.next_status = null;
-            apply(ticket);
-          }
-          return;
-        }
-        apply(json.data);
-      } catch (err) {
-        if (window.OmUI) window.OmUI.haptic("error");
-        toast(err.message || "Falha ao atualizar status");
-      } finally {
-        if (window.OmUI) window.OmUI.busy(btn, false);
-        // renderHero decides: no next step → "Visita concluída", disabled
-        btn.disabled = !(ticket && ticket.cta_label);
-      }
+      if (window.OmUI) window.OmUI.haptic("tap");
+      showTab("photos");
+      $("cmPhotoInput")?.click();
     });
 
     $("cmCheckList")?.addEventListener("click", async (e) => {
