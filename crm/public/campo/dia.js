@@ -250,11 +250,11 @@
     const endLbl = emp.schedule.end_time;
     if (!d) {
       const j = S.jobs_today[0];
-      box.innerHTML = `${mateLine("wave", "Bora começar?", "Quando chegar, toque em Começar o dia. Precisa de algo? É só me chamar.")}<div class="dy-card__lbl"><span>Seu dia</span><span>Fim padrão ${esc(endLbl)}</span></div>
+      box.innerHTML = `${mateLine("wave", "Bora começar?", "Quando chegar, toque em Começar o dia. Precisa de algo? É só me chamar.")}<div class="dy-card__lbl"><span>Seu dia</span></div>
         <h2>${j ? esc(jobLine(j)) : "Nenhum job na agenda hoje"}</h2>
         <p class="dy-card__sub">${j ? `${j.start_label ? `${esc(j.start_label)} · ` : ""}${esc(j.client || "")}${j.address ? ` · ${esc(j.address)}` : ""}` : "Você pode começar e escolher o job."}</p>
         <div style="margin-top:16px"><button type="button" class="dy-btn dy-btn--terra dy-btn--full" data-act="start" data-om-press>${ICON.play} Começar o dia</button></div>
-        <p class="dy-card__hint">Registra a hora e sua localização. Depois das ${esc(endLbl)} conta hora extra.<br><button type="button" data-act="manual">Esqueci de bater o ponto</button></p>`;
+        <p class="dy-card__hint">Depois das ${esc(endLbl)} conta hora extra.<br><button type="button" data-act="manual">Esqueci de bater o ponto</button></p>`;
       return;
     }
     if (d.status === "in_progress") {
@@ -759,7 +759,7 @@
           ${est.reimb ? `<div><small>Reembolso pedido</small><b>+${esc(money(est.reimb))}</b></div>` : ""}
           <div class="big"><small>${emp.pay_type === "production" ? `${est.sqft || 0} sq ft` : "Estimativa do dia"}</small><b>${esc(money(est.amount))}</b></div>
         </div>
-        <p class="dy-gps">${ICON.pin} Ao enviar registramos a hora e sua localização.${est.reimb ? " O reembolso vai para o escritório conferir." : ""}</p></div>`;
+        ${est.reimb ? `<p class="dy-gps">${ICON.pin} O reembolso vai para o escritório conferir.</p>` : ""}</div>`;
     const blocked = missing.length > 0;
     const plural = (n, w) => `${n} ${w}${n > 1 ? "s" : ""}`;
     let note = "";

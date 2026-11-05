@@ -198,15 +198,12 @@
 
   function applyFieldChrome() {
     document.body.classList.add("jcm-field");
-    const back = document.querySelector(".jcm-nav .jcm-icon-btn");
-    if (back) {
-      back.setAttribute("href", "/campo/hoje.html");
-      back.setAttribute("aria-label", "Voltar ao Campo");
-    }
     const roleEl = document.querySelector(".jcm-role");
     if (roleEl) roleEl.hidden = true;
     const add = $("jobsMobAdd");
     if (add) add.style.display = "none";
+    const partner = document.querySelector(".jcm-partner-requests");
+    if (partner) partner.hidden = true;
     const title = document.querySelector(".jcm-title");
     if (title) title.textContent = "Meus jobs";
   }
