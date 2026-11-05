@@ -57,7 +57,7 @@
           }, 1200);
         } catch (e) {
           if (typeof crmNotify === 'function') crmNotify(e.message, 'error');
-          else alert(e.message);
+          else window.crmToast?.error(e.message);
         }
       });
     });
@@ -71,6 +71,15 @@
     fs.innerHTML = suppliers.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
   }
 
+  const COLS = 8;
+  let loadSeq = 0;
+
+  /** One full-width row (empty state / error host). */
+  function wideRow(tb, html) {
+    tb.innerHTML = `<tr><td colspan="${COLS}" class="px-3 py-8 text-center text-slate-500">${html}</td></tr>`;
+    return tb.querySelector('td');
+  }
+
   async function loadProducts() {
     const sid = $('filterSupplier').value;
     const q = $('filterQ').value.trim();
@@ -78,14 +87,40 @@
     let url = '/api/erp/products?limit=500&all=' + all;
     if (sid) url += '&supplier_id=' + encodeURIComponent(sid);
     if (q) url += '&q=' + encodeURIComponent(q);
-    const r = await api(url);
-    products = r.data || [];
-    renderTable();
+    const tb = $('tbody');
+    const seq = ++loadSeq;
+    if (window.crmSkeleton) {
+      tb.innerHTML = window.crmSkeleton.tableRows(6, COLS);
+      tb.setAttribute('aria-busy', 'true');
+    }
+    try {
+      const r = await api(url);
+      if (seq !== loadSeq) return;
+      products = r.data || [];
+      renderTable();
+    } catch (e) {
+      if (seq !== loadSeq) return;
+      const td = wideRow(tb, '');
+      if (window.crmSkeleton) window.crmSkeleton.error(td, e.message || 'Não foi possível carregar os produtos.', () => loadProducts());
+      else td.textContent = e.message || 'Não foi possível carregar os produtos.';
+      tb.removeAttribute('aria-busy');
+    }
   }
 
   function renderTable() {
     const tb = $('tbody');
     tb.innerHTML = '';
+    tb.removeAttribute('aria-busy');
+    if (!products.length) {
+      const filtered = $('filterSupplier').value || $('filterQ').value.trim();
+      wideRow(
+        tb,
+        filtered
+          ? 'Nenhum produto com esse filtro.'
+          : 'Nenhum produto cadastrado. Use <b>+ Product</b> para adicionar o primeiro.',
+      );
+      return;
+    }
     products.forEach((p) => {
       const tr = document.createElement('tr');
       tr.className = 'border-b border-slate-100';
@@ -141,8 +176,21 @@
   }
 
   async function del(id) {
-    if (!confirm('Deactivate product?')) return;
-    await api('/api/erp/products/' + id, { method: 'DELETE' });
+    const p = products.find((x) => Number(x.id) === id);
+    const ok = await window.crmConfirm({
+      title: p && p.name ? `Desativar o produto “${p.name}”?` : 'Desativar este produto?',
+      text: 'Ele some da lista de ativos; o histórico fica guardado.',
+      ok: 'Desativar produto',
+      cancel: 'Cancelar',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api('/api/erp/products/' + id, { method: 'DELETE' });
+    } catch (e) {
+      window.crmToast?.error(e.message || 'Não foi possível desativar.');
+      return;
+    }
     await loadProducts();
   }
 

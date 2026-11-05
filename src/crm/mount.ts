@@ -11,13 +11,15 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express, { type Request, type Response, type Router } from "express";
-import { requireAuth } from "../middleware/auth.js";
+import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { crmAuthRouter } from "./auth-api.js";
+import { hasFeature } from "../lib/features/index.js";
 import { crmApiRouter } from "./api.js";
 import { i18nCrmRouter } from "../lib/i18n/routes.js";
 import { i18nVersion, orgDefaultUiLocale } from "../lib/i18n/index.js";
 import type { TenantRequest } from "../lib/tenant/resolve-tenant.js";
 import { SAAS_DISABLED_HTML } from "./disabled-modules.js";
+import { legacyDashboardPageUrl } from "./legacy-dashboard.js";
 import { isMateVoiceEnabled } from "../lib/mate-voice/staging.js";
 import { tradeInject } from "../lib/trades/browser.js";
 
@@ -28,8 +30,15 @@ const BRANDING_INJECT = [
   // App-wide neutral theme (desktop dock, iPhone tab bar, Geist). Loaded last so it wins the cascade.
   '<link rel="preconnect" href="https://fonts.googleapis.com" />',
   '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" />',
-  '<link rel="stylesheet" href="/om-theme.css?v=20261009-btnw2" data-om-theme />',
-  '<script src="/saas-branding.js?v=20261002-branddoc1" defer data-saas-branding-js></script>',
+  '<link rel="stylesheet" href="/om-theme.css?v=20261105-dockall" data-om-theme />',
+  '<script src="/saas-branding.js?v=20261104-crew1" defer data-saas-branding-js></script>',
+  // Shared feedback on every page: toasts (with "Desfazer"), confirm/prompt dialogs and
+  // loading skeletons. Each script guards against a second copy loaded by the page itself.
+  '<link rel="stylesheet" href="/crm-toast.css?v=20261104-ux2" />',
+  '<link rel="stylesheet" href="/crm-confirm.css?v=20261104-ux2" />',
+  '<script src="/crm-toast.js?v=20261104-ux2" defer></script>',
+  '<script src="/crm-confirm.js?v=20261104-ux2" defer></script>',
+  '<script src="/crm-skeleton.js?v=20261104-ux2" defer></script>',
 ].join("\n    ");
 
 /**
@@ -119,6 +128,45 @@ export async function crmHtmlWithLanguage(req: Request, full: string): Promise<s
   return /<\/head>/i.test(html) ? html.replace(/<\/head>/i, `    ${extra}\n</head>`) : `${extra}\n${html}`;
 }
 
+/** The Calendar page dressed as the ObraCalendar app; everything else in it is shared with /schedule.html. */
+export function obraCalendarHtml(html: string): string {
+  const head = [
+    '<link rel="manifest" href="/obracalendar.webmanifest?v=1" />',
+    '<meta name="apple-mobile-web-app-title" content="ObraCalendar" />',
+    '<meta name="apple-mobile-web-app-capable" content="yes" />',
+    '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&display=swap" />',
+    '<link rel="stylesheet" href="/obracalendar.css?v=1" />',
+    "<script>window.__OM_CAL_APP=true</script>",
+  ].join("\n    ");
+  return html
+    .replace(/<title>[^<]*<\/title>/i, "<title>ObraCalendar</title>")
+    .replace(/<meta name="theme-color"[^>]*>/i, '<meta name="theme-color" content="#FFFFFF" />')
+    .replace(/<link rel="apple-touch-icon"[^>]*>/i, '<link rel="apple-touch-icon" href="/assets/obracalendar/apple-touch-icon.png?v=1" />')
+    .replace(/<\/head>/i, `    ${head}\n</head>`)
+    .replace(/<\/body>/i, '  <script src="/obracalendar.js?v=1"></script>\n</body>');
+}
+
+const OBRACREW_ROLES = new Set(["installer", "crew_lead", "subcontractor"]);
+const OBRACAM_ROLES = new Set(["admin", "general_manager", "office"]);
+
+/** The ObraCam page dressed as its own app; lists, photos and viewer are shared with job-media-board.html. */
+export function obraCamHtml(html: string): string {
+  const head = [
+    '<link rel="manifest" href="/obracam.webmanifest?v=1" />',
+    '<meta name="apple-mobile-web-app-title" content="ObraCam" />',
+    '<meta name="apple-mobile-web-app-capable" content="yes" />',
+    '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&display=swap" />',
+    '<link rel="stylesheet" href="/obracam-app.css?v=20261105-stk1" />',
+    "<script>window.__OM_FOCUS_APP=true</script>",
+  ].join("\n    ");
+  return html
+    .replace(/<title>[^<]*<\/title>/i, "<title>ObraCam</title>")
+    .replace(/<meta name="theme-color"[^>]*>/i, '<meta name="theme-color" content="#F7F8FA" />')
+    .replace(/<link rel="apple-touch-icon"[^>]*>/i, '<link rel="apple-touch-icon" href="/assets/obracam/apple-touch-icon.png?v=1" />')
+    .replace(/<\/head>/i, `    ${head}\n</head>`)
+    .replace(/<\/body>/i, '  <script src="/obracam-app.js?v=20261105-stk1"></script>\n</body>');
+}
+
 async function sendCrmHtml(req: Request, res: Response, filename: string) {
   const full = path.join(CRM_PUBLIC_DIR, filename);
   const html = await renderCrmHtml(req, full);
@@ -156,17 +204,74 @@ export function createCrmRouter(): Router {
     res.redirect("/dashboard");
   });
 
-  // Início = /dashboard (pipeline board). Legacy SPA only when ?page= is set.
+  // Início = /dashboard (pipeline board). The old single-page dashboard (?page=…) is retired:
+  // its sections now live on their own pages, so old links and bookmarks land there.
   router.get(["/dashboard", "/dashboard.html"], requireAuth, async (req, res, next) => {
     try {
       if (req.query.page) {
-        await sendCrmHtml(req, res, "dashboard.html");
+        res.redirect(302, legacyDashboardPageUrl(req.query));
         return;
       }
       await sendCrmHtml(req, res, "pipeline-lab.html");
     } catch (error) {
       next(error);
     }
+  });
+
+  // ObraCalendar: admins get the calendar as its own app; other roles see a short explanation.
+  router.get("/obracalendar", async (req: AuthedRequest, res, next) => {
+    try {
+      if (!req.user) {
+        res.redirect("/login.html?app=obracalendar");
+        return;
+      }
+      res.setHeader("Cache-Control", "no-store, max-age=0");
+      if (req.user.roleKey !== "admin") {
+        res.type("html").send(fs.readFileSync(path.join(CRM_PUBLIC_DIR, "obracalendar-sem-acesso.html"), "utf8"));
+        return;
+      }
+      const html = await renderCrmHtml(req, path.join(CRM_PUBLIC_DIR, "schedule.html"));
+      res.type("html").send(obraCalendarHtml(html));
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  // ObraCam: admins, managers and office get the photos as their own app, when the company's plan includes ObraCam.
+  router.get("/obracam", async (req: AuthedRequest, res, next) => {
+    try {
+      if (!req.user) {
+        res.redirect("/login.html?app=obracam");
+        return;
+      }
+      res.setHeader("Cache-Control", "no-store, max-age=0");
+      if (!OBRACAM_ROLES.has(req.user.roleKey ?? "")) {
+        res.type("html").send(fs.readFileSync(path.join(CRM_PUBLIC_DIR, "obracam-sem-acesso.html"), "utf8"));
+        return;
+      }
+      if (!(await hasFeature(req.user.organizationId, "job_media"))) {
+        res.redirect(302, "/job-media-board.html");
+        return;
+      }
+      const html = await renderCrmHtml(req, path.join(CRM_PUBLIC_DIR, "job-media-board.html"));
+      res.type("html").send(obraCamHtml(html));
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  // ObraCrew: field roles go to their day (Campo); other roles see a short explanation.
+  router.get("/obracrew", (req: AuthedRequest, res) => {
+    if (!req.user) {
+      res.redirect("/login.html?app=obracrew");
+      return;
+    }
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    if (OBRACREW_ROLES.has(req.user.roleKey ?? "")) {
+      res.redirect(302, "/campo/hoje.html");
+      return;
+    }
+    res.type("html").send(fs.readFileSync(path.join(CRM_PUBLIC_DIR, "obracrew-sem-acesso.html"), "utf8"));
   });
 
   router.get(["/mate-ai", "/mate-ai.html"], requireAuth, async (req, res, next) => {
@@ -197,6 +302,22 @@ export function createCrmRouter(): Router {
     }
   });
 
+  // Removed legacy pages → the screens that replaced them (old bookmarks keep working).
+  const REMOVED_PAGES: Record<string, string> = {
+    "/onsite-quote.html": "/field-quote.html",
+    "/estimate-builder.html": "/quotes.html",
+    "/schedule-antiga.html": "/schedule.html",
+    "/vendors-hub.html": "/suppliers.html",
+  };
+  router.get(Object.keys(REMOVED_PAGES), requireAuth, (req, res) => {
+    res.redirect(301, REMOVED_PAGES[req.path] || "/dashboard");
+  });
+
+  // The old payroll screen was replaced by Folha (office) and Minhas horas (field roles).
+  router.get("/payroll-module.html", requireAuth, (req: AuthedRequest, res) => {
+    res.redirect(302, OBRACREW_ROLES.has(req.user?.roleKey ?? "") ? "/campo/horas.html" : "/folha.html");
+  });
+
   // Keep ?view=list (and any other query) so tablet Lista → list shell still works.
   router.get("/pipeline-lab.html", requireAuth, (req, res) => {
     const qs = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
@@ -216,9 +337,9 @@ export function createCrmRouter(): Router {
     next();
   });
 
-  if (!fs.existsSync(path.join(CRM_PUBLIC_DIR, "dashboard.html"))) {
+  if (!fs.existsSync(path.join(CRM_PUBLIC_DIR, "pipeline-lab.html"))) {
     console.error(
-      `[crm] dashboard.html not found under ${CRM_PUBLIC_DIR} (cwd=${process.cwd()}, __dirname=${__dirname})`,
+      `[crm] pipeline-lab.html not found under ${CRM_PUBLIC_DIR} (cwd=${process.cwd()}, __dirname=${__dirname})`,
     );
   }
 

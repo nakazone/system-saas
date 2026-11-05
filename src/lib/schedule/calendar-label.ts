@@ -3,8 +3,6 @@
  * Pattern: "Nickname - Client ID". When there is no Client ID, use
  * "Nickname - 123 Oak" (street number + first street name).
  */
-import { personCalendarTitle } from "./lead-visit-ics.js";
-
 const STREET_SUFFIX = new Set([
   "st",
   "street",
@@ -194,7 +192,6 @@ export function jobCalendarTitle(input: {
   origin?: string | null;
 }): string {
   const nick = String(input.nickname || "").trim();
-  const clientId = String(input.clientRef || "").trim();
   if (nick || isBuilderParty(input.sourceType, input.builderId, input.customerType)) {
     return builderCalendarTitle({
       nickname: input.nickname,
@@ -205,16 +202,10 @@ export function jobCalendarTitle(input: {
       clientRef: input.clientRef,
     });
   }
+  // Particular: show only the client name — no street/address chip on the calendar.
   const name =
     String(input.nickname || input.customerName || input.sourceName || input.title || "").trim() || "Cliente";
-  if (clientId) return personCalendarTitle(name, { clientId });
-  const street = calendarStreet(input.address, input.title);
-  if (street) return `${name} - ${street}`;
-  const typed = String(input.sourceName || "").trim();
-  const origin =
-    String(input.origin || "").trim() ||
-    (typed && typed.toLowerCase() !== name.toLowerCase() ? typed : "");
-  return personCalendarTitle(name, { origin });
+  return name;
 }
 
 /** Timed visits always occupy one hour from the selected start. */

@@ -129,13 +129,6 @@
   function sortRows(rows) {
     return rows.sort((a, b) => I().compareNearest(a, b));
   }
-  function weekRank(sundayYmd) {
-    const today = weekSunday(new Date()).getTime();
-    const [yy, mm, dd] = sundayYmd.split("-").map(Number);
-    const diff = new Date(yy, mm - 1, dd).getTime() - today;
-    if (diff >= 0) return diff;
-    return 1e15 + Math.abs(diff);
-  }
 
   // ---------------------------------------------------------------- top
   function renderSum() {
@@ -202,7 +195,47 @@
     }
     window.JobBilling.openDialog({ jobId: wo.id, billing: wo.billing, jobStatus: wo.status });
   }
-  function rowHtml(wo) {
+  /** Botão principal do cartão — o mesmo do app: agendar, iniciar, concluir, faturar. */
+  function cardActions(wo, undated, now) {
+    if (!canManage) return "";
+    const J = I();
+    const id = J.esc(wo.id);
+    // Laranja só no que é para agora (em campo, hoje, atrasado, sem data); o resto fica neutro.
+    const b = now ? "jmx-b jmx-b--or" : "jmx-b";
+    if (wo.status === "in_progress") {
+      const nxt = J.nextFinish ? J.nextFinish(wo) : null;
+      return `<button type="button" class="${b}" data-jx-act="complete" data-id="${id}">${J.esc(nxt ? nxt.label : "Concluir")}</button>`;
+    }
+    if (wo.status === "scheduled" || wo.status === "draft") {
+      if (undated) return `<button type="button" class="${b}" data-jx-start="${id}">Schedule Job</button>`;
+      return `<button type="button" class="${b}" data-jx-act="start" data-id="${id}">Iniciar</button>`;
+    }
+    if (wo.status === "completed" && canBill && bucket(wo) === "toinvoice") {
+      return `<button type="button" class="${b}" data-jx-faturar="${id}">Faturar</button>`;
+    }
+    return "";
+  }
+  /** Bloco do dia, como numa agenda: QUA / 4 / NOV. Hoje em laranja, atrasado em tom quente. */
+  function dayBlock(wo, finished) {
+    const J = I();
+    const iso = J.listAnchorIso(wo) || (finished ? wo.updated_at || wo.scheduled_end : null);
+    if (!iso) return `<span class="ol-lead jx-day is-none" aria-hidden="true"><b>—</b><small>sem data</small></span>`;
+    const d = new Date(iso);
+    const wd = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"][d.getDay()];
+    const mo = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"][d.getMonth()];
+    const today = sod(d).getTime() === sod(new Date()).getTime();
+    const tone = today ? " is-today" : !finished && J.late(wo) ? " is-late" : finished ? " is-done" : "";
+    return `<span class="ol-lead jx-day${tone}" aria-label="${today ? "Hoje" : `${wd} ${d.getDate()} ${mo}`}"><small>${today ? "hoje" : wd}</small><b>${d.getDate()}</b><small>${mo}</small></span>`;
+  }
+  /** Hora de início, quando o job tem hora marcada (não meia-noite). */
+  function timeText(wo) {
+    const iso = I().listAnchorIso(wo);
+    if (!iso || wo.status === "completed" || wo.status === "canceled") return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime()) || (d.getHours() === 0 && d.getMinutes() === 0)) return "";
+    return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  }
+  function rowHtml(wo, now = false) {
     const J = I();
     const finished = wo.status === "completed" || wo.status === "canceled";
     const undated = !finished && !wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start);
@@ -210,22 +243,26 @@
     const who = J.client(wo);
     const head = who && who !== "Sem cliente" ? who : wo.title || "Job";
     const href = `job-detail.html?id=${encodeURIComponent(wo.id)}`;
-    const startBtn = undated && canManage ? `<button type="button" class="jx-start" data-jx-start="${J.esc(wo.id)}">Schedule Job</button>` : "";
     const showDel = canManage && wo.status !== "canceled";
-    const addr = wo.address ? `<span class="jx-row__addr">${SVG.pin}<span>${J.esc(wo.address)}</span></span>` : "";
-    const body = `<div class="jx-rowwrap">
-    <a class="jx-row${String(wo.id) === String(selId) ? " is-on" : ""}" href="${href}" data-jx-id="${J.esc(wo.id)}">
-      <span class="jx-row__b">
-        <span class="jx-row__l1"><b>${J.esc(head)}</b></span>
-        ${addr}
-        <span class="jx-row__l3">${J.progHtml(wo)}</span>
-      </span>
-      <span class="jx-row__side">
-        ${when.date ? `<span class="jx-row__when">${J.esc(when.date)}</span>` : ""}
-        ${when.status ? `<span class="jx-row__st">${J.esc(when.status)}</span>` : ""}
-        ${startBtn}
-      </span>
-    </a></div>`;
+    const addr = wo.address ? `<span class="ol-m jx-row__addr" title="${J.esc(wo.address)}">${SVG.pin}<span>${J.esc(wo.address)}</span></span>` : `<span class="ol-m"><span>Sem endereço</span></span>`;
+    const lt = J.late ? J.late(wo) : null;
+    const stText = lt ? lt.short : when.status;
+    const tone = J.stageTone ? J.stageTone(wo) : "wait";
+    const maps = wo.address ? `https://maps.google.com/?q=${encodeURIComponent(wo.address)}` : "";
+    const actions = cardActions(wo, undated, now);
+    const id = J.esc(wo.id);
+    // Cartão de agenda: bloco do dia à esquerda (lê-se a lista pela data, como uma agenda),
+    // nome + hora, endereço, progresso; embaixo o status e mapa + ação principal.
+    const body = `<div class="jx-rowwrap jmx-card">
+    <a class="jx-row ol-row${String(wo.id) === String(selId) ? " is-on" : ""}" href="${href}" data-jx-id="${id}">
+      ${dayBlock(wo, finished)}
+      <b class="ol-t" title="${J.esc(head)}">${J.esc(head)}</b>
+      ${timeText(wo) ? `<span class="ol-v ol-time">${J.esc(timeText(wo))}</span>` : ""}
+      ${addr}
+      ${J.progHtml(wo)}
+    </a>
+    <div class="jmx-card__r3 jx-foot" data-jx-id="${id}">${stText ? `<span class="ol-st is-${tone}" title="${J.esc(stText)}">${J.esc(stText)}</span>` : ""}${maps ? `<a class="jmx-b jmx-b--sq" href="${maps}" target="_blank" rel="noopener" aria-label="Abrir mapa" title="Abrir mapa">${SVG.pin}</a>` : ""}${actions}</div>
+    </div>`;
     // Swipe-to-delete only on touch / narrow — desktop list stays clean (no inline buttons).
     if (showDel && useSwipeDelete()) {
       return `<article class="om-swipe jx-swipe" data-jx-swipe="${J.esc(wo.id)}">
@@ -241,7 +278,13 @@
 
   async function deleteJob(id, label, btn) {
     if (!id || !canManage) return;
-    if (!confirm(`Excluir o job “${label || id}”?\n\nO job será cancelado e sai da lista ativa.`)) return;
+    const okDel = await window.crmConfirm({
+      title: `Excluir o job “${label || id}”?`,
+      text: "O job será cancelado e sai da lista ativa.",
+      ok: "Excluir job",
+      danger: true,
+    });
+    if (!okDel) return;
     const prev = btn?.textContent;
     if (btn) {
       btn.disabled = true;
@@ -263,7 +306,7 @@
 
   function stageMatches(wo, filter) {
     const stage = I().stageLabel(wo);
-    if (filter === "Em campo") return stage === "Em campo" || stage === "Lixa";
+    if (filter === "Em campo") return I().isInFieldStage ? I().isInFieldStage(stage) : stage === "Em campo" || stage === "Lixa" || stage === "Installing" || stage === "Sanding";
     return stage === filter;
   }
 
@@ -311,6 +354,65 @@
     if (!iso) return null;
     const d = new Date(iso);
     return Number.isNaN(d.getTime()) ? null : d;
+  }
+  /**
+   * Ordem do dia, como no app: o que está em campo agora, o de hoje, o atrasado,
+   * depois amanhã, a semana e o resto. Concluídos ficam no fim (a lista os recolhe).
+   */
+  const DAY_MS = 86400000;
+  const NOW_GROUPS = new Set(["field", "today", "late", "nodate"]);
+  function dayName(d) {
+    const wd = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+    const mo = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+    return `${wd[d.getDay()]} ${d.getDate()} ${mo[d.getMonth()]}`;
+  }
+  function dayGroups(rows) {
+    const J = I();
+    const now = new Date();
+    const t0 = sod(now).getTime();
+    const tomorrow = t0 + DAY_MS;
+    const after = tomorrow + DAY_MS;
+    const weekEnd = weekSunday(now).getTime() + 7 * DAY_MS;
+    const order = [
+      ["field", "Em campo agora"],
+      ["today", "Hoje"],
+      ["late", "Atrasados"],
+      ["tomorrow", "Amanhã"],
+      ["week", "Esta semana"],
+      ["later", "Próximas semanas"],
+      ["nodate", "Sem data"],
+      ["done", "Concluídos"],
+      ["off", "Cancelados"],
+    ];
+    const b = Object.fromEntries(order.map(([k]) => [k, []]));
+    rows.forEach((wo) => {
+      if (wo.status === "canceled") return b.off.push(wo);
+      if (wo.status === "completed") return b.done.push(wo);
+      if (wo.status === "in_progress") return b.field.push(wo);
+      const d = jobAnchor(wo);
+      if (!d) return b.nodate.push(wo);
+      const t = sod(d).getTime();
+      if (t === t0) return b.today.push(wo);
+      if (J.late(wo) || t < t0) return b.late.push(wo);
+      if (t < after) return b.tomorrow.push(wo);
+      if (t < weekEnd) return b.week.push(wo);
+      return b.later.push(wo);
+    });
+    const byStart = (a, z) => (J.startMs(a) ?? Infinity) - (J.startMs(z) ?? Infinity);
+    const byDoneDesc = (a, z) =>
+      new Date(z.updated_at || z.scheduled_end || 0).getTime() - new Date(a.updated_at || a.scheduled_end || 0).getTime();
+    return order
+      .filter(([k]) => b[k].length)
+      .map(([k, label]) => {
+        const g = b[k];
+        if (k === "today") label = `Hoje · ${dayName(now)}`;
+        if (k === "tomorrow") label = `Amanhã · ${dayName(new Date(tomorrow))}`;
+        if (k === "done" || k === "off") g.sort(byDoneDesc);
+        else if (k === "late") g.sort((a, z) => byStart(z, a));
+        else if (k === "nodate") g.sort((a, z) => new Date(z.created_at || 0) - new Date(a.created_at || 0));
+        else g.sort(byStart);
+        return [k, label, g];
+      });
   }
   function weekTitle(sunday) {
     const end = new Date(sunday.getFullYear(), sunday.getMonth(), sunday.getDate() + 6);
@@ -376,17 +478,12 @@
       ? `job-detail.html?id=${encodeURIComponent(jobId)}`
       : `partner-requests-admin.html?id=${encodeURIComponent(item.id)}`;
     const who = item.partner_company || item.partner_name || "Builder";
-    const addr = item.address && item.address !== "—" ? `<span class="jx-row__addr">${SVG.pin}<span>${J.esc(item.address)}</span></span>` : "";
-    return `<div class="jx-rowwrap"><a class="jx-row" href="${href}" ${jobId ? `data-jx-id="${J.esc(jobId)}"` : ""}>
-      <span class="jx-row__b">
-        <span class="jx-row__l1"><b>${J.esc(who)}</b></span>
-        ${addr}
-        <span class="jx-row__l3">${J.esc(item.title || "Pedido do builder")}</span>
-      </span>
-      <span class="jx-row__side">
-        <span class="jx-row__when">Pedido</span>
-        <span class="jx-row__st">Aguardando</span>
-      </span>
+    const addr = item.address && item.address !== "—" ? `<span class="ol-m jx-row__addr" title="${J.esc(item.address)}">${SVG.pin}<span>${J.esc(item.address)}</span></span>` : "";
+    return `<div class="jx-rowwrap"><a class="jx-row ol-row" href="${href}" ${jobId ? `data-jx-id="${J.esc(jobId)}"` : ""}>
+      <b class="ol-t" title="${J.esc(who)}">${J.esc(who)}</b>
+      <span class="ol-d">Pedido</span>
+      ${addr}
+      <span class="ol-f"><span class="ol-st is-hot">Aguardando</span><span class="ol-note">${J.esc(item.title || "Pedido do builder")}</span></span>
     </a></div>`;
   }
   function renderList() {
@@ -416,27 +513,14 @@
           : `<p class="jx-empty">${empty}</p>`;
       return rows;
     }
-    const undated = rows.filter((w) => !jobAnchor(w));
-    const dated = rows.filter((w) => jobAnchor(w));
-    const weeks = new Map();
-    dated.forEach((wo) => {
-      const key = ymd(weekSunday(jobAnchor(wo)));
-      if (!weeks.has(key)) weeks.set(key, []);
-      weeks.get(key).push(wo);
-    });
-    const keys = [...weeks.keys()].sort((a, b) => weekRank(a) - weekRank(b));
     let html = "";
     if (pending.length || portal.length) {
-      html += `<section class="jx-week jx-week--portal"><p class="jx-grp jx-grp--portal"><span>Do portal</span><em>${pending.length + portal.length}</em></p>${pending.map(pendingRequestHtml).join("")}${portal.map(rowHtml).join("")}</section>`;
+      html += `<section class="jx-week jx-week--portal ol-band"><p class="jx-grp jx-grp--portal ol-grp"><span>Do portal</span><em>${pending.length + portal.length}</em></p>${pending.map(pendingRequestHtml).join("")}${portal.map((wo) => rowHtml(wo, true)).join("")}</section>`;
     }
-    keys.forEach((key, i) => {
-      const g = sortRows(weeks.get(key));
-      const [yy, mm, dd] = key.split("-").map(Number);
-      html += `<section class="jx-week jx-week--${i % 2 ? "b" : "a"}"><p class="jx-grp"><span>${weekTitle(new Date(yy, mm - 1, dd))}</span><em>${g.length}</em></p>${g.map(rowHtml).join("")}</section>`;
+    dayGroups(rows).forEach(([key, label, g]) => {
+      const now = NOW_GROUPS.has(key);
+      html += `<section class="jx-week ol-band"><p class="jx-grp ol-grp"><span>${label}</span><em>${g.length}</em></p>${g.map((wo) => rowHtml(wo, now)).join("")}</section>`;
     });
-    if (undated.length) {
-      html += `<section class="jx-week"><p class="jx-grp"><span>Sem data</span><em>${undated.length}</em></p>${undated.map(rowHtml).join("")}</section>`;
-    }
     host.innerHTML = html;
     if (window.OmGestures) window.OmGestures.bindSwipeRow?.(host);
     host.querySelectorAll("[data-jx-start]").forEach((btn) => {
@@ -498,7 +582,11 @@
   }
 
   function statusPill(wo) {
-    const map = { draft: ["Rascunho", ""], scheduled: ["Agendado", ""], in_progress: ["Em campo", "dk"], completed: ["Concluído", "ol"], canceled: ["Cancelado", "late"] };
+    if (wo.status === "in_progress") {
+      const label = I().stageLabel(wo);
+      return `<span class="jx-pill jx-pill--dk">${I().esc(label)}</span>`;
+    }
+    const map = { draft: ["Rascunho", ""], scheduled: ["Agendado", ""], completed: ["Concluído", "ol"], canceled: ["Cancelado", "late"] };
     const [l, c] = map[wo.status] || [wo.status, ""];
     return `<span class="jx-pill${c ? ` jx-pill--${c}` : ""}">${l}</span>`;
   }
@@ -547,7 +635,11 @@
   }
   function partnerDocsHtml(wo) {
     const J = I();
-    if (!partnerDocs || String(partnerDocs.jobId) !== String(wo.id)) return `<p class="jx-none" id="jxPartnerWait">Carregando o que o parceiro vê…</p>`;
+    if (!partnerDocs || String(partnerDocs.jobId) !== String(wo.id)) {
+      return window.crmSkeleton
+        ? `<div id="jxPartnerWait" aria-busy="true">${window.crmSkeleton.rows(3, { avatar: false })}</div>`
+        : `<p class="jx-none" id="jxPartnerWait">Carregando o que o parceiro vê…</p>`;
+    }
     const rows = [];
     const file = wo.delivery_attachment;
     if (file?.url) {
@@ -1147,7 +1239,18 @@
       render();
     } catch (_) {}
   });
+  /** Quantos filtros (Status, Origem) estão ligados — aparece no botão Filtros. */
+  function syncFiltBadge() {
+    const n = ["jxStatus", "jxSource"].filter((id) => $(id) && $(id).value).length;
+    const badge = $("jxFiltN");
+    if (badge) {
+      badge.hidden = !n;
+      badge.textContent = n ? String(n) : "";
+    }
+    $("jxFiltBtn")?.classList.toggle("is-set", n > 0);
+  }
   function render() {
+    syncFiltBadge();
     renderSum();
     renderTiles();
     const rows = renderList();
@@ -1297,6 +1400,15 @@
     await load();
   }
 
+  async function finishJob(wo) {
+    const J = I();
+    const nxt = J.nextFinish(wo);
+    const label = wo?.title || (wo ? J.client(wo) : "");
+    const ok = await window.crmConfirm.completeJob(label, nxt);
+    if (!ok) return;
+    await setStatus(wo.id, "completed", nxt?.toast || "Job concluído.");
+  }
+
   async function finishCurrent(wo) {
     // Trades with per-job phases (Tile): the job closes with its last phase, on the job page.
     if (window.__OM_TRADE && window.__OM_TRADE.phaseStorage === "table" && wo) {
@@ -1306,9 +1418,7 @@
     const J = I();
     const nxt = J.nextFinish(wo);
     const label = wo?.title || (wo ? J.client(wo) : "");
-    const ok = window.crmConfirm?.completeJob
-      ? await window.crmConfirm.completeJob(label, nxt)
-      : confirm(nxt?.confirm || "Marcar o job como concluído?");
+    const ok = await window.crmConfirm.completeJob(label, nxt);
     if (!ok) return;
     await setStatus(selId, "completed", nxt?.toast || "Job concluído.");
   }
@@ -1351,7 +1461,17 @@
         openFaturar(all.find((w) => String(w.id) === String(id)));
         return;
       }
-      if (e.target.closest("[data-jx-delete], .om-swipe__actions")) return;
+      const act = e.target.closest("[data-jx-act]");
+      if (act) {
+        e.preventDefault();
+        e.stopPropagation();
+        const wo = all.find((w) => String(w.id) === String(act.getAttribute("data-id")));
+        if (!wo) return;
+        if (act.getAttribute("data-jx-act") === "start") void setStatus(wo.id, "in_progress", I().STATUS_STEP_MSG?.in_progress || "Job iniciado.");
+        else void finishJob(wo);
+        return;
+      }
+      if (e.target.closest("[data-jx-delete], .om-swipe__actions, .jmx-b")) return;
       const a = e.target.closest("[data-jx-id]");
       if (!a || e.metaKey || e.ctrlKey || e.shiftKey) return;
       e.preventDefault();
@@ -1488,6 +1608,18 @@
     $("btnNewJob")?.addEventListener("click", () => {
       window.__crmJobModal.openCreate({ allDay: true }).catch((e) => notify(e.message, "error"));
     });
+    // Status e Origem ficam atrás do botão Filtros (o topo já filtra por status nos blocos);
+    // o filtro ligado aparece como chip acima da lista, e o botão mostra quantos estão ligados.
+    const filtBtn = $("jxFiltBtn");
+    filtBtn?.addEventListener("click", () => {
+      const list = filtBtn.closest(".jx-list");
+      const open = !list.classList.contains("is-filt");
+      list.classList.toggle("is-filt", open);
+      filtBtn.setAttribute("aria-expanded", open ? "true" : "false");
+      if (open) $("jxStatus")?.focus();
+    });
+    ["jxStatus", "jxSource"].forEach((id) => $(id)?.addEventListener("change", syncFiltBadge));
+    syncFiltBadge();
     $("jxCalBtn")?.addEventListener("click", (e) => {
       e.stopPropagation();
       calOpen = !calOpen;
@@ -1544,9 +1676,32 @@
     });
   }
 
+  /** First paint of the list: skeleton rows in place of the "Carregando…" line. */
+  function listSkeleton() {
+    const host = $("jxRows");
+    if (host && window.crmSkeleton) window.crmSkeleton.fill(host, "rows", 6);
+  }
+  function listLoadError(err, retry) {
+    const host = $("jxRows");
+    const msg = err?.message || "Falha ao carregar os jobs";
+    if (host && window.crmSkeleton) window.crmSkeleton.error(host, msg, retry);
+    else notify(msg, "error");
+  }
+  async function retryLoad() {
+    listSkeleton();
+    try {
+      await load();
+      window.crmSkeleton?.done($("jxRows"));
+    } catch (err) {
+      listLoadError(err, retryLoad);
+    }
+  }
+
   async function boot() {
     if (!$("jx")) return;
     if (window.__omDevice?.isMobile?.()) return;
+    let bound = false;
+    listSkeleton();
     try {
       await window.__crmJobModal.ready;
       const s = await api("/api/auth/session");
@@ -1572,7 +1727,9 @@
         $("jxSource").closest(".jx-sel")?.classList.add("is-on");
       }
       bind();
+      bound = true;
       await load();
+      window.crmSkeleton?.done($("jxRows"));
       const openId = sessionStorage.getItem("obramate_open_job");
       if (openId) {
         sessionStorage.removeItem("obramate_open_job");
@@ -1591,7 +1748,8 @@
         return;
       }
     } catch (err) {
-      notify(err.message || "Falha ao carregar os jobs", "error");
+      if (!all.length) listLoadError(err, bound ? retryLoad : () => location.reload());
+      else notify(err.message || "Falha ao carregar os jobs", "error");
     }
   }
 

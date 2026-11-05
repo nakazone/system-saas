@@ -847,21 +847,52 @@
     return j.data;
   }
 
-  async function moveStage(slug, extra) {
+  let stageMoveSeq = 0;
+  /**
+   * Optimistic: the funnel/header move at once, the PUT runs in the background.
+   * Failure → revert + error toast. Success → "Movido para X · Desfazer".
+   * opts.isUndo: the move back from that toast — skips the stage guards and offers no undo.
+   */
+  async function moveStage(slug, extra, opts) {
+    const o = opts || {};
     if (slug === currentSlug() && !extra) return;
-    if (slug === 'lost') return openLostModal();
-    if (slug === 'meeting_scheduled' && !upcomingVisit()) {
-      openVisitModal(null, { fromStage: true });
-      return;
+    if (!o.isUndo) {
+      if (slug === 'lost') return openLostModal();
+      if (slug === 'meeting_scheduled' && !upcomingVisit()) {
+        openVisitModal(null, { fromStage: true });
+        return;
+      }
     }
     const row = stageRow(slug);
     const body = Object.assign({ status: slug }, row.id ? { pipeline_stage_id: row.id } : {}, extra || {});
+    const prevLead = S.lead;
+    const prevSlug = currentSlug();
+    const seq = ++stageMoveSeq;
+    S.lead = Object.assign({}, prevLead, { status: slug, pipeline_stage_slug: slug }, row.id ? { pipeline_stage_id: row.id } : {});
+    renderAll();
+    let saved;
     try {
-      await saveLead(body, 'Etapa: ' + stageLabel(slug));
-      await reloadActivity().catch(() => {});
-      renderAll();
+      saved = await api('/api/leads/' + encodeURIComponent(S.id), { method: 'PUT', body });
     } catch (e) {
-      toast(e.message, 'error');
+      if (seq === stageMoveSeq) {
+        S.lead = prevLead;
+        renderAll();
+      }
+      const msg = (e && e.message) || 'Não foi possível mudar a etapa.';
+      if (window.crmToast) window.crmToast.error(msg);
+      return;
+    }
+    if (seq !== stageMoveSeq) return; // a newer move is in flight; it re-renders when done
+    if (saved && saved.data) S.lead = saved.data;
+    await reloadActivity().catch(() => {});
+    if (seq !== stageMoveSeq) return;
+    renderAll();
+    const label = 'Movido para ' + stageLabel(slug);
+    // Going back to "lost" needs a reason (modal), so that move offers no undo.
+    if (!o.isUndo && prevSlug !== 'lost' && window.crmToast && window.crmToast.undo) {
+      window.crmToast.undo(label, () => moveStage(prevSlug, null, { isUndo: true }));
+    } else {
+      toast(label, 'success');
     }
   }
 

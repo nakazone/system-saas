@@ -71,8 +71,7 @@
 
   function toast(msg, type) {
     if (window.crmToast?.show) window.crmToast.show(msg, { type: type || "error" });
-    else if (type === "success") alert(msg);
-    else alert(msg);
+    else console.warn(msg);
   }
 
   function renderHeader() {

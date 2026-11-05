@@ -540,7 +540,11 @@
         else alert(msg);
         return;
       }
-      if (btn) btn.disabled = true;
+      const idleLabel = btn ? btn.textContent : '';
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Approving…';
+      }
       try {
         const rr = await fetch(`${access.apiBase}/approve`, {
           method: 'POST',
@@ -563,7 +567,10 @@
         if (typeof crmNotify === 'function') crmNotify('Could not approve.', 'error');
         else alert('Could not approve.');
       } finally {
-        if (btn) btn.disabled = false;
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = idleLabel;
+        }
       }
     });
   }
@@ -589,7 +596,7 @@
         target="_blank"
         rel="noopener noreferrer"
       >Download PDF</a>
-      <button type="button" class="qp-btn qp-btn--primary" id="btnApprove">Assinar</button>
+      <button type="button" class="qp-btn qp-btn--primary" id="btnApprove">Approve &amp; sign</button>
     `;
     document.getElementById('btnApprove')?.addEventListener('click', openSignModal);
   }

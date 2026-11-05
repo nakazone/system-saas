@@ -51,7 +51,7 @@
   }
 }
 @media (min-width: 768px) and (max-width: 1179px) {
-  .chat-shell { grid-template-columns: minmax(0, 300px) minmax(0, 1fr); }
+  .chat-shell { grid-template-columns: minmax(0, 324px) minmax(0, 1fr); }
 }
 @media (min-width: 768px) and (max-width: 1024px) {
   /* iPad em pé: a barra de cima é a clara do app (sem topbar do CRM). */

@@ -37,7 +37,7 @@
   }
   function notify(msg, type) {
     if (typeof window.crmNotify === "function") window.crmNotify(msg, type || "info");
-    else if (type === "error") alert(msg);
+    else if (type === "error") console.warn(msg);
   }
 
   function ensureCss() {

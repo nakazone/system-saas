@@ -8,7 +8,11 @@
   'use strict';
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  const notify = (m, t) => (typeof crmNotify === 'function' ? crmNotify(m, t) : window.alert(m));
+  const notify = (m, t) => {
+    if (typeof crmNotify === 'function') return crmNotify(m, t);
+    const k = t === 'error' || t === 'success' || t === 'warning' ? t : 'info';
+    if (window.crmToast) window.crmToast[k](m);
+  };
 
   const VOLUME_DISCOUNTS = [
     { range: '500 – 999 sq ft', pct: 5 },
@@ -255,10 +259,20 @@
   async function seedDefaults() {
     if (!S.canEdit) return;
     const hasRows = S.rows.length > 0;
-    const ok = confirm(
+    const ok = await window.crmConfirm(
       hasRows
-        ? 'Adicionar serviços do catálogo padrão que ainda faltam?\n\nNão altera preços nem serviços já existentes — só cria os que faltam, com descrição e preço em branco.'
-        : 'Carregar o catálogo padrão de serviços?\n\nInclui nomes, categorias, unidades e descrições. Os preços ficam em branco para você preencher.',
+        ? {
+            title: 'Adicionar os serviços padrão que faltam?',
+            text: 'Não altera preços nem serviços já existentes — só cria os que faltam, com descrição e preço em branco.',
+            ok: 'Adicionar serviços',
+            cancel: 'Cancelar',
+          }
+        : {
+            title: 'Carregar o catálogo padrão de serviços?',
+            text: 'Inclui nomes, categorias, unidades e descrições. Os preços ficam em branco para você preencher.',
+            ok: 'Carregar catálogo',
+            cancel: 'Cancelar',
+          },
     );
     if (!ok) return;
     const btn = $('tvSeedBtn');

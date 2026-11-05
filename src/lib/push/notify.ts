@@ -40,7 +40,7 @@ export async function notifyOrganizationPush(
   const body = JSON.stringify({
     title: payload.title,
     body: payload.body,
-    url: payload.url || "/dashboard.html?page=leads",
+    url: payload.url || "/leads.html",
     tag: payload.tag || "obramate",
     ...(payload.icon ? { icon: payload.icon } : {}),
   });
@@ -204,7 +204,7 @@ export function notifyNewLeadPush(
     type: "lead.created",
     title: "Novo lead",
     body: lead.name ? `${lead.name} acabou de chegar` : "Um novo lead chegou no pipeline",
-    url: "/dashboard.html?page=leads",
+    url: `/lead-detail.html?id=${encodeURIComponent(lead.id)}`,
     tag: `lead-${lead.id}`,
     dedupeKey: `lead-${lead.id}`,
     excludeUserId: options?.excludeUserId,

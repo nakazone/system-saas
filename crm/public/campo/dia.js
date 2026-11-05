@@ -394,8 +394,11 @@
       return;
     }
     try {
-      const [dataUrl, g] = await Promise.all([compress(file), gps()]);
-      const row = { jobId, dataUrl, stage: "during", takenAtDevice: new Date().toISOString(), lat: g?.lat, lng: g?.lng, gpsAccuracyM: g?.accuracy, deviceLabel: "Campo · Meu dia" };
+      const shot = window.PhotoExif ? await window.PhotoExif.uploadMeta(file, { live: true, deviceGps: gps }) : null;
+      const [dataUrl, g] = await Promise.all([compress(file), shot ? null : gps()]);
+      const row = shot
+        ? { jobId, dataUrl, stage: "during", takenAtDevice: shot.taken_at_device, takenAtSource: shot.taken_at_source, lat: shot.lat, lng: shot.lng, gpsAccuracyM: shot.gps_accuracy_m, locationSource: shot.location_source, cameraModel: shot.camera_model, deviceLabel: "Campo · Meu dia" }
+        : { jobId, dataUrl, stage: "during", takenAtDevice: new Date().toISOString(), lat: g?.lat, lng: g?.lng, gpsAccuracyM: g?.accuracy, deviceLabel: "Campo · Meu dia" };
       if (Q) {
         await Q.enqueue(row);
         await refreshQueue();
@@ -417,9 +420,12 @@
         data_url: row.dataUrl,
         stage: row.stage,
         taken_at_device: row.takenAtDevice,
+        taken_at_source: row.takenAtSource || null,
         lat: row.lat,
         lng: row.lng,
         gps_accuracy_m: row.gpsAccuracyM,
+        location_source: row.locationSource || null,
+        camera_model: row.cameraModel || null,
         client_upload_id: row.id,
         device_label: row.deviceLabel,
       }),

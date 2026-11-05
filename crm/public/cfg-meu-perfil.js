@@ -140,7 +140,7 @@
       showMsg($("mpSigOk"), "Assinatura atualizada.", true);
       if (typeof window.crmNotify === "function") window.crmNotify("Assinatura atualizada.", "success");
     } catch (e) {
-      showMsg($("mpSigErr"), e.message || "Falha ao guardar a assinatura.", true);
+      showMsg($("mpSigErr"), e.message || "Falha ao salvar a assinatura.", true);
     }
   }
 
@@ -176,7 +176,7 @@
       showMsg($("mpAvatarOk"), "Foto atualizada.", true);
       if (typeof window.crmNotify === "function") window.crmNotify("Foto atualizada.", "success");
     } catch (e) {
-      showMsg($("mpAvatarErr"), e.message || "Falha ao guardar a foto.", true);
+      showMsg($("mpAvatarErr"), e.message || "Falha ao salvar a foto.", true);
     }
   }
 
@@ -205,7 +205,7 @@
         showMsg($("mpDadosOk"), "Perfil guardado.", true);
         if (typeof window.crmNotify === "function") window.crmNotify("Perfil atualizado.", "success");
       } catch (err) {
-        showMsg($("mpDadosErr"), err.message || "Não foi possível guardar.", true);
+        showMsg($("mpDadosErr"), err.message || "Não foi possível salvar.", true);
       } finally {
         if (btn) btn.disabled = false;
       }
@@ -247,7 +247,7 @@
       const file = e.target.files && e.target.files[0];
       if (!file) return;
       if (!String(file.type || "").startsWith("image/")) {
-        showMsg($("mpAvatarErr"), "Escolha um ficheiro de imagem.", true);
+        showMsg($("mpAvatarErr"), "Escolha um arquivo de imagem.", true);
         return;
       }
       if (file.size > 2.5 * 1024 * 1024) {

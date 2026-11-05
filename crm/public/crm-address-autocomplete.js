@@ -34,11 +34,16 @@
     return one || null;
   }
 
+  /** Builder / partner portal pages have no staff session: staff config endpoints only answer 401 there. */
+  function isPartnerPage() {
+    return /\/partner-portal(\.html)?$/.test(String(global.location && global.location.pathname || ''));
+  }
+
   async function fetchOrgCountry() {
     if (orgCountryCode) return orgCountryCode;
     if (orgCountryPromise) return orgCountryPromise;
     orgCountryPromise = (async function () {
-      try {
+      if (!isPartnerPage()) try {
         var r = await fetch('/api/config/ui', { credentials: 'include', cache: 'no-store' });
         if (r.ok) {
           var j = await r.json().catch(function () {
@@ -52,7 +57,7 @@
           }
         }
       } catch (_) {}
-      try {
+      if (!isPartnerPage()) try {
         var r2 = await fetch('/api/settings/organization', { credentials: 'include', cache: 'no-store' });
         if (r2.ok) {
           var j2 = await r2.json().catch(function () {
@@ -224,6 +229,7 @@
 
   function dismissPacDropdown(inputEl) {
     document.querySelectorAll('.pac-container').forEach(function (pac) {
+      pac.dataset.sfPacDismissed = '1';
       pac.style.display = 'none';
       pac.style.visibility = 'hidden';
       pac.style.opacity = '0';
@@ -239,6 +245,43 @@
         inputEl.blur();
       } catch (_) {}
     }
+  }
+
+  /** Undo dismissPacDropdown so Google can show suggestions again after clear/retype. */
+  function restorePacDropdown() {
+    document.querySelectorAll('.pac-container').forEach(function (pac) {
+      if (pac.dataset.sfPacDismissed !== '1' && pac.style.display !== 'none') return;
+      delete pac.dataset.sfPacDismissed;
+      pac.style.display = '';
+      pac.style.visibility = '';
+      pac.style.opacity = '';
+      pac.style.pointerEvents = '';
+      pac.removeAttribute('aria-hidden');
+    });
+  }
+
+  function pacContainerVisible() {
+    var found = false;
+    document.querySelectorAll('.pac-container').forEach(function (pac) {
+      if (found) return;
+      if (pac.dataset.sfPacDismissed === '1') return;
+      if (!pac.querySelector('.pac-item')) return;
+      var st = pac.style;
+      if (st.display === 'none' || st.visibility === 'hidden' || st.opacity === '0') return;
+      var cs = window.getComputedStyle ? window.getComputedStyle(pac) : null;
+      if (cs && (cs.display === 'none' || cs.visibility === 'hidden')) return;
+      found = true;
+    });
+    return found;
+  }
+
+  function photonListVisible() {
+    return !!document.querySelector('.crm-photon-ac:not([hidden])');
+  }
+
+  /** True when an address suggestion list is open (Google or Photon). */
+  function addressSuggestionsOpen() {
+    return pacContainerVisible() || photonListVisible();
   }
 
   function bindPacDismissHandlers() {
@@ -328,7 +371,7 @@
   }
 
   async function fetchMapsKey() {
-    var r = await fetch('/api/config/ui', { credentials: 'include', cache: 'no-store' });
+    var r = await fetch(isPartnerPage() ? '/api/partner-portal/config' : '/api/config/ui', { credentials: 'include', cache: 'no-store' });
     if (!r.ok) {
       var builderToken = null;
       try {
@@ -575,14 +618,18 @@
 
     inputEl.addEventListener('input', function () {
       inputEl._sfLastTyped = inputEl.value;
-      if (inputEl._sfAppliedValue != null && String(inputEl.value) !== String(inputEl._sfAppliedValue)) {
+      var val = String(inputEl.value || '');
+      if (inputEl._sfAppliedValue != null && val !== String(inputEl._sfAppliedValue)) {
         suppressSearch = false;
         suppressUntil = 0;
       }
-      if (!String(inputEl.value || '').trim()) {
+      if (!val.trim()) {
         suppressSearch = false;
         suppressUntil = 0;
         inputEl._sfAppliedValue = null;
+        clearTimeout(timer);
+        hide();
+        return;
       }
       if (suppressSearch || Date.now() < suppressUntil) {
         clearTimeout(timer);
@@ -592,22 +639,36 @@
       clearTimeout(timer);
       timer = setTimeout(function () {
         search(inputEl.value);
-      }, 280);
+      }, 220);
     });
     inputEl.addEventListener('keydown', function (e) {
-      if (list.hidden || !items.length) return;
+      var open = !list.hidden && items.length > 0;
       if (e.key === 'ArrowDown') {
+        if (!open) return;
         e.preventDefault();
+        e.stopPropagation();
         active = (active + 1) % items.length;
         render();
       } else if (e.key === 'ArrowUp') {
+        if (!open) return;
         e.preventDefault();
+        e.stopPropagation();
         active = (active - 1 + items.length) % items.length;
         render();
-      } else if (e.key === 'Enter' && active >= 0) {
+      } else if (e.key === 'Enter') {
+        // Enter only selects an address — never submit the surrounding form.
         e.preventDefault();
-        select(active);
+        e.stopPropagation();
+        if (open && active >= 0) select(active);
+      } else if (e.key === 'Tab') {
+        if (open && active >= 0) {
+          // Select then let Tab move focus.
+          select(active);
+        }
       } else if (e.key === 'Escape') {
+        if (!open) return;
+        e.preventDefault();
+        e.stopPropagation();
         hide();
       }
     });
@@ -664,29 +725,62 @@
       var pacLockUntil = 0;
       function lockAndDismiss() {
         pacLockUntil = Date.now() + 400;
-        dismissPacDropdown();
+        dismissPacDropdown(inputEl);
+      }
+
+      function unlockForRetype() {
+        pacLockUntil = 0;
+        restorePacDropdown();
       }
 
       inputEl.addEventListener('input', function () {
         inputEl._sfLastTyped = inputEl.value;
+        var val = String(inputEl.value || '');
         // User cleared or retyped after a pick — unlock so suggestions work again.
-        if (inputEl._sfAppliedValue != null && String(inputEl.value) !== String(inputEl._sfAppliedValue)) {
-          pacLockUntil = 0;
+        if (inputEl._sfAppliedValue != null && val !== String(inputEl._sfAppliedValue)) {
+          unlockForRetype();
         }
-        if (!String(inputEl.value || '').trim()) {
-          pacLockUntil = 0;
+        if (!val.trim()) {
+          unlockForRetype();
           inputEl._sfAppliedValue = null;
         }
         // Only suppress the brief post-pick reopen; never block a new search.
-        if (Date.now() < pacLockUntil && String(inputEl.value) === String(inputEl._sfAppliedValue || '')) {
-          dismissPacDropdown();
+        if (Date.now() < pacLockUntil && val === String(inputEl._sfAppliedValue || '')) {
+          dismissPacDropdown(inputEl);
+        } else if (val.trim().length >= 2) {
+          // Ensure Google can paint the dropdown after a prior dismiss.
+          restorePacDropdown();
+        }
+      });
+
+      inputEl.addEventListener('keydown', function (e) {
+        var open = pacContainerVisible();
+        if (e.key === 'Escape') {
+          if (open || document.querySelector('.pac-container')) {
+            e.preventDefault();
+            e.stopPropagation();
+            dismissPacDropdown(inputEl);
+          }
+          return;
+        }
+        if (e.key === 'Enter') {
+          // Enter only selects an address suggestion — never submit the form.
+          if (open || document.querySelector('.pac-container .pac-item')) {
+            e.preventDefault();
+            e.stopPropagation();
+            // Let Google Places handle the selection via its own Enter binding.
+            return;
+          }
+          // No list open: still block form submit while focused on address.
+          e.preventDefault();
+          e.stopPropagation();
         }
       });
 
       inputEl.addEventListener('blur', function () {
         setTimeout(function () {
           if (document.activeElement === inputEl) return;
-          dismissPacDropdown();
+          dismissPacDropdown(inputEl);
         }, 150);
       });
 
@@ -705,7 +799,7 @@
         function finalize() {
           applySelection(parsed, options.map, inputEl);
           inputEl._sfAppliedValue = inputEl.value;
-          dismissPacDropdown();
+          dismissPacDropdown(inputEl);
         }
         setTimeout(finalize, 0);
         setTimeout(finalize, 50);
@@ -959,6 +1053,8 @@
   global.sfEnsureCrmAddressAutocomplete = ensureMapsReady;
   global.sfParseGooglePlaceComponents = parsePlaceComponents;
   global.sfDismissPacDropdown = dismissPacDropdown;
+  global.sfRestorePacDropdown = restorePacDropdown;
+  global.sfAddressSuggestionsOpen = addressSuggestionsOpen;
   global.sfGetOrgAddressCountry = fetchOrgCountry;
 
   function bootAfterAuth() {

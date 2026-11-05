@@ -153,7 +153,12 @@
   }
 
   async function deactivate(id) {
-    if (!confirm('Desativar este item? Deixará de aparecer no Quote (pode reativar depois).')) return;
+    const ok = await window.crmConfirm({
+      title: 'Desativar este item?',
+      text: 'Ele deixa de aparecer nos quotes. Dá para reativar depois.',
+      ok: 'Desativar',
+    });
+    if (!ok) return;
     await api('/api/quote-catalog/' + id, { method: 'DELETE' });
     await load();
   }

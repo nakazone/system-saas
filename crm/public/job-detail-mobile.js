@@ -667,7 +667,7 @@
           jobId,
           workOrder: job,
           compact: true,
-          onError: (err) => alert(err.message || "Erro"),
+          onError: (err) => window.crmToast?.error(err.message || "Erro no ObraChat"),
         });
       } else {
         $("jobMobExtra").innerHTML = `<p class="jcm-empty">ObraChat indisponível.</p>`;
@@ -822,9 +822,7 @@
     const J = window.JobsInfo;
     const nxt = J?.nextFinish?.(job);
     const label = job?.title || (J && job ? J.client(job) : "");
-    const ok = window.crmConfirm?.completeJob
-      ? await window.crmConfirm.completeJob(label, nxt)
-      : confirm(nxt?.confirm || "Marcar o job como concluído?");
+    const ok = await window.crmConfirm.completeJob(label, nxt);
     if (!ok) return;
     await setStatus("completed");
     window.crmToast?.success?.(nxt?.toast || "Job concluído");
@@ -889,11 +887,17 @@
         window.CamViewer.open({
           photos: mediaList.map((m) => ({
             id: m.legacy ? null : m.id, url: m.url, thumb_url: m.thumb_url, stage: m.stage, created_at: m.created_at, taken_at_device: m.taken_at_device,
-            author: m.author_name, device: m.device_label, caption: m.caption, address: m.address || wo.address, lat: m.lat, lng: m.lng,
+            author: m.author_name, device: m.device_label, caption: m.caption, uploaded_by_name: m.uploaded_by_name, taken_by_name: m.taken_by_name, taken_at_source: m.taken_at_source, location_source: m.location_source, camera_model: m.camera_model, annotations: m.annotations, sticker_ids: m.sticker_ids || [], address: m.address || wo.address, lat: m.lat, lng: m.lng,
             location_available: m.location_available, distance_m: m.distance_m, far_from_job: m.far_from_job, in_portfolio: m.in_portfolio,
             job: { number: wo.number, title: wo.title || clientLabel(wo), client: clientLabel(wo) },
           })),
           index: Number(ph.getAttribute("data-mob-photo")) || 0,
+          // Managers edit from the phone job page too.
+          ...(canManage && window.CamViewer.jobEditing
+            ? window.CamViewer.jobEditing(jobId, (row) => {
+                mediaList = mediaList.map((x) => (x.id === row.id ? { ...x, ...row } : x));
+              })
+            : {}),
         });
         return;
       }

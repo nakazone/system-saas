@@ -52,6 +52,13 @@ type PartnerRequest = TenantRequest & {
 
 export const partnerPortalRouter = Router();
 
+// Every :id on this router is a UUID; a malformed one (old or hand-typed link) is a 404, not a database error.
+const UUID_PARAM = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+partnerPortalRouter.param("id", (_req, res, next, value) => {
+  if (UUID_PARAM.test(String(value || ""))) { next(); return; }
+  res.status(404).json({ success: false, error: "Not found." });
+});
+
 /** Photos / videos the builder sees: shared one by one, or every one of a job that shares its photos (jobs a builder sent). */
 const PARTNER_MEDIA = { deletedAt: null, OR: [{ sharedWithPartners: true }, { workOrder: { sharePhotosWithPartners: true } }] } satisfies Prisma.JobMediaWhereInput;
 
@@ -640,7 +647,9 @@ partnerPortalRouter.get("/api/partner-portal/invoices", requirePartnerAuth, requ
       });
       return rows.map((invoice) => {
         const amount = Number(invoice.amount);
-        const paidAmount = invoice.receipts.reduce((sum, receipt) => sum + Number(receipt.amount), 0);
+        const receiptsTotal = invoice.receipts.reduce((sum, receipt) => sum + Number(receipt.amount), 0);
+        // An invoice the company marked paid has no balance, even without receipts recorded.
+        const paidAmount = invoice.status === "paid" ? Math.max(amount, receiptsTotal) : receiptsTotal;
         return {
           id: invoice.id,
           number: invoice.invoiceNumber,
