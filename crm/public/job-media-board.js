@@ -560,7 +560,7 @@
   }
   function stagePillCls(label) {
     const s = String(label || "");
-    if (s === "Em campo" || s === "Lixa") return "dk";
+    if (window.JobsInfo?.isInFieldStage?.(s) || s === "Em campo" || s === "Lixa" || s === "Installing" || s === "Sanding") return "dk";
     if (s === "Concluído" || s === "Faturado" || s === "Pago") return "ol";
     return "";
   }

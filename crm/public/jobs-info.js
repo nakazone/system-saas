@@ -197,17 +197,33 @@
     return { inst, sand };
   }
 
+  /**
+   * In-progress label from the job's service: Installation → Installing, Sand & Finish → Sanding.
+   * On a both-sector job, switch to Sanding once installation is done (awaiting sand).
+   */
+  function fieldPhaseLabel(wo) {
+    const sector = String(wo?.sector || "").toLowerCase();
+    if (awaitingSand(wo) || sector === "sand_finish") return "Sanding";
+    if (sector === "both") {
+      const p = sectorProgress(wo);
+      if (p.installation && !p.sand) return "Sanding";
+    }
+    return "Installing";
+  }
+
+  /** True for any in-field stage chip (new + legacy labels). */
+  function isInFieldStage(label) {
+    const s = String(label || "");
+    return s === "Installing" || s === "Sanding" || s === "Em campo" || s === "Lixa";
+  }
+
   function stageLabel(wo) {
     if (wo.status === "canceled") return "Cancelado";
     if (wo.status === "draft" && !wo.scheduled_start) return "Rascunho";
     if (!wo.scheduled_start && wo.status !== "completed") return "Sem data";
     const s = step(wo);
     if (s === 0) return "Agendado";
-    if (s === 1) {
-      const nxt = nextFinish(wo);
-      if (nxt && nxt.sector === "sand") return "Lixa";
-      return "Em campo";
-    }
+    if (s === 1) return fieldPhaseLabel(wo);
     if (s === 3) return "Concluído";
     if (s === 4) return "Faturado";
     return wo.billing && wo.billing.billing_status === "paid" ? "Pago" : "Concluído";
@@ -287,7 +303,13 @@
     if (!date && wo.status === "completed") date = dayShort(wo.updated_at || wo.scheduled_end) || "";
     if (!date && !finished) date = "Sem data";
     const stage = stageLabel(wo);
-    const fallback = { draft: "Rascunho", scheduled: "Agendado", in_progress: "Em campo", completed: "Concluído", canceled: "Cancelado" };
+    const fallback = {
+      draft: "Rascunho",
+      scheduled: "Agendado",
+      in_progress: fieldPhaseLabel(wo),
+      completed: "Concluído",
+      canceled: "Cancelado",
+    };
     const status = stage && stage !== "Sem data" ? stage : fallback[wo.status] || "";
     return { date, status };
   }
@@ -361,13 +383,13 @@
     if (late(wo)) return "hot";
     const label = stageLabel(wo);
     if (label === "Sem data") return "hot";
-    if (label === "Em campo" || label === "Lixa") return "act";
+    if (isInFieldStage(label)) return "act";
     if (label === "Concluído" || label === "Faturado" || label === "Pago") return "ok";
     return "wait";
   }
 
   window.JobsInfo = {
     esc, stageTone, money, money0, client, builderName, findLine, searchText, displayName, isActive, late, step, STEP_NAMES, STATUS_BY_STEP, STATUS_STEP_MSG,
-    statusForStep, atStatus, stageLabel, progHtml, sectorProgress, nextFinish, fieldHalves, bill, dateRange, listWhen, listAnchorIso, awaitingSand, dayShort, completeLabel, compareNearest, startMs, isToday, initials, team,
+    statusForStep, atStatus, stageLabel, fieldPhaseLabel, isInFieldStage, progHtml, sectorProgress, nextFinish, fieldHalves, bill, dateRange, listWhen, listAnchorIso, awaitingSand, dayShort, completeLabel, compareNearest, startMs, isToday, initials, team,
   };
 })();

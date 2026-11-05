@@ -156,7 +156,9 @@
     if (mobStatus) {
       out = matched.filter((wo) => {
         const stage = window.JobsInfo?.stageLabel?.(wo);
-        if (mobStatus === "Em campo") return stage === "Em campo" || stage === "Lixa";
+        if (mobStatus === "Em campo") {
+          return window.JobsInfo?.isInFieldStage?.(stage) || stage === "Em campo" || stage === "Lixa" || stage === "Installing" || stage === "Sanding";
+        }
         return stage === mobStatus;
       });
     } else if (tab === "today") {
@@ -172,7 +174,14 @@
     if (focusId) {
       const pinned = rows.find((wo) => String(wo.id) === String(focusId) && wo.status !== "canceled");
       const pinnedStage = window.JobsInfo?.stageLabel?.(pinned);
-      const statusOk = mobStatus === "Em campo" ? pinnedStage === "Em campo" || pinnedStage === "Lixa" : pinnedStage === mobStatus;
+      const statusOk =
+        mobStatus === "Em campo"
+          ? window.JobsInfo?.isInFieldStage?.(pinnedStage) ||
+            pinnedStage === "Em campo" ||
+            pinnedStage === "Lixa" ||
+            pinnedStage === "Installing" ||
+            pinnedStage === "Sanding"
+          : pinnedStage === mobStatus;
       const allowed = pinned && (mobStatus ? statusOk : !isPaidJob(pinned));
       if (allowed) out = [pinned, ...out.filter((wo) => String(wo.id) !== String(pinned.id))];
     }
