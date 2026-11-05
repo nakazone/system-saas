@@ -17,6 +17,8 @@
   --red-soft: var(--om-danger-soft, #FDECEC);
 }
 .dy { padding-bottom: 1.5rem; }
+/* a conta agora fica na barra superior, igual aos outros apps */
+.dy-av { display: none !important; }
 .dy-hd { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
 .dy-av { width: 44px; height: 44px; border-radius: 50%; background: var(--ink); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 15px; flex: none; }
 .dy-hd__t { min-width: 0; flex: 1; }

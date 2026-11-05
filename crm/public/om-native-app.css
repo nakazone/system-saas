@@ -144,21 +144,6 @@ html.om-soft-nav-suppress body.om-device-mobile.om-has-tabbar .dashboard-main {
     }
   }
 
-  body.om-device-mobile.om-has-apptop .om-app-top {
-    background: rgba(243, 241, 238, 0.82) !important;
-    backdrop-filter: saturate(180%) blur(20px);
-    -webkit-backdrop-filter: saturate(180%) blur(20px);
-    border-bottom: 0.5px solid rgba(28, 25, 23, 0.08);
-  }
-
-  body.om-device-mobile .om-tabbar {
-    background: rgba(255, 255, 255, 0.86) !important;
-    backdrop-filter: saturate(180%) blur(20px);
-    -webkit-backdrop-filter: saturate(180%) blur(20px);
-    border-top: 0.5px solid rgba(28, 25, 23, 0.1);
-    box-shadow: 0 -8px 28px rgba(28, 25, 23, 0.04);
-  }
-
   body.om-device-mobile .om-tabbar__item {
     transition: color 0.15s ease, transform 0.12s ease;
   }

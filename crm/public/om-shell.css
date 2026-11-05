@@ -1,0 +1,290 @@
+/**
+ * ObraMate — as barras de navegação de TODOS os apps (ObraMate, ObraBuilder, ObraCrew, ObraCam).
+ * Uma definição só: nenhum app redefine a aparência destas classes. Par de om-shell.js.
+ *
+ *   Barra superior  .om-shell-top   [ícone do app + nome] ............ [+] [sino] [avatar]
+ *   Barra inferior  .om-shell-tabs  pílula flutuante, até 5 abas, ativa em cinza com ícone laranja
+ *                   .om-shell-search  círculo da busca à direita da pílula (só em quem tem busca)
+ *
+ * "html body … .x.x" ganha das regras antigas (body.om-device-mobile .om-tabbar) sem !important.
+ */
+
+/* ---------- barra superior ---------- */
+html body .om-shell-top.om-shell-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  z-index: 58;
+  box-sizing: border-box;
+  min-height: calc(56px + env(safe-area-inset-top, 0px));
+  padding: calc(8px + env(safe-area-inset-top, 0px)) 16px 8px;
+  border: 0;
+  background: rgba(247, 248, 250, 0.92);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 1px 0 rgba(229, 231, 235, 0.7);
+  font-family: var(--om-font);
+}
+html body .om-shell-brand.om-shell-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 44px;
+  line-height: 1;
+  color: var(--om-ink);
+  text-decoration: none;
+}
+html body .om-shell-mark.om-shell-mark {
+  flex: none;
+  display: block;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  object-fit: cover;
+}
+html body .om-shell-name.om-shell-name {
+  overflow: hidden;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--om-ink);
+}
+html body .om-shell-actions.om-shell-actions {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+html body .om-shell-btn.om-shell-btn {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 40px;
+  height: 40px;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 1px var(--om-line), 0 4px 12px -6px rgba(16, 24, 40, 0.25);
+  color: var(--om-ink);
+  cursor: pointer;
+  text-decoration: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+/* 40px de desenho, 44px de toque */
+html body .om-shell-btn.om-shell-btn::before,
+html body .om-shell-avatar.om-shell-avatar::before { content: ""; position: absolute; inset: -2px; border-radius: 50%; }
+html body .om-shell-btn.om-shell-btn svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+html body .om-shell-avatar.om-shell-avatar {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 40px;
+  height: 40px;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--om-ink);
+  box-shadow: none;
+  color: #fff;
+  font-family: var(--om-font);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  text-decoration: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+html body .om-shell-menu.om-shell-menu {
+  position: absolute;
+  top: 48px;
+  right: 0;
+  z-index: 70;
+  box-sizing: border-box;
+  width: 240px;
+  padding: 8px;
+  border-radius: var(--om-r-lg);
+  background: var(--om-card);
+  box-shadow: 0 0 0 1px var(--om-line), var(--om-shadow-3);
+  transform-origin: top right;
+  animation: om-pop-in 160ms var(--om-ease-out) both;
+}
+html body .om-shell-menu[hidden] { display: none; }
+.om-shell-menu__who { padding: 8px 12px 10px; border-bottom: 1px solid var(--om-line); margin-bottom: 6px; font-size: var(--om-fs-sm); color: var(--om-ink-2); overflow-wrap: anywhere; }
+.om-shell-menu__who strong { display: block; color: var(--om-ink); font-size: var(--om-fs-md); }
+html body .om-shell-menu__item.om-shell-menu__item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--om-r-md);
+  background: transparent;
+  color: var(--om-ink);
+  font: inherit;
+  font-size: var(--om-fs-md);
+  font-weight: 600;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* ---------- barra inferior ---------- */
+html body .om-shell-tabs.om-shell-tabs {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: max(12px, calc(env(safe-area-inset-bottom, 0px) - 8px));
+  z-index: 60;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  align-items: center;
+  gap: 0;
+  box-sizing: border-box;
+  max-width: 560px;
+  height: 62px;
+  min-height: 0;
+  margin: 0 auto;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 31px;
+  background: rgba(255, 255, 255, 0.82);
+  -webkit-backdrop-filter: blur(22px) saturate(1.8);
+  backdrop-filter: blur(22px) saturate(1.8);
+  box-shadow: 0 0 0 1px var(--om-line), inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 12px 30px -12px rgba(16, 24, 40, 0.3);
+  font-family: var(--om-font);
+}
+html body .om-shell-tabs.om-shell-tabs.has-search { right: 86px; }
+html body .om-shell-tab.om-shell-tab {
+  appearance: none;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  box-sizing: border-box;
+  width: auto;
+  min-width: 0;
+  height: 54px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 27px;
+  background: transparent;
+  color: var(--om-ink-3);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: 0;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 120ms var(--om-ease-out);
+}
+html body .om-shell-tab.om-shell-tab:active { transform: scale(0.95); }
+html body .om-shell-tab.om-shell-tab svg {
+  flex: none;
+  width: 23px;
+  height: 23px;
+  margin: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+html body .om-shell-tab.om-shell-tab.is-active,
+html body .om-shell-tab.om-shell-tab[aria-current="page"] {
+  background: var(--om-surface);
+  color: var(--om-ink);
+}
+html body .om-shell-tab.om-shell-tab.is-active svg,
+html body .om-shell-tab.om-shell-tab[aria-current="page"] svg {
+  color: var(--om-accent-strong);
+  stroke: var(--om-accent-strong);
+  stroke-width: 2.2;
+}
+html body .om-shell-search.om-shell-search {
+  position: fixed;
+  right: 16px;
+  bottom: max(12px, calc(env(safe-area-inset-bottom, 0px) - 8px));
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 62px;
+  height: 62px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.82);
+  -webkit-backdrop-filter: blur(22px) saturate(1.8);
+  backdrop-filter: blur(22px) saturate(1.8);
+  box-shadow: 0 0 0 1px var(--om-line), inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 12px 30px -12px rgba(16, 24, 40, 0.3);
+  color: var(--om-ink);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+html body .om-shell-search.om-shell-search svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* `hidden` sempre vence o display acima */
+html body .om-shell-top[hidden],
+html body .om-shell-tabs[hidden],
+html body .om-shell-search[hidden],
+html body .om-shell-btn[hidden],
+html body .om-shell-avatar[hidden],
+html body .om-shell-mark[hidden] { display: none; }
+
+/* CRM: as barras de celular só existem no celular (tablet e computador usam a doca) */
+html body:not(.om-device-mobile) .om-app-top.om-shell-top,
+html body:not(.om-device-mobile) .om-tabbar.om-shell-tabs,
+html body:not(.om-device-mobile) .om-tabbar-search.om-shell-search { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  html body .om-shell-tab.om-shell-tab:active { transform: none; }
+  html body .om-shell-menu.om-shell-menu { animation: om-fade-in 120ms ease both; }
+}

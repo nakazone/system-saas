@@ -8,7 +8,8 @@
   const STORAGE_KEY = "crm_sidebar_collapsed";
   const NAV_HISTORY_KEY = "crm_nav_history_v1";
   const NAV_HISTORY_MAX = 50;
-  const SHELL_VER = "20261105-dockall";
+  // Versions every file loaded below: with the 1-year cache, bump it whenever one of those files changes.
+  const SHELL_VER = "20261105-shell8";
 
   const CREATE_MENU_ITEMS = [
     {
@@ -1199,7 +1200,7 @@
         }
       })();
     if (wantMobileNav) {
-      if (!window.__omMobileNav && !document.querySelector('script[src*="om-mobile-nav.js?v=20261105-apps3"]')) {
+      if (!window.__omMobileNav && !document.querySelector('script[src*="om-mobile-nav.js?v=20261105-shell8"]')) {
         ensureStylesheet(`om-mobile-nav.css?v=${SHELL_VER}`);
         ensureStylesheet(`om-native-app.css?v=${SHELL_VER}`);
         ensureStylesheet(`om-gestures.css?v=20261102-ptr1`);

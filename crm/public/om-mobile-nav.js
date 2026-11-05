@@ -7,7 +7,7 @@
  * fonte única do menu). FALLBACK_* abaixo só vale se aquele arquivo não carregou.
  */
 (function () {
-  const VER = "20261105-camswipe1";
+  const VER = "20261105-shell8";
   const MQ = window.matchMedia("(max-width: 900px)");
   const FIELD_ROLES = new Set(["installer", "crew_lead", "subcontractor"]);
   const SHEET_MS = 380;
@@ -77,6 +77,11 @@
     agendaAdd:
       '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M12 14v4M10 16h4"/></svg>',
   };
+  // One drawing per meaning across the apps (om-shell.js).
+  if (window.OmShell) {
+    const I = window.OmShell.icons;
+    Object.assign(ICONS, { home: I.home, pipeline: I.leads, agenda: I.calendar, jobs: I.jobs, invoice: I.invoice, chat: I.chat, horas: I.clock, more: I.more, search: I.search, plus: I.plus });
+  }
 
   function fileName() {
     return (location.pathname || "").split("/").pop() || "";
@@ -563,21 +568,22 @@
     if (document.getElementById("omAppTop")) return;
     const top = document.createElement("header");
     top.id = "omAppTop";
-    top.className = "om-app-top";
+    top.className = "om-app-top om-shell-top";
     top.setAttribute("aria-label", "Barra superior");
+    const brandInner = window.OmShell
+      ? window.OmShell.brandHtml("obramate")
+      : `<img class="om-shell-mark" src="/assets/favicon-192.png?v=20260924-pwa" alt="" width="36" height="36" /><span class="om-shell-name">ObraMate</span>`;
     top.innerHTML = `
-      <a class="om-app-top__brand" href="${escapeHtml(phoneHref("home"))}" aria-label="ObraMate — Início">
-        <img class="om-app-top__logo" src="/assets/favicon-192.png?v=20260924-pwa" alt="ObraMate" width="36" height="36" onerror="this.style.display='none'" />
-      </a>
-      <div class="om-app-top__actions">
-        <button type="button" class="om-app-top__plus" id="omTopPlus" aria-label="Criar" aria-haspopup="menu" aria-expanded="false">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+      <a class="om-app-top__brand om-shell-brand" href="${escapeHtml(phoneHref("home"))}" aria-label="ObraMate — início">${brandInner}</a>
+      <div class="om-app-top__actions om-shell-actions">
+        <button type="button" class="om-app-top__plus om-shell-btn" id="omTopPlus" aria-label="Criar" aria-haspopup="menu" aria-expanded="false">
+          ${ICONS.plus}
         </button>
-        <button type="button" class="om-app-top__bell home-bell" id="homeBell" aria-label="Atenção">
+        <button type="button" class="om-app-top__bell home-bell om-shell-btn" id="homeBell" aria-label="Atenção">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
           <span class="om-app-top__bell-dot home-bell__dot" aria-hidden="true"></span>
         </button>
-        <a class="om-app-top__avatar home-avatar" id="homeAvatar" href="configuracoes.html#mp-perfil" aria-label="Meu perfil">—</a>
+        <a class="om-app-top__avatar home-avatar om-shell-avatar" id="homeAvatar" href="configuracoes.html#mp-perfil" aria-label="Meu perfil">—</a>
       </div>`;
     document.body.insertBefore(top, document.body.firstChild);
     document.body.classList.add("om-has-apptop");
@@ -615,9 +621,9 @@
     nav.setAttribute("aria-label", "Navegação principal");
 
     const tab = activeTab(false);
-    nav.className = "om-tabbar om-tabbar--ios";
+    nav.className = "om-tabbar om-tabbar--ios om-shell-tabs has-search";
     const item = (key, href, icon, label, perm) =>
-      `<a class="om-tabbar__item${tab === key ? " is-active" : ""}" href="${escapeHtml(href)}" data-om-tab="${key}"${
+      `<a class="om-tabbar__item om-shell-tab${tab === key ? " is-active" : ""}" href="${escapeHtml(href)}" data-om-tab="${key}"${
         tab === key ? ' aria-current="page"' : ""
       }${perm ? ` data-crm-permission="${escapeHtml(perm)}"` : ""}>
         ${icon}
@@ -643,7 +649,7 @@
       const search = document.createElement("button");
       search.type = "button";
       search.id = "omTabbarSearch";
-      search.className = "om-tabbar-search";
+      search.className = "om-tabbar-search om-shell-search";
       search.setAttribute("aria-label", "Buscar");
       search.innerHTML = ICONS.search;
       search.addEventListener("click", () => {
@@ -770,35 +776,35 @@
     }
     const nav = document.createElement("nav");
     nav.id = "omTabbar";
-    nav.className = "om-tabbar om-tabbar--field";
+    nav.className = "om-tabbar om-tabbar--field om-shell-tabs";
     nav.setAttribute("aria-label", "Campo");
     const tab = activeTab(true);
     nav.innerHTML = `
-      <a class="om-tabbar__item${tab === "hoje" ? " is-active" : ""}" href="/campo/hoje.html" data-om-tab="hoje"${
+      <a class="om-tabbar__item om-shell-tab${tab === "hoje" ? " is-active" : ""}" href="/campo/hoje.html" data-om-tab="hoje"${
         tab === "hoje" ? ' aria-current="page"' : ""
       }>
         ${ICONS.home}
         <span>Hoje</span>
       </a>
-      <a class="om-tabbar__item${tab === "agenda" ? " is-active" : ""}" href="/campo/agenda.html" data-om-tab="agenda"${
+      <a class="om-tabbar__item om-shell-tab${tab === "agenda" ? " is-active" : ""}" href="/campo/agenda.html" data-om-tab="agenda"${
         tab === "agenda" ? ' aria-current="page"' : ""
       }>
         ${ICONS.agenda}
         <span>Agenda</span>
       </a>
-      <a class="om-tabbar__item${tab === "jobs" ? " is-active" : ""}" href="/jobs.html" data-om-tab="jobs"${
+      <a class="om-tabbar__item om-shell-tab${tab === "jobs" ? " is-active" : ""}" href="/jobs.html" data-om-tab="jobs"${
         tab === "jobs" ? ' aria-current="page"' : ""
       }>
         ${ICONS.jobs}
         <span>Jobs</span>
       </a>
-      <a class="om-tabbar__item${tab === "chat" ? " is-active" : ""}" href="/chat.html" data-om-tab="chat"${
+      <a class="om-tabbar__item om-shell-tab${tab === "chat" ? " is-active" : ""}" href="/chat.html" data-om-tab="chat"${
         tab === "chat" ? ' aria-current="page"' : ""
       }>
         ${ICONS.chat}
         <span>ObraChat</span>
       </a>
-      <a class="om-tabbar__item${tab === "horas" ? " is-active" : ""}" href="/campo/horas.html" data-om-tab="horas"${
+      <a class="om-tabbar__item om-shell-tab${tab === "horas" ? " is-active" : ""}" href="/campo/horas.html" data-om-tab="horas"${
         tab === "horas" ? ' aria-current="page"' : ""
       }>
         ${ICONS.horas}
@@ -866,6 +872,11 @@
 
     const field = await resolveFieldRole();
     if (field) {
+      // Jobs and Chat are shared with the CRM, but the field team stays inside ObraCrew's bars.
+      if (window.OmShell && !document.getElementById("omAppTop")) {
+        document.body.insertBefore(window.OmShell.crewTop("omAppTop", "om-app-top"), document.body.firstChild);
+        document.body.classList.add("om-has-apptop");
+      }
       ensureFieldTabbar();
       bindEdgeSwipeBack();
       prefetchTabs();

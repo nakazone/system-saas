@@ -509,25 +509,7 @@ dl.pp-dl dd { margin: 0; text-align: right; font-weight: 500; }
   .pp-cal-day.has-ev::after { content: ""; width: 6px; height: 6px; border-radius: 999px; background: var(--pp-ink); margin: auto auto 2px; }
   .pp-original iframe { height: 380px; }
   .pp-steps { display: none; }
-  .pp-tabs {
-    display: flex; position: fixed; left: 12px; right: 86px; bottom: max(16px, env(safe-area-inset-bottom)); z-index: 30; height: 62px;
-    border-radius: 31px; background: rgba(255, 255, 255, .86); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
-    border: 1px solid var(--pp-border); box-shadow: 0 8px 24px rgba(34, 30, 26, .12); align-items: center; padding: 0 4px;
-  }
-  .pp-tab {
-    position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 52px;
-    border: 0; background: none; font-size: 11px; font-weight: 500; color: var(--pp-muted); cursor: pointer; padding: 0;
-  }
-  .pp-tab svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-  .pp-tab[aria-current="page"] { color: var(--pp-ink); font-weight: 600; }
   .pp-tab .pp-count { top: 2px; right: calc(50% - 22px); }
-  .pp-search-fab {
-    display: flex; position: fixed; right: 12px; bottom: max(16px, env(safe-area-inset-bottom)); z-index: 30; width: 62px; height: 62px;
-    border-radius: 999px; background: rgba(255, 255, 255, .86); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
-    border: 1px solid var(--pp-border); box-shadow: 0 8px 24px rgba(34, 30, 26, .12); align-items: center; justify-content: center; cursor: pointer;
-  }
-  .pp-search-fab svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
-  body.pp-focus .pp-tabs, body.pp-focus .pp-search-fab { display: none; }
   body.pp-focus .pp-wrap > .pp-head, body.pp-focus .pp-wrap > .pp-nums, body.pp-focus .pp-wrap > .pp-stages { display: none; }
   .pp-bar-labels { font-size: 11px; }
   .pp-fixbar {
@@ -1358,7 +1340,6 @@ body.pp-sheet-open { overflow: hidden; }
 }
 .pp-btn:active, .pp-qa:active, .pp-act:active, .pp-set-row:active, .pp-co-card:active, .pp-kpi:active, .pp-stage:active, .pp-filter button:active, .pp-cobar button:active, .pp-q-ic:active, .pp-geo-btn:active, .pp-source:active { transform: scale(.97); }
 .pp-row:active, .pp-today-item:active, .pp-price-row:active { background-color: var(--pp-surface); }
-.pp-tab:active svg { transform: scale(.9); }
 @media (hover: hover) and (pointer: fine) {
   .pp-qa:hover, .pp-co-card:hover, .pp-kpi:hover { border-color: var(--pp-orange); box-shadow: 0 6px 18px rgba(34, 30, 26, .06); }
 }
@@ -1766,15 +1747,6 @@ button.pp-set-out:hover { background: var(--pp-bg); }
 
 /* Phone tab bar: solid pill + soft scrim so content doesn't bleed through the labels */
 @media (max-width: 767px) {
-  .pp-tabs, .pp-search-fab { background: rgba(255, 255, 255, .97); box-shadow: 0 10px 30px rgba(34, 30, 26, .16), 0 1px 0 rgba(255,255,255,.8) inset; }
-  body:has(.pp-tabs:not([hidden])):not(.pp-focus)::after {
-    content: ""; position: fixed; left: 0; right: 0; bottom: 0; z-index: 29; pointer-events: none;
-    height: calc(96px + env(safe-area-inset-bottom));
-    background: linear-gradient(to bottom, rgba(247, 248, 250, 0), var(--pp-bg) 72%);
-  }
-  .pp-tab { font-size: 11px; font-weight: 600; letter-spacing: .01em; }
-  .pp-tab svg { width: 22px; height: 22px; }
-  .pp-tab[aria-current="page"] svg { stroke: var(--pp-orange); }
   .pp-install-banner span { display: none; }
   .pp-install-banner strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
   .pp-install-banner > div { min-width: 0; }
@@ -1863,9 +1835,6 @@ button.pp-set-out:hover { background: var(--pp-bg); }
   .pp-uchip:hover, .pp-uchip[aria-expanded="true"] { background: transparent; border: 0; }
   .pp-uchip-txt { display: none; }
   .pp-uchip .pp-avatar { width: 44px; height: 44px; font-size: 14px; }
-  .pp-tab { border-radius: 26px; }
-  .pp-tab[aria-current="page"] { color: var(--pp-orange); background: rgba(16, 24, 40, .05); }
-  .pp-tab[aria-current="page"] svg { stroke: currentColor; }
 }
 
 /* ═══════════ Floors from plans (takeoff · 3D · quote) ═══════════ */
@@ -3282,30 +3251,41 @@ body.pp-pal-open { overflow: hidden; }
    Measurements, More) instead of a dock with ten icons. The computer (≥1024px) keeps the dock. */
 @media (min-width: 768px) and (max-width: 1023px) {
   .pp-dock { display: none !important; }
-  .pp-tabs {
-    display: flex; position: fixed; left: 50%; transform: translateX(-50%); width: min(560px, calc(100% - 24px));
-    bottom: max(16px, env(safe-area-inset-bottom)); z-index: 30; height: 62px; padding: 0 4px; align-items: center;
-    border-radius: 31px; border: 1px solid var(--pp-border); background: rgba(255, 255, 255, .97);
-    box-shadow: 0 10px 30px rgba(34, 30, 26, .16);
-  }
-  .pp-tab {
-    position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 52px;
-    border: 0; border-radius: 26px; background: none; font-size: 12px; font-weight: 600; color: var(--pp-muted); cursor: pointer; padding: 0;
-  }
-  .pp-tab svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-  .pp-tab[aria-current="page"] { color: var(--pp-orange-strong); background: rgba(16, 24, 40, .05); }
   .pp-tab .pp-count { top: 2px; right: calc(50% - 22px); }
-  body.pp-focus .pp-tabs { display: none; }
 }
-/* Tabs size to their label ("Measurements" is longer than "Home") and never wrap. */
+
+/* Barras: a aparência é a de todos os apps (om-shell.css). Aqui só o que é do portal. */
+html body .pp-plus-mobile.om-shell-btn { display: none; }
+@media (max-width: 767px) { html body .pp-plus-mobile.om-shell-btn { display: inline-flex; } }
+/* Doca do computador: mesmos rótulos e mesmo traço laranja da aba ativa da doca do ObraMate */
+.pp-di { color: var(--om-ink-3); font-size: 11px; font-weight: 550; letter-spacing: -.01em; }
+.pp-di .pp-ic { background: transparent; border-radius: 14px; color: var(--om-ink); }
+.pp-di[aria-current="page"] { color: var(--om-ink); font-weight: 650; }
+.pp-di[aria-current="page"] .pp-ic { background: var(--om-ink); color: #fff; box-shadow: 0 6px 14px -6px rgba(16, 24, 40, .45); }
+.pp-di[aria-current="page"]::after { content: ""; position: absolute; left: 50%; bottom: -5px; width: 16px; height: 3px; margin-left: -8px; border-radius: 2px; background: var(--om-accent); }
+html body .pp-shell-brand.pp-shell-brand { display: none; }
+html body .pp-tabs.om-shell-tabs, html body .pp-search-fab.om-shell-search { display: none; }
 @media (max-width: 1023px) {
-  .pp-tab { flex: 1 1 auto; min-width: 0; padding: 0 2px; white-space: nowrap; letter-spacing: -.01em; }
+  html body .om-shell-mark.pp-shell-brand.pp-shell-brand { display: block; }
+  html body .om-shell-name.pp-shell-brand.pp-shell-brand { display: inline; }
+  .pp-brand .pp-mark, .pp-brand .pp-brand-text { display: none; }
+  html body .pp-tabs.om-shell-tabs { display: grid; }
+  html body .pp-search-fab.om-shell-search { display: grid; }
+  html body .pp-tabs.om-shell-tabs[hidden], html body .pp-search-fab.om-shell-search[hidden],
+  html body .pp-tab.om-shell-tab[hidden] { display: none; }
+  html body.pp-focus .pp-tabs.om-shell-tabs, html body.pp-focus .pp-search-fab.om-shell-search { display: none; }
+  /* the sticky wrapper carries nothing of its own; the look is on the inner bar */
+  .pp-top { background: transparent; border: 0; -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+@media print { html body.pp-printing .pp-tabs.om-shell-tabs, html body.pp-printing .pp-search-fab.om-shell-search { display: none; } }
+@media (min-width: 1024px) {
+  html body .pp-top-in.om-shell-top { padding-inline: var(--pp-pad); }
+  html body .pp-brand.om-shell-brand .pp-brand-text { line-height: 1.2; }
 }
 
 /* Phone: fixed bars without a live blur (expensive while scrolling); a near-solid fill reads the same. */
 @media (max-width: 767px) {
-  .pp-top, .pp-tabs, .pp-search-fab, .pp-mtabs { -webkit-backdrop-filter: none; backdrop-filter: none; }
-  .pp-top { background: rgba(242, 243, 245, .97); }
+  .pp-mtabs { -webkit-backdrop-filter: none; backdrop-filter: none; }
   .pp-mtabs { background: rgba(247, 248, 250, .97); }
   /* iOS zooms into any field under 16px: every field is 16px on the phone. */
   body.pp input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),

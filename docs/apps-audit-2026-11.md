@@ -197,3 +197,16 @@ Também vale fazer:
 | 5. Movimento | Feito: saídas animadas, arrastar para fechar, FLIP do viewer, haptics no ObraCrew, toque padrão, reduced-motion com fade em vez de zerar |
 
 Pendências conhecidas: redirecionamento desktop do `/obracam` no servidor; códigos de erro estáveis na API de upload; aceitar "Enviar o dia" com a única foto ainda na fila (precisa de mudança no servidor).
+
+## Barras de navegação (padrão único)
+
+`crm/public/om-shell.css` e `om-shell.js` definem a barra superior e a inferior de todos os apps. Nenhum app redefine a aparência delas; `tests/ui-guardrails.test.ts` trava isso.
+
+| | Superior | Inferior (celular) |
+|---|---|---|
+| ObraMate | ícone + nome, +, sino, avatar | Início, Leads, Agenda, Jobs, Mais + busca |
+| ObraBuilder | ícone + nome, +, sino, avatar | Home, Jobs, Calendar, Measure/Invoices, More + busca |
+| ObraCrew | ícone + nome, avatar (conta e Sair) | Hoje, Agenda, Jobs, ObraChat, Horas |
+| ObraCam | ícone + nome, avatar (Ajustes) | Jobs, Fotos, Ajustes + busca |
+
+Ficam de fora de propósito: as telas de detalhe do ObraCrew (Ticket, Samples), que mantêm o cabeçalho com voltar; e no computador o ObraMate e o ObraBuilder usam a doca, também com a mesma aparência. Ainda diferentes: o ObraCalendar (tem abas próprias) e o cabeçalho do CRM entre 768px e 1180px.

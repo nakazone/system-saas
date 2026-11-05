@@ -230,9 +230,10 @@ body.dashboard-app-body .btn-primary:hover {
     align-items: center !important;
     justify-content: flex-start !important;
     gap: 4px !important;
-    width: 56px !important;
+    /* cresce com o rótulo ("Configurações"), em vez de cortar a palavra */
+    width: auto !important;
     min-width: 56px !important;
-    max-width: 56px !important;
+    max-width: 84px !important;
     height: auto !important;
     min-height: 0 !important;
     margin: 0 !important;
@@ -270,7 +271,7 @@ body.dashboard-app-body .btn-primary:hover {
   }
   html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-item .nav-item__label {
     position: static !important;
-    font-size: 10.5px !important;
+    font-size: 11px !important;
     font-weight: 550 !important;
     line-height: 1.15 !important;
     letter-spacing: -0.01em !important;
@@ -278,14 +279,14 @@ body.dashboard-app-body .btn-primary:hover {
     text-align: center !important;
     color: #475467 !important;
     opacity: 1 !important;
-    max-width: 54px !important;
-    width: 100% !important;
+    max-width: 80px !important;
+    width: auto !important;
     overflow: hidden !important;
     display: -webkit-box !important;
     -webkit-box-orient: vertical !important;
     -webkit-line-clamp: 2 !important;
     transform: none !important;
-    hyphens: auto;
+    hyphens: none;
   }
   html body.dashboard-app-body:not(.om-device-mobile):not(.om-no-dock):not(.qb-sidebar-page) #dashboardSidebar .nav-item:hover {
     transform: translateY(-6px) !important;
@@ -488,116 +489,7 @@ body.dashboard-app-body .btn-primary:hover {
 html body.dashboard-app-body.om-device-mobile {
   --om-tabbar-h: 74px;
 }
-html body.dashboard-app-body.om-device-mobile .om-app-top {
-  background: rgba(247, 248, 250, 0.92) !important;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  box-shadow: 0 1px 0 rgba(229, 231, 235, 0.7);
-}
-html body.dashboard-app-body.om-device-mobile .om-app-top__bell,
-html body.dashboard-app-body.om-device-mobile .om-app-top__plus {
-  width: 40px !important;
-  height: 40px !important;
-  border-radius: 50% !important;
-  border: 0 !important;
-  background: rgba(255, 255, 255, 0.9) !important;
-  box-shadow: 0 0 0 1px var(--om-line), 0 4px 12px -6px rgba(16, 24, 40, 0.25) !important;
-  color: var(--om-ink) !important;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-html body.dashboard-app-body.om-device-mobile .om-app-top__plus svg {
-  width: 20px;
-  height: 20px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 2.1;
-  stroke-linecap: round;
-}
-html body.dashboard-app-body.om-device-mobile .om-app-top__avatar {
-  width: 40px !important;
-  height: 40px !important;
-  background: var(--om-ink) !important;
-}
-html body.dashboard-app-body.om-device-mobile .om-app-top__bell-dot,
-html body.dashboard-app-body.om-device-mobile .om-app-top__bell .home-bell__dot {
-  background: var(--om-accent) !important;
-}
-
-/* Barra de abas flutuante em vidro + círculo de busca */
-html body.dashboard-app-body.om-device-mobile .om-tabbar.om-tabbar--ios {
-  position: fixed !important;
-  left: 16px !important;
-  right: 82px !important;
-  bottom: max(12px, calc(env(safe-area-inset-bottom, 0px) - 8px)) !important;
-  height: 62px !important;
-  padding: 0 4px !important;
-  display: grid !important;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
-  align-items: center !important;
-  border: 0 !important;
-  border-radius: 31px !important;
-  background: rgba(255, 255, 255, 0.78) !important;
-  backdrop-filter: blur(22px) saturate(1.8);
-  -webkit-backdrop-filter: blur(22px) saturate(1.8);
-  box-shadow: 0 0 0 1px var(--om-line), inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 12px 30px -12px rgba(16, 24, 40, 0.3) !important;
-  z-index: 60 !important;
-}
-html body.dashboard-app-body.om-device-mobile .om-tabbar--ios .om-tabbar__item {
-  position: relative;
-  height: 54px !important;
-  min-height: 0 !important;
-  border-radius: 27px !important;
-  gap: 2px !important;
-  padding: 0 !important;
-  font-size: 10px !important;
-  font-weight: 600 !important;
-  color: #3c3c43 !important;
-}
-html body.dashboard-app-body.om-device-mobile .om-tabbar--ios .om-tabbar__item svg {
-  width: 23px !important;
-  height: 23px !important;
-}
-html body.dashboard-app-body.om-device-mobile .om-tabbar--ios .om-tabbar__item.is-active {
-  background: var(--om-surface) !important;
-  color: var(--om-ink) !important;
-}
-html body.dashboard-app-body.om-device-mobile .om-tabbar--ios .om-tabbar__item.is-active svg {
-  color: var(--om-accent);
-  stroke-width: 2.2 !important;
-}
-html body.dashboard-app-body.om-device-mobile .om-tabbar-search {
-  position: fixed;
-  right: 16px;
-  bottom: max(12px, calc(env(safe-area-inset-bottom, 0px) - 8px));
-  width: 62px;
-  height: 62px;
-  border-radius: 50%;
-  border: 0;
-  padding: 0;
-  display: grid;
-  place-items: center;
-  color: var(--om-ink);
-  background: rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(22px) saturate(1.8);
-  -webkit-backdrop-filter: blur(22px) saturate(1.8);
-  box-shadow: 0 0 0 1px var(--om-line), inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 12px 30px -12px rgba(16, 24, 40, 0.3);
-  z-index: 60;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-html body.dashboard-app-body.om-device-mobile .om-tabbar-search svg {
-  width: 22px;
-  height: 22px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 2;
-  stroke-linecap: round;
-}
+/* A aparência das barras (superior, abas, busca) está em om-shell.css, igual em todos os apps. */
 .om-tabbar-search {
   display: none;
 }
