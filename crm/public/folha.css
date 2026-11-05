@@ -537,6 +537,21 @@ tr.is-open .fo-chev { transform: rotate(90deg); }
 .fo-emps-block__hd span { font-size: 12.5px; font-weight: 800; color: var(--muted); }
 .fo-emps-block .fo-tbl { margin: 0; }
 .fo-emps-block .fo-empty { border: 0; }
+.fo-emps-block--fold > .fo-emps-block__sum { list-style: none; cursor: pointer; user-select: none; align-items: center; border-bottom: 0; }
+.fo-emps-block--fold > .fo-emps-block__sum::-webkit-details-marker { display: none; }
+.fo-emps-block--fold > .fo-emps-block__sum::before {
+  content: "";
+  width: 0.45em;
+  height: 0.45em;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(-45deg);
+  margin-right: 2px;
+  flex: 0 0 auto;
+  transition: transform 0.15s ease;
+}
+.fo-emps-block--fold[open] > .fo-emps-block__sum { border-bottom: 1px solid var(--line-2); }
+.fo-emps-block--fold[open] > .fo-emps-block__sum::before { transform: rotate(45deg); }
 
 /* Mobile cards (week) */
 .fo-mlist { display: none; }
