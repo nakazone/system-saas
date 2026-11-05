@@ -118,6 +118,26 @@ describe.skipIf(!privileged)("remakes on a countertops job", () => {
     await withTenantTransaction(org.tops, (tx) => tx.jobRework.deleteMany({ where: { id: item.id } }));
   });
 
+  it("Relatórios: remakes of the period by reason and responsible, cost for the office, CSV", async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const hub = await call("office", "GET", `/api/reports/hub?from=${today}&to=${today}`);
+    expect(hub.status).toBe(200);
+    const rw = hub.json.data.reworks;
+    expect(rw).toMatchObject({ count: 1, jobs: 1, cost: 1850 });
+    expect(rw.by_reason).toEqual([{ key: "transport", label: "Quebrou no transporte", count: 1, cost: 1850 }]);
+    expect(rw.by_responsible[0]).toMatchObject({ key: "installer", count: 1 });
+    expect(rw.recent[0]).toMatchObject({ job: "#41 · Kitchen tops", piece: "Island", cost: 1850 });
+    const csv = await fetch(`${base}/api/reports/reworks?format=csv&from=${today}&to=${today}`, { headers: { Cookie: cookies.office! } });
+    const text = await csv.text();
+    expect(csv.status).toBe(200);
+    expect(text).toContain("date,job,piece,reason,responsible,phase,cost,notes,recorded_by");
+    expect(text).toContain("Quebrou no transporte");
+    // A hardwood company has no remakes report.
+    const wood = await call("wood", "GET", `/api/reports/hub?from=${today}&to=${today}`);
+    expect(wood.json.data.reworks).toBeNull();
+    expect((await call("wood", "GET", `/api/reports/reworks?from=${today}&to=${today}`)).status).toBe(404);
+  });
+
   it("a hardwood company has no remakes", async () => {
     const r = await call("wood", "GET", `/api/work-orders/${woodJob}/phases`);
     expect(r.json.data.reworks).toBeNull();

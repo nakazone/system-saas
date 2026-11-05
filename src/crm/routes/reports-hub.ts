@@ -22,6 +22,8 @@ import { reportData as folhaReportData } from "./folha-admin.js";
 import { loadDashboardOverview, viewerAccess } from "../../lib/dashboard/overview.js";
 import { safeTimeZone } from "../../lib/time/zoned.js";
 import { isPhaseKey } from "../../lib/trades/phases.js";
+import { primaryPack } from "../../lib/trades/index.js";
+import { reworksReport } from "../../lib/trades/reworks-report.js";
 
 export const reportsHubRouter = Router();
 
@@ -595,9 +597,11 @@ async function buildHubPayload(tx: TenantPrisma, period: PeriodFilter, req: Auth
 
   const org = await tx.organization.findFirst({
     where: { id: req.organizationId! },
-    select: { featureFlags: true },
+    select: { featureFlags: true, tradePacks: true },
   });
   const irssOn = canPayroll && isIrssModuleEnabled(org?.featureFlags);
+  // Trades that record remakes (Countertops): what was made again in the period.
+  const reworks = canJobs ? await reworksReport(tx, period, primaryPack(org?.tradePacks), showPricing) : null;
 
   return {
     period: { from: ymd(period.from), to: ymd(period.to) },
@@ -620,6 +624,7 @@ async function buildHubPayload(tx: TenantPrisma, period: PeriodFilter, req: Auth
       loss_reasons: lossReasons,
     },
     jobs: jobsOps,
+    reworks,
     receivables: {
       ar_aging: arAging,
       projected_revenue: projectedRevenue,
@@ -743,6 +748,36 @@ async function buildKind(tx: TenantPrisma, kind: string, period: PeriodFilter, r
             ["scheduled_in_period", data.scheduled_in_period],
             ["completed_in_period", data.completed_in_period],
           ],
+        },
+      };
+    }
+    case "reworks": {
+      if (!hasPerm(req, "work_orders.view")) return null;
+      const org = await tx.organization.findFirst({ where: { id: req.organizationId! }, select: { tradePacks: true } });
+      const pack = primaryPack(org?.tradePacks);
+      if (!pack.rework) return null;
+      const rows = await tx.jobRework.findMany({
+        where: { createdAt: { gte: period.from, lte: period.to } },
+        orderBy: { createdAt: "asc" },
+        include: { workOrder: { select: { number: true, title: true } } },
+      });
+      const label = (list: NonNullable<typeof pack.rework>["reasons"], key: string) => list.find((o) => o.key === key)?.label["pt-BR"] ?? key;
+      return {
+        title: "Peças refeitas",
+        data: await reworksReport(tx, period, pack, showPricing),
+        csv: {
+          headers: ["date", "job", "piece", "reason", "responsible", "phase", ...(showPricing ? ["cost"] : []), "notes", "recorded_by"],
+          rows: rows.map((r) => [
+            ymd(r.createdAt),
+            `#${r.workOrder.number}${r.workOrder.title ? ` ${r.workOrder.title}` : ""}`,
+            r.piece,
+            label(pack.rework!.reasons, r.reason),
+            label(pack.rework!.responsible, r.responsible),
+            r.phaseKey ? pack.phases.find((p) => p.key === r.phaseKey)?.label["pt-BR"] ?? r.phaseKey : "",
+            ...(showPricing ? [r.cost != null ? Number(r.cost) : ""] : []),
+            r.notes ?? "",
+            r.createdByName ?? "",
+          ]),
         },
       };
     }

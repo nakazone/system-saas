@@ -589,7 +589,41 @@
         </div>
         <p class="rx-note rx-note--top">${lnk("schedule.html", "Ver na Calendar")}</p>`,
       )}
-    </div>`;
+    </div>
+    ${renderReworks(d.reworks)}`;
+  }
+
+  /** Pieces made again in the period (trades that record remakes: Countertops). */
+  function renderReworks(rw) {
+    if (!rw) return "";
+    if (!rw.count) {
+      return `<div class="rx-grid2">${card("", "Peças refeitas", "", '<p class="rx-empty">Nenhuma peça refeita neste período.</p>')}</div>`;
+    }
+    const bar = (g, c) => ({ l: g.label, v: g.cost != null && rw.cost ? g.cost : g.count, c, t: `${num(g.count)}${g.cost != null ? ` · ${money(g.cost)}` : ""}` });
+    return `${kpiStrip([
+      { l: "Peças refeitas", v: num(rw.count), n: `${num(rw.jobs)} ${rw.jobs === 1 ? "job" : "jobs"}`, hot: true },
+      rw.cost != null ? { l: "Custo das refações", v: money(rw.cost), n: rw.count ? `${money(rw.cost / rw.count)} por peça` : "" } : null,
+      rw.by_reason[0] ? { l: "Motivo mais comum", v: esc(rw.by_reason[0].label), n: `${num(rw.by_reason[0].count)} de ${num(rw.count)}` } : null,
+    ])}
+    <div class="rx-grid2">
+      ${card("", "Por motivo", "", hbars(rw.by_reason.map((g) => bar(g, "is-or"))))}
+      ${card("", "Por responsável", "", hbars(rw.by_responsible.map((g) => bar(g, "is-ink"))))}
+    </div>
+    ${card(
+      "rx-span-12",
+      "Últimas peças refeitas",
+      "",
+      table(
+        [{ label: "Job" }, { label: "Peça" }, { label: "Motivo" }, { label: "Responsável" }, ...(rw.cost != null ? [{ label: "Custo", num: true }] : [])],
+        rw.recent.map((r) => [
+          `<a class="rx-link" href="job-detail.html?id=${encodeURIComponent(r.job_id)}#fases">${esc(r.job)}</a>`,
+          esc(r.piece),
+          esc(r.reason),
+          esc(r.responsible),
+          ...(rw.cost != null ? [r.cost == null ? "—" : money2(r.cost)] : []),
+        ]),
+      ),
+    )}`;
   }
 
   // ---------- Dinheiro ----------
@@ -805,7 +839,8 @@
     const menu = $("rxExportMenu");
     if (!menu) return;
     const extra = activeTab === "irss" ? { ...(irssFilters.sector ? { sector: irssFilters.sector } : {}), ...(irssFilters.employee_id ? { employee_id: irssFilters.employee_id } : {}) } : null;
-    menu.innerHTML = `<p>CSV do período</p>${(EXPORTS[activeTab] || [])
+    const list = [...(EXPORTS[activeTab] || []), ...(activeTab === "jobs" && hubData?.reworks ? [["reworks", "Peças refeitas"]] : [])];
+    menu.innerHTML = `<p>CSV do período</p>${list
       .map(([kind, label]) => `<a href="${esc(csvUrl(kind, extra))}" download>${esc(label)}</a>`)
       .join("")}`;
   }
