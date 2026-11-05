@@ -6845,7 +6845,7 @@
             <p>${measStatusChip(m)} <span id="ppMeasSaved" class="pp-meas-saved">Saved</span> <span class="pp-meas-by" id="ppMeasBy"></span>${m.notes ? `<button type="button" class="pp-link pp-meas-notes" data-mtab-go="summary">Notes</button>` : ''}</p></div>
           <div class="pp-head-actions">
             ${empty3d(m) ? '' : `<button type="button" class="pp-btn pp-btn--dark" data-present>${icon('play')}<span>Present</span></button>`}
-            <a class="pp-btn pp-btn--sec pp-hide-phone" href="/api/builder/measurements/${encodeURIComponent(m.id)}/pdf" target="_blank" rel="noopener">${icon('download')}PDF</a>
+            ${empty3d(m) ? `<a class="pp-btn pp-btn--sec pp-hide-phone" href="/api/builder/measurements/${encodeURIComponent(m.id)}/pdf" target="_blank" rel="noopener">${icon('download')}PDF</a>` : `<button type="button" class="pp-btn pp-btn--sec pp-hide-phone" data-present-pdf title="Presentation PDF: cover, 3D, stairs, vents and the quote">${icon('download')}PDF</button>`}
             ${locked || !canDo('jobs.send') ? '' : `<button type="button" class="pp-btn pp-btn--sec" data-send-wo>${icon('send')}<span>Send<span class="pp-hide-phone"> work order</span></span></button>`}
             ${locked ? '' : m.status === 'done' ? '<button type="button" class="pp-btn pp-btn--sec" id="ppMeasReopen">Reopen</button>' : '<button type="button" class="pp-btn pp-btn--pri" id="ppMeasDone">Complete</button>'}
             ${locked ? '' : `<button type="button" class="pp-btn pp-btn--sec pp-btn--icon" data-meas-del-head aria-label="Delete measurement" title="Delete measurement">${icon('trash')}</button>`}
