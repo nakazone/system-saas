@@ -845,9 +845,8 @@
   }
 
   /**
-   * "Pipeline aberto": the open stages as a funnel (bar width = leads in the stage),
-   * with dots flowing from each stage into the next.
-   */
+   * "Pipeline aberto": the open stages as a funnel (bar width = leads in the stage).
+     */
   const FUNNEL_STAGES = ["new_lead", "contacted", "meeting_scheduled", "quote_sent", "follow_up_1"];
 
   function drawFunnel() {
@@ -884,19 +883,6 @@
       const num = svgEl("text", { x: W, y: yTop + barH / 2 + 4, "text-anchor": "end", class: "omd-fn__count" });
       num.textContent = String(c.count || 0);
       g.appendChild(num);
-      // Dots drop from this stage into the next: the pipeline moving.
-      if (i < n - 1 && c.count) {
-        for (let k = 0; k < 3; k++) {
-          const dot = svgEl("circle", {
-            cx: cx + (k - 1) * Math.min(14, w / 4),
-            cy: yTop + barH,
-            r: 2,
-            class: "omd-fn__dot",
-            style: `--fall:${gap + barH / 2}px; --d:${(i * 0.35 + k * 0.6).toFixed(2)}s`,
-          });
-          g.appendChild(dot);
-        }
-      }
       const hit = svgEl("rect", { x: 0, y: yTop - gap / 2, width: W, height: barH + gap, fill: "transparent" });
       hit.addEventListener("pointerenter", () => {
         const r = hit.getBoundingClientRect();

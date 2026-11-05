@@ -2568,30 +2568,6 @@ html.omd-morphing::view-transition-group(root) {
   fill: rgba(255, 255, 255, 0.2);
 }
 
-/* Leads caindo de uma etapa para a próxima: o funil andando. */
-@keyframes omdFnDrop {
-  0% {
-    transform: translateY(0);
-    opacity: 0;
-  }
-  20% {
-    opacity: 1;
-  }
-  80% {
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(var(--fall, 12px));
-    opacity: 0;
-  }
-}
-
-.omd-fn__dot {
-  fill: #fff;
-  opacity: 0;
-  animation: omdFnDrop 1.8s cubic-bezier(0.45, 0, 0.55, 1) infinite;
-  animation-delay: var(--d, 0s);
-}
 
 /* "Hoje": linha do tempo do dia */
 .omd-tl {
@@ -2823,9 +2799,5 @@ html.omd-morphing::view-transition-group(root) {
 @media (prefers-reduced-motion: reduce) {
   .omd--enter :is(.omd-wk__bar, .omd-wk__shadow, .omd-wk__value, .omd-fn__bar, .omd-tl__block) {
     animation: none;
-  }
-
-  .omd-fn__dot {
-    display: none;
   }
 }
