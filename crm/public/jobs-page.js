@@ -221,7 +221,7 @@
     }
     return "";
   }
-  /** Bloco do dia, como numa agenda: QUA / 4 / NOV. Hoje em laranja, atrasado em tom quente. */
+  /** Bloco do dia, como numa agenda: QUA / 4 / NOV. Hoje e em campo, o número fica preto. */
   function dayBlock(wo, finished) {
     const J = I();
     const iso = J.listAnchorIso(wo) || (finished ? wo.updated_at || wo.scheduled_end : null);
@@ -230,7 +230,7 @@
     const wd = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"][d.getDay()];
     const mo = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"][d.getMonth()];
     const today = sod(d).getTime() === sod(new Date()).getTime();
-    // Bloco sempre cinza; só o número fica laranja quando o job é para agora (em campo ou hoje).
+    // Bloco sempre cinza; o número fica preto quando o job é para agora (em campo ou hoje).
     const tone = !finished && (today || wo.status === "in_progress") ? " is-now" : finished ? " is-done" : "";
     return `<span class="ol-lead jx-day${tone}" aria-label="${today ? "Hoje" : `${wd} ${d.getDate()} ${mo}`}"><small>${today ? "hoje" : wd}</small><b>${d.getDate()}</b><small>${mo}</small></span>`;
   }

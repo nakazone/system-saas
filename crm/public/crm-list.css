@@ -580,6 +580,7 @@
 .ol-list .jx-day small { font-size: 10px; font-weight: 650; letter-spacing: .04em; color: var(--ol-ink2); }
 /* bloco sempre cinza; em campo e hoje, só o número fica laranja */
 .ol-list .jx-day.is-now b { color: #C8641C; } /* número grande: 3.6:1 em #F1F3F5 */
+.jx-list .jx-day.is-now b { color: #1C1917; }
 .ol-list .jx-day.is-done { color: var(--ol-ink2); }
 .ol-list .jx-day.is-none b { font-size: 16px; color: var(--ol-ink3); margin: 2px 0 3px; }
 .ol-list .jx-day.is-none small { text-transform: none; letter-spacing: 0; font-size: 9.5px; }
@@ -614,7 +615,7 @@
   .ol-list .ol-rows .jx-foot > .jmx-b--sq { width: 44px; }
 }
 
-/* ---------- laranja suave nas listas: botão principal cinza com texto laranja
+/* ---------- laranja suave nas outras listas: botão principal cinza com texto laranja
  * (o laranja cheio da marca fica para as ações de página, como + Job). */
 body.dashboard-app-body .ol-list .jmx-b--or,
 .ol-list .jmx-b--or {
@@ -628,3 +629,13 @@ body.dashboard-app-body .ol-list .jmx-b--or:hover,
 .ol-list .jmx-b--or:hover { background: #E6E9ED !important; }
 body.dashboard-app-body .ol-list .jmx-b--or:active,
 .ol-list .jmx-b--or:active { background: #DDE1E6 !important; }
+/* Jobs: o botão do cartão fica cinza claro com texto cinza escuro. */
+body.dashboard-app-body .jx-list .jmx-b--or,
+.jx-list .jmx-b--or {
+  background: #F2F4F7 !important;
+  color: #3E4654 !important;
+}
+body.dashboard-app-body .jx-list .jmx-b--or:hover,
+.jx-list .jmx-b--or:hover { background: #E6E9EE !important; }
+body.dashboard-app-body .jx-list .jmx-b--or:active,
+.jx-list .jmx-b--or:active { background: #DDE1E6 !important; }
