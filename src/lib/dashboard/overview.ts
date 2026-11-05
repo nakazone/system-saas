@@ -20,6 +20,7 @@ import {
 } from "./stages.js";
 import { startOfZonedDay, startOfZonedMonth, zonedDateKey, zonedDayDiff } from "../time/zoned.js";
 import { geocodeAddress } from "../payroll/geocode.js";
+import { jobBilling } from "../invoices/job.js";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -46,6 +47,8 @@ export type ViewerAccess = {
   quotes: boolean;
   invoices: boolean;
   schedule: boolean;
+  /** Jobs (work_orders.view) */
+  jobs: boolean;
   /** Quote totals (pricing.view) */
   pricing: boolean;
 };
@@ -58,6 +61,7 @@ export function viewerAccess(user: { roleKey: string | null; permissions: string
     quotes: has("quotes.view"),
     invoices: has("invoices.view") || has("finance.view"),
     schedule: has("schedule.view"),
+    jobs: has("work_orders.view"),
     pricing: has("pricing.view"),
   };
 }
@@ -235,6 +239,42 @@ export type JobsForecastDay = {
   }[];
 };
 
+export type WonDaily = {
+  unit: "money" | "count";
+  /** Running total for day 1..today of this month. */
+  current: number[];
+  /** Running total for every day of last month. */
+  previous: number[];
+};
+
+export type QuotesWaiting = {
+  count: number;
+  /** null without pricing.view */
+  value: number | null;
+  viewed: number;
+  items: {
+    id: string;
+    label: string;
+    name: string;
+    amount: number | null;
+    sent_at: string;
+    days: number;
+    viewed: boolean;
+    href: string;
+  }[];
+};
+
+export type JobsStatus = {
+  in_field: number;
+  late: number;
+  scheduled: number;
+  no_date: number;
+  /** Completed jobs with services not invoiced yet. null without invoices/finance access. */
+  to_invoice: { value: number; count: number } | null;
+  /** Most urgent first: late, then to invoice. */
+  items: { id: string; title: string; kind: "late" | "to_invoice"; days: number | null; amount: number | null; href: string }[];
+};
+
 export type DashboardOverview = {
   generated_at: string;
   timezone: string;
@@ -246,7 +286,14 @@ export type DashboardOverview = {
     pipeline_open: { value: number | null; count: number; without_value: number } | null;
     conversion: { rate: number | null; won: number; lost: number } | null;
     leads_month: { count: number; previous_count: number } | null;
-    won_month: { value: number | null; count: number; previous_value: number | null; previous_count: number } | null;
+    won_month: {
+      value: number | null;
+      count: number;
+      previous_value: number | null;
+      previous_count: number;
+      /** Month-to-date running total by day (index 0 = day 1). Money with pricing.view, else quote counts. */
+      daily?: WonDaily;
+    } | null;
     receivables: { open_value: number; open_count: number; overdue_value: number; overdue_count: number } | null;
     /** Quoted margin on won deals this month: total − material − labor. */
     gross_profit: {
@@ -264,12 +311,113 @@ export type DashboardOverview = {
   today_events: TodayEvent[] | null;
   /** Upcoming installations for the next 7 days (org timezone). */
   jobs_forecast: JobsForecastDay[] | null;
+  /** Sent quotes waiting for the client, oldest first (Home › Orçamentos aguardando). */
+  quotes_waiting: QuotesWaiting | null;
+  /** Where the jobs stand right now (Home › Jobs). */
+  jobs_status: JobsStatus | null;
 };
 
 /** Quote statuses that still count as open pipeline (waiting on client). */
+// ---------------------------------------------------------------------------
+// Jobs status (Home › Jobs) — same buckets as crm/public/jobs-page.js + jobs-info.js
+// ---------------------------------------------------------------------------
+
+export type JobStatusRow = {
+  id: string;
+  number: number | null;
+  title: string;
+  status: string;
+  sector: string | null;
+  scheduledStart: Date | null;
+  scheduledEnd: Date | null;
+  sandScheduledStart: Date | null;
+  installationDoneAt: Date | null;
+  sandDoneAt: Date | null;
+  lineItems?: { lineTotal: unknown }[];
+  invoices?: { amount: unknown; status: string; receipts?: { amount: unknown }[] }[];
+};
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const ACTIVE_JOB_STATUSES = ["draft", "scheduled", "in_progress"] as const;
+
+function awaitingSand(wo: JobStatusRow): boolean {
+  if (wo.sector !== "both" || wo.status === "canceled") return false;
+  if (wo.sandDoneAt) return false;
+  return Boolean(wo.installationDoneAt);
+}
+
+/**
+ * Days past the scheduled day for a job that still needs Start, or null when on time.
+ * Mirrors JobsInfo.late: once status is in_progress the job is in production until finish —
+ * past calendar dates do not count as late.
+ */
+export function jobLateDays(wo: JobStatusRow, now: Date): number | null {
+  if (!(ACTIVE_JOB_STATUSES as readonly string[]).includes(wo.status)) return null;
+  if (wo.status === "in_progress") return null;
+  const sand = awaitingSand(wo);
+  const anchor = sand ? wo.sandScheduledStart : wo.scheduledStart;
+  if (!anchor) return null;
+  const t = now.getTime();
+  const start = anchor.getTime();
+  // Sand phase uses the sand date only — never the installation scheduledEnd.
+  const end = (sand ? anchor : wo.scheduledEnd || anchor).getTime();
+  if (start >= t - DAY_MS / 2 && end >= t) return null;
+  return end < t ? Math.max(1, Math.floor((t - end) / DAY_MS)) : null;
+}
+
+function jobTitle(wo: JobStatusRow): string {
+  return wo.number != null ? `#${wo.number} · ${wo.title}` : wo.title;
+}
+
+export function buildJobsStatus(active: JobStatusRow[], completed: JobStatusRow[], now: Date, showMoney: boolean): JobsStatus {
+  let inField = 0;
+  let late = 0;
+  let scheduled = 0;
+  let noDate = 0;
+  const lateItems: JobsStatus["items"] = [];
+  for (const wo of active) {
+    const days = jobLateDays(wo, now);
+    if (days != null) {
+      late += 1;
+      lateItems.push({ id: wo.id, title: jobTitle(wo), kind: "late", days, amount: null, href: `job-detail.html?id=${encodeURIComponent(wo.id)}` });
+    } else if (wo.status === "in_progress") inField += 1;
+    else if (wo.scheduledStart) scheduled += 1;
+    else noDate += 1;
+  }
+  lateItems.sort((a, b) => (b.days || 0) - (a.days || 0));
+
+  let toInvoice: JobsStatus["to_invoice"] = null;
+  const invoiceItems: JobsStatus["items"] = [];
+  if (showMoney) {
+    let value = 0;
+    let count = 0;
+    for (const wo of completed) {
+      const total = (wo.lineItems || []).reduce((sum, li) => sum + Number(li.lineTotal || 0), 0);
+      const b = jobBilling(total, wo.invoices || []);
+      if (b.remaining_to_invoice <= 0.004 || b.billing_status === "no_value") continue;
+      value += b.remaining_to_invoice;
+      count += 1;
+      invoiceItems.push({ id: wo.id, title: jobTitle(wo), kind: "to_invoice", days: null, amount: b.remaining_to_invoice, href: `job-detail.html?id=${encodeURIComponent(wo.id)}` });
+    }
+    invoiceItems.sort((a, b) => (b.amount || 0) - (a.amount || 0));
+    toInvoice = { value: round2(value), count };
+  }
+
+  return {
+    in_field: inField,
+    late,
+    scheduled,
+    no_date: noDate,
+    to_invoice: toInvoice,
+    items: [...lateItems, ...invoiceItems].slice(0, JOBS_STATUS_ITEMS_LIMIT),
+  };
+}
+
 export const OPEN_QUOTE_STATUSES = ["sent", "viewed", "changes_requested"] as const;
 const OPEN_QUOTE_SET = new Set<string>(OPEN_QUOTE_STATUSES);
 export const JOBS_FORECAST_DAYS = 7;
+const QUOTES_WAITING_LIMIT = 8;
+const JOBS_STATUS_ITEMS_LIMIT = 6;
 
 // ---------------------------------------------------------------------------
 // Pure builders
@@ -478,6 +626,11 @@ export function buildLeadSection(
 }
 
 /** When a won quote was closed: signature date, else last update. */
+function runningTotal(perDay: number[]): number[] {
+  let sum = 0;
+  return perDay.map((v) => (sum = round2(sum + v)));
+}
+
 function quoteClosedAt(q: QuoteRow): Date {
   return q.signedAt ?? q.updatedAt;
 }
@@ -497,6 +650,7 @@ export function buildQuoteSection(
   won_month: NonNullable<DashboardOverview["kpis"]["won_month"]>;
   gross_profit: NonNullable<DashboardOverview["kpis"]["gross_profit"]>;
   attention: AttentionItem[];
+  quotes_waiting: QuotesWaiting;
 } {
   const monthStart = startOfZonedMonth(now, tz).getTime();
   const prevMonthStart = startOfZonedMonth(now, tz, -1).getTime();
@@ -514,6 +668,13 @@ export function buildQuoteSection(
   let gpRevenue = 0;
   let gpCost = 0;
   const attention: AttentionItem[] = [];
+  const waiting: QuotesWaiting["items"] = [];
+  let waitingValue = 0;
+  // Won per day of month (this month / last month), for the "Fechado no mês" chart.
+  const todayDay = Number(zonedDateKey(now, tz).slice(8, 10));
+  const prevMonthDays = Number(zonedDateKey(new Date(monthStart - 1), tz).slice(8, 10));
+  const wonByDay = new Array(Math.max(1, todayDay)).fill(0);
+  const prevWonByDay = new Array(Math.max(1, prevMonthDays)).fill(0);
 
   for (const q of quotes) {
     const status = String(q.status || "").toLowerCase();
@@ -530,6 +691,8 @@ export function buildQuoteSection(
       if (t >= monthStart) {
         value += q.total;
         count += 1;
+        const d = Math.min(wonByDay.length, Math.max(1, Number(zonedDateKey(new Date(t), tz).slice(8, 10))));
+        wonByDay[d - 1] += showMoney ? q.total : 1;
         gpValue += gross;
         gpCount += 1;
         gpRevenue += q.total;
@@ -537,6 +700,8 @@ export function buildQuoteSection(
       } else if (t >= prevMonthStart) {
         prevValue += q.total;
         prevCount += 1;
+        const d = Math.min(prevWonByDay.length, Math.max(1, Number(zonedDateKey(new Date(t), tz).slice(8, 10))));
+        prevWonByDay[d - 1] += showMoney ? q.total : 1;
         gpPrevValue += gross;
         gpPrevCount += 1;
       }
@@ -561,6 +726,19 @@ export function buildQuoteSection(
         openCount += 1;
         if (q.total <= 0) withoutValue += 1;
         else openValue += q.total;
+        if (status === "sent" || status === "viewed") {
+          waitingValue += q.total > 0 ? q.total : 0;
+          waiting.push({
+            id: q.id,
+            label,
+            name,
+            amount,
+            sent_at: q.updatedAt.toISOString(),
+            days: Math.max(0, zonedDayDiff(q.updatedAt, now, tz)),
+            viewed: !!q.viewedAt || status === "viewed",
+            href,
+          });
+        }
       }
     }
 
@@ -618,7 +796,14 @@ export function buildQuoteSection(
     }
   }
 
+  waiting.sort((a, b) => Date.parse(a.sent_at) - Date.parse(b.sent_at));
   return {
+    quotes_waiting: {
+      count: waiting.length,
+      value: showMoney ? round2(waitingValue) : null,
+      viewed: waiting.filter((w) => w.viewed).length,
+      items: waiting.slice(0, QUOTES_WAITING_LIMIT),
+    },
     pipeline_open: {
       value: showMoney ? round2(openValue) : null,
       count: openCount,
@@ -629,6 +814,11 @@ export function buildQuoteSection(
       count,
       previous_value: showMoney ? round2(prevValue) : null,
       previous_count: prevCount,
+      daily: {
+        unit: showMoney ? "money" : "count",
+        current: runningTotal(wonByDay),
+        previous: runningTotal(prevWonByDay),
+      },
     },
     gross_profit: {
       value: showMoney ? round2(gpValue) : null,
@@ -876,6 +1066,8 @@ export async function loadDashboardOverview(
     attention: { total: 0, high: 0, items: [] },
     today_events: null,
     jobs_forecast: null,
+    quotes_waiting: null,
+    jobs_status: null,
   };
   const attention: AttentionItem[] = [];
   let stageRows: StageRow[] = [];
@@ -983,6 +1175,7 @@ export async function loadDashboardOverview(
     overview.kpis.pipeline_open = section.pipeline_open;
     overview.kpis.won_month = section.won_month;
     overview.kpis.gross_profit = section.gross_profit;
+    overview.quotes_waiting = section.quotes_waiting;
     attention.push(...section.attention);
   }
 
@@ -1207,6 +1400,37 @@ export async function loadDashboardOverview(
       now,
       tz,
     );
+  }
+
+  if (access.jobs) {
+    const statusSelect = {
+      id: true,
+      number: true,
+      title: true,
+      status: true,
+      sector: true,
+      scheduledStart: true,
+      scheduledEnd: true,
+      sandScheduledStart: true,
+      installationDoneAt: true,
+      sandDoneAt: true,
+    } as const;
+    const [activeJobs, completedJobs] = await Promise.all([
+      tx.workOrder.findMany({ where: { status: { in: [...ACTIVE_JOB_STATUSES] } }, select: statusSelect, take: 500 }),
+      access.invoices
+        ? tx.workOrder.findMany({
+            where: { status: "completed" },
+            select: {
+              ...statusSelect,
+              lineItems: { select: { lineTotal: true } },
+              invoices: { select: { amount: true, status: true, receipts: { select: { amount: true } } } },
+            },
+            orderBy: { updatedAt: "desc" },
+            take: 300,
+          })
+        : Promise.resolve([]),
+    ]);
+    overview.jobs_status = buildJobsStatus(activeJobs, completedJobs, now, access.invoices);
   }
 
   const ranked = rankAttention(attention);

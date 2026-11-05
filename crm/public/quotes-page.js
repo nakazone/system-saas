@@ -37,6 +37,9 @@
     canEdit: true,
     canInvoice: false,
     delArmed: null,
+    /** Quote ids selected to unify into one job. */
+    mergeIds: [],
+    mergeBusy: false,
   };
 
   const $ = (id) => document.getElementById(id);
@@ -247,6 +250,74 @@
     }).join('');
     renderTiles();
   }
+  function sortByClient(rows) {
+    return rows.slice().sort((a, b) =>
+      clientOf(a).localeCompare(clientOf(b), 'pt-BR', { sensitivity: 'base' }),
+    );
+  }
+  function ymd(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  function sod(d) {
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+  function weekSunday(d) {
+    const x = sod(d);
+    x.setDate(x.getDate() - x.getDay());
+    return x;
+  }
+  function weekTitle(sunday) {
+    const end = new Date(sunday.getFullYear(), sunday.getMonth(), sunday.getDate() + 6);
+    const a = `${sunday.getDate()} ${MO[sunday.getMonth()]}`;
+    const b = `${end.getDate()} ${MO[end.getMonth()]}`;
+    return `${a} – ${b}`;
+  }
+  /** Approval date for grouping Approved quotes (signed → updated → created). */
+  function approveAnchor(q) {
+    const iso = q.signed_at || q.updated_at || q.created_at;
+    if (!iso) return null;
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  function bandHtml(label, rows, tone) {
+    return `<section class="qs-band ol-band"><div class="qs-grp ol-grp"><span>${esc(label)}</span><em>${rows.length}</em></div>${rows.map(rowHtml).join('')}</section>`;
+  }
+  /** Approved quotes: chronological by week (newest first), alternating colors like Jobs. */
+  function approvedBandsHtml(rows, startIdx, prefix) {
+    const weeks = new Map();
+    const undated = [];
+    rows.forEach((q) => {
+      const d = approveAnchor(q);
+      if (!d) {
+        undated.push(q);
+        return;
+      }
+      const key = ymd(weekSunday(d));
+      if (!weeks.has(key)) weeks.set(key, []);
+      weeks.get(key).push(q);
+    });
+    const keys = [...weeks.keys()].sort((a, b) => b.localeCompare(a));
+    let html = '';
+    let i = startIdx;
+    keys.forEach((key) => {
+      const g = weeks.get(key).slice().sort((a, b) => {
+        const da = approveAnchor(a)?.getTime() || 0;
+        const db = approveAnchor(b)?.getTime() || 0;
+        if (db !== da) return db - da;
+        return clientOf(a).localeCompare(clientOf(b), 'pt-BR', { sensitivity: 'base' });
+      });
+      const [yy, mm, dd] = key.split('-').map(Number);
+      const title = weekTitle(new Date(yy, mm - 1, dd));
+      const label = prefix ? `${prefix} · ${title}` : title;
+      html += bandHtml(label, g, i % 2 ? 'b' : 'a');
+      i += 1;
+    });
+    if (undated.length) {
+      html += bandHtml(prefix ? `${prefix} · Sem data` : 'Sem data', sortByClient(undated), i % 2 ? 'b' : 'a');
+      i += 1;
+    }
+    return { html, next: i };
+  }
   function renderList() {
     const box = $('qsRows');
     const q = st.q.toLowerCase();
@@ -259,20 +330,28 @@
     }
     const by = {};
     rows.forEach((r) => (by[groupOf(r)] = by[groupOf(r)] || []).push(r));
-    box.innerHTML =
-      GROUPS.filter(([k]) => by[k])
-        .map(
-          ([k, label], i) =>
-            `<section class="qs-band qs-band--${i % 2 ? 'b' : 'a'}"><div class="qs-grp"><span>${label}</span><em>${by[k].length}</em></div>${by[k].map(rowHtml).join('')}</section>`,
-        )
-        .join('') + archLink();
+    let html = '';
+    let bandIdx = 0;
+    const onlyApproved = st.seg === 'approved' && !st.archived;
+    GROUPS.filter(([k]) => by[k]).forEach(([k, label]) => {
+      if (k === 'approved') {
+        const out = approvedBandsHtml(by[k], bandIdx, onlyApproved ? '' : label);
+        html += out.html;
+        bandIdx = out.next;
+        return;
+      }
+      html += bandHtml(label, sortByClient(by[k]), bandIdx % 2 ? 'b' : 'a');
+      bandIdx += 1;
+    });
+    box.innerHTML = html + archLink();
+    renderMergeBar();
   }
   function archLink() {
     return `<button type="button" class="qs-arch" data-arch>${st.archived ? '‹ Voltar aos quotes' : 'Ver arquivados'}</button>`;
   }
   const PIN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>';
   function addressOf(q) {
-    const addr = String(q.job_address || q.property_label || '').trim();
+    const addr = String(q.job_address || q.customer_address || q.property_label || '').trim();
     if (!addr || addr === clientOf(q)) return '';
     return addr;
   }
@@ -290,22 +369,95 @@
     const s = shortStatus(q);
     return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
   }
-  /** Five stages, same bar as Jobs: done orange, current black. */
-  function progHtml(q) {
-    const g = groupOf(q);
-    const label = listStatus(q);
-    if (g === 'expired' || g === 'archived') return `<span class="qs-prog qs-prog--x" aria-label="${esc(label)}"></span>`;
-    let s = 0;
-    if (g === 'approved' && q.work_order_id) s = 5;
-    else if (g === 'approved') s = 3;
-    else if (g === 'changes' || isViewed(q)) s = 2;
-    else if (g !== 'draft') s = 1;
-    let h = '';
-    for (let i = 0; i < 5; i += 1) {
-      const c = i < s ? 'd' : i === s ? 'n' : '';
-      h += `<i class="${c}"></i>`;
+  function canMergeQuote(q) {
+    if (!q || !st.canEdit) return false;
+    if (groupOf(q) !== 'approved') return false;
+    const wo = String(q.work_order_status || '').toLowerCase();
+    if (q.work_order_id && wo && wo !== 'draft' && wo !== 'canceled') return false;
+    return true;
+  }
+  function sameMergeParty(a, b) {
+    if (!a || !b) return false;
+    if (a.customer_id && b.customer_id && String(a.customer_id) === String(b.customer_id)) return true;
+    if (a.builder_id && b.builder_id && String(a.builder_id) === String(b.builder_id)) return true;
+    return false;
+  }
+  function mergeSelectedQuotes() {
+    return (st.mergeIds || [])
+      .map((id) => st.rows.find((r) => String(r.id) === String(id)))
+      .filter(Boolean);
+  }
+  function mergeBarHtml() {
+    const picked = mergeSelectedQuotes();
+    if (picked.length < 2) return '';
+    const ok = picked.every((q) => sameMergeParty(q, picked[0]));
+    const labels = picked.map((q) => q.quote_number || (q.number != null ? `#${q.number}` : 'Quote')).join(' + ');
+    if (!ok) {
+      return `<div class="qs-merge" id="qsMergeBar"><p>Selecione orçamentos do <b>mesmo cliente</b> ou builder para unificar.</p>
+        <button type="button" class="qs-btn" data-qs-merge-clear>Limpar</button></div>`;
     }
-    return `<span class="qs-prog" aria-label="${esc(label)}">${h}</span>`;
+    return `<div class="qs-merge" id="qsMergeBar">
+      <p><b>Unificar ${picked.length} orçamentos</b> · ${esc(labels)} → 1 job</p>
+      <span class="qs-merge__acts">
+        <button type="button" class="qs-btn" data-qs-merge-clear>Limpar</button>
+        <button type="button" class="qs-btn qs-btn--pri" data-qs-merge-go${st.mergeBusy ? ' disabled' : ''}>${st.mergeBusy ? 'Unificando…' : 'Unificar em 1 job'}</button>
+      </span>
+    </div>`;
+  }
+  function renderMergeBar() {
+    let bar = $('qsMergeBar');
+    const html = mergeBarHtml();
+    if (!html) {
+      if (bar) bar.remove();
+      return;
+    }
+    if (!bar) {
+      bar = document.createElement('div');
+      const host = $('qsRoot') || document.body;
+      host.appendChild(bar);
+    }
+    bar.outerHTML = html;
+  }
+  async function runMergeQuotes() {
+    const picked = mergeSelectedQuotes();
+    if (picked.length < 2) return;
+    if (!picked.every((q) => sameMergeParty(q, picked[0]))) {
+      notify('Os orçamentos precisam ser do mesmo cliente ou builder.', 'error');
+      return;
+    }
+    st.mergeBusy = true;
+    renderMergeBar();
+    try {
+      const j = await api('/api/quotes/merge-job', {
+        method: 'POST',
+        body: JSON.stringify({ quote_ids: picked.map((q) => q.id) }),
+      });
+      const jobId = j.created_job_id || j.data?.work_order_id;
+      if (!jobId) throw new Error('Não foi possível unificar.');
+      st.mergeIds = [];
+      notify(`${picked.length} orçamentos unificados num job.`, 'success');
+      location.href = `jobs.html?id=${encodeURIComponent(jobId)}`;
+    } catch (err) {
+      st.mergeBusy = false;
+      renderMergeBar();
+      notify(err.message || 'Não foi possível unificar.', 'error');
+    }
+  }
+  function toggleMergeId(id, checked) {
+    const sid = String(id);
+    const set = new Set((st.mergeIds || []).map(String));
+    if (checked) {
+      if (set.size >= 5) {
+        notify('No máximo 5 orçamentos por unificação.', 'info');
+        renderList();
+        renderMergeBar();
+        return;
+      }
+      set.add(sid);
+    } else set.delete(sid);
+    st.mergeIds = [...set];
+    renderList();
+    renderMergeBar();
   }
   function rowHtml(q) {
     const on = String(st.sel) === String(q.id);
@@ -313,17 +465,24 @@
     const status = listStatus(q);
     const hot = groupOf(q) === 'changes' || groupOf(q) === 'expired';
     const addr = addressOf(q);
-    return `<a class="qs-row${on ? ' is-on' : ''}" role="listitem" href="quotes.html?id=${encodeURIComponent(q.id)}" data-id="${esc(q.id)}">
-      <span class="qs-row__b">
-        <span class="qs-row__l1"><b>${esc(clientOf(q))}</b></span>
-        ${addr ? `<span class="qs-row__addr">${PIN}<span>${esc(addr)}</span></span>` : ''}
-        <span class="qs-row__l3">${progHtml(q)}</span>
-      </span>
-      <span class="qs-row__side">
-        <span class="qs-row__amt">${money(q.total_amount ?? q.total)}</span>
-        ${when.text ? `<span class="qs-row__when${when.hot ? ' is-hot' : ''}">${esc(when.text)}</span>` : ''}
-        ${status ? `<span class="qs-row__st${hot ? ' is-hot' : ''}">${esc(status)}</span>` : ''}
-      </span>
+    const mergeOn = (st.mergeIds || []).some((id) => String(id) === String(q.id));
+    const showMerge = canMergeQuote(q);
+    const g = groupOf(q);
+    const tone = hot ? 'hot' : g === 'approved' ? 'ok' : g === 'archived' ? 'off' : g === 'draft' ? 'wait' : 'act';
+    const next = rowNext(q);
+    return `<a class="qs-row ol-row${on ? ' is-on' : ''}${mergeOn ? ' is-merge' : ''}" role="listitem" href="quotes.html?id=${encodeURIComponent(q.id)}" data-id="${esc(q.id)}">
+      ${
+        showMerge
+          ? `<label class="qs-row__merge ol-lead" title="Selecionar para unificar">
+              <input type="checkbox" data-qs-merge="${esc(q.id)}"${mergeOn ? ' checked' : ''} />
+            </label>`
+          : ''
+      }
+      <b class="ol-t" title="${esc(clientOf(q))}">${esc(clientOf(q))}</b>
+      <span class="ol-v">${money(q.total_amount ?? q.total)}</span>
+      ${addr ? `<span class="ol-m qs-row__addr" title="${esc(addr)}">${PIN}<span>${esc(addr)}</span></span>` : ''}
+      ${when.text ? `<span class="ol-d${when.hot ? ' is-hot' : ''}">${esc(when.text)}</span>` : ''}
+      <span class="ol-f">${status ? `<span class="ol-st is-${tone}">${esc(status)}</span>` : ''}${next && next.text && g !== 'draft' && g !== 'archived' ? `<span class="ol-note${next.hot ? ' is-hot' : ''}">${esc(next.text)}</span>` : ''}</span>
     </a>`;
   }
 
@@ -406,13 +565,24 @@
       p = 'O job existe, mas está cancelado e a busca não mostra. Reabra para ele voltar com o cliente e o valor deste quote.';
       cta = `<button type="button" class="qs-btn qs-btn--pri qs-btn--full" data-qs-reopen="${esc(q.id)}">Reabrir job</button><a class="qs-btn qs-btn--full" href="jobs.html?id=${encodeURIComponent(q.work_order_id)}">Abrir job</a>`;
     } else if (g === 'approved') {
+      const siblings = st.rows.filter(
+        (r) => String(r.id) !== String(q.id) && canMergeQuote(r) && sameMergeParty(r, q),
+      );
       t = q.work_order_id ? 'Job criado' : 'Aprovado — virar job';
       p = q.work_order_id
         ? 'O job acompanha este quote. Abra-o direto, mesmo que a busca não ache o nome antigo.'
-        : 'Transforme em job: cliente, endereço e serviços já vão preenchidos.';
+        : siblings.length
+          ? 'Transforme em job sozinho, ou marque 2 orçamentos do mesmo cliente na lista para unificar.'
+          : 'Transforme em job: cliente, endereço e serviços já vão preenchidos.';
       cta = q.work_order_id
         ? `<a class="qs-btn qs-btn--pri qs-btn--full" href="jobs.html?id=${encodeURIComponent(q.work_order_id)}">Abrir job</a>`
         : `<a class="qs-btn qs-btn--pri qs-btn--full" href="${b}&create_job=1">Transformar em job</a>`;
+      if (siblings.length && canMergeQuote(q)) {
+        const already = (st.mergeIds || []).some((x) => String(x) === String(q.id));
+        cta += already
+          ? `<button type="button" class="qs-btn qs-btn--full" data-qs-merge-clear>Limpar seleção</button>`
+          : `<button type="button" class="qs-btn qs-btn--full" data-qs-merge-add="${esc(q.id)}">Selecionar para unificar</button>`;
+      }
       if (st.canInvoice && (Number(q.total_amount ?? q.total) || 0) > 0) {
         cta += `<a class="qs-btn qs-btn--full" href="invoices.html?new=1&quote=${id}">Faturar</a>`;
       }
@@ -597,7 +767,7 @@
       bar.innerHTML = `<button type="button" class="qs-btn qs-btn--sq" data-qs-pdf="${esc(q.id)}" data-qs-pdf-name="${esc(q.quote_number || 'quote')}" aria-label="PDF">${ico('pdf')}</button>
         <a class="qs-btn" href="quote-builder.html?id=${encodeURIComponent(q.id)}&services=1">Serviços</a>
         ${fat}
-        <a class="qs-btn qs-btn--pri" href="quote-builder.html?id=${encodeURIComponent(q.id)}">Editar orçamento</a>`;
+        <a class="qs-btn qs-btn--pri" href="quote-builder.html?id=${encodeURIComponent(q.id)}">Editar</a>`;
       bar.hidden = false;
     } else {
       bar.hidden = true;
@@ -716,10 +886,40 @@
         loadRows().catch((err) => notify(err.message, 'error'));
         return;
       }
+      if (e.target.closest('[data-qs-merge], .qs-row__merge')) {
+        e.stopPropagation();
+        return;
+      }
       const a = e.target.closest('.qs-row');
       if (!a || e.metaKey || e.ctrlKey) return;
       e.preventDefault();
       select(a.getAttribute('data-id'), narrow());
+    });
+    $('qsRows').addEventListener('change', (e) => {
+      const box = e.target.closest('[data-qs-merge]');
+      if (!box) return;
+      toggleMergeId(box.getAttribute('data-qs-merge'), box.checked);
+    });
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('[data-qs-merge-clear]')) {
+        e.preventDefault();
+        st.mergeIds = [];
+        renderList();
+        renderMergeBar();
+        renderPane();
+        return;
+      }
+      if (e.target.closest('[data-qs-merge-go]')) {
+        e.preventDefault();
+        void runMergeQuotes();
+        return;
+      }
+      const add = e.target.closest('[data-qs-merge-add]');
+      if (add) {
+        e.preventDefault();
+        toggleMergeId(add.getAttribute('data-qs-merge-add'), true);
+        renderPane();
+      }
     });
     function applySeg(next) {
       st.seg = next;
@@ -868,6 +1068,18 @@
     await reload();
     if (window.OmGestures) {
       window.OmGestures.initPullToRefresh({ key: 'quotes', indicator: '#quotesPtr', refresh: () => reload() });
+    }
+    try {
+      const bc = new BroadcastChannel('obramate-crm');
+      bc.onmessage = (ev) => {
+        const msg = ev && ev.data;
+        if (!msg || msg.type !== 'customer-updated') return;
+        void reload().then(() => {
+          if (st.sel) void loadPaper(st.sel);
+        });
+      };
+    } catch (_) {
+      /* BroadcastChannel unavailable */
     }
   }
 

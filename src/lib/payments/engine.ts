@@ -714,6 +714,13 @@ export async function recordInvoicePayment(
     actorId?: string | null;
     externalPaymentId?: string | null;
     processor?: string | null;
+    /**
+     * When the payment does not settle the open balance:
+     * - keep_open: leave the rest due on this invoice (default)
+     * - reduce_invoice: shrink invoice.amount to what was paid and mark paid;
+     *   the written-off slice returns to quote/job remaining_to_invoice
+     */
+    remainderMode?: "keep_open" | "reduce_invoice" | null;
   },
 ) {
   const invoice = await tx.quoteInvoice.findFirst({
@@ -731,6 +738,7 @@ export async function recordInvoicePayment(
   if (alreadyPaid + amountCents > invoiceCents + 1) {
     throw new Error("Payment exceeds invoice balance");
   }
+  const remainderMode = params.remainderMode === "reduce_invoice" ? "reduce_invoice" : "keep_open";
 
   const method = String(params.method || "").toLowerCase() || null;
   if (method === "referral_credit") {
@@ -770,15 +778,20 @@ export async function recordInvoicePayment(
   }
 
   const newPaid = alreadyPaid + amountCents;
+  const reduces = remainderMode === "reduce_invoice" && newPaid < invoiceCents - 1;
+  const effectiveAmountCents = reduces ? newPaid : invoiceCents;
   const status = deriveInvoiceStatus({
     status: invoice.status === "draft" ? "sent" : invoice.status,
-    amountCents: invoiceCents,
+    amountCents: effectiveAmountCents,
     paidCents: newPaid,
   });
 
   await tx.quoteInvoice.update({
     where: { id: invoice.id },
     data: {
+      ...(reduces
+        ? { amount: new Prisma.Decimal(fromCents(effectiveAmountCents).toFixed(2)) }
+        : {}),
       status,
       paidAt: status === "paid" ? params.paidAt ?? new Date() : invoice.paidAt,
       issuedAt: invoice.issuedAt ?? new Date(),
@@ -795,6 +808,15 @@ export async function recordInvoicePayment(
     changes: {
       invoiceId: { from: null, to: invoice.id },
       amount: { from: null, to: fromCents(amountCents) },
+      ...(reduces
+        ? {
+            invoice_amount: {
+              from: fromCents(invoiceCents),
+              to: fromCents(effectiveAmountCents),
+            },
+            remainder_mode: { from: null, to: "reduce_invoice" },
+          }
+        : {}),
     },
   });
   // Invoice timeline entry (the detail page reads invoice events only).

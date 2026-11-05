@@ -12,3 +12,7 @@ uploads/
 
 /data/
 i18n-missing.tsv
+
+# Claude Code: local settings and platform-specific Impeccable engine binary
+.claude/settings.local.json
+.claude/skills/impeccable/scripts/bin/

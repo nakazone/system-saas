@@ -287,6 +287,12 @@ async function quotePdfInputForCrm(organizationId: string, quoteId: string) {
     (isBuilder ? quote.builder?.email : null) || quote.customer?.email || null;
   const customerPhone =
     (isBuilder ? quote.builder?.phone : null) || quote.customer?.phone || null;
+  const payload =
+    quote.payload && typeof quote.payload === "object" && !Array.isArray(quote.payload)
+      ? (quote.payload as Record<string, unknown>)
+      : {};
+  const jobName = String(payload.job_name || "").trim();
+  const jobAddress = String(payload.job_address || "").trim();
   const street = quote.property
     ? [quote.property.line1, quote.property.line2].filter(Boolean).join(", ")
     : null;
@@ -323,8 +329,9 @@ async function quotePdfInputForCrm(organizationId: string, quoteId: string) {
     customerEmail,
     customerPhone,
     quoteParty: isBuilder ? "builder" : "customer",
-    projectName: quote.property?.label || quote.title,
-    projectAddress: street,
+    // JOB SITE: property label → quote "ID do cliente" (payload.job_name) → title
+    projectName: quote.property?.label || jobName || quote.title,
+    projectAddress: street || jobAddress || null,
     projectCityLine: cityLine,
     validUntil: quote.validUntil,
     terms: quote.terms,
@@ -466,6 +473,7 @@ function mapCustomer(c: {
   customerType: string;
   pricingMode?: string;
   customPricingRates?: unknown;
+  customPricingNotes?: unknown;
   company: string | null;
   nickname?: string | null;
   managers?: unknown;
@@ -493,6 +501,7 @@ function mapCustomer(c: {
     customer_type: normalizeCustomerType(c.customerType),
     pricing_mode: c.pricingMode === "custom" ? "custom" : "table",
     custom_pricing_rates: normalizeCustomPricingRates(c.customPricingRates),
+    custom_pricing_notes: normalizeCustomPricingNotes(c.customPricingNotes),
     company: c.company,
     nickname: c.nickname ? String(c.nickname).trim() || null : null,
     managers: cleanManagers(c.managers),
@@ -587,6 +596,45 @@ function normalizeCustomPricingRates(raw: unknown): Record<string, number> {
   return out;
 }
 
+/** Per-customer catalog text: notes string or { notes?, name? }. */
+function normalizeCustomPricingNotes(raw: unknown): Record<string, { notes: string | null; name: string | null }> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Record<string, { notes: string | null; name: string | null }> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    const id = String(k || "").trim();
+    if (!id) continue;
+    if (typeof v === "string") {
+      const notes = v.trim() || null;
+      if (notes) out[id] = { notes, name: null };
+      continue;
+    }
+    if (!v || typeof v !== "object" || Array.isArray(v)) continue;
+    const row = v as Record<string, unknown>;
+    const notes = row.notes != null ? String(row.notes).trim() || null : null;
+    const name = row.name != null ? String(row.name).trim().slice(0, 200) || null : null;
+    if (!notes && !name) continue;
+    out[id] = { notes, name };
+  }
+  return out;
+}
+
+/** Site address stored on the lead (metadata), used when creating/healing Clients. */
+function leadSiteAddress(lead: { metadata?: unknown } | null | undefined): string | null {
+  if (!lead) return null;
+  const meta =
+    lead.metadata && typeof lead.metadata === "object" && !Array.isArray(lead.metadata)
+      ? (lead.metadata as Record<string, unknown>)
+      : {};
+  const direct = meta.address != null ? String(meta.address).trim() : "";
+  if (direct) return direct;
+  const full = meta.full_address != null ? String(meta.full_address).trim() : "";
+  if (full) return full;
+  const parts = [meta.address_line1, meta.address_line2, meta.city, meta.state, meta.zipcode || meta.address_zip]
+    .map((x) => (x != null ? String(x).trim() : ""))
+    .filter(Boolean);
+  return parts.length ? parts.join(", ") : null;
+}
+
 function mapQuote(q: {
   id: string;
   number: number;
@@ -623,7 +671,7 @@ function mapQuote(q: {
   payload: unknown;
   createdAt: Date;
   updatedAt: Date;
-  customer?: { name: string; company?: string | null; clientCode?: string | null } | null;
+  customer?: { name: string; company?: string | null; clientCode?: string | null; address?: string | null } | null;
   workOrder?: { number: number | null; status?: string | null } | null;
   builder?: {
     company?: string | null;
@@ -723,8 +771,13 @@ function mapQuote(q: {
     has_invoice_pdf: Boolean(q.invoicePdfPath),
     invoice_pdf_url: q.invoicePdfPath ? `/api/quotes/${q.id}/invoice-pdf` : null,
     job_name: payload.job_name != null ? String(payload.job_name) : q.title,
+    customer_address: q.customer?.address != null ? String(q.customer.address).trim() || null : null,
     job_address:
-      (payload.job_address != null ? String(payload.job_address) : null) || propertyLabel,
+      (payload.job_address != null && String(payload.job_address).trim()
+        ? String(payload.job_address).trim()
+        : null) ||
+      propertyLabel ||
+      (q.customer?.address != null ? String(q.customer.address).trim() || null : null),
     quote_party: payload.quote_party != null ? String(payload.quote_party) : null,
     expiration_date: q.validUntil,
     viewed_at: q.viewedAt,
@@ -1355,10 +1408,17 @@ customersQuotesRouter.post(
         return;
       }
       const row = await withTenantTransaction(req.organizationId!, async (tx) => {
-        const existing = await tx.customer.findFirst({ where: { leadId } });
-        if (existing) return existing;
         const lead = await tx.lead.findFirst({ where: { id: leadId } });
         if (!lead) return null;
+        const siteAddress = leadSiteAddress(lead);
+        const existing = await tx.customer.findFirst({ where: { leadId } });
+        if (existing) {
+          // Older from-lead creates left address blank — heal from the lead site.
+          if (!String(existing.address || "").trim() && siteAddress) {
+            return tx.customer.update({ where: { id: existing.id }, data: { address: siteAddress } });
+          }
+          return existing;
+        }
         const meta =
           lead.metadata && typeof lead.metadata === "object" && !Array.isArray(lead.metadata)
             ? (lead.metadata as Record<string, unknown>)
@@ -1379,6 +1439,7 @@ customersQuotesRouter.post(
             name: formatCustomerName(lead.name, req.body?.customer_type || "particular"),
             email: lead.email,
             phone: lead.phone,
+            address: siteAddress,
             notes: lead.notes,
             customerType: normalizeCustomerType(req.body?.customer_type || "particular"),
             pricingMode: normalizePricingMode(req.body?.pricing_mode),
@@ -1475,6 +1536,10 @@ customersQuotesRouter.put(
                         : existing.customPricingRates,
                     )
                   : {}
+                : undefined,
+            customPricingNotes:
+              body.custom_pricing_notes !== undefined
+                ? normalizeCustomPricingNotes(body.custom_pricing_notes)
                 : undefined,
             company: body.company !== undefined ? String(body.company || "") || null : undefined,
             nickname,
@@ -1637,12 +1702,86 @@ customersQuotesRouter.delete(
 
 function quoteListInclude() {
   return {
-    customer: { select: { name: true, company: true, clientCode: true } },
+    customer: { select: { name: true, company: true, clientCode: true, address: true } },
     workOrder: { select: { number: true, status: true } },
     builder: { select: { company: true, firstName: true, lastName: true } },
     property: { select: { line1: true, city: true, state: true, label: true } },
     lineItems: { orderBy: { sortOrder: "asc" as const } },
   };
+}
+
+/**
+ * Expand customer_id / builder_id into linked parties (builder→customer, customer→builders,
+ * Client ID twins) so quote lists find every orçamento for that person/company.
+ */
+async function expandQuotePartyIds(
+  tx: TenantPrisma,
+  customerId: string | null,
+  builderId: string | null,
+): Promise<{ customerIds: string[]; builderIds: string[] }> {
+  const customerIds = new Set<string>();
+  const builderIds = new Set<string>();
+  if (customerId) customerIds.add(customerId);
+  if (builderId) builderIds.add(builderId);
+  for (let round = 0; round < 3; round++) {
+    if (builderIds.size) {
+      const builders = await tx.builder.findMany({
+        where: { id: { in: [...builderIds] } },
+        select: { customerId: true },
+      });
+      for (const b of builders) {
+        if (b.customerId) customerIds.add(b.customerId);
+      }
+    }
+    if (customerIds.size) {
+      const linked = await tx.builder.findMany({
+        where: { customerId: { in: [...customerIds] } },
+        select: { id: true },
+      });
+      for (const b of linked) builderIds.add(b.id);
+      const seeds = await tx.customer.findMany({
+        where: { id: { in: [...customerIds] } },
+        select: { clientCode: true },
+      });
+      const codes = [
+        ...new Set(
+          seeds
+            .map((s) => (s.clientCode != null ? String(s.clientCode).trim() : ""))
+            .filter(Boolean),
+        ),
+      ];
+      if (codes.length) {
+        const twins = await tx.customer.findMany({
+          where: { clientCode: { in: codes } },
+          select: { id: true },
+          take: 50,
+        });
+        for (const t of twins) customerIds.add(t.id);
+      }
+    }
+  }
+  return { customerIds: [...customerIds], builderIds: [...builderIds] };
+}
+
+function quotePartyWhere(customerIds: string[], builderIds: string[]): Prisma.QuoteWhereInput | null {
+  const or: Prisma.QuoteWhereInput[] = [];
+  if (customerIds.length) or.push({ customerId: { in: customerIds } });
+  if (builderIds.length) or.push({ builderId: { in: builderIds } });
+  return or.length ? { OR: or } : null;
+}
+
+/** Quotes that can still become (or resume) a draft job from the job modal. */
+function isJobImportCandidateRow(q: {
+  status: string;
+  workOrderId: string | null;
+  workOrder?: { status?: string | null } | null;
+}): boolean {
+  const woStatus = String(q.workOrder?.status || "").toLowerCase();
+  if (q.workOrderId) {
+    return !woStatus || woStatus === "draft" || woStatus === "canceled";
+  }
+  const st = normalizeQuoteStatus(q.status);
+  return st === "draft" || st === "sent" || st === "changes_requested" || st === "approved" || st === "converted";
 }
 
 /** Broad quote list search: number, title, client/builder names, address, job fields. */
@@ -1786,6 +1925,7 @@ customersQuotesRouter.get("/api/quotes", requireCrmAuth, async (req: AuthedReque
     const group = req.query.group ? String(req.query.group) : null;
     const leadId = req.query.lead_id ? String(req.query.lead_id) : null;
     const customerId = req.query.customer_id ? String(req.query.customer_id) : null;
+    const builderId = req.query.builder_id ? String(req.query.builder_id) : null;
     const search = String(req.query.q || req.query.search || "").trim();
 
     const [total, rows, leadNames] = await withTenantTransaction(req.organizationId!, async (tx) => {
@@ -1793,7 +1933,13 @@ customersQuotesRouter.get("/api/quotes", requireCrmAuth, async (req: AuthedReque
       if (status) where.status = status;
       if (group) Object.assign(where, quoteGroupWhere(group));
       if (leadId) where.leadId = leadId;
-      if (customerId) where.customerId = customerId;
+      if (customerId || builderId) {
+        const parties = await expandQuotePartyIds(tx, customerId, builderId);
+        const partyWhere = quotePartyWhere(parties.customerIds, parties.builderIds);
+        if (partyWhere) {
+          where.AND = [...(Array.isArray(where.AND) ? where.AND : []), partyWhere];
+        }
+      }
       if (search) {
         const contains = { contains: search, mode: "insensitive" as const };
         const leadHits = await tx.lead.findMany({
@@ -1803,7 +1949,7 @@ customersQuotesRouter.get("/api/quotes", requireCrmAuth, async (req: AuthedReque
         });
         const or = quoteSearchWhere(search);
         if (leadHits.length) or.push({ leadId: { in: leadHits.map((l) => l.id) } });
-        where.OR = or;
+        where.AND = [...(Array.isArray(where.AND) ? where.AND : []), { OR: or }];
       }
       const count = await tx.quote.count({ where });
       const list = await tx.quote.findMany({
@@ -1835,6 +1981,97 @@ customersQuotesRouter.get("/api/quotes", requireCrmAuth, async (req: AuthedReque
   }
 });
 
+/**
+ * Quotes eligible to import / merge into a new job for the selected customer or builder.
+ * Expands linked parties and also matches by display / job name (e.g. homeowner on a builder quote).
+ */
+customersQuotesRouter.get(
+  "/api/quotes/job-import-candidates",
+  requireCrmAuth,
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const customerId = asOptionalUuid(req.query.customer_id);
+      const builderId = asOptionalUuid(req.query.builder_id);
+      const name = String(req.query.name || "").trim();
+      if (!customerId && !builderId && name.length < 2) {
+        res.json({ success: true, data: [] });
+        return;
+      }
+      const limit = Math.min(40, Math.max(1, Number(req.query.limit) || 20));
+
+      const rows = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const parties = await expandQuotePartyIds(tx, customerId, builderId);
+        const or: Prisma.QuoteWhereInput[] = [];
+        const partyWhere = quotePartyWhere(parties.customerIds, parties.builderIds);
+        if (partyWhere?.OR) or.push(...(partyWhere.OR as Prisma.QuoteWhereInput[]));
+
+        if (name.length >= 2) {
+          const contains = { contains: name, mode: "insensitive" as const };
+          or.push(
+            { title: contains },
+            { payload: { path: ["job_name"], string_contains: name } },
+            {
+              customer: {
+                is: {
+                  OR: [{ name: contains }, { company: contains }],
+                },
+              },
+            },
+            {
+              builder: {
+                is: {
+                  OR: [
+                    { company: contains },
+                    { nickname: contains },
+                    { firstName: contains },
+                    { lastName: contains },
+                  ],
+                },
+              },
+            },
+          );
+          const parts = name.split(/\s+/).filter(Boolean);
+          if (parts.length >= 2) {
+            or.push({
+              builder: {
+                is: {
+                  AND: [
+                    { firstName: { contains: parts[0]!, mode: "insensitive" } },
+                    { lastName: { contains: parts[parts.length - 1]!, mode: "insensitive" } },
+                  ],
+                },
+              },
+            });
+          }
+          const leadHits = await tx.lead.findMany({
+            where: { OR: [{ name: contains }, { email: contains }, { phone: contains }] },
+            select: { id: true },
+            take: 40,
+          });
+          if (leadHits.length) or.push({ leadId: { in: leadHits.map((l) => l.id) } });
+        }
+
+        if (!or.length) return [];
+
+        const list = await tx.quote.findMany({
+          where: { OR: or },
+          orderBy: { createdAt: "desc" },
+          take: Math.min(80, limit * 3),
+          include: quoteListInclude(),
+        });
+        return list.filter(isJobImportCandidateRow).slice(0, limit);
+      });
+
+      res.json({
+        success: true,
+        data: rows.map((q) => mapQuoteForUser(q, req.user)),
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 customersQuotesRouter.get(
   "/api/quotes/lookup/builders",
   requireCrmAuth,
@@ -1850,6 +2087,47 @@ customersQuotesRouter.get(
       );
       res.json({ success: true, data: rows.map(asSnakeBuilder) });
     } catch (error) {
+      next(error);
+    }
+  },
+);
+
+/** Unify 2–5 approved quotes into one draft job (same customer or builder). */
+customersQuotesRouter.post(
+  "/api/quotes/merge-job",
+  requireCrmAuth,
+  requireCrmPermission("quotes.edit"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const raw = Array.isArray(req.body?.quote_ids) ? req.body.quote_ids : [];
+      const quoteIds = raw.map((x: unknown) => String(x || "").trim()).filter((id: string) => UUID_RE.test(id));
+      const result = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const { mergeQuotesIntoJob } = await import("../../lib/work-orders/from-quote.js");
+        return mergeQuotesIntoJob(tx, {
+          organizationId: req.organizationId!,
+          quoteIds,
+          actorId: req.user?.id ?? null,
+        });
+      });
+      res.json({
+        success: true,
+        data: {
+          work_order_id: result.id,
+          number: result.number,
+          created: result.created,
+          quote_ids: result.quoteIds,
+        },
+        created_job_id: result.id,
+      });
+    } catch (error) {
+      const status = (error as { statusCode?: number }).statusCode;
+      if (status && status >= 400 && status < 500) {
+        res.status(status).json({
+          success: false,
+          error: error instanceof Error ? error.message : "Não foi possível unificar",
+        });
+        return;
+      }
       next(error);
     }
   },

@@ -246,7 +246,9 @@ export function counts(data: MeasurementData) {
   const floors = planTotals(data.plan).filter((t) => t.include);
   const floor_sf = Math.round(floors.reduce((a, t) => a + t.area_sf, 0));
   const floor_text = floors.map((t) => `${t.label} ${fmtSf(t.area_sf)}`).join(" · ");
-  return { stairs: data.stairs.length, treads, risers, nosings, landings, vents, floor_sf, floor_text, plan: Boolean(data.plan && data.plan.file) };
+  // A flight that starts on another flight's landing is part of that stair, not a stair of its own.
+  const stairCount = data.stairs.filter((s) => !s.starts_on_landing_of).length;
+  return { stairs: stairCount, flights: data.stairs.length, treads, risers, nosings, landings, vents, floor_sf, floor_text, plan: Boolean(data.plan && data.plan.file) };
 }
 
 /** Text for the job notes, in the words a work order uses (e.g. "48" – double returns – 8 EA"). */
@@ -273,7 +275,11 @@ function appendLog(raw: unknown, entry: ReturnType<typeof logEntry>) {
   return [...list, entry];
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 async function own(member: ActiveMember, measurementId: string) {
+  // A malformed id (old or hand-typed link) is "not found", not a database error.
+  if (!UUID_RE.test(String(measurementId || ""))) throw new BuilderError(404, "Measurement not found.");
   const row = await prisma.builderMeasurement.findFirst({ where: { id: measurementId, builderAccountId: member.builderAccountId } });
   if (!row) throw new BuilderError(404, "Measurement not found.");
   return row;
@@ -1301,7 +1307,8 @@ export async function orderQuotePdf(
     brandPrimary: "#221E1A",
     brandAccent: "#E7792C",
     title: input.title.slice(0, 160) || `Work order · ${input.address}`,
-    number: input.ref ? `PO ${input.ref}`.slice(0, 40) : `WO-${Date.now().toString(36).toUpperCase().slice(-6)}`,
+    // The builder may already type "PO-123" or "PO 123": never print "PO PO-123".
+    number: input.ref ? (/^po/i.test(String(input.ref).trim()) ? String(input.ref).trim() : `PO ${input.ref}`).slice(0, 40) : `WO-${Date.now().toString(36).toUpperCase().slice(-6)}`,
     status: "draft",
     issueDate: new Date(),
     validUntil: new Date(Date.now() + (org?.quoteValidityDays || 30) * 86400e3),

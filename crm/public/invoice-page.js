@@ -100,7 +100,7 @@
   }
   function toast(msg, type) {
     if (window.crmToast) window.crmToast[type === 'error' ? 'error' : type === 'info' ? 'info' : 'success'](msg);
-    else alert(msg);
+    else console.warn(msg);
   }
   async function api(url, opts) {
     const r = await fetch(url, Object.assign({ credentials: 'include', headers: { 'Content-Type': 'application/json' } }, opts || {}));
@@ -407,6 +407,7 @@
       const days = Math.round((Date.UTC(due.getUTCFullYear(), due.getUTCMonth(), due.getUTCDate()) - Date.UTC(new Date().getFullYear(), new Date().getMonth(), new Date().getDate())) / 86400000);
       dueTxt = days < 0 ? `Venceu há ${-days} ${days === -1 ? 'dia' : 'dias'}` : days === 0 ? 'Vence hoje' : `Vence em ${days} ${days === 1 ? 'dia' : 'dias'} · ${fdate(inv.due_date)}`;
     }
+    const canPayHere = inv.can.record_payment && inv.remaining_amount > 0.004 && inv.status !== 'void' && inv.status !== 'draft';
     $('invSummary').innerHTML = `
       <div class="inv-pay-math" aria-live="polite">
         <div><span>Total</span><b>${money(inv.amount)}</b></div>
@@ -414,15 +415,19 @@
         <div class="is-bal"><span>Saldo</span><b>${money(inv.remaining_amount)}</b></div>
         <p class="inv-pay-math__note${inv.display_status === 'overdue' ? ' is-error' : ''}">${esc([dueTxt, inv.display_status === 'paid' ? '' : `${inv.percent_paid}% pago`].filter(Boolean).join(' · '))}</p>
       </div>
-      ${false ? `
-        <div class="inv-summary__quick">
-          <button type="button" class="inv-btn inv-btn--primary inv-btn--block" data-pay="full">Pagamento integral · ${money(inv.remaining_amount)}</button>
-          <button type="button" class="inv-btn inv-btn--secondary inv-btn--block" data-pay="partial">Dar baixa parcial</button>
-        </div>` : inv.status === 'draft' && inv.can.manage ? `
-        <div class="inv-summary__quick">
+      ${
+        canPayHere
+          ? `<div class="inv-summary__quick">
+          <button type="button" class="inv-btn inv-btn--primary inv-btn--block" data-pay="full">Receber pagamento · ${money(inv.remaining_amount)}</button>
+          <button type="button" class="inv-btn inv-btn--secondary inv-btn--block" data-pay="amount">Receber outro valor</button>
+        </div>`
+          : inv.status === 'draft' && inv.can.manage
+            ? `<div class="inv-summary__quick">
           <button type="button" class="inv-btn inv-btn--primary inv-btn--block" id="btnSummarySend">Enviar fatura ao cliente</button>
           <p class="inv-hint">Depois que o pagamento entrar, use <b>Receber pagamento</b> para dar baixa.</p>
-        </div>` : ''}
+        </div>`
+            : ''
+      }
     `;
     $('invSummary').querySelectorAll('[data-pay]').forEach((b) => b.addEventListener('click', () => openPay(b.dataset.pay)));
     $('btnSummarySend')?.addEventListener('click', openSend);
@@ -496,7 +501,7 @@
         <span><b>${esc(q.number || 'Orçamento')}</b><small>${esc(quoteNote || (isJob ? q.title || '' : ''))}</small></span>
         <span>${money(q.total)}</span>
       </a>
-      <div class="inv-progress inv-progress--thin"><span style="width:${pct}%"></span></div>
+      <div class="inv-progress inv-progress--thin"><span style="transform:scaleX(${Math.max(0, pct) / 100})"></span></div>
       <p class="inv-muted">Faturado ${money(q.invoiced_total)} de ${money(q.total)}${q.remaining_to_invoice > 0 ? ` · falta faturar ${money(q.remaining_to_invoice)}` : ' · totalmente faturado'}</p>
       ${inv.sibling_invoices.length ? `<ul class="inv-siblings">${inv.sibling_invoices
         .map(
@@ -620,6 +625,10 @@
     const amt = payAmount();
     return amt > 0 && Math.abs(bal - amt) < 0.005 ? 'full' : 'partial';
   }
+  function payRemainderMode() {
+    const r = document.querySelector('input[name="payRemainder"]:checked');
+    return r && r.value === 'reduce_invoice' ? 'reduce_invoice' : 'keep_open';
+  }
   function syncPay() {
     const mode = payMode();
     const amt = payAmount();
@@ -629,18 +638,25 @@
     const after = Math.max(0, Math.round((bal - amt) * 100) / 100);
     const settles = amt > 0 && Math.abs(bal - amt) < 0.005;
     const over = amt > bal + 0.004;
+    const partial = amt > 0 && !settles && !over;
+    const remMode = payRemainderMode();
     const partialPreview = (() => {
       const pct = Number($('payPct') && $('payPct').value) || 0;
       if (!(pct > 0) || pct > 100) return 0;
       return Math.min(bal, Math.round((payCents(total) * pct) / 100) / 100);
     })();
+    if ($('payRemainderBox')) $('payRemainderBox').hidden = !partial;
     if ($('payFullAmount')) $('payFullAmount').textContent = money(bal);
     if ($('payPartialAmount')) $('payPartialAmount').textContent = money(partialPreview);
     if ($('payAmountHint')) $('payAmountHint').textContent = `Parcela livre, até ${money(bal)}`;
     if ($('payMathTotal')) $('payMathTotal').textContent = money(total);
     if ($('payMathPaid')) $('payMathPaid').textContent = money(paid);
     if ($('payMathNow')) $('payMathNow').textContent = money(amt);
-    if ($('payMathAfter')) $('payMathAfter').textContent = money(over ? bal : after);
+    if ($('payMathAfter')) {
+      $('payMathAfter').textContent = money(
+        over ? bal : partial && remMode === 'reduce_invoice' ? 0 : after,
+      );
+    }
     const note = $('payMathNote');
     if (note) {
       note.className = 'inv-pay-math__note' + (over ? ' is-error' : '');
@@ -653,12 +669,33 @@
               ? `Valor acima do saldo em aberto (${money(bal)}).`
               : settles
                 ? 'Este valor quita a fatura — ela será marcada como paga.'
-                : `Depois deste pagamento ainda ficam ${money(after)}.`;
+                : remMode === 'reduce_invoice'
+                  ? `A fatura passa a ${money(paid + amt)} (quitada). ${money(after)} volta ao saldo a faturar.`
+                  : `Ficam ${money(after)} em aberto nesta fatura. O recibo só envia ao quitar o total.`;
     }
     if ($('payAfter')) $('payAfter').hidden = true;
+    const sendBox = $('paySendReceipt');
+    const emailOk = !!(inv.client && inv.client.email);
+    if (sendBox && sendBox.closest('label')) {
+      const lab = sendBox.closest('label');
+      if (partial && remMode === 'keep_open') {
+        sendBox.checked = false;
+        sendBox.disabled = true;
+        lab.title = 'Com saldo em aberto, o recibo só é enviado ao quitar o total.';
+      } else {
+        sendBox.disabled = !emailOk;
+        lab.title = '';
+      }
+    }
+    const previewBtn = $('btnPayPreviewEmail');
+    if (previewBtn) {
+      const showPreview = emailOk && !(partial && remMode === 'keep_open') && !!sendBox?.checked;
+      previewBtn.hidden = !showPreview;
+      previewBtn.disabled = !showPreview;
+    }
     $('paySubmit').textContent = !amt
       ? 'Registrar pagamento'
-      : settles || mode === 'full'
+      : settles || mode === 'full' || (partial && remMode === 'reduce_invoice')
         ? `Receber ${money(amt)} e marcar como paga`
         : `Dar baixa de ${money(amt)}`;
     $('paySubmit').disabled = !amt || amt > bal + 0.004;
@@ -667,8 +704,22 @@
     const wrap = $('payMethodCashback');
     if (!wrap) return;
     wrap.hidden = true;
-    const check = document.querySelector('input[name="payMethod"][value="check"]');
-    if (check) check.checked = true;
+    // Default to the method of the last payment on this invoice (same customer, usually pays the
+    // same way); fall back to Cheque. Cashback is never pre-picked — it depends on the live balance.
+    let lastMethod = '';
+    let lastAt = '';
+    (inv && Array.isArray(inv.payments) ? inv.payments : []).forEach((p) => {
+      if (!p || !p.method || p.method === 'referral_credit') return;
+      const at = String(p.paid_at || '');
+      if (!lastMethod || at >= lastAt) {
+        lastMethod = p.method;
+        lastAt = at;
+      }
+    });
+    const preferred =
+      (lastMethod && document.querySelector(`input[name="payMethod"][value="${CSS.escape(lastMethod)}"]`)) ||
+      document.querySelector('input[name="payMethod"][value="check"]');
+    if (preferred) preferred.checked = true;
     const clientId = inv && inv.client && inv.client.id;
     if (!clientId) return;
     try {
@@ -709,6 +760,8 @@
     if (pickedEl) pickedEl.checked = true;
     $('payAmount').value = '';
     if ($('payPct') && !$('payPct').value) $('payPct').value = '50';
+    const keepRem = document.querySelector('input[name="payRemainder"][value="keep_open"]');
+    if (keepRem) keepRem.checked = true;
     $('payRef').value = '';
     $('payNotes').value = '';
     const email = inv.client && inv.client.email;
@@ -737,6 +790,9 @@
       if (payMode() === 'partial') $('payPct').focus();
     }),
   );
+  document.querySelectorAll('input[name="payRemainder"]').forEach((r) =>
+    r.addEventListener('change', () => syncPay()),
+  );
   ['payAmount', 'payPct'].forEach((id) => {
     const el = $(id);
     if (!el) return;
@@ -753,14 +809,20 @@
 
   function buildPayBody(emailTo) {
     const method = (document.querySelector('input[name="payMethod"]:checked') || {}).value || 'other';
+    const amt = payAmount();
+    const bal = Number(inv && inv.remaining_amount) || 0;
+    const settles = amt > 0 && Math.abs(bal - amt) < 0.005;
+    const rem = settles ? 'keep_open' : payRemainderMode();
+    const wantSend = !!$('paySendReceipt')?.checked && !(rem === 'keep_open' && !settles);
     const body = {
       mode: payApiMode(),
-      amount: payAmount(),
+      amount: amt,
       payment_date: $('payDate').value,
       payment_method: method,
       reference_number: $('payRef').value.trim() || null,
       notes: $('payNotes').value.trim() || null,
-      send_email: true,
+      remainder_mode: rem,
+      send_email: wantSend,
     };
     if (emailTo) body.email_to = emailTo;
     return body;
@@ -831,7 +893,9 @@
       inv = r.invoice;
       render();
       const parts = [`${r.data.receipt_number || 'Recibo'} · ${money(r.data.amount)} registrado.`];
-      if (r.invoice_paid) parts.push('Fatura quitada.');
+      if (r.remainder_mode === 'reduce_invoice') parts.push('Fatura reduzida e quitada; restante voltou ao saldo a faturar.');
+      else if (r.invoice_paid) parts.push('Fatura quitada.');
+      if (r.receipt_email_deferred) parts.push('Recibo será enviado ao quitar o total.');
       if (r.email && r.email.ok) parts.push('Recibo enviado ao cliente.');
       toast(parts.join(' '));
       if (r.email && r.email.ok === false) toast(`Recibo criado, mas o e-mail falhou: ${r.email.error || 'erro'}`, 'error');
@@ -893,8 +957,8 @@
     if (!$('payDate').value) return showErr('payError', 'Informe a data do pagamento.');
     showErr('payError', '');
 
-    const send = !!$('paySendReceipt')?.checked;
-    if (send) {
+    const body = buildPayBody((inv.client && inv.client.email) || null);
+    if (body.send_email) {
       try {
         const preview = await fetchReceiptEmailPreview();
         openReceiptEmailPreview(preview, buildPayBody(preview.to));
@@ -905,16 +969,7 @@
     }
 
     try {
-      const method = (document.querySelector('input[name="payMethod"]:checked') || {}).value || 'other';
-      await submitPayment({
-        mode: payApiMode(),
-        amount: amt,
-        payment_date: $('payDate').value,
-        payment_method: method,
-        reference_number: $('payRef').value.trim() || null,
-        notes: $('payNotes').value.trim() || null,
-        send_email: false,
-      });
+      await submitPayment(body);
     } catch (err) {
       showErr('payError', err.message);
     }

@@ -1,10 +1,8 @@
 /**
  * Names shown on the schedule and on the external calendar feed.
- * Particular: "Name - Origin", or "Name - Client ID" when that ID is filled.
- * Builder / loja: "Nickname 123 Oak" (number + first street name).
+ * Pattern: "Nickname - Client ID". When there is no Client ID, use
+ * "Nickname - 123 Oak" (street number + first street name).
  */
-import { personCalendarTitle } from "./lead-visit-ics.js";
-
 const STREET_SUFFIX = new Set([
   "st",
   "street",
@@ -166,13 +164,17 @@ export function builderCalendarTitle(opts: {
   fallback?: string | null;
   address?: string | null;
   title?: string | null;
+  clientRef?: string | null;
 }): string {
   const who =
     String(opts.nickname || "").trim() ||
     String(opts.company || "").trim() ||
     String(opts.fallback || "").trim();
+  const clientId = String(opts.clientRef || "").trim();
   const street = calendarStreet(opts.address, opts.title);
-  return [who, street].filter(Boolean).join(" ") || street || "Job";
+  const suffix = clientId || street;
+  if (who && suffix) return `${who} - ${suffix}`;
+  return who || suffix || "Job";
 }
 
 export function jobCalendarTitle(input: {
@@ -197,14 +199,13 @@ export function jobCalendarTitle(input: {
       fallback: input.customerName || input.title,
       address: input.address,
       title: input.title,
+      clientRef: input.clientRef,
     });
   }
-  const name = String(input.customerName || input.sourceName || input.title || "").trim() || "Cliente";
-  const typed = String(input.sourceName || "").trim();
-  const origin =
-    String(input.origin || "").trim() ||
-    (typed && typed.toLowerCase() !== name.toLowerCase() ? typed : "");
-  return personCalendarTitle(name, { clientId: input.clientRef, origin });
+  // Particular: show only the client name — no street/address chip on the calendar.
+  const name =
+    String(input.nickname || input.customerName || input.sourceName || input.title || "").trim() || "Cliente";
+  return name;
 }
 
 /** Timed visits always occupy one hour from the selected start. */

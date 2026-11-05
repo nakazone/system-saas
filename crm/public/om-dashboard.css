@@ -337,27 +337,6 @@ a.omd-kpi:hover {
   align-items: stretch;
 }
 
-.omd-side {
-  display: grid;
-  grid-template-rows: minmax(0, 1.2fr) minmax(140px, 0.8fr);
-  gap: 1rem;
-  min-width: 0;
-  height: var(--omd-mid-h);
-  min-height: var(--omd-mid-h);
-  max-height: var(--omd-mid-h);
-  overflow: hidden;
-}
-
-.omd-side__row {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
-  min-width: 0;
-  min-height: 0;
-  align-items: stretch;
-  overflow: hidden;
-}
-
 .omd-card {
   min-width: 0;
   padding: 1.05rem 1.15rem 0.9rem;
@@ -395,21 +374,6 @@ a.omd-kpi:hover {
   min-height: 0;
   max-height: none;
   overflow: hidden;
-}
-
-.omd-map {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  height: 100%;
-  overflow: hidden;
-}
-
-.omd-map__body {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
 }
 
 .omd-card__head h2 {
@@ -450,8 +414,7 @@ a.omd-kpi:hover {
 /* —— Rows (attention / today / jobs) —— */
 .omd-attn__list,
 .omd-today__list,
-.omd-jobs__list,
-.omd-sources__list {
+.omd-jobs__list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -615,95 +578,6 @@ a.omd-kpi:hover {
 }
 
 /* —— Day map —— */
-.omd-map__canvas {
-  flex: 1 1 auto;
-  min-height: 0;
-  height: 100%;
-  border-radius: 12px;
-  overflow: hidden;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--omd-soft) 70%, #fff), var(--omd-soft));
-  border: 1px solid var(--omd-line);
-  position: relative;
-}
-
-.omd-map__canvas .leaflet-container {
-  height: 100%;
-  width: 100%;
-  font: inherit;
-  background: transparent;
-}
-
-.omd-map__canvas.is-loading::after {
-  content: "Localizando…";
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  z-index: 500;
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--omd-muted);
-  background: color-mix(in srgb, #fff 55%, transparent);
-  pointer-events: none;
-}
-
-.omd-map__empty {
-  margin: 0;
-  flex: 1 1 auto;
-  min-height: 0;
-  display: grid;
-  place-items: center;
-  text-align: center;
-  padding: 1rem;
-  font-size: 0.86rem;
-  font-weight: 600;
-  color: var(--omd-muted);
-  border-radius: 12px;
-  background: var(--omd-soft);
-  border: 1px dashed color-mix(in srgb, var(--omd-line) 80%, transparent);
-}
-
-.omd-map__empty[hidden] {
-  display: none !important;
-}
-
-.omd-map__canvas[hidden] {
-  display: none !important;
-}
-
-.omd-map-icon {
-  background: transparent !important;
-  border: none !important;
-}
-
-.omd-map-pin {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50% 50% 50% 0;
-  transform: rotate(-45deg);
-  background: var(--omd-ink);
-  color: #fff;
-  border: 2px solid #fff;
-  box-shadow: 0 2px 8px rgba(28, 25, 23, 0.25);
-  font-size: 0.65rem;
-  font-weight: 800;
-}
-
-.omd-map-pin span {
-  transform: rotate(45deg);
-}
-
-.omd-map-pin.is-job {
-  background: var(--omd-accent-deep);
-}
-
-.omd-map-pin.is-visit {
-  background: #0f766e;
-}
 
 .omd-row {
   display: grid;
@@ -821,7 +695,6 @@ a.omd-kpi:hover {
   margin-right: 0.35rem;
   border-radius: 50%;
   background: currentColor;
-  animation: omdPulse 1.4s ease-in-out infinite;
 }
 
 @keyframes omdPulse {
@@ -951,85 +824,11 @@ a.omd-kpi:hover {
   height: 7px;
   border-radius: 50%;
   background: currentColor;
-  animation: omdPulse 1.6s ease-in-out infinite;
 }
 
 /* Sources */
-.omd-src {
-  display: grid;
-  grid-template-columns: minmax(80px, 0.9fr) minmax(0, 1.6fr) 28px;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.28rem 0;
-  font-size: 0.82rem;
-}
-
-.omd-src__name {
-  font-weight: 650;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.omd-src__bar {
-  height: 8px;
-  border-radius: 999px;
-  background: var(--omd-soft);
-  overflow: hidden;
-}
-
-.omd-src__bar i {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--omd-accent);
-}
-
-.omd-src__count {
-  text-align: right;
-  font-weight: 750;
-  font-variant-numeric: tabular-nums;
-}
 
 /* —— Pipeline —— */
-.omd-pipe {
-  padding-bottom: 1rem;
-}
-
-.omd-pipe__head {
-  align-items: flex-start;
-}
-
-.omd-pipe__head .omd-muted {
-  margin-top: 0.15rem;
-}
-
-.omd-funnel {
-  display: flex;
-  gap: 3px;
-  height: 10px;
-  margin: 0.35rem 0 0.95rem;
-  border-radius: 999px;
-  overflow: hidden;
-  background: var(--omd-soft);
-}
-
-.omd-funnel i {
-  display: block;
-  height: 100%;
-  min-width: 4px;
-}
-
-.omd-pipe__tools {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.omd-scrollnav {
-  display: flex;
-  gap: 0.35rem;
-}
 
 .omd-btn--icon {
   width: 40px;
@@ -1042,346 +841,7 @@ a.omd-kpi:hover {
   cursor: default;
 }
 
-.omd-board-wrap.fade-right {
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 56px), transparent);
-  mask-image: linear-gradient(to right, #000 calc(100% - 56px), transparent);
-}
-
-.omd-board-wrap.fade-left {
-  -webkit-mask-image: linear-gradient(to right, transparent, #000 56px);
-  mask-image: linear-gradient(to right, transparent, #000 56px);
-}
-
-.omd-board-wrap.fade-left.fade-right {
-  -webkit-mask-image: linear-gradient(to right, transparent, #000 56px, #000 calc(100% - 56px), transparent);
-  mask-image: linear-gradient(to right, transparent, #000 56px, #000 calc(100% - 56px), transparent);
-}
-
-.omd-board-wrap {
-  overflow-x: auto;
-  margin: 0 -0.25rem;
-  padding: 0 0.25rem 0.25rem;
-  scroll-snap-type: x proximity;
-  overscroll-behavior-x: contain;
-}
-
 /* Mesmo padrão visual do Kanban de Leads: colunas pastel + cards brancos com barra de etapa */
-.omd-board {
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: flex-start;
-  gap: 12px;
-  width: max-content;
-  min-width: 100%;
-}
-
-.omd-col {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  flex: 0 0 236px;
-  width: 236px;
-  min-width: 0;
-  max-width: 236px;
-  box-sizing: border-box;
-  padding: 8px;
-  border-radius: 18px;
-  background: color-mix(in srgb, var(--stage-color, #98A2B3) 10%, #EEF0F3);
-  border: 0;
-  scroll-snap-align: start;
-  overflow: hidden;
-}
-
-.omd-col__head {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 6px 6px 4px;
-}
-
-.omd-col__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.omd-col__dot.is-hollow {
-  background: transparent !important;
-  box-shadow: inset 0 0 0 2px var(--stage-color, #98A2B3);
-}
-
-.omd-col__name {
-  margin: 0;
-  flex: 1;
-  min-width: 0;
-  font-size: 13.5px;
-  font-weight: 650;
-  color: var(--omd-ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.omd-col__count {
-  padding: 1px 7px;
-  border-radius: 999px;
-  background: #fff;
-  border: 0;
-  font-size: 12px;
-  font-weight: 650;
-  color: var(--omd-muted);
-  line-height: 1.5;
-}
-
-.omd-col__value {
-  margin: 0 0 8px;
-  padding: 0 6px 0 21px;
-  font-size: 12px;
-  font-weight: 650;
-  color: var(--omd-muted);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.omd-col__cards {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 8px;
-  min-height: 40px;
-  max-height: min(52vh, 520px);
-  overflow-x: hidden;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  flex: 1;
-}
-
-.omd-col__cards > .omd-lead,
-.omd-col__cards > * {
-  flex: 0 0 auto;
-}
-
-.omd-lead {
-  position: relative;
-  display: block;
-  padding: 14px 12px 9px;
-  border-radius: 14px;
-  border: 0;
-  background: #fff;
-  box-shadow: 0 0 0 1px #EAECF0, 0 1px 2px rgba(16, 24, 40, 0.04);
-  text-decoration: none;
-  color: var(--omd-ink);
-  cursor: pointer;
-  overflow: hidden;
-  transition: box-shadow 0.2s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease;
-}
-
-.omd-lead::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 4px;
-  background: var(--stage-color, #98A2B3);
-  border-radius: 14px 14px 0 0;
-}
-
-.omd-lead--draggable {
-  cursor: grab;
-}
-
-.omd-lead--draggable:active {
-  cursor: grabbing;
-}
-
-.omd-lead:hover {
-  box-shadow: 0 0 0 1px #D0D5DD, 0 6px 16px -10px rgba(16, 24, 40, 0.25);
-}
-
-body.omd-dnd-active {
-  cursor: grabbing !important;
-  user-select: none;
-}
-body.omd-dnd-active .omd-lead {
-  transition: none !important;
-}
-
-.omd-lead--ghost {
-  opacity: 1 !important;
-  color: transparent !important;
-  box-shadow: none !important;
-  background: color-mix(in srgb, var(--stage-color, #98A2B3) 18%, #EEF0F3) !important;
-  outline: 2px dashed color-mix(in srgb, var(--stage-color, #98A2B3) 55%, #98A2B3) !important;
-  outline-offset: -2px;
-  min-height: 64px;
-}
-.omd-lead--ghost > * {
-  visibility: hidden !important;
-}
-
-.omd-lead--chosen {
-  cursor: grabbing;
-  opacity: 0.92;
-}
-
-.omd-lead--drag,
-.sortable-fallback.omd-lead--drag {
-  /* Do not set transform — Sortable fallback uses translate3d for position. */
-  opacity: 1 !important;
-  cursor: grabbing !important;
-  box-shadow: 0 32px 64px -18px rgba(16, 24, 40, 0.55), 0 0 0 1.5px rgba(231, 121, 44, 0.45) !important;
-  z-index: 10050 !important;
-  pointer-events: none;
-  background: #fff !important;
-  filter: saturate(1.05);
-}
-
-.omd-lead__r1 {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-}
-
-.omd-lead__name {
-  margin: 0;
-  flex: 1;
-  min-width: 0;
-  font-size: 13.5px;
-  font-weight: 650;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.omd-lead__val {
-  margin-top: 7px;
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.omd-lead__sum {
-  margin: 6px 0 0;
-  font-size: 12px;
-  line-height: 1.35;
-  color: var(--omd-muted);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.omd-lead__foot {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 9px;
-  padding-top: 8px;
-  border-top: 1px solid #EAECF0;
-  font-size: 11.5px;
-  color: #98A2B3;
-  min-height: 28px;
-}
-
-.omd-lead__owner {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--omd-ink);
-  color: #fff;
-  display: inline-grid;
-  place-items: center;
-  font-size: 8.5px;
-  font-weight: 700;
-  flex: none;
-}
-
-.omd-lead__owner--none {
-  background: #F1F3F5;
-  color: #98A2B3;
-}
-
-.omd-lead__ago {
-  color: #98A2B3;
-  font-weight: 550;
-  white-space: nowrap;
-  margin-left: auto;
-}
-
-.omd-lead__flag {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--omd-danger);
-  flex: none;
-}
-
-.omd-lead__flag.is-sla {
-  animation: omdPulse 1.2s ease-in-out infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .omd-lead { transition: none; }
-  .omd-lead__flag.is-sla { animation: none; }
-}
-
-.omd-col__more,
-.omd-col__add {
-  display: block;
-  width: 100%;
-  padding: 0.45rem;
-  border-radius: 10px;
-  font: inherit;
-  font-size: 0.76rem;
-  font-weight: 700;
-  text-align: center;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.omd-col__more {
-  color: var(--omd-accent-deep) !important;
-  background: transparent;
-  border: none;
-}
-
-.omd-col__more:hover {
-  background: #fff;
-}
-
-.omd-col__add {
-  border: 1px dashed #d8d2ca;
-  background: transparent;
-  color: var(--omd-muted);
-}
-
-.omd-col__add:hover {
-  border-color: var(--omd-accent);
-  color: var(--omd-accent-deep);
-  background: #fff;
-}
-
-.omd-col__empty {
-  margin: 0.2rem 0;
-  font-size: 0.76rem;
-  color: var(--omd-faint);
-  text-align: center;
-}
-
-.omd-col.is-closed {
-  /* Won keeps pastel from --stage-color; slightly quieter empty state */
-  opacity: 1;
-}
 
 /* —— Skeletons —— */
 .is-skeleton {
@@ -1398,10 +858,6 @@ body.omd-dnd-active .omd-lead {
   min-height: 52px;
   margin: 0.2rem 0;
   background: var(--omd-soft);
-}
-
-.omd-col.is-skeleton {
-  min-height: 260px;
 }
 
 .is-skeleton::after {
@@ -1489,13 +945,6 @@ body.plab .plab-dock button.plab-dock__btn {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .omd-side {
-    height: auto;
-    min-height: 0;
-    max-height: none;
-    grid-template-rows: auto auto;
-  }
-
   .omd-attn {
     height: var(--omd-mid-h);
     min-height: var(--omd-mid-h);
@@ -1507,11 +956,6 @@ body.plab .plab-dock button.plab-dock__btn {
     height: 240px;
     min-height: 240px;
     max-height: 240px;
-  }
-
-  .omd-map {
-    height: 200px;
-    min-height: 200px;
   }
 }
 
@@ -1527,10 +971,6 @@ body.plab .plab-dock button.plab-dock__btn {
 
   .omd-head__actions {
     justify-content: flex-start;
-  }
-
-  .omd-side__row {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -1591,277 +1031,14 @@ body.plab.dashboard-app-body .omd a.omd-btn--primary {
   box-shadow: none;
 }
 
-body.plab.dashboard-app-body .omd-col {
-  background: #F1F3F5;
-  border-color: transparent;
-}
-
 /* =====================================================================
- * Início desktop — mosaico (Bento) na disposição aprovada (M6).
- * Em telas a partir de 1180px (desktop e iPad deitado); menores mantêm o layout em fileiras.
+ * Início — acabamento (base neutra)
  * ===================================================================== */
-@media (min-width: 1180px) {
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) {
-    position: relative;
-    display: grid;
-    grid-template-columns: repeat(12, minmax(0, 1fr));
-    /* Rows follow the column width (≈0.8×) so the bento keeps its proportions on wide screens. */
-    --omd-row: clamp(84px, calc((min(100vw, var(--om-shell-max, 1440px)) - 64px - 132px) / 12 * 0.8), 96px);
-    grid-template-rows: repeat(7, var(--omd-row)) auto;
-    gap: 12px;
-    max-width: var(--om-shell-max, 1440px);
-    padding: 1.4rem var(--om-shell-pad, 2rem) 2rem;
-  }
-
-  body.plab.dashboard-app-body:not(.om-device-mobile)
-    .omd:not(.omd--kpi-partial)
-    :is(.omd-kpis, .omd-grid, .omd-side, .omd-side__row) {
-    display: contents;
-  }
-
-  /* Saudação + ações */
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-head {
-    grid-column: 1 / 6;
-    grid-row: 1 / 3;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: flex-start;
-    gap: 14px;
-    margin: 0;
-    padding: 4px 0 0;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-title {
-    font-size: 44px;
-    font-weight: 700;
-    letter-spacing: -0.045em;
-    line-height: 1.05;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-head__actions {
-    justify-content: flex-start;
-  }
-
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-alert {
-    position: absolute;
-    top: 0.6rem;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 5;
-    margin: 0;
-    box-shadow: 0 10px 30px -12px rgba(16, 24, 40, 0.3);
-  }
-
-  /* Indicadores */
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi {
-    height: auto;
-    min-height: 0;
-    max-height: none;
-    padding: 18px 20px;
-    border-radius: 24px;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi__label {
-    font-size: 14px;
-    font-weight: 600;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi__value {
-    margin-top: auto;
-    font-size: 40px;
-    font-weight: 700;
-    letter-spacing: -0.045em;
-    line-height: 1;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi__meta {
-    margin-top: 8px;
-    max-height: none;
-    font-size: 13.5px;
-    font-weight: 500;
-  }
-
-  /* Pipeline aberto: bloco laranja alto, texto branco */
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] {
-    grid-column: 6 / 10;
-    grid-row: 1 / 4;
-    background: #E7792C;
-    border-color: #E7792C;
-    color: #fff;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__label,
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__meta {
-    color: rgba(255, 255, 255, 0.88);
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__value {
-    font-size: 64px;
-  }
-
-  /* Fechados no mês: bloco grafite */
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] {
-    grid-column: 10 / 13;
-    grid-row: 1 / 3;
-    background: #221E1A;
-    border-color: #221E1A;
-    color: #fff;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] .omd-kpi__label,
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] .omd-kpi__meta {
-    color: #C8CDD5;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] .omd-delta {
-    background: rgba(255, 255, 255, 0.1);
-    color: #C9D6BE;
-  }
-
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="receivables"] {
-    grid-column: 10 / 13;
-    grid-row: 3 / 5;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="receivables"] .omd-kpi__value {
-    margin-top: 10px;
-    font-size: 34px;
-  }
-
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="gross_profit"] {
-    grid-column: 4 / 6;
-    grid-row: 3 / 8;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="gross_profit"] .omd-kpi__value {
-    margin-top: 10px;
-    font-size: 34px;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="gross_profit"] .omd-kpi__meta {
-    flex-wrap: wrap;
-  }
-
-  /* Cartões */
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-card {
-    height: auto;
-    min-height: 0;
-    max-height: none;
-    padding: 18px 20px;
-    border-radius: 24px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-card__head h2 {
-    font-size: 17px;
-    font-weight: 650;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today {
-    grid-column: 1 / 4;
-    grid-row: 3 / 8;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn {
-    grid-column: 6 / 10;
-    grid-row: 4 / 8;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs {
-    grid-column: 10 / 13;
-    grid-row: 5 / 8;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-pipe {
-    grid-column: 1 / 10;
-    grid-row: 8;
-    margin: 0;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-map {
-    grid-column: 10 / 13;
-    grid-row: 8;
-    min-height: 320px;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) :is(.omd-today__list, .omd-jobs__list, .omd-attn__list) {
-    overflow-y: auto;
-    min-height: 0;
-    flex: 1 1 auto;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-pipe .omd-board {
-    grid-auto-columns: minmax(170px, 1fr);
-  }
-}
-
-/* Detalhes extras dos indicadores (só aparecem no mosaico). */
-.omd-kpi__split,
-.omd-kpi__seg {
-  display: none;
-}
-@media (min-width: 1180px) {
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi__split {
-    display: flex;
-    flex-direction: column;
-    margin-top: 22px;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi__seg {
-    display: flex;
-    gap: 3px;
-    height: 6px;
-    margin-top: auto;
-    padding-top: 0;
-  }
-}
-.omd-kpi__bar {
-  display: block;
-  height: 8px;
-  border-radius: 4px;
-  background: #F1F3F5;
-  overflow: hidden;
-  margin-bottom: 6px;
-}
-.omd-kpi__bar i {
-  display: block;
-  height: 100%;
-  border-radius: 4px;
-  background: #536249;
-}
-.omd-kpi__line {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 0;
-  font-size: 13px;
-  color: #667085;
-  border-top: 1px solid #E5E7EB;
-}
-.omd-kpi__line:first-of-type {
-  border-top: 0;
-}
-.omd-kpi__line b {
-  color: #221E1A;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-.omd-kpi__seg i {
-  display: block;
-  border-radius: 3px;
-  background: #F1F3F5;
-  box-shadow: inset 0 0 0 1px #E5E7EB;
-}
-.omd-kpi__seg i.is-overdue {
-  background: #B4561A;
-  box-shadow: none;
-}
-
-
-/* =====================================================================
- * Início — acabamento fiel ao mock aprovado (M6, base neutra)
- * ===================================================================== */
-.omd-v-bento,
-.omd-kpi__go,
-.omd-kpi__boxes {
-  display: none;
-}
 .omd-kpi__label {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-}
-.omd-col__dot.is-hollow {
-  box-shadow: inset 0 0 0 1.5px #98A2B3;
-}
-body.plab.dashboard-app-body .omd-map-pin.is-job {
-  background: #E7792C;
-  color: #fff;
-}
-body.plab.dashboard-app-body .omd-map-pin.is-visit {
-  background: #221E1A;
 }
 body.plab.dashboard-app-body .omd-tag.is-visit {
   background: #fff;
@@ -1871,425 +1048,6 @@ body.plab.dashboard-app-body .omd-tag.is-visit {
 body.plab.dashboard-app-body .omd-tag.is-job {
   background: #FDF0E6;
   color: #221E1A;
-}
-
-@media (min-width: 1180px) {
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-v-row {
-    display: none;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-v-bento {
-    display: inline;
-  }
-
-  /* Saudação */
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-date {
-    font-size: 14px;
-    font-weight: 550;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-summary {
-    font-size: 14.5px;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-summary b {
-    color: #221E1A;
-    font-weight: 600;
-  }
-
-  /* Links dos cartões: grafite com sublinhado laranja */
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-link {
-    font-size: 13px;
-    font-weight: 600;
-    color: #221E1A !important;
-    text-decoration: underline;
-    text-decoration-color: #E7792C;
-    text-decoration-thickness: 2px;
-    text-underline-offset: 4px;
-  }
-
-  /* Pipeline aberto */
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__go {
-    display: inline;
-    font-size: 13px;
-    font-weight: 600;
-    color: #fff;
-    text-decoration: underline;
-    text-decoration-color: rgba(255, 255, 255, 0.85);
-    text-decoration-thickness: 2px;
-    text-underline-offset: 4px;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__boxes {
-    display: flex;
-    gap: 10px;
-    margin-top: 16px;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__boxes > span {
-    flex: 1;
-    min-width: 0;
-    padding: 10px 12px;
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.22);
-    font-size: 12px;
-    font-weight: 550;
-    color: rgba(255, 255, 255, 0.88);
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__boxes b {
-    display: block;
-    font-size: 18px;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    color: #fff;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__meta {
-    margin-top: 10px;
-  }
-
-  /* Comparação com o mês anterior: pílula curta numa linha */
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi .omd-delta {
-    flex-shrink: 0;
-    white-space: nowrap;
-    padding: 2px 8px;
-    font-size: 12px;
-    font-weight: 650;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi .omd-kpi__meta {
-    flex-wrap: nowrap;
-    gap: 8px;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-kpi[data-kpi="receivables"] .omd-kpi__meta.is-danger {
-    color: #B4561A;
-    font-weight: 600;
-  }
-
-  /* Hoje: eventos em caixas, o atual em laranja claro */
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today .omd-today__list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today .omd-ev {
-    grid-template-columns: 58px minmax(0, 1fr);
-    grid-template-areas: "time body" "time aside";
-    align-items: start;
-    gap: 2px 12px;
-    margin: 0;
-    padding: 11px 12px;
-    border: 0;
-    border-radius: 16px;
-    background: #F1F3F5;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today .omd-ev + .omd-ev {
-    border-top: 0;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today .omd-ev:hover {
-    background: #EAECF0;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today .omd-ev.is-now {
-    background: #FDF0E6;
-    box-shadow: inset 3px 0 0 #E7792C;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today .omd-ev__time {
-    grid-area: time;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today .omd-ev__time strong {
-    font-size: 14px;
-    font-weight: 650;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today .omd-ev__time span {
-    font-size: 12px;
-    color: #667085;
-    font-weight: 500;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today .omd-row__body {
-    grid-area: body;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today .omd-row__title {
-    font-size: 14px;
-    font-weight: 600;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today .omd-row__aside {
-    grid-area: aside;
-    justify-self: start;
-    margin-top: 4px;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today .omd-live {
-    padding: 2px 8px;
-    border-radius: 999px;
-    background: #EEF1EC;
-    color: #536249;
-    font-size: 11.5px;
-    font-weight: 650;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today .omd-live::before {
-    width: 6px;
-    height: 6px;
-    background: #536249;
-    box-shadow: 0 0 0 3px rgba(83, 98, 73, 0.18);
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-today .omd-tag {
-    padding: 2px 8px;
-    font-size: 11.5px;
-    font-weight: 650;
-  }
-
-  /* Precisa da sua atenção */
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn .omd-card__head {
-    justify-content: flex-start;
-    gap: 8px;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn .omd-count {
-    padding: 1px 8px;
-    background: #E7792C;
-    color: #fff;
-    font-size: 12px;
-    font-weight: 650;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn .omd-row {
-    grid-template-columns: 32px minmax(0, 1fr) auto;
-    gap: 12px;
-    padding: 8px 0;
-    margin: 0;
-    border-radius: 0;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn .omd-row + .omd-row {
-    border-top: 1px solid #E5E7EB;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn .omd-row:hover {
-    background: transparent;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn .omd-row__icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 10px;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn .omd-row__icon svg {
-    width: 17px;
-    height: 17px;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn .omd-row.is-danger .omd-row__icon {
-    background: #FDF0E6;
-    color: #B4561A;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn .omd-row.is-warn .omd-row__icon {
-    background: #F1F3F5;
-    color: #667085;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn .omd-row__title {
-    font-size: 14px;
-    font-weight: 600;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn .omd-row__detail {
-    font-size: 12.5px;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn .omd-btn--ghost {
-    height: 30px;
-    padding: 0 12px;
-    border: 0;
-    border-radius: 999px;
-    background: #F1F3F5;
-    font-size: 12.5px;
-    font-weight: 600;
-    gap: 5px;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn a.omd-btn--ghost[href^="tel:"] {
-    background: #221E1A;
-    color: #fff !important;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn a.omd-btn--ghost[href^="tel:"] svg {
-    width: 13px;
-    height: 13px;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn .omd-badge {
-    padding: 3px 8px;
-    border-radius: 999px;
-    background: #FDF0E6;
-    color: #B4561A;
-    font-size: 11.5px;
-    font-weight: 650;
-  }
-
-  /* Previsão de jobs: hoje em grafite */
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__days {
-    gap: 4px;
-    margin: 10px 0 6px;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day {
-    padding: 6px 0 5px;
-    border: 0;
-    border-radius: 12px;
-    background: #F1F3F5;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day-n {
-    font-size: 15px;
-    font-weight: 650;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day-wd {
-    font-size: 10.5px;
-    font-weight: 650;
-    color: #98A2B3;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day-c {
-    font-size: 11px;
-    font-weight: 650;
-    color: #98A2B3;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day.is-busy .omd-jobs__day-c {
-    color: #221E1A;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day.is-today:not(.is-selected) {
-    border-color: color-mix(in srgb, var(--omd-accent) 40%, transparent);
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day.is-selected {
-    background: #221E1A;
-    border-color: #221E1A;
-    color: #fff;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day.is-selected .omd-jobs__day-wd {
-    color: #C8CDD5;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day.is-selected .omd-jobs__day-c {
-    color: #E7792C;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__day.is-selected .omd-jobs__day-n {
-    color: #fff;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-row {
-    grid-template-columns: 72px minmax(0, 1fr);
-    gap: 12px;
-    padding: 8px 0;
-    margin: 0;
-    border-radius: 0;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-row + .omd-row {
-    border-top: 1px solid #E5E7EB;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-row:hover {
-    background: transparent;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-ev__time strong {
-    font-size: 13.5px;
-    font-weight: 650;
-    white-space: nowrap;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-ev__time span {
-    font-size: 12px;
-    color: #667085;
-  }
-
-  /* Pipeline de vendas: título e resumo na mesma linha */
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-pipe .omd-pipe__head > div:first-child {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-pipe .omd-pipe__head h2 {
-    font-size: 17px;
-    font-weight: 650;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-pipe #omdPipeMeta {
-    font-size: 13.5px;
-    font-weight: 500;
-    color: #667085;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-pipe .omd-funnel {
-    height: 8px;
-    border-radius: 4px;
-    gap: 2px;
-    margin: 6px 0 12px;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-pipe .omd-col {
-    border-radius: 16px;
-    padding: 10px;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-pipe .omd-col__name {
-    font-size: 12.5px;
-    font-weight: 600;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-pipe .omd-col__count {
-    border: 0;
-    background: transparent;
-    padding: 0;
-    font-size: 12px;
-    font-weight: 600;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-pipe .omd-col__value {
-    font-size: 12px;
-    font-weight: 550;
-    color: #98A2B3;
-  }
-
-  /* Mapa do dia: cabeçalho em vidro sobre o mapa */
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-map {
-    position: relative;
-    padding: 0;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-map .omd-card__head {
-    position: absolute;
-    top: 12px;
-    left: 12px;
-    right: 12px;
-    z-index: 500;
-    margin: 0;
-    padding: 10px 14px;
-    border-radius: 16px;
-    background: rgba(255, 255, 255, 0.92);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    box-shadow: 0 0 0 1px #E5E7EB, 0 4px 14px -8px rgba(16, 24, 40, 0.25);
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-map .omd-card__head h2 {
-    font-size: 15px;
-    font-weight: 650;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-map .omd-card__head h2::before {
-    content: "";
-    width: 16px;
-    height: 16px;
-    flex: none;
-    background: #E7792C;
-    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 21s7-6.1 7-11.5A7 7 0 0 0 5 9.5C5 14.9 12 21 12 21z'/%3E%3Ccircle cx='12' cy='9.5' r='2.5'/%3E%3C/svg%3E") center / contain no-repeat;
-    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 21s7-6.1 7-11.5A7 7 0 0 0 5 9.5C5 14.9 12 21 12 21z'/%3E%3Ccircle cx='12' cy='9.5' r='2.5'/%3E%3C/svg%3E") center / contain no-repeat;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-map .omd-map__body {
-    position: absolute;
-    inset: 0;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-map .omd-map__canvas {
-    border-radius: 24px;
-    height: 100%;
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-map .omd-map__empty {
-    border-radius: 24px;
-    height: 100%;
-    margin: 0;
-    padding-top: 70px;
-    background: #F1F3F5;
-  }
-}
-
-@media (min-width: 1180px) {
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-attn .omd-row__detail .is-hot {
-    color: #B4561A;
-    font-weight: 600;
-  }
-  /* Previsão de jobs: a faixa da semana mostra a contagem; a lista mostra os próximos 2. */
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-jobs .omd-jobs__list > li:nth-child(n + 3) {
-    display: none;
-  }
-}
-@media (min-width: 1180px) {
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-pipe .omd-board {
-    grid-auto-columns: calc((100% - 5 * 0.75rem) / 6);
-  }
-  body.plab.dashboard-app-body:not(.om-device-mobile) .omd:not(.omd--kpi-partial) .omd-pipe .omd-col__more {
-    color: #221E1A !important;
-    font-weight: 600;
-    text-decoration: underline;
-    text-decoration-color: #E7792C;
-    text-decoration-thickness: 2px;
-    text-underline-offset: 4px;
-  }
 }
 
 /* ───────── The Mate (fox mascot) next to the greeting ───────── */
@@ -2398,6 +1156,1648 @@ body.om-device-mobile .omd-head__text {
 @media (prefers-reduced-motion: reduce) {
   .omd-mate,
   .omd-mate.is-hop {
+    animation: none;
+  }
+}
+
+
+/* =====================================================================
+ * Início — tela inteira no desktop e no tablet (sem rolar a página).
+ * Cabeçalho · faixa de indicadores · grade de cartões que ocupa o resto da altura.
+ * Cada cartão rola por dentro; a página só volta a rolar em janelas muito baixas.
+ * Celular: home.html (esta tela no celular é a lista de Leads).
+ * ===================================================================== */
+/* The app shell (om-theme.css, crm-shell.css) styles these with html-level selectors and !important,
+   so the full-height chain repeats that weight. */
+html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) {
+  --omd-gap: 12px;
+  /* Espaço livre embaixo para o dock flutuante (desktop e tablet). */
+  --omd-dock-reserve: 104px;
+  display: flex !important;
+  flex-direction: column;
+  height: 100dvh !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .dashboard-container {
+  display: flex !important;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0 !important;
+  height: auto !important;
+}
+
+/* #plabMain: om-theme.css is injected after this file with an equally specific padding rule. */
+html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) #plabMain.dashboard-main {
+  flex: 1 1 auto;
+  min-height: 0 !important;
+  height: auto !important;
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Up to 1024px the top bar is the fixed mobile header (52px) instead of the desktop top bar. */
+@media (max-width: 1024px) {
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) #plabMain.dashboard-main {
+    padding-top: calc(52px + env(safe-area-inset-top, 0px)) !important;
+  }
+}
+
+body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: var(--omd-gap);
+  box-sizing: border-box;
+  height: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 16px 0 var(--omd-dock-reserve);
+}
+
+/* —— Cabeçalho numa linha: mascote · saudação e resumo · ações —— */
+body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  margin: 0;
+}
+
+body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-mate {
+  position: static;
+  grid-column: 1;
+  grid-row: 1;
+  animation: none;
+}
+
+body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-mate img,
+body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-mate--laptop img {
+  height: 56px;
+  filter: none;
+}
+
+body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-head__text {
+  grid-column: 2;
+  grid-row: 1;
+  padding: 0;
+}
+
+body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-date {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-title {
+  font-size: 26px;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-summary {
+  margin-top: 2px;
+  font-size: 13.5px;
+}
+
+body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-head__actions {
+  grid-column: 3;
+  grid-row: 1;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+
+body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-alert {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  z-index: 5;
+  margin: 0;
+  transform: translateX(-50%);
+  box-shadow: 0 12px 28px -12px rgba(16, 24, 40, 0.3);
+}
+
+/* —— Faixa de indicadores: vendas, depois dinheiro —— */
+body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-kpis {
+  grid-template-columns: repeat(var(--omd-kpi-count, 6), minmax(0, 1fr));
+  gap: var(--omd-gap);
+  margin: 0;
+}
+
+body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-kpi {
+  justify-content: space-between;
+  gap: 4px;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  padding: 12px 16px 13px;
+  border-radius: 18px;
+}
+
+body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-kpi.is-skeleton {
+  height: 86px;
+}
+
+/* A primeira de dinheiro abre um grupo: um respiro maior a separa das de vendas. */
+body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-kpi.is-group-start {
+  margin-left: 10px;
+}
+
+body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-kpi__label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--omd-muted);
+}
+
+body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-kpi__value {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-kpi__meta {
+  display: block;
+  margin: 0;
+  padding: 0;
+  max-height: none;
+  font-size: 12.5px;
+  font-weight: 550;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body.plab.dashboard-app-body .omd-kpi__meta.is-up {
+  color: var(--omd-ok);
+}
+
+body.plab.dashboard-app-body .omd-kpi__meta.is-down,
+body.plab.dashboard-app-body .omd-kpi__meta.is-danger {
+  color: var(--omd-danger-strong);
+}
+
+body.plab.dashboard-app-body a.omd-kpi:hover {
+  transform: none;
+  border-color: #D0D5DD;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 20px -12px rgba(16, 24, 40, 0.18);
+}
+
+/* —— Grade principal: Atenção · Hoje e próximos dias · Jobs e orçamentos —— */
+body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--omd-gap);
+  min-height: 0;
+  margin: 0;
+}
+
+body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-stack {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--omd-gap);
+  min-height: 0;
+}
+
+/* Um cartão só na pilha (o outro sem permissão): ocupa a altura toda. */
+body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-stack:has(> .omd-card[hidden]) {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: auto;
+  max-height: none;
+  padding: 14px 16px 10px;
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-card__head h2 {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.omd-card__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--omd-muted) 40%, transparent) transparent;
+}
+
+.omd-card__scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.omd-card__scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--omd-muted) 40%, transparent);
+}
+
+/* Linhas compactas (jobs e orçamentos): título e detalhe à esquerda, valor e estado à direita. */
+.omd-row.omd-row--compact {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 9px 2px;
+}
+
+.omd-row--compact .omd-row__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.omd-row--compact .omd-row__title,
+.omd-row--compact .omd-row__detail {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.omd-row--compact .omd-row__aside {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.omd-row__amount {
+  font-size: 13.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--omd-ink);
+  white-space: nowrap;
+}
+
+.omd-row--compact.is-danger .omd-row__detail {
+  color: var(--omd-danger-strong);
+}
+
+.omd-empty--inline {
+  display: block;
+  padding: 10px 2px;
+  font-size: 13px;
+  color: var(--omd-muted);
+}
+
+.omd-empty--inline p {
+  margin: 0;
+}
+
+/* —— Jobs: quatro números e o que falta faturar —— */
+.omd-ops__stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+
+.omd-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--omd-soft);
+  color: var(--omd-ink);
+  text-decoration: none;
+  transition: background-color 150ms ease-out;
+}
+
+.omd-stat:hover {
+  background: #E9ECF0;
+}
+
+.omd-stat__value {
+  font-size: 20px;
+  font-weight: 750;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.omd-stat__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--omd-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.omd-stat.is-zero .omd-stat__value {
+  color: var(--omd-faint);
+}
+
+.omd-stat.is-danger {
+  background: var(--omd-danger-soft);
+}
+
+.omd-stat.is-danger .omd-stat__value,
+.omd-stat.is-danger .omd-stat__label {
+  color: var(--omd-danger-strong);
+}
+
+.omd a.omd-ops__bill,
+.omd-ops__bill {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto 16px;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--omd-ink);
+  color: #fff !important;
+  text-decoration: none;
+  flex-shrink: 0;
+  transition: background-color 150ms ease-out;
+}
+
+.omd-ops__bill:hover {
+  background: #3A3430;
+}
+
+.omd-ops__bill-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.omd-ops__bill-value {
+  font-size: 18px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.omd-ops__bill-meta {
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.72);
+  white-space: nowrap;
+}
+
+.omd-ops__bill svg {
+  align-self: center;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* —— Orçamentos aguardando —— */
+.omd-quotes__sum {
+  margin: -2px 0 6px;
+  font-size: 13px;
+  color: var(--omd-muted);
+  flex-shrink: 0;
+}
+
+.omd-quotes__sum b {
+  font-size: 15px;
+  font-weight: 750;
+  color: var(--omd-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.omd-seen {
+  font-size: 11.5px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.omd-seen.is-ok {
+  color: var(--omd-ok);
+}
+
+.omd-seen.is-wait {
+  color: var(--omd-muted);
+}
+
+.omd-row--compact.is-stale .omd-row__detail {
+  color: var(--omd-danger-strong);
+}
+
+/* —— Tablet em pé: indicadores em 3×2, cartões em 2 colunas (deitado usa o layout do desktop) —— */
+@media (max-width: 1099px) and (orientation: portrait) {
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-kpi.is-group-start {
+    margin-left: 0;
+  }
+
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+  }
+
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-stack {
+    display: contents;
+  }
+
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-attn {
+    grid-column: 1;
+    grid-row: 1 / 3;
+  }
+
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-today {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-ops {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-quotes {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-jobs {
+    grid-column: 2;
+    grid-row: 3;
+  }
+
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-head__actions .omd-btn--ghost {
+    display: none;
+  }
+}
+
+/* Janelas muito baixas: a página volta a rolar e os cartões ganham altura fixa. */
+@media (max-height: 640px) {
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .dashboard-container {
+    display: block !important;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) #plabMain.dashboard-main {
+    overflow: visible !important;
+    padding-bottom: 0 !important;
+  }
+
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd {
+    height: auto;
+    grid-template-rows: auto auto auto;
+  }
+
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-card {
+    height: 320px;
+  }
+
+  body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-stack {
+    grid-template-rows: auto auto;
+  }
+}
+
+/* Narrow Jobs card (tablet, small windows): numbers in 2×2 with the label beside them,
+   and the "A faturar" bar keeps label and value only. */
+.omd-ops {
+  container-type: inline-size;
+  container-name: omd-ops;
+}
+
+@container omd-ops (max-width: 360px) {
+  .omd-ops__stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .omd-stat {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 6px;
+    padding: 6px 10px;
+  }
+
+  .omd-stat__value {
+    font-size: 17px;
+  }
+
+  .omd-ops__bill {
+    grid-template-columns: auto minmax(0, 1fr) 16px;
+  }
+
+  .omd-ops__bill-meta {
+    display: none;
+  }
+}
+
+/* The greeting's Mate opens the assistant here, so the floating Mate button would only cover cards. */
+html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .mate-fab {
+  display: none !important;
+}
+
+/* =====================================================================
+ * Início — mosaico (bento) em tela inteira.
+ * Desktop e tablet deitado: 12 colunas, duas faixas de indicadores grandes e a faixa de cartões.
+ * Recolhido (.omd--kpi-compact) ou com menos de 6 indicadores (.omd--kpi-partial): faixa fina.
+ * Abaixo de 1180px (tablets, janelas estreitas) a faixa fina é sempre usada: o mosaico não cabe.
+ * ===================================================================== */
+@media (min-width: 1180px) {
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-rows: minmax(132px, 0.82fr) minmax(104px, 0.66fr) minmax(0, 2.2fr);
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) :is(.omd-kpis, .omd-grid) {
+    display: contents;
+  }
+
+  /* Saudação grande, ações embaixo */
+  /* Saudação grande à esquerda, o Mate grande à direita, as ações embaixo (as duas faixas de cima). */
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-head {
+    grid-column: 1 / 6;
+    grid-row: 1 / 3;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 12px 8px;
+    padding: 4px 0 0;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-head__text {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-mate {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: end;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-mate img,
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-mate--laptop img {
+    height: clamp(116px, 18vh, 172px);
+    filter: drop-shadow(0 12px 16px rgba(16, 24, 40, 0.14));
+  }
+
+  /* Sentado com o laptop, o Mate é mais baixo: um pouco menor para não parecer outro tamanho. */
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-mate--laptop img {
+    height: clamp(112px, 17vh, 156px);
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-head__actions {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-date {
+    font-size: 13.5px;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-title {
+    margin-top: 2px;
+    font-size: clamp(34px, 3.1vw, 48px);
+    font-weight: 750;
+    letter-spacing: -0.045em;
+    line-height: 1.04;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-summary {
+    margin-top: 8px;
+    font-size: 14.5px;
+  }
+
+  /* Indicadores: blocos grandes */
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi {
+    justify-content: flex-start;
+    gap: 2px;
+    margin: 0;
+    padding: 16px 18px;
+    border-radius: 24px;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi__label {
+    font-size: 13.5px;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi__value {
+    margin-top: auto;
+    font-size: clamp(24px, 2vw, 30px);
+    letter-spacing: -0.04em;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi__meta {
+    margin-top: 4px;
+    font-size: 13px;
+  }
+
+  /* Conversão e Leads novos ficam dentro do bloco do pipeline (caixas) no mosaico. */
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi:is([data-kpi="conversion"], [data-kpi="leads"]) { display: none; }
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] { grid-column: 6 / 9; grid-row: 1 / 3; }
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] { grid-column: 9 / 11; grid-row: 1 / 3; }
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="receivables"] { grid-column: 11 / 13; grid-row: 1; }
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="gross_profit"] { grid-column: 11 / 13; grid-row: 2; }
+
+  /* Lucro bruto (short tile in the second row): value and caption side by side, the margin bar underneath. */
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="gross_profit"] {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto 1fr auto;
+    column-gap: 10px;
+    padding-top: 13px;
+    padding-bottom: 13px;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="gross_profit"] .omd-kpi__label {
+    grid-column: 1 / -1;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="gross_profit"] .omd-kpi__value {
+    grid-row: 2;
+    align-self: end;
+    margin: 0;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="gross_profit"] .omd-kpi__meta {
+    grid-row: 2;
+    align-self: end;
+    margin: 0 0 4px;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="gross_profit"] .omd-kpi__split {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="gross_profit"] .omd-kpi__value {
+    font-size: clamp(22px, 1.8vw, 28px);
+  }
+
+  /* Pipeline aberto: bloco laranja alto */
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] {
+    background: var(--omd-accent);
+    border-color: var(--omd-accent);
+    color: #fff;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] :is(.omd-kpi__label, .omd-kpi__meta) {
+    color: rgba(255, 255, 255, 0.88);
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__value {
+    font-size: clamp(36px, 3.6vw, 56px);
+  }
+
+  /* Fechado no mês: bloco grafite */
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] {
+    background: var(--omd-ink);
+    border-color: var(--omd-ink);
+    color: #fff;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] .omd-kpi__label {
+    color: #C8CDD5;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] .omd-kpi__value {
+    font-size: clamp(30px, 2.8vw, 42px);
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] .omd-kpi__meta {
+    align-self: flex-start;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #C8CDD5;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] .omd-kpi__meta.is-up {
+    color: #C9D6BE;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] .omd-kpi__meta.is-down {
+    color: #F2C3A1;
+  }
+
+  /* Detalhes extras: só no mosaico */
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) :is(.omd-kpi__boxes, .omd-kpi__split, .omd-kpi__seg) {
+    display: flex;
+  }
+
+  /* Cartões na faixa de baixo */
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-attn { grid-column: 1 / 6; grid-row: 3; }
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-stack--day { grid-column: 6 / 9; grid-row: 3; }
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-stack--ops { grid-column: 9 / 13; grid-row: 3; }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-card {
+    border-radius: 24px;
+    padding: 16px 18px 10px;
+  }
+}
+
+/* Detalhes dos blocos (escondidos na faixa fina) */
+.omd-kpi__boxes,
+.omd-kpi__split,
+.omd-kpi__seg {
+  display: none;
+}
+
+.omd-kpi__boxes {
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.omd-kpi__boxes > span {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.omd-kpi__boxes b {
+  font-size: 18px;
+  font-weight: 750;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.omd-kpi__split {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.omd-kpi__bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: #F1F3F5;
+  overflow: hidden;
+}
+
+.omd-kpi__bar i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--omd-ok);
+  transform-origin: left center;
+}
+
+.omd-kpi__split .omd-kpi__line {
+  display: none;
+}
+
+.omd-kpi__line {
+  display: flex;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--omd-muted);
+  white-space: nowrap;
+}
+
+.omd-kpi__line b {
+  font-weight: 650;
+  color: var(--omd-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.omd-kpi__seg {
+  gap: 3px;
+  height: 6px;
+  margin-top: 8px;
+  transform-origin: left center;
+}
+
+.omd-kpi__seg i {
+  display: block;
+  border-radius: 3px;
+  background: #F1F3F5;
+  box-shadow: inset 0 0 0 1px #E5E7EB;
+}
+
+.omd-kpi__seg i.is-overdue {
+  background: var(--omd-danger-strong);
+  box-shadow: none;
+}
+
+/* —— Recolher: botões e cartões recolhidos —— */
+.omd-fold {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--omd-muted);
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.omd-fold svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.omd-fold__chev {
+  transition: transform 200ms var(--om-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.omd-fold[aria-expanded="false"] .omd-fold__chev {
+  transform: rotate(-90deg);
+}
+
+.omd-fold:focus-visible {
+  outline: 2px solid var(--omd-accent);
+  outline-offset: 2px;
+}
+
+.omd-fold--kpis {
+  width: auto;
+  height: 26px;
+  gap: 5px;
+  grid-auto-flow: column;
+  padding: 0 8px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--omd-faint);
+}
+
+.omd-fold--kpis svg {
+  width: 13px;
+  height: 13px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .omd-fold:hover {
+    background: var(--omd-soft);
+    color: var(--omd-ink);
+  }
+}
+
+@media (pointer: coarse) {
+  .omd-fold {
+    width: 44px;
+    height: 44px;
+  }
+
+  .omd-fold--kpis {
+    width: auto;
+    height: 36px;
+  }
+}
+
+.omd-card__summary {
+  display: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--omd-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.omd-card.is-folded .omd-card__summary {
+  display: block;
+  animation: omdFadeIn 150ms ease-out both;
+}
+
+@keyframes omdFadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+.omd-card__head .omd-link {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.omd-card__head .omd-jobs__nav {
+  margin-left: auto;
+}
+
+.omd-card__head h2 {
+  flex: none;
+}
+
+/* A folded card keeps only its header; the card beside it in the stack takes the height.
+   (Portrait tablets flatten the stacks into a 2-column grid, so there a folded card just sits at the top of its cell.) */
+@media (min-width: 1100px), (orientation: landscape) {
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-stack {
+    display: flex;
+    flex-direction: column;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-stack > .omd-card {
+    flex: 1 1 0;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-stack > .omd-card.is-folded {
+    flex: 0 0 auto;
+    align-self: stretch;
+  }
+}
+
+html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-card.is-folded {
+  align-self: start;
+  padding-bottom: 12px;
+}
+
+.omd-card.is-folded > :not(.omd-card__head) {
+  display: none !important;
+}
+
+.omd-card.is-folded .omd-card__head {
+  margin-bottom: 0;
+}
+
+.omd-card.is-folded .omd-link,
+.omd-card.is-folded .omd-jobs__nav {
+  display: none;
+}
+
+/* —— Movimento —— */
+
+/* Hover e toque nos blocos: retorno discreto (o mouse passa por aqui dezenas de vezes por dia). */
+html body.plab.dashboard-app-body a.omd-kpi {
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 100ms ease-out;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  html body.plab.dashboard-app-body a.omd-kpi:hover {
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 10px 24px -14px rgba(16, 24, 40, 0.28);
+  }
+}
+
+html body.plab.dashboard-app-body a.omd-kpi:active {
+  transform: scale(0.98);
+}
+
+/* Recolher/abrir: as caixas deslizam até o novo tamanho (view transition, só transform/opacity). */
+.omd-kpi[data-kpi="pipeline"] { view-transition-name: omd-k-pipeline; }
+.omd-kpi[data-kpi="won"] { view-transition-name: omd-k-won; }
+.omd-kpi[data-kpi="conversion"] { view-transition-name: omd-k-conversion; }
+.omd-kpi[data-kpi="leads"] { view-transition-name: omd-k-leads; }
+.omd-kpi[data-kpi="receivables"] { view-transition-name: omd-k-receivables; }
+.omd-kpi[data-kpi="gross_profit"] { view-transition-name: omd-k-gross; }
+.omd-head { view-transition-name: omd-head; }
+.omd-attn { view-transition-name: omd-c-attn; }
+.omd-today { view-transition-name: omd-c-today; }
+.omd-jobs { view-transition-name: omd-c-week; }
+.omd-ops { view-transition-name: omd-c-ops; }
+.omd-quotes { view-transition-name: omd-c-quotes; }
+
+::view-transition-group(omd-head),
+::view-transition-group(omd-k-pipeline),
+::view-transition-group(omd-k-won),
+::view-transition-group(omd-k-conversion),
+::view-transition-group(omd-k-leads),
+::view-transition-group(omd-k-receivables),
+::view-transition-group(omd-k-gross),
+::view-transition-group(omd-c-attn),
+::view-transition-group(omd-c-today),
+::view-transition-group(omd-c-week),
+::view-transition-group(omd-c-ops),
+::view-transition-group(omd-c-quotes) {
+  animation-duration: 250ms;
+  animation-timing-function: var(--om-ease-in-out, cubic-bezier(0.77, 0, 0.175, 1));
+}
+
+/* Keep card contents at their real size while the box resizes (no stretched text):
+   the box is clipped to its rounded corners and the old/new snapshots crossfade in place. */
+::view-transition-image-pair(omd-c-attn),
+::view-transition-image-pair(omd-c-today),
+::view-transition-image-pair(omd-c-week),
+::view-transition-image-pair(omd-c-ops),
+::view-transition-image-pair(omd-c-quotes),
+::view-transition-image-pair(omd-k-pipeline),
+::view-transition-image-pair(omd-k-won),
+::view-transition-image-pair(omd-k-conversion),
+::view-transition-image-pair(omd-k-leads),
+::view-transition-image-pair(omd-k-receivables),
+::view-transition-image-pair(omd-k-gross) {
+  overflow: clip;
+  border-radius: 20px;
+}
+
+::view-transition-old(omd-c-attn), ::view-transition-new(omd-c-attn),
+::view-transition-old(omd-c-today), ::view-transition-new(omd-c-today),
+::view-transition-old(omd-c-week), ::view-transition-new(omd-c-week),
+::view-transition-old(omd-c-ops), ::view-transition-new(omd-c-ops),
+::view-transition-old(omd-c-quotes), ::view-transition-new(omd-c-quotes),
+::view-transition-old(omd-k-pipeline), ::view-transition-new(omd-k-pipeline),
+::view-transition-old(omd-k-won), ::view-transition-new(omd-k-won),
+::view-transition-old(omd-k-conversion), ::view-transition-new(omd-k-conversion),
+::view-transition-old(omd-k-leads), ::view-transition-new(omd-k-leads),
+::view-transition-old(omd-k-receivables), ::view-transition-new(omd-k-receivables),
+::view-transition-old(omd-k-gross), ::view-transition-new(omd-k-gross) {
+  width: 100%;
+  height: auto;
+  object-fit: none;
+  object-position: left top;
+  animation-duration: 200ms;
+  animation-timing-function: ease-out;
+}
+
+/* The rest of the page (top bar, dock) stays put during a fold. */
+html.omd-morphing::view-transition-group(root) {
+  animation: none;
+}
+
+/* Primeira visita da sessão: blocos e cartões sobem de leve, um após o outro (40 ms). */
+@keyframes omdRise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes omdGrow {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+.omd--enter :where(.omd-head, .omd-kpi, .omd-attn, .omd-stack > .omd-card) {
+  animation: omdRise 220ms var(--om-ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+}
+
+.omd--enter .omd-kpi { animation-delay: calc(40ms + var(--i, 0) * 40ms); }
+.omd--enter .omd-attn { animation-delay: 280ms; }
+.omd--enter .omd-stack--day > .omd-card:first-child { animation-delay: 320ms; }
+.omd--enter .omd-stack--day > .omd-card:last-child { animation-delay: 360ms; }
+.omd--enter .omd-stack--ops > .omd-card:first-child { animation-delay: 340ms; }
+.omd--enter .omd-stack--ops > .omd-card:last-child { animation-delay: 380ms; }
+
+/* Barras de margem e de vencido crescem até o valor, logo depois do bloco aparecer. */
+.omd--enter :is(.omd-kpi__bar i, .omd-kpi__seg) {
+  animation: omdGrow 300ms var(--om-ease-out, cubic-bezier(0.23, 1, 0.32, 1)) 360ms both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .omd--enter :is(.omd-head, .omd-kpi, .omd-attn, .omd-stack > .omd-card, .omd-kpi__bar i, .omd-kpi__seg) {
+    animation: none;
+  }
+
+  html body.plab.dashboard-app-body a.omd-kpi:active {
+    transform: none;
+  }
+}
+
+
+/* "Recolher indicadores" only where the bento exists (wide screens, all six tiles). */
+@media (max-width: 1179px) {
+  .omd-fold--kpis {
+    display: none !important;
+  }
+}
+
+.omd--kpi-partial .omd-fold--kpis {
+  display: none !important;
+}
+
+/* =====================================================================
+ * "Precisa da sua atenção" em blocos por tipo (Leads, Follow-ups, Quotes, Faturas).
+ * Cada bloco recolhe como um acordeão: grid-template-rows 1fr → 0fr (o caso em que
+ * animar a altura é aceito), 200 ms ease-out.
+ * ===================================================================== */
+.omd-agrp {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--omd-line);
+}
+
+.omd-agrp:first-child {
+  border-top: 0;
+}
+
+.omd-agrp__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  margin: 0;
+  padding: 8px 2px;
+  border: 0;
+  background: transparent;
+  color: var(--omd-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.omd-agrp__head:focus-visible {
+  outline: 2px solid var(--omd-accent);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+.omd-agrp__name {
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.omd-agrp__count {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--omd-soft);
+  color: var(--omd-muted);
+  font-size: 12px;
+  font-weight: 750;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.omd-agrp__count.is-hot {
+  background: var(--omd-danger-soft);
+  color: var(--omd-danger-strong);
+}
+
+.omd-agrp__amount {
+  margin-left: auto;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--omd-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.omd-agrp__head .omd-fold__chev {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--omd-muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.omd-agrp__amount + .omd-fold__chev {
+  margin-left: 0;
+}
+
+.omd-agrp__count + .omd-fold__chev {
+  margin-left: auto;
+}
+
+.omd-agrp.is-folded .omd-fold__chev {
+  transform: rotate(-90deg);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .omd-agrp__head:hover .omd-agrp__name {
+    color: var(--omd-accent-deep);
+  }
+}
+
+@media (pointer: coarse) {
+  .omd-agrp__head {
+    min-height: 44px;
+  }
+}
+
+.omd-agrp__body {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 200ms var(--om-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.omd-agrp.is-folded .omd-agrp__body {
+  grid-template-rows: 0fr;
+}
+
+.omd-agrp__list {
+  min-height: 0;
+  margin: 0;
+  padding: 0 0 6px;
+  list-style: none;
+  overflow: hidden;
+  transition: opacity 150ms ease-out;
+}
+
+.omd-agrp.is-folded .omd-agrp__list {
+  padding-bottom: 0;
+  opacity: 0;
+}
+
+/* =====================================================================
+ * Gráficos da Home (paletas validadas com o skill dataviz — ver pipeline-lab.js).
+ * ===================================================================== */
+
+/* "Fechado no mês": acumulado do mês vs mês anterior, dentro do bloco grafite (só no mosaico). */
+.omd-chart {
+  display: none;
+}
+
+@media (min-width: 1180px) {
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] .omd-chart {
+    display: block;
+    order: 1;
+    flex: 1 1 auto;
+    min-height: 56px;
+    margin: 8px 0 4px;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] :is(.omd-kpi__value, .omd-kpi__meta) {
+    order: 2;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] .omd-kpi__value {
+    margin-top: 0;
+  }
+}
+
+.omd-chart svg {
+  display: block;
+  overflow: visible;
+  /* .omd svg (icon styles) sets a stroke on every svg; chart marks set their own. */
+  stroke: none;
+  stroke-width: 0;
+}
+
+.omd-chart__legend text {
+  fill: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Barras semanais */
+.omd-wk :is(.omd-wk__bar, .omd-wk__shadow) {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  transition: opacity 150ms ease;
+}
+
+.omd-wk__label {
+  fill: rgba(255, 255, 255, 0.56);
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.omd-wk.is-now .omd-wk__label {
+  fill: #fff;
+  font-weight: 750;
+}
+
+.omd-wk.is-future .omd-wk__label {
+  fill: rgba(255, 255, 255, 0.36);
+}
+
+.omd-wk__value {
+  fill: #fff;
+  font-size: 11.5px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.omd-wk.is-hover .omd-wk__shadow {
+  fill: rgba(255, 255, 255, 0.26);
+}
+
+/* Funil vivo (bloco laranja do pipeline) */
+@media (min-width: 1180px) {
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-chart--funnel {
+    display: block;
+    flex: 1 1 0;
+    min-height: 0;
+    margin: 12px 0 0;
+  }
+
+  /* The funnel takes only the room left over; the number and the boxes never shrink. */
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] > :not(.omd-chart--funnel) {
+    flex-shrink: 0;
+  }
+}
+
+/* Short screens: conversão / leads novos become one inline line so the funnel keeps its room. */
+@media (min-width: 1180px) and (max-height: 860px) {
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__boxes {
+    gap: 16px;
+    margin-top: 8px;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__boxes > span {
+    flex: none;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 5px;
+    padding: 0;
+    background: none;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] .omd-kpi__boxes b {
+    order: -1;
+    font-size: 15px;
+  }
+}
+
+.omd-fn__name {
+  fill: rgba(255, 255, 255, 0.92);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.omd-fn__count {
+  fill: #fff;
+  font-size: 12.5px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.omd-fn__track {
+  fill: rgba(255, 255, 255, 0.12);
+}
+
+.omd-fn__bar {
+  fill: rgba(255, 255, 255, 0.9);
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  transition: fill 150ms ease;
+}
+
+.omd-fn__stage.is-hover .omd-fn__bar {
+  fill: #fff;
+}
+
+.omd-fn__stage.is-hover .omd-fn__track {
+  fill: rgba(255, 255, 255, 0.2);
+}
+
+
+/* "Hoje": linha do tempo do dia */
+.omd-tl {
+  flex: none;
+  margin: 0 0 10px;
+}
+
+.omd-tl[hidden] {
+  display: none;
+}
+
+.omd-tl__track {
+  --lane-h: 13px;
+  position: relative;
+  height: calc(20px + var(--lanes, 1) * var(--lane-h));
+  border-bottom: 1px solid var(--omd-line);
+}
+
+.omd-tl__tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  padding-left: 3px;
+  border-left: 1px solid #F0F2F5;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--omd-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.omd-tl__block {
+  position: absolute;
+  top: calc(18px + var(--lane, 0) * var(--lane-h));
+  height: 9px;
+  min-width: 6px;
+  border-radius: 4px;
+  background: #C25E17;
+  transform-origin: left center;
+  transition: filter 150ms ease;
+}
+
+.omd-tl__block.is-visit {
+  background: #0F7FA0;
+}
+
+/* The hit area is bigger than the 9px bar. */
+.omd-tl__block::before {
+  content: "";
+  position: absolute;
+  inset: -7px -3px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .omd-tl__block:hover {
+    filter: brightness(1.12);
+  }
+}
+
+.omd-tl__block:focus-visible {
+  outline: 2px solid var(--omd-ink);
+  outline-offset: 2px;
+}
+
+.omd-tl__now {
+  position: absolute;
+  top: 12px;
+  bottom: -1px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--omd-ink);
+}
+
+.omd-tl__now::before {
+  content: "";
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--omd-ink);
+  box-shadow: 0 0 0 2px #fff;
+}
+
+.omd-tl__legend {
+  display: flex;
+  gap: 12px;
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--omd-muted);
+}
+
+.omd-tl__legend span::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 4px;
+  margin: 0 5px 2px 0;
+  border-radius: 2px;
+  vertical-align: middle;
+  background: #C25E17;
+}
+
+.omd-tl__legend .is-visit::before {
+  background: #0F7FA0;
+}
+
+.omd-tl__legend .is-now::before {
+  width: 2px;
+  height: 10px;
+  background: var(--omd-ink);
+}
+
+/* Tooltip (um só para a Home) */
+.omd-tip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100002;
+  max-width: 260px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #221E1A;
+  color: #fff;
+  box-shadow: 0 10px 24px -10px rgba(16, 24, 40, 0.45);
+  pointer-events: none;
+  font-size: 12.5px;
+}
+
+.omd-tip[hidden] {
+  display: none;
+}
+
+.omd-tip__title {
+  margin: 0 0 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.omd-tip__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 0;
+}
+
+.omd-tip__row i {
+  flex: none;
+  width: 10px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+.omd-tip__row b {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.omd-tip__row span {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Estados vazios com o Mate */
+.omd-empty--mate {
+  grid-template-columns: 84px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 12px;
+}
+
+.omd-empty__mate {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 76px;
+}
+
+/* Poses have different shapes (sleeping is wide): fit inside the box, never over the text. */
+.omd-empty__mate img {
+  display: block;
+  max-width: 84px;
+  max-height: 76px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Entrada (primeira visita da sessão): as linhas se desenham, os blocos do dia crescem. */
+/* Semanas: as barras sobem da linha de base, uma de cada vez. */
+@keyframes omdBarUp {
+  from {
+    transform: scaleY(0.04);
+  }
+}
+
+.omd--enter :is(.omd-wk__bar, .omd-wk__shadow) {
+  animation: omdBarUp 400ms var(--om-ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+  animation-delay: calc(320ms + var(--i, 0) * 60ms);
+}
+
+.omd--enter .omd-wk__value {
+  animation: omdFadeIn 200ms ease-out both;
+  animation-delay: calc(620ms + var(--i, 0) * 60ms);
+}
+
+/* Funil: cada etapa se abre do centro. */
+@keyframes omdBarOpen {
+  from {
+    transform: scaleX(0.06);
+  }
+}
+
+.omd--enter .omd-fn__bar {
+  animation: omdBarOpen 420ms var(--om-ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+  animation-delay: calc(300ms + var(--i, 0) * 60ms);
+}
+
+.omd--enter .omd-tl__block {
+  animation: omdGrow 250ms var(--om-ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+  animation-delay: calc(360ms + var(--i, 0) * 40ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .omd--enter :is(.omd-wk__bar, .omd-wk__shadow, .omd-wk__value, .omd-fn__bar, .omd-tl__block) {
     animation: none;
   }
 }

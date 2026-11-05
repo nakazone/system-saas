@@ -1090,7 +1090,7 @@
   }
 
   function historyListHtml(list) {
-    if (!list) return '<p class="mate-empty">Carregando…</p>';
+    if (!list) return window.crmSkeleton ? window.crmSkeleton.rows(4, { avatar: false }) : '<p class="mate-empty">Carregando…</p>';
     if (!list.length) return '<p class="mate-empty">' + (state.historyQ ? 'Nenhuma conversa com essa busca.' : 'Suas conversas com o Mate aparecem aqui.') + '</p>';
     var html = '';
     var current = '';
@@ -2725,6 +2725,8 @@
   var milestoneBusy = false;
 
   function checkMilestones() {
+    // Focused apps (ObraCam, ObraCalendar) stay on their one task, like the welcome below.
+    if (window.__OM_CAL_APP || window.__OM_FOCUS_APP) return;
     if (agentMode || milestoneBusy || !window.MateFace) return;
     milestoneBusy = true;
     api('GET', '/api/mate-ai/milestones')
@@ -2760,6 +2762,7 @@
 
   /** First access: the Mate introduces himself once per person (14 days after joining). */
   function showWelcome(w) {
+    if (window.__OM_CAL_APP || window.__OM_FOCUS_APP) return false;
     var key = 'welcome:' + location.hostname.split('.')[0] + ':' + (w.since || '');
     if (window.MateFace.wasSeen(key)) return false;
     return window.MateFace.celebrate({

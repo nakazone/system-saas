@@ -13,16 +13,17 @@
   <link rel="stylesheet" href="design-system.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="mobile-design-system.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-shared-nav.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="crm-toast.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="crm-toast.css?v=20261104-ux2" />
   <link rel="stylesheet" href="crm-shell.css?v=20261019-logout2" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-module-panel.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="obramate-app.css?v=20261019-logout2" />
   <link rel="stylesheet" href="om-mobile-nav.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="chat.css?v=20261009-btnw2" />
+  <link rel="stylesheet" href="chat.css?v=20261104-list2" />
+  <link rel="stylesheet" href="crm-list.css?v=20261104-ux2" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="om-device.js?v=20261013-badge1"></script>
-  <script src="crm-field-gate.js?v=20261014-perfil1"></script>
+  <script src="crm-field-gate.js?v=20261104-ux3"></script>
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
 </head>
 <body class="dashboard-app-body om-app sidebar-collapsed chat-app">
@@ -77,8 +78,8 @@
     <main class="dashboard-main chat-main">
       <div class="chat-shell" id="chatShell">
         <!-- Left: conversation list -->
-        <aside class="chat-list-pane" id="chatListPane" aria-label="Conversas">
-          <header class="chat-list-head">
+        <aside class="chat-list-pane ol-list ol-list--bare" id="chatListPane" aria-label="Conversas">
+          <header class="chat-list-head" data-ol-top>
             <div class="chat-list-head__top">
               <h1 class="chat-list-title">ObraChat</h1>
               <div class="chat-list-actions">
@@ -94,22 +95,26 @@
                 </button>
               </div>
             </div>
-            <label class="chat-search">
+            <label class="chat-search ol-search">
               <span class="visually-hidden">Buscar</span>
               <svg class="chat-search__icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
               <input type="search" id="chatListSearch" placeholder="Buscar conversas…" autocomplete="off" />
             </label>
-            <div class="chat-list-tabs" role="tablist">
+            <div class="chat-list-tabs ol-seg" role="tablist">
               <button type="button" class="chat-list-tab is-active" data-filter="all" role="tab">Todas</button>
               <button type="button" class="chat-list-tab" data-filter="unread" role="tab">Não lidas</button>
               <button type="button" class="chat-list-tab" data-filter="job" role="tab">Jobs</button>
               <button type="button" class="chat-list-tab" data-filter="group" role="tab">Grupos</button>
               <button type="button" class="chat-list-tab" data-filter="dm" role="tab">Diretas</button>
             </div>
+            <div class="chat-job-filters ol-seg" id="chatJobFilters" hidden role="tablist" aria-label="Status dos jobs">
+              <button type="button" class="chat-job-seg is-active" data-job-status="active" role="tab" aria-selected="true">Andamento</button>
+              <button type="button" class="chat-job-seg" data-job-status="completed" role="tab" aria-selected="false">Finalizados</button>
+            </div>
           </header>
           <div class="chat-list-scroll" id="chatListScroll">
             <p class="chat-empty" id="chatListEmpty">Carregando…</p>
-            <div id="chatListSections" hidden></div>
+            <div id="chatListSections" data-ol-rows hidden></div>
           </div>
         </aside>
 
@@ -248,14 +253,15 @@
   </div>
 
   <div id="toastContainer" class="toast-container" aria-live="polite"></div>
-  <script src="crm-i18n.js?v=20261001-refresh1"></script>
-  <script src="crm-shared-nav.js?v=20261015-refnav1"></script>
-  <script src="crm-shell.js?v=20261102-ptr1"></script>
-  <script src="crm-account-menu.js?v=20261014-perfil1"></script>
+  <script src="crm-i18n.js?v=20261104-ux1"></script>
+  <script src="crm-shared-nav.js?v=20261105-dockall"></script>
+  <script src="crm-shell.js?v=20261104-ux2"></script>
+  <script src="crm-account-menu.js?v=20261104-ux1"></script>
   <script src="crm-toast.js"></script>
   <script src="saas-branding.js?v=20260929-navia1"></script>
-  <script src="om-mobile-nav.js?v=20261014-perfil1"></script>
+  <script src="om-mobile-nav.js?v=20261105-camswipe1"></script>
   <script src="chat-realtime.js?v=20260928-chat1"></script>
-  <script src="chat.js?v=20261008-chatv2"></script>
+  <script src="chat.js?v=20261104-ux2"></script>
+  <script src="crm-list.js?v=20261105-agd1"></script>
 </body>
 </html>

@@ -18,7 +18,7 @@
     { id: 'invoices', label: 'Invoices', sub: 'Faturas', href: 'invoices.html', perm: 'invoices.view' },
     { id: 'clients', label: 'Clientes', sub: 'Cadastro', href: 'customers.html', perm: 'customers.view' },
     { id: 'pricing', label: 'Tabela de Valor', sub: 'Cadastro', href: 'builder-pricing-admin.html', perm: 'builders.view' },
-    { id: 'team', label: 'Equipe', sub: 'Cadastro', href: 'equipe.html', perm: 'users.view' },
+    { id: 'team', label: 'Equipe', sub: 'Usuários nas Configurações', href: 'configuracoes.html#usuarios', perm: 'users.view' },
     { id: 'schedule', label: 'Calendar', sub: 'Jobs, visitas e compromissos', href: 'schedule.html', perm: 'schedule.view' },
     { id: 'jobs', label: 'Jobs', sub: 'Work orders / trabalhos', href: 'jobs.html', perm: 'work_orders.view' },
     { id: 'reports', label: 'Relatórios', sub: 'Painel de vendas, jobs e caixa', href: 'relatorios.html', perm: 'reports.view' },

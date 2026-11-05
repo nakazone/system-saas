@@ -369,11 +369,12 @@
     hideDD();
     if (!r || !W[k]) return;
     const rate = B().rateFor(r);
-    const desc = B().descFor(r, r.name);
+    const pickedName = (B().nameFor && B().nameFor(r)) || r.name || W[k].name;
+    const desc = B().descFor(r, pickedName);
     W[k] = {
       ...W[k],
       ...B().catalogIds(r),
-      name: r.name || W[k].name,
+      name: pickedName,
       description: desc || W[k].description,
       catalog_customer_notes: desc || W[k].description || null,
       unit_type: r.unit_type || W[k].unit_type || 'sq_ft',
@@ -416,7 +417,7 @@
     if (!name) return null;
     return cat.find((r) => String(r.name || '').trim().toLowerCase() === name) || null;
   }
-  /** Pergunta se a descrição nova fica só neste quote ou entra na Tabela de Valores. */
+  /** Pergunta se a descrição/nome nova fica só neste quote, no cliente ou na Tabela de Valores. */
   function offerDesc(it, idx) {
     if (!it || !B().offerDescriptionChange) return;
     const row = rowForItem(it);
@@ -437,6 +438,31 @@
       tableDesc,
       pricingItemId: String(pid),
       row,
+      field: 'description',
+    });
+  }
+
+  function offerName(it, idx) {
+    if (!it || !B().offerNameChange) return;
+    const row = rowForItem(it);
+    if (!row) return;
+    const pid = B().catalogIds(row).pricing_item_id;
+    if (!pid) return;
+    const tableName = (B().nameFor && B().nameFor(row)) || String(row.name || '');
+    const newName = String(it.name || '').trim();
+    if (!newName || normDesc(newName) === normDesc(tableName)) return;
+    const key = `name|${pid}|${normDesc(newName)}`;
+    if (descAck.has(key)) return;
+    descAck.add(key);
+    if (idx != null && idx >= 0) sync(true);
+    B().offerNameChange({
+      itemIdx: idx != null ? idx : -1,
+      serviceName: newName || row.name || '',
+      newDesc: newName,
+      tableDesc: tableName,
+      pricingItemId: String(pid),
+      row,
+      field: 'name',
     });
   }
   /** Same prompt as the quote list: keep the price here, on this customer, or on the price table. */
@@ -728,9 +754,9 @@
   }
   function pickRow(r) {
     draft.row = r;
-    draft.name = r.name || '';
+    draft.name = (B().nameFor && B().nameFor(r)) || r.name || '';
     draft.query = null;
-    draft.description = B().descFor(r, r.name);
+    draft.description = B().descFor(r, draft.name || r.name);
     draft.unit_type = r.unit_type || 'sq_ft';
     draft.base = B().rateFor(r);
     draft.markup = '';
@@ -984,8 +1010,11 @@
     });
     E.qpePaper.addEventListener('focusout', (e) => {
       if (e.target.matches('[data-f="name"]')) {
+        const row = e.target.closest('.qp-tr');
+        const k = Number(row && row.getAttribute('data-k'));
         setTimeout(() => {
           if (ddState && document.activeElement !== ddState.input) hideDD();
+          if (W[k]) offerName(W[k], k);
         }, 120);
       }
       if (e.target.matches('[data-f="quantity"],[data-f="rate"]')) {

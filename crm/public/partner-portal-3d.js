@@ -962,6 +962,17 @@
     }
     /** Moves the camera to frame the house, the stairs or the vents. */
     function flyTo(what, ms) {
+      const from = { tx: target.x, ty: target.y, tz: target.z, d: dist, th: theta, ph: phi };
+      const to = aimFor(what);
+      return tween(ms || 1400, (p) => {
+        const k = ease(p);
+        target.set(from.tx + (to.tx - from.tx) * k, from.ty + (to.ty - from.ty) * k, from.tz + (to.tz - from.tz) * k);
+        dist = from.d + (to.d - from.d) * k; theta = from.th + (to.th - from.th) * k; phi = from.ph + (to.ph - from.ph) * k;
+        place();
+      });
+    }
+    /** Where the camera goes to frame the house, the stairs or the vents (also sets what is visible). */
+    function aimFor(what) {
       let box = null;
       ventPins.forEach((p) => { p.visible = what === 'vents'; });
       if (what === 'home' && noHouse && stairSets.length) what = 'allstairs';
@@ -973,7 +984,6 @@
       } else if (what === 'allstairs') { box = new THREE.Box3(); stairSets.forEach((st) => box.expandByObject(st.root)); }
       else if (!focus) groups.forEach((g) => { g.visible = true; });
       if (what === 'vents' && ventMeshes.length) { box = new THREE.Box3(); ventMeshes.forEach((m) => box.expandByObject(m)); }
-      const from = { tx: target.x, ty: target.y, tz: target.z, d: dist, th: theta, ph: phi };
       let to;
       if (box && !box.isEmpty()) {
         const c = box.getCenter(new THREE.Vector3()); const s = box.getSize(new THREE.Vector3());
@@ -981,12 +991,7 @@
       } else {
         to = { tx: 0, ty: midY(), tz: 0, d: fitDist(), th: theta + 0.35, ph: 0.8 };
       }
-      return tween(ms || 1400, (p) => {
-        const k = ease(p);
-        target.set(from.tx + (to.tx - from.tx) * k, from.ty + (to.ty - from.ty) * k, from.tz + (to.tz - from.tz) * k);
-        dist = from.d + (to.d - from.d) * k; theta = from.th + (to.th - from.th) * k; phi = from.ph + (to.ph - from.ph) * k;
-        place();
-      });
+      return to;
     }
 
     let raf = 0; let dirty = true; let alive = true;
@@ -1106,6 +1111,26 @@
       pins(on) { ventPins.forEach((p) => { p.visible = on; }); need(); },
       tour(on) { auto = Boolean(on); need(); },
       labels(on) { groups.forEach((g) => { g.userData.labels.visible = on; }); need(); },
+      /**
+       * A still of the house, the stairs or the vents with everything in place, framed like the
+       * presentation (for the presentation PDF). The camera goes back where it was afterwards.
+       */
+      still(what, o) {
+        o = o || {};
+        const keep = { x: target.x, y: target.y, z: target.z, dist, theta, phi };
+        present.showAll();
+        groups.forEach((g) => { g.userData.labels.visible = Boolean(o.labels); });
+        theta = o.theta != null ? o.theta : -0.65;
+        const to = aimFor(what || 'home');
+        target.set(to.tx, to.ty, to.tz); dist = to.d * (o.zoom || 1); theta = to.th; phi = o.phi != null ? o.phi : to.ph;
+        place(); aimSun();
+        renderer.render(scene, camera);
+        const url = cv.toDataURL(o.type || 'image/jpeg', o.quality || 0.88);
+        target.set(keep.x, keep.y, keep.z); dist = keep.dist; theta = keep.theta; phi = keep.phi; place();
+        groups.forEach((g) => { g.visible = true; g.userData.labels.visible = true; }); ventPins.forEach((p) => { p.visible = false; });
+        need();
+        return url;
+      },
     };
 
     const api = {
@@ -1383,7 +1408,7 @@
     }
     /** Shape only (sizes, layout, turns): a change there reframes; wood or finish alone does not. */
     const shapeSig = (fl) => JSON.stringify(fl.map((f) => [f.layout, f.turn, f.starts_on_landing_of, f.landing, (f.steps || []).map((x) => [x.kind, x.tread_w, x.tread_d, x.riser_h, x.open])]));
-    function reset() { c.orbit(th0, 1.02); c.frameBox(box, 1.35); }
+    function reset() { c.orbit(th0, 1.02); c.frameBox(box, opts.fit || 1.35); }
     function select(id) {
       glow.forEach((mat, m) => { m.material.dispose(); m.material = mat; }); glow.clear();
       built.root.traverse((m) => {
@@ -1402,14 +1427,51 @@
       update(fl, selectedId) {
         const keep = c.view; const ns = shapeSig(fl);
         build(fl);
-        if (ns !== sig) { sig = ns; c.frameBox(box, 1.35); }
-        c.view = keep; select(selectedId);
+        // A new shape (steps added/removed, sizes changed) re-frames the camera; keeping the old
+        // view would leave it framed for the previous shape (blank drawing / stale zoom).
+        if (ns !== sig) { sig = ns; c.frameBox(box, 1.35); } else c.view = keep;
+        select(selectedId);
       },
       get view() { return c.view; },
       get counts() { return built.counts; },
+      /** A still of the current view (for thumbnails on cards). */
+      snapshot(type, quality) { c.renderer.render(c.scene, c.camera); return c.cv.toDataURL(type || 'image/webp', quality || 0.86); },
     };
     el.__ob3d = api;
     return api;
+  }
+
+  /**
+   * A small still of a stair, rendered off screen once and cached per key (measurement id + last update):
+   * cards show a real picture of the stair without keeping a live 3D view per card.
+   */
+  const thumbCache = new Map();
+  let thumbQueue = Promise.resolve();
+  function stairThumb(key, flights, w, h) {
+    if (!flights || !flights.some((f) => (f.steps || []).length)) return Promise.resolve(null);
+    if (thumbCache.has(key)) return thumbCache.get(key);
+    try { const hit = sessionStorage.getItem(`ob3d-thumb:${key}`); if (hit) { const p = Promise.resolve(hit); thumbCache.set(key, p); return p; } } catch (_) { /* private mode */ }
+    // One at a time: each render needs a WebGL context, and phones allow only a few.
+    const job = thumbQueue.then(async () => {
+      const box = document.createElement('div');
+      box.style.cssText = `position:fixed;left:-10000px;top:0;width:${w || 360}px;height:${h || 240}px;pointer-events:none`;
+      document.body.appendChild(box);
+      let v = null;
+      try {
+        v = await mountStair(box, flights, {});
+        const url = v.snapshot('image/webp', 0.82);
+        try { sessionStorage.setItem(`ob3d-thumb:${key}`, url); } catch (_) { /* full or private */ }
+        return url;
+      } catch (_) {
+        return null;
+      } finally {
+        if (v) v.destroy();
+        box.remove();
+      }
+    });
+    thumbQueue = job.catch(() => null);
+    thumbCache.set(key, job);
+    return job;
   }
 
   function dimLabel(THREE, text) {
@@ -1548,12 +1610,12 @@
       box = new THREE.Box3();
       grp.children.forEach((ch) => { if (ch.isMesh && ch.geometry && ch.geometry.type === 'ExtrudeGeometry') box.expandByObject(ch); });
       box.expandByPoint(new THREE.Vector3(0, 0, D / 2));
-      viewTh = oR && !oL ? 0.55 : oL && !oR ? -0.55 : -0.4;
+      viewTh = oR && !oL ? 0.45 : oL && !oR ? -0.45 : -0.25;
       corner = open === 'none' ? null : oR ? { th: 0.75, t: [xr - 0.1, rise - 0.04, front - 0.12] } : { th: -0.75, t: [xl + 0.1, rise - 0.04, front - 0.12] };
       return JSON.stringify([step.tread_w, step.tread_d, step.riser_h, open]);
     }
     let viewTh = -0.4;
-    function reset() { c.orbit(viewTh, 1.05); c.frameBox(box, 1.4); }
+    function reset() { c.orbit(viewTh, 0.88); c.frameBox(box, 1.35); }
     shapeSig = build(spec); reset();
     // a short turn to show it's 3D, then it stays still
     let spin = !opts.still; const t0 = performance.now();
@@ -1608,10 +1670,13 @@
     let spin = !opts.still; const t0 = performance.now(); c.cv.addEventListener('pointerdown', () => { spin = false; });
     c.onFrame.push(() => { if (!spin || performance.now() - t0 > 6000) return false; c.orbit(c.view.theta + 0.002, c.view.phi); return true; });
     c.need();
-    const api = { destroy: c.destroy, attach: (n) => { c.attach(n); n.__ob3d = api; } };
+    const api = {
+      destroy: c.destroy, attach: (n) => { c.attach(n); n.__ob3d = api; },
+      snapshot(type, quality) { c.renderer.render(c.scene, c.camera); return c.cv.toDataURL(type || 'image/jpeg', quality || 0.88); },
+    };
     el.__ob3d = api;
     return api;
   }
 
-  window.ObPlan3D = { mount, mountStair, mountTread, mountVent, load: loadThree };
+  window.ObPlan3D = { mount, mountStair, mountTread, mountVent, stairThumb, load: loadThree };
 })();

@@ -200,8 +200,29 @@
       color: e.color,
     };
   const SECTOR_LBL = { installation: 'Instalação', sand_finish: 'Lixa' };
+  /** Per-event agenda/sector label — never the first jobs calendar for every job. */
+  function eventTypeLabel(e) {
+    if (!e) return '';
+    if (e.type === 'job') {
+      const role = String((e.meta && e.meta.date_role) || '').toLowerCase();
+      const cal = calOf(e);
+      if (role === 'delivery') return (cal && cal.name) || 'Delivery';
+      if (role === 'sand') return (cal && cal.name) || SECTOR_LBL.sand_finish;
+      if (role === 'main') return (cal && cal.name) || SECTOR_LBL.installation;
+      if (cal && cal.name) return cal.name;
+      const sector = String((e.meta && e.meta.sector) || '').toLowerCase();
+      return SECTOR_LBL[sector] || typeInfo('job').one;
+    }
+    const cal = calOf(e);
+    return (cal && cal.name) || typeInfo(e.type).one;
+  }
+
+  function jobIdOf(e) {
+    return String((e && e.id) || '').replace(/:(sand|delivery|installation|main)$/i, '');
+  }
   const CAL_KINDS = [
     { id: 'jobs', label: 'Jobs' },
+    { id: 'delivery', label: 'Delivery' },
     { id: 'visits', label: 'Visitas' },
     { id: 'meetings', label: 'Meetings' },
     { id: 'custom', label: 'Extra' },
@@ -359,11 +380,28 @@
     const t = S.loaded ? new Date(Math.max(to, S.loaded.to)) : to;
     return fetchRange(f, t);
   }
+  let fetching = 0;
   async function fetchRange(from, to) {
-    const j = await api(`/api/schedule/events?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`);
-    S.events = (j.data || []).map(normalize);
-    S.loaded = { from, to };
-    S.searchPool = null;
+    // While a range loads: dim what is on screen (no layout jump); the very first load gets a light skeleton.
+    const stage = document.getElementById('agStage');
+    fetching += 1;
+    if (stage) {
+      stage.classList.add('is-loading');
+      stage.setAttribute('aria-busy', 'true');
+      if (!stage.children.length && window.crmSkeleton) stage.innerHTML = `<div class="ag-skel">${window.crmSkeleton.rows(6, { avatar: false })}</div>`;
+    }
+    try {
+      const j = await api(`/api/schedule/events?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`);
+      S.events = (j.data || []).map(normalize);
+      S.loaded = { from, to };
+      S.searchPool = null;
+    } finally {
+      fetching -= 1;
+      if (stage && !fetching) {
+        stage.classList.remove('is-loading');
+        stage.removeAttribute('aria-busy');
+      }
+    }
   }
   async function reload() {
     if (!S.loaded) return;
@@ -380,21 +418,45 @@
     return true;
   }
   const evs = () => S.events.filter(visible);
+  /**
+   * Day order (all of each band together):
+   * Meetings → Visitas → Delivery → Instalação → Lixa.
+   */
+  function daySortKey(e) {
+    if (e.type === 'meeting') return 0;
+    if (e.type === 'visit') return 1;
+    if (e.type === 'job') {
+      const role = String((e.meta && e.meta.date_role) || '').toLowerCase();
+      const sector = String((e.meta && e.meta.sector) || '').toLowerCase();
+      if (role === 'delivery') return 2;
+      if (role === 'sand' || sector === 'sand_finish') return 4;
+      // main / installation / both / unset → Instalação band
+      return 3;
+    }
+    return 9;
+  }
+  function sortDayEvents(list) {
+    return list.slice().sort((a, b) => {
+      const ka = daySortKey(a);
+      const kb = daySortKey(b);
+      if (ka !== kb) return ka - kb;
+      // Within the same band: all-day first, then start time (no color interleave).
+      return b.allDay - a.allDay || a.start - b.start || String(a.id).localeCompare(String(b.id));
+    });
+  }
   const eventsOnDay = (d) => {
     const a = sod(d);
     const b = addDays(a, 1);
-    return evs()
-      .filter((e) => e.start < b && e.end > a)
-      .sort((x, y) => (y.allDay - x.allDay) || x.start - y.start);
+    return sortDayEvents(evs().filter((e) => e.start < b && e.end > a));
   };
 
   // ---------------------------------------------------------------- layout helpers
-  /** Multi-day bars inside a week row: lanes assigned greedily. */
+  /** Multi-day bars inside a week row: lanes assigned greedily (Instalação then Lixa). */
   function weekBars(weekStart, days) {
     const weekEnd = addDays(weekStart, days);
     const bars = evs()
       .filter((e) => e.allDay && e.start < weekEnd && e.end > weekStart)
-      .sort((a, b) => a.start - b.start || b.end - a.end)
+      .sort((a, b) => daySortKey(a) - daySortKey(b) || a.start - b.start || b.end - a.end)
       .map((e) => {
         const s = Math.max(0, Math.round((sod(e.start) - weekStart) / DAY));
         const en = Math.min(days - 1, Math.round((e.lastDay - weekStart) / DAY));
@@ -468,16 +530,60 @@
   /** Jobs stay on the grid without a clock. Meetings and visits show the time. */
   const showClock = (e) => e.type !== 'job' && !e.allDay;
   const clockHtml = (e) => (showClock(e) ? `<time>${esc(fmtTime(e.start))}</time>` : '');
+  /** Number + first street word — "840 S Race St, Denver" → "840 Race". */
+  function streetChip(address) {
+    const SUFFIX = new Set(['st', 'street', 'ave', 'avenue', 'rd', 'road', 'dr', 'drive', 'blvd', 'boulevard', 'ln', 'lane', 'way', 'ct', 'court', 'pl', 'place', 'cir', 'circle', 'pkwy', 'parkway', 'trl', 'trail']);
+    const DIR = new Set(['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw', 'north', 'south', 'east', 'west']);
+    const line = String(address || '').split(',')[0].trim();
+    const tokens = line.split(/\s+/).filter(Boolean);
+    if (!tokens.length) return '';
+    let i = 0;
+    let number = '';
+    if (/^\d/.test(tokens[0])) {
+      number = tokens[0];
+      i = 1;
+    }
+    const key = (t) => String(t || '').toLowerCase().replace(/\./g, '');
+    while (i < tokens.length && DIR.has(key(tokens[i]))) i += 1;
+    let street = '';
+    if (i < tokens.length && !SUFFIX.has(key(tokens[i]))) street = tokens[i];
+    const chip = [number, street].filter(Boolean).join(' ');
+    return chip || tokens.slice(0, 2).join(' ');
+  }
+  function isParticularEvent(e) {
+    const m = (e && e.meta) || {};
+    const st = String(m.source_type || '').toLowerCase();
+    const ct = String(m.customer_type || '').toLowerCase();
+    return st === 'particular' || ct === 'particular';
+  }
+  function eventStreet(e) {
+    if (!e || isParticularEvent(e)) return '';
+    return String(e.address || (e.meta && e.meta.address) || '').trim();
+  }
+  /** Builder: Nickname - Client ID / street. Particular: client name only. */
   function ticketTitle(e) {
-    const label = String((e && e.label) || '').trim();
-    if (label) return label;
-    const b = (e.meta && e.meta.builder) || {};
-    const nick = String(b.nickname || '').trim();
-    const company = String(b.company || '').trim();
-    const text = String(e.title || '');
-    if (!nick || !company) return text;
-    const re = new RegExp(company.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'ig');
-    return re.test(text) ? text.replace(re, nick) : text;
+    const raw = String((e && e.label) || '').trim();
+    // Drop legacy " · Installation / Sand & Finish" — color already shows the sector.
+    const label = raw.replace(/\s*[·•]\s*(Installation|Sand\s*&\s*Finish|Instala[cç][aã]o|Lixa|Sand)\s*$/i, '').trim();
+    const m = (e && e.meta) || {};
+    const particular = isParticularEvent(e);
+    if (label) {
+      if (!particular) return label;
+      // Strip " - street/client id" leftovers on particular labels from older payloads.
+      const whoOnly = label.split(/\s+[-–—]\s+/)[0].trim();
+      return whoOnly || label;
+    }
+    const b = m.builder || {};
+    const c = m.customer || {};
+    const who =
+      String(b.nickname || c.nickname || '').trim() ||
+      String(b.company || c.company || c.name || m.source_name || e.title || '').trim();
+    if (particular) return who || String(e.title || 'Job');
+    const clientId = String(m.client_ref || c.client_code || '').trim();
+    const street = streetChip(e.address || m.address);
+    const suffix = clientId || street;
+    if (who && suffix) return `${who} - ${suffix}`;
+    return who || suffix || String(e.title || 'Job');
   }
   const typeIcon = (e) =>
     e.type === 'job'
@@ -496,8 +602,21 @@
     const side = $('#agSide');
     side.hidden = phone || !S.sidebar;
     if (!side.hidden) renderSide();
-    $$('[data-ag-act="toggle-side"]').forEach((b) => b.classList.toggle('is-on', !!S.sidebar && !phone));
-    $$('[data-ag-act="toggle-day"]').forEach((b) => b.classList.toggle('is-on', !!S.dayPanel && !phone));
+    const railL = $('#agRailLeft');
+    const railR = $('#agRailRight');
+    if (railL) {
+      railL.hidden = phone;
+      railL.classList.toggle('is-open', !!S.sidebar && !phone);
+      railL.setAttribute('aria-pressed', S.sidebar && !phone ? 'true' : 'false');
+      railL.title = S.sidebar ? 'Recolher calendários' : 'Mostrar calendários';
+    }
+    if (railR) {
+      const dayOk = !phone && (S.view === 'month' || S.view === 'week' || S.view === 'day');
+      railR.hidden = !dayOk;
+      railR.classList.toggle('is-open', !!S.dayPanel && dayOk);
+      railR.setAttribute('aria-pressed', S.dayPanel && dayOk ? 'true' : 'false');
+      railR.title = S.dayPanel ? 'Recolher painel do dia' : 'Mostrar painel do dia';
+    }
     renderTitle();
     if (phone) {
       if (S.view === 'year') renderYear();
@@ -507,7 +626,7 @@
     else if (S.view === 'week') renderTimeGrid(7);
     else if (S.view === 'year') renderYear();
     else if (S.view === 'list') renderList();
-    else renderMonth();
+    else renderMMonth(); // continuous month scroll (Apple-style) on desktop/tablet too
     renderDayPanel();
   }
 
@@ -621,7 +740,7 @@
           const e = p.e;
           const h = (p.bottom - p.top) * HOUR_PX;
           const sizeCls = h < 30 ? ' is-short' : h < 48 ? ' is-compact' : '';
-          const metaBits = [showClock(e) ? fmtTime(e.start) : '', e.address || ''].filter(Boolean);
+          const metaBits = [showClock(e) ? fmtTime(e.start) : '', eventStreet(e)].filter(Boolean);
           const meta = h >= 30 && metaBits.length ? `<small>${esc(metaBits.join(' · '))}</small>` : '';
           return `<button type="button" class="ag-blk ${toneCls(e)}${sizeCls}${e.status === 'completed' ? ' is-done' : ''}" data-ag-ev="${esc(e.id)}" style="${evStyle(e)};top:${p.top * HOUR_PX}px;height:${Math.max(16, h - 2)}px;left:calc(${(p.col / p.cols) * 100}% + 2px);width:calc(${100 / p.cols}% - 4px)">
             <b>${esc(ticketTitle(e))}</b>${meta}</button>`;
@@ -640,22 +759,92 @@
     }
   }
 
+  /** Cache event→day colors for mini months (sidebar + year). Invalidates when events change. */
+  let miniDotsCache = { sig: '', map: null };
+  function miniEventsSig() {
+    const list = S.events || [];
+    let sig = String(list.length) + '|';
+    for (let i = 0; i < list.length; i++) {
+      const e = list[i];
+      sig +=
+        String(e.id) +
+        ':' +
+        (e.start && e.start.getTime ? e.start.getTime() : '') +
+        ':' +
+        (e.lastDay && e.lastDay.getTime ? e.lastDay.getTime() : '') +
+        ':' +
+        String(e.color || '') +
+        ':' +
+        String(e.status || '') +
+        ';';
+    }
+    return sig;
+  }
+  function miniColorsByDay() {
+    const sig = miniEventsSig();
+    if (miniDotsCache.sig === sig && miniDotsCache.map) return miniDotsCache.map;
+    const colorsByDay = {};
+    sortDayEvents(evs()).forEach((e) => {
+      if (e.status === 'canceled') return;
+      const color = String(e.color || typeInfo(e.type).color || '#98a2b3').toLowerCase();
+      for (let d = sod(e.start); d <= e.lastDay; d = addDays(d, 1)) {
+        const k = ymd(d);
+        if (!colorsByDay[k]) colorsByDay[k] = [];
+        if (!colorsByDay[k].includes(color)) colorsByDay[k].push(color);
+      }
+    });
+    miniDotsCache = { sig, map: colorsByDay };
+    return colorsByDay;
+  }
+
+  function syncMiniSelection(root) {
+    const host = root || document;
+    const sel = S.selected ? ymd(sod(S.selected)) : '';
+    host.querySelectorAll('.ag-mini__d[data-ag-goday]').forEach((btn) => {
+      const on = sel && btn.dataset.agGoday === sel && !btn.classList.contains('is-out');
+      btn.classList.toggle('is-sel', !!on);
+    });
+  }
+
   function miniMonthHtml(month, opts) {
     const first = new Date(month.getFullYear(), month.getMonth(), 1);
     const gs = startOfWeek(first);
     const today = sod(new Date());
-    const counts = {};
-    if (opts && opts.dots)
-      evs().forEach((e) => {
-        for (let d = sod(e.start); d <= e.lastDay; d = addDays(d, 1)) counts[ymd(d)] = (counts[ymd(d)] || 0) + 1;
-      });
-    let html = `<div class="ag-mini${opts && opts.cls ? ' ' + opts.cls : ''}">${opts && opts.title !== false ? `<button type="button" class="ag-mini__t" data-ag-gomonth="${ymd(first)}">${opts && opts.short ? MONTHS[month.getMonth()].slice(0, 3) : MONTHS[month.getMonth()] + (opts && opts.year ? ' ' + month.getFullYear() : '')}</button>` : ''}<div class="ag-mini__g">${WD1.map((w) => `<span class="ag-mini__wd">${w}</span>`).join('')}`;
+    const pick = Boolean(opts && opts.pick);
+    const colorsByDay = opts && opts.dots ? miniColorsByDay() : {};
+    const ym = `${first.getFullYear()}-${first.getMonth()}`;
+    const titleText = opts && opts.short ? MONTHS[month.getMonth()].slice(0, 3) : MONTHS[month.getMonth()] + (opts && opts.year ? ' ' + month.getFullYear() : '');
+    const navDir = pick ? 'data-ag-pick-nav' : 'data-ag-mini-nav';
+    const titleEl = pick
+      ? `<span class="ag-mini__t">${esc(titleText)}</span>`
+      : `<button type="button" class="ag-mini__t" data-ag-gomonth="${ymd(first)}">${esc(titleText)}</button>`;
+    const nav =
+      opts && opts.nav
+        ? `<div class="ag-mini__nav">
+            <button type="button" class="ag-mini__navbtn" ${navDir}="-1" aria-label="Mês anterior">‹</button>
+            ${titleEl}
+            <button type="button" class="ag-mini__navbtn" ${navDir}="1" aria-label="Próximo mês">›</button>
+          </div>`
+        : opts && opts.title !== false
+          ? pick
+            ? `<span class="ag-mini__t">${esc(titleText)}</span>`
+            : `<button type="button" class="ag-mini__t" data-ag-gomonth="${ymd(first)}">${esc(titleText)}</button>`
+          : '';
+    let html = `<div class="ag-mini${opts && opts.cls ? ' ' + opts.cls : ''}" data-ag-mini-ym="${ym}">${nav}<div class="ag-mini__g">${WD1.map((w) => `<span class="ag-mini__wd">${w}</span>`).join('')}`;
+    const pickSel = pick ? String(opts.selectedYmd || '') : '';
     for (let i = 0; i < 42; i++) {
       const d = addDays(gs, i);
       if (i >= 35 && d.getMonth() !== month.getMonth()) break;
       const out = d.getMonth() !== month.getMonth();
       const k = ymd(d);
-      html += `<button type="button" class="ag-mini__d${out ? ' is-out' : ''}${sameDay(d, today) ? ' is-today' : ''}${sameDay(d, S.selected) && !out ? ' is-sel' : ''}${counts[k] && !out ? ' has-ev' : ''}" data-ag-goday="${k}">${out && opts && opts.hideOut ? '' : d.getDate()}</button>`;
+      const colors = !out && colorsByDay[k] ? colorsByDay[k].slice(0, 4) : [];
+      const dots =
+        colors.length > 0
+          ? `<span class="ag-mini__dots" aria-hidden="true">${colors.map((c) => `<i style="background:${esc(c)}"></i>`).join('')}</span>`
+          : '';
+      const selected = pick ? Boolean(pickSel && k === pickSel && !out) : sameDay(d, S.selected) && !out;
+      const dayAttr = pick ? `data-ag-pickday="${k}"` : `data-ag-goday="${k}"`;
+      html += `<button type="button" class="ag-mini__d${out ? ' is-out' : ''}${sameDay(d, today) ? ' is-today' : ''}${selected ? ' is-sel' : ''}${colors.length ? ' has-ev' : ''}" ${dayAttr}>${out && opts && opts.hideOut ? '' : d.getDate()}${dots}</button>`;
     }
     return html + '</div></div>';
   }
@@ -690,20 +879,17 @@
     return `<button type="button" class="${cls || 'ag-btn ag-btn--dark ag-btn--block'}" data-ag-day-route="${esc(ymd(d))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6-5.3-6-10a6 6 0 0112 0c0 4.7-6 10-6 10z"/><circle cx="12" cy="11" r="2"/></svg>Rota do dia · ${n} ${n === 1 ? 'parada' : 'paradas'}</button>`;
   }
 
-  /** Painel do dia (computador / iPad): o dia escolhido em ordem de horário, com a rota. */
+  /** Painel do dia: Meeting → Delivery → Instalação → Lixa. */
   function dayPanelHtml(d) {
-    const list = eventsOnDay(d)
-      .slice()
-      .sort((a, b) => (b.allDay - a.allDay) || a.start - b.start);
+    const list = eventsOnDay(d);
     const by = { job: 0, visit: 0, meeting: 0 };
     list.forEach((e) => (by[e.type] = (by[e.type] || 0) + 1));
     const parts = [];
-    if (by.job) parts.push(`${by.job} ${by.job === 1 ? 'job' : 'jobs'}`);
-    if (by.visit) parts.push(`${by.visit} ${by.visit === 1 ? 'visita' : 'visitas'}`);
     if (by.meeting) parts.push(`${by.meeting} ${by.meeting === 1 ? 'compromisso' : 'compromissos'}`);
+    if (by.visit) parts.push(`${by.visit} ${by.visit === 1 ? 'visita' : 'visitas'}`);
+    if (by.job) parts.push(`${by.job} ${by.job === 1 ? 'job' : 'jobs'}`);
     const isT = sameDay(d, new Date());
     const sub = (e) => {
-      const m = e.meta || {};
       const bits = [];
       if (e.type === 'job') {
         const st = JOB_STATUS[e.status];
@@ -711,31 +897,45 @@
         const ppl = peopleOf(e);
         if (ppl.length) bits.push(ppl.join(', '));
       }
-      if (e.address) bits.push(e.address.split(',').slice(0, 2).join(','));
+      const street = eventStreet(e);
+      if (street) bits.push(street.split(',').slice(0, 2).join(','));
       return bits.join(' · ');
     };
+    const groupLabel = (e) => {
+      if (e.type === 'meeting') return 'Meetings';
+      if (e.type === 'visit') return 'Visitas';
+      const k = daySortKey(e);
+      if (k === 2) return 'Delivery';
+      if (k === 3) return SECTOR_LBL.installation;
+      if (k === 4) return SECTOR_LBL.sand_finish;
+      return 'Jobs';
+    };
+    let lastGroup = '';
+    const rows = list
+      .map((e) => {
+        const g = groupLabel(e);
+        const head = g !== lastGroup ? `<div class="ag-dp__grp">${esc(g)}</div>` : '';
+        lastGroup = g;
+        const multi = e.allDay;
+        const t1 = multi ? 'dia todo' : fmtTime(e.start);
+        const t2 = multi
+          ? `${fmtDateShort(e.start)} – ${fmtDateShort(e.lastDay)}`
+          : `${Math.max(15, Math.round((e.end - e.start) / 60000)) >= 60 ? Math.round(((e.end - e.start) / 3600000) * 10) / 10 + ' h' : Math.round((e.end - e.start) / 60000) + ' min'}`;
+        const clock = e.type !== 'job';
+        return `${head}<button type="button" class="ag-dp__it${e.status === 'completed' ? ' is-done' : ''}" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}">
+                  ${clock ? `<time>${esc(t1)}<small>${esc(t2)}</small></time>` : ''}<i></i>
+                  <span class="ag-dp__b ${toneCls(e)}"><em>${esc(eventTypeLabel(e))}${e.status === 'canceled' ? ' · cancelado' : ''}</em><b>${esc(ticketTitle(e))}</b>${sub(e) ? `<small>${esc(sub(e))}</small>` : ''}</span>
+                </button>`;
+      })
+      .join('');
     return `<div class="ag-dp__hd"><h3>${isT ? 'Hoje · ' : ''}${esc(WDL[d.getDay()])}, ${d.getDate()} ${esc(MON3[d.getMonth()])}</h3>
-        <button type="button" class="ag-dp__collapse" data-ag-act="toggle-day">Recolher</button>
         <p>${parts.length ? esc(parts.join(' · ')) : 'Nada agendado'}</p>
         ${dayRouteBtnHtml(d)}
         ${S.canManage ? `<button type="button" class="ag-dp__add" data-ag-dp-new="${ymd(d)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Agendar neste dia</button>` : ''}
       </div>
       <div class="ag-dp__list">${
         list.length
-          ? list
-              .map((e) => {
-                const multi = e.allDay;
-                const t1 = multi ? 'dia todo' : fmtTime(e.start);
-                const t2 = multi
-                  ? `${fmtDateShort(e.start)} – ${fmtDateShort(e.lastDay)}`
-                  : `${Math.max(15, Math.round((e.end - e.start) / 60000)) >= 60 ? Math.round(((e.end - e.start) / 3600000) * 10) / 10 + ' h' : Math.round((e.end - e.start) / 60000) + ' min'}`;
-                const clock = e.type !== 'job';
-                return `<button type="button" class="ag-dp__it${e.status === 'completed' ? ' is-done' : ''}" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}">
-                  ${clock ? `<time>${esc(t1)}<small>${esc(t2)}</small></time>` : ''}<i></i>
-                  <span class="ag-dp__b ${toneCls(e)}"><em>${esc(typeInfo(e.type).one)}${e.status === 'canceled' ? ' · cancelado' : ''}</em><b>${esc(ticketTitle(e))}</b>${sub(e) ? `<small>${esc(sub(e))}</small>` : ''}</span>
-                </button>`;
-              })
-              .join('')
+          ? rows
           : `<p class="ag-empty">${S.canManage ? 'Dia livre. Clique duas vezes num dia ou use “Agendar neste dia”.' : 'Dia livre.'}</p>`
       }</div>`;
   }
@@ -758,7 +958,7 @@
               .map(
                 (e) => `<button type="button" class="ag-li ${toneCls(e)}" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i></i><div><b>${esc(ticketTitle(e))}</b><small>${esc(
                   e.type === 'job' ? (e.allDay ? 'Dia inteiro' : '') : e.allDay ? 'Dia inteiro' : `${fmtTime(e.start)} – ${fmtTime(e.end)}`
-                )}${e.needs_delivery ? ' · Delivery' : ''}${e.address ? ' · ' + esc(e.address) : ''}</small></div></button>`
+                )}${e.needs_delivery ? ' · Delivery' : ''}${eventStreet(e) ? ' · ' + esc(eventStreet(e)) : ''}</small></div></button>`
               )
               .join('')
           : '<p class="ag-empty">Nada agendado.</p>'
@@ -768,6 +968,8 @@
   // ---------- year
   function renderYear() {
     const y = S.cursor.getFullYear();
+    // Warm the shared dots cache once, then build 12 months cheaply.
+    miniColorsByDay();
     let html = `<div class="ag-year">`;
     for (let m = 0; m < 12; m++) html += miniMonthHtml(new Date(y, m, 1), { dots: true, cls: 'ag-mini--year', hideOut: true, short: isPhone() });
     $('#agStage').innerHTML = html + '</div>';
@@ -789,7 +991,7 @@
               ([d, l]) => `<section><div class="ag-list__hd"><h3 class="${sameDay(d, from) ? 'is-today' : ''}">${esc(fmtDateLong(d))}</h3>${dayRouteBtnHtml(d, 'ag-btn ag-btn--sm')}</div>${l
                 .map(
                   (e) => `<button type="button" class="ag-li ${toneCls(e)}" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i></i>${showClock(e) || e.allDay ? `<time>${esc(e.allDay ? 'dia inteiro' : fmtTime(e.start))}</time>` : ''}<div><b>${esc(ticketTitle(e))}</b><small>${esc(
-                    [typeInfo(e.type).one, e.needs_delivery ? 'Delivery' : null, e.address].filter(Boolean).join(' · ')
+                    [eventTypeLabel(e), e.needs_delivery ? 'Delivery' : null, eventStreet(e) || null].filter(Boolean).join(' · ')
                   )}</small></div></button>`
                 )
                 .join('')}</section>`
@@ -800,7 +1002,22 @@
   }
 
   // ---------- sidebar
-  function renderSide() {
+  function renderSide(opts) {
+    opts = opts || {};
+    const side = $('#agSide');
+    if (!side) return;
+    const ym = `${S.cursor.getFullYear()}-${S.cursor.getMonth()}`;
+    const existingMini = side.querySelector('.ag-mini');
+    // Selection-only: patch is-sel without rebuilding the whole sidebar.
+    if (
+      opts.selectionOnly &&
+      existingMini &&
+      existingMini.dataset.agMiniYm === ym &&
+      side.dataset.agSideSig === miniEventsSig()
+    ) {
+      syncMiniSelection(side);
+      return;
+    }
     const counts = {};
     S.events.forEach((e) => (counts[e.calendar] = (counts[e.calendar] || 0) + 1));
     const people = new Map();
@@ -815,7 +1032,8 @@
     const tc = (t) => td.filter((e) => e.type === t).length;
     const todayBlk = `<button type="button" class="ag-today-blk" data-ag-goday="${ymd(sod(new Date()))}" title="Abrir o dia de hoje"><span class="ag-today-blk__t">Hoje · ${esc(WD[new Date().getDay()].toLowerCase())} ${new Date().getDate()}</span>
       <span class="ag-today-blk__g"><span><b>${tc('job')}</b>${tc('job') === 1 ? 'job' : 'jobs'}</span><span><b>${tc('visit')}</b>${tc('visit') === 1 ? 'visita' : 'visitas'}</span><span><b>${tc('meeting')}</b>${tc('meeting') === 1 ? 'compromisso' : 'compromissos'}</span></span></button>`;
-    $('#agSide').innerHTML = `<button type="button" class="ag-side__collapse" data-ag-act="toggle-side">Recolher</button>${miniMonthHtml(S.cursor, { dots: true, year: true })}${todayBlk}
+    side.dataset.agSideSig = miniEventsSig();
+    side.innerHTML = `${miniMonthHtml(S.cursor, { dots: true, year: true, nav: true })}${todayBlk}
       <div class="ag-side__sec"><h3>Calendários ${
         canEditCals() ? '<button type="button" class="ag-link" data-ag-act="mcal" data-ag-cal-open="edit">Editar</button>' : ''
       }</h3>${calList()
@@ -881,8 +1099,21 @@
         const show = timed.slice(0, room);
         const more = timed.length - show.length + bars.filter((b) => b.lane >= maxLanes && b.s <= i && b.en >= i).length;
         void laneCount;
-        const routeBtn = '';
-        html += `<div class="ag-md${i === 0 || i === 6 ? ' is-we' : ''}" data-ag-mday="${ymd(d)}" role="button" tabindex="0"><span class="ag-md__top"><span class="ag-md__n${sameDay(d, today) ? ' is-today' : ''}">${d.getDate()}</span>${routeBtn}</span>
+        const dayEvs = eventsOnDay(d).filter((e) => e.status !== 'canceled');
+        const colorSet = [];
+        dayEvs.forEach((e) => {
+          const c = String(e.color || typeInfo(e.type).color || '#98a2b3').toLowerCase();
+          if (!colorSet.includes(c)) colorSet.push(c);
+        });
+        const dots =
+          colorSet.length > 0
+            ? `<span class="ag-md__dots" aria-hidden="true">${colorSet
+                .slice(0, 4)
+                .map((c) => `<i style="background:${esc(c)}"></i>`)
+                .join('')}</span>`
+            : '';
+        const sel = sameDay(d, S.selected);
+        html += `<div class="ag-md${i === 0 || i === 6 ? ' is-we' : ''}${sel ? ' is-sel' : ''}" data-ag-mday="${ymd(d)}" data-ag-day="${ymd(d)}" role="button" tabindex="0"><span class="ag-md__top"><span class="ag-md__n${sameDay(d, today) ? ' is-today' : ''}">${d.getDate()}</span>${dots}</span>
           <span class="ag-md__list" style="margin-top:${Math.min(lanesAll, maxLanes) * 19}px">${show
             .map((e) => `<button type="button" class="ag-pill ${toneCls(e)}" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i>${typeIcon(e)}</i><span>${esc(ticketTitle(e))}</span>${showClock(e) ? `<small>${esc(fmtTime(e.start))}</small>` : ''}</button>`)
             .join('')}${more > 0 ? `<button type="button" class="ag-pill ag-pill--more" data-ag-daylist="${ymd(d)}">+${more}</button>` : ''}</span></div>`;
@@ -910,10 +1141,11 @@
   }
 
   const relTop = (el, sc) => el.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop;
-  let mScrollBound = null;
+  let mScrollBusy = null;
   function bindMScroll() {
     const sc = $('#agMScroll');
-    if (!sc) return;
+    if (!sc || sc.dataset.agScrollBound === '1') return;
+    sc.dataset.agScrollBound = '1';
     let ticking = false;
     sc.addEventListener('scroll', () => {
       if (ticking) return;
@@ -932,21 +1164,22 @@
           if (d && (d.getMonth() !== S.cursor.getMonth() || d.getFullYear() !== S.cursor.getFullYear())) {
             S.cursor = d;
             renderTitle();
+            if (!isPhone() && S.sidebar) renderSide();
           }
         }
-        if (mScrollBound) return;
+        if (mScrollBusy) return;
         if (sc.scrollTop < 300) {
-          mScrollBound = true;
+          mScrollBusy = true;
           S.mRange.from = addMonths(S.mRange.from, -6);
           await ensureRange(S.mRange.from, addMonths(S.mRange.to, 1)).catch(() => {});
           renderMMonth('prepend');
-          mScrollBound = null;
+          mScrollBusy = null;
         } else if (sc.scrollTop + sc.clientHeight > sc.scrollHeight - 400) {
-          mScrollBound = true;
+          mScrollBusy = true;
           S.mRange.to = addMonths(S.mRange.to, 6);
           await ensureRange(S.mRange.from, addMonths(S.mRange.to, 1)).catch(() => {});
           renderMMonth(true);
-          mScrollBound = null;
+          mScrollBusy = null;
         }
       });
     });
@@ -979,7 +1212,7 @@
         const e = p.e;
         const h = (p.bottom - p.top) * HOUR_PX;
         const sizeCls = h < 30 ? ' is-short' : h < 48 ? ' is-compact' : '';
-        const metaBits = [showClock(e) ? fmtTime(e.start) : '', e.address || ''].filter(Boolean);
+        const metaBits = [showClock(e) ? fmtTime(e.start) : '', eventStreet(e)].filter(Boolean);
         const meta = h >= 30 && metaBits.length ? `<small>${esc(metaBits.join(' · '))}</small>` : '';
         return `<button type="button" class="ag-blk ${toneCls(e)}${sizeCls}" data-ag-ev="${esc(e.id)}" style="${evStyle(e)};top:${p.top * HOUR_PX}px;height:${Math.max(16, h - 2)}px;left:calc(${(p.col / p.cols) * 100}% + 2px);width:calc(${100 / p.cols}% - 4px)"><b>${esc(ticketTitle(e))}</b>${meta}</button>`;
       })
@@ -1017,12 +1250,12 @@
   // ---------------------------------------------------------------- navigation
   function rangeFor() {
     const c = S.cursor;
-    if (isPhone()) {
-      if (S.view === 'year') return [new Date(c.getFullYear(), 0, 1), new Date(c.getFullYear() + 1, 0, 1)];
+    if (S.view === 'year') return [new Date(c.getFullYear(), 0, 1), new Date(c.getFullYear() + 1, 0, 1)];
+    // Continuous month scroll (phone + desktop/tablet month view).
+    if ((isPhone() && S.view !== 'year') || S.view === 'month') {
       const r = S.mRange || { from: addMonths(c, -3), to: addMonths(c, 9) };
       return [startOfWeek(r.from), addDays(addMonths(r.to, 1), 7)];
     }
-    if (S.view === 'year') return [new Date(c.getFullYear(), 0, 1), new Date(c.getFullYear() + 1, 0, 1)];
     if (S.view === 'list') return [sod(new Date()), addDays(sod(new Date()), 61)];
     const first = new Date(c.getFullYear(), c.getMonth(), 1);
     return [addDays(startOfWeek(first), -7), addDays(startOfWeek(addMonths(first, 1)), 14)];
@@ -1046,6 +1279,16 @@
     else if (S.view === 'year') S.cursor = new Date(c.getFullYear() + dir, c.getMonth(), 1);
     else S.cursor = addMonths(c, dir);
     if (S.view === 'day') S.selected = S.cursor;
+    // Month continuous scroll: glide to the target month when it is already mounted.
+    if (S.view === 'month' && $('#agMScroll')) {
+      const target = new Date(S.cursor.getFullYear(), S.cursor.getMonth(), 1);
+      const has = $('#agMScroll').querySelector(`[data-ag-month="${ymd(target)}"]`);
+      if (has) {
+        renderTitle();
+        if (!isPhone() && S.sidebar) renderSide();
+        return scrollMMonthTo(S.cursor, true);
+      }
+    }
     go();
   }
 
@@ -1091,21 +1334,171 @@
     return MTG_STATUS[e.status] || e.status;
   }
 
+  function partyRoleOf(e) {
+    const m = (e && e.meta) || {};
+    if (!e) return '';
+    if (e.type === 'visit') return 'Lead';
+    if (e.type === 'meeting') return '';
+    const st = String(m.source_type || '').toLowerCase();
+    const ct = String(m.customer_type || (m.customer && m.customer.customer_type) || '').toLowerCase();
+    if (
+      st === 'contractor' ||
+      st === 'builder' ||
+      ct === 'builder' ||
+      ct === 'contractor' ||
+      m.builder_id ||
+      m.builder
+    ) {
+      return 'Builder';
+    }
+    if (st === 'loja' || ct === 'loja') return 'Loja';
+    if (st === 'particular' || ct === 'particular') return 'Particular';
+    if (m.customer_id || m.customer) return 'Particular';
+    return '';
+  }
+
   function contactOf(e) {
-    const m = e.meta;
-    if (e.type === 'visit' && m.lead) return { name: m.lead.name, phone: m.lead.phone, email: m.lead.email, href: `lead-detail.html?id=${encodeURIComponent(m.lead.id)}`, hrefLabel: 'Abrir lead' };
+    const m = e.meta || {};
+    const role = partyRoleOf(e);
+    if (e.type === 'visit' && m.lead) {
+      return {
+        name: String(m.lead.name || '').trim(),
+        role,
+        phone: m.lead.phone,
+        email: m.lead.email,
+        href: `lead-detail.html?id=${encodeURIComponent(m.lead.id)}`,
+        hrefLabel: 'Abrir lead',
+        homeowner_name: '',
+        homeowner_phone: '',
+      };
+    }
     if (e.type === 'job') {
       const c = m.customer || {};
+      const b = m.builder || {};
       const name =
         c.display_name ||
         c.name ||
-        (m.builder && (m.builder.company || m.builder.name)) ||
+        (b.company || b.name) ||
         m.source_name;
-      const jobHrefId = String(e.id).replace(/:(sand|installation|main)$/i, '');
-      return { name, phone: c.phone, email: c.email, href: `jobs.html?id=${encodeURIComponent(jobHrefId)}`, hrefLabel: `Abrir job${m.number ? ' #' + m.number : ''}` };
+      const jobHrefId = jobIdOf(e);
+      return {
+        name: String(name || '').trim(),
+        role,
+        phone: c.phone || b.phone || '',
+        email: c.email || b.email || '',
+        href: `jobs.html?id=${encodeURIComponent(jobHrefId)}`,
+        hrefLabel: `Abrir job${m.number ? ' #' + m.number : ''}`,
+        homeowner_name: String(m.homeowner_name || '').trim(),
+        homeowner_phone: String(m.homeowner_phone || '').trim(),
+      };
     }
     const c = m.customer;
-    return c ? { name: c.name, href: `customers.html?id=${encodeURIComponent(c.id)}`, hrefLabel: 'Abrir cliente' } : {};
+    return c
+      ? {
+          name: String(c.name || '').trim(),
+          role,
+          phone: c.phone || '',
+          email: c.email || '',
+          href: `customers.html?id=${encodeURIComponent(c.id)}`,
+          hrefLabel: 'Abrir cliente',
+          homeowner_name: '',
+          homeowner_phone: '',
+        }
+      : { role: '' };
+  }
+
+  let schedMsgCache = null;
+  let schedMsgPromise = null;
+  function loadSchedClientMessages(force) {
+    if (schedMsgCache && !force) return Promise.resolve(schedMsgCache);
+    if (schedMsgPromise && !force) return schedMsgPromise;
+    schedMsgPromise = api('/api/settings/schedule-messages')
+      .then((j) => {
+        schedMsgCache = j.data || null;
+        return schedMsgCache;
+      })
+      .catch(() => null)
+      .finally(() => {
+        schedMsgPromise = null;
+      });
+    return schedMsgPromise;
+  }
+
+  function scheduleSmsKind(e) {
+    if (!e) return 'job';
+    if (e.type === 'visit') return 'visit';
+    if (e.type === 'meeting') return 'meeting';
+    if (e.type === 'job') {
+      const role = String((e.meta && e.meta.date_role) || '').toLowerCase();
+      if (role === 'delivery') return 'delivery';
+    }
+    return 'job';
+  }
+
+  function fillScheduleSmsTemplate(body, e, ct, company) {
+    const m = (e && e.meta) || {};
+    const date = e.allDay ? fmtDateShort(e.start) : `${fmtDateShort(e.start)} ${fmtTime(e.start)}`;
+    const map = {
+      '[name]': String((ct && ct.name) || 'there').trim() || 'there',
+      '[company]': String(company || 'ObraMate').trim() || 'ObraMate',
+      '[date]': date,
+      '[address]': String(e.address || m.address || '').trim() || '',
+      '[job]': String(ticketTitle(e) || e.title || '').trim() || '',
+      '[client_id]': String(m.client_ref || (m.customer && m.customer.client_code) || '').trim() || '',
+    };
+    let out = String(body || '');
+    Object.keys(map).forEach((k) => {
+      out = out.split(k).join(map[k]);
+    });
+    return out.replace(/\n{3,}/g, '\n\n').trim();
+  }
+
+  function buildAgendaSmsHref(phone, body) {
+    const digits = String(phone || '').replace(/[^\d+]/g, '');
+    if (!digits) return '';
+    if (typeof window.sfBuildSmsHref === 'function') {
+      try {
+        return window.sfBuildSmsHref(phone, body);
+      } catch (_) {}
+    }
+    const enc = encodeURIComponent(String(body || ''));
+    const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    return isIos ? `sms:${digits}&body=${enc}` : `sms:${digits}?body=${enc}`;
+  }
+
+  async function openAgendaSmsPicker(anchorEl, e, phone) {
+    await loadSchedClientMessages(false);
+    const kind = scheduleSmsKind(e);
+    const kinds = (schedMsgCache && schedMsgCache.kinds) || [];
+    const pack = kinds.find((k) => k.slug === kind) || kinds[0];
+    const templates = (pack && pack.templates) || [];
+    const ct = contactOf(e);
+    const company = (schedMsgCache && schedMsgCache.company_name) || '';
+    const options = templates.length
+      ? templates.map((t) => ({
+          id: t.id,
+          label: t.label,
+          href: buildAgendaSmsHref(phone, fillScheduleSmsTemplate(t.body, e, ct, company)),
+        }))
+      : [
+          {
+            id: 'blank',
+            label: 'SMS em branco',
+            href: buildAgendaSmsHref(phone, ''),
+          },
+        ];
+    if (options.length === 1 && options[0].href) {
+      window.location.href = options[0].href;
+      return;
+    }
+    const items = options.map((o) => ({
+      act: 'sms-tpl',
+      label: o.label,
+      color: '#c1652f',
+      data: o.href,
+    }));
+    const r = anchorEl.getBoundingClientRect();
+    openMenu(r.left, r.bottom + 4, items);
   }
 
   function peopleOf(e) {
@@ -1115,6 +1508,19 @@
     (m.members || []).forEach((x) => x.name && !names.includes(x.name) && names.push(x.name));
     (m.temp_workers || []).forEach((x) => x.name && names.push(x.name + ' (temporário)'));
     return names;
+  }
+  /** User ids on the job ticket (members + responsável). */
+  function teamIdsOf(e) {
+    const m = (e && e.meta) || {};
+    const ids = new Set();
+    const lead = m.assigned_user_id || (m.assigned_user && m.assigned_user.id);
+    if (lead) ids.add(String(lead));
+    (m.members || []).forEach((x) => x.user_id && ids.add(String(x.user_id)));
+    return ids;
+  }
+  function teamLabelOf(e) {
+    const names = peopleOf(e);
+    return names.length ? names.join(', ') : '—';
   }
 
   function detailHtml(e, phone) {
@@ -1156,10 +1562,11 @@
             e.address ? `<small>${esc(e.address)}</small>` : ''
           }</div></div>`
         : '';
+    const hasNotes = Boolean(String(notesTarget && notesTarget.value || '').trim());
     const notesBlock = notesTarget
-      ? `<div class="ag-card ag-dtl__notes">
+      ? `<div class="ag-card ag-dtl__notes${hasNotes ? ' has-notes' : ''}">
           <button type="button" class="ag-dtl__notes-tog" data-ag-notes-tog aria-expanded="false">
-            <span>${esc(notesTarget.label)}</span>
+            <span>${esc(notesTarget.label)}${hasNotes ? `<i class="ag-dtl__notes-dot" aria-label="Tem nota"></i>` : ''}</span>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10l4 4 4-4"/></svg>
           </button>
           <div class="ag-dtl__notes-panel" hidden>
@@ -1186,7 +1593,11 @@
     const statusInner = `<b>${esc(statusText(e))}</b>`;
     const sectorInner =
       e.type === 'job' ? `<b>${esc(SECTOR_LBL[e.meta.sector] || e.meta.sector || 'Geral')}</b>` : '';
-    const assigneeInner = `<b>${esc(ppl.join(', ') || '—')}</b>`;
+    const assigneeName =
+      (e.meta.assigned_user && e.meta.assigned_user.name) ||
+      (ppl.length ? ppl[0] : '—');
+    const assigneeInner = `<b>${esc(assigneeName)}</b>`;
+    const teamInner = `<b>${esc(teamLabelOf(e))}</b>`;
 
     return `<div class="ag-dtl" style="${evStyle(e)}" data-ag-detail="${esc(e.id)}" data-ag-type="${esc(e.type)}">
       <div class="ag-dtl__head">${
@@ -1196,17 +1607,50 @@
         ${e.status && e.status !== 'scheduled' ? `<span class="ag-dtl__st">${esc(statusText(e))}</span>` : ''}</div>
       ${
         ct.name || tel
-          ? `<div class="ag-card ag-dtl__row">${tel ? `<span class="ag-dtl__ic ag-dtl__ic--phone"><svg viewBox="0 0 24 24"><path d="M6.5 3.5l3 1 1 4-2 1.5a12 12 0 006 6l1.5-2 4 1 1 3c-1 2-3 2.5-5 2A17 17 0 013.5 8.5c-.5-2 0-4 3-5z"/></svg></span>` : ''}<div><b>${esc(ct.name || '')}</b>${
+          ? `<div class="ag-card ag-dtl__row">${tel ? `<span class="ag-dtl__ic ag-dtl__ic--phone"><svg viewBox="0 0 24 24"><path d="M6.5 3.5l3 1 1 4-2 1.5a12 12 0 006 6l1.5-2 4 1 1 3c-1 2-3 2.5-5 2A17 17 0 013.5 8.5c-.5-2 0-4 3-5z"/></svg></span>` : ''}<div><b>${esc(ct.name || '')}${
+              ct.role ? ` - ${esc(ct.role)}` : ''
+            }</b>${
               ct.phone ? `<small>${esc(typeof window.sfFormatPhone === 'function' ? window.sfFormatPhone(ct.phone) : ct.phone)}</small>` : ''
             }</div>${
               tel || sms
                 ? `<span class="ag-dtl__chips">${tel ? `<a class="ag-chip" href="${esc(tel)}">Ligar</a>` : ''}${
-                    sms ? `<a class="ag-chip" href="${esc(sms)}">SMS</a>` : ''
+                    sms
+                      ? `<button type="button" class="ag-chip" data-ag-sms-pick="${esc(e.id)}" data-ag-sms-phone="${esc(ct.phone || '')}">SMS</button>`
+                      : ''
                   }</span>`
                 : ''
             }</div>`
           : ''
       }
+      ${(() => {
+        const hoName = String(ct.homeowner_name || '').trim();
+        if (!hoName) return '';
+        const hoPhone = String(ct.homeowner_phone || '').trim();
+        const hoDigits = hoPhone ? hoPhone.replace(/[^\d+]/g, '') : '';
+        const hoTel = hoDigits
+          ? typeof window.sfBuildTelHref === 'function'
+            ? window.sfBuildTelHref(hoPhone)
+            : 'tel:' + hoDigits
+          : '';
+        const hoSms = hoDigits
+          ? typeof window.sfBuildSmsHref === 'function'
+            ? window.sfBuildSmsHref(hoPhone)
+            : 'sms:' + hoDigits
+          : '';
+        return `<div class="ag-card ag-dtl__row">${hoTel ? `<span class="ag-dtl__ic ag-dtl__ic--phone"><svg viewBox="0 0 24 24"><path d="M6.5 3.5l3 1 1 4-2 1.5a12 12 0 006 6l1.5-2 4 1 1 3c-1 2-3 2.5-5 2A17 17 0 013.5 8.5c-.5-2 0-4 3-5z"/></svg></span>` : ''}<div><b>${esc(hoName)} - HomeOwner</b>${
+          hoPhone
+            ? `<small>${esc(typeof window.sfFormatPhone === 'function' ? window.sfFormatPhone(hoPhone) : hoPhone)}</small>`
+            : ''
+        }</div>${
+          hoTel || hoSms
+            ? `<span class="ag-dtl__chips">${hoTel ? `<a class="ag-chip" href="${esc(hoTel)}">Ligar</a>` : ''}${
+                hoSms
+                  ? `<button type="button" class="ag-chip" data-ag-sms-pick="${esc(e.id)}" data-ag-sms-phone="${esc(hoPhone)}">SMS</button>`
+                  : ''
+              }</span>`
+            : ''
+        }</div>`;
+      })()}
       ${
         e.address
           ? `<div class="ag-card ag-dtl__addr">${
@@ -1235,6 +1679,11 @@
         }
         <div><span>Responsável</span>${canEdit ? tap('assigned_user_id', assigneeInner) : assigneeInner}</div>
         ${
+          e.type === 'job'
+            ? `<div><span>Equipe</span>${canEdit ? tap('members', teamInner) : teamInner}</div>`
+            : ''
+        }
+        ${
           e.type === 'job' && e.meta.related_work_order
             ? `<div><span>Job ligado</span><b><a class="ag-link" href="jobs.html?id=${encodeURIComponent(e.meta.related_work_order.id)}">#${esc(
                 e.meta.related_work_order.number != null ? e.meta.related_work_order.number : '—'
@@ -1251,20 +1700,17 @@
                 .join('<br>')}</b></div>`
             : ''
         }
-        ${ppl.length && !canEdit ? `<div><span>Equipe</span><b>${esc(ppl.join(', '))}</b></div>` : ''}
         ${e.type === 'job' && e.meta.services_total ? `<div><span>Serviços</span><b>${esc(new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(e.meta.services_total))}</b></div>` : ''}
       </div>
       ${notesBlock}
-      <div class="ag-dtl__acts">${e.type === 'visit' && e.status !== 'canceled' ? `<a class="ag-btn ag-btn--pri" href="field-quote.html?meeting_id=${encodeURIComponent(e.id)}">Começar Field Quote</a>` : ''}${ct.href ? `<a class="ag-btn${e.type === 'visit' ? '' : ' ag-btn--pri'}" href="${esc(ct.href)}">${esc(ct.hrefLabel)}</a>` : ''}${
+      <div class="ag-dtl__acts">${e.type === 'visit' && e.status !== 'canceled' ? `<a class="ag-btn ag-btn--pri" href="field-quote.html?meeting_id=${encodeURIComponent(e.id)}">Começar Field Quote</a>` : ''}${
+        e.type === 'job' && e.status !== 'canceled' && (e.meta.customer_id || e.meta.builder_id)
+          ? `<a class="ag-btn" href="field-quote.html?${e.meta.customer_id ? `customer_id=${encodeURIComponent(e.meta.customer_id)}` : `builder_id=${encodeURIComponent(e.meta.builder_id)}`}">Começar Field Quote</a>`
+          : ''
+      }${ct.href ? `<a class="ag-btn${e.type === 'visit' ? '' : ' ag-btn--pri'}" href="${esc(ct.href)}">${esc(ct.hrefLabel)}</a>` : ''}${
         (e.type === 'meeting' || e.type === 'visit') && e.status !== 'canceled'
           ? `<button type="button" class="ag-btn" data-ag-device-cal="${esc(e.id)}">Adicionar ao Apple Calendar</button>`
           : ''
-      }${
-        canEdit && e.type === 'job'
-          ? `<a class="ag-btn" href="campo/ticket.html?id=${encodeURIComponent(e.id)}">Editar ticket</a>`
-          : ''
-      }${
-        canEdit ? `<button type="button" class="ag-btn" data-ag-edit="${esc(e.id)}">Editar</button>` : ''
       }${
         canEdit && e.type === 'job' && e.meta.sector === 'installation'
           ? `<button type="button" class="ag-btn" data-ag-lixa="${esc(e.id)}">Agendar Lixa</button>`
@@ -1288,16 +1734,32 @@
     if (field === 'title') {
       return `<input type="text" class="ag-dtl__in ag-dtl__in--wide" ${common} value="${esc(e.title)}" maxlength="200" />`;
     }
-    if (field === 'when' && e.type === 'job') {
-      return `<div class="ag-dtl__when" data-ag-when-wrap>
-        <input type="date" class="ag-dtl__in" data-ag-inline="date" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" value="${ymd(e.start)}" />
-      </div>`;
-    }
     if (field === 'when') {
+      const day = ymd(e.start);
+      const doneBtn = `<button type="button" class="ag-dtl__done" data-ag-edit-done aria-label="Confirmar" title="Confirmar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>`;
+      const pickRow = `<div class="ag-dtl__pick-row">
+        <div class="ag-dtl__pick" data-ag-date-pick>${miniMonthHtml(e.start, {
+          pick: true,
+          selectedYmd: day,
+          nav: true,
+          year: true,
+          cls: 'ag-mini--pick',
+        })}</div>
+        ${doneBtn}
+      </div>`;
+      if (e.type === 'job') {
+        return `<div class="ag-dtl__when" data-ag-when-wrap>
+          <input type="hidden" data-ag-inline="date" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" value="${esc(day)}" />
+          ${pickRow}
+        </div>`;
+      }
       return `<div class="ag-dtl__when" data-ag-when-wrap>
-        <input type="date" class="ag-dtl__in" data-ag-inline="date" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" value="${ymd(e.start)}" />
-        ${timeWheelHtml('start', hm(e.start), { inline: true, id: e.id, type: e.type })}
-        ${e.type === 'visit' ? '' : timeWheelHtml('end', hm(e.end), { inline: true, id: e.id, type: e.type })}
+        <input type="hidden" data-ag-inline="date" data-ag-id="${esc(e.id)}" data-ag-type="${esc(e.type)}" value="${esc(day)}" />
+        ${pickRow}
+        <div class="ag-dtl__when-times">
+          ${timeWheelHtml('start', hm(e.start), { inline: true, id: e.id, type: e.type })}
+          ${e.type === 'visit' ? '' : timeWheelHtml('end', hm(e.end), { inline: true, id: e.id, type: e.type })}
+        </div>
       </div>`;
     }
     if (field === 'calendar') {
@@ -1345,6 +1807,20 @@
         .map((u) => `<option value="${esc(u.id)}" ${String(u.id) === String(assigneeId) ? 'selected' : ''}>${esc(u.name || u.email)}</option>`)
         .join('')}</select>`;
     }
+    if (field === 'members') {
+      const on = teamIdsOf(e);
+      if (!users.length) return `<p class="ag-dtl__team-empty" ${common}>Nenhum usuário disponível.</p>`;
+      return `<div class="ag-dtl__team" ${common} role="group" aria-label="Equipe do job">${users
+        .map((u) => {
+          const id = String(u.id);
+          const selected = on.has(id);
+          const lead = String(assigneeId) === id;
+          return `<button type="button" class="ag-team-chip${selected ? ' is-on' : ''}" data-ag-team-uid="${esc(id)}" aria-pressed="${selected ? 'true' : 'false'}">${esc(
+            u.name || u.email,
+          )}${lead ? '<small> · resp.</small>' : ''}</button>`;
+        })
+        .join('')}</div>`;
+    }
     return '';
   }
 
@@ -1381,10 +1857,27 @@
     if (field === 'title' || field === 'when') {
       tapEl.replaceWith(wrap);
       wrap.classList.add('ag-dtl__editing--block');
+      if (field === 'when') wrap.classList.add('ag-dtl__editing--when');
     } else if (field === 'address') {
       const card = tapEl.closest('.ag-dtl__addr') || tapEl;
       card.replaceWith(wrap);
       wrap.classList.add('ag-card', 'ag-dtl__editing--addr');
+      wrap.insertAdjacentHTML(
+        'beforeend',
+        `<button type="button" class="ag-dtl__done" data-ag-edit-done aria-label="Confirmar" title="Confirmar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>`,
+      );
+    } else if (field === 'members') {
+      const cell = tapEl.closest('.ag-dtl__kv > div') || tapEl.parentNode;
+      if (cell && cell !== tapEl) {
+        const label = cell.querySelector(':scope > span');
+        Array.from(cell.children).forEach((ch) => {
+          if (ch !== label) ch.remove();
+        });
+        cell.appendChild(wrap);
+      } else {
+        tapEl.replaceWith(wrap);
+      }
+      wrap.classList.add('ag-dtl__editing--team');
       wrap.insertAdjacentHTML(
         'beforeend',
         `<button type="button" class="ag-dtl__done" data-ag-edit-done aria-label="Confirmar" title="Confirmar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>`,
@@ -1492,6 +1985,17 @@
       const cur = String(ev.meta.assigned_user_id || (ev.meta.assigned_user && ev.meta.assigned_user.id) || '');
       if (valOf('assigned_user_id') === cur) return;
     }
+    if (field === 'members') {
+      const box = detail.querySelector(`[data-ag-inline="members"][data-ag-id="${CSS.escape(id)}"]`);
+      const next = box
+        ? [...box.querySelectorAll('.ag-team-chip.is-on')].map((b) => String(b.getAttribute('data-ag-team-uid') || '')).filter(Boolean).sort()
+        : [];
+      const cur = [...teamIdsOf(ev)].sort();
+      if (next.join(',') === cur.join(',')) {
+        openDetail(id, $(`[data-ag-ev="${CSS.escape(id)}"]`));
+        return;
+      }
+    }
     if (field === 'calendar') {
       if (type === 'job') {
         const sel = detail.querySelector(`[data-ag-inline="calendar"][data-ag-id="${CSS.escape(id)}"]`);
@@ -1522,7 +2026,11 @@
       const date = valOf('date');
       const st = valOf('start') || hm(ev.start);
       const en = valOf('end') || hm(ev.end);
-      if (date === ymd(ev.start) && st === hm(ev.start) && (type === 'visit' || en === hm(ev.end))) return;
+      if (date === ymd(ev.start) && st === hm(ev.start) && (type === 'visit' || en === hm(ev.end))) {
+        // Confirm with no change — leave edit mode so the button never looks broken.
+        openDetail(id, $(`[data-ag-ev="${CSS.escape(id)}"]`));
+        return;
+      }
     }
 
     try {
@@ -1537,7 +2045,15 @@
         else if (field === 'sector') body.sector = valOf('sector') || null;
         else if (field === 'address') body.address = valOf('address') || null;
         else if (field === 'assigned_user_id') body.assigned_user_id = valOf('assigned_user_id') || null;
-        else if (field === 'calendar') {
+        else if (field === 'members') {
+          const box = detail.querySelector(`[data-ag-inline="members"][data-ag-id="${CSS.escape(id)}"]`);
+          const ids = box
+            ? [...box.querySelectorAll('.ag-team-chip.is-on')].map((b) => String(b.getAttribute('data-ag-team-uid') || '')).filter(Boolean)
+            : [];
+          const lead = String(ev.meta.assigned_user_id || (ev.meta.assigned_user && ev.meta.assigned_user.id) || '');
+          if (lead && !ids.includes(lead)) ids.push(lead);
+          body.member_user_ids = ids;
+        } else if (field === 'calendar') {
           const sel = detail.querySelector(`[data-ag-inline="calendar"][data-ag-id="${CSS.escape(id)}"]`);
           const opt = sel && sel.selectedOptions && sel.selectedOptions[0];
           const sector = opt ? String(opt.getAttribute('data-sector') || 'all') : 'all';
@@ -1548,13 +2064,16 @@
           const start = parseLocalDateTime(date, '00:00');
           if (!start) throw new Error('Data inválida.');
           if (ev.meta && ev.meta.date_role === 'sand') body.sand_scheduled_start = start.toISOString();
-          else {
+          else if (ev.meta && ev.meta.date_role === 'delivery') {
+            body.needs_delivery = true;
+            body.delivery_scheduled_start = start.toISOString();
+          } else {
             body.scheduled_start = start.toISOString();
             body.scheduled_end = null;
           }
           body.all_day = true;
         }
-        await api('/api/work-orders/' + encodeURIComponent(String(id).replace(/:sand$/, '')), { method: 'PUT', body });
+        await api('/api/work-orders/' + encodeURIComponent(jobIdOf({ id })), { method: 'PUT', body });
       } else {
         const body = {};
         if (field === 'title' && type === 'meeting') {
@@ -1612,12 +2131,15 @@
       return toast('Sem eventos neste dia.', 'info');
     }
     if (list.length === 1) return openDetail(list[0].id);
+    const addBtn = S.canManage
+      ? `<button type="button" class="ag-round ag-round--add" data-ag-dp-new="${esc(ymd(d))}" aria-label="Adicionar neste dia"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>`
+      : `<span></span>`;
     openSheet(
-      `<header class="ag-sheet__bar"><button type="button" class="ag-round" data-ag-close aria-label="Fechar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button><h2>${esc(fmtDateShort(d))}</h2><span></span></header>
+      `<header class="ag-sheet__bar"><button type="button" class="ag-round" data-ag-close aria-label="Fechar"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button><h2>${esc(fmtDateShort(d))}</h2>${addBtn}</header>
        <div class="ag-sheet__body"><div class="ag-card" style="padding:6px">${list
          .map(
            (e) =>
-             `<button type="button" class="ag-li" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i></i><time>${esc(e.allDay ? 'dia inteiro' : fmtTime(e.start))}</time><div><b>${esc(ticketTitle(e))}</b><small>${esc(typeInfo(e.type).one)}</small></div></button>`
+             `<button type="button" class="ag-li" data-ag-ev="${esc(e.id)}" style="${evStyle(e)}"><i></i><time>${esc(e.allDay ? 'dia inteiro' : fmtTime(e.start))}</time><div><b>${esc(ticketTitle(e))}</b><small>${esc(eventTypeLabel(e))}</small></div></button>`
          )
          .join('')}</div></div>`
     );
@@ -1877,6 +2399,14 @@
     void y;
   }
 
+  /** Menu under “+ Novo”: no repeated “Novo/New” — the button already says that. */
+  function newMenuLabel(name, fallback) {
+    let n = String(name || '').trim();
+    n = n.replace(/^(novo|nova|new)\s+/i, '').trim();
+    if (!n) n = String(fallback || '').trim();
+    return n || fallback || 'Item';
+  }
+
   function newMenu(x, y, when) {
     if (!S.canManage) return toast('Sem permissão para agendar.', 'error');
     const w = when ? when.toISOString() : '';
@@ -1891,10 +2421,9 @@
     const meets = cals.filter((c) => c.kind === 'meetings' || c.kind === 'custom');
     const items = [];
     jobs.forEach((c) => {
-      const name = jobs.length > 1 ? `Novo job · ${c.name}` : 'Novo job';
       items.push({
         act: 'new-job',
-        label: name + whenLabel,
+        label: newMenuLabel(jobs.length > 1 ? c.name : calOne(c.name, 'Job'), 'Job') + whenLabel,
         color: c.color,
         data: w,
         cal: c.id,
@@ -1904,7 +2433,7 @@
     visits.forEach((c) => {
       items.push({
         act: 'new-visit',
-        label: `Nova ${calOne(c.name, 'visita').toLowerCase()}` + whenLabel,
+        label: newMenuLabel(calOne(c.name, 'Visita'), 'Visita') + whenLabel,
         color: c.color,
         data: w,
         cal: c.id,
@@ -1913,7 +2442,7 @@
     meets.forEach((c) => {
       items.push({
         act: 'new-meeting',
-        label: `Novo ${calOne(c.name, 'compromisso').toLowerCase()}` + whenLabel,
+        label: newMenuLabel(calOne(c.name, 'Compromisso'), 'Compromisso') + whenLabel,
         color: c.color,
         data: w,
         cal: c.id,
@@ -1921,8 +2450,8 @@
     });
     if (!items.length) {
       items.push(
-        { act: 'new-job', label: 'Novo job' + whenLabel, color: TYPES.job.color, data: w },
-        { act: 'new-meeting', label: 'Novo compromisso' + whenLabel, color: TYPES.meeting.color, data: w },
+        { act: 'new-job', label: 'Job' + whenLabel, color: TYPES.job.color, data: w },
+        { act: 'new-meeting', label: 'Compromisso' + whenLabel, color: TYPES.meeting.color, data: w },
       );
     }
     openMenu(x, y, items);
@@ -1954,7 +2483,7 @@
       if (!window.__crmJobModal) return toast('Editor de job indisponível.', 'error');
       closePop();
       closeSheet();
-      if (ev) window.__crmJobModal.openEdit(String(ev.id).replace(/:sand$/, '')).catch((e) => toast(e.message, 'error'));
+      if (ev) window.__crmJobModal.openEdit(jobIdOf({ id: ev.id })).catch((e) => toast(e.message, 'error'));
       else {
         const createOpts = when ? { start: when instanceof Date ? when : new Date(when), allDay: true } : { allDay: true };
         if (opts.sector === 'installation' || opts.sector === 'sand_finish' || opts.sector === 'both') createOpts.sector = opts.sector;
@@ -2330,7 +2859,7 @@
       ? hits
           .map(
             (e) => `<button type="button" class="ag-li ${toneCls(e)}" data-ag-hit="${esc(e.id)}" style="${evStyle(e)}"><i></i><time>${esc(fmtDateShort(e.start))}<br/><small>${esc(e.type === 'job' ? (e.allDay ? 'dia inteiro' : '') : e.allDay ? 'dia inteiro' : fmtTime(e.start))}</small></time><div><b>${esc(ticketTitle(e))}</b><small>${esc(
-              [typeInfo(e.type).one, e.address].filter(Boolean).join(' · ')
+              [eventTypeLabel(e), eventStreet(e) || null].filter(Boolean).join(' · ')
             )}</small></div></button>`
           )
           .join('')
@@ -2383,15 +2912,18 @@
       : new Date(day.getFullYear(), day.getMonth(), day.getDate(), e.start.getHours(), e.start.getMinutes(), 0, 0);
     if (e.type !== 'job' && !e.allDay && !e.start.getHours() && !e.start.getMinutes()) start.setHours(9, 0, 0, 0);
     const end = new Date(start.getTime() + (e.type === 'job' ? 86400000 : ms));
-    const sand = e.type === 'job' && e.meta && e.meta.date_role === 'sand';
-    const body = sand
-      ? { sand_scheduled_start: start.toISOString(), all_day: true }
-      : e.type === 'job'
-        ? { scheduled_start: start.toISOString(), scheduled_end: null, all_day: true }
-        : { scheduled_start: start.toISOString(), scheduled_end: end.toISOString() };
+    const role = e.type === 'job' ? String((e.meta && e.meta.date_role) || '').toLowerCase() : '';
+    const body =
+      role === 'sand'
+        ? { sand_scheduled_start: start.toISOString(), all_day: true }
+        : role === 'delivery'
+          ? { needs_delivery: true, delivery_scheduled_start: start.toISOString(), all_day: true }
+          : e.type === 'job'
+            ? { scheduled_start: start.toISOString(), scheduled_end: null, all_day: true }
+            : { scheduled_start: start.toISOString(), scheduled_end: end.toISOString() };
     try {
       if (e.type === 'job') {
-        await api('/api/work-orders/' + encodeURIComponent(String(e.id).replace(/:sand$/, '')), { method: 'PUT', body });
+        await api('/api/work-orders/' + encodeURIComponent(jobIdOf({ id: e.id })), { method: 'PUT', body });
       } else {
         await api('/api/meetings/' + encodeURIComponent(e.id), { method: 'PUT', body });
       }
@@ -2441,10 +2973,16 @@
     } catch (_) {}
   }
 
-  /** Long-press (2s) on an empty calendar day → open + Schedule menu. */
+  const isTablet = () => window.matchMedia('(min-width: 768px) and (max-width: 1279px)').matches;
+
+  /** Long-press on an empty calendar day → open + New menu (short on tablet/touch). */
   function wireLongPressCreate() {
-    const HOLD_MS = 2000;
-    const LOCK_MS = 280;
+    const LOCK_MS = 220;
+    const holdMs = (ev) => {
+      if (ev.pointerType === 'touch' || ev.pointerType === 'pen') return 480;
+      if (isTablet() || isPhone()) return 480;
+      return 2000;
+    };
     let timer = null;
     let lockTimer = null;
     let startX = 0;
@@ -2478,7 +3016,7 @@
         return { day: null, cell: null };
       }
       const chromeBtn = t.closest('button');
-      if (chromeBtn && !chromeBtn.closest('[data-ag-day], [data-ag-mday], [data-ag-col]')) {
+      if (chromeBtn && !chromeBtn.closest('[data-ag-day], [data-ag-mday], [data-ag-col], [data-ag-goday]')) {
         return { day: null, cell: null };
       }
       const el = t.closest('[data-ag-day], [data-ag-mday], [data-ag-col]');
@@ -2504,6 +3042,7 @@
         pointerId = ev.pointerId;
         clearTimeout(timer);
         clearTimeout(lockTimer);
+        const ms = holdMs(ev);
         lockTimer = setTimeout(() => {
           if (!day) return;
           locked = true;
@@ -2523,7 +3062,7 @@
             if (navigator.vibrate) navigator.vibrate(18);
           } catch (_) {}
           newMenu(cx, cy, when);
-        }, HOLD_MS);
+        }, ms);
       },
       true,
     );
@@ -2768,6 +3307,10 @@
           });
         }
         if (act === 'new-visit') return openEditor('visit', null, when || null);
+        if (act === 'sms-tpl') {
+          if (when) window.location.href = when;
+          return;
+        }
         if (act === 'new-meeting') {
           const calId = el.getAttribute('data-ag-cal-id') || '';
           const cal = calId ? calList().find((c) => c.id === calId) : null;
@@ -2819,7 +3362,7 @@
         const m = e.meta || {};
         window.__crmJobModal
           .openScheduleLixa({
-            id: String(e.id).replace(/:sand$/, ''),
+            id: jobIdOf({ id: e.id }),
             number: m.number,
             title: e.title,
             sector: m.sector,
@@ -2846,7 +3389,7 @@
         const e = findEv(el.dataset.agDelOk);
         el.disabled = true;
         try {
-          await api(e.type === 'job' ? '/api/work-orders/' + encodeURIComponent(String(e.id).replace(/:sand$/, '')) : '/api/meetings/' + encodeURIComponent(e.id), { method: 'DELETE' });
+          await api(e.type === 'job' ? '/api/work-orders/' + encodeURIComponent(jobIdOf({ id: e.id })) : '/api/meetings/' + encodeURIComponent(e.id), { method: 'DELETE' });
           closeSheet();
           toast('Cancelado', 'success');
           await reload();
@@ -2892,11 +3435,79 @@
         if (url) setTimeout(() => { window.location.href = url; }, 60);
         return;
       }
+      if ((el = t.closest('[data-ag-team-uid]'))) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const on = !el.classList.contains('is-on');
+        el.classList.toggle('is-on', on);
+        el.setAttribute('aria-pressed', on ? 'true' : 'false');
+        return;
+      }
       if ((el = t.closest('[data-ag-edit-done]'))) {
         ev.preventDefault();
         ev.stopPropagation();
         const detail = el.closest('[data-ag-detail]');
+        const editing = detail && detail.querySelector('[data-ag-editing]');
+        const mode = editing && editing.getAttribute('data-ag-editing');
+        if (mode === 'members') {
+          const box = editing.querySelector('[data-ag-inline="members"]') || editing;
+          void applyInlinePatch(box);
+          return;
+        }
+        if (mode === 'when') {
+          const dateEl =
+            editing.querySelector('[data-ag-inline="date"]') ||
+            editing.querySelector('[data-ag-inline="start"]') ||
+            editing.querySelector('[data-ag-inline]');
+          if (dateEl) void applyInlinePatch(dateEl);
+          else if (detail) dismissFieldEdit(detail);
+          return;
+        }
         if (detail) dismissFieldEdit(detail);
+        return;
+      }
+      if ((el = t.closest('[data-ag-pick-nav]'))) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const wrap = el.closest('[data-ag-when-wrap]') || el.closest('[data-ag-editing]');
+        if (!wrap) return;
+        const mini = wrap.querySelector('[data-ag-mini-ym]');
+        const ym = mini && mini.getAttribute('data-ag-mini-ym');
+        const parts = String(ym || '').split('-');
+        const y = Number(parts[0]);
+        const m = Number(parts[1]);
+        if (!Number.isFinite(y) || !Number.isFinite(m)) return;
+        const dir = Number(el.getAttribute('data-ag-pick-nav')) || 0;
+        const next = new Date(y, m + dir, 1);
+        const dateInp = wrap.querySelector('[data-ag-inline="date"]');
+        const selectedYmd = dateInp ? String(dateInp.value || '') : '';
+        const host = wrap.querySelector('[data-ag-date-pick]');
+        if (host) {
+          host.innerHTML = miniMonthHtml(next, {
+            pick: true,
+            selectedYmd,
+            nav: true,
+            year: true,
+            cls: 'ag-mini--pick',
+          });
+        }
+        return;
+      }
+      if ((el = t.closest('[data-ag-pickday]'))) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (el.classList.contains('is-out')) return;
+        const day = el.getAttribute('data-ag-pickday');
+        const wrap = el.closest('[data-ag-when-wrap]') || el.closest('[data-ag-editing]');
+        if (!wrap || !day) return;
+        const dateInp = wrap.querySelector('[data-ag-inline="date"]');
+        if (dateInp) dateInp.value = day;
+        wrap.querySelectorAll('.ag-mini__d[data-ag-pickday]').forEach((btn) => {
+          btn.classList.toggle(
+            'is-sel',
+            btn.getAttribute('data-ag-pickday') === day && !btn.classList.contains('is-out'),
+          );
+        });
         return;
       }
       if ((el = t.closest('[data-ag-tap]'))) {
@@ -2916,6 +3527,12 @@
             return;
           }
         }
+      }
+      if ((el = t.closest('[data-ag-sms-pick]'))) {
+        const evn = findEv(el.dataset.agSmsPick);
+        const phone = el.dataset.agSmsPhone || (evn && contactOf(evn).phone) || '';
+        if (!evn || !phone) return toast('Sem telefone para SMS.', 'error');
+        return void openAgendaSmsPicker(el, evn, phone);
       }
       if ((el = t.closest('[data-ag-notes-tog]'))) {
         const box = el.closest('.ag-dtl__notes');
@@ -2937,7 +3554,7 @@
         try {
           const notes = String(ta.value || '').trim() || null;
           if (kind === 'job') {
-            await api('/api/work-orders/' + encodeURIComponent(String(id).replace(/:sand$/, '')), { method: 'PUT', body: { notes } });
+            await api('/api/work-orders/' + encodeURIComponent(jobIdOf({ id: id })), { method: 'PUT', body: { notes } });
             const evn = findEv(id);
             if (evn) evn.meta.notes = notes;
           } else if (kind === 'meeting') {
@@ -2953,6 +3570,14 @@
           }
           toast('Notas guardadas', 'success');
           el.disabled = true;
+          const box = ta.closest('.ag-dtl__notes');
+          const tog = box && box.querySelector('[data-ag-notes-tog] span');
+          const has = Boolean(notes);
+          if (box) box.classList.toggle('has-notes', has);
+          if (tog) {
+            const label = String(tog.textContent || '').replace(/\s*Tem nota\s*$/i, '').trim() || 'Notas';
+            tog.innerHTML = has ? `${esc(label)}<em class="ag-dtl__notes-badge">Tem nota</em>` : esc(label);
+          }
         } catch (err) {
           el.disabled = false;
           toast(err.message, 'error');
@@ -2985,8 +3610,10 @@
           S.cursor = sod(new Date());
           S.selected = sod(new Date());
           if (isPhone() && S.view === 'year') S.view = 'month';
-          if (isPhone() && S.mmode === 'month' && $('#agMScroll')) {
+          if (S.view === 'month' && (isPhone() ? S.mmode === 'month' : true) && $('#agMScroll')) {
             renderTitle();
+            renderDayPanel();
+            if (!isPhone() && S.sidebar) renderSide();
             return scrollMMonthTo(S.cursor, true);
           }
           return go();
@@ -3079,9 +3706,33 @@
         return openDayEventsSheet(el.dataset.agDaylist);
       }
       if ((el = t.closest('[data-ag-mday]'))) {
-        // Month phone: open event card / day list — never enter day view.
-        if (t.closest('[data-ag-ev], [data-ag-day-route]')) return;
-        return openDayEventsSheet(el.dataset.agMday);
+        if (t.closest('[data-ag-ev], [data-ag-day-route], [data-ag-daylist]')) return;
+        const day = parseYmd(el.dataset.agMday);
+        if (!day) return;
+        if (isPhone()) {
+          // Month phone: open event card / day list — never enter day view.
+          return openDayEventsSheet(el.dataset.agMday);
+        }
+        // Several bookings: same as “+N” — list every appointment for the day.
+        if (eventsOnDay(day).length > 1) {
+          S.selected = day;
+          $$('.ag-md.is-sel, .ag-day.is-sel').forEach((x) => x.classList.remove('is-sel'));
+          el.classList.add('is-sel');
+          renderDayPanel();
+          if (S.sidebar) renderSide({ selectionOnly: true });
+          return openDayEventsSheet(el.dataset.agMday);
+        }
+        S.selected = day;
+        $$('.ag-md.is-sel, .ag-day.is-sel').forEach((x) => x.classList.remove('is-sel'));
+        el.classList.add('is-sel');
+        renderDayPanel();
+        if (S.sidebar) renderSide({ selectionOnly: true });
+        return;
+      }
+      if ((el = t.closest('[data-ag-mini-nav]'))) {
+        const dir = Number(el.dataset.agMiniNav) || 0;
+        S.cursor = addMonths(new Date(S.cursor.getFullYear(), S.cursor.getMonth(), 1), dir);
+        return go();
       }
       if ((el = t.closest('[data-ag-strip]'))) return goDay(parseYmd(el.dataset.agStrip));
       if ((el = t.closest('[data-ag-users-all]'))) {
@@ -3090,15 +3741,29 @@
         return render();
       }
       if ((el = t.closest('[data-ag-day]')) && !isPhone()) {
-        S.selected = parseYmd(el.dataset.agDay);
-        $$('.ag-day.is-sel').forEach((x) => x.classList.remove('is-sel'));
+        const day = parseYmd(el.dataset.agDay);
+        if (!day) return;
+        if (eventsOnDay(day).length > 1) {
+          S.selected = day;
+          $$('.ag-day.is-sel, .ag-md.is-sel').forEach((x) => x.classList.remove('is-sel'));
+          el.classList.add('is-sel');
+          renderDayPanel();
+          if (S.sidebar) renderSide({ selectionOnly: true });
+          return openDayEventsSheet(el.dataset.agDay);
+        }
+        S.selected = day;
+        $$('.ag-day.is-sel, .ag-md.is-sel').forEach((x) => x.classList.remove('is-sel'));
         el.classList.add('is-sel');
         renderDayPanel();
+        if (S.sidebar) renderSide({ selectionOnly: true });
         return;
       }
       if ((el = t.closest('[data-ag-dp-new]'))) {
         const r = el.getBoundingClientRect();
-        return newMenu(r.left, r.bottom + 4, parseYmd(el.dataset.agDpNew));
+        const when = parseYmd(el.dataset.agDpNew);
+        // + inside the multi-event day sheet: close sheet so the create menu sits on top.
+        if (el.closest('#agSheet')) closeSheet();
+        return newMenu(r.left, r.bottom + 4, when);
       }
       if ((el = t.closest('[data-ag-col]')) && !t.closest('.ag-blk')) {
         if (!S.canManage) return;
@@ -3108,8 +3773,14 @@
     });
 
     document.addEventListener('dblclick', (ev) => {
-      const el = ev.target.closest('[data-ag-day]');
-      if (el && !ev.target.closest('[data-ag-ev], [data-ag-day-route]')) newMenu(ev.clientX, ev.clientY, parseYmd(el.dataset.agDay));
+      const el = ev.target.closest('[data-ag-day], [data-ag-mday]');
+      if (el && !ev.target.closest('[data-ag-ev], [data-ag-day-route], [data-ag-daylist]')) {
+        const day = parseYmd(el.dataset.agDay || el.dataset.agMday);
+        if (day) {
+          S.selected = day;
+          newMenu(ev.clientX, ev.clientY, day);
+        }
+      }
     });
 
     document.addEventListener('input', (ev) => {
@@ -3127,6 +3798,9 @@
       const t = ev.target;
       if (!(t instanceof HTMLElement)) return;
       if (t.matches('[data-ag-inline]')) {
+        const field = t.getAttribute('data-ag-inline');
+        // Date/time wait for the confirm checkmark — do not save on picker change alone.
+        if (field === 'date' || field === 'start' || field === 'end') return;
         void applyInlinePatch(t);
         return;
       }
@@ -3429,7 +4103,11 @@
 
   function openNewMenu(anchorEl) {
     if (!S.canManage) return toast('Sem permissão para agendar.', 'error');
-    const base = isPhone() && S.mmode === 'day' ? new Date(S.selected) : S.view === 'day' ? new Date(S.cursor) : null;
+    // Prefer the day the user selected (or the day view cursor) so Novo opens on that date.
+    let base = null;
+    if (isPhone() && S.mmode === 'day') base = new Date(S.selected);
+    else if (S.view === 'day') base = new Date(S.cursor);
+    else if (S.selected) base = new Date(S.selected);
     if (anchorEl && anchorEl.getBoundingClientRect) {
       const r = anchorEl.getBoundingClientRect();
       return newMenu(r.left, r.bottom + 8, base);
@@ -3438,6 +4116,23 @@
   }
 
   window.__agendaOpenNew = () => openNewMenu(null);
+  // The ObraCalendar app (obracalendar.js) reuses the same data, sheets and month.
+  window.__agendaApp = {
+    eventsOnDay,
+    openDetail,
+    fmtTime,
+    typeInfo,
+    ticketTitle,
+    dayRouteBtnHtml,
+    contactOf,
+    showMonth() {
+      if (S.mmode === 'month' && S.view === 'month') return;
+      S.view = 'month';
+      S.mmode = 'month';
+      S.mRange = null;
+      go();
+    },
+  };
 
   // ---------------------------------------------------------------- boot
   async function boot() {

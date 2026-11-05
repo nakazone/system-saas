@@ -76,13 +76,6 @@
     return map[status] || status || "—";
   }
 
-  function statusCls(status) {
-    if (status === "in_progress") return "jcm-badge--progress";
-    if (status === "scheduled") return "jcm-badge--sched";
-    if (status === "completed") return "jcm-badge--done";
-    return "jcm-badge--open";
-  }
-
   function fmtTimeRange(start, end) {
     if (!start) return "Sem horário";
     const s = new Date(start);
@@ -163,7 +156,9 @@
     if (mobStatus) {
       out = matched.filter((wo) => {
         const stage = window.JobsInfo?.stageLabel?.(wo);
-        if (mobStatus === "Em campo") return stage === "Em campo" || stage === "Lixa";
+        if (mobStatus === "Em campo") {
+          return window.JobsInfo?.isInFieldStage?.(stage) || stage === "Em campo" || stage === "Lixa" || stage === "Installing" || stage === "Sanding";
+        }
         return stage === mobStatus;
       });
     } else if (tab === "today") {
@@ -179,7 +174,14 @@
     if (focusId) {
       const pinned = rows.find((wo) => String(wo.id) === String(focusId) && wo.status !== "canceled");
       const pinnedStage = window.JobsInfo?.stageLabel?.(pinned);
-      const statusOk = mobStatus === "Em campo" ? pinnedStage === "Em campo" || pinnedStage === "Lixa" : pinnedStage === mobStatus;
+      const statusOk =
+        mobStatus === "Em campo"
+          ? window.JobsInfo?.isInFieldStage?.(pinnedStage) ||
+            pinnedStage === "Em campo" ||
+            pinnedStage === "Lixa" ||
+            pinnedStage === "Installing" ||
+            pinnedStage === "Sanding"
+          : pinnedStage === mobStatus;
       const allowed = pinned && (mobStatus ? statusOk : !isPaidJob(pinned));
       if (allowed) out = [pinned, ...out.filter((wo) => String(wo.id) !== String(pinned.id))];
     }
@@ -227,24 +229,25 @@
               : `<a class="jmx-b" href="${detailHref}">Ver job</a>`
           : `<a class="jmx-b" href="${detailHref}">Ver job</a>`;
     const listed = J && J.listWhen ? J.listWhen(wo) : null;
-    const when = listed
-      ? [listed.date, listed.status].filter(Boolean).join(" · ")
-      : !wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start)
-        ? "Sem data"
-        : fmtDay(wo.scheduled_start);
+    const undated = !wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start);
+    const date = listed ? listed.date : undated ? "" : fmtDay(wo.scheduled_start);
+    const lt = J && J.late ? J.late(wo) : null;
+    const stText = lt ? lt.short : listed && listed.status ? listed.status : undated ? "Sem data" : "";
+    const tone = J && J.stageTone ? J.stageTone(wo) : "wait";
+    const title = cardTitle(wo);
     return `<article class="om-swipe jcm-job-swipe" data-job-id="${escapeHtml(wo.id)}">
       <div class="om-swipe__actions" aria-hidden="true">
         <a class="om-swipe__act--edit" href="${detailHref}">Abrir</a>
         ${canManage && wo.status !== "canceled" ? `<button type="button" class="om-swipe__act--delete" data-job-delete="${escapeHtml(wo.id)}" data-job-label="${escapeHtml(wo.title || clientLabel(wo))}">Excluir</button>` : `<a class="om-swipe__act--open" href="${detailHref}">Detalhe</a>`}
       </div>
       <div class="om-swipe__body jmx-card">
-        <a class="jmx-card__a" href="${detailHref}">
-          <b class="jmx-card__t">${escapeHtml(cardTitle(wo))}</b>
-          ${wo.address ? `<span class="jmx-card__s jmx-card__addr"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><span>${escapeHtml(wo.address)}</span></span>` : ""}
-          ${J ? J.progHtml(wo) : ""}
+        <a class="jmx-card__a ol-row" href="${detailHref}">
+          <b class="ol-t" title="${escapeHtml(title)}">${escapeHtml(title)}</b>
+          ${date && !undated ? `<span class="ol-v">${escapeHtml(date)}</span>` : ""}
+          ${wo.address ? `<span class="ol-m"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><span>${escapeHtml(wo.address)}</span></span>` : `<span class="ol-m"><span>Sem endereço</span></span>`}
+          <span class="ol-f">${stText ? `<span class="ol-st is-${tone}">${escapeHtml(stText)}</span>` : ""}${J ? J.progHtml(wo) : ""}</span>
         </a>
         <div class="jmx-card__r3">
-          <span class="jmx-card__when">${escapeHtml(when)}</span>
           ${maps ? `<a class="jmx-b jmx-b--sq" href="${maps}" target="_blank" rel="noopener" aria-label="Mapa"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></a>` : ""}
           ${cta}
         </div>
@@ -280,7 +283,7 @@
               <span class="jcm-job__day${today ? " is-today" : ""}">${escapeHtml(today ? "Hoje" : day || "Sem data")}</span>
               <span class="jcm-job__time">${escapeHtml(fmtTimeRange(wo.scheduled_start, wo.scheduled_end))}</span>
             </div>
-            <span class="jcm-badge ${statusCls(wo.status)}">${escapeHtml(statusPt(wo.status))}</span>
+            <span class="ol-st is-${window.JobsInfo?.stageTone ? window.JobsInfo.stageTone(wo) : "wait"}">${escapeHtml(statusPt(wo.status))}</span>
           </div>
           <p class="jcm-job__title">${escapeHtml(cardTitle(wo))}</p>
           <p class="jcm-job__client">${escapeHtml(window.JobsInfo?.findLine ? window.JobsInfo.findLine(wo) : clientLabel(wo))}</p>
@@ -430,7 +433,13 @@
 
   async function deleteJob(id, label, btn) {
     if (!id || !canManage) return;
-    if (!confirm(`Excluir o job “${label || id}”?\n\nO job será cancelado e sai da lista ativa.`)) return;
+    const okDel = await window.crmConfirm({
+      title: `Excluir o job “${label || id}”?`,
+      text: "O job será cancelado e sai da lista ativa.",
+      ok: "Excluir job",
+      danger: true,
+    });
+    if (!okDel) return;
     const prev = btn?.textContent;
     if (btn) {
       btn.disabled = true;
@@ -465,9 +474,7 @@
       const nxt = wo && window.JobsInfo?.nextFinish ? window.JobsInfo.nextFinish(wo) : null;
       if (nxt?.toast) doneToast = nxt.toast;
       const label = wo?.title || (wo ? clientLabel(wo) : "");
-      const ok = window.crmConfirm?.completeJob
-        ? await window.crmConfirm.completeJob(label, nxt)
-        : confirm(nxt?.confirm || "Marcar o job como concluído?");
+      const ok = await window.crmConfirm.completeJob(label, nxt);
       if (!ok) return;
     }
     try {

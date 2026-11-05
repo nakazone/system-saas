@@ -13,17 +13,18 @@
   <link rel="stylesheet" href="design-system.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="mobile-design-system.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-shared-nav.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="crm-toast.css?v=20261008-modulos1" />
+  <link rel="stylesheet" href="crm-toast.css?v=20261104-ux2" />
   <link rel="stylesheet" href="crm-shell.css?v=20261019-logout2" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-module-panel.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="obramate-app.css?v=20261019-logout2" />
   <link rel="stylesheet" href="om-mobile-nav.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="crm-job-modal.css?v=20261028-jobs4" />
+  <link rel="stylesheet" href="crm-job-modal.css?v=20261104-ux2" />
   <link rel="stylesheet" href="om-gestures.css?v=20261102-ptr1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
   <link rel="stylesheet" href="customers-board.css?v=20261029-cli1" />
+  <link rel="stylesheet" href="crm-list.css?v=20261104-ux2" />
 </head>
 <body class="dashboard-app-body om-app sidebar-collapsed cx-app">
   <script src="/om-reload.js?v=20261013-rl8"></script>
@@ -91,14 +92,14 @@
           </div>
         </header>
 
-        <div class="cx-split" id="cxSplit">
-          <aside class="cx-list" id="cxListPane" aria-label="Lista de clientes">
-            <div class="cx-list__top">
-              <label class="cx-search"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" id="cxSearch" placeholder="Buscar nome, telefone, e-mail ou endereço" autocomplete="off" aria-label="Buscar clientes" /></label>
-              <nav class="cx-chips" id="cxChips" aria-label="Tipo de cliente"></nav>
+        <div class="cx-split ol-split" id="cxSplit">
+          <aside class="cx-list ol-list" id="cxListPane" aria-label="Lista de clientes">
+            <div class="cx-list__top ol-top">
+              <label class="cx-search ol-search"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" id="cxSearch" placeholder="Buscar nome, telefone, e-mail ou endereço" autocomplete="off" aria-label="Buscar clientes" /></label>
+              <nav class="cx-chips ol-seg" id="cxChips" aria-label="Tipo de cliente"></nav>
             </div>
             <div class="om-ptr" id="cxPtr" aria-hidden="true">↓ Puxe para atualizar</div>
-            <div class="cx-rows" id="cxRows" role="list"><p class="cx-empty">Carregando…</p></div>
+            <div class="cx-rows ol-rows" id="cxRows" role="list"><p class="cx-empty">Carregando…</p></div>
           </aside>
           <section class="cx-detail" id="cxDetail" aria-live="polite">
             <div class="cx-blank" id="cxBlank"><p>Escolha um cliente na lista.</p></div>
@@ -230,15 +231,17 @@
   <div class="cx-menu" id="cxMoreMenu" role="menu" hidden></div>
 
   <script src="crm-toast.js"></script>
-  <script src="crm-i18n.js?v=20261001-refresh1"></script>
+  <script src="crm-i18n.js?v=20261104-ux1"></script>
   <script src="saas-branding.js"></script>
-  <script src="crm-address-autocomplete.js?v=20261028-pac"></script>
-  <script src="crm-shared-nav.js?v=20261015-refnav1"></script>
-  <script src="crm-shell.js?v=20261102-ptr1"></script>
-  <script src="om-mobile-nav.js?v=20261014-perfil1"></script>
+  <script src="crm-address-autocomplete.js?v=20261103-addr1"></script>
+  <script src="crm-shared-nav.js?v=20261105-dockall"></script>
+  <script src="crm-shell.js?v=20261104-ux2"></script>
+  <script src="om-mobile-nav.js?v=20261105-camswipe1"></script>
   <script src="om-gestures.js?v=20261102-ptr1"></script>
-  <script src="crm-job-modal.js?v=20261102-svc2"></script>
+  <script src="crm-listbox-keys.js?v=20261103-addr1"></script>
+  <script src="crm-job-modal.js?v=20261104-ux2"></script>
   <script src="lead-signals.js?v=20261015-leads4"></script>
-  <script src="customers-page.js?v=20261029-cli1"></script>
+  <script src="customers-page.js?v=20261104-ux2"></script>
+  <script src="crm-list.js?v=20261105-agd1"></script>
 </body>
 </html>

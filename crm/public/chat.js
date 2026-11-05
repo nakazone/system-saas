@@ -11,13 +11,12 @@
     conversations: [],
     jobs: [],
     jobsLoading: false,
+    jobsError: "",
     jobsLoadSeq: 0,
     jobsSearchTimer: null,
     filter: "all",
     listQuery: "",
-    jobStatus: "active",
-    jobFrom: "",
-    jobTo: "",
+    jobStatus: "active", // active = Andamento · completed = Finalizados
     activeId: null,
     messages: [],
     hasMore: false,
@@ -191,6 +190,14 @@
   }
 
   // —— List ——
+  /** Selo de status no padrão das listas (crm-list.css). */
+  function jobStatusBadge(status) {
+    const label = jobStatusLabel(status);
+    if (!label) return "";
+    const tone = { in_progress: "act", completed: "ok", canceled: "off" }[status] || "wait";
+    return `<span class="ol-st is-${tone}">${escapeHtml(label)}</span>`;
+  }
+
   function jobStatusLabel(status) {
     const map = {
       draft: "Rascunho",
@@ -207,13 +214,6 @@
     const d = new Date(start);
     if (Number.isNaN(d.getTime())) return "Sem agenda";
     return d.toLocaleDateString(undefined, { day: "2-digit", month: "short" });
-  }
-
-  function toLocalDateInputValue(d) {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
   }
 
   function initialsFrom(name) {
@@ -288,6 +288,21 @@
     );
   }
 
+  function syncJobFilterUi() {
+    const filters = $("chatJobFilters");
+    const search = $("chatListSearch");
+    const onJobs = state.filter === "job";
+    if (filters) filters.hidden = !onJobs;
+    if (search) {
+      search.placeholder = onJobs ? "Buscar jobs…" : "Buscar conversas…";
+    }
+    document.querySelectorAll("[data-job-status]").forEach((btn) => {
+      const on = btn.getAttribute("data-job-status") === (state.jobStatus || "active");
+      btn.classList.toggle("is-active", on);
+      btn.setAttribute("aria-selected", on ? "true" : "false");
+    });
+  }
+
   function filteredConversations() {
     const q = state.listQuery.trim().toLowerCase();
     const rows = realConversations().filter((c) => {
@@ -326,25 +341,94 @@
           ? `${(c.members || []).length} membros`
           : "Direta";
     const muted = c.muted && !unread ? `<span class="chat-conv__muted" title="Silenciada">${SVG.mute}</span>` : "";
-    return `<button type="button" class="chat-conv${active}${unread ? " is-unread" : ""}${
+    const time = fmtTime(c.last_message?.created_at || c.updated_at);
+    const lead = convAvatarHtml(c).replace('class="chat-ava', 'class="ol-lead chat-ava');
+    const st = c.type === "job" && c.work_order?.status ? jobStatusBadge(c.work_order.status) : "";
+    return `<button type="button" class="chat-conv ol-row${active}${unread ? " is-unread" : ""}${
       c.type === "job" ? " chat-conv--job" : ""
     }" data-id="${c.id}">
-      ${convAvatarHtml(c)}
-      <span class="chat-conv__body">
-        <span class="chat-conv__top">
-          <span class="chat-conv__title">${escapeHtml(company)}</span>
-          <span class="chat-conv__time">${fmtTime(c.last_message?.created_at || c.updated_at)}</span>
-        </span>
-        ${sub ? `<span class="chat-conv__addr">${escapeHtml(sub)}</span>` : ""}
-        <span class="chat-conv__bottom">
-          <span class="chat-conv__preview">${escapeHtml(String(preview || "").slice(0, 100))}</span>
-          ${badge}${muted}
-        </span>
-      </span>
+      ${lead}
+      <b class="ol-t" title="${escapeHtml(company)}">${escapeHtml(company)}</b>
+      ${time ? `<span class="ol-v ol-time">${escapeHtml(time)}</span>` : ""}
+      ${sub ? `<span class="ol-m"><span title="${escapeHtml(sub)}">${escapeHtml(sub)}</span></span>` : ""}
+      <span class="ol-f">${st}<span class="ol-note">${escapeHtml(String(preview || "").slice(0, 100))}</span>${badge}${muted}</span>
     </button>`;
   }
 
+  function jobRowHtml(job) {
+    const active =
+      job.conversation_id && job.conversation_id === state.activeId ? " is-active" : "";
+    const unread = (job.unread_count || 0) > 0;
+    const badge = unread
+      ? `<span class="chat-conv__badge">${job.unread_count > 99 ? "99+" : job.unread_count}</span>`
+      : "";
+    const company = jobCompanyFrom(job);
+    const addr = jobAddressFrom(job);
+    const preview = job.last_message
+      ? humanizePreview(job.last_message.body, null)
+      : job.assigned_user?.name
+        ? `Resp. ${job.assigned_user.name}`
+        : "Abrir canal do job";
+    const time = job.last_message?.created_at
+      ? fmtTime(job.last_message.created_at)
+      : fmtJobSchedule(job.scheduled_start);
+    const status = jobStatusLabel(job.status);
+    return `<button type="button" class="chat-conv chat-conv--job ol-row${active}${unread ? " is-unread" : ""}" data-work-order-id="${escapeHtml(
+      job.id,
+    )}"${job.conversation_id ? ` data-id="${escapeHtml(job.conversation_id)}"` : ""}>
+      <span class="ol-lead chat-ava chat-ava--job" aria-hidden="true">${SVG.building}</span>
+      <b class="ol-t" title="${escapeHtml(company)}">${escapeHtml(company)}</b>
+      ${time ? `<span class="ol-v ol-time">${escapeHtml(time)}</span>` : ""}
+      ${addr ? `<span class="ol-m"><span title="${escapeHtml(addr)}">${escapeHtml(addr)}</span></span>` : ""}
+      <span class="ol-f">${status ? jobStatusBadge(job.status) : ""}<span class="ol-note">${escapeHtml(String(preview || "").slice(0, 100))}</span>${badge}</span>
+    </button>`;
+  }
+
+  function renderJobsList() {
+    const empty = $("chatListEmpty");
+    const root = $("chatListSections");
+    if (state.jobsLoading && !state.jobs.length) {
+      if (window.crmSkeleton) {
+        empty.hidden = true;
+        root.hidden = false;
+        window.crmSkeleton.fill(root, "rows", 6);
+      } else {
+        empty.hidden = false;
+        empty.textContent = "Carregando jobs…";
+        root.hidden = true;
+        root.innerHTML = "";
+      }
+      return;
+    }
+    root.removeAttribute("aria-busy");
+    if (state.jobsError && !state.jobs.length && window.crmSkeleton) {
+      empty.hidden = true;
+      root.hidden = false;
+      window.crmSkeleton.error(root, state.jobsError, () => loadJobsList());
+      return;
+    }
+    if (!state.jobs.length) {
+      empty.hidden = false;
+      empty.textContent =
+        state.jobStatus === "completed"
+          ? "Nenhum job finalizado."
+          : "Nenhum job em andamento.";
+      root.hidden = true;
+      root.innerHTML = "";
+      return;
+    }
+    empty.hidden = true;
+    root.hidden = false;
+    const label = state.jobStatus === "completed" ? "Finalizados" : "Em andamento";
+    root.innerHTML = `<p class="chat-section ol-grp">${label}</p>${state.jobs.map(jobRowHtml).join("")}`;
+  }
+
   function renderList() {
+    syncJobFilterUi();
+    if (state.filter === "job") {
+      renderJobsList();
+      return;
+    }
     const empty = $("chatListEmpty");
     const root = $("chatListSections");
     const rows = filteredConversations();
@@ -371,12 +455,50 @@
         .map(([type, label]) => {
           const part = rows.filter((c) => (type === "dm" ? c.type !== "job" && c.type !== "group" : c.type === type));
           if (!part.length) return "";
-          return `<p class="chat-section">${label}</p>${part.map(convRowHtml).join("")}`;
+          return `<p class="chat-section ol-grp">${label}</p>${part.map(convRowHtml).join("")}`;
         })
         .join("");
       return;
     }
     root.innerHTML = rows.map(convRowHtml).join("");
+  }
+
+  async function loadJobsList() {
+    if (state.filter !== "job") return;
+    const seq = ++state.jobsLoadSeq;
+    state.jobsLoading = true;
+    state.jobsError = "";
+    renderJobsList();
+    try {
+      const params = new URLSearchParams();
+      params.set("status", state.jobStatus === "completed" ? "completed" : "active");
+      if (state.listQuery.trim()) params.set("q", state.listQuery.trim());
+      const j = await api(`/api/chat/jobs?${params.toString()}`);
+      if (seq !== state.jobsLoadSeq) return;
+      state.jobs = j.data || [];
+      state.jobs.forEach((job) => {
+        state.jobLabelCache[job.id] = job;
+      });
+    } catch (err) {
+      if (seq !== state.jobsLoadSeq) return;
+      state.jobs = [];
+      state.jobsError = err.message || "Falha ao carregar jobs";
+      if (!window.crmSkeleton) notify(state.jobsError, "error");
+    } finally {
+      if (seq === state.jobsLoadSeq) {
+        state.jobsLoading = false;
+        renderJobsList();
+      }
+    }
+  }
+
+  function scheduleJobsReload(immediate) {
+    if (state.jobsSearchTimer) clearTimeout(state.jobsSearchTimer);
+    if (immediate) {
+      loadJobsList();
+      return;
+    }
+    state.jobsSearchTimer = setTimeout(() => loadJobsList(), 280);
   }
 
   async function openJobChannel(workOrderId) {
@@ -387,6 +509,7 @@
     const conversationId = j.data?.conversationId || j.data?.conversation_id;
     if (!conversationId) throw new Error("Canal do job não disponível");
     await loadConversations();
+    if (state.filter === "job") await loadJobsList();
     await openConversation(conversationId);
   }
 
@@ -803,9 +926,12 @@
       });
       const data = j.data;
       if (data.non_member_mentions?.length && addMembers == null) {
-        const ok = window.confirm(
-          "Há pessoas mencionadas que não estão nesta conversa. Deseja adicioná-las?",
-        );
+        const ok = await window.crmConfirm({
+          title: "Adicionar as pessoas mencionadas?",
+          text: "Há pessoas mencionadas que não estão nesta conversa. Elas passam a ver esta conversa.",
+          ok: "Adicionar pessoas",
+          cancel: "Agora não",
+        });
         if (ok) {
           return sendMessage({
             body,
@@ -1356,13 +1482,26 @@
         document.querySelectorAll(".chat-list-tab").forEach((t) => t.classList.remove("is-active"));
         tab.classList.add("is-active");
         state.filter = tab.getAttribute("data-filter");
-        renderList();
+        syncJobFilterUi();
+        if (state.filter === "job") scheduleJobsReload(true);
+        else renderList();
       });
     });
 
     $("chatListSearch").addEventListener("input", (e) => {
       state.listQuery = e.target.value;
-      renderList();
+      if (state.filter === "job") scheduleJobsReload(false);
+      else renderList();
+    });
+
+    $("chatJobFilters")?.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-job-status]");
+      if (!btn) return;
+      const next = btn.getAttribute("data-job-status") === "completed" ? "completed" : "active";
+      if (next === state.jobStatus) return;
+      state.jobStatus = next;
+      syncJobFilterUi();
+      scheduleJobsReload(true);
     });
 
     $("chatBackBtn").addEventListener("click", () => {
@@ -1558,7 +1697,13 @@
       const hideBtn = e.target.closest("[data-hide]");
       if (hideBtn) {
         const id = hideBtn.getAttribute("data-hide");
-        if (!window.confirm("Remover esta mensagem? (soft delete — gestores ainda podem ver)")) return;
+        const okDel = await window.crmConfirm({
+          title: "Apagar mensagem?",
+          text: "Ela some da conversa. Gestores ainda verão o histórico.",
+          ok: "Apagar mensagem",
+          danger: true,
+        });
+        if (!okDel) return;
         try {
           const j = await api(`/api/chat/messages/${id}`, { method: "DELETE" });
           const idx = state.messages.findIndex((m) => m.id === id);

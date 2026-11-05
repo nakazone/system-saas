@@ -12,6 +12,13 @@
     return body;
   }
 
+  /** Where to go after signing in: the page the person opened before the sign-in (only portal hashes). */
+  function portalTarget() {
+    let next = '';
+    try { next = sessionStorage.getItem('ob_after_login') || ''; sessionStorage.removeItem('ob_after_login'); } catch (_) { next = ''; }
+    return /^#[a-z]+(\/[A-Za-z0-9-]+)*$/.test(next) ? `partner-portal.html${next}` : 'partner-portal.html';
+  }
+
   async function init() {
     try {
       if (new URLSearchParams(location.search).get('switch') === '1') {
@@ -20,7 +27,7 @@
         return;
       }
       const state = await request('/api/partner-auth/session');
-      if (state.authenticated) location.replace('partner-portal.html');
+      if (state.authenticated) location.replace(portalTarget());
     } catch (_) {
       if (new URLSearchParams(location.search).get('switch') === '1') {
         error.textContent = 'Could not switch company. Sign in again.';
@@ -46,7 +53,7 @@
           ...(workspace ? { workspace } : {}),
         }),
       });
-      location.replace('partner-portal.html');
+      location.replace(portalTarget());
     } catch (err) {
       error.textContent = err.message || 'Could not sign in.';
       error.hidden = false;
