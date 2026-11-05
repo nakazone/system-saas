@@ -331,9 +331,9 @@
     const stale = needsPhoto(j);
     const lt = window.JobsInfo?.late ? window.JobsInfo.late(j) : null;
     const tone = window.JobsInfo?.stageTone ? window.JobsInfo.stageTone(j) : "wait";
-    const stText = lt ? lt.short : jobStageLabel(j);
+    const stText = crewMode ? "" : lt ? lt.short : jobStageLabel(j);
     const maps = j.address ? `https://maps.google.com/?q=${encodeURIComponent(j.address)}` : "";
-    const time = timeText(j);
+    const time = crewMode ? "" : timeText(j);
     const prog = crewMode ? "" : window.JobsInfo?.progHtml ? window.JobsInfo.progHtml(j) : "";
     const on = String(j.id) === String(selId) && mode !== "photos" ? " is-on" : "";
     const ctaLbl = n ? `${n} foto${n === 1 ? "" : "s"}` : stale ? "Tirar foto" : "Fotos";
@@ -427,16 +427,13 @@
   function isToday(iso) {
     return !!iso && new Date(iso).toDateString() === new Date().toDateString();
   }
-  /** Quick filters: office checks GPS/distance; crew keeps day + needs photo. */
+  /** Quick filters (office). Crew uses only Em produção / Últimos trabalhos via #camMode. */
   function filtersForMode() {
-    const base = [
+    if (crewMode) return [["all", "Todos", () => true]];
+    return [
       ["all", "Todos", () => true],
       ["need", "Precisa de foto", (j) => needsPhoto(j)],
       ["today", "Hoje", (j) => isToday(j.scheduled_start) || isToday(j.sand_scheduled_start)],
-    ];
-    if (crewMode) return base;
-    return [
-      ...base,
       ["nogps", "Sem GPS", (j) => (j.photos || []).some((p) => !hasGps(p))],
       ["far", "Longe", (j) => (j.photos || []).some((p) => p.far_from_job)],
     ];
@@ -467,6 +464,8 @@
   function groups() {
     const f = FILTERS.find(([k]) => k === listPref.filter) || FILTERS[0];
     const rows = baseJobs().filter(f[2]).sort(cmpJobs);
+    // ObraCrew: one flat list — no office buckets.
+    if (crewMode) return [["", rows]];
     if (listPref.group === "client") {
       const by = new Map();
       rows.forEach((j) => {
@@ -501,31 +500,53 @@
   function renderList() {
     const active = jobs.filter(isActive);
     const done = jobs.filter((j) => j.status === "completed");
-    $("camJobsN").textContent = String(jobs.length);
-    $("camPhotosN").textContent = String(feed.length);
+    if ($("camJobsN")) $("camJobsN").textContent = String(jobs.length);
+    if ($("camPhotosN")) $("camPhotosN").textContent = String(feed.length);
     document.querySelectorAll("#camViews [data-view]").forEach((b) => {
       const on = (b.getAttribute("data-view") === "photos") === (mode === "photos");
       b.classList.toggle("is-on", on);
       b.setAttribute("aria-pressed", String(on));
     });
-    renderFilters();
+    if (!crewMode) renderFilters();
     document.querySelectorAll("#camMode [data-mode]").forEach((b) => {
       const m = b.getAttribute("data-mode");
       const listMode = mode === "photos" ? "active" : mode;
       b.classList.toggle("is-on", m === listMode);
       b.setAttribute("aria-pressed", String(m === listMode));
-      b.innerHTML = m === "active" ? `Ativos <em>${active.length}</em>` : `Concluídos <em>${done.length}</em>`;
+      if (crewMode) {
+        b.innerHTML =
+          m === "active"
+            ? `Em produção<em>${active.length}</em>`
+            : `Últimos trabalhos<em>${done.length}</em>`;
+      } else {
+        b.innerHTML = m === "active" ? `Ativos <em>${active.length}</em>` : `Concluídos <em>${done.length}</em>`;
+      }
     });
     // before the board arrives the skeleton stays (the session can answer first and would paint "Nenhum job")
     if (!loaded) return;
     const html = groups()
       .filter(([, rows]) => rows.length)
-      .map(([label, rows]) => `<p class="cam-grp ol-grp"><span>${label}</span><em>${rows.length}</em></p>${rows.map(rowHtml).join("")}`)
+      .map(([label, rows]) => {
+        const head = label ? `<p class="cam-grp ol-grp"><span>${esc(label)}</span><em>${rows.length}</em></p>` : "";
+        return head + rows.map(rowHtml).join("");
+      })
       .join("");
     $("camRows").removeAttribute("aria-busy");
+    const emptyCrew =
+      mode === "done" ? "Nenhum trabalho recente." : "Nenhum trabalho em produção.";
     $("camRows").innerHTML =
       html ||
-      `<p class="cam-empty">${listPref.filter !== "all" ? `Nenhum job em “${esc((FILTERS.find(([k]) => k === listPref.filter) || [])[1] || "")}”. <button type="button" class="cam-link" data-filter="all">Ver todos</button>` : q ? "Nenhum job com essa busca." : mode === "done" ? "Nenhum job concluído." : crewMode ? "Nenhuma obra no seu calendário." : "Nenhum job ativo."}</p>`;
+      `<p class="cam-empty">${
+        listPref.filter !== "all" && !crewMode
+          ? `Nenhum job em “${esc((FILTERS.find(([k]) => k === listPref.filter) || [])[1] || "")}”. <button type="button" class="cam-link" data-filter="all">Ver todos</button>`
+          : q
+            ? "Nenhum job com essa busca."
+            : crewMode
+              ? emptyCrew
+              : mode === "done"
+                ? "Nenhum job concluído."
+                : "Nenhum job ativo."
+      }</p>`;
     if (window.OmGestures) window.OmGestures.bindSwipeRow?.($("camRows"));
   }
 
@@ -1371,6 +1392,7 @@
 
   /** Jobs | Fotos: the two top-level views. Fotos is every recent photo across jobs; Jobs is the triage list with one job open. */
   function setView(view) {
+    if (crewMode && view === "photos") return;
     if (view === "photos") {
       if (mode === "photos") return;
       mode = "photos";
@@ -2188,12 +2210,15 @@
       if (crewMode) {
         document.body.classList.add("cam-crew", "om-field-nav");
         FILTERS = filtersForMode();
-        if (listPref.filter === "nogps" || listPref.filter === "far") listPref.filter = "all";
-        if (listPref.sort === "recent") listPref.sort = "schedule";
+        listPref.filter = "all";
+        listPref.sort = "schedule";
         listPref.group = "status";
+        q = "";
+        if ($("camQ")) $("camQ").value = "";
+        if (mode === "photos") mode = "active";
         savePref();
-        const q = $("camQ");
-        if (q) q.placeholder = "Buscar obra ou endereço";
+        const modeHost = $("camMode");
+        if (modeHost) modeHost.setAttribute("aria-label", "Em produção ou últimos trabalhos");
       }
       const add = $("camAddJob");
       if (add) add.hidden = !canManage;

@@ -522,19 +522,51 @@ html body.cam-selecting .oc-tabs.om-shell-tabs { display: none; }
 @keyframes cam-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes cam-fade-out { from { opacity: 1; } to { opacity: 0; } }
 
-/* ObraCrew: ObraCam inside the field shell — no office chrome, room for the crew tabbar */
-body.om-field-nav.cam-app .cam-top h1,
+/* ObraCrew: ObraCam = job list + Em produção / Últimos trabalhos only */
+body.om-field-nav.cam-app .cam-top,
 body.om-field-nav.cam-app .cam-add,
 body.om-field-nav.cam-app .cam-order,
+body.om-field-nav.cam-app .cam-search,
+body.om-field-nav.cam-app .cam-filters,
+body.om-field-nav.cam-app .cam-grp,
 body.om-field-nav.cam-app .dashboard-sidebar,
 body.om-field-nav.cam-app #mobileOverlay {
   display: none !important;
 }
-body.om-field-nav.cam-app .cam-top {
-  margin-bottom: 8px;
+body.om-field-nav.cam-app .cam-list__top {
+  padding: 0 0 10px;
+  border: 0;
 }
-body.om-field-nav.cam-app .cam-views {
-  flex: 1;
+body.om-field-nav.cam-app .cam-seg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  width: 100%;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--cam-sur, #efeae2);
+  box-shadow: none;
+}
+body.om-field-nav.cam-app .cam-seg button {
+  height: 42px;
+  padding: 0 8px;
+  border-radius: 11px;
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+body.om-field-nav.cam-app .cam-seg button em {
+  font-style: normal;
+  font-weight: 600;
+  opacity: 0.72;
+  margin-left: 4px;
+}
+/* Crew list: date + client + address + fotos — no status/time/progress chrome */
+body.om-field-nav.cam-app .jmx-card .ol-time,
+body.om-field-nav.cam-app .jmx-card .ol-st,
+body.om-field-nav.cam-app .jmx-card .jx-prog {
+  display: none !important;
 }
 @media (max-width: 900px) {
   body.om-field-nav.cam-app.om-has-tabbar .cam-pbar,
@@ -545,7 +577,6 @@ body.om-field-nav.cam-app .cam-views {
   body.om-field-nav.cam-app.cam-selecting .cam {
     padding-bottom: calc(6.25rem + env(safe-area-inset-bottom, 0px));
   }
-  /* Field already has ObraCrew tabs; keep the Mais/office dock hidden */
   body.om-field-nav.cam-app.cam-detail-open .om-tabbar.om-tabbar--field {
     display: flex !important;
   }
