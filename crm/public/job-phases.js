@@ -75,7 +75,7 @@
     const l = document.createElement("link");
     l.id = CSS_ID;
     l.rel = "stylesheet";
-    l.href = "/job-phases.css?v=20261105-ct9";
+    l.href = "/job-phases.css?v=20261105-sl1";
     document.head.appendChild(l);
   }
 
@@ -325,6 +325,33 @@
     </div>`;
   }
 
+  /**
+   * The job's slab (Countertops yard): the stone held for it and, after Fabricação, used on it.
+   * The office reserves in Slabs (opened with this job first) and can release from here.
+   */
+  function slabCard(d, st, jobId) {
+    const sb = d.slabs;
+    if (!sb) return "";
+    const n = (v) => (Math.round(Number(v) * 10) / 10).toLocaleString("pt-BR");
+    const label = { reserved: "Reservado", used: "Usado", available: "Livre", scrapped: "Descartado" };
+    const items = sb.items
+      .map(
+        (s) => `<li class="jp-rw__i jp-sl__i">
+          ${s.photo_url ? `<a class="jp-sl__img" href="${esc(s.photo_url)}" target="_blank" rel="noopener"><img src="${esc(s.photo_url)}" alt="Foto do slab ${esc(s.color)}" loading="lazy" /></a>` : '<span class="jp-sl__img jp-sl__img--none" aria-hidden="true"></span>'}
+          <div class="jp-sl__txt"><b>${esc(s.color)}${s.kind === "remnant" ? " · sobra" : ""}</b><small>${esc(s.material_label)} · ${esc(s.thickness_cm)} cm · ${n(s.length_in)}″ × ${n(s.width_in)}″</small>
+          <small>${esc([s.serial, s.location].filter(Boolean).join(" · ") || "Sem lote")}</small></div>
+          <div class="jp-rw__side"><span class="jp-sl__st jp-sl__st--${esc(s.status)}">${esc(label[s.status] || s.status)}</span>${sb.can_manage && st.canAct && s.status === "reserved" ? `<button type="button" class="jp-link" data-sl-release="${esc(s.id)}" ${st.busy ? "disabled" : ""}>Liberar</button>` : ""}</div>
+        </li>`,
+      )
+      .join("");
+    const add = sb.can_manage && st.canAct ? `<a class="jp-link jp-rw__add" href="slabs.html?job=${encodeURIComponent(jobId)}">${sb.items.length ? "+ Outro slab" : "Reservar slab"}</a>` : "";
+    return `<div class="jd-card jp-rw jp-sl">
+      <div class="jd-ch"><h2>Slab do job</h2><span class="jp-n" translate="no" data-no-i18n>${sb.items.length}</span></div>
+      ${sb.items.length ? `<ul class="jp-rw__list">${items}</ul>` : `<p class="jp-s">${sb.can_manage ? "Reserve no pátio a pedra que o cliente escolheu. Na Fabricação ela passa a usada." : "O escritório reserva a pedra no pátio."}</p>`}
+      ${add}
+    </div>`;
+  }
+
   /** Job variants (Tile: "Pedra natural"): the office switches them; the crew sees which are on. */
   function variantsBar(d, st) {
     const list = Array.isArray(d.variants) ? d.variants : [];
@@ -357,8 +384,8 @@
       ${!s.cur ? '<p class="jp-all">Todas as fases concluídas.</p>' : ""}
     </div>`;
     box.innerHTML = st.compact
-      ? `<div class="jp jp--compact">${list}${reworkCard(d, st)}</div>`
-      : `<div class="jd-grid jp"><div class="jd-col">${list}</div><aside class="jd-col jd-side">${sideCard(d)}${reworkCard(d, st)}</aside></div>`;
+      ? `<div class="jp jp--compact">${list}${slabCard(d, st, st.jobId)}${reworkCard(d, st)}</div>`
+      : `<div class="jd-grid jp"><div class="jd-col">${list}</div><aside class="jd-col jd-side">${sideCard(d)}${slabCard(d, st, st.jobId)}${reworkCard(d, st)}</aside></div>`;
   }
 
   function compressImage(file, maxEdge, quality) {
@@ -428,7 +455,7 @@
     if (!box) return;
     ensureCss();
     const notify = ctx.notify || ((m) => console.warn(m));
-    const st = { now: new Date(), compact: Boolean(ctx.compact), canAct: ctx.canAct !== false, busy: false, editing: null, savedAt: null };
+    const st = { now: new Date(), compact: Boolean(ctx.compact), canAct: ctx.canAct !== false, busy: false, editing: null, savedAt: null, jobId: ctx.jobId };
     let data = null;
     const base = `/api/work-orders/${encodeURIComponent(ctx.jobId)}/phases`;
     const paint = () => {
@@ -556,6 +583,16 @@
           return;
         }
         run(async () => say(await evidence(phase, key, { value: { confirmed: true } }, reqLabel(phase, key)), "Conferido."));
+        return;
+      }
+      const rel = e.target.closest("[data-sl-release]");
+      if (rel) {
+        if (!online()) return notify("Liberar o slab precisa de internet.", "error");
+        const id = rel.getAttribute("data-sl-release");
+        run(async () => {
+          await api(`/api/slabs/${encodeURIComponent(id)}/release`, { method: "POST", body: "{}" });
+          took(await api(base), "Slab liberado.");
+        });
         return;
       }
       if (e.target.closest("[data-rw-open]")) {

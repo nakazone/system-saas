@@ -141,8 +141,11 @@ export type TradePack = {
     reasons: readonly { key: string; label: { "pt-BR": string; "en-US": string } }[];
     responsible: readonly { key: string; label: { "pt-BR": string; "en-US": string } }[];
   };
-  /** Stock the company keeps per piece (Countertops: slabs and remnants in the yard). */
-  inventory?: { slabs?: boolean };
+  /**
+   * Stock the company keeps per piece (Countertops: slabs and remnants in the yard). `usedAtPhase`:
+   * closing that phase marks the job's reserved slabs as used.
+   */
+  inventory?: { slabs?: boolean; usedAtPhase?: string };
   measurement?: { tabs: readonly ("stairs" | "vents" | "showers" | "floors" | "summary")[] };
   combinedPhaseKey: string;
   ai: {

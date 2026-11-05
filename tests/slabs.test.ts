@@ -150,6 +150,25 @@ describe.skipIf(!privileged)("slab yard API", () => {
     expect((await call("crew", "POST", "/api/slabs", { material: "quartz", color: "X", length_in: 10, width_in: 10 })).status).toBe(403);
   });
 
+  it("the job's phases show its slab, and closing Fabricação marks it used", async () => {
+    const r = await call("office", "POST", "/api/slabs", { material: "quartzite", color: "Taj Mahal", length_in: 130, width_in: 77, serial: "TM-118" });
+    const id = r.json.data.id;
+    await call("office", "POST", `/api/slabs/${id}/reserve`, { job_id: jobs.b });
+    const ph = await call("office", "GET", `/api/work-orders/${jobs.b}/phases`);
+    expect(ph.status).toBe(200);
+    expect(ph.json.data.slabs.items.map((s: any) => [s.id, s.status])).toEqual([[id, "reserved"]]);
+    // the phases before Fabricação are done
+    await prisma.jobPhase.updateMany({ where: { workOrderId: jobs.b, phaseKey: { in: ["selection", "site_ready", "template", "layout_approval"] } }, data: { status: "done", doneAt: new Date() } });
+    const done = await call("office", "POST", `/api/work-orders/${jobs.b}/phases/fabrication/complete`, {});
+    expect(done.status).toBe(200);
+    expect(done.json.data.slabs.items[0]).toMatchObject({ id, status: "used" });
+    const log = await prisma.activityEvent.findMany({ where: { entityId: jobs.b, action: "slab.used" } });
+    expect(log).toHaveLength(1);
+    // the crew sees the job's slab without the cost
+    const crew = await call("crew", "GET", `/api/slabs`);
+    expect(crew.status).toBe(200);
+  });
+
   it("a hardwood company has no yard, and RLS keeps companies apart", async () => {
     expect((await call("wood", "GET", "/api/slabs")).status).toBe(404);
     expect((await call("wood", "POST", `/api/slabs/${slab}/release`)).status).toBe(404);

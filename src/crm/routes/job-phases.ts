@@ -20,6 +20,7 @@ import { myJobAccessWhere } from "../lib/campo-shared.js";
 import { primaryPack, type TradePack } from "../../lib/trades/index.js";
 import { shopLeadDays } from "../../lib/settings/jobs.js";
 import { activeVariants, asEvidence, phaseEarliest, readJobPhases, type JobPhaseRow } from "../../lib/trades/job-phases.js";
+import { jobSlabs, useReservedSlabs } from "../../lib/trades/slabs-db.js";
 import { addPhaseEvidence, closeJobPhase, ensureJobPhases, listJobPhases, setJobVariant } from "../../lib/trades/job-phases-db.js";
 
 export const jobPhasesRouter = Router();
@@ -82,7 +83,10 @@ async function phasesState(tx: TenantPrisma, req: AuthedRequest, jobId: string) 
   // Team screens are written in pt-BR and translated in the browser; English labels go along too.
   const locale = "pt-BR" as const;
   const reworks = pack.rework ? await reworksOf(tx, req, jobId, pack) : null;
+  // The slabs held for / used on the job (Countertops yard); the office reserves them in Slabs.
+  const slabs = pack.inventory?.slabs ? { can_manage: perms(req).manage, items: await jobSlabs(tx, req.organizationId!, jobId, perms(req).manage) } : null;
   return {
+    slabs,
     // Pieces made again (Countertops remakes); the cost only for the office.
     reworks,
     trade: pack.id,
@@ -450,6 +454,9 @@ jobPhasesRouter.post("/api/work-orders/:id/phases/:phase/complete", requireCrmAu
       if (!r.ok) {
         const { ok: _ok, error, ...extra } = r;
         throw new PhaseError(COMPLETE_MESSAGES[error] || "Não foi possível concluir.", error === "unknown_phase" ? 404 : 409, error, extra);
+      }
+      if (pack.inventory?.slabs && pack.inventory.usedAtPhase === String(req.params.phase)) {
+        await useReservedSlabs(tx, req.organizationId!, jobId, req.user?.id ?? null, at ?? new Date());
       }
       return phasesState(tx, req, jobId);
     });

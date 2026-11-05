@@ -18,6 +18,8 @@ export function tradeInject(tradePacks: unknown, opts: { measureTabs?: readonly 
       : {}),
     // "table": the job page shows the Fases tab (JobPhase rows); "columns": phases follow the job status.
     phaseStorage: pack.phaseStorage,
+    // Stock kept per piece (Countertops: the slab yard page and the job's slab card).
+    ...(pack.inventory ? { inventory: pack.inventory } : {}),
     // ObraBuilder measurement tabs (Tile: Showers · Plan · Summary); absent = Hardwood's tabs.
     ...(measureTabs ? { measureTabs } : {}),
     // Every pack: the job's phases in order, with waits and required evidence (for the job screen).

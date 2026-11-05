@@ -110,7 +110,7 @@ export const countertops: TradePack = {
   ],
   combinedPhaseKey: "all",
   phaseStorage: "table",
-  inventory: { slabs: true },
+  inventory: { slabs: true, usedAtPhase: "fabrication" },
   // A remade top costs a slab and a week: the shop wants to know why and on whom.
   rework: {
     reasons: [
