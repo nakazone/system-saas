@@ -2267,3 +2267,7 @@ body.cm-ticket .cm-tabbar {
   25% { opacity: 1; }
   70%, 100% { opacity: 0; }
 }
+
+/* Trades with job phases (Tile, Countertops): a fourth tab, "Fases", fits on one line. */
+.cm-ticket-tabs:has(> #cmTabPhases:not([hidden])) { grid-template-columns: repeat(4, auto); }
+.cm-ticket-tabs:has(> #cmTabPhases:not([hidden])) .cm-ticket-tabs__btn { padding: 0.35rem 0.3rem; white-space: nowrap; font-size: 0.78rem; }

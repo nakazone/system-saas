@@ -14,7 +14,7 @@ const PRECACHE = [
   "/campo/agenda.html",
   "/campo/horas.html",
   "/campo/ticket.html",
-  "/campo/campo.css?v=20261104-ux2",
+  "/campo/campo.css?v=20261105-tl1",
   "/campo/dia.css?v=20261105-tl1",
   "/campo/campo-nav.js?v=20261013-off1",
   "/campo/campo-media-queue.js?v=20261104-exif1",
