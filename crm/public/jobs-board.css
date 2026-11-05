@@ -98,6 +98,25 @@
 }
 .jx-cal-btn:hover { background: #e4e7eb; }
 .jx-cal-btn.is-on, .jx-cal-btn[aria-expanded="true"] { background: var(--jx-ink); color: #fff; }
+.jx-weekbar { position: relative; display: flex; align-items: stretch; gap: 6px; margin-top: 10px; }
+.jx-weekstrip { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.jx-daychip {
+  min-width: 0; border: 0; border-radius: 12px; background: #fff; box-shadow: 0 0 0 1px var(--jx-line);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  padding: 6px 0 5px; cursor: pointer; color: var(--jx-ink); font: inherit;
+}
+.jx-daychip:hover { background: #F7F8FA; }
+.jx-daychip__name { font-size: 11px; font-weight: 650; letter-spacing: .01em; text-transform: uppercase; color: var(--jx-ink2); }
+.jx-daychip b { font-size: 14px; font-weight: 750; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.jx-daychip__dot { width: 5px; height: 5px; margin-top: 2px; border-radius: 50%; background: var(--jx-or); }
+.jx-daychip__dot.is-empty { background: transparent; }
+.jx-daychip.is-today { box-shadow: 0 0 0 1.5px var(--jx-or); }
+.jx-daychip.is-on { background: var(--jx-ink); box-shadow: none; color: #fff; }
+.jx-daychip.is-on .jx-daychip__name { color: rgba(255, 255, 255, .72); }
+.jx-daychip.is-on .jx-daychip__dot { background: #fdba74; }
+.jx-daychip.is-on .jx-daychip__dot.is-empty { background: transparent; }
+.jx-weekbar .jx-cal-btn { width: 40px; height: auto; align-self: stretch; border-radius: 12px; }
+.jx-weekbar .jx-cal { top: calc(100% + 6px); }
 .jx-cal {
   position: absolute; top: calc(100% + 6px); right: 0; z-index: 8; width: min(280px, 100%);
   margin: 0; padding: 10px; border-radius: 16px; background: #fff;
@@ -148,6 +167,18 @@
 .jx-grp { display: flex; align-items: baseline; margin: 12px 10px 4px; font-size: 11.5px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--jx-ink3); }
 .jx-grp--portal { color: #B4561A; }
 .jx-grp em { margin-left: auto; font-style: normal; letter-spacing: 0; text-transform: none; font-weight: 600; }
+.jx-grp em.jx-ping { display: inline-flex; align-items: center; gap: 6px; }
+.jx-ping i {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--jx-or);
+  animation: jx-ping 1.4s ease-in-out infinite;
+}
+@keyframes jx-ping {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .25; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jx-ping i { animation: none; }
+}
 .jx-wk { margin: 2px 2px 6px 10px; border-left: 2px solid var(--jx-line, #ece7df); }
 .jx-wk > summary {
   display: flex; align-items: center; gap: 6px;

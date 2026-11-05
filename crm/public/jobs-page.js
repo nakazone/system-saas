@@ -34,6 +34,8 @@
   let partnerDocsSeq = 0;
   /** Sunday of the selected week, or null to show every week. */
   let weekFilter = null;
+  /** ymd of the day chosen on the week strip, or null to show the whole week. */
+  let dayFilter = null;
   let calCursor = new Date();
   let calOpen = false;
   /** Which week blocks inside Próximos jobs stay open. Key is the Sunday ymd. */
@@ -359,16 +361,11 @@
     return Number.isNaN(d.getTime()) ? null : d;
   }
   /**
-   * Lista: Em Campo (em andamento, hoje e atrasados), Amanhã, Próximos jobs
-   * (um collapse por semana), Sem data e Concluídos.
+   * Lista: Sem data (fechado, no topo), Em Campo (em andamento, hoje e atrasados)
+   * e Próximos jobs (de amanhã em diante, um collapse por semana). Concluídos no fim.
    */
-  const DAY_MS = 86400000;
   const NOW_GROUPS = new Set(["field", "nodate"]);
-  function dayName(d) {
-    const wd = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
-    const mo = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
-    return `${wd[d.getDay()]} ${d.getDate()} ${mo[d.getMonth()]}`;
-  }
+  const BAR_GROUPS = new Set(["field", "next", "done"]);
   function weekGroupLabel(sunday, now) {
     const range = weekTitle(sunday);
     const thisWeek = weekSunday(now);
@@ -381,9 +378,7 @@
     const J = I();
     const now = new Date();
     const t0 = sod(now).getTime();
-    const tomorrow = t0 + DAY_MS;
-    const after = tomorrow + DAY_MS;
-    const b = { field: [], tomorrow: [], nodate: [], done: [], off: [] };
+    const b = { field: [], nodate: [], done: [], off: [] };
     const byWeek = new Map();
     rows.forEach((wo) => {
       if (wo.status === "canceled") return b.off.push(wo);
@@ -393,7 +388,6 @@
       if (!d) return b.nodate.push(wo);
       const t = sod(d).getTime();
       if (t === t0 || J.late(wo) || t < t0) return b.field.push(wo);
-      if (t < after) return b.tomorrow.push(wo);
       const sun = weekSunday(d).getTime();
       if (!byWeek.has(sun)) byWeek.set(sun, []);
       byWeek.get(sun).push(wo);
@@ -407,7 +401,6 @@
       return d && sod(d).getTime() < t0 ? 1 : 2;
     };
     b.field.sort((a, z) => fieldRank(a) - fieldRank(z) || byStart(a, z));
-    b.tomorrow.sort(byStart);
     b.nodate.sort((a, z) => new Date(z.created_at || 0) - new Date(a.created_at || 0));
     b.done.sort(byDoneDesc);
     b.off.sort(byDoneDesc);
@@ -420,14 +413,19 @@
       });
     const next = weeks.flatMap((w) => w.rows);
     const order = [
-      ["field", "Em Campo", b.field, null],
-      ["tomorrow", `Amanhã · ${dayName(new Date(tomorrow))}`, b.tomorrow, null],
-      ["next", "Próximos jobs", next, weeks],
       ["nodate", "Sem data", b.nodate, null],
+      ["field", "Em Campo", b.field, null],
+      ["next", "Próximos jobs", next, weeks],
       ["done", "Concluídos", b.done, null],
       ["off", "Cancelados", b.off, null],
     ];
     return order.filter(([, , g]) => g.length);
+  }
+  function groupHead(key, label, count) {
+    const bar = BAR_GROUPS.has(key) ? ' data-ol-bar="1"' : "";
+    const closed = key === "nodate" ? ' data-ol-closed="1"' : "";
+    const countHtml = key === "nodate" ? `<em class="jx-ping"><i aria-hidden="true"></i>${count}</em>` : `<em>${count}</em>`;
+    return `<p class="jx-grp ol-grp"${bar}${closed}><span>${label}</span>${countHtml}</p>`;
   }
   function weekFoldHtml(weeks) {
     const chev = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>`;
@@ -511,10 +509,40 @@
       <span class="ol-f"><span class="ol-st is-hot">Aguardando</span><span class="ol-note">${J.esc(item.title || "Pedido do builder")}</span></span>
     </a></div>`;
   }
+  function stripWeek() {
+    return weekFilter ? weekSunday(weekFilter) : weekSunday(new Date());
+  }
+  function renderWeekStrip() {
+    const host = $("jxWeekStrip");
+    if (!host) return;
+    const start = stripWeek();
+    const names = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+    const today = ymd(new Date());
+    const counts = {};
+    visibleRows().forEach((wo) => {
+      const d = jobAnchor(wo);
+      if (!d) return;
+      const key = ymd(sod(d));
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    host.innerHTML = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+      const key = ymd(d);
+      const on = dayFilter === key;
+      const dot = counts[key] ? `<span class="jx-daychip__dot"></span>` : `<span class="jx-daychip__dot is-empty"></span>`;
+      return `<button type="button" class="jx-daychip${on ? " is-on" : ""}${key === today ? " is-today" : ""}" data-jx-strip="${key}" role="tab" aria-selected="${on ? "true" : "false"}"><span class="jx-daychip__name">${names[d.getDay()]}</span><b>${d.getDate()}</b>${dot}</button>`;
+    }).join("");
+  }
   function renderList() {
     renderWeekCal();
+    renderWeekStrip();
     let rows = visibleRows();
-    if (weekFilter) {
+    if (dayFilter) {
+      rows = rows.filter((wo) => {
+        const d = jobAnchor(wo);
+        return d && ymd(sod(d)) === dayFilter;
+      });
+    } else if (weekFilter) {
       rows = rows.filter((wo) => {
         const d = jobAnchor(wo);
         if (!d) return true;
@@ -545,7 +573,7 @@
     dayGroups(rows).forEach(([key, label, g, weeks]) => {
       const now = NOW_GROUPS.has(key);
       const body = weeks ? weekFoldHtml(weeks) : g.map((wo) => rowHtml(wo, now)).join("");
-      html += `<section class="jx-week ol-band"><p class="jx-grp ol-grp"><span>${label}</span><em>${g.length}</em></p>${body}</section>`;
+      html += `<section class="jx-week ol-band">${groupHead(key, label, g.length)}${body}</section>`;
     });
     host.innerHTML = html;
     host.querySelectorAll("details.jx-wk").forEach((el) => {
@@ -1648,10 +1676,24 @@
     });
     ["jxStatus", "jxSource"].forEach((id) => $(id)?.addEventListener("change", syncFiltBadge));
     syncFiltBadge();
+    renderWeekStrip();
     $("jxCalBtn")?.addEventListener("click", (e) => {
       e.stopPropagation();
       calOpen = !calOpen;
       renderWeekCal();
+    });
+    $("jxWeekStrip")?.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-jx-strip]");
+      if (!btn) return;
+      const key = btn.getAttribute("data-jx-strip");
+      const [yy, mm, dd] = String(key || "").split("-").map(Number);
+      if (!yy) return;
+      if (dayFilter === key) dayFilter = null;
+      else {
+        dayFilter = key;
+        weekFilter = weekSunday(new Date(yy, mm - 1, dd));
+      }
+      renderList();
     });
     $("jxCal")?.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -1662,6 +1704,7 @@
         const [yy, mm, dd] = String(raw || "").split("-").map(Number);
         if (!yy) return;
         weekFilter = weekSunday(new Date(yy, mm - 1, dd));
+        dayFilter = null;
         calOpen = false;
         renderList();
         return;
@@ -1672,6 +1715,7 @@
       else if (k === "next") calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() + 1, 1);
       else if (k === "all") {
         weekFilter = null;
+        dayFilter = null;
         calOpen = false;
       }
       renderList();
