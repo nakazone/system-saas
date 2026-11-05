@@ -114,26 +114,42 @@ export function isShopHoliday(d: Date): boolean {
   return shopHolidays(d.getUTCFullYear()).has(d.toISOString().slice(0, 10));
 }
 
-/** `from` plus `n` business days (Monday to Friday, shop holidays left out), keeping the time of day. */
-export function addBusinessDays(from: Date, n: number): Date {
-  const d = new Date(from.getTime());
-  let left = Math.max(0, Math.floor(n));
-  while (left > 0) {
-    d.setUTCDate(d.getUTCDate() + 1);
-    const wd = d.getUTCDay();
-    if (wd !== 0 && wd !== 6 && !isShopHoliday(d)) left--;
+/** Calendar date (YYYY-MM-DD) of an instant in a timezone; UTC when the zone is unknown. */
+function localYmd(d: Date, tz: string): string {
+  try {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  } catch {
+    return d.toISOString().slice(0, 10);
   }
-  return d;
+}
+
+/**
+ * `from` plus `n` business days (Monday to Friday, shop holidays left out), keeping the time of day.
+ * Days are the company's own (`tz`): a phase closed at 8 pm on the Wednesday before Thanksgiving in
+ * Denver counts from Wednesday, not from Thursday in UTC.
+ */
+export function addBusinessDays(from: Date, n: number, tz = "UTC"): Date {
+  let left = Math.max(0, Math.floor(n));
+  const [y, m, d] = localYmd(from, tz).split("-").map(Number);
+  const day = new Date(Date.UTC(y!, m! - 1, d!));
+  let added = 0;
+  while (left > 0) {
+    day.setUTCDate(day.getUTCDate() + 1);
+    added++;
+    const wd = day.getUTCDay();
+    if (wd !== 0 && wd !== 6 && !isShopHoliday(day)) left--;
+  }
+  return new Date(from.getTime() + added * 86_400_000);
 }
 
 /**
  * Earliest date of a phase with a shop lead time: null until the phase it counts from is done
  * (or when the phase has no lead time).
  */
-export function phaseEarliest(def: PhaseDef | undefined, rows: readonly JobPhaseRow[], businessDays?: number | null): Date | null {
+export function phaseEarliest(def: PhaseDef | undefined, rows: readonly JobPhaseRow[], businessDays?: number | null, tz = "UTC"): Date | null {
   if (!def?.leadTime) return null;
   const from = rows.find((r) => r.phaseKey === def.leadTime!.after);
-  return from?.status === "done" && from.doneAt ? addBusinessDays(from.doneAt, businessDays ?? def.leadTime.businessDays) : null;
+  return from?.status === "done" && from.doneAt ? addBusinessDays(from.doneAt, businessDays ?? def.leadTime.businessDays, tz) : null;
 }
 
 /* ───────────────────────────── reading ───────────────────────────── */

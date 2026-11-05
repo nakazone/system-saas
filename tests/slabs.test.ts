@@ -187,6 +187,43 @@ describe.skipIf(!privileged)("slab yard API", () => {
     expect((await call("wood", "GET", `/api/reports/slabs-used?from=${day}&to=${day}`)).status).toBe(404);
   });
 
+  it("review fixes: one reservation wins, a used slab stays used, photos only, crew lead without cost", async () => {
+    const r = await call("office", "POST", "/api/slabs", { material: "granite", color: "Race", length_in: 100, width_in: 60, cost: 700 });
+    const id = r.json.data.id;
+    const [x, y] = await Promise.all([
+      call("office", "POST", `/api/slabs/${id}/reserve`, { job_id: jobs.a }),
+      call("office", "POST", `/api/slabs/${id}/reserve`, { job_id: jobs.b }),
+    ]);
+    expect([x.status, y.status].sort()).toEqual([200, 409]);
+    const winner = x.status === 200 ? jobs.a : jobs.b;
+    const row = await prisma.slab.findUnique({ where: { id } });
+    expect(row!.workOrderId).toBe(winner);
+    const log = await prisma.activityEvent.findMany({ where: { action: "slab.reserved", changes: { path: ["slab_id", "to"], equals: id } } });
+    expect(log).toHaveLength(1);
+    await call("office", "POST", `/api/slabs/${id}/use`, {});
+    expect((await call("office", "PATCH", `/api/slabs/${id}`, { status: "scrapped" })).status).toBe(409);
+    expect((await prisma.slab.findUnique({ where: { id } }))!.workOrderId).toBe(winner);
+    const svg = "data:image/svg+xml;base64," + Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>").toString("base64");
+    expect((await call("office", "POST", `/api/slabs/${id}/photo`, { data_url: svg })).status).toBe(400);
+    // A crew lead manages jobs but never sees money.
+    const leadRole = await prisma.role.findFirst({ where: { organizationId: org.tops, key: "crew_lead" } });
+    if (leadRole) {
+      await prisma.user.create({ data: { organizationId: org.tops, name: "Lead", email: `lead-${suffix}@example.com`, passwordHash: await hashPassword("password12345"), roleId: leadRole.id } as never });
+      cookies.lead = await login(`lead-${suffix}@example.com`, org.tops);
+      const list = await call("lead", "GET", "/api/slabs");
+      expect(list.status).toBe(200);
+      expect(list.json.data.can_cost).toBe(false);
+      expect(list.json.data.items.every((s: any) => !("cost" in s))).toBe(true);
+      const other = (await call("office", "POST", "/api/slabs", { material: "quartz", color: "Lead test", length_in: 50, width_in: 20 })).json.data.id;
+      expect((await call("lead", "PATCH", `/api/slabs/${other}`, { cost: 1 })).status).toBe(403);
+    }
+    // The installer sees the yard, but not whose job a slab is on when it isn't theirs.
+    const crewList = await call("crew", "GET", "/api/slabs?status=used");
+    const seen = crewList.json.data.items.find((s: any) => s.id === id);
+    expect(seen.job.customer).toBeNull();
+    expect(seen.job.id).toBeNull();
+  });
+
   it("a hardwood company has no yard, and RLS keeps companies apart", async () => {
     expect((await call("wood", "GET", "/api/slabs")).status).toBe(404);
     expect((await call("wood", "POST", `/api/slabs/${slab}/release`)).status).toBe(404);

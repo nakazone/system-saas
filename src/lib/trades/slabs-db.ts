@@ -18,7 +18,8 @@ export async function jobSlabs(tx: TenantPrisma, organizationId: string, workOrd
 export async function useReservedSlabs(tx: TenantPrisma, organizationId: string, workOrderId: string, actorId: string | null, at = new Date()): Promise<number> {
   const rows = await tx.slab.findMany({ where: { organizationId, workOrderId, status: "reserved" }, select: { id: true, color: true, serial: true, kind: true } });
   if (!rows.length) return 0;
-  await tx.slab.updateMany({ where: { id: { in: rows.map((r) => r.id) } }, data: { status: "used", usedAt: at } });
+  // Only the ones still reserved for this job (someone may release one at the same moment).
+  await tx.slab.updateMany({ where: { id: { in: rows.map((r) => r.id) }, workOrderId, status: "reserved" }, data: { status: "used", usedAt: at } });
   for (const r of rows) {
     await recordActivity(tx, {
       organizationId,

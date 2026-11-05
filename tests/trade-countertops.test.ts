@@ -131,6 +131,12 @@ describe("countertops: shop lead time before install", () => {
     expect(shopHolidays(2027).has("2027-12-31")).toBe(true);
     // Mon 23 Nov 2026 + 3 business days skips Thanksgiving: Tue, Wed, Fri
     expect(addBusinessDays(new Date("2026-11-23T15:00:00Z"), 3).toISOString()).toBe("2026-11-27T15:00:00.000Z");
+    // The company's own days: Wed 25 Nov at 8 pm in New York (01:00 UTC on Thanksgiving) + 1 → Fri 27 in New York
+    const ny = addBusinessDays(new Date("2026-11-26T01:00:00Z"), 1, "America/New_York");
+    expect(new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(ny)).toBe("2026-11-27");
+    // Fri 6 Nov at 7:30 pm in Denver + 1 → Mon 9 in Denver (not Sunday)
+    const den = addBusinessDays(new Date("2026-11-07T02:30:00Z"), 1, "America/Denver");
+    expect(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Denver" }).format(den)).toBe("2026-11-09");
     // Thu 24 Dec + 1 skips Christmas (Fri) and the weekend
     expect(addBusinessDays(new Date("2026-12-24T15:00:00Z"), 1).toISOString()).toBe("2026-12-28T15:00:00.000Z");
   });

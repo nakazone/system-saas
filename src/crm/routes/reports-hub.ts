@@ -608,7 +608,8 @@ async function buildHubPayload(tx: TenantPrisma, period: PeriodFilter, req: Auth
   // Trades with a slab yard (Countertops): stone used on jobs in the period.
   const slabs = canJobs ? await slabsReport(tx, period, primaryPack(org?.tradePacks), showPricing) : null;
   // Trades with per-job phases (Tile, Countertops): what each job sold and cost.
-  const jobProfit = showPricing && canJobs ? await jobProfitReport(tx, period, primaryPack(org?.tradePacks)) : null;
+  // Crew pay comes from Folha: only counted for people who may see payroll.
+  const jobProfit = showPricing && canJobs ? await jobProfitReport(tx, period, primaryPack(org?.tradePacks), { labor: canPayroll }) : null;
 
   return {
     period: { from: ymd(period.from), to: ymd(period.to) },
@@ -793,14 +794,14 @@ async function buildKind(tx: TenantPrisma, kind: string, period: PeriodFilter, r
     case "job-profit": {
       if (!showPricing || !hasPerm(req, "work_orders.view")) return null;
       const org = await tx.organization.findFirst({ where: { id: req.organizationId! }, select: { tradePacks: true } });
-      const data = await jobProfitReport(tx, period, primaryPack(org?.tradePacks));
+      const data = await jobProfitReport(tx, period, primaryPack(org?.tradePacks), { labor: hasPerm(req, "payroll.view") });
       if (!data) return null;
       return {
         title: "Lucro por job",
         data,
         csv: {
-          headers: ["job", "customer", "status", "revenue", "labor", ...(data.has_stone ? ["stone"] : []), ...(data.has_rework ? ["remakes"] : []), "other_costs", "cost", "profit", "margin_pct"],
-          rows: data.rows.map((r) => [r.job, r.customer ?? "", r.status, r.revenue, r.labor, ...(data.has_stone ? [r.stone ?? 0] : []), ...(data.has_rework ? [r.rework ?? 0] : []), r.other, r.cost, r.profit, r.margin ?? ""]),
+          headers: ["job", "customer", "status", "revenue", ...(data.has_labor ? ["labor"] : []), ...(data.has_stone ? ["stone"] : []), ...(data.has_rework ? ["remakes"] : []), "other_costs", "cost", "profit", "margin_pct"],
+          rows: data.rows.map((r) => [r.job, r.customer ?? "", r.status, r.revenue, ...(data.has_labor ? [r.labor ?? 0] : []), ...(data.has_stone ? [r.stone ?? 0] : []), ...(data.has_rework ? [r.rework ?? 0] : []), r.other, r.cost, r.profit, r.margin ?? ""]),
         },
       };
     }

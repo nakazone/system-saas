@@ -772,7 +772,7 @@
     const cols = [
       { label: "Job" },
       { label: "Vendido", num: true },
-      { label: "Equipe", num: true },
+      ...(jp.has_labor ? [{ label: "Equipe", num: true }] : []),
       ...(jp.has_stone ? [{ label: "Pedra", num: true }] : []),
       ...(jp.has_rework ? [{ label: "Refações", num: true }] : []),
       { label: "Outros", num: true },
@@ -782,7 +782,7 @@
     const cell = (v) => (v ? money2(v) : "—");
     return `${kpiStrip([
       { l: "Vendido nos jobs", v: money(jp.revenue), n: `${num(jp.jobs)} job${jp.jobs === 1 ? "" : "s"} no período` },
-      { l: "Custo dos jobs", v: money(jp.cost), n: "equipe, pedra, refações e custos lançados" },
+      { l: "Custo dos jobs", v: money(jp.cost), n: jp.has_labor ? "equipe, pedra, refações e custos lançados" : "sem a equipe (precisa de acesso à Folha)" },
       { l: "Lucro dos jobs", v: money(jp.profit), hot: jp.profit < 0 },
       { l: "Margem", v: pct(jp.margin), n: jp.without_revenue ? `${num(jp.without_revenue)} sem serviços no job` : "" },
     ])}
@@ -795,14 +795,14 @@
         jp.rows.map((r) => [
           `<a class="rx-link" href="job-detail.html?id=${encodeURIComponent(r.job_id)}">${esc(r.job)}</a>${r.customer ? `<br><small class="rx-muted">${esc(r.customer)}</small>` : ""}`,
           r.revenue ? money2(r.revenue) : "—",
-          cell(r.labor),
+          ...(jp.has_labor ? [cell(r.labor)] : []),
           ...(jp.has_stone ? [cell(r.stone)] : []),
           ...(jp.has_rework ? [cell(r.rework)] : []),
           cell(r.other),
           `<b${r.profit < 0 ? ' class="rx-neg"' : ""}>${money2(r.profit)}</b>`,
           r.margin == null ? "—" : pct(r.margin),
         ]),
-      ) + '<p class="rx-note rx-note--top">Jobs na agenda no período e os que estão em campo agora, a margem mais baixa primeiro. Equipe: dias aprovados na Folha, divididos pelo pé² de cada job no dia.</p>',
+      ) + `<p class="rx-note rx-note--top">Jobs na agenda no período e os que estão em campo agora, a margem mais baixa primeiro.${jp.has_labor ? " Equipe: dias aprovados na Folha, divididos pelo pé² de cada job no dia." : " A equipe não entra: precisa de acesso à Folha."}${jp.truncated ? " Muitos jobs no período: os totais somam os primeiros 1.000." : ""}</p>`,
     )}`;
   }
 

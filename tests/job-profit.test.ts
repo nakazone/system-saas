@@ -93,6 +93,15 @@ describe.skipIf(!privileged)("profit per job", () => {
     expect(r).toMatchObject({ jobs: 2, revenue: 7000, cost: 3670, profit: 3330, margin: 47.6 });
   });
 
+  it("without payroll access the crew pay stays out", async () => {
+    const from = new Date(day.getTime() - 86400_000);
+    const to = new Date(day.getTime() + 86400_000);
+    const r = await withTenantTransaction(orgId, (tx) => jobProfitReport(tx, { from, to }, getPack("countertops"), { labor: false }));
+    const a = r!.rows.find((x) => x.job_id === jobs.a)!;
+    expect(a).toMatchObject({ labor: null, cost: 1570, profit: 3430 });
+    expect(r!.has_labor).toBe(false);
+  });
+
   it("goes in the hub and the CSV; Hardwood has none", async () => {
     const hub = await fetch(`${base}/api/reports/hub?from=${ymd}&to=${ymd}`, { headers: { Cookie: cookies.tops! } });
     const h = (await hub.json()) as any;

@@ -277,7 +277,7 @@
     </div>`;
   }
 
-  const money = (n) => `$${Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmtMoney = (n) => `$${Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   /**
    * Pieces made again (Countertops remakes): which piece, why, on whom, and the cost (office only).
    * The crew can record one from the ticket; the office sets the cost and removes mistakes.
@@ -286,12 +286,14 @@
     const rw = d.reworks;
     if (!rw) return "";
     const office = rw.can_manage;
+    // Money (cost of each remake, the total, the cost field) only for people who see prices.
+    const money = rw.can_cost !== undefined ? Boolean(rw.can_cost) : office;
     const items = rw.items
       .map(
         (r) => `<li class="jp-rw__i">
           <div><b>${esc(r.piece)}</b><small>${esc(r.reason_label)} · ${esc(r.responsible_label)}${r.phase_label ? ` · ${esc(r.phase_label)}` : ""}</small>
           ${r.notes ? `<small class="jp-rw__note">${esc(r.notes)}</small>` : ""}${r.photo ? `<a class="jp-rw__img" href="${esc(r.photo.url)}" target="_blank" rel="noopener"><img src="${esc(r.photo.thumb_url)}" alt="Foto da peça ${esc(r.piece)}" loading="lazy" /></a>` : ""}<small class="jp-rw__by">${esc(r.by || "")}${r.by ? " · " : ""}${esc(dayLabel(new Date(r.at), st.now))}</small></div>
-          ${office ? `<div class="jp-rw__side">${r.cost != null ? `<b translate="no">${money(r.cost)}</b>` : '<span class="jp-rw__nocost">sem custo</span>'}<button type="button" class="jp-link" data-rw-del="${esc(r.id)}" ${st.busy ? "disabled" : ""}>Remover</button></div>` : ""}
+          ${office ? `<div class="jp-rw__side">${money ? (r.cost != null ? `<b translate="no">${fmtMoney(r.cost)}</b>` : '<span class="jp-rw__nocost">sem custo</span>') : ""}<button type="button" class="jp-link" data-rw-del="${esc(r.id)}" ${st.busy ? "disabled" : ""}>Remover</button></div>` : ""}
         </li>`,
       )
       .join("");
@@ -307,7 +309,7 @@
           <label><span>Motivo</span><select name="reason" required>${opts(rw.reasons, dr.reason)}</select></label>
           <label><span>Responsável</span><select name="responsible" required>${opts(rw.responsible, dr.responsible)}</select></label>
           <label><span>Fase</span><select name="phase_key">${phaseOpts}</select></label>
-          ${office ? `<label><span>Custo (slab, mão de obra, viagem)</span><input name="cost" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" value="${esc(dr.cost || "")}" /></label>` : ""}
+          ${money ? `<label><span>Custo (slab, mão de obra, viagem)</span><input name="cost" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" value="${esc(dr.cost || "")}" /></label>` : ""}
           <label class="jp-rw__wide"><span>Observação</span><input name="notes" maxlength="1000" placeholder="O que aconteceu" value="${esc(dr.notes || "")}" /></label>
           <div class="jp-rw__wide jp-rw__ph">${
             st.rwPhoto
@@ -319,7 +321,7 @@
       : `<button type="button" class="jp-link jp-rw__add" data-rw-open ${st.canAct ? "" : "hidden"}>+ Registrar peça refeita</button>`;
     return `<div class="jd-card jp-rw">
       <div class="jd-ch"><h2>Peças refeitas</h2><span class="jp-n" translate="no" data-no-i18n>${rw.items.length}</span></div>
-      ${office && rw.items.length ? `<p class="jp-s">Custo total: <b translate="no">${money(rw.total_cost)}</b></p>` : '<p class="jp-s">Quando uma peça precisa ser feita de novo: o motivo e quem responde por ela.</p>'}
+      ${money && rw.items.length ? `<p class="jp-s">Custo total: <b translate="no">${fmtMoney(rw.total_cost)}</b></p>` : '<p class="jp-s">Quando uma peça precisa ser feita de novo: o motivo e quem responde por ela.</p>'}
       ${rw.items.length ? `<ul class="jp-rw__list">${items}</ul>` : ""}
       ${form}
     </div>`;

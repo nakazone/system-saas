@@ -13,6 +13,8 @@ import { withTenantTransaction, type TenantPrisma } from "../../lib/tenant/prism
 import { primaryPack } from "../../lib/trades/index.js";
 import { storage } from "../../lib/storage/index.js";
 import { recordActivity } from "../../lib/activity/record.js";
+import { canViewPricing } from "../../lib/pricing/visibility.js";
+import { myJobAccessWhere } from "../lib/campo-shared.js";
 import { isAiConfigured } from "../../lib/ai/client.js";
 import { readSlabTag } from "../../lib/trades/slab-tag-ai.js";
 import { SLAB_KINDS, SLAB_STATUSES, createSlabSchema, mapSlab, parseFits, slabFits, updateSlabSchema, yardSummary } from "../../lib/trades/slabs.js";
@@ -28,8 +30,30 @@ class SlabError extends Error {
 function perms(req: AuthedRequest) {
   const admin = req.user?.roleKey === "admin";
   const p = req.user?.permissions || [];
-  return { manage: admin || p.includes("work_orders.manage"), view: admin || p.includes("work_orders.view") || p.includes("work_orders.manage") };
+  return {
+    manage: admin || p.includes("work_orders.manage"),
+    view: admin || p.includes("work_orders.view") || p.includes("work_orders.manage"),
+    // Slab cost: only for people who see prices (a crew lead manages jobs but never sees money).
+    cost: canViewPricing(req.user),
+  };
 }
+
+/** Field roles see the yard, but job and customer only on their own jobs. */
+async function visibleJobs(tx: TenantPrisma, req: AuthedRequest, p: ReturnType<typeof perms>, jobIds: (string | null)[]): Promise<Set<string> | null> {
+  if (p.manage) return null;
+  const ids = [...new Set(jobIds.filter((x): x is string => Boolean(x)))];
+  if (!ids.length) return new Set();
+  const mine = await tx.workOrder.findMany({ where: { id: { in: ids }, ...myJobAccessWhere(req.user!.id) }, select: { id: true } });
+  return new Set(mine.map((m) => m.id));
+}
+function shape(row: Parameters<typeof mapSlab>[0], p: ReturnType<typeof perms>, mine: Set<string> | null) {
+  const out = mapSlab(row, p.cost);
+  if (mine && out.job && !mine.has(out.job.id)) return { ...out, job: { id: null, number: null, title: null, customer: null } };
+  return out;
+}
+const noCost = (b: { cost?: number | null }, p: ReturnType<typeof perms>) => {
+  if (b.cost !== undefined && !p.cost) throw new SlabError("Só quem vê preços lança o custo do slab.", 403, "pricing_only");
+};
 
 const JOB_SELECT = { select: { id: true, number: true, title: true, customer: { select: { name: true } } } } as const;
 
@@ -67,6 +91,16 @@ async function logOnJob(tx: TenantPrisma, req: AuthedRequest, jobId: string, act
     actorId: req.user!.id,
     changes: { slab_id: { from: null, to: slab.id }, slab: { from: null, to: label(slab) } },
   });
+}
+
+/**
+ * Change a slab only if it is still as it was read (status, job): two people reserving the same slab
+ * at once, or the phase closing while someone releases it, must not both win. 409 when it changed.
+ */
+async function claim(tx: TenantPrisma, req: AuthedRequest, cur: { id: string; status: string; workOrderId: string | null }, data: Record<string, unknown>) {
+  const r = await tx.slab.updateMany({ where: { id: cur.id, organizationId: req.organizationId!, status: cur.status, workOrderId: cur.workOrderId }, data });
+  if (r.count === 0) throw new SlabError("Este slab acabou de mudar. Atualize a página.", 409, "changed");
+  return findSlab(tx, req, cur.id);
 }
 
 function fail(res: Response, next: NextFunction, e: unknown) {
@@ -115,7 +149,8 @@ slabsRouter.get("/api/slabs", requireCrmAuth, async (req: AuthedRequest, res, ne
         .filter((r) => (kind && (SLAB_KINDS as readonly string[]).includes(kind) ? r.kind === kind : true))
         .filter((r) => !q || [r.color, r.brand, r.serial, r.supplier, r.location, r.material, r.notes].filter(Boolean).join(" ").toLowerCase().includes(q))
         .filter((r) => !fits || slabFits({ lengthIn: Number(r.lengthIn), widthIn: Number(r.widthIn) }, fits[0], fits[1]));
-      return { items: rows.map((r) => mapSlab(r, p.manage)), summary: yardSummary(all), can_manage: p.manage, can_read_tag: p.manage && isAiConfigured() };
+      const mine = await visibleJobs(tx, req, p, rows.map((r) => r.workOrderId));
+      return { items: rows.map((r) => shape(r, p, mine)), summary: yardSummary(all), can_manage: p.manage, can_cost: p.cost, can_read_tag: p.manage && isAiConfigured() };
     });
     res.json({ success: true, data });
   } catch (e) {
@@ -131,7 +166,7 @@ slabsRouter.get("/api/work-orders/:id/slabs", requireCrmAuth, async (req: Authed
       const jobId = String(req.params.id).replace(/:(sand|installation|main)$/i, "");
       await findJob(tx, req, jobId);
       const rows = await tx.slab.findMany({ where: { organizationId: req.organizationId!, workOrderId: jobId }, include: { workOrder: JOB_SELECT }, orderBy: { reservedAt: "asc" } });
-      return { items: rows.map((r) => mapSlab(r, p.manage)), can_manage: p.manage };
+      return { items: rows.map((r) => mapSlab(r, p.cost)), can_manage: p.manage };
     });
     res.json({ success: true, data });
   } catch (e) {
@@ -144,11 +179,12 @@ slabsRouter.post("/api/slabs", requireCrmAuth, async (req: AuthedRequest, res, n
     const body = createSlabSchema.parse(req.body || {});
     const data = await withTenantTransaction(req.organizationId!, async (tx) => {
       const p = await gate(tx, req, true);
+      noCost(body, p);
       const row = await tx.slab.create({
         data: { organizationId: req.organizationId!, ...(toData(body) as { material: string; color: string; lengthIn: number; widthIn: number }), createdById: req.user!.id, createdByName: req.user!.name ?? null },
         include: { workOrder: JOB_SELECT },
       });
-      return mapSlab(row, p.manage);
+      return mapSlab(row, p.cost);
     });
     res.status(201).json({ success: true, data });
   } catch (e) {
@@ -161,11 +197,13 @@ slabsRouter.patch("/api/slabs/:id", requireCrmAuth, async (req: AuthedRequest, r
     const body = updateSlabSchema.parse(req.body || {});
     const data = await withTenantTransaction(req.organizationId!, async (tx) => {
       const p = await gate(tx, req, true);
+      noCost(body, p);
       const cur = await findSlab(tx, req, String(req.params.id));
       const d = toData(body);
       if (body.status) {
         // Setting it aside as broken / back in the yard: a reservation ends with it.
-        if (cur.status === "used" && body.status === "available") throw new SlabError("Slab já usado. Registre a sobra como uma peça nova.", 409, "used");
+        // A used slab stays on its job (history, stone cost in Relatórios): its status never changes again.
+        if (cur.status === "used") throw new SlabError("Slab já usado no job. Registre a sobra como uma peça nova.", 409, "used");
         d.status = body.status;
         if (cur.workOrderId) {
           d.workOrderId = null;
@@ -173,8 +211,8 @@ slabsRouter.patch("/api/slabs/:id", requireCrmAuth, async (req: AuthedRequest, r
           await logOnJob(tx, req, cur.workOrderId, "slab.released", cur);
         }
       }
-      const row = await tx.slab.update({ where: { id: cur.id }, data: d, include: { workOrder: JOB_SELECT } });
-      return mapSlab(row, p.manage);
+      const row = d.status !== undefined ? await claim(tx, req, cur, d) : await tx.slab.update({ where: { id: cur.id }, data: d, include: { workOrder: JOB_SELECT } });
+      return mapSlab(row, p.cost);
     });
     res.json({ success: true, data });
   } catch (e) {
@@ -192,12 +230,12 @@ slabsRouter.post("/api/slabs/:id/reserve", requireCrmAuth, async (req: AuthedReq
       const p = await gate(tx, req, true);
       const cur = await findSlab(tx, req, String(req.params.id));
       const job = await findJob(tx, req, job_id);
-      if (cur.status === "reserved" && cur.workOrderId === job.id) return mapSlab(cur, p.manage);
+      if (cur.status === "reserved" && cur.workOrderId === job.id) return mapSlab(cur, p.cost);
       if (cur.status === "reserved") throw new SlabError(`Reservado para o job #${cur.workOrder?.number ?? "?"}. Libere antes.`, 409, "reserved");
       if (cur.status !== "available") throw new SlabError("Este slab não está disponível.", 409, "not_available");
-      const row = await tx.slab.update({ where: { id: cur.id }, data: { status: "reserved", workOrderId: job.id, reservedAt: new Date() }, include: { workOrder: JOB_SELECT } });
+      const row = await claim(tx, req, cur, { status: "reserved", workOrderId: job.id, reservedAt: new Date() });
       await logOnJob(tx, req, job.id, "slab.reserved", row);
-      return mapSlab(row, p.manage);
+      return mapSlab(row, p.cost);
     });
     res.json({ success: true, data });
   } catch (e) {
@@ -211,9 +249,9 @@ slabsRouter.post("/api/slabs/:id/release", requireCrmAuth, async (req: AuthedReq
       const p = await gate(tx, req, true);
       const cur = await findSlab(tx, req, String(req.params.id));
       if (cur.status !== "reserved") throw new SlabError("Este slab não está reservado.", 409, "not_reserved");
-      const row = await tx.slab.update({ where: { id: cur.id }, data: { status: "available", workOrderId: null, reservedAt: null }, include: { workOrder: JOB_SELECT } });
+      const row = await claim(tx, req, cur, { status: "available", workOrderId: null, reservedAt: null });
       if (cur.workOrderId) await logOnJob(tx, req, cur.workOrderId, "slab.released", cur);
-      return mapSlab(row, p.manage);
+      return mapSlab(row, p.cost);
     });
     res.json({ success: true, data });
   } catch (e) {
@@ -228,19 +266,15 @@ slabsRouter.post("/api/slabs/:id/use", requireCrmAuth, async (req: AuthedRequest
     const data = await withTenantTransaction(req.organizationId!, async (tx) => {
       const p = await gate(tx, req, true);
       const cur = await findSlab(tx, req, String(req.params.id));
-      if (cur.status === "used") return mapSlab(cur, p.manage);
+      if (cur.status === "used") return mapSlab(cur, p.cost);
       if (cur.status === "scrapped") throw new SlabError("Slab descartado.", 409, "scrapped");
       const jobId = body.job_id ?? cur.workOrderId;
       if (!jobId) throw new SlabError("Escolha o job onde o slab foi usado.", 400, "job_required");
       if (cur.status === "reserved" && cur.workOrderId && cur.workOrderId !== jobId) throw new SlabError(`Reservado para o job #${cur.workOrder?.number ?? "?"}.`, 409, "reserved");
       const job = await findJob(tx, req, jobId);
-      const row = await tx.slab.update({
-        where: { id: cur.id },
-        data: { status: "used", workOrderId: job.id, usedAt: new Date(), reservedAt: cur.reservedAt ?? new Date() },
-        include: { workOrder: JOB_SELECT },
-      });
+      const row = await claim(tx, req, cur, { status: "used", workOrderId: job.id, usedAt: new Date(), reservedAt: cur.reservedAt ?? new Date() });
       await logOnJob(tx, req, job.id, "slab.used", row);
-      return mapSlab(row, p.manage);
+      return mapSlab(row, p.cost);
     });
     res.json({ success: true, data });
   } catch (e) {
@@ -282,7 +316,7 @@ slabsRouter.post("/api/slabs/:id/remnant", requireCrmAuth, async (req: AuthedReq
         },
         include: { workOrder: JOB_SELECT },
       });
-      return mapSlab(row, p.manage);
+      return mapSlab(row, p.cost);
     });
     res.status(201).json({ success: true, data });
   } catch (e) {
@@ -312,7 +346,8 @@ slabsRouter.post("/api/slabs/:id/photo", requireCrmAuth, async (req: AuthedReque
     const m = /^data:([^;]+);base64,(.+)$/.exec(data_url);
     if (!m) throw new SlabError("Foto inválida.", 400, "invalid_photo");
     const contentType = m[1]!.toLowerCase();
-    if (!contentType.startsWith("image/") || contentType.includes("heic") || contentType.includes("heif")) throw new SlabError("Use uma foto JPG ou PNG.", 400, "invalid_photo");
+    // Photos only: no SVG (it can carry script) and no HEIC.
+    if (!["image/jpeg", "image/png", "image/webp"].includes(contentType)) throw new SlabError("Use uma foto JPG ou PNG.", 400, "invalid_photo");
     const body = Buffer.from(m[2]!, "base64");
     if (body.length > 12 * 1024 * 1024) throw new SlabError("Foto grande demais (máx. 12 MB).", 400, "invalid_photo");
     const id = String(req.params.id);
@@ -323,8 +358,10 @@ slabsRouter.post("/api/slabs/:id/photo", requireCrmAuth, async (req: AuthedReque
     const stored = await storage.upload({ key: `orgs/${req.organizationId}/slabs/${id}/${Date.now()}-${randomUUID().slice(0, 8)}`, body, contentType });
     const data = await withTenantTransaction(req.organizationId!, async (tx) => {
       const p = perms(req);
-      const row = await tx.slab.update({ where: { id }, data: { photoUrl: stored.url, photoKey: stored.key }, include: { workOrder: JOB_SELECT } });
-      return mapSlab(row, p.manage);
+      const r = await tx.slab.updateMany({ where: { id, organizationId: req.organizationId! }, data: { photoUrl: stored.url, photoKey: stored.key } });
+      if (r.count === 0) throw new SlabError("Slab não encontrado.", 404, "not_found");
+      const row = await findSlab(tx, req, id);
+      return mapSlab(row, p.cost);
     });
     res.json({ success: true, data });
   } catch (e) {

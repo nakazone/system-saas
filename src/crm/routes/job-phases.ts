@@ -20,7 +20,9 @@ import { myJobAccessWhere } from "../lib/campo-shared.js";
 import { primaryPack, type TradePack } from "../../lib/trades/index.js";
 import { shopLeadDays } from "../../lib/settings/jobs.js";
 import { activeVariants, asEvidence, phaseEarliest, readJobPhases, type JobPhaseRow } from "../../lib/trades/job-phases.js";
+import { orgTimezone } from "../../lib/job-media/phases.js";
 import { jobSlabs, useReservedSlabs } from "../../lib/trades/slabs-db.js";
+import { canViewPricing } from "../../lib/pricing/visibility.js";
 import { addPhaseEvidence, closeJobPhase, ensureJobPhases, listJobPhases, setJobVariant } from "../../lib/trades/job-phases-db.js";
 
 export const jobPhasesRouter = Router();
@@ -65,7 +67,10 @@ async function packOf(tx: TenantPrisma, organizationId: string): Promise<TradePa
 async function phasesState(tx: TenantPrisma, req: AuthedRequest, jobId: string) {
   const job = await reachJob(tx, req, jobId, false);
   const pack = await packOf(tx, req.organizationId!);
-  const leadDays = pack.phases.some((p) => p.leadTime) ? await leadDaysOf(tx, req.organizationId!) : null;
+  const hasLead = pack.phases.some((p) => p.leadTime);
+  const leadDays = hasLead ? await leadDaysOf(tx, req.organizationId!) : null;
+  // Business days are the company's own calendar days.
+  const tz = hasLead ? await orgTimezone(tx, req.organizationId!) : "UTC";
   if (pack.phaseStorage === "table") await ensureJobPhases(tx, req.organizationId!, jobId, pack);
   const rows = pack.phaseStorage === "table" ? await listJobPhases(tx, jobId) : [];
   const rowByKey = new Map(rows.map((r) => [r.phaseKey, r]));
@@ -84,7 +89,7 @@ async function phasesState(tx: TenantPrisma, req: AuthedRequest, jobId: string) 
   const locale = "pt-BR" as const;
   const reworks = pack.rework ? await reworksOf(tx, req, jobId, pack) : null;
   // The slabs held for / used on the job (Countertops yard); the office reserves them in Slabs.
-  const slabs = pack.inventory?.slabs ? { can_manage: perms(req).manage, items: await jobSlabs(tx, req.organizationId!, jobId, perms(req).manage) } : null;
+  const slabs = pack.inventory?.slabs ? { can_manage: perms(req).manage, items: await jobSlabs(tx, req.organizationId!, jobId, canViewPricing(req.user)) } : null;
   return {
     slabs,
     // Pieces made again (Countertops remakes); the cost only for the office.
@@ -118,7 +123,7 @@ async function phasesState(tx: TenantPrisma, req: AuthedRequest, jobId: string) 
               business_days: leadDays ?? def.leadTime.businessDays,
               after: def.leadTime.after,
               after_label: pack.phases.find((x) => x.key === def.leadTime!.after)?.label[locale] ?? def.leadTime.after,
-              earliest_at: phaseEarliest(def, rows, leadDays)?.toISOString() ?? null,
+              earliest_at: phaseEarliest(def, rows, leadDays, tz)?.toISOString() ?? null,
             }
           : null,
         requires: (def?.requires ?? []).map((r) => {
@@ -144,6 +149,8 @@ async function phasesState(tx: TenantPrisma, req: AuthedRequest, jobId: string) 
 
 async function reworksOf(tx: TenantPrisma, req: AuthedRequest, jobId: string, pack: TradePack) {
   const office = perms(req).manage;
+  // Money only for people who see prices (a crew lead is office for jobs but never sees costs).
+  const money = canViewPricing(req.user);
   const cfg = pack.rework!;
   const label = (list: typeof cfg.reasons, key: string) => list.find((x) => x.key === key)?.label["pt-BR"] ?? key;
   const rows = await tx.jobRework.findMany({ where: { workOrderId: jobId }, orderBy: { createdAt: "asc" } });
@@ -155,7 +162,8 @@ async function reworksOf(tx: TenantPrisma, req: AuthedRequest, jobId: string, pa
     reasons: cfg.reasons.map((r) => ({ key: r.key, label: r.label["pt-BR"], label_en: r.label["en-US"] })),
     responsible: cfg.responsible.map((r) => ({ key: r.key, label: r.label["pt-BR"], label_en: r.label["en-US"] })),
     can_manage: office,
-    total_cost: office ? Math.round(rows.reduce((a, r) => a + Number(r.cost ?? 0), 0) * 100) / 100 : null,
+    can_cost: money,
+    total_cost: money ? Math.round(rows.reduce((a, r) => a + Number(r.cost ?? 0), 0) * 100) / 100 : null,
     items: rows.map((r) => ({
       id: r.id,
       piece: r.piece,
@@ -165,7 +173,7 @@ async function reworksOf(tx: TenantPrisma, req: AuthedRequest, jobId: string, pa
       responsible_label: label(cfg.responsible, r.responsible),
       phase_key: r.phaseKey,
       phase_label: r.phaseKey ? pack.phases.find((p) => p.key === r.phaseKey)?.label["pt-BR"] ?? r.phaseKey : null,
-      cost: office && r.cost != null ? Number(r.cost) : null,
+      cost: money && r.cost != null ? Number(r.cost) : null,
       notes: r.notes,
       photo: r.mediaId ? photos.get(r.mediaId) ?? null : null,
       by: r.createdByName,
@@ -222,7 +230,7 @@ jobPhasesRouter.post("/api/work-orders/:id/reworks", requireCrmAuth, async (req:
           piece: body.data.piece,
           reason: body.data.reason,
           responsible: body.data.responsible,
-          cost: perms(req).manage && body.data.cost != null ? body.data.cost : null,
+          cost: canViewPricing(req.user) && body.data.cost != null ? body.data.cost : null,
           notes: body.data.notes || null,
           mediaId,
           createdById: req.user?.id ?? null,
@@ -241,6 +249,7 @@ jobPhasesRouter.post("/api/work-orders/:id/reworks", requireCrmAuth, async (req:
 jobPhasesRouter.patch("/api/work-orders/:id/reworks/:rid", requireCrmAuth, async (req: AuthedRequest, res, next) => {
   try {
     if (!perms(req).manage) throw new PhaseError("Só o escritório altera peças refeitas.", 403, "forbidden");
+    if (!canViewPricing(req.user)) throw new PhaseError("Só quem vê preços lança o custo.", 403, "pricing_only");
     const body = z.object({ cost: z.coerce.number().min(0).max(1_000_000).nullable() }).safeParse(req.body || {});
     if (!body.success) throw new PhaseError("Valor inválido.", 400, "invalid");
     const jobId = jobIdOf(req);
@@ -455,7 +464,10 @@ jobPhasesRouter.post("/api/work-orders/:id/phases/:phase/complete", requireCrmAu
         const { ok: _ok, error, ...extra } = r;
         throw new PhaseError(COMPLETE_MESSAGES[error] || "Não foi possível concluir.", error === "unknown_phase" ? 404 : 409, error, extra);
       }
-      if (pack.inventory?.slabs && pack.inventory.usedAtPhase === String(req.params.phase)) {
+      // The phase that cuts the stone, or any later one (when it was skipped): the reserved slabs are used.
+      const keys = pack.phases.map((x) => x.key);
+      const cutAt = pack.inventory?.usedAtPhase ? keys.indexOf(pack.inventory.usedAtPhase) : -1;
+      if (pack.inventory?.slabs && cutAt >= 0 && keys.indexOf(String(req.params.phase)) >= cutAt) {
         await useReservedSlabs(tx, req.organizationId!, jobId, req.user?.id ?? null, at ?? new Date());
       }
       return phasesState(tx, req, jobId);

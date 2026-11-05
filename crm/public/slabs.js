@@ -37,6 +37,7 @@
       st.summary = d.summary || null;
       st.canManage = Boolean(d.can_manage);
       st.canReadTag = Boolean(d.can_read_tag);
+      st.canCost = Boolean(d.can_cost);
       if (st.filter === "used") st.used = (await api("/api/slabs?status=used")).items || [];
       $("slAdd").hidden = !st.canManage;
       $("slExport").hidden = !st.canManage;
@@ -101,13 +102,13 @@
   const subOf = (s) => [s.material_label, s.brand, `${s.thickness_cm} cm`].filter(Boolean).join(" · ");
   const sizeOf = (s) => `${inch(s.length_in)} × ${inch(s.width_in)} · ${num(s.sq_ft)} pé²`;
   function pillHtml(s) {
-    const label = s.status === "reserved" || s.status === "used" ? (s.job ? `#${s.job.number ?? "?"}${s.job.customer ? ` ${s.job.customer}` : ""}` : STATUS[s.status]) : STATUS[s.status] || s.status;
+    const label = s.status === "reserved" || s.status === "used" ? (s.job && s.job.id ? `#${s.job.number ?? "?"}${s.job.customer ? ` ${s.job.customer}` : ""}` : STATUS[s.status]) : STATUS[s.status] || s.status;
     return `<span class="sl-pill sl-pill--${esc(s.status)}" title="${esc(STATUS[s.status] || "")}">${esc(label)}</span>`;
   }
 
   function cardHtml(s) {
     const tag = tagOf(s);
-    const act = s.status === "available" && st.canManage ? "Reservar" : s.job ? "Ver job" : "Abrir";
+    const act = s.status === "available" && st.canManage ? "Reservar" : s.job && s.job.id ? "Ver job" : "Abrir";
     return `<button type="button" class="sl-card" data-sl-open="${esc(s.id)}" aria-label="${esc(`${s.color}, ${sizeOf(s)}, ${STATUS[s.status] || ""}`)}">
       <div class="sl-ph${s.photo_url ? "" : " sl-ph--none"}"${photoStyle(s)}>${s.photo_url ? "" : "Sem foto"}${tag ? `<span class="sl-ph__tag">${esc(tag)}</span>` : ""}${s.kind === "remnant" ? '<span class="sl-ph__kind">Sobra</span>' : ""}</div>
       <div class="sl-cb"><h3>${esc(s.color)}</h3><p>${esc(subOf(s))}</p><p>${esc(sizeOf(s))}</p>
@@ -157,9 +158,9 @@
       ["Lote", s.serial || "—"],
       ["Local", s.location || "—"],
       ["Fornecedor", s.supplier || "—"],
-      ...(st.canManage ? [["Custo", money(s.cost)]] : []),
+      ...(st.canCost ? [["Custo", money(s.cost)]] : []),
       ["Status", STATUS[s.status] || s.status],
-      ...(s.job ? [["Job", `<a href="job-detail.html?id=${encodeURIComponent(s.job.id)}">#${esc(s.job.number ?? "?")}${s.job.customer ? ` · ${esc(s.job.customer)}` : ""}</a>`]] : []),
+      ...(s.job && s.job.id ? [["Job", `<a href="job-detail.html?id=${encodeURIComponent(s.job.id)}">#${esc(s.job.number ?? "?")}${s.job.customer ? ` · ${esc(s.job.customer)}` : ""}</a>`]] : []),
       ...(s.notes ? [["Notas", esc(s.notes)]] : []),
     ];
     const m = st.canManage;
@@ -210,7 +211,7 @@
       <label>Lote / série<input name="serial" maxlength="80" value="${v("serial")}" placeholder="Da etiqueta" /></label>
       <label>Local<input name="location" maxlength="60" value="${v("location")}" placeholder="Rack A3" /></label>
       <label>Fornecedor<input name="supplier" maxlength="80" value="${v("supplier")}" /></label>
-      <label>Custo ($)<input name="cost" type="number" inputmode="decimal" min="0" step="0.01" value="${s && s.cost != null ? esc(s.cost) : ""}" /></label>
+      ${st.canCost ? `<label>Custo ($)<input name="cost" type="number" inputmode="decimal" min="0" step="0.01" value="${s && s.cost != null ? esc(s.cost) : ""}" /></label>` : ""}
       <label class="full">Notas<textarea name="notes" maxlength="1000" data-crm-rich="off">${v("notes")}</textarea></label>
       <div class="full sl-acts" style="grid-column:1/-1"><button type="submit" class="sl-btn sl-btn--pri">${s ? "Salvar" : "Cadastrar"}</button>${s ? '<button type="button" class="sl-btn" data-sl-act="cancel-edit">Cancelar</button>' : ""}</div>
     </form>`;
@@ -218,7 +219,7 @@
 
   function readForm() {
     const f = $("slForm");
-    const g = (n) => f.elements[n].value.trim();
+    const g = (n) => (f.elements[n] ? f.elements[n].value.trim() : "");
     const numOr = (n) => (g(n) === "" ? null : Number(g(n)));
     return {
       kind: f.querySelector("[data-sl-kind].is-on")?.dataset.slKind || "slab",
@@ -232,7 +233,7 @@
       serial: g("serial") || null,
       location: g("location") || null,
       supplier: g("supplier") || null,
-      cost: numOr("cost"),
+      ...(f.elements.cost ? { cost: numOr("cost") } : {}),
       notes: g("notes") || null,
     };
   }

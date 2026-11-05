@@ -13,7 +13,8 @@ export type JobProfitRow = {
   customer: string | null;
   status: string;
   revenue: number;
-  labor: number;
+  /** null when the viewer has no payroll access */
+  labor: number | null;
   stone: number | null;
   rework: number | null;
   other: number;
@@ -33,13 +34,20 @@ export type JobProfitReport = {
   without_revenue: number;
   has_stone: boolean;
   has_rework: boolean;
+  /** crew pay counted (the viewer may see Folha) */
+  has_labor: boolean;
+  /** more jobs than the report adds up: the totals cover the first ones */
+  truncated: boolean;
   rows: JobProfitRow[];
 };
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const dec = (v: unknown) => (v == null ? 0 : Number(v) || 0);
 
-export async function jobProfitReport(tx: TenantPrisma, period: { from: Date; to: Date }, pack: TradePack): Promise<JobProfitReport | null> {
+const MAX_JOBS = 1000;
+
+export async function jobProfitReport(tx: TenantPrisma, period: { from: Date; to: Date }, pack: TradePack, opts: { labor?: boolean } = {}): Promise<JobProfitReport | null> {
+  const hasLabor = opts.labor !== false;
   if (pack.phaseStorage !== "table") return null;
   const hasStone = Boolean(pack.inventory?.slabs);
   const hasRework = Boolean(pack.rework);
@@ -65,13 +73,15 @@ export async function jobProfitReport(tx: TenantPrisma, period: { from: Date; to
       lineItems: { select: { quantitySqft: true, unitPrice: true, lineTotal: true } },
     },
     orderBy: { scheduledStart: "desc" },
-    take: 300,
+    take: MAX_JOBS + 1,
   });
-  if (!jobs.length) return { jobs: 0, revenue: 0, cost: 0, profit: 0, margin: null, without_revenue: 0, has_stone: hasStone, has_rework: hasRework, rows: [] };
+  const truncated = jobs.length > MAX_JOBS;
+  if (truncated) jobs.length = MAX_JOBS;
+  if (!jobs.length) return { jobs: 0, revenue: 0, cost: 0, profit: 0, margin: null, without_revenue: 0, has_stone: hasStone, has_rework: hasRework, has_labor: hasLabor, truncated, rows: [] };
   const ids = jobs.map((j) => j.id);
 
   const [shiftJobs, slabs, reworks, costs] = await Promise.all([
-    tx.campoShiftJob.findMany({
+    !hasLabor ? Promise.resolve([]) : tx.campoShiftJob.findMany({
       where: { workOrderId: { in: ids }, shift: { reviewStatus: "approved" } },
       select: { workOrderId: true, sqft: true, shift: { select: { amount: true, jobs: { select: { sqft: true } } } } },
     }),
@@ -98,11 +108,11 @@ export async function jobProfitReport(tx: TenantPrisma, period: { from: Date; to
 
   const rows: JobProfitRow[] = jobs.map((j) => {
     const revenue = r2(j.lineItems.reduce((s, li) => s + (dec(li.lineTotal) || dec(li.quantitySqft) * dec(li.unitPrice)), 0));
-    const l = r2(labor.get(j.id) ?? 0);
+    const l = hasLabor ? r2(labor.get(j.id) ?? 0) : null;
     const st = hasStone ? r2(stone.get(j.id) ?? 0) : null;
     const rw = hasRework ? r2(rework.get(j.id) ?? 0) : null;
     const o = r2(other.get(j.id) ?? 0);
-    const cost = r2(l + (st ?? 0) + (rw ?? 0) + o);
+    const cost = r2((l ?? 0) + (st ?? 0) + (rw ?? 0) + o);
     return {
       job_id: j.id,
       job: `#${j.number}${j.title ? ` · ${j.title}` : ""}`,
@@ -129,6 +139,8 @@ export async function jobProfitReport(tx: TenantPrisma, period: { from: Date; to
     without_revenue: rows.filter((r) => r.revenue <= 0).length,
     has_stone: hasStone,
     has_rework: hasRework,
+    has_labor: hasLabor,
+    truncated,
     // Lowest margin first: the jobs to look at.
     rows: rows.sort((a, b) => (a.margin ?? Infinity) - (b.margin ?? Infinity) || b.cost - a.cost).slice(0, 40),
   };
