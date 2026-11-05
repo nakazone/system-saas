@@ -64,14 +64,64 @@ function missingFor(def: PhaseDef | undefined, evidence: Evidence): string[] {
 
 /* ───────────────────────────── lead time ───────────────────────────── */
 
-/** `from` plus `n` business days (Monday to Friday), keeping the time of day. */
+const ymd = (y: number, m: number, d: number) => `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+
+/** Day of month of the n-th weekday (0 = Sunday) of a month; n = -1 for the last one. */
+function nthWeekday(y: number, m: number, weekday: number, n: number): number {
+  if (n > 0) {
+    const first = new Date(Date.UTC(y, m - 1, 1)).getUTCDay();
+    return 1 + ((weekday - first + 7) % 7) + (n - 1) * 7;
+  }
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const last = new Date(Date.UTC(y, m - 1, lastDay)).getUTCDay();
+  return lastDay - ((last - weekday + 7) % 7);
+}
+
+/** A fixed-date holiday moved to the day it is observed (Saturday → Friday, Sunday → Monday). */
+function observed(y: number, m: number, d: number): string {
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const wd = dt.getUTCDay();
+  if (wd === 6) dt.setUTCDate(d - 1);
+  if (wd === 0) dt.setUTCDate(d + 1);
+  return dt.toISOString().slice(0, 10);
+}
+
+const holidayCache = new Map<number, Set<string>>();
+
+/**
+ * Days US shops close (as observed): New Year's Day, Memorial Day, Independence Day, Labor Day,
+ * Thanksgiving and Christmas. The shop lead time does not count them.
+ */
+export function shopHolidays(year: number): Set<string> {
+  let set = holidayCache.get(year);
+  if (!set) {
+    set = new Set([
+      observed(year, 1, 1),
+      ymd(year, 5, nthWeekday(year, 5, 1, -1)),
+      observed(year, 7, 4),
+      ymd(year, 9, nthWeekday(year, 9, 1, 1)),
+      ymd(year, 11, nthWeekday(year, 11, 4, 4)),
+      observed(year, 12, 25),
+    ]);
+    // Next year's New Year's Day can be observed on Dec 31.
+    set.add(observed(year + 1, 1, 1));
+    holidayCache.set(year, set);
+  }
+  return set;
+}
+
+export function isShopHoliday(d: Date): boolean {
+  return shopHolidays(d.getUTCFullYear()).has(d.toISOString().slice(0, 10));
+}
+
+/** `from` plus `n` business days (Monday to Friday, shop holidays left out), keeping the time of day. */
 export function addBusinessDays(from: Date, n: number): Date {
   const d = new Date(from.getTime());
   let left = Math.max(0, Math.floor(n));
   while (left > 0) {
     d.setUTCDate(d.getUTCDate() + 1);
     const wd = d.getUTCDay();
-    if (wd !== 0 && wd !== 6) left--;
+    if (wd !== 0 && wd !== 6 && !isShopHoliday(d)) left--;
   }
   return d;
 }

@@ -123,6 +123,18 @@ describe("countertops: shop lead time before install", () => {
     expect(addBusinessDays(new Date("2026-11-06T09:00:00Z"), 0).toISOString()).toBe("2026-11-06T09:00:00.000Z");
   });
 
+  it("business days skip the days shops close", async () => {
+    const { addBusinessDays, shopHolidays } = await import("../src/lib/trades/job-phases.js");
+    expect([...shopHolidays(2026)].sort()).toEqual(["2026-01-01", "2026-05-25", "2026-07-03", "2026-09-07", "2026-11-26", "2026-12-25", "2027-01-01"]);
+    // 2027: Christmas on a Saturday is observed Friday the 24th; New Year's 2028 on a Saturday, Dec 31
+    expect(shopHolidays(2027).has("2027-12-24")).toBe(true);
+    expect(shopHolidays(2027).has("2027-12-31")).toBe(true);
+    // Mon 23 Nov 2026 + 3 business days skips Thanksgiving: Tue, Wed, Fri
+    expect(addBusinessDays(new Date("2026-11-23T15:00:00Z"), 3).toISOString()).toBe("2026-11-27T15:00:00.000Z");
+    // Thu 24 Dec + 1 skips Christmas (Fri) and the weekend
+    expect(addBusinessDays(new Date("2026-12-24T15:00:00Z"), 1).toISOString()).toBe("2026-12-28T15:00:00.000Z");
+  });
+
   it("install is earliest 7 business days after the slab layout is approved; nothing before it is done", async () => {
     const { phaseEarliest } = await import("../src/lib/trades/job-phases.js");
     const { getPack } = await import("../src/lib/trades/index.js");

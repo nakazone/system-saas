@@ -3133,7 +3133,7 @@
       const inp = $("jobs_shop_lead_days");
       inp.placeholder = String(lt.default_days);
       inp.value = d.shop_lead_days == null ? "" : String(d.shop_lead_days);
-      $("jobsLeadHint").textContent = `Vazio usa o padrão (${lt.default_days} dias úteis). A fase mostra a data mínima e avisa quando o job está agendado antes; não bloqueia.`;
+      $("jobsLeadHint").textContent = `Vazio usa o padrão (${lt.default_days} dias úteis). Não contam Ano Novo, Memorial Day, 4 de julho, Labor Day, Thanksgiving e Natal. A fase mostra a data mínima e avisa quando o job está agendado antes; não bloqueia.`;
     }
     renderJobsDeliveryLocs(d?.delivery_locations || []);
   }
