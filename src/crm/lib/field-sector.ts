@@ -1,8 +1,9 @@
 /**
  * Field visibility by Folha (PayrollEmployee) sector.
  *
- * Installation staff see installation + both jobs on the install date.
- * Sand staff see sand_finish + both jobs on the sand date (sandScheduledStart for both).
+ * Linked Folha staff see the whole sector calendar (not only jobs they are assigned to):
+ * - Installation → installation + both (on install date)
+ * - Sand / Lixa → sand_finish + both (on sand date; sandScheduledStart for both)
  * No Folha link → assignment-only (legacy).
  */
 import type { Prisma } from "@prisma/client";
@@ -35,7 +36,10 @@ export async function fieldPayrollSector(
 /** Prisma filter: which work-order sectors this Folha sector may see. */
 export function jobSectorMatchWhere(sector: FieldPayrollSector): Prisma.WorkOrderWhereInput {
   if (sector === "sand_finish") {
-    return { sector: { in: ["sand_finish", "both"] } };
+    // Lixa: jobs marked sand / both, or any job that already has a sand day on the calendar.
+    return {
+      OR: [{ sector: { in: ["sand_finish", "both"] } }, { sandScheduledStart: { not: null } }],
+    };
   }
   if (sector === "installation") {
     return { OR: [{ sector: "installation" }, { sector: "both" }, { sector: null }] };
@@ -43,11 +47,15 @@ export function jobSectorMatchWhere(sector: FieldPayrollSector): Prisma.WorkOrde
   return {};
 }
 
-/** Assignment scope + Folha sector. */
+/**
+ * Jobs the field user may open/list.
+ * Folha sector set → every job in that sector for the company.
+ * No Folha link → only jobs they are assigned to / crew / member.
+ */
 export function myFieldJobsWhere(userId: string, sector: FieldPayrollSector): Prisma.WorkOrderWhereInput {
   const sectorWhere = jobSectorMatchWhere(sector);
-  if (!Object.keys(sectorWhere).length) return myJobAccessWhere(userId);
-  return { AND: [myJobAccessWhere(userId), sectorWhere] };
+  if (Object.keys(sectorWhere).length) return sectorWhere;
+  return myJobAccessWhere(userId);
 }
 
 type DatedJob = {
@@ -59,7 +67,7 @@ type DatedJob = {
 /** Calendar day that places this job on the field agenda for the viewer's Folha sector. */
 export function fieldAgendaAt(wo: DatedJob, sector: FieldPayrollSector): Date | null {
   if (sector === "sand_finish") {
-    if (wo.sector === "both") return wo.sandScheduledStart ?? null;
+    if (wo.sandScheduledStart) return wo.sandScheduledStart;
     if (wo.sector === "sand_finish") return wo.scheduledStart ?? null;
     return null;
   }
@@ -80,6 +88,7 @@ export function fieldSlotMatchesSector(
   if (role === "delivery") return true;
   if (sector === "sand_finish") {
     if (role === "sand") return true;
+    // Sand-only jobs store their day on the main slot.
     return role === "main" && woSector === "sand_finish";
   }
   // installation
@@ -108,7 +117,7 @@ export function fieldJobDateWindowWhere(
     return {
       OR: [
         { AND: [{ sector: "sand_finish" }, installOverlap] },
-        { AND: [{ sector: "both" }, sandInRange] },
+        sandInRange,
       ],
     };
   }
@@ -129,7 +138,7 @@ export function fieldJobsOnDayWhere(
   userId: string,
   sector: FieldPayrollSector,
 ): Prisma.WorkOrderWhereInput {
-  const access = myJobAccessWhere(userId);
+  const scope = myFieldJobsWhere(userId, sector);
   const installDay: Prisma.WorkOrderWhereInput = {
     scheduledStart: { lt: end },
     OR: [{ scheduledEnd: { gte: start } }, { scheduledEnd: null, scheduledStart: { gte: start } }],
@@ -142,20 +151,23 @@ export function fieldJobsOnDayWhere(
   if (sector === "sand_finish") {
     return {
       AND: [
-        access,
+        scope,
         {
-          OR: [{ AND: [{ sector: "sand_finish" }, installDay] }, sandDay],
+          OR: [
+            { AND: [{ sector: "sand_finish" }, installDay] },
+            { sandScheduledStart: { gte: start, lt: end } },
+          ],
         },
       ],
     };
   }
   if (sector === "installation") {
     return {
-      AND: [access, jobSectorMatchWhere("installation"), installDay],
+      AND: [scope, installDay],
     };
   }
   return {
-    AND: [access, { OR: [installDay, sandDay] }],
+    AND: [scope, { OR: [installDay, sandDay] }],
   };
 }
 
@@ -166,15 +178,15 @@ export function fieldAgendaWeekWhere(
   userId: string,
   sector: FieldPayrollSector,
 ): Prisma.WorkOrderWhereInput {
-  const access = myFieldJobsWhere(userId, sector);
+  const scope = myFieldJobsWhere(userId, sector);
   if (sector === "sand_finish") {
     return {
       AND: [
-        access,
+        scope,
         {
           OR: [
             { sector: "sand_finish", scheduledStart: { gte: weekStart, lt: weekEnd } },
-            { sector: "both", sandScheduledStart: { gte: weekStart, lt: weekEnd } },
+            { sandScheduledStart: { gte: weekStart, lt: weekEnd } },
           ],
         },
       ],
@@ -182,12 +194,12 @@ export function fieldAgendaWeekWhere(
   }
   if (sector === "installation") {
     return {
-      AND: [access, { scheduledStart: { gte: weekStart, lt: weekEnd } }],
+      AND: [scope, { scheduledStart: { gte: weekStart, lt: weekEnd } }],
     };
   }
   return {
     AND: [
-      access,
+      scope,
       {
         OR: [
           { scheduledStart: { gte: weekStart, lt: weekEnd } },

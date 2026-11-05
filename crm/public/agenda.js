@@ -411,7 +411,11 @@
 
   function visible(e) {
     if (S.filters.cals[e.calendar] === false) return false;
-    if (S.filters.mine && S.me && !e.assignees.includes(String(S.me.id))) return false;
+    // Folha sector staff see every job in their sector — "Só os meus" only hits visits/meetings.
+    const folhaSector = S.me && (S.me.folha_sector === 'sand_finish' || S.me.folha_sector === 'installation');
+    if (S.filters.mine && S.me && !e.assignees.includes(String(S.me.id))) {
+      if (!(folhaSector && e.type === 'job')) return false;
+    }
     if (S.filters.users && S.filters.users.size) {
       if (!e.assignees.some((a) => S.filters.users.has(a)) && !(S.filters.users.has('none') && !e.assignees.length)) return false;
     }

@@ -150,7 +150,7 @@ function presentWorkOrderForFieldSector<
   },
 >(wo: T, sector: FieldPayrollSector): T {
   if (sector !== "sand_finish") return wo;
-  if (wo.sector === "both" && wo.sand_scheduled_start) {
+  if (wo.sand_scheduled_start) {
     return { ...wo, scheduled_start: wo.sand_scheduled_start, scheduled_end: null };
   }
   return wo;
@@ -2594,7 +2594,9 @@ scheduleJobsRouter.get(
         if (wo.scheduledStart && !awaitingSand) {
           slots.push({ at: wo.scheduledStart, role: "main", deliveryId: null, pickup: null });
         }
-        if (wo.sector === "both" && wo.sandScheduledStart) {
+        // Sand day: both-jobs, or any job that still has sandScheduledStart (even if tagged installation).
+        // sand_finish-only keeps the day on scheduledStart (main slot) — don't duplicate.
+        if (wo.sandScheduledStart && wo.sector !== "sand_finish") {
           slots.push({ at: wo.sandScheduledStart, role: "sand", deliveryId: null, pickup: null });
         }
         for (const stop of resolveDeliveryStops(wo)) {
