@@ -18,7 +18,6 @@ import {
   FIELD_STATUSES,
   fieldStatusLabel,
   mapJobCard,
-  myJobAccessWhere,
   nextFieldStatus,
   parseChecklist,
   parsePhotos,
@@ -30,6 +29,11 @@ import {
   type FieldStatus,
   type PhotoItem,
 } from "../lib/campo-shared.js";
+import {
+  fieldAgendaAt,
+  fieldAgendaWeekWhere,
+  fieldPayrollSector,
+} from "../lib/field-sector.js";
 import {
   isJobMediaEnabled,
   mapJobMedia,
@@ -275,21 +279,22 @@ campoJobsRouter.get(
         : ymdLocal(new Date());
 
       const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const fieldSector = await fieldPayrollSector(tx, req.user!.id);
         const rows = await tx.workOrder.findMany({
           where: {
             status: { not: "canceled" },
-            ...myJobAccessWhere(req.user!.id),
-            scheduledStart: { gte: weekStart, lt: weekEnd },
+            ...fieldAgendaWeekWhere(weekStart, weekEnd, req.user!.id, fieldSector),
           },
           include: woListInclude,
-          orderBy: [{ scheduledStart: "asc" }, { createdAt: "asc" }],
+          orderBy: [{ scheduledStart: "asc" }, { sandScheduledStart: "asc" }, { createdAt: "asc" }],
           take: 200,
         });
 
         const byDay = new Map<string, typeof rows>();
         for (const wo of rows) {
-          if (!wo.scheduledStart) continue;
-          const key = ymdLocal(wo.scheduledStart);
+          const at = fieldAgendaAt(wo, fieldSector);
+          if (!at) continue;
+          const key = ymdLocal(at);
           const list = byDay.get(key) || [];
           list.push(wo);
           byDay.set(key, list);
@@ -321,7 +326,7 @@ campoJobsRouter.get(
           });
         }
 
-        const selectedJobs = (byDay.get(selectedYmd) || []).map((j) => mapJobCard(j));
+        const selectedJobs = (byDay.get(selectedYmd) || []).map((j) => mapJobCard(j, { fieldSector }));
         const end = addDays(weekStart, 6);
         const monShort = [
           "jan",
