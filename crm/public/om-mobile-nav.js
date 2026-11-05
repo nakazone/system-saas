@@ -1,13 +1,14 @@
 /**
- * Mobile bottom nav — Início / Leads / Calendar / Quotes / Mais
+ * Mobile bottom nav — Início / Leads / Calendar / Jobs / Mais
+ * (Jobs is the daily centre of a flooring company; Quotes lives in Mais and in + Criar.)
  * Field staff: Hoje / Calendar / Jobs / Chat / Horas (Campo shell links)
  */
 (function () {
-  const VER = "20261013-quotes1";
+  const VER = "20261104-jobstab1";
   const MQ = window.matchMedia("(max-width: 900px)");
   const FIELD_ROLES = new Set(["installer", "crew_lead", "subcontractor"]);
   const SHEET_MS = 380;
-  const TAB_HREFS = ["home.html", "/dashboard", "schedule.html", "quotes.html", "mais.html"];
+  const TAB_HREFS = ["home.html", "/dashboard", "schedule.html", "jobs.html", "mais.html"];
   let edgeSwipeBound = false;
 
   const ICONS = {
@@ -64,15 +65,16 @@
       return "pipeline";
     }
     if (f === "schedule.html") return "agenda";
-    if (f === "quotes.html" || f === "quote-builder.html" || f === "quote-catalog.html") return "quotes";
+    if (f === "jobs.html" || f === "job-detail.html") return "jobs";
     if (
       f === "mais.html" ||
+      f === "quotes.html" ||
+      f === "quote-builder.html" ||
+      f === "quote-catalog.html" ||
       f === "chat.html" ||
       f === "invoices.html" ||
       f === "invoice.html" ||
       f === "customers.html" ||
-      f === "jobs.html" ||
-      f === "job-detail.html" ||
       f === "job-media-board.html" ||
       f === "equipe.html" ||
       f === "configuracoes.html" ||
@@ -278,7 +280,7 @@
   function bindEdgeSwipeBack() {
     if (edgeSwipeBound) return;
     const f = fileName();
-    const primary = new Set(["home.html", "pipeline-lab.html", "schedule.html", "mais.html", "", "dashboard.html", "dashboard", "/dashboard"]);
+    const primary = new Set(["home.html", "pipeline-lab.html", "schedule.html", "jobs.html", "mais.html", "", "dashboard.html", "dashboard", "/dashboard"]);
     if (primary.has(f)) return;
     edgeSwipeBound = true;
 
@@ -565,7 +567,7 @@
       item("home", "home.html", ICONS.home, "Início"),
       item("pipeline", "/dashboard", ICONS.pipeline, "Leads"),
       item("agenda", "schedule.html", ICONS.agenda, "Calendar"),
-      item("quotes", "quotes.html", ICONS.quote, "Quotes", "quotes.view"),
+      item("jobs", "jobs.html", ICONS.jobs, "Jobs", "work_orders.view"),
       item("more", "mais.html", ICONS.more, "Mais"),
     ].join("");
 

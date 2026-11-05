@@ -80,6 +80,11 @@
       "</button>" +
       "</div></div>" +
       '<div class="crm-account-menu__sep" role="separator"></div>' +
+      // Shown by crm-pwa-install.js only when this browser can install the app.
+      '<button type="button" class="crm-account-menu__item" data-account-action="install" data-crm-pwa-install hidden>' +
+      '<span data-i18n="menu.install">' +
+      t("menu.install") +
+      "</span></button>" +
       '<button type="button" class="crm-account-menu__item" data-account-action="refresh" data-crm-hard-refresh>' +
       '<span data-crm-refresh-label data-i18n="menu.refresh">' +
       t("menu.refresh") +
@@ -113,6 +118,10 @@
     if (!menu) return;
     applyPermissions(menu);
     if (window.CrmI18n) window.CrmI18n.apply(menu);
+    if (window.__crmPwaInstall) {
+      window.__crmPwaInstall.bindButtons();
+      if (window.__crmPwaInstall.sync) window.__crmPwaInstall.sync();
+    }
     menu.hidden = false;
     if (btn) btn.setAttribute("aria-expanded", "true");
     wrap.classList.add("is-open");
@@ -209,6 +218,11 @@
       var actionEl = e.target.closest("[data-account-action]");
       if (!actionEl) return;
       var action = actionEl.getAttribute("data-account-action");
+      if (action === "install") {
+        // crm-pwa-install.js handles the click; just close the menu.
+        closeMenu(wrap);
+        return;
+      }
       if (action === "refresh") {
         e.preventDefault();
         closeMenu(wrap);

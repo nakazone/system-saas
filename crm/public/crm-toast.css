@@ -51,6 +51,12 @@
   border-color: #FDF0E6;
 }
 
+.crm-toast--warning {
+  background: #FFF6E8;
+  color: #7A4E0E;
+  border-color: #ECD7B0;
+}
+
 .crm-toast--info {
   background: #eff6ff;
   color: #1e40af;
