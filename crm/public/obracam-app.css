@@ -1,5 +1,5 @@
 /* ObraCam app: the ObraCam page as its own installed app (only inside /obracam). */
-body.oc-app { --oc-tabs: calc(90px + env(safe-area-inset-bottom)); font-family: Geist, system-ui, sans-serif; }
+body.oc-app { --oc-tabs: calc(90px + env(safe-area-inset-bottom)); --crm-topbar-height: 56px; font-family: Geist, system-ui, sans-serif; }
 body.oc-app .cam, body.oc-app .cam-pbar, body.oc-app .cam * { font-family: inherit; }
 body.oc-app .mobile-app-header,
 body.oc-app #dashboardSidebar,
@@ -15,22 +15,21 @@ body.oc-app .dashboard-container,
 body.oc-app .dashboard-main { margin: 0 !important; width: 100% !important; max-width: none !important; }
 /* the hidden mobile header still reserved 64px above the title */
 body.oc-app .dashboard-main { padding-top: 0 !important; padding-bottom: 0 !important; }
-body.oc-app .cam { padding-top: calc(12px + env(safe-area-inset-top)); }
+body.oc-app .cam { padding-top: 12px; }
+body.oc-app #ocAppTop { position: sticky; top: 0; }
 body.oc-app .cam { padding-bottom: calc(var(--oc-tabs) + 16px); }
 body.oc-app.cam-detail-open .cam { padding-bottom: 90px; }
 body.oc-app.oc-feed .cam { padding-bottom: calc(var(--oc-tabs) + 16px); }
 body.oc-app.oc-feed .cam-back, body.oc-app.oc-feed .cam-top { display: none; }
 body.oc-app #camDetail .cam-acts .cam-btn:not(.cam-btn--pri) { display: none; }
 
-.oc-tabs { position: fixed; z-index: 30; left: 34px; right: 34px; bottom: calc(22px + env(safe-area-inset-bottom)); height: 64px; box-sizing: border-box; padding: 6px; border-radius: 32px; background: rgba(255, 255, 255, .96); border: 1px solid var(--om-line, #E5E7EB); box-shadow: var(--om-shadow-2, 0 4px 14px rgba(16, 24, 40, .08)); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
-body.cam-detail-open:not(.oc-feed):not(.oc-settings) .oc-tabs { display: none; }
-.oc-tab { appearance: none; border: 0; background: transparent; border-radius: 26px; color: var(--om-ink-3, #475467); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font: inherit; font-size: 11px; font-weight: 500; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; transition: background-color 120ms ease, transform 120ms var(--om-ease-out, cubic-bezier(.23, 1, .32, 1)); }
-.oc-tab:active { transform: scale(.95); }
-.oc-tab:focus-visible, .oc-row:focus-visible { outline: 2px solid var(--om-accent-strong, #B4561A); outline-offset: -2px; }
-.oc-tab svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: square; }
-.oc-tab.is-on { background: var(--om-accent-soft, #FDF0E6); color: var(--om-accent-strong, #B4561A); font-weight: 600; }
+/* Abas e busca têm a aparência de todos os apps (om-shell.css); aqui só quando somem. */
+html body.cam-detail-open:not(.oc-feed):not(.oc-settings) .oc-tabs.om-shell-tabs,
+html body.cam-detail-open:not(.oc-feed):not(.oc-settings) .oc-search.om-shell-search,
+html body.cam-selecting .oc-search.om-shell-search { display: none; }
+.oc-row:focus-visible { outline: 2px solid var(--om-accent-strong, #B4561A); outline-offset: -2px; }
 
-.oc-panel { position: fixed; z-index: 20; inset: 0; overflow-y: auto; background: var(--om-bg, #F7F8FA); color: var(--om-ink, #221E1A); box-sizing: border-box; padding: calc(16px + env(safe-area-inset-top)) 20px calc(var(--oc-tabs) + 24px); }
+.oc-panel { position: fixed; z-index: 20; inset: 0; overflow-y: auto; background: var(--om-bg, #F7F8FA); color: var(--om-ink, #221E1A); box-sizing: border-box; padding: calc(72px + env(safe-area-inset-top)) 20px calc(var(--oc-tabs) + 24px); }
 .oc-panel[hidden] { display: none; }
 .oc-title { margin: 2px 0 16px; font-size: 34px; font-weight: 700; letter-spacing: -.03em; }
 .oc-list { background: var(--om-card, #fff); border: 1px solid var(--om-line, #E5E7EB); border-radius: 16px; overflow: hidden; margin-bottom: 16px; }
@@ -43,5 +42,4 @@ a.oc-row:active, button.oc-row:active { background: var(--om-bg, #F7F8FA); }
 .oc-row__t { display: block; font-size: 15px; font-weight: 600; }
 .oc-row__s { display: block; font-size: 13px; color: var(--om-ink-2, #667085); margin-top: 1px; }
 @media (prefers-reduced-motion: reduce) {
-  .oc-tab:active { transform: none; }
 }

@@ -11,19 +11,38 @@
   document.body.classList.add('oc-app');
 
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const TABS = [
-    { id: 'jobs', label: 'Jobs', icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17H21"/><path d="M6 17V12L9 8H15L18 12V17"/><path d="M12 8V12"/></svg>' },
-    { id: 'photos', label: 'Fotos', icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8H7L9 5H15L17 8H21V19H3Z"/><path d="M10 10.5H14L15.5 13.5L14 16.5H10L8.5 13.5Z"/></svg>' },
-    { id: 'settings', label: 'Ajustes', icon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7H20M4 17H20"/><path d="M8 5H11V9H8ZM14 15H17V19H14Z" fill="#fff"/></svg>' },
-  ];
-  const nav = document.createElement('nav');
-  nav.className = 'oc-tabs';
-  nav.setAttribute('aria-label', 'ObraCam');
-  nav.innerHTML = TABS.map((t) => `<button type="button" class="oc-tab" data-oc-tab="${t.id}">${t.icon}${t.label}</button>`).join('');
+  // The same bars as every other app (om-shell.js): app name + account on top, floating tabs and search below.
+  const nav = window.OmShell.tabs({
+    className: 'oc-tabs',
+    label: 'ObraCam',
+    search: true,
+    items: [
+      { key: 'jobs', label: 'Jobs', icon: 'jobs', attrs: 'data-oc-tab="jobs"' },
+      { key: 'photos', label: 'Fotos', icon: 'camera', attrs: 'data-oc-tab="photos"' },
+      { key: 'settings', label: 'Ajustes', icon: 'settings', attrs: 'data-oc-tab="settings"' },
+    ],
+  });
+  const topBar = window.OmShell.top({
+    id: 'ocAppTop',
+    app: 'obracam',
+    actions: [{ kind: 'avatar', id: 'ocAvatar', label: 'Minha conta', text: '—', onClick: () => show('settings') }],
+  });
+  const searchBtn = window.OmShell.searchButton({
+    className: 'oc-search',
+    onClick: () => {
+      show('jobs');
+      const q = document.getElementById('camQ');
+      if (q) q.focus();
+    },
+  });
+  document.body.insertBefore(topBar, document.body.firstChild);
+  // The bar already says ObraCam; the page title says where you are.
+  const pageTitle = document.querySelector('#cam .cam-top h1');
+  if (pageTitle) pageTitle.textContent = 'Jobs';
   const panel = document.createElement('section');
   panel.className = 'oc-panel';
   panel.hidden = true;
-  document.body.append(panel, nav);
+  document.body.append(panel, nav, searchBtn);
 
   let session = null;
   function renderSettings() {
@@ -44,7 +63,7 @@
   function markTab(id) {
     nav.querySelectorAll('[data-oc-tab]').forEach((b) => {
       const on = b.dataset.ocTab === id;
-      b.classList.toggle('is-on', on);
+      b.classList.toggle('is-active', on);
       if (on) b.setAttribute('aria-current', 'page');
       else b.removeAttribute('aria-current');
     });
@@ -104,7 +123,12 @@
 
   fetch('/api/auth/session', { credentials: 'include' })
     .then((r) => r.json())
-    .then((s) => { session = s; if (!panel.hidden) renderSettings(); })
+    .then((s) => {
+      session = s;
+      const who = s && s.user ? s.user.name || s.user.email : '';
+      if (who) document.getElementById('ocAvatar').textContent = window.OmShell.initials(who);
+      if (!panel.hidden) renderSettings();
+    })
     .catch(() => {});
 
   markTab('jobs');

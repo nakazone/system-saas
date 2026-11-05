@@ -69,6 +69,29 @@ describe("front-end guardrails", () => {
     for (const f of ["om-tokens.css", "om-ui.css", "om-ui.js"]) expect(injected).toContain(`/${f}?v=`);
   });
 
+  it("every app builds its top and bottom bars from the one shared component", () => {
+    expect(injected).toContain("/om-shell.css?v=");
+    expect(injected).toContain("/om-shell.js?v=");
+    const app = (f: string) => read(path.join(PUB, f));
+    // ObraBuilder sessions get the raw file, without the server injection
+    expect(app("partner-portal.html")).toContain("/om-shell.css?v=");
+    expect(app("partner-portal.html")).toMatch(/pp-tabs om-shell-tabs/);
+    expect(app("partner-portal.html")).toMatch(/pp-top-in om-shell-top/);
+    expect(app("om-mobile-nav.js")).toContain("om-shell-tabs");
+    expect(app("om-mobile-nav.js")).toContain("om-shell-top");
+    expect(app("campo/campo-nav.js")).toContain("OmShell.tabs(");
+    expect(app("campo/campo-nav.js")).toContain("OmShell.crewTop(");
+    expect(app("obracam-app.js")).toContain("OmShell.tabs(");
+    expect(app("obracam-app.js")).toContain("OmShell.top(");
+  });
+
+  it("no app restyles the shared bars on its own", () => {
+    // A rule that sets the bars' look outside om-shell.css is how the apps drifted apart.
+    const look = /(?:^|[\s,}])\.(?:cm-tabbar|oc-tabs|oc-tab|pp-tabs|pp-tab|pp-search-fab|om-tabbar-search)(?:__item)?\s*\{[^}]*(?:border-radius|box-shadow|height)\s*:/m;
+    const offenders = ["campo/campo.css", "obracam-app.css", "partner-portal-v2.css"].filter((f) => look.test(read(path.join(PUB, f))));
+    expect(offenders).toEqual([]);
+  });
+
   it("does not add native alert/confirm/prompt dialogs", () => {
     const n = js.reduce((sum, f) => sum + (read(f).match(/(?<![\w.$])(?:window\.)?(?:alert|confirm|prompt)\(/g) || []).length, 0);
     expect(n).toBeLessThanOrEqual(MAX_NATIVE_DIALOGS);

@@ -2,17 +2,7 @@
  * Campo tabbar — Hoje / Agenda / Jobs / Chat / Horas
  */
 (function () {
-  const VER = "20261013-off1";
-
-  const ICONS = {
-    hoje: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>',
-    agenda:
-      '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
-    jobs: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg>',
-    chat: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>',
-    horas:
-      '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
-  };
+  const VER = "20261105-shell1";
 
   function fileName() {
     return (location.pathname || "").split("/").pop() || "";
@@ -29,30 +19,30 @@
     return "";
   }
 
+  /** Same bars as every other app (om-shell.js): app name + account on top, the floating tabs below. */
+  function ensureTop() {
+    // Ticket and samples are detail pages: their header with the back button stays in place of this bar.
+    if (document.getElementById("cmAppTop") || document.querySelector(".cm-ticket-top, .st-top")) return;
+    document.body.insertBefore(window.OmShell.crewTop("cmAppTop"), document.body.firstChild);
+  }
+
   function ensure() {
-    if (document.getElementById("cmTabbar")) return;
+    if (!window.OmShell || document.getElementById("cmTabbar")) return;
+    ensureTop();
     const tab = activeTab();
-    const nav = document.createElement("nav");
-    nav.id = "cmTabbar";
-    nav.className = "cm-tabbar";
-    nav.setAttribute("aria-label", "Campo");
-    nav.innerHTML = `
-      <a data-om-press class="cm-tabbar__item${tab === "hoje" ? " is-active" : ""}" href="hoje.html" data-cm-tab="hoje">
-        ${ICONS.hoje}<span>Hoje</span>
-      </a>
-      <a data-om-press class="cm-tabbar__item${tab === "agenda" ? " is-active" : ""}" href="agenda.html" data-cm-tab="agenda">
-        ${ICONS.agenda}<span>Agenda</span>
-      </a>
-      <a data-om-press class="cm-tabbar__item${tab === "jobs" ? " is-active" : ""}" href="/jobs.html" data-cm-tab="jobs">
-        ${ICONS.jobs}<span>Jobs</span>
-      </a>
-      <a data-om-press class="cm-tabbar__item${tab === "chat" ? " is-active" : ""}" href="/chat.html" data-cm-tab="chat">
-        ${ICONS.chat}<span>ObraChat</span>
-      </a>
-      <a data-om-press class="cm-tabbar__item${tab === "horas" ? " is-active" : ""}" href="horas.html" data-cm-tab="horas">
-        ${ICONS.horas}<span>Horas</span>
-      </a>
-    `;
+    const item = (key, label, icon, href) => ({ key, label, icon, href, active: tab === key, attrs: `data-cm-tab="${key}"`, className: "cm-tabbar__item" });
+    const nav = window.OmShell.tabs({
+      id: "cmTabbar",
+      className: "cm-tabbar",
+      label: "ObraCrew",
+      items: [
+        item("hoje", "Hoje", "home", "/campo/hoje.html"),
+        item("agenda", "Agenda", "calendar", "/campo/agenda.html"),
+        item("jobs", "Jobs", "jobs", "/jobs.html"),
+        item("chat", "ObraChat", "chat", "/chat.html"),
+        item("horas", "Horas", "clock", "/campo/horas.html"),
+      ],
+    });
     document.body.appendChild(nav);
     document.body.classList.add("cm-has-tabbar");
   }

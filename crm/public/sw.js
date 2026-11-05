@@ -1,41 +1,43 @@
 /**
  * ObraMate — service worker (static cache + Campo offline + Web Push).
  */
-const CACHE = "om-static-v67";
+const CACHE = "om-static-v69";
 const API_CACHE = "om-api-v1";
 const BADGE_CACHE = "om-badge-v1";
 const BADGE_URL = "/__om_app_badge_count";
 const PRECACHE = [
   // Generated from the Campo pages and the assets the server injects (see src/crm/mount.ts).
   "/offline.html",
+  "/om-shell.css?v=20261105-shell9",
+  "/om-shell.js?v=20261105-shell9",
   // what offline.html itself shows
   "/manifest.json?v=20260930-native2",
   "/assets/favicon-192.png?v=20260924-pwa",
   "/assets/img/mascot/mate-sleeping.webp?v=20261027-m2",
   "/campo/agenda.html",
   "/assets/favicon-192.png?v=20260924-pwa",
-  "/campo/campo.css?v=20261105-apps3",
+  "/campo/campo.css?v=20261105-shell9",
   "/om-device.js?v=20261013-badge1",
   "/om-stable-viewport.css?v=20261007-stable1",
   "/assets/obracrew/apple-touch-icon.png?v=1",
   "/om-offline.js?v=20261105-apps3",
   "/campo/campo-data.js?v=20260925-campo3",
   "/campo/campo-gate.js?v=20260925-campo3",
-  "/campo/campo-nav.js?v=20261105-apps3",
+  "/campo/campo-nav.js?v=20261105-shell9",
   "/campo/agenda.js?v=20261105-apps3",
   "/mate-panel.css?v=20261027-m2",
   "/mate-panel.js?v=20261104-ux2",
   "/campo/hoje.html",
-  "/campo/dia.css?v=20261105-apps3",
+  "/campo/dia.css?v=20261105-shell10",
   "/photo-exif.js?v=20261104-exif1",
   "/campo/campo-photo.js?v=20261105-apps3",
   "/campo/campo-media-queue.js?v=20261104-exif1",
-  "/campo/dia.js?v=20261105-apps3",
+  "/campo/dia.js?v=20261105-crew1",
   "/campo/horas.html",
   "/campo/horas.js?v=20261105-apps3",
   "/campo/index.html",
   "/campo/stain.html",
-  "/campo/stain.css?v=20261105-apps3",
+  "/campo/stain.css?v=20261105-shell9",
   "/campo/stain.js?v=20261105-apps3",
   "/campo/ticket.html",
   "/crm-toast.css?v=20261105-apps3",
@@ -44,7 +46,7 @@ const PRECACHE = [
   "/om-tokens.css?v=20261105-apps3",
   "/om-ui.css?v=20261105-apps3",
   "/om-ui.js?v=20261105-apps3",
-  "/om-theme.css?v=20261105-apps3",
+  "/om-theme.css?v=20261105-shell9",
   "/saas-branding.js?v=20261104-crew1",
   "/crm-confirm.css?v=20261105-apps3",
   "/crm-confirm.js?v=20261105-apps3",

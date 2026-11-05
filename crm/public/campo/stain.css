@@ -122,3 +122,4 @@ body.st-app.cm-has-tabbar .st-toast { bottom: calc(170px + var(--cm-tabbar-h, 68
 .cm-stain-link__txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .cm-stain-link__txt strong { font-size: 15px; }
 .cm-stain-link__txt small { font-size: 13px; color: var(--om-ink-2); }
+.st-bar[hidden] { display: none; }

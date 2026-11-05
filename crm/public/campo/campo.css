@@ -26,7 +26,7 @@
   --cm-badge-sched-ink: #57534e;
   --cm-radius: var(--om-r-lg, 18px);
   --cm-radius-sm: var(--om-r-md, 12px);
-  --cm-tabbar-h: 68px;
+  --cm-tabbar-h: 78px; /* pílula de 62px + 12px de margem + folga */
   --cm-font: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
   --cm-safe-b: env(safe-area-inset-bottom, 0px);
   --cm-safe-t: env(safe-area-inset-top, 0px);
@@ -951,61 +951,7 @@ button {
 }
 
 /* —— Tabbar —— */
-.cm-tabbar {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 50;
-  display: flex;
-  justify-content: center;
-  gap: 0.25rem;
-  max-width: 480px;
-  margin: 0 auto;
-  padding: 0.45rem 1rem calc(0.45rem + var(--cm-safe-b));
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-top: 1px solid var(--cm-line);
-  box-sizing: border-box;
-  min-height: calc(var(--cm-tabbar-h) + var(--cm-safe-b));
-}
-
-.cm-tabbar__item {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.12rem;
-  min-height: 52px;
-  min-width: 0;
-  border-radius: 16px;
-  /* 11px minimum for labels; --cm-muted is AA (4.8:1) */
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: var(--cm-muted);
-  padding: 0.3rem 0.2rem;
-  touch-action: manipulation;
-  -webkit-user-select: none;
-  user-select: none;
-  -webkit-touch-callout: none;
-}
-
-.cm-tabbar__item svg {
-  width: 22px;
-  height: 22px;
-  stroke: currentColor;
-  fill: none;
-  stroke-width: 1.75;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.cm-tabbar__item.is-active {
-  background: var(--cm-accent-soft);
-  color: var(--cm-accent);
-}
+/* A barra de abas é a de todos os apps: aparência em /om-shell.css. */
 
 /* —— Bottom sheet —— */
 .cm-sheet-backdrop {
@@ -1175,15 +1121,11 @@ body.cm-sheet-open {
     display: block;
   }
   body.cm-app {
-    background: #e8e4de;
+    background: var(--om-bg);
   }
   .cm-page {
     background: var(--cm-bg);
     min-height: 100vh;
-    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04);
-  }
-  .cm-tabbar {
-    box-shadow: 0 -1px 0 var(--cm-line);
   }
 }
 
@@ -2114,7 +2056,7 @@ body.cm-lightbox-open {
 }
 
 body.cm-lightbox-open .cm-ticket-cta,
-body.cm-lightbox-open .cm-tabbar {
+html body.cm-lightbox-open .cm-tabbar.om-shell-tabs {
   visibility: hidden;
 }
 
@@ -2186,7 +2128,7 @@ body.cm-lightbox-open .cm-tabbar {
   min-height: 100px;
 }
 
-body.cm-ticket .cm-tabbar {
+html body.cm-ticket .cm-tabbar.om-shell-tabs {
   /* keep nav; CTA sits above */
 }
 
