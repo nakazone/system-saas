@@ -36,6 +36,11 @@
   box-sizing: content-box;
 }
 
+/* No notifications: only the bell (the badge's display:flex would beat [hidden]). */
+.notification-bell-wrap .notification-bell-badge[hidden] {
+  display: none !important;
+}
+
 .notification-bell-wrap .notification-bell-btn[aria-expanded="true"] {
   background: var(--color-surface-secondary, #F7F8FA);
   color: var(--color-text-primary, #221E1A);

@@ -1045,7 +1045,7 @@
     if (!document.querySelector('link[href*="notification-center.css"]')) {
       const css = document.createElement("link");
       css.rel = "stylesheet";
-      css.href = "notification-center.css?v=20261105-nc1";
+      css.href = "notification-center.css?v=20261105-nc2";
       document.head.appendChild(css);
     }
     ensureScript("notification-center.js?v=20261105-nc1", "notification-center.js");
