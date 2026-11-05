@@ -81,7 +81,10 @@ async function phasesState(tx: TenantPrisma, req: AuthedRequest, jobId: string) 
     : new Map<string, { id: string; url: string; thumb_url: string }>();
   // Team screens are written in pt-BR and translated in the browser; English labels go along too.
   const locale = "pt-BR" as const;
+  const reworks = pack.rework ? await reworksOf(tx, req, jobId, pack) : null;
   return {
+    // Pieces made again (Countertops remakes); the cost only for the office.
+    reworks,
     trade: pack.id,
     storage: pack.phaseStorage,
     status: job.status,
@@ -132,6 +135,116 @@ async function phasesState(tx: TenantPrisma, req: AuthedRequest, jobId: string) 
     }),
   };
 }
+
+/* ───────────────────────────── remakes ───────────────────────────── */
+
+async function reworksOf(tx: TenantPrisma, req: AuthedRequest, jobId: string, pack: TradePack) {
+  const office = perms(req).manage;
+  const cfg = pack.rework!;
+  const label = (list: typeof cfg.reasons, key: string) => list.find((x) => x.key === key)?.label["pt-BR"] ?? key;
+  const rows = await tx.jobRework.findMany({ where: { workOrderId: jobId }, orderBy: { createdAt: "asc" } });
+  return {
+    reasons: cfg.reasons.map((r) => ({ key: r.key, label: r.label["pt-BR"], label_en: r.label["en-US"] })),
+    responsible: cfg.responsible.map((r) => ({ key: r.key, label: r.label["pt-BR"], label_en: r.label["en-US"] })),
+    can_manage: office,
+    total_cost: office ? Math.round(rows.reduce((a, r) => a + Number(r.cost ?? 0), 0) * 100) / 100 : null,
+    items: rows.map((r) => ({
+      id: r.id,
+      piece: r.piece,
+      reason: r.reason,
+      reason_label: label(cfg.reasons, r.reason),
+      responsible: r.responsible,
+      responsible_label: label(cfg.responsible, r.responsible),
+      phase_key: r.phaseKey,
+      phase_label: r.phaseKey ? pack.phases.find((p) => p.key === r.phaseKey)?.label["pt-BR"] ?? r.phaseKey : null,
+      cost: office && r.cost != null ? Number(r.cost) : null,
+      notes: r.notes,
+      by: r.createdByName,
+      at: r.createdAt.toISOString(),
+    })),
+  };
+}
+
+const reworkBody = z.object({
+  piece: z.string().trim().min(1).max(120),
+  reason: z.string().trim().min(1).max(40),
+  responsible: z.string().trim().min(1).max(40),
+  phase_key: z.string().trim().max(40).nullable().optional(),
+  cost: z.coerce.number().min(0).max(1_000_000).nullable().optional(),
+  notes: z.string().trim().max(1000).nullable().optional(),
+});
+
+/** Record a piece made again. The crew can record it on their jobs; only the office sets the cost. */
+jobPhasesRouter.post("/api/work-orders/:id/reworks", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const body = reworkBody.safeParse(req.body || {});
+    if (!body.success) throw new PhaseError("Preencha a peça, o motivo e o responsável.", 400, "invalid");
+    const jobId = jobIdOf(req);
+    const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+      await reachJob(tx, req, jobId, true);
+      const pack = await packOf(tx, req.organizationId!);
+      const cfg = pack.rework;
+      if (!cfg) throw new PhaseError("Este ofício não registra peças refeitas.", 409, "no_rework");
+      if (!cfg.reasons.some((r) => r.key === body.data.reason)) throw new PhaseError("Motivo desconhecido.", 400, "unknown_reason");
+      if (!cfg.responsible.some((r) => r.key === body.data.responsible)) throw new PhaseError("Responsável desconhecido.", 400, "unknown_responsible");
+      const phase = body.data.phase_key && pack.phases.some((p) => p.key === body.data.phase_key) ? body.data.phase_key : null;
+      await tx.jobRework.create({
+        data: {
+          organizationId: req.organizationId!,
+          workOrderId: jobId,
+          trade: pack.id,
+          phaseKey: phase,
+          piece: body.data.piece,
+          reason: body.data.reason,
+          responsible: body.data.responsible,
+          cost: perms(req).manage && body.data.cost != null ? body.data.cost : null,
+          notes: body.data.notes || null,
+          createdById: req.user?.id ?? null,
+          createdByName: req.user?.name ?? null,
+        },
+      });
+      return phasesState(tx, req, jobId);
+    });
+    res.json({ success: true, data });
+  } catch (error) {
+    fail(res, next, error);
+  }
+});
+
+/** Office only: fix the cost of a remake, or remove one recorded by mistake. */
+jobPhasesRouter.patch("/api/work-orders/:id/reworks/:rid", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    if (!perms(req).manage) throw new PhaseError("Só o escritório altera peças refeitas.", 403, "forbidden");
+    const body = z.object({ cost: z.coerce.number().min(0).max(1_000_000).nullable() }).safeParse(req.body || {});
+    if (!body.success) throw new PhaseError("Valor inválido.", 400, "invalid");
+    const jobId = jobIdOf(req);
+    const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+      await reachJob(tx, req, jobId, true);
+      const out = await tx.jobRework.updateMany({ where: { id: String(req.params.rid), workOrderId: jobId }, data: { cost: body.data.cost } });
+      if (!out.count) throw new PhaseError("Registro não encontrado.", 404, "not_found");
+      return phasesState(tx, req, jobId);
+    });
+    res.json({ success: true, data });
+  } catch (error) {
+    fail(res, next, error);
+  }
+});
+
+jobPhasesRouter.delete("/api/work-orders/:id/reworks/:rid", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    if (!perms(req).manage) throw new PhaseError("Só o escritório remove peças refeitas.", 403, "forbidden");
+    const jobId = jobIdOf(req);
+    const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+      await reachJob(tx, req, jobId, true);
+      const out = await tx.jobRework.deleteMany({ where: { id: String(req.params.rid), workOrderId: jobId } });
+      if (!out.count) throw new PhaseError("Registro não encontrado.", 404, "not_found");
+      return phasesState(tx, req, jobId);
+    });
+    res.json({ success: true, data });
+  } catch (error) {
+    fail(res, next, error);
+  }
+});
 
 function fail(res: Response, next: NextFunction, error: unknown) {
   if (error instanceof PhaseError) {

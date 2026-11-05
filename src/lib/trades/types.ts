@@ -133,6 +133,14 @@ export type TradePack = {
    */
   /** Job variants that add phases (phaseStorage "table" only). */
   variants?: readonly PackVariant[];
+  /**
+   * Pieces made again on a job (Countertops remakes): the reasons and who answers for them, in the
+   * pack's words. Trades without remakes leave this out.
+   */
+  rework?: {
+    reasons: readonly { key: string; label: { "pt-BR": string; "en-US": string } }[];
+    responsible: readonly { key: string; label: { "pt-BR": string; "en-US": string } }[];
+  };
   measurement?: { tabs: readonly ("stairs" | "vents" | "showers" | "floors" | "summary")[] };
   combinedPhaseKey: string;
   ai: {

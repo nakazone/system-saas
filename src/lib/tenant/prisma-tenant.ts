@@ -23,6 +23,7 @@ export function runWithTenant<T>(organizationId: string, fn: () => T): T {
 /** Models that must always be scoped by organizationId */
 const TENANT_MODELS = new Set([
   "JobPhase",
+  "JobRework",
   "PieceRate",
   "User",
   "Role",

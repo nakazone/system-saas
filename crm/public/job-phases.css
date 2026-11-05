@@ -77,3 +77,21 @@
 .jp-var__box { width: 16px; height: 16px; border-radius: 5px; box-shadow: inset 0 0 0 1.5px currentColor; display: grid; place-items: center; font-size: 11px; }
 .jp-var.is-on .jp-var__box { background: #fff; color: #221E1A; box-shadow: none; }
 .jp-warn { display: block; width: fit-content; margin-top: 4px; padding: 1px 8px; border-radius: 999px; background: #FDF0E6; color: #9A4A12; font-weight: 600; font-size: 12px; }
+/* Peças refeitas (remakes) */
+.jp-rw { margin-top: 14px; }
+.jp-rw__list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.jp-rw__i { display: flex; gap: 12px; justify-content: space-between; align-items: flex-start; padding: 10px 12px; border: 1px solid #EAECF0; border-radius: 12px; background: #fff; }
+.jp-rw__i b { display: block; font-size: 14px; color: #221E1A; }
+.jp-rw__i small { display: block; font-size: 12.5px; color: #667085; margin-top: 2px; line-height: 1.35; }
+.jp-rw__note { color: #475467 !important; }
+.jp-rw__by { color: #98A2B3 !important; }
+.jp-rw__side { display: grid; justify-items: end; gap: 4px; flex: none; font-variant-numeric: tabular-nums; }
+.jp-rw__nocost { font-size: 12px; color: #98A2B3; }
+.jp-rw__add { margin-top: 10px; }
+.jp-rw__form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+.jp-rw__form label { display: grid; gap: 4px; font-size: 12.5px; font-weight: 600; color: #475467; }
+.jp-rw__form input, .jp-rw__form select { font: inherit; font-size: 14px; min-height: 40px; padding: 0 10px; border: 1px solid #D0D5DD; border-radius: 10px; background: #fff; color: #221E1A; width: 100%; box-sizing: border-box; }
+.jp-rw__form input:focus-visible, .jp-rw__form select:focus-visible { outline: 2px solid #E7792C; outline-offset: 1px; }
+.jp-rw__form label:first-child, .jp-rw__wide { grid-column: 1 / -1; }
+.jp-rw__act { grid-column: 1 / -1; display: flex; gap: 14px; align-items: center; }
+@media (max-width: 560px) { .jp-rw__form { grid-template-columns: 1fr; } }

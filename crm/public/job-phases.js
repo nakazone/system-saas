@@ -75,7 +75,7 @@
     const l = document.createElement("link");
     l.id = CSS_ID;
     l.rel = "stylesheet";
-    l.href = "/job-phases.css?v=20261104-lead1";
+    l.href = "/job-phases.css?v=20261105-rw1";
     document.head.appendChild(l);
   }
 
@@ -277,6 +277,46 @@
     </div>`;
   }
 
+  const money = (n) => `$${Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  /**
+   * Pieces made again (Countertops remakes): which piece, why, on whom, and the cost (office only).
+   * The crew can record one from the ticket; the office sets the cost and removes mistakes.
+   */
+  function reworkCard(d, st) {
+    const rw = d.reworks;
+    if (!rw) return "";
+    const office = rw.can_manage;
+    const items = rw.items
+      .map(
+        (r) => `<li class="jp-rw__i">
+          <div><b>${esc(r.piece)}</b><small>${esc(r.reason_label)} · ${esc(r.responsible_label)}${r.phase_label ? ` · ${esc(r.phase_label)}` : ""}</small>
+          ${r.notes ? `<small class="jp-rw__note">${esc(r.notes)}</small>` : ""}<small class="jp-rw__by">${esc(r.by || "")}${r.by ? " · " : ""}${esc(dayLabel(new Date(r.at), st.now))}</small></div>
+          ${office ? `<div class="jp-rw__side">${r.cost != null ? `<b translate="no">${money(r.cost)}</b>` : '<span class="jp-rw__nocost">sem custo</span>'}<button type="button" class="jp-link" data-rw-del="${esc(r.id)}" ${st.busy ? "disabled" : ""}>Remover</button></div>` : ""}
+        </li>`,
+      )
+      .join("");
+    const opts = (list) => list.map((o) => `<option value="${esc(o.key)}">${esc(o.label)}</option>`).join("");
+    const cur = d.phases.find((p) => p.status !== "done" && p.status !== "skipped");
+    const phaseOpts = `<option value="">—</option>${d.phases.map((p) => `<option value="${esc(p.key)}" ${cur && cur.key === p.key ? "selected" : ""}>${esc(p.label)}</option>`).join("")}`;
+    const form = st.rework
+      ? `<form class="jp-rw__form" data-rw-form>
+          <label><span>Peça</span><input name="piece" required maxlength="120" placeholder="Ilha, bancada da pia…" /></label>
+          <label><span>Motivo</span><select name="reason" required>${opts(rw.reasons)}</select></label>
+          <label><span>Responsável</span><select name="responsible" required>${opts(rw.responsible)}</select></label>
+          <label><span>Fase</span><select name="phase_key">${phaseOpts}</select></label>
+          ${office ? `<label><span>Custo (slab, mão de obra, viagem)</span><input name="cost" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" /></label>` : ""}
+          <label class="jp-rw__wide"><span>Observação</span><input name="notes" maxlength="1000" placeholder="O que aconteceu" /></label>
+          <div class="jp-rw__act"><button type="submit" class="jp-b jp-b--pri" ${st.busy ? "disabled" : ""}>Registrar</button><button type="button" class="jp-link" data-rw-cancel>Cancelar</button></div>
+        </form>`
+      : `<button type="button" class="jp-link jp-rw__add" data-rw-open ${st.canAct ? "" : "hidden"}>+ Registrar peça refeita</button>`;
+    return `<div class="jd-card jp-rw">
+      <div class="jd-ch"><h2>Peças refeitas</h2><span class="jp-n" translate="no" data-no-i18n>${rw.items.length}</span></div>
+      ${office && rw.items.length ? `<p class="jp-s">Custo total: <b translate="no">${money(rw.total_cost)}</b></p>` : '<p class="jp-s">Quando uma peça precisa ser feita de novo: o motivo e quem responde por ela.</p>'}
+      ${rw.items.length ? `<ul class="jp-rw__list">${items}</ul>` : ""}
+      ${form}
+    </div>`;
+  }
+
   /** Job variants (Tile: "Pedra natural"): the office switches them; the crew sees which are on. */
   function variantsBar(d, st) {
     const list = Array.isArray(d.variants) ? d.variants : [];
@@ -308,7 +348,9 @@
       <ol class="jp-tl">${d.phases.map((p, i) => row(p, i, d, s, st)).join("")}</ol>
       ${!s.cur ? '<p class="jp-all">Todas as fases concluídas.</p>' : ""}
     </div>`;
-    box.innerHTML = st.compact ? `<div class="jp jp--compact">${list}</div>` : `<div class="jd-grid jp"><div class="jd-col">${list}</div><aside class="jd-col jd-side">${sideCard(d)}</aside></div>`;
+    box.innerHTML = st.compact
+      ? `<div class="jp jp--compact">${list}${reworkCard(d, st)}</div>`
+      : `<div class="jd-grid jp"><div class="jd-col">${list}</div><aside class="jd-col jd-side">${sideCard(d)}${reworkCard(d, st)}</aside></div>`;
   }
 
   function compressImage(file, maxEdge, quality) {
@@ -506,6 +548,27 @@
         run(async () => say(await evidence(phase, key, { value: { confirmed: true } }, reqLabel(phase, key)), "Conferido."));
         return;
       }
+      if (e.target.closest("[data-rw-open]")) {
+        st.rework = true;
+        paint();
+        box.querySelector("[data-rw-form] input[name=piece]")?.focus();
+        return;
+      }
+      if (e.target.closest("[data-rw-cancel]")) {
+        st.rework = false;
+        paint();
+        return;
+      }
+      const del = e.target.closest("[data-rw-del]");
+      if (del) {
+        if (!online()) return notify("Remover precisa de internet.", "error");
+        const id = del.getAttribute("data-rw-del");
+        const ok = window.crmConfirm ? window.crmConfirm({ title: "Remover este registro?", text: "Use só para um registro feito por engano.", ok: "Remover" }) : Promise.resolve(window.confirm("Remover este registro?"));
+        Promise.resolve(ok).then((yes) => {
+          if (yes) run(async () => took(await api(`/api/work-orders/${encodeURIComponent(ctx.jobId)}/reworks/${encodeURIComponent(id)}`, { method: "DELETE" }), "Registro removido."));
+        });
+        return;
+      }
       if (e.target.closest("[data-req-cancel]")) {
         st.editing = null;
         paint();
@@ -537,6 +600,27 @@
       }
     };
     box.onsubmit = (e) => {
+      const rw = e.target.closest("[data-rw-form]");
+      if (rw) {
+        e.preventDefault();
+        if (!online()) return notify("Registrar peça refeita precisa de internet.", "error");
+        const fd = new FormData(rw);
+        const cost = String(fd.get("cost") || "").replace(",", ".").trim();
+        const body = {
+          piece: String(fd.get("piece") || "").trim(),
+          reason: String(fd.get("reason") || ""),
+          responsible: String(fd.get("responsible") || ""),
+          phase_key: String(fd.get("phase_key") || "") || null,
+          notes: String(fd.get("notes") || "").trim() || null,
+          ...(cost ? { cost: Number(cost) } : {}),
+        };
+        run(async () => {
+          const d = await api(`/api/work-orders/${encodeURIComponent(ctx.jobId)}/reworks`, { method: "POST", body: JSON.stringify(body) });
+          st.rework = false;
+          took(d, "Peça refeita registrada.");
+        });
+        return;
+      }
       const f = e.target.closest("[data-req-form]");
       if (!f) return;
       e.preventDefault();

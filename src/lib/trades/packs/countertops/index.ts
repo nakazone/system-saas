@@ -110,6 +110,26 @@ export const countertops: TradePack = {
   ],
   combinedPhaseKey: "all",
   phaseStorage: "table",
+  // A remade top costs a slab and a week: the shop wants to know why and on whom.
+  rework: {
+    reasons: [
+      { key: "measure", label: { "pt-BR": "Medida / template errado", "en-US": "Wrong measurement / template" } },
+      { key: "fabrication", label: { "pt-BR": "Erro de corte ou acabamento", "en-US": "Cutting or finishing error" } },
+      { key: "transport", label: { "pt-BR": "Quebrou no transporte", "en-US": "Broke in transport" } },
+      { key: "install", label: { "pt-BR": "Quebrou na instalação", "en-US": "Broke during install" } },
+      { key: "material", label: { "pt-BR": "Defeito no slab", "en-US": "Slab defect" } },
+      { key: "change", label: { "pt-BR": "Cliente mudou o projeto", "en-US": "Customer changed the design" } },
+      { key: "other", label: { "pt-BR": "Outro", "en-US": "Other" } },
+    ],
+    responsible: [
+      { key: "shop", label: { "pt-BR": "Oficina", "en-US": "Shop" } },
+      { key: "templater", label: { "pt-BR": "Template", "en-US": "Templater" } },
+      { key: "installer", label: { "pt-BR": "Equipe de instalação", "en-US": "Install crew" } },
+      { key: "supplier", label: { "pt-BR": "Fornecedor do slab", "en-US": "Slab supplier" } },
+      { key: "customer", label: { "pt-BR": "Cliente / builder", "en-US": "Customer / builder" } },
+      { key: "other", label: { "pt-BR": "Outro", "en-US": "Other" } },
+    ],
+  },
   // The plan takeoff doesn't measure tops yet (kitchen sheets and DXF import come later).
   takeoff: {
     measuredKinds: [],

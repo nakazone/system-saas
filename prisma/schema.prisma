@@ -795,6 +795,7 @@ model Organization {
   jobPartnerMessages       JobPartnerMessage[]
   stainSampleRounds        StainSampleRound[]
   jobPhases                JobPhase[]
+  jobReworks               JobRework[]
   pieceRates               PieceRate[]
   stainSamples             StainSample[]
   stainApprovals           StainApproval[]
@@ -1211,6 +1212,33 @@ model JobPhase {
   @@unique([workOrderId, phaseKey])
   @@index([organizationId, workOrderId])
   @@index([organizationId, scheduledStart])
+}
+
+/// A piece made again on a job (Countertops: a top broken in transport, a wrong template): which
+/// piece, why, who answers for it and what it cost. Reasons and responsible parties come from the
+/// trade pack (TradePack.rework).
+model JobRework {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workOrderId    String       @db.Uuid
+  workOrder      WorkOrder    @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  trade          String
+  /// Phase where it was found (install, shop_qc…), if any
+  phaseKey       String?
+  piece          String
+  /// Pack reason key (measure, fabrication, transport, install, material, change, other)
+  reason         String
+  /// Pack responsible key (shop, templater, installer, supplier, customer, other)
+  responsible    String
+  cost           Decimal?     @db.Decimal(12, 2)
+  notes          String?      @db.Text
+  createdById    String?      @db.Uuid
+  createdByName  String?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, workOrderId])
+  @@index([organizationId, createdAt])
 }
 
 model StainSampleRound {
@@ -2818,6 +2846,7 @@ model WorkOrder {
   partnerMessages    JobPartnerMessage[]
   stainRounds        StainSampleRound[]
   phases             JobPhase[]
+  reworks            JobRework[]
   stainApprovals     StainApproval[]
   inspections        JobInspection[]
   measurements       JobMeasurement[]
