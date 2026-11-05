@@ -224,7 +224,8 @@
     const wd = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"][d.getDay()];
     const mo = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"][d.getMonth()];
     const today = sod(d).getTime() === sod(new Date()).getTime();
-    const tone = today ? " is-today" : !finished && J.late(wo) ? " is-late" : finished ? " is-done" : "";
+    // Bloco sempre cinza; só a data fica laranja quando o job é para agora (em campo ou hoje).
+    const tone = !finished && (today || wo.status === "in_progress") ? " is-now" : finished ? " is-done" : "";
     return `<span class="ol-lead jx-day${tone}" aria-label="${today ? "Hoje" : `${wd} ${d.getDate()} ${mo}`}"><small>${today ? "hoje" : wd}</small><b>${d.getDate()}</b><small>${mo}</small></span>`;
   }
   /** Hora de início, quando o job tem hora marcada (não meia-noite). */
