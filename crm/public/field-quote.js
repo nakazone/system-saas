@@ -306,6 +306,7 @@
       // Edits made while this request was in flight still need saving.
       S.dirty = (S.rev || 0) !== rev;
       S.offline = false;
+      S.saveFailed = false;
       // Keep the server's photo list (uploads happen on their own route).
       const srv = (j.data.data && j.data.data.photos) || [];
       const ids = new Set(srv.map((p) => p.id));
@@ -314,11 +315,14 @@
       cacheLocal();
     } catch (e) {
       if (!e.status) S.offline = true;
-      else toast(e.message, 'error');
+      else {
+        S.saveFailed = true;
+        toast(e.message, 'error');
+      }
     } finally {
       S.saving = false;
       renderSaveState();
-      if (S.dirty && navigator.onLine && !S.offline) {
+      if (S.dirty && navigator.onLine && !S.offline && !S.saveFailed) {
         clearTimeout(S.saveTimer);
         S.saveTimer = setTimeout(save, 1500);
       }
@@ -344,13 +348,16 @@
   function renderSaveState() {
     const el = $('#fqSave');
     if (!el) return;
-    let txt = '✓ Salvo';
+    let txt = 'Salvo';
     let cls = '';
     if (S.offline || !navigator.onLine) {
       txt = S.dirty ? 'Sem internet · salvo no aparelho' : 'Sem internet';
       cls = 'is-off';
-    } else if (S.saving) txt = 'Salvando…';
-    else if (S.dirty) txt = 'Alterações…';
+    } else if (S.saveFailed) {
+      el.innerHTML = '<button type="button" class="fq-save__retry" data-fq-save-retry>Não salvou · Tentar de novo</button>';
+      el.className = 'fq-save is-off';
+      return;
+    } else if (S.saving || S.dirty) txt = 'Salvando…';
     el.textContent = txt;
     el.className = 'fq-save ' + cls;
   }
@@ -364,6 +371,14 @@
     check: (w) => svg('<path d="M5 12l5 5 9-10"/>', w || 16),
     chev: () => svg('<path d="M9 6l6 6-6 6"/>', 18),
     back: () => svg('<path d="M15 6l-6 6 6 6"/>', 20),
+    x: (w) => svg('<path d="M6 6l12 12M18 6L6 18"/>', w || 18),
+    minus: (w) => svg('<path d="M5 12h14"/>', w || 16),
+    del: (w) => svg('<path d="M9 5h11v14H9l-6-7z"/><path d="M12.5 9.5l4 5M16.5 9.5l-4 5"/>', w || 22),
+    trash: (w) => svg('<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5"/>', w || 18),
+    search: (w) => svg('<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>', w || 18),
+    send: (w) => svg('<path d="M12 19V5M6 11l6-6 6 6"/>', w || 20),
+    phone: (w) => svg('<path d="M6 3h3l2 5-2.5 1.5a11 11 0 0 0 6 6L16 13l5 2v3a3 3 0 0 1-3 3A15 15 0 0 1 3 6a3 3 0 0 1 3-3z"/>', w || 18),
+    alert: (w) => svg('<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17v.5"/>', w || 16),
     route: () => svg('<path d="M3 11l18-8-8 18-2-8z"/>', 18),
     play: () => '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5l12 7-12 7z"/></svg>',
     // The Mate's face (fox mascot); state: neutral | thinking | happy | curious | listening
@@ -395,7 +410,7 @@
     if (heavy && !on('furniture')) out.push({ id: 'furniture', text: `Você anotou “${esc(heavy.slice(0, 40))}”. Incluir <b>mover móveis</b>?`, apply: (x) => extraOn(x, 'furniture') });
     if (d.services.includes('demolition') && svcArea(d, 'demolition') > 0 && !on('haul_away')) out.push({ id: 'haul_away', text: 'Tem demolição e nenhum descarte. Incluir <b>descarte / caçamba</b>?', apply: (x) => extraOn(x, 'haul_away') });
     const instRooms = d.rooms.filter((r) => (r.services || []).includes('installation')).length;
-    if (inst && instRooms > 1 && !on('transitions')) out.push({ id: 'transitions', text: `${instRooms} cômodos com piso novo e nenhuma transição. Incluir <b>${instRooms - 1} transição${instRooms - 1 > 1 ? 'ões' : ''}</b>?`, apply: (x) => extraOn(x, 'transitions', instRooms - 1) });
+    if (inst && instRooms > 1 && !on('transitions')) out.push({ id: 'transitions', text: `${instRooms} cômodos com piso novo e nenhuma transição. Incluir <b>${instRooms - 1 > 1 ? `${instRooms - 1} transições` : '1 transição'}</b>?`, apply: (x) => extraOn(x, 'transitions', instRooms - 1) });
     if (inst && instRooms && !on('quarter_round') && !on('baseboard_install') && !on('baseboard_remove')) out.push({ id: 'quarter_round', text: 'Piso novo sem acabamento na parede. Incluir <b>quarter round</b> pelo perímetro?', apply: (x) => extraOn(x, 'quarter_round') });
     const ref = S.priceRef;
     if (inst && ref && ref.mat === d.svc.installation.material && svcArea(d, 'installation') > 0) {
@@ -436,7 +451,7 @@
   function tipsCard(tips, max) {
     if (!tips.length) return '';
     const shown = tips.slice(0, max || 1);
-    return `<section class="fq-mate" aria-label="Sugestões do Mate"><div class="fq-mate__head">${IC.mate()}<b>Mate</b>${tips.length > shown.length ? `<span>${tips.length} sugestões</span>` : ''}</div>${shown.map((t) => tipHtml(t)).join('')}</section>`;
+    return `<section class="fq-mate" aria-label="Sugestões do Mate"><div class="fq-mate__head">${IC.mate()}<b>Mate</b>${tips.length > shown.length ? `<button type="button" class="fq-link2 fq-mate__all" data-fq-tips-all>Ver as ${tips.length} sugestões</button>` : ''}</div>${shown.map((t) => tipHtml(t)).join('')}</section>`;
   }
 
   /** What this company charged on approved quotes for the same material (median of the last 12 months). */
@@ -449,7 +464,8 @@
       const q = [`${m.en} installation`, `${m.en} — material`].map((n) => 'name=' + encodeURIComponent(n)).join('&');
       const j = await api('/api/field-quotes/ai/price-check?' + q);
       S.priceRef = { mat: m.id, install: j.data[0], supply: j.data[1] };
-      if (!S.sheet && $('#fqSheet').hidden) renderPanel();
+      const typing = document.activeElement && document.activeElement.id === 'fqNotes';
+      if (!S.sheet && $('#fqSheet').hidden && !typing) renderPanel();
     } catch (_) {}
   }
 
@@ -473,6 +489,8 @@
       el.hidden = true;
     }
   }
+  const LIST_SKELETON = '<div class="fq-skel" aria-hidden="true"><i></i><i></i><i></i></div>';
+  const norm = (v) => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   async function renderList() {
     document.title = 'Field Quote | ObraMate';
     const v = $('#fqView');
@@ -480,7 +498,7 @@
       <header class="fq-head"><h1 class="fq-h1">Field Quote</h1>
         <button type="button" class="fq-btn fq-btn--pri" data-fq-new>${IC.plus()}Nova visita</button></header>
       <section id="fqToday"></section>
-      <section id="fqDrafts"><p class="fq-empty">Carregando…</p></section>
+      <section id="fqDrafts" aria-busy="true">${LIST_SKELETON}</section>
     </div>`;
     $('#fqLoading').hidden = true;
     const [list, today] = await Promise.all([
@@ -497,8 +515,10 @@
         }
       })(),
     ]);
+    const box = $('#fqDrafts');
+    box.removeAttribute('aria-busy');
     if (list.error) {
-      $('#fqDrafts').innerHTML = `<p class="fq-empty">${esc(list.error.message)}</p>`;
+      box.innerHTML = `<div class="fq-state"><b>Não foi possível carregar as visitas</b><p>${esc(list.error.message)}</p><button type="button" class="fq-btn" data-fq-list-retry>Tentar de novo</button></div>`;
       return;
     }
     const rows = list.data || [];
@@ -521,10 +541,10 @@
       const st = new Date(first.start);
       const lead = (first.meta && first.meta.lead) || {};
       const addr = (first.meta && first.meta.location) || lead.address || '';
-      $('#fqToday').innerHTML = `<p class="fq-lbl2">PRÓXIMA VISITA</p>
+      $('#fqToday').innerHTML = `<h2 class="fq-lbl2">Próxima visita</h2>
         <article class="fq-next">
           <div class="fq-next__top"><span class="fq-next__when">${esc(dayTxt(st) === 'hoje' ? 'Hoje' : 'Amanhã')} · ${esc(when(st))}</span></div>
-          <h2 class="fq-next__name">${esc(first.title)}</h2>
+          <h3 class="fq-next__name">${esc(first.title)}</h3>
           ${addr ? `<p class="fq-next__addr">${esc(addr)}</p>` : ''}
           <div class="fq-brief" id="fqBrief" hidden></div>
           <div class="fq-next__acts">${addr ? `<a class="fq-btn" href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addr)}" target="_blank" rel="noopener">${IC.route()}Rota</a>` : ''}${visitAct(first, true)}</div>
@@ -538,20 +558,100 @@
           .join('')}</div>` : ''}`;
       if (lead.id && !byLead.get(lead.id)) loadBriefing(lead.id, $('#fqBrief'));
     }
-    const drafts = rows.filter((r) => r.status !== 'quoted');
-    const quoted = rows.filter((r) => r.status === 'quoted');
+    S.listRows = rows;
+    box.innerHTML = rows.length
+      ? `${rows.length > 6 ? `<label class="fq-search">${IC.search()}<input type="search" id="fqListSearch" placeholder="Buscar cliente ou endereço" aria-label="Buscar cliente ou endereço" autocomplete="off" enterkeyhint="search" /></label>` : ''}<div id="fqListRows"></div>`
+      : `<div class="fq-state"><b>Nenhuma visita ainda</b><p>Comece uma visita aqui ou pela agenda. O orçamento fica pronto na casa do cliente.</p><button type="button" class="fq-btn fq-btn--pri" data-fq-new>${IC.plus()}Nova visita</button></div>`;
+    if (rows.length) renderListRows('');
+  }
+  function renderListRows(query) {
+    const root = $('#fqListRows');
+    if (!root) return;
+    const q = norm(query).trim();
+    const rows = (S.listRows || []).filter((r) => !S.listHidden || !S.listHidden.has(r.id)).filter((r) => !q || norm(`${r.client_name} ${r.address || ''}`).includes(q));
     const row = (r) => {
+      const empty = r.status !== 'quoted' && !r.rooms_count;
       const sub = r.status === 'quoted'
         ? `<small>${esc([r.address, relTime(r.updated_at)].filter(Boolean).join(' · '))}</small>`
         : r.rooms_count
           ? `<small>${esc(`${r.rooms_count} cômodo${r.rooms_count > 1 ? 's' : ''} · ${fmtN(r.total_sqft)} pé² · ${relTime(r.updated_at)}`)}</small>`
           : `<small class="fq-warn">sem medidas · ${esc(relTime(r.updated_at))}</small>`;
-      return `<a class="fq-row fq-row--link" href="field-quote.html?id=${esc(r.id)}"><div class="fq-row__main"><b>${esc(r.client_name)}</b>${sub}</div><div class="fq-row__end"><b>${esc(money(r.total))}</b>${IC.chev()}</div></a>`;
+      const pill = r.quote_status ? `<span class="fq-pill${['approved', 'converted'].includes(r.quote_status) ? ' fq-pill--ink' : ''}">${esc(quoteStatusPt(r.quote_status))}</span>` : '';
+      const link = `<a class="fq-row fq-row--link" href="field-quote.html?id=${esc(r.id)}"><div class="fq-row__main"><b>${esc(r.client_name)}</b>${sub}</div><div class="fq-row__end">${pill}${r.total ? `<b>${esc(money(r.total))}</b>` : ''}${IC.chev()}</div></a>`;
+      return empty ? `<div class="fq-rowwrap">${link}<button type="button" class="fq-icbtn" data-fq-draft-del="${esc(r.id)}" aria-label="Excluir rascunho de ${esc(r.client_name)}">${IC.trash()}</button></div>` : link;
     };
-    $('#fqDrafts').innerHTML = rows.length
-      ? `${drafts.length ? `<p class="fq-lbl2">RASCUNHOS</p><div class="fq-card fq-card--list">${drafts.map(row).join('')}</div>` : ''}
-         ${quoted.length ? `<p class="fq-lbl2">ORÇADOS</p><div class="fq-card fq-card--list">${quoted.map(row).join('')}</div>` : ''}`
-      : '<p class="fq-empty">Nenhuma visita ainda. Comece pela visita do dia na agenda ou em “Nova visita”.</p>';
+    const drafts = rows.filter((r) => r.status !== 'quoted');
+    const quoted = rows.filter((r) => r.status === 'quoted');
+    if (!rows.length) {
+      root.innerHTML = q ? `<p class="fq-empty" role="status">Nenhuma visita para “${esc(query.trim())}”.</p>` : `<p class="fq-empty">Nenhum rascunho aberto.</p>`;
+      return;
+    }
+    root.innerHTML = `${drafts.length ? `<h2 class="fq-lbl2">Rascunhos</h2><div class="fq-card fq-card--list">${drafts.map(row).join('')}</div>` : ''}
+      ${quoted.length ? `<h2 class="fq-lbl2">Orçados</h2><div class="fq-card fq-card--list">${quoted.map(row).join('')}</div>` : ''}`;
+  }
+  /** Removes the row now and deletes on the server only after the undo window closes. */
+  function deleteDraft(id) {
+    S.listHidden = S.listHidden || new Set();
+    S.listHidden.add(id);
+    renderListRows(($('#fqListSearch') || {}).value || '');
+    let undone = false;
+    if (window.crmToast && window.crmToast.undo) {
+      window.crmToast.undo('Rascunho excluído', () => {
+        undone = true;
+        S.listHidden.delete(id);
+        renderListRows(($('#fqListSearch') || {}).value || '');
+      });
+    }
+    setTimeout(() => {
+      if (undone) return;
+      api('/api/field-quotes/' + encodeURIComponent(id), { method: 'DELETE' }).catch((e) => {
+        S.listHidden.delete(id);
+        renderListRows(($('#fqListSearch') || {}).value || '');
+        toast(e.message, 'error');
+      });
+    }, 6200);
+  }
+  /** New visit: nothing is created until there is a client name, so cancelling leaves no empty draft. */
+  function sheetNewVisit() {
+    S.sheet = { kind: 'new' };
+    openSheet(
+      `${bar('Nova visita', '<button type="button" class="fq-link fq-link--b" data-fq-new-go>Começar</button>')}
+      <div class="fq-sbody">
+        <div class="fq-group">
+          <label class="fq-field"><span>Nome</span><input name="client_name" autocomplete="name" enterkeyhint="next" aria-describedby="fqNameErr" /></label>
+          <label class="fq-field"><span>Telefone</span><input name="client_phone" type="tel" autocomplete="tel" enterkeyhint="next" /></label>
+        </div>
+        <p class="fq-field-err" id="fqNameErr" role="alert" hidden>Informe o nome do cliente para começar.</p>
+        <div class="fq-group"><label class="fq-field fq-field--col"><span>Endereço da obra</span><input name="address" id="fqAddr" autocomplete="off" /></label>
+          <button type="button" class="fq-btn fq-btn--block fq-btn--ghost" data-fq-geo>${IC.route()}Usar minha localização</button></div>
+        <h3 class="fq-lbl">Tipo de cliente</h3>
+        <div class="fq-chips">${C.CUSTOMER_TYPES.map((c, i) => `<button type="button" class="fq-chip${i === 0 ? ' is-on' : ''}" data-fq-ct="${c.id}">${esc(c.pt)}</button>`).join('')}</div>
+        <p class="fq-hint">O tipo define a coluna de preços da Tabela de Valores.</p>
+      </div>`
+    );
+    S.sheet.orig = clientSnapshot();
+    const a = $('#fqAddr');
+    if (a && typeof window.sfAttachAddressAutocomplete === 'function') window.sfAttachAddressAutocomplete(a, { map: { combined: a } }).catch(() => {});
+    if (window.innerWidth >= 768) ($('.fq-sheet [name="client_name"]') || {}).focus?.();
+  }
+  async function createVisit(btn) {
+    const v = (n) => ($(`.fq-sheet [name="${n}"]`) || {}).value || '';
+    const name = v('client_name').trim();
+    const err = $('#fqNameErr');
+    if (!name) {
+      if (err) err.hidden = false;
+      $('.fq-sheet [name="client_name"]').focus();
+      return;
+    }
+    if (btn) { btn.disabled = true; btn.textContent = 'Criando…'; }
+    const ct = $('[data-fq-ct].is-on');
+    try {
+      const j = await api('/api/field-quotes', { method: 'POST', body: { client_name: name, client_phone: v('client_phone').trim() || undefined, address: v('address').trim() || undefined, customer_type: ct ? ct.dataset.fqCt : undefined } });
+      location.href = 'field-quote.html?id=' + encodeURIComponent(j.data.id);
+    } catch (e) {
+      toast(e.message, 'error');
+      if (btn) { btn.disabled = false; btn.textContent = 'Começar'; }
+    }
   }
 
   // ------------------------------------------------------------------ panel view
@@ -563,37 +663,38 @@
     const withPhoto = d.rooms.filter((r) => photosOf(r.id).length).length;
     const st = (done, part) => (done ? 'is-done' : part ? 'is-part' : '');
     return [
-      { name: 'Serviços', cls: st(d.services.length > 0) },
-      { name: roomsTotal ? `Medidas ${measured}/${roomsTotal}` : 'Medidas', cls: st(measured > 0 && !planOpen, measured > 0) },
-      { name: `Fotos ${d.photos.length}`, cls: st(d.rooms.length > 0 && withPhoto === d.rooms.length, d.photos.length > 0) },
-      { name: q.total ? `Detalhes ${q.answered}/${q.total}` : 'Detalhes', cls: st(q.total > 0 && q.answered >= Math.min(3, q.total), q.answered > 0) },
+      { name: 'Serviços', go: 'data-fq-open="services"', cls: st(d.services.length > 0) },
+      { name: roomsTotal ? `Medidas ${measured}/${roomsTotal}` : 'Medidas', go: 'data-fq-jump="fqRooms"', cls: st(measured > 0 && !planOpen, measured > 0) },
+      { name: d.rooms.length ? `Fotos ${withPhoto}/${d.rooms.length}` : 'Fotos', go: 'data-fq-jump="fqPhotos"', cls: st(d.rooms.length > 0 && withPhoto === d.rooms.length, d.photos.length > 0) },
+      { name: q.total ? `Detalhes ${q.answered}/${q.total}` : 'Detalhes', go: 'data-fq-open="details"', cls: st(q.total > 0 && q.answered >= Math.min(3, q.total), q.answered > 0) },
     ];
   }
-  function svcChips(d) {
-    const chips = d.services.map((s) => {
+  function svcSummary(d) {
+    return d.services.map((s) => {
       const def = svcDef(s);
-      let t = def.pt;
       if (s === 'demolition') {
         const ex = (d.answers.demolition.existing || []).map((m) => mat(m).pt.split(' ')[0].toLowerCase());
-        t = ex.length ? `Tirar ${ex.join(' e ')}` : 'Demolição';
+        return ex.length ? `Tirar ${ex.join(' e ')}` : 'Demolição';
       }
-      if (s === 'installation') t = `${mat(d.svc.installation.material).pt.split(' (')[0]}${d.svc.installation.supply ? ' + material' : ''}`;
-      if (s === 'sanding') t = (C.SANDING_TYPES.find((x) => x.id === d.svc.sanding.type) || {}).pt || def.pt;
-      return `<button type="button" class="fq-chip is-on" data-fq-open="services">${esc(t)}</button>`;
-    });
-    return chips.join('') + `<button type="button" class="fq-chip" data-fq-open="services">${IC.plus(14)}${d.services.length ? 'Serviço' : 'Escolher serviços'}</button>`;
+      if (s === 'installation') return `${mat(d.svc.installation.material).pt.split(' (')[0]}${d.svc.installation.supply ? ' + material' : ''}`;
+      if (s === 'sanding') return (C.SANDING_TYPES.find((x) => x.id === d.svc.sanding.type) || {}).pt || def.pt;
+      return def.pt;
+    }).join(' · ');
   }
   function roomCard(r) {
     const n = photosOf(r.id).length;
     const area = roomArea(r);
-    const flag = area <= 0 ? '<span class="fq-flag">falta medir</span>' : !n ? '<span class="fq-flag">sem foto</span>' : `<span class="fq-ok" role="img" aria-label="Completo">${IC.check()}</span>`;
-    return `<button type="button" class="fq-rc" data-fq-room="${esc(r.id)}"><span class="fq-rc__top"><b>${esc(r.label)}</b>${flag}</span><span class="fq-rc__area">${fmtN(area)} <small>pé²</small></span><span class="fq-rc__sub">${esc(roomDims(r))}${n ? ` · ${n} foto${n > 1 ? 's' : ''}` : ''}</span></button>`;
+    const flag = area <= 0 ? '<span class="fq-flag">falta medir</span>' : !n ? '<span class="fq-flag">sem foto</span>' : '';
+    const done = area > 0 && n ? `<span class="fq-ok" role="img" aria-label="Completo">${IC.check()}</span>` : '';
+    return `<button type="button" class="fq-rc" data-fq-room="${esc(r.id)}"><span class="fq-rc__top"><b title="${esc(r.label)}">${esc(r.label)}</b>${done}</span><span class="fq-rc__area">${fmtN(area)} <small>pé²</small></span><span class="fq-rc__sub">${esc(roomDims(r))}${n ? ` · ${n} foto${n > 1 ? 's' : ''}` : ''}</span>${flag}</button>`;
   }
   function sideHtml(t, tips) {
     const area = totalArea(S.d);
     const tb = S.d.option_b ? totals(S.d, 'b') : null;
-    return `${pendingCardHtml()}<section class="fq-live"><span class="fq-lbl2">PROPOSTA AO VIVO${tb ? ' · OPÇÃO A' : ''}</span><b class="fq-live__tot">${esc(money(t.total))}</b>${tb ? `<span class="fq-live__b">Opção B · ${esc(mat(S.d.option_b.material).pt.split(' (')[0])}: <b>${esc(money(tb.total))}</b></span>` : ''}<span class="fq-live__sub">${area ? `${fmtN(area)} pé² · ${esc(money(r2(t.total / area)))}/pé²` : 'meça os cômodos'} · preços ${esc((C.CUSTOMER_TYPES.find((x) => x.id === S.fq.customer_type) || {}).pt || '')}</span>
-      <div class="fq-live__lines">${t.lines.map((l) => `<button type="button" class="fq-live__ln" data-fq-rate="${esc(l.key)}"><span>${esc(l.name)}${l.source === 'padrao' ? ' <em>preço padrão</em>' : ''}</span><b>${esc(money(l.amount))}</b></button>`).join('') || '<p class="fq-empty">As linhas aparecem aqui enquanto você mede.</p>'}</div></section>
+    return `${pendingCardHtml()}<section class="fq-live"><h2 class="fq-lbl2">Proposta ao vivo${tb ? ' · Opção A' : ''}</h2><b class="fq-live__tot">${esc(money(t.total))}</b>${tb ? `<span class="fq-live__b">Opção B · ${esc(mat(S.d.option_b.material).pt.split(' (')[0])}: <b>${esc(money(tb.total))}</b></span>` : ''}<span class="fq-live__sub">${area ? `${fmtN(area)} pé² · ${esc(money(r2(t.total / area)))}/pé²` : 'meça os cômodos'} · preços ${esc((C.CUSTOMER_TYPES.find((x) => x.id === S.fq.customer_type) || {}).pt || '')}</span>
+      <div class="fq-live__lines">${t.lines.map((l) => `<button type="button" class="fq-live__ln" data-fq-rate="${esc(l.key)}"><span>${esc(l.name)}${l.source === 'padrao' ? ' <em>preço padrão</em>' : ''}</span><b>${esc(money(l.amount))}</b></button>`).join('') || '<p class="fq-empty">As linhas aparecem aqui enquanto você mede.</p>'}</div>
+        <button type="button" class="fq-btn fq-btn--pri fq-btn--big fq-btn--block fq-live__go" data-fq-open="review" ${t.lines.length ? '' : 'disabled'}>Revisar</button>
+        <div class="fq-live__acts"><button type="button" class="fq-btn" data-fq-ai-conversation="listen">${IC.mic(18)}Fale com o Mate</button><button type="button" class="fq-btn" data-fq-shoot>${IC.cam()}Foto</button></div></section>
       ${photoTipsHtml()}${tipsCard(tips, 3)}`;
   }
   function renderPanel() {
@@ -608,30 +709,38 @@
     const qCount = countAnswers(d);
     const planOpen = d.floorplan && Array.isArray(d.floorplan.rooms) ? d.floorplan.rooms.filter((r) => !d.rooms.find((x) => x.id === r.measured_room_id)) : [];
     const area = totalArea(d);
+    const svcTxt = svcSummary(d);
     $('#fqView').innerHTML = `<div class="fq-panel">
       <div class="fq-panel__main">
-      <header class="fq-top"><a class="fq-back" href="field-quote.html">${IC.back()}Visitas</a><span class="fq-save" id="fqSave"></span></header>
-      <button type="button" class="fq-client" data-fq-open="client">
-        <h1 class="fq-h1">${esc(fq.client_name)}</h1>
-        <p class="fq-sub">${esc(fq.address || 'Adicionar endereço')} · ${esc(ct.pt)} · <span class="fq-edit">Editar</span></p>
-      </button>
-      <div class="fq-prog" aria-label="Andamento da visita">${progress(d).map((p) => `<div class="fq-prog__i ${p.cls}"><i></i><span>${esc(p.name)}</span></div>`).join('')}</div>
+      <header class="fq-top"><a class="fq-back" href="field-quote.html" data-fq-leave>${IC.back()}Visitas</a><span class="fq-save" id="fqSave" role="status"></span></header>
+      <div class="fq-client">
+        <div class="fq-client__txt">
+          <h1 class="fq-h1" title="${esc(fq.client_name)}">${esc(fq.client_name)}</h1>
+          <p class="fq-sub fq-sub--addr" title="${esc(fq.address || '')}">${esc(fq.address || 'Sem endereço')}</p>
+          <p class="fq-sub">${esc(ct.pt)} · <button type="button" class="fq-edit" data-fq-open="client">Editar</button></p>
+        </div>
+        <div class="fq-client__acts">${fq.client_phone ? `<a class="fq-icbtn" href="tel:${esc(String(fq.client_phone).replace(/[^\d+]/g, ''))}" aria-label="Ligar para ${esc(fq.client_name)}">${IC.phone()}</a>` : ''}${fq.address ? `<a class="fq-icbtn" href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(fq.address)}" target="_blank" rel="noopener" aria-label="Abrir rota até a obra">${IC.route()}</a>` : ''}</div>
+      </div>
+      <nav class="fq-prog" aria-label="Andamento da visita">${progress(d).map((p) => `<button type="button" class="fq-prog__i ${p.cls}" ${p.go}><i></i><span>${esc(p.name)}</span></button>`).join('')}</nav>
       ${quoted ? `<div class="fq-quoted"><div><b>Orçamento ${esc(fq.quote.number)}</b><small>${esc(quoteStatusPt(fq.quote.status))}</small></div><a class="fq-btn fq-btn--sm" href="quote-builder.html?id=${esc(fq.quote_id)}${fq.lead_id ? '&lead_id=' + esc(fq.lead_id) : ''}">Abrir</a><button type="button" class="fq-btn fq-btn--sm fq-btn--ink" data-fq-present-existing>${IC.play()}Apresentar</button></div>` : ''}
-      <div class="fq-only-phone">${pendingCardHtml()}${photoTipsHtml()}${tipsCard(tips, 1)}</div>
-      <section class="fq-sec"><p class="fq-lbl2">O QUE VAI SER FEITO</p><div class="fq-chips">${svcChips(d)}</div></section>
-      <section class="fq-sec">
-        <div class="fq-sec__head"><p class="fq-lbl2">CÔMODOS${area ? ` · ${fmtN(area)} PÉ²` : ''}</p>${d.services.length ? `<button type="button" class="fq-link2" data-fq-ai-measure>${IC.mic(15)}Ditar medidas</button>` : ''}</div>
+      <div class="fq-only-phone">${pendingCardHtml()}${photoTipsHtml()}</div>
+      <section class="fq-sec fq-list2">
+        <button type="button" class="fq-li2" data-fq-open="services"><span><b>O que vai ser feito</b><small${svcTxt ? '' : ' class="fq-warn"'}>${esc(svcTxt || 'Escolha os serviços para começar')}</small></span>${IC.chev()}</button>
+      </section>
+      <section class="fq-sec" id="fqRooms">
+        <div class="fq-sec__head"><h2 class="fq-lbl2">Cômodos${area ? ` · ${fmtN(area)} pé²` : ''}</h2>${d.services.length ? `<button type="button" class="fq-link2" data-fq-ai-measure>${IC.mic(15)}Ditar medidas</button>` : ''}</div>
         <div class="fq-rooms">${d.rooms.map(roomCard).join('')}
-          ${planOpen.map((r) => `<button type="button" class="fq-rc fq-rc--todo" data-fq-plan-measure="${esc(r.id)}"><span class="fq-rc__top"><b>${esc(r.label)}</b><span class="fq-flag">falta medir</span></span><span class="fq-rc__sub">da planta das fotos</span></button>`).join('')}
-          <button type="button" class="fq-rc fq-rc--add" data-fq-room-new>${IC.plus(22)}<span>Cômodo</span></button>
+          ${planOpen.map((r) => `<button type="button" class="fq-rc fq-rc--todo" data-fq-plan-measure="${esc(r.id)}"><span class="fq-rc__top"><b>${esc(r.label)}</b></span><span class="fq-rc__sub">da planta das fotos</span><span class="fq-flag">falta medir</span></button>`).join('')}
+          ${d.rooms.length || planOpen.length ? `<button type="button" class="fq-rc fq-rc--add" data-fq-room-new>${IC.plus(22)}<span>Cômodo</span></button>` : `<button type="button" class="fq-rc fq-rc--add fq-rc--first" data-fq-open="rooms-help">${IC.plus(22)}<span>${d.services.length ? 'Medir o primeiro cômodo' : 'Escolher serviços e medir'}</span></button>`}
         </div>
       </section>
+      <div class="fq-only-phone">${tipsCard(tips, 1)}</div>
       <section class="fq-sec fq-list2">
         <button type="button" class="fq-li2" data-fq-open="extras"><span><b>Extras</b><small>${extrasOn.length || d.custom.length ? esc([...extrasOn.map((e) => e.pt), ...d.custom.map((c) => c.name).filter(Boolean)].join(' · ')) : 'Escada, rodapé, transições, descarte…'}</small></span>${IC.chev()}</button>
         <button type="button" class="fq-li2" data-fq-open="details"><span><b>Detalhes da obra</b><small>${qCount.answered ? `${qCount.answered} de ${qCount.total} respondidas` : 'Pets, acesso, piso atual, acabamento…'}${attentionSummary(d) ? ' · ' + esc(attentionSummary(d)) : ''}</small></span>${IC.chev()}</button>
-        <div class="fq-li2 fq-li2--photos"><span><b>Fotos</b><small>${d.photos.length ? `${d.photos.length} foto${d.photos.length > 1 ? 's' : ''} · vão para o ObraCam do job` : 'Piso atual, danos, acesso'}</small></span>
+        <div class="fq-li2 fq-li2--photos" id="fqPhotos"><span><b>Fotos</b><small>${d.photos.length ? `${d.photos.length} foto${d.photos.length > 1 ? 's' : ''} · vão para o ObraCam do job` : 'Piso atual, danos, acesso'}</small></span>
           ${d.photos.length ? `<div class="fq-photos">${d.photos.slice(-8).map((p) => `<button type="button" class="fq-photo" data-fq-photo="${esc(p.id)}" style="background-image:url('${esc(p.url)}')" aria-label="Abrir foto"></button>`).join('')}</div>` : ''}
-          <div class="fq-row2"><button type="button" class="fq-btn" data-fq-shoot>${IC.cam()}Tirar foto</button><button type="button" class="fq-btn fq-btn--quiet" data-fq-ai-photos ${d.photos.length ? '' : 'disabled'}>${IC.mate(18)}Ler fotos</button></div>
+          <div class="fq-row2${d.photos.length ? '' : ' fq-row2--one'}"><button type="button" class="fq-btn" data-fq-shoot>${IC.cam()}Tirar foto</button>${d.photos.length ? `<button type="button" class="fq-btn fq-btn--quiet" data-fq-ai-photos>${IC.mate(18)}Ler fotos</button>` : ''}</div>
           ${d.photo_analysis && d.photo_analysis.observations && d.photo_analysis.observations.length ? `<small class="fq-mut">O Mate leu as fotos: ${esc(d.photo_analysis.observations.slice(0, 2).map((o) => o.title).join(' · '))}</small>` : ''}
         </div>
         <label class="fq-li2 fq-notes"><b>Notas internas</b><textarea id="fqNotes" data-crm-rich="off" rows="3" placeholder="O que a equipe precisa saber (não vai para o cliente)">${esc(d.notes || '')}</textarea></label>
@@ -640,10 +749,10 @@
       <aside class="fq-panel__side" aria-label="Proposta e Mate">${sideHtml(t, tips)}</aside>
       <footer class="fq-bar">
         <div class="fq-bar__mate">
+          <button type="button" class="fq-matebtn" data-fq-ai-conversation="listen" aria-label="Fale com o Mate">${IC.mic(20)}<span>Fale com o Mate</span></button>
           <button type="button" class="fq-round" data-fq-shoot aria-label="Tirar foto">${IC.cam()}</button>
-          <button type="button" class="fq-matebtn" data-fq-ai-conversation="listen">${IC.mic(20)}<span>Fale com o Mate</span></button>
         </div>
-        <div class="fq-bar__sum"><div class="fq-bar__tot"><small>Total${area ? ` · ${esc(money(r2(t.total / area)))}/pé²` : ''}</small><b id="fqTotal">${esc(money(t.total))}</b></div><button type="button" class="fq-btn fq-btn--pri fq-btn--big" data-fq-open="review" ${t.lines.length ? '' : 'disabled'}>Revisar</button></div>
+        <div class="fq-bar__sum"><div class="fq-bar__tot"><small>${t.lines.length ? `Total${area ? ` · ${esc(money(r2(t.total / area)))}/pé²` : ''}` : 'Meça um cômodo'}</small><b id="fqTotal">${esc(money(t.total))}</b></div><button type="button" class="fq-btn fq-btn--pri fq-btn--big" data-fq-open="review" ${t.lines.length ? '' : 'disabled'}>Revisar</button></div>
       </footer>
     </div>`;
     $('#fqLoading').hidden = true;
@@ -680,16 +789,56 @@
   }
 
   // ------------------------------------------------------------------ sheets
+  const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  /** Attribute selector that finds the control that opened a sheet again after the panel re-renders. */
+  function openerSelector(el) {
+    if (!el || !el.attributes) return null;
+    const a = Array.from(el.attributes).find((x) => x.name.startsWith('data-fq-'));
+    return a ? `[${a.name}${a.value ? `="${a.value}"` : ''}]` : null;
+  }
+  function syncPressed(root) {
+    $$('.fq-chip, .fq-svc, .fq-yn button, .fq-seg button, .fq-mini', root).forEach((b) => {
+      if (b.tagName === 'BUTTON') b.setAttribute('aria-pressed', b.classList.contains('is-on') ? 'true' : 'false');
+    });
+  }
   function openSheet(html, cls) {
     const sh = $('#fqSheet');
     const card = $('.fq-sheet__card', sh);
+    const wasOpen = Boolean(S.sheetShown);
+    const oldBody = $('.fq-sbody', card);
+    const oldTitle = ($('h2', card) || {}).textContent;
+    const top = wasOpen && oldBody ? oldBody.scrollTop : 0;
     card.className = 'fq-sheet__card' + (cls ? ' ' + cls : '');
     card.innerHTML = html;
-    sh.hidden = false;
-    document.body.classList.add('fq-sheet-open');
-    requestAnimationFrame(() => sh.classList.add('is-open'));
+    syncPressed(card);
+    const title = $('h2', card);
+    if (title) {
+      title.id = 'fqSheetTitle';
+      card.setAttribute('aria-labelledby', 'fqSheetTitle');
+    } else card.removeAttribute('aria-labelledby');
+    // A re-render of the same sheet (a toggle, a chip) keeps the reading position.
+    if (wasOpen && oldBody && title && title.textContent === oldTitle) {
+      const nb = $('.fq-sbody', card);
+      if (nb) nb.scrollTop = top;
+    }
+    if (!wasOpen) {
+      S.sheetShown = true;
+      S.sheetOpener = openerSelector(document.activeElement);
+      sh.hidden = false;
+      document.body.classList.add('fq-sheet-open');
+      const page = $('.dashboard-container');
+      if (page) page.inert = true;
+      void card.offsetWidth; // commit the closed position so the opening transition runs
+      sh.classList.add('is-open');
+      card.setAttribute('tabindex', '-1');
+      card.focus({ preventScroll: true });
+      // The phone/browser Back gesture closes the sheet instead of leaving the visit.
+      if (!S.presentationQuoteOnly) {
+        try { history.pushState({ fqSheet: true }, ''); } catch (_) {}
+      }
+    }
   }
-  function closeSheet() {
+  function closeSheet(fromHistory) {
     const sh = $('#fqSheet');
     const standaloneQuoteId = S.presentationQuoteOnly ? S.presentationQuoteId : null;
     stopAiAudio();
@@ -707,16 +856,27 @@
       S.ai.presentation = null;
       if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
     }
+    S.sheetShown = false;
     sh.classList.remove('is-open');
     document.body.classList.remove('fq-sheet-open');
+    const page = $('.dashboard-container');
+    if (page) page.inert = false;
     S.sheet = null;
     setTimeout(() => {
-      if (!sh.classList.contains('is-open')) {
+      if (!S.sheetShown) {
         sh.hidden = true;
         $('.fq-sheet__card', sh).innerHTML = '';
       }
     }, 220);
+    if (fromHistory !== true && history.state && history.state.fqSheet) {
+      S.ignorePop = true;
+      history.back();
+    }
     if (S.fq) renderPanel();
+    if (S.sheetOpener) {
+      try { const back = $(S.sheetOpener); if (back) back.focus({ preventScroll: true }); } catch (_) {}
+      S.sheetOpener = null;
+    }
     if (standaloneQuoteId) {
       S.presentationQuoteOnly = false;
       if (window.opener && !window.opener.closed) {
@@ -729,11 +889,62 @@
       }
     }
   }
-  const bar = (title, right) => `<header class="fq-sbar"><button type="button" class="fq-link" data-fq-close>${right === 'none' ? 'Fechar' : 'Cancelar'}</button><h2>${esc(title)}</h2>${right === 'none' ? '<span></span>' : right || '<button type="button" class="fq-link fq-link--b" data-fq-close>OK</button>'}</header>`;
+  function clientSnapshot() {
+    const ct = $('[data-fq-ct].is-on');
+    return JSON.stringify([...$$('.fq-sheet input[name]').map((i) => i.value), ct ? ct.dataset.fqCt : '']);
+  }
+  /** Sheets with a draft (room, client): closing without saving must never lose typing silently. */
+  function sheetHasDraft() {
+    const sh = S.sheet;
+    if (!sh || !sh.orig) return false;
+    if (sh.kind === 'room') return JSON.stringify(sh.room) !== sh.orig;
+    if (sh.kind === 'client' || sh.kind === 'new') return clientSnapshot() !== sh.orig;
+    return false;
+  }
+  function requestClose(source) {
+    if (!sheetHasDraft()) return closeSheet(source === 'history');
+    const cancel = $('.fq-sheet [data-fq-cancel]');
+    if (source === 'button' && cancel && cancel.classList.contains('is-armed')) return closeSheet();
+    if (source === 'history') {
+      try { history.pushState({ fqSheet: true }, ''); } catch (_) {}
+    }
+    if (cancel) {
+      cancel.classList.add('is-armed');
+      cancel.textContent = 'Descartar?';
+      clearTimeout(S.cancelTimer);
+      S.cancelTimer = setTimeout(() => {
+        if (!cancel.isConnected) return;
+        cancel.classList.remove('is-armed');
+        cancel.textContent = 'Cancelar';
+      }, 4000);
+    }
+    if (source !== 'button') toast('Você tem alterações. Salve ou toque em Descartar.', 'info');
+  }
+  /** Sheets that save as you go have no "Cancelar": nothing would be cancelled. */
+  const bar = (title, right) => {
+    if (right === 'none') return `<header class="fq-sbar"><button type="button" class="fq-link" data-fq-close>Fechar</button><h2>${esc(title)}</h2><span></span></header>`;
+    if (!right) return `<header class="fq-sbar"><span></span><h2>${esc(title)}</h2><button type="button" class="fq-link fq-link--b" data-fq-close>Concluir</button></header>`;
+    return `<header class="fq-sbar"><button type="button" class="fq-link" data-fq-close data-fq-cancel>Cancelar</button><h2>${esc(title)}</h2>${right}</header>`;
+  };
+  const sumLine = () => {
+    const t = totals(S.d);
+    return `<div class="fq-sumline" role="status"><span>Total agora</span><b>${esc(money(t.total))}</b></div>`;
+  };
+  function sheetTips() {
+    const tips = mateTips();
+    S.sheet = { kind: 'tips' };
+    openSheet(
+      `${bar('Sugestões do Mate')}
+      <div class="fq-sbody">${tips.length ? `<section class="fq-mate">${tips.map((t) => tipHtml(t, true)).join('')}</section>` : '<div class="fq-state"><b>Tudo visto</b><p>O Mate não tem mais sugestões para esta visita.</p></div>'}
+        <p class="fq-hint">O Mate sugere; nada muda no orçamento sem o seu toque.</p>
+      </div>`
+    );
+  }
 
   // client
   function sheetClient() {
     const fq = S.fq;
+    S.sheet = { kind: 'client' };
     openSheet(
       `${bar('Cliente', '<button type="button" class="fq-link fq-link--b" data-fq-save-client>Salvar</button>')}
       <div class="fq-sbody">
@@ -744,16 +955,20 @@
         </div>
         <div class="fq-group"><label class="fq-field fq-field--col"><span>Endereço da obra</span><input name="address" id="fqAddr" value="${esc(fq.address || '')}" autocomplete="off" /></label>
           <button type="button" class="fq-btn fq-btn--block fq-btn--ghost" data-fq-geo>${IC.route()}Usar minha localização</button></div>
-        <p class="fq-lbl">Tipo de cliente (define a coluna da Tabela de Valores)</p>
+        <h3 class="fq-lbl">Tipo de cliente</h3>
         <div class="fq-chips">${C.CUSTOMER_TYPES.map((c) => `<button type="button" class="fq-chip${c.id === fq.customer_type ? ' is-on' : ''}" data-fq-ct="${c.id}">${esc(c.pt)}</button>`).join('')}</div>
+        <p class="fq-hint">O tipo define a coluna de preços da Tabela de Valores.</p>
+        ${fq.quote_id ? '' : '<button type="button" class="fq-btn fq-btn--block fq-btn--danger fq-danger-gap" data-fq-visit-del>Excluir esta visita</button>'}
       </div>`
     );
+    S.sheet.orig = clientSnapshot();
     const a = $('#fqAddr');
     if (a && typeof window.sfAttachAddressAutocomplete === 'function') window.sfAttachAddressAutocomplete(a, { map: { combined: a } }).catch(() => {});
   }
 
   // services
   function sheetServices() {
+    S.sheet = { kind: 'services' };
     const d = S.d;
     const i = d.svc.installation;
     const showPattern = ['solid_hardwood', 'engineered_wood', 'lvp', 'laminate', 'tile'].includes(i.material);
@@ -776,10 +991,11 @@
             : ''
         }
         <p class="fq-hint">Os serviços escolhidos entram em todos os cômodos novos; dá para tirar de um cômodo específico.</p>
-      </div>`
+      </div>
+      ${sumLine()}`
     );
   }
-  const stepper = (k, v, suf) => `<div class="fq-stepper" data-fq-step="${k}"><button type="button" data-fq-dec>−</button><b>${esc(v)}${suf || ''}</b><button type="button" data-fq-inc>+</button></div>`;
+  const stepper = (k, v, suf) => `<div class="fq-stepper" data-fq-step="${k}"><button type="button" data-fq-dec aria-label="Diminuir">${IC.minus()}</button><b>${esc(v)}${suf || ''}</b><button type="button" data-fq-inc aria-label="Aumentar">${IC.plus()}</button></div>`;
 
   // room
   function nextRoomLabel(base) {
@@ -798,6 +1014,7 @@
       r = { id: uid(), base: first, label: nm.label, en: nm.en, mode: 'dims', l_ft: '', l_in: '', w_ft: '', w_in: '', sqft: '', parts: [], services: d.services.slice(), note: '' };
     }
     S.sheet = { kind: 'room', room: JSON.parse(JSON.stringify(r)), isNew };
+    S.sheet.orig = JSON.stringify(S.sheet.room);
     renderRoomSheet();
   }
   function renderRoomSheet(focusKey) {
@@ -810,50 +1027,53 @@
     const at = ids.indexOf(r.id);
     const nav = S.sheet.isNew
       ? `<h2>Novo cômodo</h2>`
-      : `<div class="fq-rnav"><button type="button" class="fq-rnav__b" data-fq-room-go="-1" ${at > 0 ? '' : 'disabled'} aria-label="Cômodo anterior">${IC.back()}</button><h2>${esc(r.label)}<small>${at + 1} de ${ids.length}</small></h2><button type="button" class="fq-rnav__b" data-fq-room-go="1" aria-label="${at < ids.length - 1 ? 'Próximo cômodo' : 'Novo cômodo'}">${IC.chev()}</button></div>`;
+      : `<div class="fq-rnav"><button type="button" class="fq-rnav__b" data-fq-room-go="-1" ${at > 0 ? '' : 'disabled'} aria-label="Cômodo anterior">${IC.back()}</button><h2 title="${esc(r.label)}"><span>${esc(r.label)}</span><small>${at + 1} de ${ids.length}</small></h2><button type="button" class="fq-rnav__b" data-fq-room-go="1" aria-label="${at < ids.length - 1 ? 'Próximo cômodo' : 'Novo cômodo'}">${IC.chev()}</button></div>`;
     const kp = useKeypad();
-    let html = `<header class="fq-sbar"><button type="button" class="fq-link" data-fq-close>Cancelar</button>${nav}<button type="button" class="fq-link fq-link--b" data-fq-room-save>Salvar</button></header>
+    let html = `<header class="fq-sbar"><button type="button" class="fq-link" data-fq-close data-fq-cancel>Cancelar</button>${nav}<button type="button" class="fq-link fq-link--b" data-fq-room-save>Salvar</button></header>
       <div class="fq-sbody">
-        <div class="fq-chips fq-chips--scroll">${C.ROOMS.map((x) => `<button type="button" class="fq-chip${r.base === x.pt ? ' is-on' : ''}" data-fq-rname="${esc(x.pt)}">${esc(x.pt)}</button>`).join('')}<button type="button" class="fq-chip${r.base === '__custom' ? ' is-on' : ''}" data-fq-rname="__custom">+ Outro</button></div>
+        <div class="fq-chips fq-chips--scroll">${C.ROOMS.map((x) => `<button type="button" class="fq-chip${r.base === x.pt ? ' is-on' : ''}" data-fq-rname="${esc(x.pt)}">${esc(x.pt)}</button>`).join('')}<button type="button" class="fq-chip${r.base === '__custom' ? ' is-on' : ''}" data-fq-rname="__custom">${IC.plus(14)}Outro</button></div>
         ${r.base === '__custom' ? `<label class="fq-field fq-field--col fq-group"><span>Nome do cômodo</span><input data-fq-r="label" value="${esc(r.label)}" placeholder="ex.: Sala de TV" /></label>` : ''}
         <div class="fq-seg"><button type="button" class="${r.mode !== 'area' ? 'is-on' : ''}" data-fq-mode="dims">Medidas</button><button type="button" class="${r.mode === 'area' ? 'is-on' : ''}" data-fq-mode="area">Área total</button></div>
         <div class="fq-group fq-measure">
           ${
             r.mode === 'area'
-              ? `<label class="fq-dimbox fq-dimbox--wide"><input data-fq-r="sqft" inputmode="decimal" value="${esc(r.sqft)}" placeholder="0" /><small>pé² (sq ft)</small></label>`
-              : `<div class="fq-dims"><div class="fq-dim"><small>Comprimento</small><div class="fq-ftin"><label><input data-fq-r="l_ft" inputmode="numeric" value="${esc(r.l_ft)}" placeholder="0" /><span>′</span></label><label><input data-fq-r="l_in" inputmode="numeric" value="${esc(r.l_in)}" placeholder="0" /><span>″</span></label></div></div>
+              ? `<label class="fq-dimbox fq-dimbox--wide"><input data-fq-r="sqft" inputmode="decimal" aria-label="Área total em pés quadrados" value="${esc(r.sqft)}" placeholder="0" /><small>pé² (sq ft)</small></label>`
+              : `<div class="fq-dims"><div class="fq-dim"><small>Comprimento</small><div class="fq-ftin"><label><input data-fq-r="l_ft" inputmode="numeric" aria-label="Comprimento em pés" value="${esc(r.l_ft)}" placeholder="0" /><span>′</span></label><label><input data-fq-r="l_in" inputmode="numeric" aria-label="Comprimento em polegadas" value="${esc(r.l_in)}" placeholder="0" /><span>″</span></label></div></div>
                 <span class="fq-x">×</span>
-                <div class="fq-dim"><small>Largura</small><div class="fq-ftin"><label><input data-fq-r="w_ft" inputmode="numeric" value="${esc(r.w_ft)}" placeholder="0" /><span>′</span></label><label><input data-fq-r="w_in" inputmode="numeric" value="${esc(r.w_in)}" placeholder="0" /><span>″</span></label></div></div></div>
+                <div class="fq-dim"><small>Largura</small><div class="fq-ftin"><label><input data-fq-r="w_ft" inputmode="numeric" aria-label="Largura em pés" value="${esc(r.w_ft)}" placeholder="0" /><span>′</span></label><label><input data-fq-r="w_in" inputmode="numeric" aria-label="Largura em polegadas" value="${esc(r.w_in)}" placeholder="0" /><span>″</span></label></div></div></div>
                 ${(r.parts || [])
                   .map(
-                    (p, i) => `<div class="fq-part"><span class="fq-part__sign ${p.sign < 0 ? 'is-neg' : ''}">${p.sign < 0 ? '−' : '+'}</span><input data-fq-part="${i}" data-k="label" value="${esc(p.label || '')}" placeholder="${p.sign < 0 ? 'Ilha, lareira…' : 'Closet, nicho…'}" /><input data-fq-part="${i}" data-k="l" inputmode="decimal" value="${esc(p.l)}" placeholder="ft" /><span>×</span><input data-fq-part="${i}" data-k="w" inputmode="decimal" value="${esc(p.w)}" placeholder="ft" /><button type="button" data-fq-part-del="${i}" aria-label="Remover">✕</button></div>`
+                    (p, i) => `<div class="fq-part"><span class="fq-part__sign ${p.sign < 0 ? 'is-neg' : ''}" role="img" aria-label="${p.sign < 0 ? 'Área descontada' : 'Área somada'}">${p.sign < 0 ? IC.minus(14) : IC.plus(14)}</span><input data-fq-part="${i}" data-k="label" aria-label="Nome da área" value="${esc(p.label || '')}" placeholder="${p.sign < 0 ? 'Ilha, lareira…' : 'Closet, nicho…'}" /><input data-fq-part="${i}" data-k="l" inputmode="decimal" aria-label="Comprimento da área em pés" value="${esc(p.l)}" placeholder="ft" /><span>×</span><input data-fq-part="${i}" data-k="w" inputmode="decimal" aria-label="Largura da área em pés" value="${esc(p.w)}" placeholder="ft" /><button type="button" data-fq-part-del="${i}" aria-label="Remover área">${IC.x(16)}</button></div>`
                   )
                   .join('')}
-                <div class="fq-partbtns"><button type="button" data-fq-part-add="1">＋ Somar área</button><button type="button" data-fq-part-add="-1">－ Descontar área</button></div>`
+                <div class="fq-partbtns"><button type="button" data-fq-part-add="1">${IC.plus(14)}Somar área</button><button type="button" data-fq-part-add="-1">${IC.minus(14)}Descontar área</button></div>`
           }
           <div class="fq-area"><b id="fqArea">${fmtN(area)} pé²</b><small id="fqAreaSub">${w ? `+${w}% perda = ${fmtN(Math.ceil(area * (1 + w / 100)))} pé² de material` : per ? `perímetro ${fmtN(per)} pés` : ''}</small></div>
         </div>
         <p class="fq-lbl">Serviços neste cômodo</p>
         <div class="fq-svcs fq-svcs--sm">${d.services.map((sid) => `<button type="button" class="fq-svc${r.services.includes(sid) ? ' is-on' : ''}" data-fq-rsvc="${sid}" style="--c:${svcDef(sid).color}"><b>${esc(svcDef(sid).pt)}</b></button>`).join('')}</div>
         <label class="fq-field fq-field--col fq-group"><span>Observação</span><input data-fq-r="note" value="${esc(r.note || '')}" placeholder="ex.: rodapé danificado, degrau na porta" /></label>
-        ${photosOf(r.id).length ? `<div class="fq-photos">${photosOf(r.id).map((p) => `<span class="fq-photo" style="background-image:url('${esc(p.url)}')"></span>`).join('')}</div>` : ''}
-        <div class="fq-row2"><button type="button" class="fq-btn" data-fq-shoot="${esc(r.id)}">${IC.cam()}Foto deste cômodo</button><button type="button" class="fq-btn fq-btn--quiet" data-fq-ai-measure>${IC.mic(18)}Ditar medidas</button></div>
-        <button type="button" class="fq-btn fq-btn--ink fq-btn--block fq-btn--next" data-fq-room-next>Salvar e medir o próximo</button>
-        ${S.sheet.isNew ? '' : `<div class="fq-row2"><button type="button" class="fq-btn fq-btn--ghost" data-fq-room-dup>Duplicar</button><button type="button" class="fq-btn fq-btn--danger" data-fq-room-del>Excluir cômodo</button></div>`}
-      </div>`;
+        ${photosOf(r.id).length ? `<div class="fq-photos">${photosOf(r.id).map((p) => `<span class="fq-photo" role="img" aria-label="Foto do cômodo" style="background-image:url('${esc(p.url)}')"></span>`).join('')}</div>` : ''}
+        <div class="fq-row2"><button type="button" class="fq-btn" data-fq-shoot="${esc(r.id)}">${IC.cam()}Foto</button><button type="button" class="fq-btn fq-btn--quiet" data-fq-ai-measure>${IC.mic(18)}Ditar</button></div>
+        ${S.sheet.isNew ? '' : `<div class="fq-row2 fq-danger-gap"><button type="button" class="fq-btn fq-btn--ghost" data-fq-room-dup>Duplicar</button><button type="button" class="fq-btn fq-btn--danger" data-fq-room-del>Excluir cômodo</button></div>`}
+      </div>
+      <footer class="fq-sfoot fq-room-foot"><button type="button" class="fq-btn fq-btn--ink fq-btn--block" data-fq-room-next>Salvar e medir o próximo</button></footer>`;
     if (kp) html = html.replace(/inputmode="(numeric|decimal)"/g, 'inputmode="none"') + keypadHtml();
     openSheet(html, 'fq-sheet__card--tall' + (kp ? ' fq-sheet__card--kp' : ''));
     const f = focusKey ? $(`[data-fq-r="${focusKey}"]`) : S.sheet.isNew || kp ? $('[data-fq-r="l_ft"], [data-fq-r="sqft"]') : null;
     if (f && (kp || window.innerWidth >= 768)) f.focus();
-    if (kp) kpLabel();
+    if (kp) {
+      kpLabel();
+      kpSync();
+    }
   }
   // ---- measuring keypad (touch screens): feet / inches with fractions, no phone keyboard over the sheet
   const useKeypad = () => Boolean(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
   function keypadHtml() {
     const k = (v, label, cls, aria) => `<button type="button" class="fq-key${cls ? ' ' + cls : ''}" data-fq-key="${v}"${aria ? ` aria-label="${aria}"` : ''}>${label}</button>`;
     return `<div class="fq-kp" role="group" aria-label="Teclado de medidas">
-      <div class="fq-kp__top"><span id="fqKpLbl">Comprimento · pés</span><button type="button" class="fq-kp__dict" data-fq-ai-measure>${IC.mic(15)}Ditar</button></div>
-      <div class="fq-kp__grid">${k('1', '1')}${k('2', '2')}${k('3', '3')}${k('bs', '⌫', 'fq-key--fn', 'Apagar')}${k('4', '4')}${k('5', '5')}${k('6', '6')}${k('h', '½', 'fq-key--fn', 'Meio')}${k('7', '7')}${k('8', '8')}${k('9', '9')}${k('q', '¼', 'fq-key--fn', 'Um quarto')}${k('.', '.', 'fq-key--fn', 'Ponto')}${k('0', '0')}${k('tq', '¾', 'fq-key--fn', 'Três quartos')}${k('next', 'Próximo', 'fq-key--go', 'Próximo campo')}</div>
+      <div class="fq-kp__top"><span id="fqKpLbl">Comprimento · pés</span><b id="fqKpArea" aria-live="off"></b><button type="button" class="fq-kp__dict" data-fq-ai-measure>${IC.mic(15)}Ditar</button></div>
+      <div class="fq-kp__grid">${k('1', '1')}${k('2', '2')}${k('3', '3')}${k('bs', IC.del(), 'fq-key--fn', 'Apagar')}${k('4', '4')}${k('5', '5')}${k('6', '6')}${k('h', '½', 'fq-key--fn', 'Meio')}${k('7', '7')}${k('8', '8')}${k('9', '9')}${k('q', '¼', 'fq-key--fn', 'Um quarto')}${k('.', '.', 'fq-key--fn', 'Ponto')}${k('0', '0')}${k('tq', '¾', 'fq-key--fn', 'Três quartos')}${k('next', 'Próximo', 'fq-key--go', 'Próximo campo')}</div>
     </div>`;
   }
   const KP_LABEL = { l_ft: 'Comprimento · pés', l_in: 'Comprimento · polegadas', w_ft: 'Largura · pés', w_in: 'Largura · polegadas', sqft: 'Área total · pé²', l: 'Área extra · comprimento (pés)', w: 'Área extra · largura (pés)' };
@@ -870,7 +1090,18 @@
     if (lb && el) lb.textContent = KP_LABEL[el.dataset.fqR || el.dataset.k] || 'Medida';
     const fields = kpFields();
     const go = $('.fq-key--go');
-    if (go && el) go.textContent = fields.indexOf(el) === fields.length - 1 ? 'OK' : 'Próximo';
+    if (go && el) go.textContent = fields.indexOf(el) === fields.length - 1 ? 'Concluir' : 'Próximo';
+  }
+  /** The keypad only exists while a measure field has focus: text fields get the system keyboard and the form below is reachable. */
+  function kpSync() {
+    const card = $('.fq-sheet__card--kp');
+    if (!card) return;
+    const a = document.activeElement;
+    const on = Boolean(a && a.matches && a.matches('.fq-sheet input[inputmode="none"]'));
+    card.classList.toggle('is-kp-off', !on);
+    if (on) a.scrollIntoView({ block: 'nearest' });
+    const area = $('#fqKpArea');
+    if (area && S.sheet && S.sheet.room) area.textContent = `${fmtN(roomArea(S.sheet.room))} pé²`;
   }
   function kpPress(k) {
     const el = kpTarget();
@@ -913,10 +1144,17 @@
     if (a) a.textContent = `${fmtN(area)} pé²`;
     const sub = $('#fqAreaSub');
     if (sub) sub.textContent = w ? `+${w}% perda = ${fmtN(Math.ceil(area * (1 + w / 100)))} pé² de material` : per ? `perímetro ${fmtN(per)} pés` : '';
+    const ka = $('#fqKpArea');
+    if (ka) ka.textContent = `${fmtN(area)} pé²`;
   }
   function saveRoom(keepOpen) {
     const r = S.sheet.room;
-    if (roomArea(r) <= 0) return toast('Informe as medidas (ou a área) do cômodo.', 'error');
+    if (roomArea(r) <= 0) {
+      toast('Informe as medidas (ou a área) do cômodo.', 'error');
+      const first = $('[data-fq-r="l_ft"], [data-fq-r="sqft"]');
+      if (first) first.focus();
+      return;
+    }
     if (!r.services.length) return toast('Escolha pelo menos um serviço para o cômodo.', 'error');
     const i = S.d.rooms.findIndex((x) => x.id === r.id);
     if (i >= 0) S.d.rooms[i] = r;
@@ -937,6 +1175,7 @@
 
   // extras
   function sheetExtras() {
+    S.sheet = { kind: 'extras' };
     const d = S.d;
     openSheet(
       `${bar('Extras')}
@@ -948,23 +1187,25 @@
           return `<div class="fq-extra${st.on ? ' is-on' : ''}"><label class="fq-switch fq-switch--row"><input type="checkbox" data-fq-extra="${ex.id}" ${st.on ? 'checked' : ''}/><span></span><div><b>${esc(ex.pt)}</b><small>${esc(money(rt.rate))} ${esc(ex.unit === 'fixed' ? '' : '/ ' + C.UNIT_PT[ex.unit])}${rt.source === 'tabela' ? ' · Tabela' : ''}</small></div></label>
             ${
               st.on && ex.unit !== 'fixed'
-                ? `<div class="fq-extra__qty">${ex.qty !== 'manual' ? `<button type="button" class="fq-mini${st.auto !== false && (st.qty == null || st.auto) ? ' is-on' : ''}" data-fq-extra-auto="${ex.id}">${ex.qty === 'perimeter' ? 'Pelo perímetro' : 'Pela área'}</button>` : ''}<div class="fq-stepper" data-fq-step="extra:${ex.id}"><button type="button" data-fq-dec>−</button><input inputmode="numeric" data-fq-extra-qty="${ex.id}" value="${esc(q)}" /><button type="button" data-fq-inc>+</button></div><span class="fq-unit">${esc(C.UNIT_PT[ex.unit])}</span></div>`
+                ? `<div class="fq-extra__qty">${ex.qty !== 'manual' ? `<button type="button" class="fq-mini${st.auto !== false && (st.qty == null || st.auto) ? ' is-on' : ''}" data-fq-extra-auto="${ex.id}">${ex.qty === 'perimeter' ? 'Pelo perímetro' : 'Pela área'}</button>` : ''}<div class="fq-stepper" data-fq-step="extra:${ex.id}"><button type="button" data-fq-dec aria-label="Diminuir ${esc(ex.pt)}">${IC.minus()}</button><input inputmode="numeric" data-fq-extra-qty="${ex.id}" aria-label="Quantidade de ${esc(ex.pt)}" value="${esc(q)}" /><button type="button" data-fq-inc aria-label="Aumentar ${esc(ex.pt)}">${IC.plus()}</button></div><span class="fq-unit">${esc(C.UNIT_PT[ex.unit])}</span></div>`
                 : ''
             }</div>`;
         }).join('')}</div>
         <p class="fq-lbl">Itens avulsos</p>
         <div class="fq-group">${d.custom
           .map(
-            (c) => `<div class="fq-custom"><input data-fq-custom="${esc(c.id)}" data-k="name" value="${esc(c.name)}" placeholder="Descrição (vai em inglês para o cliente)" /><div class="fq-custom__nums"><input data-fq-custom="${esc(c.id)}" data-k="qty" inputmode="decimal" value="${esc(c.qty)}" placeholder="Qtd" /><span>×</span><input data-fq-custom="${esc(c.id)}" data-k="rate" inputmode="decimal" value="${esc(c.rate)}" placeholder="$" /><button type="button" data-fq-custom-del="${esc(c.id)}">✕</button></div></div>`
+            (c) => `<div class="fq-custom"><input data-fq-custom="${esc(c.id)}" data-k="name" aria-label="Descrição do item" value="${esc(c.name)}" placeholder="Descrição (vai em inglês para o cliente)" /><div class="fq-custom__nums"><input data-fq-custom="${esc(c.id)}" data-k="qty" inputmode="decimal" aria-label="Quantidade" value="${esc(c.qty)}" placeholder="Qtd" /><span>×</span><input data-fq-custom="${esc(c.id)}" data-k="rate" inputmode="decimal" aria-label="Preço unitário em dólares" value="${esc(c.rate)}" placeholder="$" /><button type="button" data-fq-custom-del="${esc(c.id)}" aria-label="Remover item">${IC.x(16)}</button></div></div>`
           )
-          .join('')}<button type="button" class="fq-btn fq-btn--block fq-btn--ghost" data-fq-custom-add>+ Item avulso</button></div>
+          .join('')}<button type="button" class="fq-btn fq-btn--block fq-btn--ghost" data-fq-custom-add>${IC.plus(14)}Item avulso</button></div>
         <p class="fq-hint">Preços pela Tabela de Valores (${esc((C.CUSTOMER_TYPES.find((x) => x.id === S.fq.customer_type) || {}).pt || '')}). Ajuste qualquer preço em Revisar.</p>
-      </div>`
+      </div>
+      ${sumLine()}`
     );
   }
 
   // details
   function sheetDetails() {
+    S.sheet = { kind: 'details' };
     const d = S.d;
     const groups = ['general', ...d.services];
     const title = { general: 'Geral', demolition: 'Demolição', installation: 'Instalação', sanding: 'Lixa e acabamento' };
@@ -986,14 +1227,14 @@
     const v = (S.d.answers[g] || {})[q.id];
     const k = `${g}.${q.id}`;
     if (q.type === 'bool')
-      return `<div class="fq-q"><span>${esc(q.pt)}${q.attention ? ' <i class="fq-att">atenção</i>' : ''}</span><div class="fq-yn"><button type="button" class="${v === true ? 'is-on' : ''}" data-fq-ans="${k}" data-v="true">Sim</button><button type="button" class="${v === false ? 'is-on' : ''}" data-fq-ans="${k}" data-v="false">Não</button></div></div>`;
+      return `<div class="fq-q"><span>${esc(q.pt)}${q.attention ? ' <i class="fq-att">atenção</i>' : ''}</span><div class="fq-yn" role="group" aria-label="${esc(q.pt)}"><button type="button" class="${v === true ? 'is-on' : ''}" data-fq-ans="${k}" data-v="true">Sim</button><button type="button" class="${v === false ? 'is-on' : ''}" data-fq-ans="${k}" data-v="false">Não</button></div></div>`;
     if (q.type === 'choice')
       return `<div class="fq-q fq-q--col"><span>${esc(q.pt)}</span><div class="fq-chips">${q.options.map(([id, lb]) => `<button type="button" class="fq-chip${v === id ? ' is-on' : ''}" data-fq-ans="${k}" data-v="${id}">${esc(lb)}</button>`).join('')}</div></div>`;
     if (q.type === 'multi')
       return `<div class="fq-q fq-q--col"><span>${esc(q.pt)}</span><div class="fq-chips">${q.options.map((id) => `<button type="button" class="fq-chip${(v || []).includes(id) ? ' is-on' : ''}" data-fq-ans-multi="${k}" data-v="${id}">${esc(mat(id).pt)}</button>`).join('')}</div></div>`;
     if (q.type === 'number')
-      return `<div class="fq-q"><span>${esc(q.pt)}</span><input class="fq-qin fq-qin--num" inputmode="numeric" data-fq-ans-in="${k}" value="${esc(v == null ? '' : v)}" /></div>`;
-    return `<div class="fq-q fq-q--col"><span>${esc(q.pt)}${q.attention ? ' <i class="fq-att">atenção</i>' : ''}</span><input class="fq-qin" data-fq-ans-in="${k}" value="${esc(v || '')}" /></div>`;
+      return `<div class="fq-q"><span>${esc(q.pt)}</span><input class="fq-qin fq-qin--num" inputmode="numeric" data-fq-ans-in="${k}" aria-label="${esc(q.pt)}" value="${esc(v == null ? '' : v)}" /></div>`;
+    return `<div class="fq-q fq-q--col"><span>${esc(q.pt)}${q.attention ? ' <i class="fq-att">atenção</i>' : ''}</span><input class="fq-qin" data-fq-ans-in="${k}" aria-label="${esc(q.pt)}" value="${esc(v || '')}" /></div>`;
   }
 
   // review → "Resultado"
@@ -1091,23 +1332,26 @@
     const max = Math.max(1, ...rows.map((r) => r.amount));
     const tips = mateTips();
     const ai = S.ai.review;
+    const enter = !(S.sheet && S.sheet.kind === 'review');
+    const defaults = t.lines.filter((l) => l.source === 'padrao').length;
     openSheet(
       `${bar('Resultado', 'none')}
-      <div class="fq-sbody fq-result">
+      <div class="fq-sbody fq-result${enter ? ' fq-enter' : ''}">
         ${two ? optionCards(opt) : `<div class="fq-bigtotal"><small>Total para o cliente</small><b>${esc(money(t.total))}</b><span>preços ${esc((C.CUSTOMER_TYPES.find((x) => x.id === fq.customer_type) || {}).pt)}</span></div>`}
         <div class="fq-stats">
           <div><small>Por pé²</small><b>${area ? esc(money(r2(t.total / area))) : '—'}</b></div>
           <div><small>Área</small><b>${fmtN(area)} pé²</b></div>
           <div><small>Cômodos</small><b>${S.d.rooms.length}</b></div>
         </div>
+        ${defaults ? `<p class="fq-notice">${IC.alert()}<span><b>Itens com preço padrão: ${defaults}.</b> Esses valores não vêm da sua Tabela de Valores. Confira antes de mostrar ao cliente.</span></p>` : ''}
         <section class="fq-money">
           <div class="fq-money__head"><b>Para onde vai o dinheiro</b>
             <div class="fq-seg fq-seg--sm" role="group" aria-label="Agrupar por"><button type="button" class="${view === 'room' ? 'is-on' : ''}" data-fq-review-view="room" aria-pressed="${view === 'room'}">Cômodo</button><button type="button" class="${view === 'svc' ? 'is-on' : ''}" data-fq-review-view="svc" aria-pressed="${view === 'svc'}">Serviço</button></div></div>
           ${rows
             .map((r, i) => {
               const tap = view === 'svc' && r.lines && r.lines.length === 1 ? ` data-fq-rate="${esc(r.lines[0].key)}"` : '';
-              const warn = r.lines && r.lines.some((l) => l.source === 'padrao') ? ' <em>preço padrão</em>' : '';
-              return `<${tap ? 'button type="button"' : 'div'} class="fq-mrow" style="animation-delay:${(i * 0.06).toFixed(2)}s"${tap}><span class="fq-mrow__top"><span>${esc(r.label)} <small>${esc(r.sub)}</small>${warn}</span><b>${esc(money(r.amount))}</b></span><span class="fq-mrow__bar"><i style="width:${Math.max(2, Math.round((r.amount / max) * 100))}%;animation-delay:${(i * 0.06).toFixed(2)}s"></i></span></${tap ? 'button' : 'div'}>${view === 'svc' && r.lines && r.lines.length > 1 ? r.lines.map((l) => `<button type="button" class="fq-msub" data-fq-rate="${esc(l.key)}"><span>${esc(l.name)}${l.source === 'padrao' ? ' <em>preço padrão</em>' : ''}</span><small>${esc(fmtN(l.quantity))} ${esc(C.UNIT_PT[l.unit] || '')} × ${esc(money(l.rate))}</small><b>${esc(money(l.amount))}</b></button>`).join('') : ''}`;
+              const warn = r.lines && r.lines.some((l) => l.source === 'padrao') ? ' · <em>preço padrão</em>' : '';
+              return `<${tap ? 'button type="button"' : 'div'} class="fq-mrow" style="animation-delay:${(i * 0.06).toFixed(2)}s"${tap}><span class="fq-mrow__top"><span class="fq-mrow__txt"><span>${esc(r.label)}</span><small>${esc(r.sub)}${warn}</small></span><b>${esc(money(r.amount))}</b></span><span class="fq-mrow__bar"><i style="width:${Math.max(2, Math.round((r.amount / max) * 100))}%;animation-delay:${(i * 0.06).toFixed(2)}s"></i></span></${tap ? 'button' : 'div'}>${view === 'svc' && r.lines && r.lines.length > 1 ? r.lines.map((l) => `<button type="button" class="fq-msub" data-fq-rate="${esc(l.key)}"><span>${esc(l.name)}${l.source === 'padrao' ? ' <em>preço padrão</em>' : ''}</span><small>${esc(fmtN(l.quantity))} ${esc(C.UNIT_PT[l.unit] || '')} × ${esc(money(l.rate))}</small><b>${esc(money(l.amount))}</b></button>`).join('') : ''}`;
             })
             .join('')}
           <p class="fq-hint">${view === 'svc' ? 'Toque numa linha para trocar o preço. O cliente vê os nomes em inglês.' : 'Divisão aproximada pela área e pelo perímetro de cada cômodo.'}</p>
@@ -1123,8 +1367,8 @@
       </div>
       <footer class="fq-sfoot">
         <button type="button" class="fq-btn fq-btn--pri fq-btn--big fq-btn--block" data-fq-finish="present" ${locked && !quoted ? 'disabled' : ''}>${IC.play()}Apresentar ao cliente</button>
-        <div class="fq-row2"><button type="button" class="fq-btn" data-fq-finish="sms" ${locked ? 'disabled' : ''}>Enviar link (SMS)</button><button type="button" class="fq-btn" data-fq-finish="open">${quoted ? 'Atualizar e abrir' : 'Abrir no editor'}</button></div>
-        <button type="button" class="fq-link2 fq-link2--c" data-fq-finish="sign" ${locked ? 'disabled' : ''}>Cliente assina agora, sem apresentação</button>
+        <div class="fq-row2"><button type="button" class="fq-btn" data-fq-finish="sms" ${locked ? 'disabled' : ''}>Enviar link (SMS)</button><button type="button" class="fq-btn" data-fq-review-more aria-expanded="${S.reviewMore ? 'true' : 'false'}">${S.reviewMore ? 'Menos opções' : 'Mais opções'}</button></div>
+        ${S.reviewMore ? `<div class="fq-row2"><button type="button" class="fq-btn" data-fq-finish="open">${quoted ? 'Atualizar e abrir' : 'Abrir no editor'}</button><button type="button" class="fq-btn" data-fq-finish="sign" ${locked ? 'disabled' : ''}>Assinar agora</button></div>` : ''}
       </footer>`,
       'fq-sheet__card--tall'
     );
@@ -1278,9 +1522,9 @@
         <div class="fq-chat__composer">
           ${listening ? `<div class="fq-listen" role="status"><span class="fq-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>${hf ? 'Ouvindo… ande pela casa e vá falando' : 'Ouvindo… toque em Parar quando terminar'}</div>` : hf ? '<div class="fq-listen" role="status">Mãos livres: o Mate volta a ouvir depois de responder.</div>' : ''}
           <div class="fq-chat__composer-row">
-            <textarea id="fqAiConversationInput" rows="1" maxlength="1400" aria-label="Descreva o que será feito" placeholder="Digite ou toque no microfone" ${S.ai.conversationBusy ? 'disabled' : ''}></textarea>
+            <textarea id="fqAiConversationInput" rows="1" maxlength="1400" aria-label="Descreva o que será feito" placeholder="Escreva ou fale" ${S.ai.conversationBusy ? 'disabled' : ''}></textarea>
             <button type="button" class="fq-round fq-round--ink${listening ? ' is-live' : ''}" data-fq-ai-conversation-mic ${!hasSpeech || S.ai.conversationBusy ? 'disabled' : ''} aria-label="${listening ? 'Parar captura de voz' : 'Falar com o Mate'}">${listening ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>' : IC.mic(20)}</button>
-            <button type="button" class="fq-btn fq-btn--pri fq-chat__send" data-fq-ai-conversation-send ${S.ai.conversationBusy ? 'disabled' : ''}>Enviar</button>
+            <button type="button" class="fq-round fq-round--pri" data-fq-ai-conversation-send aria-label="Enviar mensagem" ${S.ai.conversationBusy ? 'disabled' : ''}>${IC.send()}</button>
           </div>
           <div class="fq-chat__opts">
             <label class="fq-chat__language"><span>Fala em</span><select id="fqAiConversationLanguage" aria-label="Idioma da fala"><option value="pt-BR">Português</option><option value="en-US">English</option></select></label>
@@ -1628,6 +1872,7 @@
     renderAiConversation();
   }
   function sheetAiMeasure() {
+    S.sheet = { kind: 'ai-measure' };
     S.ai.measureProposal = null;
     const hasSpeech = Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
     openSheet(
@@ -1755,7 +2000,7 @@
       S.ai.review = result.data;
       sheetReview();
     } catch (e) { toast(e.message, 'error'); }
-    finally { const current = $('[data-fq-ai-review]'); if (current) { current.disabled = false; current.textContent = 'Revisar proposta com IA'; } }
+    finally { const current = $('[data-fq-ai-review]'); if (current) { current.disabled = false; current.textContent = 'Revisão completa com o Mate'; } }
   }
   async function presentExistingQuote(button) {
     if (!S.fq || !S.fq.quote_id) return;
@@ -1766,7 +2011,7 @@
     if (!planRoom) return;
     const label = String(planRoom.label || 'Novo cômodo');
     const room = { id: uid(), base: '__custom', label, en: label, mode: 'dims', l_ft: '', l_in: '', w_ft: '', w_in: '', sqft: '', parts: [], services: S.d.services.slice(), note: '' };
-    S.sheet = { kind: 'room', room, isNew: true, planRoomId };
+    S.sheet = { kind: 'room', room, isNew: true, planRoomId, orig: JSON.stringify(room) };
     renderRoomSheet();
   }
   function renderPresentation() {
@@ -1817,7 +2062,7 @@
         <div class="fq-group"><label class="fq-field"><span>Valor por ${esc(C.UNIT_PT[line.unit] || 'un.')}</span><input id="fqRateIn" inputmode="decimal" value="${esc(cur.rate)}" /></label>
           <button type="button" class="fq-btn fq-btn--block fq-btn--pri" data-fq-rate-manual="${esc(key)}">Usar este valor</button></div>
         ${items.length ? `<p class="fq-lbl">Ou escolha da Tabela de Valores</p><div class="fq-group fq-lines">${items
-          .map((p) => `<button type="button" class="fq-line${cur.item && cur.item.id === p.id ? ' is-on' : ''}" data-fq-rate-item="${esc(key)}" data-id="${esc(p.id)}"><div><b>${esc(p.name)}</b><small>${esc(p.category_label || p.category)} · ${esc(C.UNIT_PT[p.unit] || p.unit)}</small></div><b>${esc(money(priceOf(p)))}</b></button>`)
+          .map((p) => `<button type="button" class="fq-line${cur.item && cur.item.id === p.id ? ' is-on' : ''}" data-fq-rate-item="${esc(key)}" data-id="${esc(p.id)}" ${cur.item && cur.item.id === p.id ? 'aria-current="true"' : ''}><div><b>${esc(p.name)}</b><small>${esc(p.category_label || p.category)} · ${esc(C.UNIT_PT[p.unit] || p.unit)}</small></div><b>${esc(money(priceOf(p)))}</b>${cur.item && cur.item.id === p.id ? IC.check() : ''}</button>`)
           .join('')}</div>` : '<p class="fq-hint">Sua Tabela de Valores ainda não tem itens. Cadastre em Tabela de Valores para os preços virem automáticos.</p>'}
         ${S.d.rates[key] ? `<button type="button" class="fq-btn fq-btn--block fq-btn--ghost" data-fq-rate-reset="${esc(key)}">Voltar ao automático</button>` : ''}
       </div>`
@@ -1831,7 +2076,7 @@
     openSheet(
       `${bar(room ? room.label : 'Foto', 'none')}
       <div class="fq-sbody">
-        <img class="fq-photo-big" src="${esc(p.url)}" alt="" />
+        <img class="fq-photo-big" src="${esc(p.url)}" alt="Foto da visita${room ? ': ' + esc(room.label) : ''}" />
         <p class="fq-hint">${esc([room ? room.label : 'Geral', p.taken_at ? new Date(p.taken_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''].filter(Boolean).join(' · '))} · vai para o ObraCam do job quando o orçamento for aprovado.</p>
         <button type="button" class="fq-btn fq-btn--block fq-btn--danger" data-fq-photo-del="${esc(p.id)}">Excluir foto</button>
       </div>`
@@ -1868,7 +2113,10 @@
     const t = totals(S.d);
     if (!t.lines.length) return toast('Adicione serviços e cômodos primeiro.', 'error');
     if (!navigator.onLine) return toast('Sem internet. O rascunho está salvo; gere o orçamento quando voltar o sinal.', 'error');
-    if (mode === 'sms' && !S.fq.client_phone) return toast('Adicione o telefone do cliente.', 'error');
+    if (mode === 'sms' && !S.fq.client_phone) {
+      toast('Adicione o telefone do cliente para enviar o link.', 'error');
+      return sheetClient();
+    }
     btn.disabled = true;
     const label = btn.innerHTML;
     btn.textContent = 'Gerando…';
@@ -2030,11 +2278,72 @@
     });
     document.addEventListener('focusin', (ev) => {
       if (ev.target.matches && ev.target.matches('.fq-sheet input[inputmode="none"]')) kpLabel();
+      kpSync();
     });
+    document.addEventListener('focusout', () => setTimeout(kpSync, 0));
+    window.addEventListener('popstate', () => {
+      if (S.ignorePop) {
+        S.ignorePop = false;
+        return;
+      }
+      if (S.sheetShown) requestClose('history');
+    });
+    wireSheetDrag();
     document.addEventListener('click', async (ev) => {
       const t = ev.target;
       let el;
-      if ((el = t.closest('[data-fq-close]'))) return closeSheet();
+      if ((el = t.closest('[data-fq-close]'))) return requestClose(el.classList.contains('fq-sheet__backdrop') ? 'backdrop' : 'button');
+      if (t.closest('[data-fq-save-retry]')) {
+        S.saveFailed = false;
+        S.dirty = true;
+        renderSaveState();
+        return save();
+      }
+      if ((el = t.closest('[data-fq-leave]'))) {
+        if (!S.dirty || !navigator.onLine) return;
+        ev.preventDefault();
+        el.setAttribute('aria-busy', 'true');
+        await save();
+        if (!S.dirty) location.href = el.getAttribute('href');
+        return;
+      }
+      if (t.closest('[data-fq-list-retry]')) return renderList();
+      if ((el = t.closest('[data-fq-draft-del]'))) return deleteDraft(el.dataset.fqDraftDel);
+      if ((el = t.closest('[data-fq-new-go]'))) return createVisit(el);
+      if (t.closest('[data-fq-tips-all]')) return sheetTips();
+      if ((el = t.closest('[data-fq-jump]'))) {
+        const target = document.getElementById(el.dataset.fqJump);
+        if (target) target.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
+        return;
+      }
+      if (t.closest('[data-fq-review-more]')) {
+        S.reviewMore = !S.reviewMore;
+        return sheetReview();
+      }
+      if ((el = t.closest('[data-fq-visit-del]'))) {
+        // Deleting a visit can't be undone: the first tap only arms the button.
+        if (!el.classList.contains('is-armed')) {
+          el.classList.add('is-armed');
+          el.textContent = 'Toque de novo para excluir';
+          setTimeout(() => {
+            if (!el.isConnected) return;
+            el.classList.remove('is-armed');
+            el.textContent = 'Excluir esta visita';
+          }, 4000);
+          return;
+        }
+        const id = S.fq.id;
+        S.sheet.orig = null;
+        try {
+          await api('/api/field-quotes/' + encodeURIComponent(id), { method: 'DELETE' });
+          try { localStorage.removeItem(LS(id)); } catch (_) {}
+          S.dirty = false;
+          location.href = 'field-quote.html';
+        } catch (e) {
+          toast(e.message, 'error');
+        }
+        return;
+      }
       if ((el = t.closest('[data-fq-key]'))) return kpPress(el.dataset.fqKey);
       if (t.closest('[data-fq-handsfree]')) return toggleHandsFree();
       if ((el = t.closest('[data-fq-photo-extra]'))) {
@@ -2088,7 +2397,7 @@
         else toast('Tela cheia não disponível neste navegador.', 'info');
         return;
       }
-      if (t.closest('[data-fq-new]')) return newVisit();
+      if (t.closest('[data-fq-new]')) return sheetNewVisit();
       if ((el = t.closest('[data-fq-tip-yes]'))) {
         const tip = mateTips().find((x) => x.id === el.dataset.fqTipYes);
         if (tip && tip.apply) {
@@ -2096,11 +2405,13 @@
           markDirty();
           toast('Incluído no orçamento.', 'success');
         }
+        if (S.sheet && S.sheet.kind === 'tips') return sheetTips();
         return S.sheet && S.sheet.kind === 'review' ? sheetReview() : renderPanel();
       }
       if ((el = t.closest('[data-fq-tip-no]'))) {
         S.d.mate_dismissed = [...new Set([...(S.d.mate_dismissed || []), el.dataset.fqTipNo])];
         markDirty();
+        if (S.sheet && S.sheet.kind === 'tips') return sheetTips();
         return S.sheet && S.sheet.kind === 'review' ? sheetReview() : renderPanel();
       }
       if ((el = t.closest('[data-fq-review-opt]'))) {
@@ -2171,6 +2482,7 @@
           if (roomArea(r) > 0 && r.services.length) {
             S.d.rooms.push(r);
             S.sheet.isNew = false;
+            S.sheet.orig = JSON.stringify(r);
             markDirty();
           }
         }
@@ -2180,7 +2492,10 @@
       }
       // client sheet
       if ((el = t.closest('[data-fq-ct]'))) {
-        $$('[data-fq-ct]').forEach((b) => b.classList.toggle('is-on', b === el));
+        $$('[data-fq-ct]').forEach((b) => {
+          b.classList.toggle('is-on', b === el);
+          b.setAttribute('aria-pressed', b === el ? 'true' : 'false');
+        });
         return;
       }
       if (t.closest('[data-fq-geo]')) return useLocation();
@@ -2282,6 +2597,7 @@
         const id = el.dataset.fqRsvc;
         r.services = r.services.includes(id) ? r.services.filter((x) => x !== id) : [...r.services, id];
         el.classList.toggle('is-on', r.services.includes(id));
+        el.setAttribute('aria-pressed', r.services.includes(id) ? 'true' : 'false');
         updateRoomCalc();
         return;
       }
@@ -2291,15 +2607,25 @@
         const base = r.base === '__custom' ? null : r.base;
         const nm = base ? nextRoomLabel(base) : { label: r.label + ' (cópia)', en: (r.en || r.label) + ' (copy)' };
         Object.assign(r, { id: uid(), label: nm.label, en: nm.en });
-        S.sheet = { kind: 'room', room: r, isNew: true };
+        S.sheet = { kind: 'room', room: r, isNew: true, orig: JSON.stringify(r) };
         return renderRoomSheet();
       }
       if (t.closest('[data-fq-room-del]')) {
         const id = S.sheet.room.id;
+        const at = S.d.rooms.findIndex((x) => x.id === id);
+        const removed = S.d.rooms[at];
         S.d.rooms = S.d.rooms.filter((x) => x.id !== id);
         markDirty();
-        toast('Cômodo excluído', 'info');
-        return closeSheet();
+        S.sheet.orig = null;
+        closeSheet();
+        if (removed && window.crmToast && window.crmToast.undo) {
+          window.crmToast.undo(`${removed.label} excluído`, () => {
+            S.d.rooms.splice(Math.min(at, S.d.rooms.length), 0, removed);
+            markDirty();
+            renderPanel();
+          });
+        }
+        return;
       }
       // extras
       if ((el = t.closest('[data-fq-extra-auto]'))) {
@@ -2318,9 +2644,20 @@
         return;
       }
       if ((el = t.closest('[data-fq-custom-del]'))) {
+        const at = S.d.custom.findIndex((c) => c.id === el.dataset.fqCustomDel);
+        const removed = S.d.custom[at];
         S.d.custom = S.d.custom.filter((c) => c.id !== el.dataset.fqCustomDel);
         markDirty();
-        return sheetExtras();
+        sheetExtras();
+        if (removed && removed.name && window.crmToast && window.crmToast.undo) {
+          window.crmToast.undo('Item removido', () => {
+            S.d.custom.splice(at, 0, removed);
+            markDirty();
+            if (S.sheet && S.sheet.kind === 'extras') sheetExtras();
+            else renderPanel();
+          });
+        }
+        return;
       }
       // details
       if ((el = t.closest('[data-fq-ans]'))) {
@@ -2366,11 +2703,20 @@
       }
       if ((el = t.closest('[data-fq-photo-del]'))) {
         const id = el.dataset.fqPhotoDel;
+        const removed = S.d.photos.find((x) => x.id === id);
         S.d.photos = S.d.photos.filter((x) => x.id !== id);
         S.d.photos_removed = [...(S.d.photos_removed || []), id];
         markDirty();
-        toast('Foto removida', 'success');
-        return closeSheet();
+        closeSheet();
+        if (removed && window.crmToast && window.crmToast.undo) {
+          window.crmToast.undo('Foto removida', () => {
+            S.d.photos.push(removed);
+            S.d.photos_removed = (S.d.photos_removed || []).filter((x) => x !== id);
+            markDirty();
+            renderPanel();
+          });
+        }
+        return;
       }
     });
 
@@ -2379,6 +2725,11 @@
       if (t.id === 'fqNotes') {
         S.d.notes = t.value;
         return markDirty();
+      }
+      if (t.id === 'fqListSearch') return renderListRows(t.value);
+      if (t.name === 'client_name' && S.sheet && S.sheet.kind === 'new') {
+        const err = $('#fqNameErr');
+        if (err) err.hidden = true;
       }
       if (t.dataset.fqR && S.sheet && S.sheet.kind === 'room') {
         const k = t.dataset.fqR;
@@ -2459,7 +2810,22 @@
     });
 
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !$('#fqSheet').hidden) closeSheet();
+      if (e.key === 'Escape' && !$('#fqSheet').hidden) return requestClose('escape');
+      if (e.key === 'Tab' && !$('#fqSheet').hidden) {
+        const card = $('.fq-sheet__card');
+        const items = $$(FOCUSABLE, card).filter((x) => x.offsetParent !== null);
+        if (items.length) {
+          const first = items[0];
+          const last = items[items.length - 1];
+          if (e.shiftKey && (document.activeElement === first || document.activeElement === card)) {
+            e.preventDefault();
+            last.focus();
+          } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
       if (e.key === 'Enter' && !e.shiftKey && e.target.id === 'fqAiConversationInput') {
         e.preventDefault();
         sendAiConversation();
@@ -2472,6 +2838,38 @@
         else saveRoom(false);
       }
     });
+  }
+
+  /** Grabber: drag the sheet header down to dismiss (touch, phone layout only). The Cancelar/Concluir buttons stay as the visible alternative. */
+  function wireSheetDrag() {
+    let drag = null;
+    document.addEventListener('pointerdown', (ev) => {
+      if (ev.pointerType !== 'touch' || window.innerWidth >= 768) return;
+      const head = ev.target.closest && ev.target.closest('.fq-sbar');
+      if (!head || ev.target.closest('button, a, input, select')) return;
+      const card = head.closest('.fq-sheet__card');
+      drag = { card, id: ev.pointerId, y: ev.clientY, dy: 0, t: ev.timeStamp };
+      head.setPointerCapture(ev.pointerId);
+      card.style.transition = 'none';
+    });
+    document.addEventListener('pointermove', (ev) => {
+      if (!drag || ev.pointerId !== drag.id) return;
+      // Pulling up meets growing resistance; the sheet has nowhere to go.
+      const raw = ev.clientY - drag.y;
+      drag.dy = raw;
+      drag.card.style.transform = `translateY(${raw > 0 ? raw : raw / 6}px)`;
+    });
+    const end = (ev) => {
+      if (!drag || ev.pointerId !== drag.id) return;
+      const { card, dy, t } = drag;
+      drag = null;
+      card.style.transition = '';
+      card.style.transform = '';
+      const fast = dy > 40 && dy / Math.max(1, ev.timeStamp - t) > 0.6;
+      if (dy > 110 || fast) requestClose('drag');
+    };
+    document.addEventListener('pointerup', end);
+    document.addEventListener('pointercancel', end);
   }
 
   function sheetReviewKeep() {
@@ -2511,18 +2909,13 @@
     );
   }
 
-  async function newVisit() {
-    try {
-      const j = await api('/api/field-quotes', { method: 'POST', body: { client_name: 'Novo cliente' } });
-      location.href = 'field-quote.html?id=' + encodeURIComponent(j.data.id) + '&novo=1';
-    } catch (e) {
-      toast(e.message, 'error');
-    }
-  }
-
   // ------------------------------------------------------------------ boot
   async function boot() {
     wire();
+    // A reload with a sheet open keeps its history entry: clear it so Back isn't a dead press.
+    if (history.state && history.state.fqSheet) {
+      try { history.replaceState(null, ''); } catch (_) {}
+    }
     const p = new URLSearchParams(location.search);
     try {
       const sess = await fetch('/api/auth/session', { credentials: 'include' }).then((r) => r.json());
