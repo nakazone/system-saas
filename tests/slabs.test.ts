@@ -169,6 +169,24 @@ describe.skipIf(!privileged)("slab yard API", () => {
     expect(crew.status).toBe(200);
   });
 
+  it("Relatórios: stone used in the period with its cost, per job, and the CSVs", async () => {
+    const day = new Date().toISOString().slice(0, 10);
+    const r = await call("office", "GET", `/api/reports/slabs-used?from=${day}&to=${day}`);
+    expect(r.status).toBe(200);
+    const d = r.json.data.result;
+    expect(d.used).toBe(2);
+    expect(d.cost).toBe(1450);
+    expect(d.without_cost).toBe(1);
+    expect(d.by_job.map((j: any) => j.job.split(" ")[0]).sort()).toEqual(["#51", "#52"]);
+    const csv = await fetch(`${base}/api/reports/slab-yard?format=csv&from=${day}&to=${day}`, { headers: { Cookie: cookies.office! } });
+    expect(csv.status).toBe(200);
+    const text = await csv.text();
+    expect(text).toContain("Calacatta Laza");
+    expect(text.split("\n")[0]).toContain("cost");
+    // a hardwood company has no such report
+    expect((await call("wood", "GET", `/api/reports/slabs-used?from=${day}&to=${day}`)).status).toBe(404);
+  });
+
   it("a hardwood company has no yard, and RLS keeps companies apart", async () => {
     expect((await call("wood", "GET", "/api/slabs")).status).toBe(404);
     expect((await call("wood", "POST", `/api/slabs/${slab}/release`)).status).toBe(404);

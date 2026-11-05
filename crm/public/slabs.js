@@ -38,6 +38,7 @@
       st.canManage = Boolean(d.can_manage);
       if (st.filter === "used") st.used = (await api("/api/slabs?status=used")).items || [];
       $("slAdd").hidden = !st.canManage;
+      $("slExport").hidden = !st.canManage;
       $("slStatus").hidden = true;
       render();
     } catch (e) {

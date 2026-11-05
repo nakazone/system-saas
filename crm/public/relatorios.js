@@ -590,7 +590,38 @@
         <p class="rx-note rx-note--top">${lnk("schedule.html", "Ver na Calendar")}</p>`,
       )}
     </div>
-    ${renderReworks(d.reworks)}`;
+    ${renderSlabs(d.slabs)}${renderReworks(d.reworks)}`;
+  }
+
+  /** Stone used on jobs in the period (trades with a slab yard: Countertops). */
+  function renderSlabs(sl) {
+    if (!sl) return "";
+    const yard = `<p class="rx-note rx-note--top">No pátio agora: ${num(sl.yard.available)} slab${sl.yard.available === 1 ? "" : "s"} livre${sl.yard.available === 1 ? "" : "s"} · ${num(sl.yard.remnants)} sobra${sl.yard.remnants === 1 ? "" : "s"} · ${num(sl.yard.reserved)} reservado${sl.yard.reserved === 1 ? "" : "s"} · ${lnk("slabs.html", "Abrir Slabs")}</p>`;
+    if (!sl.used && !sl.remnants_used) {
+      return `<div class="rx-grid2">${card("", "Pedra usada", "", `<p class="rx-empty">Nenhum slab foi para a fabricação neste período.</p>${yard}`)}</div>`;
+    }
+    const showCost = sl.cost != null;
+    return `${kpiStrip([
+      { l: "Slabs usados", v: num(sl.used), n: sl.remnants_used ? `+ ${num(sl.remnants_used)} sobra${sl.remnants_used === 1 ? "" : "s"}` : "" },
+      { l: "Pedra usada", v: `${num(sl.sq_ft)} pé²` },
+      showCost ? { l: "Custo da pedra", v: money(sl.cost), n: sl.without_cost ? `${num(sl.without_cost)} sem custo lançado` : "" } : null,
+      showCost && sl.cost_per_sf != null ? { l: "Custo por pé²", v: money2(sl.cost_per_sf) } : null,
+    ])}
+    ${card(
+      "rx-span-12",
+      "Pedra por job",
+      "",
+      table(
+        [{ label: "Job" }, { label: "Cliente" }, { label: "Peças", num: true }, { label: "pé²", num: true }, ...(showCost ? [{ label: "Pedra", num: true }, { label: "Refações", num: true }] : [])],
+        sl.by_job.map((j) => [
+          `<a class="rx-link" href="job-detail.html?id=${encodeURIComponent(j.job_id)}#fases">${esc(j.job)}</a>`,
+          esc(j.customer || "—"),
+          num(j.pieces),
+          num(j.sq_ft),
+          ...(showCost ? [money2(j.cost), j.rework_cost ? money2(j.rework_cost) : "—"] : []),
+        ]),
+      ) + yard,
+    )}`;
   }
 
   /** Pieces made again in the period (trades that record remakes: Countertops). */
@@ -839,7 +870,7 @@
     const menu = $("rxExportMenu");
     if (!menu) return;
     const extra = activeTab === "irss" ? { ...(irssFilters.sector ? { sector: irssFilters.sector } : {}), ...(irssFilters.employee_id ? { employee_id: irssFilters.employee_id } : {}) } : null;
-    const list = [...(EXPORTS[activeTab] || []), ...(activeTab === "jobs" && hubData?.reworks ? [["reworks", "Peças refeitas"]] : [])];
+    const list = [...(EXPORTS[activeTab] || []), ...(activeTab === "jobs" && hubData?.reworks ? [["reworks", "Peças refeitas"]] : []), ...(activeTab === "jobs" && hubData?.slabs ? [["slabs-used", "Slabs usados"], ["slab-yard", "Pátio de slabs (agora)"]] : [])];
     menu.innerHTML = `<p>CSV do período</p>${list
       .map(([kind, label]) => `<a href="${esc(csvUrl(kind, extra))}" download>${esc(label)}</a>`)
       .join("")}`;

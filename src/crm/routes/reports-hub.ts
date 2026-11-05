@@ -24,6 +24,8 @@ import { safeTimeZone } from "../../lib/time/zoned.js";
 import { isPhaseKey } from "../../lib/trades/phases.js";
 import { primaryPack } from "../../lib/trades/index.js";
 import { reworksReport } from "../../lib/trades/reworks-report.js";
+import { slabsReport } from "../../lib/trades/slabs-report.js";
+import { MATERIAL_LABEL, slabSf } from "../../lib/trades/slabs.js";
 
 export const reportsHubRouter = Router();
 
@@ -602,6 +604,8 @@ async function buildHubPayload(tx: TenantPrisma, period: PeriodFilter, req: Auth
   const irssOn = canPayroll && isIrssModuleEnabled(org?.featureFlags);
   // Trades that record remakes (Countertops): what was made again in the period.
   const reworks = canJobs ? await reworksReport(tx, period, primaryPack(org?.tradePacks), showPricing) : null;
+  // Trades with a slab yard (Countertops): stone used on jobs in the period.
+  const slabs = canJobs ? await slabsReport(tx, period, primaryPack(org?.tradePacks), showPricing) : null;
 
   return {
     period: { from: ymd(period.from), to: ymd(period.to) },
@@ -625,6 +629,7 @@ async function buildHubPayload(tx: TenantPrisma, period: PeriodFilter, req: Auth
     },
     jobs: jobsOps,
     reworks,
+    slabs,
     receivables: {
       ar_aging: arAging,
       projected_revenue: projectedRevenue,
@@ -777,6 +782,60 @@ async function buildKind(tx: TenantPrisma, kind: string, period: PeriodFilter, r
             ...(showPricing ? [r.cost != null ? Number(r.cost) : ""] : []),
             r.notes ?? "",
             r.createdByName ?? "",
+          ]),
+        },
+      };
+    }
+    case "slabs-used":
+    case "slab-yard": {
+      if (!hasPerm(req, "work_orders.view")) return null;
+      const org = await tx.organization.findFirst({ where: { id: req.organizationId! }, select: { tradePacks: true } });
+      const pack = primaryPack(org?.tradePacks);
+      if (!pack.inventory?.slabs) return null;
+      const yard = kind === "slab-yard";
+      const rows = await tx.slab.findMany({
+        where: yard ? { status: { in: ["available", "reserved"] } } : { status: "used", usedAt: { gte: period.from, lte: period.to } },
+        orderBy: yard ? [{ kind: "asc" }, { color: "asc" }] : [{ usedAt: "asc" }],
+        include: { workOrder: { select: { number: true, title: true } } },
+      });
+      const mat = (m: string) => (MATERIAL_LABEL as Record<string, { "pt-BR": string }>)[m]?.["pt-BR"] ?? m;
+      return {
+        title: yard ? "Pátio de slabs" : "Slabs usados",
+        data: await slabsReport(tx, period, pack, showPricing),
+        csv: {
+          headers: [
+            ...(yard ? [] : ["used_on"]),
+            "kind",
+            "material",
+            "color",
+            "brand",
+            "thickness_cm",
+            "length_in",
+            "width_in",
+            "sq_ft",
+            "serial",
+            "location",
+            "supplier",
+            "status",
+            "job",
+            ...(showPricing ? ["cost"] : []),
+          ],
+          rows: rows.map((r) => [
+            ...(yard ? [] : [r.usedAt ? ymd(r.usedAt) : ""]),
+            r.kind === "remnant" ? "Sobra" : "Slab",
+            mat(r.material),
+            r.color,
+            r.brand ?? "",
+            r.thicknessCm,
+            Number(r.lengthIn),
+            Number(r.widthIn),
+            slabSf(Number(r.lengthIn), Number(r.widthIn)),
+            r.serial ?? "",
+            r.location ?? "",
+            r.supplier ?? "",
+            r.status,
+            r.workOrder ? `#${r.workOrder.number}${r.workOrder.title ? ` ${r.workOrder.title}` : ""}` : "",
+            ...(showPricing ? [r.cost != null ? Number(r.cost) : ""] : []),
           ]),
         },
       };

@@ -22,6 +22,7 @@
 .sl-head h1 { font-size: 1.9rem; letter-spacing: -0.02em; margin: 0; }
 .sl-head p { color: var(--sl-mut); font-size: 0.9rem; margin: 0.25rem 0 0; }
 .sl-btn { border: 1px solid var(--sl-line); background: #fff; color: var(--sl-ink); border-radius: 12px; padding: 0.65rem 1.1rem; font: 700 0.9rem/1.2 inherit; font-family: inherit; cursor: pointer; white-space: nowrap; }
+a.sl-btn { text-decoration: none; display: inline-block; }
 .sl-btn:disabled { opacity: 0.55; cursor: default; }
 .sl-btn--pri { background: var(--sl-or); border-color: var(--sl-or); color: #fff; }
 .sl-btn--pri:hover:not(:disabled) { background: var(--sl-deep); border-color: var(--sl-deep); }
@@ -104,6 +105,7 @@
 @media (max-width: 700px) {
   .sl { padding: 1rem 1rem 7rem; }
   .sl-head h1 { font-size: 1.55rem; }
+  #slExport { display: none; }
   .sl-head p { font-size: 0.84rem; }
   .sl-tiles { gap: 0.5rem; }
   .sl-tile { padding: 0.6rem 0.7rem; }
