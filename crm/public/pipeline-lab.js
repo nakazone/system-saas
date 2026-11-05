@@ -140,6 +140,9 @@
         <span class="omd-kpi__line"><span>Custo</span><b>${esc(D.money(g.cost || 0))}</b></span>
       </span>`;
     }
+    if (key === "won" && k.won_month && k.won_month.daily) {
+      return `<span class="omd-chart omd-chart--won" data-omd-chart="won"></span>`;
+    }
     if (key === "receivables" && k.receivables && Number(k.receivables.open_value) > 0) {
       const open = Number(k.receivables.open_value) || 0;
       const overdue = Math.max(0, Math.min(open, Number(k.receivables.overdue_value) || 0));
@@ -210,6 +213,7 @@
   }
 
   function applyFolds() {
+    if (overview) requestAnimationFrame(drawCharts);
     const root = $("omdRoot");
     root.classList.toggle("omd--kpi-compact", !!folded.kpis);
     const kb = $("omdKpiFold");
@@ -304,6 +308,11 @@
     setTimeout(() => root.classList.remove("omd--enter"), 1100);
   }
 
+  /** Empty states carry the Mate in a pose that matches the message. */
+  function mateEmpty(pose) {
+    return `<span class="omd-empty__mate" aria-hidden="true"><img src="/assets/img/mascot/mate-${pose}.webp?v=20261027-m2" alt="" decoding="async" loading="lazy" /></span>`;
+  }
+
   function attentionRow(it) {
     const v = D.attentionView(it, overview);
     const badge = v.badge ? `<span class="omd-badge is-pulse">${esc(v.badge)}</span>` : "";
@@ -349,8 +358,8 @@
     }
 
     if (!items.length) {
-      list.innerHTML = `<li class="omd-empty">
-        <span class="omd-empty__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg></span>
+      list.innerHTML = `<li class="omd-empty omd-empty--mate">
+        ${mateEmpty("celebrate")}
         <div><strong>Tudo em dia</strong><p>Nenhum lead esperando contato, follow-up atrasado, quote parado ou invoice vencida.</p></div>
       </li>`;
       return;
@@ -414,8 +423,8 @@
     }
     card.hidden = false;
     if (!events.length) {
-      list.innerHTML = `<li class="omd-empty">
-        <span class="omd-empty__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
+      list.innerHTML = `<li class="omd-empty omd-empty--mate">
+        ${mateEmpty("reading")}
         <div><strong>Agenda livre hoje</strong><p>Nenhuma visita ou instalação marcada. <a class="omd-link" href="schedule.html">Agendar visita</a></p></div>
       </li>`;
       return;
@@ -514,8 +523,8 @@
           : day
             ? `${WD_PT[new Date(`${day.date}T12:00:00Z`).getUTCDay()] || ""} ${Number(String(day.date).slice(-2))}`.trim()
             : "este dia";
-      list.innerHTML = `<li class="omd-empty">
-        <span class="omd-empty__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
+      list.innerHTML = `<li class="omd-empty omd-empty--mate">
+        ${mateEmpty("sleeping")}
         <div><strong>Sem jobs ${esc(label)}</strong><p>Nenhum job agendado. <a class="omd-link" href="schedule.html">Abrir agenda</a></p></div>
       </li>`;
       return;
@@ -613,8 +622,8 @@
     const sum = $("omdQuotesSum");
     if (!q.count) {
       sum.hidden = true;
-      $("omdQuotesList").innerHTML = `<li class="omd-empty">
-        <span class="omd-empty__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg></span>
+      $("omdQuotesList").innerHTML = `<li class="omd-empty omd-empty--mate">
+        ${mateEmpty("thumbs")}
         <div><strong>Nenhum quote esperando resposta</strong><p>Os quotes enviados aparecem aqui até o cliente aprovar. <a class="omd-link" href="quote-builder.html">Novo quote</a></p></div>
       </li>`;
       return;
@@ -646,6 +655,301 @@
       .join("");
   }
 
+
+  /* ---------------------------------------------------------------------------
+   * Charts (inline SVG, drawn at the real size; redrawn on resize).
+   * Palettes validated with the dataviz skill's validate_palette.js:
+   *   dark tile #221E1A: this month #D96B20 · last month #1FA2C2   (all checks pass)
+   *   white card:        installation #C25E17 · visit #0F7FA0       (all checks pass)
+   * ------------------------------------------------------------------------- */
+  const SVGNS = "http://www.w3.org/2000/svg";
+  const CHART = {
+    won: { now: "#D96B20", prev: "#1FA2C2", grid: "rgba(255,255,255,0.14)", surface: "#221E1A" },
+    day: { job: "#C25E17", visit: "#0F7FA0" },
+  };
+
+  function svgEl(tag, attrs) {
+    const el = document.createElementNS(SVGNS, tag);
+    Object.keys(attrs || {}).forEach((k) => el.setAttribute(k, attrs[k]));
+    return el;
+  }
+
+  /** One tooltip for the whole Home; text set with textContent (values come from tenant data). */
+  function chartTip() {
+    let tip = document.getElementById("omdChartTip");
+    if (!tip) {
+      tip = document.createElement("div");
+      tip.id = "omdChartTip";
+      tip.className = "omd-tip";
+      tip.setAttribute("role", "status");
+      tip.hidden = true;
+      document.body.appendChild(tip);
+    }
+    return tip;
+  }
+
+  function showTip(x, y, title, rows) {
+    const tip = chartTip();
+    tip.textContent = "";
+    const t = document.createElement("p");
+    t.className = "omd-tip__title";
+    t.textContent = title;
+    tip.appendChild(t);
+    rows.forEach((r) => {
+      const row = document.createElement("p");
+      row.className = "omd-tip__row";
+      const key = document.createElement("i");
+      key.style.background = r.color;
+      const val = document.createElement("b");
+      val.textContent = r.value;
+      const name = document.createElement("span");
+      name.textContent = r.name;
+      row.append(key, val, name);
+      tip.appendChild(row);
+    });
+    tip.hidden = false;
+    const w = tip.offsetWidth;
+    const h = tip.offsetHeight;
+    const left = Math.min(window.innerWidth - w - 8, Math.max(8, x - w / 2));
+    const top = y - h - 12 < 8 ? y + 16 : y - h - 12;
+    tip.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
+  }
+
+  function hideTip() {
+    const tip = document.getElementById("omdChartTip");
+    if (tip) tip.hidden = true;
+  }
+
+  function monthShort(iso) {
+    const d = iso ? new Date(iso) : new Date();
+    try {
+      return new Intl.DateTimeFormat("pt-BR", { month: "short", timeZone: overview.timezone || undefined }).format(d).replace(".", "");
+    } catch (_) {
+      return "";
+    }
+  }
+
+  /** "Fechado no mês": running total this month vs last month (one axis, two lines, legend + direct end-dot). */
+  function drawWonChart() {
+    const host = document.querySelector('[data-omd-chart="won"]');
+    const daily = overview && overview.kpis && overview.kpis.won_month && overview.kpis.won_month.daily;
+    if (!host || !daily) return;
+    const W = Math.round(host.clientWidth);
+    const H = Math.round(host.clientHeight);
+    host.textContent = "";
+    if (W < 60 || H < 36) return;
+
+    const cur = daily.current || [];
+    const prev = daily.previous || [];
+    const today = overview.today || "";
+    const y = Number(today.slice(0, 4)) || new Date().getFullYear();
+    const m = Number(today.slice(5, 7)) || new Date().getMonth() + 1;
+    const daysInMonth = new Date(y, m, 0).getDate();
+    const maxDay = Math.max(daysInMonth, prev.length, cur.length);
+    const maxVal = Math.max(1, ...cur, ...prev);
+    const fmt = (v) => (daily.unit === "money" ? D.money(v) : D.plural(v, "quote", "quotes"));
+    const nowName = monthShort(overview.period && overview.period.month_start);
+    const prevName = monthShort(overview.period && overview.period.previous_month_start);
+
+    const legendH = 16;
+    const padT = 6;
+    const padB = 4;
+    const plotH = H - legendH - padT - padB;
+    const x = (i) => 4 + (i / Math.max(1, maxDay - 1)) * (W - 8);
+    const yv = (v) => legendH + padT + plotH - (v / maxVal) * plotH;
+
+    const svg = svgEl("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img" });
+    const lastCur = cur.length ? cur[cur.length - 1] : 0;
+    const samePrev = prev.length ? prev[Math.min(prev.length, cur.length) - 1] || 0 : 0;
+    svg.setAttribute(
+      "aria-label",
+      `Fechado acumulado: ${nowName} ${fmt(lastCur)} até o dia ${cur.length}; ${prevName} ${fmt(samePrev)} no mesmo dia.`,
+    );
+
+    // Legend (two series → legend always; line keys, text in ink).
+    const leg = svgEl("g", { class: "omd-chart__legend" });
+    [
+      [nowName, CHART.won.now],
+      [prevName, CHART.won.prev],
+    ].forEach(([name, color], i) => {
+      const gx = i * 52;
+      leg.appendChild(svgEl("line", { x1: gx, x2: gx + 12, y1: 7, y2: 7, stroke: color, "stroke-width": 2, "stroke-linecap": "round" }));
+      const t = svgEl("text", { x: gx + 17, y: 11 });
+      t.textContent = name;
+      leg.appendChild(t);
+    });
+    svg.appendChild(leg);
+
+    // Baseline hairline
+    svg.appendChild(svgEl("line", { x1: 0, x2: W, y1: yv(0) + 0.5, y2: yv(0) + 0.5, stroke: CHART.won.grid, "stroke-width": 1 }));
+
+    const pathOf = (arr) => arr.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${yv(v).toFixed(1)}`).join(" ");
+    if (prev.length) {
+      svg.appendChild(svgEl("path", { d: pathOf(prev), fill: "none", stroke: CHART.won.prev, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round", class: "omd-chart__line", pathLength: 1 }));
+    }
+    if (cur.length) {
+      const area = `${pathOf(cur)} L${x(cur.length - 1).toFixed(1)},${yv(0)} L${x(0).toFixed(1)},${yv(0)} Z`;
+      svg.appendChild(svgEl("path", { d: area, fill: CHART.won.now, "fill-opacity": 0.1, class: "omd-chart__area" }));
+      svg.appendChild(svgEl("path", { d: pathOf(cur), fill: "none", stroke: CHART.won.now, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round", class: "omd-chart__line", pathLength: 1 }));
+      svg.appendChild(svgEl("circle", { cx: x(cur.length - 1), cy: yv(lastCur), r: 4, fill: CHART.won.now, stroke: CHART.won.surface, "stroke-width": 2, class: "omd-chart__dot" }));
+    }
+
+    // Crosshair + tooltip (snaps to the nearest day; one readout with both months).
+    const cross = svgEl("line", { y1: legendH, y2: yv(0), stroke: "rgba(255,255,255,0.35)", "stroke-width": 1, visibility: "hidden" });
+    svg.appendChild(cross);
+    const hit = svgEl("rect", { x: 0, y: legendH, width: W, height: H - legendH, fill: "transparent" });
+    svg.appendChild(hit);
+    const onMove = (e) => {
+      const r = svg.getBoundingClientRect();
+      const i = Math.max(0, Math.min(maxDay - 1, Math.round(((e.clientX - r.left - 4) / Math.max(1, W - 8)) * (maxDay - 1))));
+      cross.setAttribute("x1", x(i));
+      cross.setAttribute("x2", x(i));
+      cross.setAttribute("visibility", "visible");
+      const rows = [];
+      if (i < cur.length) rows.push({ color: CHART.won.now, value: fmt(cur[i]), name: nowName });
+      if (i < prev.length) rows.push({ color: CHART.won.prev, value: fmt(prev[i]), name: prevName });
+      showTip(r.left + x(i), r.top + legendH, `Dia ${i + 1}`, rows);
+    };
+    hit.addEventListener("pointermove", onMove);
+    hit.addEventListener("pointerleave", () => {
+      cross.setAttribute("visibility", "hidden");
+      hideTip();
+    });
+    host.appendChild(svg);
+  }
+
+  /** "Hoje": the day as a timeline — visits and installations as blocks, with a "now" marker. */
+  function drawDayTimeline() {
+    const host = $("omdTodayTimeline");
+    if (!host) return;
+    const events = (overview && overview.today_events) || [];
+    host.textContent = "";
+    host.hidden = false;
+    const tz = overview.timezone || undefined;
+    const hourOf = (iso) => {
+      try {
+        const parts = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "numeric", hourCycle: "h23", timeZone: tz }).formatToParts(new Date(iso));
+        const h = Number(parts.find((p) => p.type === "hour").value);
+        const mi = Number(parts.find((p) => p.type === "minute").value);
+        return h + mi / 60;
+      } catch (_) {
+        const d = new Date(iso);
+        return d.getHours() + d.getMinutes() / 60;
+      }
+    };
+    const todayKey = overview.today || "";
+    const dayKey = (iso) => {
+      try {
+        return new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date(iso));
+      } catch (_) {
+        return "";
+      }
+    };
+    // Clamp multi-day events to today.
+    const spans = events.map((ev) => {
+      const s = dayKey(ev.start) < todayKey ? 0 : hourOf(ev.start);
+      const e = dayKey(ev.end) > todayKey ? 24 : Math.max(s + 0.25, hourOf(ev.end));
+      return { ev, s, e };
+    });
+    const nowH = hourOf(new Date().toISOString());
+    let from = 7;
+    let to = 19;
+    spans.forEach((sp) => {
+      from = Math.min(from, Math.floor(sp.s));
+      to = Math.max(to, Math.ceil(sp.e));
+    });
+    from = Math.max(0, Math.min(from, Math.floor(nowH)));
+    to = Math.min(24, Math.max(to, Math.ceil(nowH)));
+    const pct = (h) => `${(((h - from) / (to - from)) * 100).toFixed(2)}%`;
+
+    // Lanes: an event goes in the first lane where it does not overlap.
+    const lanes = [];
+    spans
+      .slice()
+      .sort((a, b) => a.s - b.s)
+      .forEach((sp) => {
+        let lane = lanes.findIndex((end) => end <= sp.s);
+        if (lane < 0) {
+          lane = lanes.length;
+          lanes.push(0);
+        }
+        lanes[lane] = sp.e;
+        sp.lane = Math.min(lane, 2);
+      });
+
+    const track = document.createElement("div");
+    track.className = "omd-tl__track";
+    track.style.setProperty("--lanes", String(Math.max(1, Math.min(3, lanes.length))));
+    // Ticks every 2h on a normal day, every 4h when an all-day job stretches the scale.
+    const step = to - from > 14 ? 4 : 2;
+    for (let h = Math.ceil(from / step) * step; h <= to; h += step) {
+      const tick = document.createElement("span");
+      tick.className = "omd-tl__tick";
+      tick.style.left = pct(h);
+      tick.textContent = `${h}h`;
+      track.appendChild(tick);
+    }
+    spans.forEach((sp, i) => {
+      const a = document.createElement("a");
+      const isJob = sp.ev.type === "job";
+      a.className = `omd-tl__block is-${isJob ? "job" : "visit"}`;
+      a.href = sp.ev.href;
+      a.style.left = pct(Math.max(from, sp.s));
+      a.style.width = `calc(${pct(Math.min(to, sp.e))} - ${pct(Math.max(from, sp.s))})`;
+      a.style.setProperty("--lane", String(sp.lane));
+      a.style.setProperty("--i", String(i));
+      const v = D.eventView(sp.ev, overview);
+      a.setAttribute("aria-label", `${v.tag}: ${sp.ev.title}, ${v.time}${v.until ? ` (${v.until})` : ""}`);
+      const tipFor = () => {
+        const r = a.getBoundingClientRect();
+        showTip(r.left + r.width / 2, r.top, `${v.time} · ${v.until || ""}`.replace(/ · $/, ""), [
+          { color: isJob ? CHART.day.job : CHART.day.visit, value: sp.ev.title, name: v.tag },
+        ]);
+      };
+      a.addEventListener("pointerenter", tipFor);
+      a.addEventListener("focus", tipFor);
+      a.addEventListener("pointerleave", hideTip);
+      a.addEventListener("blur", hideTip);
+      track.appendChild(a);
+    });
+    if (nowH >= from && nowH <= to) {
+      const now = document.createElement("span");
+      now.className = "omd-tl__now";
+      now.style.left = pct(nowH);
+      now.setAttribute("aria-hidden", "true");
+      track.appendChild(now);
+    }
+    host.appendChild(track);
+
+    const hasJob = spans.some((sp) => sp.ev.type === "job");
+    const hasVisit = spans.some((sp) => sp.ev.type !== "job");
+    const legend = document.createElement("p");
+    legend.className = "omd-tl__legend";
+    [
+      ["Instalação", "job", hasJob],
+      ["Visita", "visit", hasVisit],
+      ["Agora", "now", nowH >= from && nowH <= to],
+    ].forEach(([label, kind, show]) => {
+      if (!show) return;
+      const span = document.createElement("span");
+      span.className = `is-${kind}`;
+      span.textContent = label;
+      legend.appendChild(span);
+    });
+    host.appendChild(legend);
+  }
+
+  function drawCharts() {
+    drawWonChart();
+    drawDayTimeline();
+  }
+
+  let chartResizeTimer = null;
+  window.addEventListener("resize", () => {
+    clearTimeout(chartResizeTimer);
+    chartResizeTimer = setTimeout(() => overview && drawWonChart(), 120);
+  });
+
   function applyPermissions() {
     document.querySelectorAll("[data-omd-perm]").forEach((el) => {
       el.hidden = !can(el.getAttribute("data-omd-perm"));
@@ -661,6 +965,8 @@
     renderOps();
     renderQuotesWaiting();
     renderSummaries();
+    // Charts measure their boxes: draw after layout.
+    requestAnimationFrame(drawCharts);
     renderUpdated();
     $("omdRoot").setAttribute("aria-busy", "false");
   }
