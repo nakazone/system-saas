@@ -1003,22 +1003,32 @@
       wrap.id = "notificationBellWrap";
       wrap.innerHTML = `
         <button type="button" id="notificationBellBtn" class="notification-bell-btn" aria-label="Notificações" aria-expanded="false" aria-controls="notificationPanel" title="Notificações">
-          <span class="notification-bell-icon" aria-hidden="true">🔔</span>
+          <span class="notification-bell-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span>
           <span id="notificationBellBadge" class="notification-bell-badge" hidden>0</span>
         </button>
-        <div id="notificationPanel" class="notification-panel" role="region" aria-label="Lista de notificações" hidden>
-          <div class="notification-panel-header">
-            <h3 class="notification-panel-title">Notificações</h3>
-            <div class="notification-panel-actions">
-              <button type="button" class="btn-notification-text" id="notificationMarkAllRead">Marcar lidas</button>
-              <button type="button" class="btn-notification-text btn-notification-text--danger" id="notificationClearAll">Limpar</button>
+        <div id="notificationPanel" class="notification-panel nc" role="dialog" aria-labelledby="ncTitle" hidden>
+          <div class="nc__head">
+            <div class="nc__heading">
+              <h3 class="nc__title" id="ncTitle">Notificações</h3>
+              <span class="nc__unread" id="ncUnread" hidden></span>
+            </div>
+            <div class="nc__actions">
+              <button type="button" class="nc__text-btn" id="notificationMarkAllRead">Marcar lidas</button>
+              <button type="button" class="nc__icon-btn" id="notificationClearAll" aria-label="Apagar todas" title="Apagar todas">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>
+              </button>
             </div>
           </div>
-          <div class="crm-push-panel">
-            <p class="crm-push-panel__status" data-crm-push-status>Receba avisos mesmo com o app fechado.</p>
-            <button type="button" class="crm-push-panel__btn" data-crm-push-enable data-label-off="Ativar alertas no dispositivo" data-label-on="Alertas ativos — tocar para desativar">Ativar alertas no dispositivo</button>
+          <div class="nc__tabs" role="group" aria-label="Filtro">
+            <button type="button" class="nc__tab" data-nc-filter="all" aria-pressed="true">Todas</button>
+            <button type="button" class="nc__tab" data-nc-filter="unread" aria-pressed="false">Não lidas</button>
           </div>
-          <div id="notificationPanelList" class="notification-panel-list"></div>
+          <div id="notificationPanelList" class="nc__list"></div>
+          <div class="crm-push-panel nc__push">
+            <svg class="nc__push-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>
+            <p class="crm-push-panel__status" data-crm-push-status>Receba avisos mesmo com o app fechado.</p>
+            <button type="button" class="crm-push-panel__btn" data-crm-push-enable data-label-off="Ativar" data-label-on="Desativar">Ativar</button>
+          </div>
         </div>`;
       const topRight = document.querySelector("#crmTopbar .crm-topbar__right");
       const help = document.getElementById("crmTopbarHelpBtn");
@@ -1032,7 +1042,13 @@
       el.src = src;
       document.body.appendChild(el);
     }
-    ensureScript("notification-center.js?v=20261104-ux2", "notification-center.js");
+    if (!document.querySelector('link[href*="notification-center.css"]')) {
+      const css = document.createElement("link");
+      css.rel = "stylesheet";
+      css.href = "notification-center.css?v=20261105-nc1";
+      document.head.appendChild(css);
+    }
+    ensureScript("notification-center.js?v=20261105-nc1", "notification-center.js");
     ensureScript("crm-push.js?v=20261022-inbox1", "crm-push.js");
   }
 
