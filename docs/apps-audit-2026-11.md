@@ -182,3 +182,18 @@ Também vale fazer:
 - Nada foi testado em navegador nem em aparelho. Toque real, sol forte, zoom no iOS e desempenho em Android modesto precisam ser confirmados num celular.
 - Os bytes da tabela de desempenho são estimativas a partir do tamanho dos arquivos.
 - Vale confirmar em produção se existe compressão na frente do app (`curl -I -H 'Accept-Encoding: br,gzip'`).
+
+---
+
+## Status da implementação (5 nov 2026, PR #67)
+
+| Fase | Situação |
+|---|---|
+| 0. Bugs | Feito: ponto offline, falso "Foto enviada", rolagem dos chips, miniaturas reais (com script de backfill), viewer no histórico |
+| 1. Desempenho rápido | Feito: compressão, cache imutável para `?v=`, polling ciente de visibilidade, uma versão por arquivo, 3 índices |
+| 2. Fundação | Feito: `om-tokens.css`, `om-ui.css`, `om-ui.js` (sheet/diálogo acessível, busy, haptics), injetados em todas as páginas; `tests/ui-guardrails.test.ts` |
+| 3. Migração por app | Feito nos 4 apps: tokens como apelidos de `--om-*`, contraste AA, alvos ≥ 44/48px, campos 16px, zoom liberado (65 páginas), diálogos nativos trocados, sheets com `OmUI.layer`, PT-BR no CRM/ObraCrew/ObraCam e EN coerente no ObraBuilder, menu do CRM com fonte única (`window.OmNav`) |
+| 4. Desempenho estrutural | Feito em parte: service worker (cache-first para `?v=`, timeout com sinal fraco, `navigationPreload`, cache sem crescer), `<img loading=lazy>` no ObraCam, Leaflet/medição/rota sob demanda, resumo de orçamentos sem o JSON inteiro, overview sem notas inteiras. **Não feito:** bundling/minificação (esbuild), `/api/leads?limit=5000` no celular, Tailwind por CDN no quote-builder, `mate-panel` sob demanda |
+| 5. Movimento | Feito: saídas animadas, arrastar para fechar, FLIP do viewer, haptics no ObraCrew, toque padrão, reduced-motion com fade em vez de zerar |
+
+Pendências conhecidas: redirecionamento desktop do `/obracam` no servidor; códigos de erro estáveis na API de upload; aceitar "Enviar o dia" com a única foto ainda na fila (precisa de mudança no servidor).

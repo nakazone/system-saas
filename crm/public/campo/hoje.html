@@ -2,8 +2,8 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#f3f1ee" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#F7F8FA" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <title>Meu dia | Campo</title>
@@ -11,8 +11,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="campo.css?v=20261104-ux2" />
-  <link rel="stylesheet" href="dia.css?v=20261104-ux2" />
+  <link rel="stylesheet" href="campo.css?v=20261105-apps3" />
+  <link rel="stylesheet" href="dia.css?v=20261105-apps3" />
   <script src="/om-device.js?v=20261013-badge1"></script>
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
   <link rel="manifest" href="/obracrew.webmanifest?v=1" />
@@ -39,26 +39,27 @@
   </main>
 
   <!-- Sheets -->
-  <div class="dy-backdrop" id="dyBackdrop" hidden></div>
-  <div class="dy-sheet" id="dySheet" role="dialog" aria-modal="true" aria-labelledby="dySheetTitle" hidden>
-    <div class="dy-sheet__grab" aria-hidden="true"></div>
-    <header class="dy-sheet__hd">
-      <h2 id="dySheetTitle">—</h2>
-      <button type="button" class="dy-x" data-act="close" aria-label="Fechar">×</button>
-    </header>
-    <div class="dy-sheet__body" id="dySheetBody"></div>
-    <footer class="dy-sheet__ft" id="dySheetFt"></footer>
+  <div class="dy-layer" id="dyLayer" role="dialog" aria-modal="true" aria-labelledby="dySheetTitle" hidden>
+    <div class="dy-backdrop" id="dyBackdrop" data-om-backdrop></div>
+    <div class="dy-sheet" id="dySheet" data-om-motion="sheet">
+      <div class="dy-sheet__grab" aria-hidden="true"></div>
+      <header class="dy-sheet__hd">
+        <h2 id="dySheetTitle">—</h2>
+        <button type="button" class="dy-x" data-act="close" aria-label="Fechar">×</button>
+      </header>
+      <div class="dy-sheet__body" id="dySheetBody"></div>
+      <footer class="dy-sheet__ft" id="dySheetFt"></footer>
+    </div>
   </div>
   <input type="file" id="dyCam" accept="image/*" capture="environment" hidden />
   <div class="dy-toast" id="dyToast" role="status" hidden></div>
 
-  <script src="/om-offline.js?v=20261105-off2"></script>
-  <script src="/crm-address-autocomplete.js?v=20261105-u1"></script>
-  <script src="/crm-day-route.js?v=20261104-ux2"></script>
+  <script src="/om-offline.js?v=20261105-apps3"></script>
   <script src="/photo-exif.js?v=20261104-exif1"></script>
+  <script src="campo-photo.js?v=20261105-apps3"></script>
   <script src="campo-media-queue.js?v=20261104-exif1"></script>
-  <script src="campo-nav.js?v=20261013-off1"></script>
-  <script src="dia.js?v=20261105-off2"></script>
+  <script src="campo-nav.js?v=20261105-apps3"></script>
+  <script src="dia.js?v=20261105-apps3"></script>
   <link rel="stylesheet" href="/mate-panel.css?v=20261027-m2" />
   <script src="/mate-panel.js?v=20261104-ux2"></script>
 </body>

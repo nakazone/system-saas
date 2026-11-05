@@ -625,7 +625,7 @@
       sum.hidden = true;
       $("omdQuotesList").innerHTML = `<li class="omd-empty omd-empty--mate">
         ${mateEmpty("thumbs")}
-        <div><strong>Nenhum quote esperando resposta</strong><p>Os quotes enviados aparecem aqui até o cliente aprovar. <a class="omd-link" href="quote-builder.html">Novo quote</a></p></div>
+        <div><strong>Nenhum quote esperando resposta</strong><p>Os quotes enviados aparecem aqui até o cliente aprovar. <a class="omd-link" href="quote-builder.html">Novo orçamento</a></p></div>
       </li>`;
       return;
     }

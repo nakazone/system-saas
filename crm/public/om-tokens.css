@@ -1,0 +1,108 @@
+/**
+ * ObraMate — tokens compartilhados por todos os apps (ObraMate CRM, ObraBuilder, ObraCrew, ObraCam).
+ * Injetado em toda página pelo servidor (src/crm/mount.ts), antes do CSS da página.
+ *
+ * Três camadas:
+ *   1. primitivos (--om-p-*): a paleta crua. Não use direto em componente.
+ *   2. semânticos (--om-*): o que cada cor significa. Use estes.
+ *   3. componentes: cada app pode criar --pp-*, --cm-*, --cam-* etc., mas como apelido de um semântico
+ *      (ex.: --cm-accent: var(--om-accent-strong)), nunca com hex novo.
+ *
+ * Os valores vêm do que os quatro apps já usavam (fundo #F7F8FA, tinta #221E1A, laranja #E7792C);
+ * aqui eles passam a existir num lugar só.
+ */
+:root {
+  /* ---------- 1. primitivos ---------- */
+  --om-p-gray-0: #ffffff;
+  --om-p-gray-25: #f7f8fa;
+  --om-p-gray-50: #f1f3f5;
+  --om-p-gray-200: #e5e7eb;
+  --om-p-gray-400: #98a2b3;
+  --om-p-gray-500: #667085;
+  --om-p-gray-600: #475467;
+  --om-p-ink-900: #221e1a;
+  --om-p-orange-50: #fdf0e6;
+  --om-p-orange-500: #e7792c;
+  --om-p-orange-700: #b4561a;
+  --om-p-orange-800: #8f4313;
+  --om-p-green-50: #ecf7f0;
+  --om-p-green-700: #1f7a45;
+  --om-p-red-50: #fdecec;
+  --om-p-red-700: #b42318;
+  --om-p-amber-50: #fff6e5;
+  --om-p-amber-700: #a15c07;
+  --om-p-blue-50: #eef4ff;
+  --om-p-blue-700: #2f5bd3;
+  --om-p-olive-600: #536249;
+
+  /* ---------- 2. semânticos ---------- */
+  --om-bg: var(--om-p-gray-25);
+  /* mesmos nomes de om-theme.css: card = branco, surface = cinza claro de áreas e campos */
+  --om-card: var(--om-p-gray-0);
+  --om-surface: var(--om-p-gray-50);
+  --om-line: var(--om-p-gray-200);
+  --om-ink: var(--om-p-ink-900);
+  /* texto secundário: 4.8:1 sobre branco (AA). --om-p-gray-400 (2.6:1) só para ícones decorativos. */
+  --om-ink-2: var(--om-p-gray-500);
+  --om-ink-3: var(--om-p-gray-600);
+  --om-ink-on-accent: #ffffff;
+  /* laranja da marca: preenchimentos, anéis, ícones. Texto branco sobre ele não passa AA (2.9:1). */
+  --om-accent: var(--om-p-orange-500);
+  /* laranja para botões com texto branco e para texto laranja: 5.1:1 (AA). */
+  --om-accent-strong: var(--om-p-orange-700);
+  --om-accent-strong-hover: var(--om-p-orange-800);
+  --om-accent-soft: var(--om-p-orange-50);
+  --om-success: var(--om-p-green-700);
+  --om-success-soft: var(--om-p-green-50);
+  --om-danger: var(--om-p-red-700);
+  --om-danger-soft: var(--om-p-red-50);
+  --om-warning: var(--om-p-amber-700);
+  --om-warning-soft: var(--om-p-amber-50);
+  --om-info: var(--om-p-blue-700);
+  --om-info-soft: var(--om-p-blue-50);
+  --om-focus-ring: 0 0 0 3px rgba(231, 121, 44, 0.35);
+
+  /* espaço (base 4) */
+  --om-space-1: 4px;
+  --om-space-2: 8px;
+  --om-space-3: 12px;
+  --om-space-4: 16px;
+  --om-space-5: 24px;
+  --om-space-6: 32px;
+
+  /* raios */
+  --om-r-sm: 8px;
+  --om-r-md: 12px;
+  --om-r-lg: 18px;
+  --om-r-xl: 24px;
+  --om-r-pill: 999px;
+
+  /* tipografia */
+  --om-font: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --om-fs-xs: 12px;
+  --om-fs-sm: 13px;
+  --om-fs-md: 14px;
+  /* campos de formulário: 16px no celular, senão o iOS dá zoom ao focar */
+  --om-fs-input: 16px;
+  --om-fs-lg: 18px;
+  --om-fs-xl: 22px;
+  --om-fs-2xl: 28px;
+
+  /* sombras: um tom só (frio) */
+  --om-shadow-1: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --om-shadow-2: 0 4px 14px rgba(16, 24, 40, 0.08);
+  --om-shadow-3: 0 18px 48px rgba(16, 24, 40, 0.18);
+
+  /* alvos de toque */
+  --om-tap: 44px;
+  --om-tap-field: 48px;
+
+  /* movimento — anime só transform e opacity */
+  --om-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --om-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --om-ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --om-dur-1: 150ms;
+  --om-dur-2: 200ms;
+  --om-dur-3: 250ms;
+  --om-dur-sheet: 300ms;
+}

@@ -1,5 +1,7 @@
 /* ObraCam photo viewer: the photo on a dark stage, details in a fixed dark panel (beside it on wide screens, under it on phones). */
-.cv {
+/* The viewer is the one dark surface of ObraCam. Its tokens live on :root next to --om-* (accent and motion come from there);
+   the dark greys have no light-theme twin, so they stay as values here. */
+:root {
   --cv-bg: #0E0D0B;
   --cv-panel: #171513;
   --cv-raise: rgba(255, 255, 255, .06);
@@ -7,13 +9,20 @@
   --cv-ink: #F4F1EC;
   --cv-mu: #A8A29A;
   --cv-mu2: #8E887F;
-  --cv-or: #E7792C;
+  --cv-or: var(--om-accent, #E7792C);
+  --cv-or-strong: var(--om-accent-strong, #B4561A);
   --cv-hot: #F29A5C;
+  --cv-ease: var(--om-ease-out, cubic-bezier(.23, 1, .32, 1));
+}
+.cv {
   position: fixed; inset: 0; z-index: 10060; display: grid; grid-template-columns: minmax(0, 1fr) 360px;
-  background: rgba(14, 13, 11, var(--cv-fade, 1)); color: var(--cv-ink);
+  background: transparent; color: var(--cv-ink);
   font-family: Geist, "Plus Jakarta Sans", system-ui, sans-serif; -webkit-font-smoothing: antialiased; font-variant-numeric: tabular-nums;
 }
 .cv[hidden] { display: none; }
+/* the dark backdrop is its own layer, so it can fade on open/close and with the swipe-down without fading the photo */
+.cv-bg { position: absolute; inset: 0; background: var(--cv-bg); opacity: var(--cv-fade, 1); pointer-events: none; }
+.cv.is-closing { pointer-events: none; }
 body.cv-open { overflow: hidden; }
 .cv svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 .cv button, .cv a { -webkit-tap-highlight-color: transparent; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
@@ -21,12 +30,18 @@ body.cv-open { overflow: hidden; }
 
 /* stage */
 .cv-stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+/* chrome around the photo (controls, strip, panel) fades in with the backdrop while the photo grows from its tile */
+.cv.is-opening .cv-top, .cv.is-opening .cv-strip, .cv.is-opening .cv-nav, .cv.is-opening .cv-side { animation: cv-fade-in 200ms var(--cv-ease) both; }
+@keyframes cv-fade-in { from { opacity: 0; } to { opacity: 1; } }
 .cv-box { position: absolute; inset: 64px 72px 88px; touch-action: none; cursor: zoom-in; }
 .cv.is-zoomed .cv-box { cursor: grab; }
 .cv.is-zoomed .cv-box:active { cursor: grabbing; }
 .cv-box.is-editing { cursor: crosshair; inset: 64px 24px 96px; }
 .cv-pan { position: absolute; transform-origin: 0 0; }
-.cv-img { display: block; width: 100%; height: 100%; border-radius: 6px; -webkit-user-select: none; user-select: none; -webkit-user-drag: none; -webkit-touch-callout: none; background: #1D1B18; }
+.cv-img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; border-radius: 6px; -webkit-user-select: none; user-select: none; -webkit-user-drag: none; -webkit-touch-callout: none; background: #1D1B18; }
+/* the tile's thumbnail shows at once; the full photo crossfades in over it when it has loaded */
+.cv-img--full { opacity: 0; transition: opacity 150ms var(--cv-ease); background: transparent; }
+.cv-img--full.is-in { opacity: 1; }
 .cv.is-zoomed .cv-img { border-radius: 0; }
 .cv-inkwrap { position: absolute; inset: 0; pointer-events: none; }
 /* the markup layer is not an icon: undo the icon sizing and stroke defaults above */
@@ -42,10 +57,12 @@ body.cv-open { overflow: hidden; }
 .cv-zl { min-width: 52px; height: 34px; border: 0; border-radius: 999px; background: transparent; color: var(--cv-ink); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
 .cv-round, .cv-nav {
   width: 42px; height: 42px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, .1); color: var(--cv-ink); display: grid; place-items: center; cursor: pointer;
-  transition: background-color 140ms, transform 120ms;
+  transition: background-color 140ms ease, transform 120ms var(--cv-ease);
 }
-.cv-round--sm { width: 34px; height: 34px; background: transparent; }
-.cv-round.is-on { background: var(--cv-or); color: #fff; }
+.cv-round--sm { position: relative; width: 34px; height: 34px; background: transparent; }
+/* the zoom buttons stay 34px to fit the pill; the touch target around each is 44px */
+.cv-round--sm::before { content: ""; position: absolute; inset: -5px; }
+.cv-round.is-on { background: var(--cv-or-strong); color: #fff; }
 .cv-round.is-on svg { fill: currentColor; }
 .cv-round:active, .cv-nav:active { transform: scale(.94); }
 .cv-nav { position: absolute; z-index: 2; top: 50%; margin-top: -21px; }
@@ -54,11 +71,12 @@ body.cv-open { overflow: hidden; }
 @media (hover: hover) and (pointer: fine) {
   .cv-round:hover, .cv-nav:hover, .cv-zl:hover { background: rgba(255, 255, 255, .18); }
   .cv-round--danger:hover { background: rgba(180, 86, 26, .85); }
-  .cv-round.is-on:hover { background: #EF8A44; }
+  .cv-round.is-on:hover { background: var(--om-accent-strong-hover, #8F4313); }
 }
 .cv-strip { position: absolute; z-index: 2; left: 72px; right: 72px; bottom: 16px; display: flex; gap: 6px; justify-content: center; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; padding: 3px; }
 .cv-strip::-webkit-scrollbar { display: none; }
-.cv-strip button { flex: none; width: 52px; height: 52px; border-radius: 10px; border: 0; padding: 0; background-size: cover; background-position: center; background-color: #24211D; opacity: .45; cursor: pointer; transition: opacity 140ms; }
+.cv-strip button { position: relative; flex: none; width: 52px; height: 52px; border-radius: 10px; border: 0; padding: 0; overflow: hidden; background-color: #24211D; opacity: .45; cursor: pointer; transition: opacity 140ms ease; }
+.cv-strip img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; -webkit-user-drag: none; }
 .cv-strip button.is-on { opacity: 1; box-shadow: 0 0 0 2px var(--cv-ink); }
 @media (hover: hover) and (pointer: fine) { .cv-strip button:hover { opacity: .85; } }
 
@@ -99,7 +117,7 @@ body.cv-open { overflow: hidden; }
 }
 
 /* details panel */
-.cv-side { background: var(--cv-panel); box-shadow: inset 1px 0 0 var(--cv-line); padding: 22px 22px 20px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; overscroll-behavior: contain; }
+.cv-side { position: relative; background: var(--cv-panel); box-shadow: inset 1px 0 0 var(--cv-line); padding: 22px 22px 20px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; overscroll-behavior: contain; }
 .cv-grab { display: none; }
 .cv-job small { display: block; font-size: 12.5px; font-weight: 600; color: var(--cv-mu); }
 .cv-job h2 { margin: 3px 0 0; font-size: 20px; font-weight: 700; letter-spacing: -.02em; line-height: 1.2; color: var(--cv-ink); overflow-wrap: anywhere; }
@@ -168,19 +186,19 @@ span.cv-stk { cursor: default; }
 .cv-btn {
   height: 42px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 14px; border: 0; border-radius: 12px;
   background: var(--cv-raise); box-shadow: inset 0 0 0 1px var(--cv-line); font: inherit; font-size: 14px; font-weight: 600; color: var(--cv-ink) !important;
-  text-decoration: none !important; cursor: pointer; transition: background-color 140ms, transform 120ms;
+  text-decoration: none !important; cursor: pointer; transition: background-color 140ms ease, transform 120ms var(--cv-ease);
 }
 .cv-btn:active { transform: scale(.98); }
 .cv-btn:disabled { opacity: .5; cursor: default; }
 .cv-btn svg { width: 16px; height: 16px; }
 .cv-btn em { font-style: normal; font-size: 12px; color: var(--cv-mu); }
-.cv-btn--pri { background: var(--cv-or); box-shadow: none; color: #fff !important; }
+.cv-btn--pri { background: var(--cv-or-strong); box-shadow: none; color: #fff !important; }
 .cv-btn--ghost { background: transparent; box-shadow: none; color: var(--cv-mu) !important; }
 .cv-btn--danger { background: transparent; color: var(--cv-hot) !important; }
 .cv-btn--mark { justify-content: flex-start; }
 @media (hover: hover) and (pointer: fine) {
   .cv-btn:not(:disabled):hover { background: rgba(255, 255, 255, .1); }
-  .cv-btn--pri:not(:disabled):hover { background: #EF8A44; }
+  .cv-btn--pri:not(:disabled):hover { background: var(--om-accent-strong-hover, #8F4313); }
   .cv-btn--danger:not(:disabled):hover { background: rgba(242, 154, 92, .12); }
 }
 /* one control per action: on wide screens the labelled buttons in the panel; on phones the round icons over the photo */
@@ -244,8 +262,14 @@ span.cv-stk { cursor: default; }
   .cv-select { font-size: 16px; height: 36px; }
 }
 
+/* less motion: nothing travels or scales (the JS skips the tile-to-screen move, slides and momentum); fades stay, short.
+   !important only to outlast om-theme.css's global 0.01ms rule. */
 @media (prefers-reduced-motion: reduce) {
-  .cv *, .cv { transition: none !important; animation-duration: 1ms !important; }
+  .cv-round:active, .cv-nav:active, .cv-btn:active, .cv-stk:active, .cv-quick button:active { transform: none; }
+  .cv-round, .cv-nav, .cv-btn, .cv-stk { transition: background-color 150ms ease !important; }
+  .cv-img--full { transition: opacity 150ms ease !important; }
+  .cv.is-opening .cv-top, .cv.is-opening .cv-strip, .cv.is-opening .cv-nav, .cv.is-opening .cv-side { animation: cv-fade-in 150ms ease both !important; }
+  .cv-load { animation-duration: 1.6s !important; }
 }
 @media (prefers-reduced-transparency: reduce) {
   .cv-tools { background: #1C1A17; -webkit-backdrop-filter: none; backdrop-filter: none; }

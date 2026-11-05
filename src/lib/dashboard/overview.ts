@@ -1083,7 +1083,8 @@ export async function loadDashboardOverview(
   if (access.leads) {
     // Only the columns the dashboard needs — avoids loading every lead's full metadata JSON.
     const leads = await tx.$queryRaw<RawLead[]>`
-      SELECT l.id, l.name, l.phone, l.source, l.status, l.notes,
+      -- notes only feed a one-line summary (first line, 90 chars): the head of the text is enough.
+      SELECT l.id, l.name, l.phone, l.source, l.status, LEFT(l.notes, 1000) AS notes,
              NULLIF(TRIM(l.metadata->>'message'), '') AS message,
              l."pipelineStageId", ps.slug AS "stageSlug", u.name AS "ownerName",
              l.metadata->>'estimated_value' AS "estimatedValue",

@@ -52,13 +52,13 @@
   const DOCK_HTML = `
 <div class="om-dock" id="omDock" role="toolbar" aria-label="Ações rápidas">
   <a class="om-dock__primary" href="leads.html" id="omDockNew">+ Novo lead</a>
-  <a class="om-dock__btn" href="schedule.html" title="Calendar">
+  <a class="om-dock__btn" href="schedule.html" title="Agenda">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-    <span>Calendar</span>
+    <span>Agenda</span>
   </a>
-  <a class="om-dock__btn" href="/dashboard" title="Pipeline">
+  <a class="om-dock__btn" href="/dashboard" title="Leads">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><path d="M9 12h6M9 16h4"/></svg>
-    <span>Pipeline</span>
+    <span>Leads</span>
   </a>
   <a class="om-dock__btn" href="quote-builder.html" title="Novo orçamento">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
@@ -1048,7 +1048,7 @@
       css.href = "notification-center.css?v=20261105-nc2";
       document.head.appendChild(css);
     }
-    ensureScript("notification-center.js?v=20261105-nc2", "notification-center.js");
+    ensureScript("notification-center.js?v=20261105-apps3", "notification-center.js?v=20261105-apps3");
     ensureScript("crm-push.js?v=20261022-inbox1", "crm-push.js");
   }
 
@@ -1123,7 +1123,7 @@
     ensureStylesheet(`crm-shared-nav.css?v=${SHELL_VER}`);
     ensureStylesheet(`crm-command-palette.css?v=${SHELL_VER}`);
     ensureStylesheet(`crm-help-panel.css?v=${SHELL_VER}`);
-    ensureStylesheet(`crm-toast.css`);
+    ensureStylesheet(`crm-toast.css?v=20261105-apps3`);
 
     const jobs = [];
     if (!window.sfFormatPhone && !document.querySelector('script[src*="crm-phone.js"]')) {
@@ -1133,7 +1133,7 @@
       jobs.push(ensureScript(`crm-name.js?v=${SHELL_VER}`).catch(() => {}));
     }
     if (!window.CrmI18n) jobs.push(ensureScript(`crm-i18n.js?v=${SHELL_VER}`).catch(() => {}));
-    if (!window.__crmSharedNav && !document.querySelector('script[src*="crm-shared-nav.js"]')) {
+    if (!window.__crmSharedNav && !document.querySelector('script[src*="crm-shared-nav.js?v=20261105-apps3"]')) {
       jobs.push(ensureScript(`crm-shared-nav.js?v=${SHELL_VER}`).catch(() => {}));
     }
     if (!window.__crmSoftNav && !document.querySelector('script[src*="crm-soft-nav.js"]')) {
@@ -1199,7 +1199,7 @@
         }
       })();
     if (wantMobileNav) {
-      if (!window.__omMobileNav && !document.querySelector('script[src*="om-mobile-nav.js"]')) {
+      if (!window.__omMobileNav && !document.querySelector('script[src*="om-mobile-nav.js?v=20261105-apps3"]')) {
         ensureStylesheet(`om-mobile-nav.css?v=${SHELL_VER}`);
         ensureStylesheet(`om-native-app.css?v=${SHELL_VER}`);
         ensureStylesheet(`om-gestures.css?v=20261102-ptr1`);
