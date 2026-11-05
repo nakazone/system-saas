@@ -27,7 +27,7 @@ import {
 } from "../../lib/job-media/report.js";
 import { buildJobReportPdf } from "../../lib/job-media/report-pdf.js";
 import { cleanStickerIds } from "../../lib/job-media/stickers.js";
-import { jobPhaseContext, photoPhaseFields } from "../../lib/job-media/phases.js";
+import { jobPhaseContext, orgPack, phaseCatalog, photoPhaseFields } from "../../lib/job-media/phases.js";
 import { isAiConfigured } from "../../lib/ai/client.js";
 import { recordActivity } from "../../lib/activity/record.js";
 import { storage } from "../../lib/storage/index.js";
@@ -156,6 +156,10 @@ jobReportsRouter.get(
             job_geo: jobGeo,
             far_threshold_m: 500,
             phases: phaseCtx ? phaseCtx.phases : [],
+            ...(await (async () => {
+              const pack = await orgPack(tx, req.organizationId!);
+              return { phase_catalog: phaseCatalog(pack), phase_mode: pack.phaseStorage === "table" ? "phases" : "dates" };
+            })()),
           },
         };
       });

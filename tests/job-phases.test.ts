@@ -52,7 +52,7 @@ describe("job phases", () => {
 
   it("keeps a manual correction over the automatic phase", () => {
     const row = { phase: "walkthrough", takenAtDevice: new Date(at("2026-10-23")), createdAt: new Date() };
-    expect(photoPhaseFields(both, row)).toEqual({ phase: "walkthrough", phase_source: "manual" });
-    expect(photoPhaseFields(both, { ...row, phase: null })).toEqual({ phase: "installation", phase_source: "auto" });
+    expect(photoPhaseFields(both, row)).toEqual({ phase: "walkthrough", phase_label: "Walk Through", phase_source: "manual", phase_mode: "dates" });
+    expect(photoPhaseFields(both, { ...row, phase: null })).toEqual({ phase: "installation", phase_label: "Installation", phase_source: "auto", phase_mode: "dates" });
   });
 });

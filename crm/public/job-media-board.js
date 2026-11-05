@@ -6,9 +6,20 @@
 (function () {
   const $ = (id) => document.getElementById(id);
   const STAGE = { before: "Antes", during: "Durante", after: "Depois" };
-  /** Job phases in the order work happens; the server works each photo's phase out from its date and the job's dates. */
-  const PHASES = [["delivery", "Delivery"], ["scan", "Scan"], ["installation", "Installation"], ["sand_finish", "Sand & Finish"], ["walkthrough", "Walk Through"]];
-  const PHASE = Object.fromEntries(PHASES);
+  /**
+   * Job phases in the order work happens. Hardwood's by default; companies whose trade has its own job phases
+   * (Tile, Countertops) get theirs from the server (meta.phase_catalog). The server works each photo's phase out.
+   */
+  let PHASES = [["delivery", "Delivery"], ["scan", "Scan"], ["installation", "Installation"], ["sand_finish", "Sand & Finish"], ["walkthrough", "Walk Through"]];
+  let PHASE = Object.fromEntries(PHASES);
+  /** true when phases follow the job's own phase list instead of its dates */
+  let byPhases = false;
+  function usePhaseCatalog(cat, mode) {
+    if (mode) byPhases = mode === "phases";
+    if (!Array.isArray(cat) || !cat.length) return;
+    PHASES = cat.filter((x) => Array.isArray(x) && x[0]).map(([k, l]) => [String(k), String(l || k)]);
+    PHASE = Object.fromEntries(PHASES);
+  }
   const phaseOf = (p) => (PHASE[p.phase] ? p.phase : "none");
   const phaseName = (p) => PHASE[p.phase] || "Sem fase";
   /** Phases this job has (from its services and dates); every phase when unknown. */
@@ -442,7 +453,8 @@
       uploaded_by_name: p.uploaded_by_name || p.author_name, taken_by_id: p.taken_by_id || p.author_id, taken_by_name: p.taken_by_name || p.author_name,
       taken_at_source: p.taken_at_source, location_source: p.location_source, camera_model: p.camera_model, annotations: p.annotations || null,
       sticker_ids: (p.sticker_ids || []).slice(),
-      phase: p.phase || null, phase_source: p.phase_source || null, phases: jobPhaseList(jobs.find((x) => String(x.id) === String(j.id)) || j),
+      phase: p.phase || null, phase_label: p.phase_label || null, phase_source: p.phase_source || null, phase_mode: p.phase_mode || null, phase_labels: PHASE,
+      phases: jobPhaseList(jobs.find((x) => String(x.id) === String(j.id)) || j),
       location_available: p.location_available != null ? p.location_available : p.lat != null, distance_m: p.distance_m, far_from_job: p.far_from_job,
       in_portfolio: p.in_portfolio, job: { id: j.id, number: j.number, title: j.title, client: j.client_name, name: viewerJobName(j) },
     };
@@ -471,7 +483,7 @@
     if ("annotations" in changes) patch.annotations = d.annotations ?? null;
     if ("taken_by_id" in changes) Object.assign(patch, { taken_by_id: d.taken_by_id, taken_by_name: d.taken_by_name });
     if ("sticker_ids" in changes) patch.sticker_ids = d.sticker_ids || [];
-    if ("phase" in changes) Object.assign(patch, { phase: d.phase || null, phase_source: d.phase_source || null });
+    if ("phase" in changes) Object.assign(patch, { phase: d.phase || null, phase_label: d.phase_label || null, phase_source: d.phase_source || null });
     [feed, ...Object.values(mediaCache), ...jobs.map((x) => x.photos || [])].forEach((arr) =>
       arr.forEach((x) => {
         if (String(x.id) === String(photo.id)) Object.assign(x, patch);
@@ -627,6 +639,7 @@
         const m = await api(`/api/work-orders/${encodeURIComponent(j.id)}/media`);
         mediaCache[j.id] = (m.data || []).filter((p) => (p.type || "photo") === "photo" && p.url);
         metaCache[j.id] = m.meta || {};
+        usePhaseCatalog(metaCache[j.id].phase_catalog, metaCache[j.id].phase_mode);
       } catch (_) {
         mediaCache[j.id] = (j.photos || []).map((p) => ({ ...p, thumb_url: p.url }));
       }
@@ -675,7 +688,7 @@
     if (list.length && pane === "map") renderJobMap(j, list).catch(() => {});
   }
 
-  /** "Todas": one section per job phase, in work order (Delivery → Walk Through), each split by day. */
+  /** "Todas": one section per job phase, in work order (Hardwood: Delivery → Walk Through; other trades: their own phases), each split by day. */
   function phaseSectionsHtml(items) {
     const keys = PHASES.map(([k]) => k).concat("none");
     return keys
@@ -837,7 +850,7 @@
   /** Phase for many photos at once; "Automático" hands them back to the date rules. */
   function openStageSheet() {
     const list = pickedPhotos();
-    const opts = PHASES.map(([k, l]) => [k, l]).concat([["", "Automático (pela data)"]]);
+    const opts = PHASES.map(([k, l]) => [k, l]).concat([["", byPhases ? "Automático (pela fase do job)" : "Automático (pela data)"]]);
     const el = selSheet(`Fase de ${list.length} foto${list.length === 1 ? "" : "s"}`, `<div class="cam-up__phases" data-no-i18n>${opts.map(([k, l]) => `<button type="button" class="cam-up__stage${k ? "" : " cam-up__stage--auto"}" data-bulk-phase="${esc(k)}">${esc(l)}</button>`).join("")}</div>`);
     el.addEventListener("click", async (e) => {
       const b = e.target.closest("[data-bulk-phase]");
@@ -846,7 +859,7 @@
       el.querySelectorAll("button").forEach((x) => (x.disabled = true));
       const ok = await eachPhoto(list, "Mudando", async (p) => {
         const r = await api(`/api/work-orders/${encodeURIComponent(p.job_id)}/media/${encodeURIComponent(p.id)}`, { method: "PATCH", body: JSON.stringify({ phase }) });
-        patchCaches(p.id, { phase: r.data ? r.data.phase : phase, phase_source: r.data ? r.data.phase_source : phase ? "manual" : null });
+        patchCaches(p.id, { phase: r.data ? r.data.phase : phase, phase_label: r.data ? r.data.phase_label : PHASE[phase] || null, phase_source: r.data ? r.data.phase_source : phase ? "manual" : null });
       }, el.querySelector(".cam-up__status"));
       el.remove();
       window.crmToast?.success?.(`${ok} foto${ok === 1 ? "" : "s"} em ${PHASE[phase] || "fase automática"}`);
@@ -1160,6 +1173,7 @@
 
   async function load() {
     const j = await api("/api/job-media/board?days=3");
+    usePhaseCatalog(j.meta?.phase_catalog, j.meta?.phase_mode);
     jobs = j.data?.jobs || [];
     feed = j.data?.feed || [];
     const id = new URLSearchParams(location.search).get("id");

@@ -22,6 +22,8 @@
   const STAGE = { before: "Antes", during: "Durante", after: "Depois" };
   const STAGES = [["before", "Antes"], ["during", "Durante"], ["after", "Depois"], ["", "Geral"]];
   const PHASE_LABEL = { delivery: "Delivery", scan: "Scan", installation: "Installation", sand_finish: "Sand & Finish", walkthrough: "Walk Through" };
+  /** Name of a phase: the trade's own (Tile, Countertops) when the photo carries them, else Hardwood's. */
+  const phaseLabel = (p, k) => (p && p.phase_labels && p.phase_labels[k]) || (p && k === p.phase && p.phase_label) || PHASE_LABEL[k] || k;
   const WD = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
   const MO = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
   const COLORS = [
@@ -352,7 +354,7 @@
         ? phaseHtml(p)
         : st.canStage && p.id
         ? `<div class="cv-stages" role="group" aria-label="Etapa da foto">${STAGES.map(([k, l]) => `<button type="button" class="${(p.stage || "") === k ? "is-on" : ""}" data-cv-stage="${k}" aria-pressed="${(p.stage || "") === k}"${st.busy ? " disabled" : ""}>${l}</button>`).join("")}</div>`
-        : `<div class="cv-chips"><span class="cv-pill">${esc(PHASE_LABEL[p.phase] || STAGE[p.stage] || "Geral")}</span></div>`}
+        : `<div class="cv-chips"><span class="cv-pill">${esc((p.phase && phaseLabel(p, p.phase)) || STAGE[p.stage] || "Geral")}</span></div>`}
       ${canEdit ? quickHtml(p, shapes) : ""}
       <dl class="cv-kv">
         <dt>Tirada</dt><dd>${esc(when(p.taken_at_device || p.created_at))}${TAKEN_NOTE[p.taken_at_source] ? `<small>${TAKEN_NOTE[p.taken_at_source]}</small>` : ""}</dd>
@@ -408,10 +410,13 @@
   /** Job phase of the photo: worked out from its date unless corrected; the job's phases in work order. */
   function phaseHtml(p) {
     const list = (p.phases || []).concat(p.phase && !(p.phases || []).includes(p.phase) ? [p.phase] : []);
+    const byPhases = p.phase_mode === "phases";
     return `<div class="cv-phase">
-      <div class="cv-phases" role="group" aria-label="Fase da foto" data-no-i18n>${list.map((k) => `<button type="button" class="${p.phase === k ? "is-on" : ""}" data-cv-phase="${k}" aria-pressed="${p.phase === k}"${st.busy ? " disabled" : ""}>${esc(PHASE_LABEL[k] || k)}</button>`).join("")}</div>
+      <div class="cv-phases" role="group" aria-label="Fase da foto" data-no-i18n>${list.map((k) => `<button type="button" class="${p.phase === k ? "is-on" : ""}" data-cv-phase="${k}" aria-pressed="${p.phase === k}"${st.busy ? " disabled" : ""}>${esc(phaseLabel(p, k))}</button>`).join("")}</div>
       <small class="cv-phase__src">${p.phase_source === "manual"
-        ? `Corrigida à mão · <button type="button" class="cv-link" data-cv-phase-auto${st.busy ? " disabled" : ""}>usar a da data</button>`
+        ? `Corrigida à mão · <button type="button" class="cv-link" data-cv-phase-auto${st.busy ? " disabled" : ""}>${byPhases ? "usar a automática" : "usar a da data"}</button>`
+        : p.phase_source === "proof" ? "Prova desta fase do job"
+        : byPhases ? (p.phase ? "Pela fase aberta quando a foto foi tirada" : "O job ainda não tem fases")
         : p.phase ? "Pela data da foto e as datas do job" : "Sem datas no job para definir a fase"}</small>
     </div>`;
   }
@@ -867,8 +872,8 @@
       renderSide();
       try {
         const res = await st.onPhase(p, next);
-        if (res) Object.assign(p, { phase: res.phase || null, phase_source: res.phase_source || null });
-        window.crmToast?.success?.(next ? `Fase: ${PHASE_LABEL[next]}` : "Fase pela data da foto");
+        if (res) Object.assign(p, { phase: res.phase || null, phase_label: res.phase_label || null, phase_source: res.phase_source || null });
+        window.crmToast?.success?.(next ? `Fase: ${phaseLabel(p, next)}` : p.phase_mode === "phases" ? "Fase automática" : "Fase pela data da foto");
       } catch (err) {
         window.crmToast?.error?.(err.message || "Não foi possível mudar a fase");
       }

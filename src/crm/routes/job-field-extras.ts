@@ -11,7 +11,7 @@ import { storage } from "../../lib/storage/index.js";
 import { JOB_MEDIA_PEOPLE, mapJobMedia, sha256Buffer } from "../../lib/job-media/index.js";
 import { normalizeAnnotations } from "../../lib/job-media/checklist.js";
 import { cleanStickerIds, ensureStickers, isStickerColor, mapSticker } from "../../lib/job-media/stickers.js";
-import { JOB_PHASES, PHASE_JOB_SELECT, jobPhaseContext, orgTimezone, phaseContextFromRow, photoPhaseFields } from "../../lib/job-media/phases.js";
+import { PHASE_JOB_SELECT, isPhaseOf, jobPhaseContext, orgPack, orgTimezone, packPhaseContexts, phaseCatalog, phaseContextFromRow, photoPhaseFields } from "../../lib/job-media/phases.js";
 import { photoDistanceFields, resolveJobSiteGeo } from "../../lib/job-media/geo.js";
 import { extractLabelFromImageUrl, isFieldMeasureEnabled } from "../../lib/job-media/ocr.js";
 import { aiTranscribeAudio, aiChatJson, isAiConfigured } from "../../lib/ai/client.js";
@@ -78,8 +78,13 @@ jobFieldExtrasRouter.get(
       const days = Math.min(30, Math.max(1, Number(req.query.days) || 3));
       const since = new Date();
       since.setDate(since.getDate() - days);
+      let catalog: Array<[string, string]> = [];
+      let catalogMode: "dates" | "phases" = "dates";
       const data = await withTenantTransaction(req.organizationId!, async (tx) => {
         const tz = await orgTimezone(tx, req.organizationId!);
+        const pack = await orgPack(tx, req.organizationId!);
+        catalog = phaseCatalog(pack);
+        catalogMode = pack.phaseStorage === "table" ? "phases" : "dates";
         const rows = await tx.workOrder.findMany({
           where: { status: { in: ["draft", "scheduled", "in_progress", "completed"] } },
           select: {
@@ -140,6 +145,7 @@ jobFieldExtrasRouter.get(
           orderBy: [{ scheduledStart: "desc" }],
           take: 120,
         });
+        const packCtx = await packPhaseContexts(tx, req.organizationId!, rows.map((r) => r.id), pack);
         return Promise.all(
           rows.map(async (wo) => {
             const last = wo.media[0] || null;
@@ -154,7 +160,7 @@ jobFieldExtrasRouter.get(
               jobLat != null && jobLng != null && Number.isFinite(jobLat) && Number.isFinite(jobLng)
                 ? { lat: jobLat, lng: jobLng }
                 : null;
-            const phaseCtx = phaseContextFromRow(wo, tz);
+            const phaseCtx = packCtx ? packCtx(wo.id) : phaseContextFromRow(wo, tz);
             const photos = wo.media.map((m) => {
               const lat = m.lat != null ? Number(m.lat) : null;
               const lng = m.lng != null ? Number(m.lng) : null;
@@ -252,8 +258,10 @@ jobFieldExtrasRouter.get(
             workOrder: { select: { id: true, number: true, title: true, geoLat: true, geoLng: true, ...PHASE_JOB_SELECT } },
           },
         });
+        const packCtx = await packPhaseContexts(tx, req.organizationId!, photos.map((p) => p.workOrderId));
         return photos.map((p) => {
-          const mapped = { ...mapJobMedia(p), ...photoPhaseFields(phaseContextFromRow(p.workOrder, tz), p) };
+          const ctx = packCtx ? packCtx(p.workOrderId) : phaseContextFromRow(p.workOrder, tz);
+          const mapped = { ...mapJobMedia(p), ...photoPhaseFields(ctx, p) };
           const jobLat = p.workOrder?.geoLat != null ? Number(p.workOrder.geoLat) : null;
           const jobLng = p.workOrder?.geoLng != null ? Number(p.workOrder.geoLng) : null;
           const jobGeo =
@@ -273,7 +281,7 @@ jobFieldExtrasRouter.get(
         });
       });
 
-      res.json({ success: true, data: { jobs: data, feed }, meta: { days } });
+      res.json({ success: true, data: { jobs: data, feed }, meta: { days, phase_catalog: catalog, phase_mode: catalogMode } });
     } catch (error) {
       next(error);
     }
@@ -434,7 +442,7 @@ const mediaEditBody = z
     taken_by_id: z.string().uuid().nullable().optional(),
     sticker_ids: z.array(z.string().uuid()).max(12).optional(),
     /** a job phase to set it by hand, or null to go back to the automatic phase */
-    phase: z.enum(JOB_PHASES).nullable().optional(),
+    phase: z.string().trim().min(1).max(40).nullable().optional(),
   })
   .refine((b) => Object.keys(b).length > 0, "Nothing to change");
 
@@ -456,6 +464,9 @@ jobFieldExtrasRouter.patch(
       const data = await withTenantTransaction(req.organizationId!, async (tx) => {
         const row = await tx.jobMedia.findFirst({ where: { id: mediaId, workOrderId: jobId, deletedAt: null } });
         if (!row) throw Object.assign(new Error("Foto não encontrada"), { status: 404 });
+        // The phase must be one of this company's job phases (Hardwood's, or the trade's own).
+        const phaseCtx = d.phase !== undefined ? await jobPhaseContext(tx, req.organizationId!, jobId) : null;
+        if (d.phase && !isPhaseOf(phaseCtx, d.phase)) throw Object.assign(new Error("Fase desconhecida"), { status: 400 });
         let takenById: string | null | undefined;
         if (d.taken_by_id !== undefined) {
           if (d.taken_by_id === null || d.taken_by_id === row.authorId) takenById = null;
@@ -496,7 +507,7 @@ jobFieldExtrasRouter.patch(
             changes: { media_id: { from: null, to: mediaId }, ...changes },
           });
         }
-        return { ...mapJobMedia(updated), ...photoPhaseFields(await jobPhaseContext(tx, req.organizationId!, jobId), updated) };
+        return { ...mapJobMedia(updated), ...photoPhaseFields(phaseCtx ?? (await jobPhaseContext(tx, req.organizationId!, jobId)), updated) };
       });
       res.json({ success: true, data });
     } catch (error: unknown) {
