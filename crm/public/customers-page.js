@@ -442,7 +442,7 @@
           <button type="button" class="cx-btn cx-btn--sq" data-more aria-label="Mais ações" aria-haspopup="menu">${ic("more", 16)}</button>
           ${canEdit ? `<button type="button" class="cx-btn" data-edit>${ic("edit")}<span>Editar</span></button>` : ""}
           <a class="cx-btn" href="${newFieldQuoteHref(c)}">${ic("plus", 15, 2.2)}<span>Field Quote</span></a>
-          <a class="cx-btn cx-btn--pri" href="${newQuoteHref(c)}">${ic("plus", 15, 2.2)}<span>Novo quote</span></a>
+          <a class="cx-btn cx-btn--pri" href="${newQuoteHref(c)}">${ic("plus", 15, 2.2)}<span>Novo orçamento</span></a>
         </div>
       </div>
       <div class="cx-circ">
@@ -565,7 +565,7 @@
       canEdit ? '<button type="button" class="cx-lnk" data-new-job>Novo job</button>' : "",
       "Nenhum job ainda.",
     );
-    const quotes = boxList("quotes", "Quotes", detail.quotes || [], quoteLine, `<a class="cx-lnk" href="${newQuoteHref(c)}">Novo quote</a>`, "Nenhum quote ainda.");
+    const quotes = boxList("quotes", "Quotes", detail.quotes || [], quoteLine, `<a class="cx-lnk" href="${newQuoteHref(c)}">Novo orçamento</a>`, "Nenhum quote ainda.");
     const invoices = boxList("invoices", "Faturas", detail.invoices || [], invoiceLine, '<a class="cx-lnk" href="invoices.html">Ver faturas</a>', "Nenhuma fatura ainda.");
     const evs = detail.activity || [];
     const activity = boxList("activity", "Atividade", evs, evLine, "", "Sem atividade.");
@@ -576,7 +576,7 @@
         <div class="cx-col">${jobs}${quotes}</div>
         <div class="cx-col">${invoices}${activity}</div>
       </div>
-      <div class="cx-pbar"><button type="button" class="cx-btn" data-new-job>${ic("plus", 15, 2.2)}<span>Novo job</span></button><a class="cx-btn" href="${newFieldQuoteHref(c)}">${ic("plus", 15, 2.2)}<span>Field Quote</span></a><a class="cx-btn cx-btn--pri" href="${newQuoteHref(c)}">${ic("plus", 15, 2.2)}<span>Novo quote</span></a></div>
+      <div class="cx-pbar"><button type="button" class="cx-btn" data-new-job>${ic("plus", 15, 2.2)}<span>Novo job</span></button><a class="cx-btn" href="${newFieldQuoteHref(c)}">${ic("plus", 15, 2.2)}<span>Field Quote</span></a><a class="cx-btn cx-btn--pri" href="${newQuoteHref(c)}">${ic("plus", 15, 2.2)}<span>Novo orçamento</span></a></div>
     </article>`;
     host.scrollTop = 0;
     // A barra fixa do iPhone fica fora do container da página (container-type prende position:fixed).

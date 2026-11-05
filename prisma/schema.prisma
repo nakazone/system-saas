@@ -1330,6 +1330,7 @@ model Lead {
 
   @@index([organizationId])
   @@index([organizationId, pipelineStageId])
+  @@index([organizationId, createdAt])
   @@index([lossReasonId])
   @@index([ownerId])
 }
@@ -1678,6 +1679,7 @@ model Quote {
   @@index([organizationId])
   @@index([organizationId, status])
   @@index([organizationId, salespersonId])
+  @@index([organizationId, createdAt])
   @@index([workOrderId])
 }
 
@@ -2849,6 +2851,7 @@ model JobMedia {
   @@index([organizationId])
   @@index([workOrderId])
   @@index([organizationId, workOrderId, deletedAt])
+  @@index([organizationId, type, createdAt])
   @@index([organizationId, clientUploadId])
   @@index([sha256])
   @@index([authorId])

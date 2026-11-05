@@ -603,7 +603,7 @@
       activity.forEach((item) => addRelatedRecord(card, formatDate(item.at, { dateStyle: 'medium' }), item.title, item.detail || '', item.href || null));
     }
     addRecordLink(card, `customers.html?id=${encodeURIComponent(customerId)}`, 'Abrir cliente');
-    addRecordLink(card, `quote-builder.html?customer_id=${encodeURIComponent(customerId)}`, 'Novo quote');
+    addRecordLink(card, `quote-builder.html?customer_id=${encodeURIComponent(customerId)}`, 'Novo orçamento');
     host.replaceChildren(card);
   }
 

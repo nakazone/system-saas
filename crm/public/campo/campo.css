@@ -3,16 +3,20 @@
  * Shell próprio (não Admin). Tokens alinhados aos mocks de ponto/agenda/horas.
  */
 :root {
-  --cm-bg: #F7F8FA;
-  --cm-surface: #ffffff;
-  --cm-ink: #221E1A;
-  --cm-muted: #667085;
-  --cm-line: #E5E7EB;
+  /* Campo names kept as aliases of the shared tokens (om-tokens.css, injected on every page).
+     Fallbacks only matter if that file fails to load. */
+  --cm-bg: var(--om-bg, #F7F8FA);
+  --cm-surface: var(--om-card, #ffffff);
+  --cm-ink: var(--om-ink, #221E1A);
+  --cm-muted: var(--om-ink-2, #667085);
+  --cm-line: var(--om-line, #E5E7EB);
   --cm-dark: #2a2522;
   --cm-dark-2: #1f1b19;
-  --cm-accent: #B4561A;
-  --cm-accent-soft: #f3e4d6;
-  --cm-green: #536249;
+  /* orange for text and white-text buttons (AA); brand fill orange is --om-accent */
+  --cm-accent: var(--om-accent-strong, #B4561A);
+  /* lighter tint so --cm-accent text on it stays AA (4.6:1; the old #f3e4d6 gave 4.1:1) */
+  --cm-accent-soft: var(--om-accent-soft, #FDF0E6);
+  --cm-green: var(--om-p-olive-600, #536249);
   --cm-green-soft: #EEF1EC;
   --cm-blue: #2563eb;
   --cm-orange: #ea580c;
@@ -20,8 +24,8 @@
   --cm-badge-site-ink: #8a5a1e;
   --cm-badge-sched: #eceae7;
   --cm-badge-sched-ink: #57534e;
-  --cm-radius: 18px;
-  --cm-radius-sm: 12px;
+  --cm-radius: var(--om-r-lg, 18px);
+  --cm-radius-sm: var(--om-r-md, 12px);
   --cm-tabbar-h: 68px;
   --cm-font: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
   --cm-safe-b: env(safe-area-inset-bottom, 0px);
@@ -155,8 +159,8 @@ button {
 }
 
 .cm-icon-btn {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border-radius: 12px;
   display: grid;
   place-items: center;
@@ -399,20 +403,24 @@ button {
   color: var(--cm-muted);
 }
 
+/* Same press feedback as .dy-btn and om-ui.css [data-om-press]: scale .97, 120ms ease-out. */
 .cm-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 46px;
+  min-height: var(--om-tap-field, 48px);
   padding: 0.65rem 1rem;
   border-radius: 12px;
   font-size: 0.9rem;
   font-weight: 600;
-  transition: opacity 0.15s;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: transform 120ms var(--om-ease-out, ease-out), opacity var(--om-dur-1, 150ms) ease;
 }
 
 .cm-btn:active {
-  opacity: 0.85;
+  transform: scale(0.97);
 }
 
 .cm-btn--ghost-dark {
@@ -973,10 +981,15 @@ button {
   min-height: 52px;
   min-width: 0;
   border-radius: 16px;
-  font-size: 0.625rem;
+  /* 11px minimum for labels; --cm-muted is AA (4.8:1) */
+  font-size: 0.6875rem;
   font-weight: 600;
   color: var(--cm-muted);
   padding: 0.3rem 0.2rem;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .cm-tabbar__item svg {
@@ -1010,6 +1023,21 @@ button {
   display: none !important;
 }
 
+/* .cm-layer wraps backdrop + sheet and is driven by OmUI.layer (ticket.js?v=20261105-apps3): slide in/out and the
+   backdrop fade come from om-ui.css via data-om-motion / data-om-backdrop, reduced-motion included. */
+.cm-layer[hidden] {
+  display: none !important;
+}
+
+/* om-ui.css caps every sheet at 92dvh; keep the shorter Campo caps */
+.cm-layer .cm-sheet {
+  max-height: min(88dvh, 640px);
+}
+
+.cm-layer .cm-sheet--tall {
+  max-height: min(92dvh, 760px);
+}
+
 .cm-sheet {
   position: fixed;
   left: 0;
@@ -1019,19 +1047,35 @@ button {
   max-width: 480px;
   margin: 0 auto;
   max-height: min(88vh, 640px);
+  max-height: min(88dvh, 640px);
   overflow: auto;
+  overscroll-behavior: contain;
   background: var(--cm-bg);
   border-radius: 24px 24px 0 0;
   padding: 0.65rem 1.1rem calc(1.25rem + var(--cm-safe-b));
   box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.12);
 }
 
+/* drag area 120×24, visual bar 36×4 */
 .cm-sheet__grab {
+  position: relative;
+  width: 120px;
+  height: 24px;
+  margin: -0.4rem auto 0.4rem;
+  cursor: grab;
+  touch-action: none;
+}
+
+.cm-sheet__grab::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 10px;
   width: 36px;
   height: 4px;
+  margin-left: -18px;
   border-radius: 999px;
   background: #d6d3d1;
-  margin: 0.15rem auto 0.85rem;
 }
 
 .cm-sheet__head {
@@ -1056,8 +1100,8 @@ button {
 }
 
 .cm-sheet__close {
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   background: var(--cm-surface);
   border: 1px solid var(--cm-line);
@@ -1168,7 +1212,8 @@ body.cm-sheet-open {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  padding: 0.4rem 0.65rem;
+  min-height: 44px;
+  padding: 0.4rem 0.75rem;
   border-radius: 999px;
   background: #fce8e6;
   color: #B4561A;
@@ -1310,10 +1355,11 @@ body.cm-sheet-open {
   background: var(--cm-accent);
 }
 
+/* on the dark hero: inactive .64 (~5:1), done .8, active #d4a574 — all AA */
 .cm-stepper__label {
-  font-size: 0.625rem;
+  font-size: 0.6875rem;
   font-weight: 600;
-  color: rgba(250, 250, 249, 0.35);
+  color: rgba(250, 250, 249, 0.64);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1324,7 +1370,7 @@ body.cm-sheet-open {
 }
 
 .cm-stepper__item.is-done .cm-stepper__label {
-  color: rgba(250, 250, 249, 0.55);
+  color: rgba(250, 250, 249, 0.8);
 }
 
 .cm-ticket-tabs {
@@ -1339,7 +1385,8 @@ body.cm-sheet-open {
 
 .cm-ticket-tabs__btn {
   position: relative;
-  min-height: 40px;
+  min-height: 44px;
+  touch-action: manipulation;
   border-radius: 11px;
   font-size: 0.8125rem;
   font-weight: 600;
@@ -1560,6 +1607,10 @@ body.cm-sheet-open {
   background: #EEF1EC;
 }
 
+.cm-check-item__main {
+  min-height: 44px;
+}
+
 .cm-check-item__box {
   width: 22px;
   height: 22px;
@@ -1578,6 +1629,35 @@ body.cm-sheet-open {
 .cm-check-item.is-done .cm-check-item__box {
   background: var(--cm-green);
   border-color: var(--cm-green);
+}
+
+/* the item this tap just ticked: check pops .8 → 1 in 160ms, once */
+.cm-check-item.is-just-done .cm-check-item__box {
+  animation: cmCheckPop 160ms var(--om-ease-out, ease-out) both;
+}
+
+@keyframes cmCheckPop {
+  from {
+    transform: scale(0.8);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cm-check-item.is-just-done .cm-check-item__box {
+    animation: cmCheckFade 150ms ease both;
+  }
+}
+
+@keyframes cmCheckFade {
+  from {
+    opacity: 0.4;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .cm-check-item__text {
@@ -1632,7 +1712,9 @@ body.cm-sheet-open {
 }
 
 .cm-check-item__photo {
-  margin-top: 0.35rem;
+  margin-top: 0.2rem;
+  min-height: 44px;
+  padding: 0 0.25rem;
   font-size: 0.75rem;
   font-weight: 700;
   color: #8a5a12;
@@ -1741,7 +1823,7 @@ body.cm-sheet-open {
   box-sizing: border-box;
   margin-bottom: 0.55rem;
   font-family: inherit;
-  font-size: 0.9rem;
+  font-size: var(--om-fs-input, 16px);
   font-weight: 500;
   padding: 0.65rem 0.85rem;
   border-radius: 12px;
@@ -1926,8 +2008,8 @@ body.cm-sheet-open {
 }
 
 .cm-lightbox__close {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border: none;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.12);
@@ -1978,8 +2060,8 @@ body.cm-sheet-open {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   border: none;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.14);
@@ -2080,6 +2162,10 @@ body.cm-lightbox-open .cm-tabbar {
   cursor: default;
 }
 
+.cm-ticket-cta .cm-btn.om-busy {
+  opacity: 1;
+}
+
 .cm-field {
   display: flex;
   flex-direction: column;
@@ -2090,7 +2176,7 @@ body.cm-lightbox-open .cm-tabbar {
 
 .cm-field textarea {
   font-family: inherit;
-  font-size: 0.9rem;
+  font-size: var(--om-fs-input, 16px);
   font-weight: 500;
   padding: 0.75rem 0.85rem;
   border-radius: 12px;
@@ -2128,7 +2214,9 @@ body.cm-ticket .cm-tabbar {
 .cm-chip {
   display: inline-flex;
   align-items: center;
-  padding: 0.5rem 0.75rem;
+  min-height: 44px;
+  padding: 0.5rem 0.85rem;
+  touch-action: manipulation;
   border-radius: 999px;
   background: var(--cm-surface);
   border: 1px solid var(--cm-line);
@@ -2173,7 +2261,7 @@ body.cm-ticket .cm-tabbar {
 
 .cm-field input[type="text"] {
   font-family: inherit;
-  font-size: 0.9rem;
+  font-size: var(--om-fs-input, 16px);
   font-weight: 500;
   padding: 0.75rem 0.85rem;
   border-radius: 12px;
@@ -2209,6 +2297,11 @@ body.cm-ticket .cm-tabbar {
 }
 /* the wide card only fades its ring (scaling a wide box would overshoot) */
 .cm-lockbox::after { animation-name: cm-lockbox-fade; }
+@media (prefers-reduced-motion: reduce) {
+  /* no growing ring: one soft fade */
+  .job-lockbox-badge::after,
+  .cm-lockbox::after { animation: cm-lockbox-fade 1.2s ease 1; }
+}
 .job-lockbox-badge__icon { display: inline-flex; line-height: 1; }
 .job-lockbox-badge__code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -2255,7 +2348,7 @@ body.cm-ticket .cm-tabbar {
 }
 .cm-delivery .job-delivery-badge { margin: 0 0 0.15rem; width: fit-content; }
 .cm-delivery__row { display: grid; gap: 0.1rem; font-size: 0.9rem; color: #475467; font-weight: 600; }
-.cm-delivery__row small { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: #98A2B3; }
+.cm-delivery__row small { font-size: 0.6875rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: var(--om-ink-2, #667085); }
 .cm-delivery__row a { color: #B4561A; font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
 .cm-notes__text { margin-top: 0.45rem; white-space: pre-wrap; }
 @keyframes cm-lockbox-ring {
@@ -2266,4 +2359,38 @@ body.cm-ticket .cm-tabbar {
   0% { opacity: 0; }
   25% { opacity: 1; }
   70%, 100% { opacity: 0; }
+}
+
+/* —— Mobile baseline (ObraCrew) —— */
+/* inputs at 16px so iOS does not zoom on focus (lets the page keep pinch-zoom) */
+body.cm-app input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+body.cm-app textarea,
+body.cm-app select {
+  font-size: var(--om-fs-input, 16px);
+}
+
+/* no 300ms double-tap wait on controls; long-press does not select control labels */
+body.cm-app button,
+body.cm-app a,
+body.cm-app [role="button"],
+body.cm-app label.cm-btn {
+  touch-action: manipulation;
+}
+
+body.cm-app button,
+body.cm-app [role="button"],
+body.cm-app label.cm-btn {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* tappable cards (agenda job cards, tab bar, checklist rows) use [data-om-press] from om-ui.css */
+
+@media (prefers-reduced-motion: reduce) {
+  /* press feedback without movement */
+  .cm-btn:active,
+  .dy-btn:active {
+    transform: none;
+    opacity: 0.85;
+  }
 }

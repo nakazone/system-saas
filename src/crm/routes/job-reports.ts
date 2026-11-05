@@ -32,6 +32,7 @@ import { isAiConfigured } from "../../lib/ai/client.js";
 import { recordActivity } from "../../lib/activity/record.js";
 import { storage } from "../../lib/storage/index.js";
 import { prisma } from "../../lib/prisma.js";
+import { uploadPhotoThumb } from "../../lib/job-media/thumb.js";
 
 export const jobReportsRouter = Router();
 
@@ -293,6 +294,7 @@ jobReportsRouter.post(
         body: parsed.body,
         contentType: ct.startsWith("image/") ? parsed.contentType : "image/jpeg",
       });
+      const thumbUrl = await uploadPhotoThumb(stored.key, parsed.body, stored.url);
 
       const data = await withTenantTransaction(req.organizationId!, async (tx) => {
         const wo = await tx.workOrder.findFirst({
@@ -315,7 +317,7 @@ jobReportsRouter.post(
             type: "photo",
             storageKey: stored.key,
             url: stored.url,
-            thumbUrl: stored.url,
+            thumbUrl,
             sha256: hash,
             takenAtDevice: meta.takenAtDevice,
             receivedAtServer: new Date(),

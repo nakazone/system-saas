@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#211d1a" />
+  <meta name="theme-color" content="#F7F8FA" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="ObraBuilder" />
   <title>Sign in · ObraBuilder</title>
@@ -11,15 +11,20 @@
   <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
   <link rel="icon" href="/favicon.ico?v=20260924-pwa" sizes="any" />
   <link rel="apple-touch-icon" href="/assets/obrabuilder/apple-touch-icon.png?v=2" />
-  <link rel="stylesheet" href="partner-portal.css?v=20261023-3" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/om-tokens.css?v=20261105-apps3" />
+  <link rel="stylesheet" href="/om-ui.css?v=20261105-apps3" />
+  <link rel="stylesheet" href="partner-portal.css?v=20261105-apps3" />
   <style>
     .ob-brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit; margin-bottom: 8px; }
     .ob-brand img { width: 48px; height: 48px; border-radius: 12px; }
-    .ob-brand strong { display: block; font-size: 20px; letter-spacing: -.01em; }
-    .ob-brand span { display: block; font-size: 13px; opacity: .7; }
+    .ob-brand strong { display: block; font-size: 20px; letter-spacing: -.01em; color: var(--partner-ink); }
+    .ob-brand span { display: block; font-size: 13px; color: var(--partner-muted); }
     .ob-mate { display: flex; align-items: center; gap: 10px; margin: 4px 0 0; }
     .ob-mate img { width: 44px; height: 44px; flex: none; }
-    .ob-code summary { cursor: pointer; font-size: 14px; color: #6b5f55; padding: 4px 0; }
+    .ob-code summary { cursor: pointer; font-size: 14px; color: var(--partner-muted); padding: 10px 0; min-height: 44px; display: flex; align-items: center; }
     .ob-code[open] summary { margin-bottom: 8px; }
   </style>
 </head>
@@ -48,6 +53,7 @@
     <p class="partner-footnote"><a href="/builders/forgot">Forgot your password?</a></p>
     <p class="partner-footnote">A builder without an account? <a href="/builders">Create one for free</a>. Work for a builder? Ask your team admin for an invite.</p>
   </main>
+  <script src="/om-ui.js?v=20261105-apps3" defer></script>
   <script src="partner-login.js?v=20261104-demo1" defer></script>
 </body>
 </html>

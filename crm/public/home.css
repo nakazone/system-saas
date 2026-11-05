@@ -836,7 +836,7 @@ body.home-app.om-device-mobile .home-kpi:not(:first-child) .home-kpi__label {
   background: none;
   cursor: pointer;
   transform-origin: 50% 100%;
-  /* Entrance plays once per session (home.js adds .home-mate--seen afterwards); no overshoot. */
+  /* Entrance plays once per session (home.js?v=20261105-apps3 adds .home-mate--seen afterwards); no overshoot. */
   animation: home-mate-in 0.3s var(--om-ease-out, cubic-bezier(0.23, 1, 0.32, 1)) 0.1s both;
 }
 

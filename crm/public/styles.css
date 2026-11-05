@@ -6,16 +6,18 @@
 
 /* Tokens: design-system.css (load first on each page). Fallback if missing: */
 :root {
-    --primary-color: #1a1a2e;
-    --secondary-color: #c8a96e;
-    --text-dark: #1a1a1a;
-    --text-light: #6b6b6b;
-    --text-muted: #9b9b9b;
-    --bg-light: #f7f4ee;
-    --bg-white: #ffffff;
-    --bg-primary-light: #efe8dc;
-    --border-color: #e2d9cc;
-    --crm-chrome-bg: #f7f4ee;
+    /* Apelidos antigos → tokens atuais (om-tokens.css?v=20261105-apps3). Antes: azul-marinho #1a1a2e e
+       dourado #c8a96e; design-system.css e om-theme.css já os sobrepunham nas telas do CRM. */
+    --primary-color: var(--om-ink, #221e1a);
+    --secondary-color: var(--om-accent, #e7792c);
+    --text-dark: var(--om-ink, #221e1a);
+    --text-light: var(--om-ink-2, #667085);
+    --text-muted: var(--om-p-gray-400, #98a2b3);
+    --bg-light: var(--om-bg, #f7f8fa);
+    --bg-white: var(--om-card, #ffffff);
+    --bg-primary-light: var(--om-surface, #f1f3f5);
+    --border-color: var(--om-line, #e5e7eb);
+    --crm-chrome-bg: var(--om-bg, #f7f8fa);
     --font-family: 'Inter', system-ui, sans-serif;
     --font-size-base: 14px;
     --line-height-base: 1.55;
@@ -24,7 +26,8 @@
     --spacing-md: 2rem;
     --spacing-lg: 3rem;
     --spacing-xl: 4rem;
-    --transition: all 0.2s ease;
+    /* propriedades explícitas: "all" também animava largura/altura/posição */
+    --transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
     --mobile: 768px;
     --tablet: 1024px;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
@@ -256,10 +259,13 @@ body {
     position: absolute;
     bottom: 0;
     left: var(--spacing-sm);
-    width: 0;
+    /* sublinhado: cresce por scaleX (sem animar a largura) */
+    width: calc(100% - var(--spacing-sm) * 2);
     height: 2px;
     background-color: var(--secondary-color);
-    transition: width 0.3s ease;
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 0.2s var(--om-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
     border-radius: 2px;
 }
 
@@ -269,7 +275,7 @@ body {
 }
 
 .nav-item:hover::after {
-    width: calc(100% - var(--spacing-sm) * 2);
+    transform: scaleX(1);
 }
 
 .nav-item.active {
@@ -279,7 +285,7 @@ body {
 
 .nav-item.active::after {
     background-color: var(--secondary-color);
-    width: calc(100% - var(--spacing-sm) * 2);
+    transform: scaleX(1);
 }
 
 .nav-item span {
@@ -1607,6 +1613,36 @@ input.score-auto {
 
 .modal.active {
     display: flex;
+    opacity: 1;
+    transition: opacity 200ms var(--om-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+/* Entrada do modal: o fundo esmaece e o cartão cresce de .97 (200ms). Sai sem animação,
+   porque o JS de cada página só tira o .active. Navegadores sem @starting-style abrem direto. */
+.modal.active > .modal-content {
+    transition: opacity 200ms var(--om-ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+        transform 200ms var(--om-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+@starting-style {
+    .modal.active {
+        opacity: 0;
+    }
+    .modal.active > .modal-content {
+        opacity: 0;
+        transform: scale(0.97);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    /* só o esmaecer; vence a regra global de om-theme.css */
+    html body .modal.active {
+        transition: opacity 120ms ease !important;
+    }
+    html body .modal.active > .modal-content {
+        transition: none !important;
+        transform: none;
+    }
 }
 
 .modal-content {
@@ -4235,7 +4271,6 @@ body.lead-quick-sheet-open .pac-container {
     height: 100%;
     border-radius: 3px;
     background: var(--sf-navy);
-    transition: width 0.5s ease;
 }
 .sf-card.sf-ok .sf-card-pf {
     background: var(--sf-ok);
@@ -4261,7 +4296,7 @@ body.lead-quick-sheet-open .pac-container {
     color: var(--sf-navy3);
     border: none;
     background: transparent;
-    transition: all 0.15s;
+    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
     font-family: inherit;
 }
 .sf-pill.active,
@@ -4279,7 +4314,7 @@ body.lead-quick-sheet-open .pac-container {
     font-weight: 600;
     color: var(--sf-navy3);
     cursor: pointer;
-    transition: all 0.15s;
+    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
     font-family: inherit;
 }
 .sf-btn-refresh:hover {
@@ -4449,7 +4484,6 @@ body.lead-quick-sheet-open .pac-container {
     align-items: center;
     padding-left: 7px;
     min-width: 0;
-    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .sf-funnel-bar span {
     font-size: 9px;
@@ -4830,7 +4864,7 @@ body.lead-quick-sheet-open .pac-container {
     font-size: 10.5px;
     font-weight: 700;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
     font-family: inherit;
     min-width: 130px;
 }
@@ -4858,7 +4892,7 @@ body.lead-quick-sheet-open .pac-container {
     border: 1px solid rgba(214, 181, 152, 0.22);
     background: transparent;
     color: rgba(214, 181, 152, 0.6);
-    transition: all 0.15s;
+    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
     white-space: nowrap;
 }
 
@@ -4931,7 +4965,6 @@ body.lead-quick-sheet-open .pac-container {
     height: 100%;
     background: var(--sf-gold3);
     border-radius: 6px;
-    transition: width 0.5s ease;
 }
 
 .pd-prog-input {
@@ -5276,7 +5309,7 @@ body.lead-quick-sheet-open .pac-container {
     border: none;
     border-bottom: 2px solid transparent;
     background: transparent;
-    transition: all 0.15s;
+    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
     white-space: nowrap;
     font-family: inherit;
 }
@@ -5825,7 +5858,7 @@ body.lead-quick-sheet-open .pac-container {
     border: none;
     background: transparent;
     color: var(--sf-muted);
-    transition: all 0.15s;
+    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
     font-family: inherit;
 }
 
@@ -6079,7 +6112,6 @@ body.lead-quick-sheet-open .pac-container {
     height: 100%;
     background: var(--sf-ok);
     border-radius: 6px;
-    transition: width 0.4s;
 }
 
 .pd-checklist-progress {
@@ -6145,7 +6177,7 @@ body.lead-quick-sheet-open .pac-container {
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: all 0.15s;
+    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
     margin-top: 1px;
 }
 
@@ -6600,11 +6632,14 @@ body.lead-quick-sheet-open .pac-container {
     }
 }
 
-/* ========== Financial module (financial.html) ========== */
+/* ========== Financial module (financial.html) ==========
+   Este :root redefinia --sf-navy/--sf-gold com o azul-marinho e o dourado antigos para o app
+   inteiro (vence o bloco "Senior Floors design system" acima por vir depois). Agora aponta
+   para a tinta e o laranja atuais. */
 :root {
-    --sf-navy: #1a2036;
-    --sf-gold: #d6b598;
-    --sf-gold-bg: #f8f2ea;
+    --sf-navy: var(--om-ink, #221e1a);
+    --sf-gold: var(--om-accent, #e7792c);
+    --sf-gold-bg: var(--om-accent-soft, #fdf0e6);
 }
 
 .fin-page .fin-subnav {
@@ -8609,4 +8644,29 @@ button.lead-quick-sheet__schedule-btn-min {
   border-color: var(--color-accent, #e8792c);
   color: var(--color-accent, #e8792c);
   background: #fff4eb;
+}
+
+/* =====================================================================
+ * Foco visível (teclado). Estes campos/linhas tiravam o contorno sem pôr outro no lugar,
+ * ou trocavam por uma sombra quase invisível. Anel laranja AA (--om-accent-strong, 5.1:1),
+ * só para quem navega pelo teclado (:focus-visible); o toque não mostra anel.
+ * ===================================================================== */
+html body :is(.lead-status-select, .quotes-list-toolbar__search, .pd-prog-input, .pd-date-input, .pd-input, .lqs-notes):focus-visible,
+html body .form-group :is(input, select, textarea):focus-visible,
+html body .login-form .form-group input:focus-visible {
+    outline: 2px solid var(--om-accent-strong, #b4561a);
+    outline-offset: 1px;
+}
+html body :is(.lead-quick-sheet__field-view, .lqs-property-row, .nav-item):focus-visible {
+    outline: 2px solid var(--om-accent-strong, #b4561a);
+    outline-offset: -2px;
+}
+
+/* =====================================================================
+ * Celular: campos com 16px, senão o iOS dá zoom ao focar (e o zoom do usuário fica livre).
+ * ===================================================================== */
+@media (max-width: 768px), (pointer: coarse) and (max-width: 932px) {
+    html body :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="button"], [type="submit"], [type="reset"], [type="image"]), select, textarea) {
+        font-size: var(--om-fs-input, 16px) !important;
+    }
 }

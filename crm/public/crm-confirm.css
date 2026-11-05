@@ -1,51 +1,46 @@
 /* Shared confirm dialog — same language as JobBilling (jb-dialog). */
-.crm-confirm-backdrop {
+/* Camada: fundo + painel. Abre/fecha por om-ui.js (OmUI.layer): .om-ui-open / .om-ui-closing,
+   e a animação vem de om-ui.css pelo data-om-motion do painel ("pop" no desktop, "sheet" no celular). */
+.crm-confirm-layer {
   position: fixed;
   inset: 0;
   /* Above every page modal (quote builder 11000, customers 10050), below toasts (200000). */
   z-index: 100000;
-  background: rgba(33, 29, 26, 0.45);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--om-dur-2, 200ms) ease-out;
+  display: grid;
+  place-items: center;
+  padding: 16px;
 }
-.crm-confirm-backdrop.is-open {
-  opacity: 1;
-  pointer-events: auto;
+.crm-confirm-layer[hidden] {
+  display: none;
+}
+.crm-confirm-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(33, 29, 26, 0.45);
 }
 .crm-confirm {
-  position: fixed;
-  z-index: 100001;
-  left: 50%;
-  top: 50%;
-  width: min(420px, calc(100vw - 32px));
-  transform: translate(-50%, -48%);
-  opacity: 0;
-  pointer-events: none;
-  background: #fff;
-  border-radius: 24px;
+  position: relative;
+  width: min(420px, 100%);
+  /* centrado pelo grid, sem transform: o transform fica livre para a animação */
+  background: var(--om-card, #fff);
+  border-radius: var(--om-r-xl, 24px);
   box-shadow: 0 30px 60px -20px rgba(16, 24, 40, 0.45);
   padding: 1.25rem 1.25rem 1rem;
-  transition: opacity var(--om-dur-2, 200ms) ease-out, transform var(--om-dur-3, 250ms) var(--om-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
-}
-.crm-confirm.is-open {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translate(-50%, -50%);
+  box-sizing: border-box;
 }
 .crm-confirm h2 {
   margin: 0 0 0.35rem;
   font-size: 1.2rem;
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: #221e1a;
+  color: var(--om-ink, #221e1a);
 }
 .crm-confirm__text {
   margin: 0 0 1.1rem;
   white-space: pre-line;
   max-height: 40vh;
   overflow-y: auto;
-  color: #667085;
+  color: var(--om-ink-2, #667085);
   font-size: 0.9rem;
   line-height: 1.45;
 }
@@ -72,38 +67,42 @@ html body .crm-confirm .btn {
   cursor: pointer;
 }
 html body .crm-confirm .btn-primary {
-  background: #e7792c !important;
+  background: var(--om-accent-strong, #b4561a) !important;
   box-shadow: none !important;
   color: #fff !important;
 }
 html body .crm-confirm .btn-primary:hover {
-  background: #ef8a44 !important;
+  background: var(--om-accent-strong-hover, #8f4313) !important;
 }
 html body .crm-confirm .btn-danger {
-  background: #b4561a !important;
+  background: var(--om-danger, #b42318) !important;
   box-shadow: none !important;
   color: #fff !important;
 }
 html body .crm-confirm .btn-danger:hover {
-  background: #9a4815 !important;
+  background: #912018 !important;
+}
+html body .crm-confirm .btn {
+  transition: transform 120ms var(--om-ease-out, cubic-bezier(0.23, 1, 0.32, 1)), background-color 150ms ease;
+}
+html body .crm-confirm .btn:active {
+  transform: scale(0.97);
 }
 body.crm-confirm-open {
   overflow: hidden;
 }
 
 @media (max-width: 640px) {
+  .crm-confirm-layer {
+    place-items: end stretch;
+    padding: 0;
+  }
   .crm-confirm {
-    top: auto;
-    bottom: 0;
-    left: 0;
-    width: 100vw;
+    width: 100%;
     max-width: none;
     border-radius: 18px 18px 0 0;
-    transform: translateY(12px);
     padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
-  }
-  .crm-confirm.is-open {
-    transform: translateY(0);
+    overflow-y: auto;
   }
   .crm-confirm__foot {
     flex-direction: column-reverse;
@@ -145,7 +144,7 @@ textarea.crm-prompt__input {
 }
 .crm-prompt__input:focus {
   outline: none;
-  border-color: #e7792c;
+  border-color: var(--om-accent-strong, #b4561a);
   box-shadow: 0 0 0 3px rgba(231, 121, 44, 0.18);
 }
 .crm-prompt__error {
@@ -157,5 +156,12 @@ textarea.crm-prompt__input {
 @media (pointer: coarse) {
   html body .crm-confirm .btn {
     min-height: 44px;
+  }
+}
+
+/* Menos movimento: om-ui.css já troca a entrada/saída por um fade; aqui some só o "press". */
+@media (prefers-reduced-motion: reduce) {
+  html body .crm-confirm .btn:active {
+    transform: none;
   }
 }
