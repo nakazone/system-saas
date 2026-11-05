@@ -25,17 +25,52 @@ describe("jobLateDays (same rule as the Jobs page)", () => {
     expect(jobLateDays(job({ scheduledStart: ahead(DAY) }), NOW)).toBeNull();
     expect(jobLateDays(job({ scheduledStart: null }), NOW)).toBeNull();
     expect(jobLateDays(job({ status: "completed", scheduledStart: ago(5 * DAY) }), NOW)).toBeNull();
+  });
+
+  it("does not mark in_progress jobs late — Start means production until finish", () => {
     expect(jobLateDays(job({ status: "in_progress", scheduledStart: ago(DAY), scheduledEnd: ahead(DAY) }), NOW)).toBeNull();
+    expect(jobLateDays(job({ status: "in_progress", scheduledStart: ago(4 * DAY), scheduledEnd: ago(2 * DAY) }), NOW)).toBeNull();
+    // Lixa scheduled yesterday, crew already started: still in production, not late.
+    expect(
+      jobLateDays(
+        job({
+          status: "in_progress",
+          sector: "both",
+          installationDoneAt: ago(5 * DAY),
+          scheduledStart: ago(6 * DAY),
+          sandScheduledStart: ago(DAY),
+        }),
+        NOW,
+      ),
+    ).toBeNull();
   });
 
-  it("counts days past the end for jobs that did not start or did not finish", () => {
+  it("counts days past the end only for jobs that still need Start", () => {
     expect(jobLateDays(job({ scheduledStart: ago(3 * DAY), scheduledEnd: ago(3 * DAY) }), NOW)).toBe(3);
-    expect(jobLateDays(job({ status: "in_progress", scheduledStart: ago(4 * DAY), scheduledEnd: ago(2 * DAY) }), NOW)).toBe(2);
   });
 
-  it("uses the sand date once installation is done on a two-sector job", () => {
-    const wo = job({ status: "in_progress", sector: "both", installationDoneAt: ago(5 * DAY), scheduledStart: ago(6 * DAY), scheduledEnd: ago(5 * DAY), sandScheduledStart: ahead(DAY) });
+  it("uses the sand date once installation is done on a two-sector job that is not started", () => {
+    const wo = job({
+      status: "scheduled",
+      sector: "both",
+      installationDoneAt: ago(5 * DAY),
+      scheduledStart: ago(6 * DAY),
+      scheduledEnd: ago(5 * DAY),
+      sandScheduledStart: ahead(DAY),
+    });
     expect(jobLateDays(wo, NOW)).toBeNull();
+    expect(
+      jobLateDays(
+        job({
+          status: "scheduled",
+          sector: "both",
+          installationDoneAt: ago(5 * DAY),
+          scheduledStart: ago(6 * DAY),
+          sandScheduledStart: ago(2 * DAY),
+        }),
+        NOW,
+      ),
+    ).toBe(2);
   });
 });
 

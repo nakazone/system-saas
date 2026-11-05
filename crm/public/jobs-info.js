@@ -98,19 +98,20 @@
     return wo.status === "draft" || wo.status === "scheduled" || wo.status === "in_progress";
   }
 
-  /** { days, label, kind } quando o job passou da data e ainda não foi concluído; senão null. */
+  /**
+   * { days, label, kind } when a job still needs Start and the scheduled day has passed.
+   * Once the crew has given Start (in_progress), the job is in production until they
+   * finish — past calendar dates do not mark it late (there is no separate end-day gate).
+   */
   function late(wo, now) {
-    const anchor = awaitingSand(wo) ? wo.sand_scheduled_start : wo.scheduled_start;
-    if (!isActive(wo) || !anchor) return null;
+    if (!isActive(wo) || wo.status === "in_progress") return null;
+    const sand = awaitingSand(wo);
+    const anchor = sand ? wo.sand_scheduled_start : wo.scheduled_start;
+    if (!anchor) return null;
     const t = now || Date.now();
-    if (wo.status === "in_progress") {
-      const end = new Date(awaitingSand(wo) ? anchor : wo.scheduled_end || anchor).getTime();
-      if (end >= t) return null;
-      const d = Math.max(1, Math.floor((t - end) / DAY));
-      return { days: d, kind: "late", label: `atrasado ${d} dia${d > 1 ? "s" : ""}`, short: `Atrasado ${d} dia${d > 1 ? "s" : ""}` };
-    }
     const start = new Date(anchor).getTime();
-    const end = new Date(wo.scheduled_end || anchor).getTime();
+    // Sand phase uses the sand date only — never the installation scheduled_end.
+    const end = new Date(sand ? anchor : wo.scheduled_end || anchor).getTime();
     if (start >= t - DAY / 2 && end >= t) return null;
     if (end < t) {
       const d = Math.max(1, Math.floor((t - end) / DAY));
@@ -196,17 +197,33 @@
     return { inst, sand };
   }
 
+  /**
+   * In-progress label from the job's service: Installation → Installing, Sand & Finish → Sanding.
+   * On a both-sector job, switch to Sanding once installation is done (awaiting sand).
+   */
+  function fieldPhaseLabel(wo) {
+    const sector = String(wo?.sector || "").toLowerCase();
+    if (awaitingSand(wo) || sector === "sand_finish") return "Sanding";
+    if (sector === "both") {
+      const p = sectorProgress(wo);
+      if (p.installation && !p.sand) return "Sanding";
+    }
+    return "Installing";
+  }
+
+  /** True for any in-field stage chip (new + legacy labels). */
+  function isInFieldStage(label) {
+    const s = String(label || "");
+    return s === "Installing" || s === "Sanding" || s === "Em campo" || s === "Lixa";
+  }
+
   function stageLabel(wo) {
     if (wo.status === "canceled") return "Cancelado";
     if (wo.status === "draft" && !wo.scheduled_start) return "Rascunho";
     if (!wo.scheduled_start && wo.status !== "completed") return "Sem data";
     const s = step(wo);
     if (s === 0) return "Agendado";
-    if (s === 1) {
-      const nxt = nextFinish(wo);
-      if (nxt && nxt.sector === "sand") return "Lixa";
-      return "Em campo";
-    }
+    if (s === 1) return fieldPhaseLabel(wo);
     if (s === 3) return "Concluído";
     if (s === 4) return "Faturado";
     return wo.billing && wo.billing.billing_status === "paid" ? "Pago" : "Concluído";
@@ -286,7 +303,13 @@
     if (!date && wo.status === "completed") date = dayShort(wo.updated_at || wo.scheduled_end) || "";
     if (!date && !finished) date = "Sem data";
     const stage = stageLabel(wo);
-    const fallback = { draft: "Rascunho", scheduled: "Agendado", in_progress: "Em campo", completed: "Concluído", canceled: "Cancelado" };
+    const fallback = {
+      draft: "Rascunho",
+      scheduled: "Agendado",
+      in_progress: fieldPhaseLabel(wo),
+      completed: "Concluído",
+      canceled: "Cancelado",
+    };
     const status = stage && stage !== "Sem data" ? stage : fallback[wo.status] || "";
     return { date, status };
   }
@@ -360,13 +383,13 @@
     if (late(wo)) return "hot";
     const label = stageLabel(wo);
     if (label === "Sem data") return "hot";
-    if (label === "Em campo" || label === "Lixa") return "act";
+    if (isInFieldStage(label)) return "act";
     if (label === "Concluído" || label === "Faturado" || label === "Pago") return "ok";
     return "wait";
   }
 
   window.JobsInfo = {
     esc, stageTone, money, money0, client, builderName, findLine, searchText, displayName, isActive, late, step, STEP_NAMES, STATUS_BY_STEP, STATUS_STEP_MSG,
-    statusForStep, atStatus, stageLabel, progHtml, sectorProgress, nextFinish, fieldHalves, bill, dateRange, listWhen, listAnchorIso, awaitingSand, dayShort, completeLabel, compareNearest, startMs, isToday, initials, team,
+    statusForStep, atStatus, stageLabel, fieldPhaseLabel, isInFieldStage, progHtml, sectorProgress, nextFinish, fieldHalves, bill, dateRange, listWhen, listAnchorIso, awaitingSand, dayShort, completeLabel, compareNearest, startMs, isToday, initials, team,
   };
 })();

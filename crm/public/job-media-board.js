@@ -189,32 +189,77 @@
     return canManage && window.matchMedia("(max-width: 1024px), (pointer: coarse)").matches;
   }
 
+  function sod(d) {
+    const x = new Date(d);
+    x.setHours(0, 0, 0, 0);
+    return x;
+  }
+
+  /** Same day block as Jobs: QUA / 4 / NOV — list reads as an agenda. */
+  function dayBlock(j) {
+    const J = window.JobsInfo;
+    const finished = j.status === "completed" || j.status === "canceled";
+    const iso = (J && J.listAnchorIso ? J.listAnchorIso(j) : null) || (finished ? j.updated_at || j.scheduled_end : null);
+    if (!iso) return `<span class="ol-lead jx-day is-none" aria-hidden="true"><b>—</b><small>sem data</small></span>`;
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return `<span class="ol-lead jx-day is-none" aria-hidden="true"><b>—</b><small>sem data</small></span>`;
+    const wd = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"][d.getDay()];
+    const mo = MO[d.getMonth()];
+    const today = sod(d).getTime() === sod(new Date()).getTime();
+    const late = J && J.late ? J.late(j) : null;
+    const tone = today ? " is-today" : !finished && late ? " is-late" : finished ? " is-done" : "";
+    return `<span class="ol-lead jx-day${tone}" aria-label="${today ? "Hoje" : `${wd} ${d.getDate()} ${mo}`}"><small>${today ? "hoje" : wd}</small><b>${d.getDate()}</b><small>${mo}</small></span>`;
+  }
+
+  function timeText(j) {
+    const J = window.JobsInfo;
+    const iso = J && J.listAnchorIso ? J.listAnchorIso(j) : j.scheduled_start;
+    if (!iso || j.status === "completed" || j.status === "canceled") return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime()) || (d.getHours() === 0 && d.getMinutes() === 0)) return "";
+    return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  }
+
+  /** Same card anatomy as Jobs: day · client · address · progress · status + map + CTA. */
   function rowHtml(j) {
-    const last = j.last_photo;
-    const th = last ? `<span class="cam-row__th ol-lead" style="background-image:url('${esc(last.url)}')"></span>` : `<span class="cam-row__th ol-lead is-empty">${SVG.cam}</span>`;
     const n = j.photo_count != null ? j.photo_count : (j.photos || []).length;
     const who = listWho(j);
     const head = who && who !== "Sem cliente" ? who : j.title || "Job";
     const href = `job-detail.html?id=${encodeURIComponent(j.id)}#fotos`;
+    const openHref = `jobs.html?id=${encodeURIComponent(j.id)}`;
     const addr = j.address
-      ? `<span class="ol-m cam-row__addr" title="${esc(j.address)}">${SVG.pin}<span>${esc(j.address)}</span></span>`
+      ? `<span class="ol-m jx-row__addr" title="${esc(j.address)}">${SVG.pin}<span>${esc(j.address)}</span></span>`
       : `<span class="ol-m"><span>Sem endereço</span></span>`;
     const stale = needsPhoto(j);
     const lt = window.JobsInfo?.late ? window.JobsInfo.late(j) : null;
     const tone = window.JobsInfo?.stageTone ? window.JobsInfo.stageTone(j) : "wait";
-    const note = last ? `última foto ${ago(last.created_at)}` : "nenhuma foto";
-    const body = `<a class="cam-row ol-row${String(j.id) === String(selId) && mode !== "photos" ? " is-on" : ""}" href="${href}" data-cam-id="${esc(j.id)}">
-      ${th}
+    const stText = lt ? lt.short : jobStageLabel(j);
+    const maps = j.address ? `https://maps.google.com/?q=${encodeURIComponent(j.address)}` : "";
+    const time = timeText(j);
+    const prog = window.JobsInfo?.progHtml ? window.JobsInfo.progHtml(j) : "";
+    const on = String(j.id) === String(selId) && mode !== "photos" ? " is-on" : "";
+    const ctaLbl = n ? `${n} foto${n === 1 ? "" : "s"}` : stale ? "Tirar foto" : "Fotos";
+    const ctaCls = stale || !n ? "jmx-b jmx-b--or" : "jmx-b";
+    const id = esc(j.id);
+    const body = `<div class="jx-rowwrap jmx-card">
+    <a class="cam-row jx-row ol-row${on}" href="${href}" data-cam-id="${id}">
+      ${dayBlock(j)}
       <b class="ol-t" title="${esc(head)}">${esc(head)}</b>
-      <span class="ol-v${n ? "" : " is-mu"}">${n ? `${n} foto${n === 1 ? "" : "s"}` : "0 fotos"}</span>
+      ${time ? `<span class="ol-v ol-time">${esc(time)}</span>` : ""}
       ${addr}
-      <span class="ol-f"><span class="ol-st is-${tone}">${esc(lt ? lt.short : jobStageLabel(j))}</span><span class="ol-note${stale ? " is-hot" : ""}">${esc(note)}</span></span>
-    </a>`;
+      ${prog}
+    </a>
+    <div class="jmx-card__r3 jx-foot" data-cam-id="${id}">
+      ${stText ? `<span class="ol-st is-${tone}" title="${esc(stText)}">${esc(stText)}</span>` : ""}
+      ${maps ? `<a class="jmx-b jmx-b--sq" href="${maps}" target="_blank" rel="noopener" aria-label="Abrir mapa" title="Abrir mapa">${SVG.pin}</a>` : ""}
+      <a class="${ctaCls}" href="${href}" data-cam-id="${id}">${esc(ctaLbl)}</a>
+    </div>
+    </div>`;
     if (useSwipeDelete() && j.status !== "canceled") {
-      return `<article class="om-swipe cam-swipe" data-cam-swipe="${esc(j.id)}">
+      return `<article class="om-swipe cam-swipe" data-cam-swipe="${id}">
         <div class="om-swipe__actions" aria-hidden="true">
-          <a class="om-swipe__act--edit" href="jobs.html?id=${encodeURIComponent(j.id)}">Abrir</a>
-          <button type="button" class="om-swipe__act--delete" data-cam-delete="${esc(j.id)}" data-cam-label="${esc(head)}">Excluir</button>
+          <a class="om-swipe__act--edit" href="${openHref}">Abrir</a>
+          <button type="button" class="om-swipe__act--delete" data-cam-delete="${id}" data-cam-label="${esc(head)}">Excluir</button>
         </div>
         <div class="om-swipe__body">${body}</div>
       </article>`;
@@ -515,7 +560,7 @@
   }
   function stagePillCls(label) {
     const s = String(label || "");
-    if (s === "Em campo" || s === "Lixa") return "dk";
+    if (window.JobsInfo?.isInFieldStage?.(s) || s === "Em campo" || s === "Lixa" || s === "Installing" || s === "Sanding") return "dk";
     if (s === "Concluído" || s === "Faturado" || s === "Pago") return "ol";
     return "";
   }
@@ -1576,6 +1621,8 @@
         return;
       }
       if (e.target.closest(".om-swipe__actions")) return;
+      // Map opens externally — don't hijack into the split detail.
+      if (e.target.closest("a[target='_blank'], .jmx-b--sq")) return;
       const a = e.target.closest("[data-cam-id]");
       if (!a || e.metaKey || e.ctrlKey) return;
       e.preventDefault();

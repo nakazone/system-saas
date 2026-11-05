@@ -306,7 +306,7 @@
 
   function stageMatches(wo, filter) {
     const stage = I().stageLabel(wo);
-    if (filter === "Em campo") return stage === "Em campo" || stage === "Lixa";
+    if (filter === "Em campo") return I().isInFieldStage ? I().isInFieldStage(stage) : stage === "Em campo" || stage === "Lixa" || stage === "Installing" || stage === "Sanding";
     return stage === filter;
   }
 
@@ -582,7 +582,11 @@
   }
 
   function statusPill(wo) {
-    const map = { draft: ["Rascunho", ""], scheduled: ["Agendado", ""], in_progress: ["Em campo", "dk"], completed: ["Concluído", "ol"], canceled: ["Cancelado", "late"] };
+    if (wo.status === "in_progress") {
+      const label = I().stageLabel(wo);
+      return `<span class="jx-pill jx-pill--dk">${I().esc(label)}</span>`;
+    }
+    const map = { draft: ["Rascunho", ""], scheduled: ["Agendado", ""], completed: ["Concluído", "ol"], canceled: ["Cancelado", "late"] };
     const [l, c] = map[wo.status] || [wo.status, ""];
     return `<span class="jx-pill${c ? ` jx-pill--${c}` : ""}">${l}</span>`;
   }

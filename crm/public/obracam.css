@@ -34,11 +34,10 @@
 .cam button, .cam a, .cam-pbar button, .cam-pbar a, .cam-up button {
   -webkit-tap-highlight-color: transparent; touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
 }
-.cam-btn, .cam-row, .cam-ph, .cam-chip, .cam-up__stage, .cam-up__go button {
+.cam-btn, .cam-ph, .cam-chip, .cam-up__stage, .cam-up__go button {
   transition: transform 120ms cubic-bezier(.2, .8, .2, 1), background-color 120ms, box-shadow 120ms;
 }
 .cam-btn:active, .cam-chip:active, .cam-up__stage:active, .cam-up__go button:active { transform: scale(.97); }
-.cam-row:active { background: var(--cam-sur); }
 .cam-ph:active { transform: scale(.98); }
 .cam :focus-visible, .cam-pbar :focus-visible, .cam-up :focus-visible { outline: 2px solid var(--cam-or, #E7792C); outline-offset: 2px; }
 .cam-ph:focus-visible { outline-offset: -2px; }
@@ -94,38 +93,19 @@
 .cam-seg button { flex: 1; height: 30px; border: 0; border-radius: 8px; background: transparent; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--cam-ink2); cursor: pointer; white-space: nowrap; }
 .cam-seg button em { font-style: normal; color: var(--cam-ink3); }
 .cam-seg button.is-on { background: #fff; color: var(--cam-ink); box-shadow: 0 1px 2px rgba(16, 24, 40, .08); }
-.cam-rows { overflow-y: auto; padding: 2px 8px 10px; flex: 1; min-height: 0; }
-.cam-grp { display: flex; margin: 12px 10px 4px; font-size: 11.5px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--cam-ink3); }
-.cam-grp em { margin-left: auto; font-style: normal; letter-spacing: 0; }
-.cam-row { display: flex; align-items: center; gap: 11px; padding: 8px 10px; border-radius: 14px; cursor: pointer; color: var(--cam-ink) !important; }
-@media (hover: hover) and (pointer: fine) {
-  .cam-row:hover { background: #FAFBFC; }
-}
-.cam-row.is-on { background: var(--cam-sur); }
-.cam-row__th { width: 46px; height: 46px; border-radius: 11px; flex: none; background-size: cover; background-position: center; background-color: var(--cam-sur); display: grid; place-items: center; color: var(--cam-ink3); }
-.cam-row.is-on .cam-row__th.is-empty { background-color: #fff; }
-.cam-row__b { flex: 1; min-width: 0; display: block; }
-.cam-row__l1 { display: flex; align-items: baseline; min-width: 0; }
-.cam-row__l1 b { flex: 1; min-width: 0; display: block; font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cam-row__addr { display: flex; align-items: flex-start; gap: 6px; margin-top: 4px; font-size: 12.5px; color: var(--cam-ink2); }
-/* addresses can be an email or a 150-character lot description: break anywhere, and in the list keep at most two lines (the job view shows it in full) */
-.cam-row__addr span { min-width: 0; white-space: normal; line-height: 1.35; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
-.cam-row__addr svg { width: 14px; height: 14px; margin-top: 1px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.cam-row__b small { display: block; margin-top: 4px; font-size: 12px; color: var(--cam-ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cam-row__b small.is-hot { color: var(--cam-deep); font-weight: 600; }
-.cam-row em { font-style: normal; font-size: 12px; font-weight: 600; color: var(--cam-ink2); white-space: nowrap; }
-.cam-swipe { margin: 0 0 2px; border-radius: 14px; }
-.cam-swipe .cam-row { margin: 0; background: transparent; }
-.cam-swipe .om-swipe__body { background: transparent; border-radius: 14px; }
+/* List rows use the shared Jobs card (crm-list .ol-row + .jmx-card). Keep only scroll + swipe shell here. */
+.cam-rows { overflow-y: auto; flex: 1; min-height: 0; }
+.cam-grp { display: flex; }
+.cam-swipe { margin: 0 0 2px; border-radius: 16px; }
+.cam-swipe .om-swipe__body { background: transparent; border-radius: 16px; }
 .cam-swipe .om-swipe__actions { visibility: hidden; }
 .cam-swipe.is-swiping .om-swipe__actions,
 .cam-swipe.om-swipe--open .om-swipe__actions { visibility: visible; }
 .cam-swipe.is-swiping .om-swipe__body,
-.cam-swipe.om-swipe--open .om-swipe__body { background: #fff; }
+.cam-swipe.om-swipe--open .om-swipe__body { background: transparent; }
 @media (min-width: 1025px) and (pointer: fine) {
   .cam-swipe .om-swipe__actions { display: none !important; }
   .cam-swipe .om-swipe__body { display: contents; transform: none !important; background: transparent; }
-  .cam-swipe .cam-row { background: transparent; }
   .cam-swipe { overflow: visible; }
 }
 
@@ -362,8 +342,20 @@ body.cam-selecting .cam-pbar, body.cam-selecting .oc-tabs { display: none !impor
 /* iPad em pé: lista OU job */
 @media (max-width: 1024px) {
   .cam-split { grid-template-columns: minmax(0, 1fr); }
-  .cam-list { position: static; max-height: none; }
-  .cam-rows { overflow: visible; }
+  .cam-list { position: static; max-height: none; background: transparent; box-shadow: none; border-radius: 0; overflow: visible; }
+  .cam-list__top { padding: 0 0 10px; border: 0; }
+  /* Same as Jobs on tablet/phone: free-standing jmx cards, no outer white well */
+  .cam-list.ol-list .cam-rows.ol-rows {
+    padding: 0;
+    overflow: visible;
+    background: transparent;
+    box-shadow: none;
+    border-radius: 0;
+  }
+  .cam-list.ol-list .cam-rows .jx-rowwrap.jmx-card { margin-bottom: 8px; }
+  .cam-swipe { overflow: hidden; background: transparent; box-shadow: none; margin: 0 0 8px; }
+  .cam-swipe .om-swipe__body { background: transparent; }
+  .cam-swipe .jx-rowwrap.jmx-card { margin-bottom: 0; }
   .cam-detail { display: none; }
   .cam-split.is-detail .cam-list { display: none; }
   .cam-split.is-detail .cam-detail, .cam-split.is-feed .cam-detail { display: block; }
@@ -394,19 +386,6 @@ body.cam-selecting .cam-pbar, body.cam-selecting .oc-tabs { display: none !impor
   .cam-order { margin-top: 8px; }
   .cam-order select { height: 36px; font-size: 16px; }
   .cam .cam-order select { line-height: 36px; }
-  .cam-rows { padding: 0; }
-  .cam-grp { margin: 18px 4px 8px; }
-  /* every job is its own card, with or without the swipe wrapper, so the list reads the same for every role */
-  .cam-row, .cam-swipe { background: #fff; border-radius: 18px; box-shadow: 0 0 0 1px var(--cam-line); margin: 0 0 8px; }
-  .cam-row { padding: 12px 14px; }
-  .cam-row.is-on { background: #fff; }
-  .cam-row__th { width: 52px; height: 52px; border-radius: 12px; }
-  .cam-row__l1 b { font-size: 15px; font-weight: 650; }
-  .cam-row__b small { font-size: 12.5px; }
-  .cam-swipe { overflow: hidden; }
-  .cam-swipe .cam-row { box-shadow: none; border-radius: 0; margin: 0; }
-  .cam-swipe .om-swipe__body { background: #fff; }
-
   .cam-back { min-height: 44px; margin: -6px 0 2px; padding-right: 12px; font-size: 14px; }
   .cam-dh { background: transparent; box-shadow: none; padding: 0; margin-bottom: 12px; }
   .cam-dh__t { min-width: 0; }
