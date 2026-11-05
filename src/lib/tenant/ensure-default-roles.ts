@@ -6,6 +6,9 @@ import {
 } from "../tenant/defaults.js";
 import type { TenantPrisma } from "../tenant/prisma-tenant.js";
 
+/** System roles for crews in the field: their permissions are exactly their default matrix. */
+const FIELD_ROLE_KEYS = new Set(["installer", "subcontractor"]);
+
 /** Ensure global Permission catalog includes all DEFAULT_PERMISSIONS keys. */
 export async function syncPermissionCatalog(): Promise<void> {
   for (const permission of DEFAULT_PERMISSIONS) {
@@ -56,11 +59,14 @@ export async function syncSystemRolePermissions(
         ? (DEFAULT_ROLE_PERMISSIONS.admin ?? [])
         : (DEFAULT_ROLE_PERMISSIONS[role.key] ?? []),
     );
-    // Custom office-like roles: grant Schedule/Jobs if they already operate quotes/payroll
+    // Custom office-like roles: grant Schedule/Jobs if they already operate quotes/payroll.
+    // Field roles (installer, subcontractor) see projects too, but they are crews, not office:
+    // they keep their own matrix and never get work_orders.manage / schedule.manage here.
     if (
-      haveKeys.has("quotes.view") ||
+      !FIELD_ROLE_KEYS.has(role.key) &&
+      (haveKeys.has("quotes.view") ||
       haveKeys.has("payroll.view") ||
-      haveKeys.has("projects.view")
+      haveKeys.has("projects.view"))
     ) {
       for (const key of [
         "work_orders.view",
