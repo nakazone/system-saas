@@ -7,7 +7,7 @@
  * fonte única do menu). FALLBACK_* abaixo só vale se aquele arquivo não carregou.
  */
 (function () {
-  const VER = "20261105-shell8";
+  const VER = "20261105-shell9";
   const MQ = window.matchMedia("(max-width: 900px)");
   const FIELD_ROLES = new Set(["installer", "crew_lead", "subcontractor"]);
   const SHEET_MS = 380;

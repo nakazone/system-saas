@@ -470,6 +470,11 @@ body.home-app .mobile-app-header {
   color: var(--home-ok);
 }
 
+.home-tag--sand {
+  background: #f3ebe0;
+  color: #7a5c38;
+}
+
 .home-empty {
   margin: 0.55rem 0 0.2rem;
   font-size: 0.88rem;

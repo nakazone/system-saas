@@ -198,15 +198,12 @@
 
   function applyFieldChrome() {
     document.body.classList.add("jcm-field");
-    const back = document.querySelector(".jcm-nav .jcm-icon-btn");
-    if (back) {
-      back.setAttribute("href", "/campo/hoje.html");
-      back.setAttribute("aria-label", "Voltar ao Campo");
-    }
     const roleEl = document.querySelector(".jcm-role");
     if (roleEl) roleEl.hidden = true;
     const add = $("jobsMobAdd");
     if (add) add.style.display = "none";
+    const partner = document.querySelector(".jcm-partner-requests");
+    if (partner) partner.hidden = true;
     const title = document.querySelector(".jcm-title");
     if (title) title.textContent = "Meus jobs";
   }
@@ -221,16 +218,16 @@
         ? `<button type="button" class="jmx-b jmx-b--or" data-job-action="complete" data-id="${escapeHtml(wo.id)}">${escapeHtml(nxt ? nxt.label : "Concluir")}</button>`
         : wo.status === "scheduled" || wo.status === "draft"
           ? canManage
-            ? !wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start)
+            ? !(J && J.listAnchorIso(wo))
               ? `<button type="button" class="jmx-b jmx-b--or" data-job-action="edit" data-id="${escapeHtml(wo.id)}">Schedule Job</button>`
               : `<button type="button" class="jmx-b jmx-b--or" data-job-action="start" data-id="${escapeHtml(wo.id)}">Iniciar</button><button type="button" class="jmx-b" data-job-action="complete" data-id="${escapeHtml(wo.id)}">Já concluído</button>`
-            : wo.scheduled_start
+            : J && J.listAnchorIso(wo)
               ? `<a class="jmx-b jmx-b--or" href="campo/ticket.html?id=${encodeURIComponent(wo.id)}">Campo</a>`
               : `<a class="jmx-b" href="${detailHref}">Ver job</a>`
           : `<a class="jmx-b" href="${detailHref}">Ver job</a>`;
     const listed = J && J.listWhen ? J.listWhen(wo) : null;
-    const undated = !wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start);
-    const date = listed ? listed.date : undated ? "" : fmtDay(wo.scheduled_start);
+    const undated = !(J && J.listAnchorIso(wo));
+    const date = listed ? listed.date : undated ? "" : fmtDay((J && J.listAnchorIso(wo)) || wo.scheduled_start);
     const lt = J && J.late ? J.late(wo) : null;
     const stText = lt ? lt.short : listed && listed.status ? listed.status : undated ? "Sem data" : "";
     const tone = J && J.stageTone ? J.stageTone(wo) : "wait";
@@ -312,13 +309,14 @@
   function render() {
     if (!isMobile() || !$("jobsMobile")) return;
     const base = roleFiltered(allJobs);
+    // Mesmos critérios de tabFiltered(): o número da aba é o que a lista mostra (job pago não conta).
     const todayN = base.filter(
-      (wo) => isToday(window.JobsInfo?.listAnchorIso?.(wo) || wo.scheduled_start) && wo.status !== "canceled" && wo.status !== "completed",
+      (wo) => isToday(window.JobsInfo?.listAnchorIso?.(wo) || wo.scheduled_start) && wo.status !== "canceled" && wo.status !== "completed" && !isPaidJob(wo),
     ).length;
-    const activeN = base.filter((wo) => isActive(wo) && wo.status !== "canceled").length;
+    const activeN = base.filter((wo) => isActive(wo) && wo.status !== "canceled" && !isPaidJob(wo)).length;
     const doneN = base.filter((wo) => wo.status === "completed" && !isPaidJob(wo)).length;
     const activeRows = base.filter((wo) => isActive(wo) && wo.status !== "canceled");
-    const billN = base.filter(toBill).length;
+    const billN = base.filter((wo) => toBill(wo) && !isPaidJob(wo)).length;
     if (!tabChosen && tab === "today" && todayN === 0 && activeN > 0) tab = "active";
     const J = window.JobsInfo;
     const lateN = J ? base.filter((wo) => J.late(wo)).length : 0;
