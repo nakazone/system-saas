@@ -13,7 +13,14 @@ import { alignLinkedJobAndQuote, ensureQuoteDiscountOnJob, ensureQuoteDiscountsO
 import { sectorFinishPatch } from "../../lib/work-orders/sector-finish.js";
 import { notifyJobTeamPush } from "../../lib/push/notify.js";
 import { param } from "../../lib/http/params.js";
-import { myJobAccessWhere, parseChecklist } from "../lib/campo-shared.js";
+import { parseChecklist } from "../lib/campo-shared.js";
+import {
+  fieldJobDateWindowWhere,
+  fieldPayrollSector,
+  fieldSlotMatchesSector,
+  myFieldJobsWhere,
+  type FieldPayrollSector,
+} from "../lib/field-sector.js";
 import { randomUUID } from "node:crypto";
 import { ensureJobChatChannel } from "../../lib/chat/job-channel.js";
 import { foldUnlinkedQuoteInvoices, jobBilling, jobBillingLabel } from "../../lib/invoices/job.js";
@@ -119,10 +126,34 @@ function shouldScopeJobsToSelf(user: AuthedRequest["user"]): boolean {
   );
 }
 
-/** Own jobs: assignee, job members, or job's crew. */
-function fieldWorkOrderScope(user: AuthedRequest["user"]): Record<string, unknown> {
-  if (!shouldScopeJobsToSelf(user)) return {};
-  return myJobAccessWhere(user!.id);
+/** Own jobs: assignee, job members, or job's crew — plus Folha sector when linked. */
+function fieldWorkOrderScope(
+  user: AuthedRequest["user"],
+  sector: FieldPayrollSector = null,
+): Record<string, unknown> {
+  if (!shouldScopeJobsToSelf(user) || !user?.id) return {};
+  return myFieldJobsWhere(user.id, sector) as Record<string, unknown>;
+}
+
+async function resolveFieldSector(req: AuthedRequest): Promise<FieldPayrollSector> {
+  if (!shouldScopeJobsToSelf(req.user) || !req.user?.id || !req.organizationId) return null;
+  return fieldPayrollSector({ payrollEmployee: prisma.payrollEmployee }, req.user.id, req.organizationId);
+}
+
+/** Sand Folha staff see both-jobs on the sand date in Jobs list / detail. */
+function presentWorkOrderForFieldSector<
+  T extends {
+    sector?: string | null;
+    scheduled_start?: string | null;
+    scheduled_end?: string | null;
+    sand_scheduled_start?: string | null;
+  },
+>(wo: T, sector: FieldPayrollSector): T {
+  if (sector !== "sand_finish") return wo;
+  if (wo.sector === "both" && wo.sand_scheduled_start) {
+    return { ...wo, scheduled_start: wo.sand_scheduled_start, scheduled_end: null };
+  }
+  return wo;
 }
 
 /** Own meetings: assigned to the logged-in user. */
@@ -779,7 +810,8 @@ scheduleJobsRouter.get(
       const from = typeof req.query.from === "string" ? new Date(req.query.from) : null;
       const to = typeof req.query.to === "string" ? new Date(req.query.to) : null;
 
-      const fieldScope = fieldWorkOrderScope(req.user);
+      const fieldSector = await resolveFieldSector(req);
+      const fieldScope = fieldWorkOrderScope(req.user, fieldSector);
       const pinId =
         typeof req.query.id === "string" &&
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(req.query.id.trim())
@@ -849,15 +881,12 @@ scheduleJobsRouter.get(
                   source === "builder" ? { in: ["builder", "contractor"] as const } : source,
               }
             : {}),
-          ...(from && to && !Number.isNaN(from.getTime()) && !Number.isNaN(to.getTime())
-            ? {
-                scheduledStart: { lte: to },
-                OR: [{ scheduledEnd: null }, { scheduledEnd: { gte: from } }],
-              }
-            : {}),
-          ...(Object.keys(fieldScope).length || searchOr
+          ...(Object.keys(fieldScope).length || searchOr || (from && to && !Number.isNaN(from.getTime()) && !Number.isNaN(to.getTime()))
             ? {
                 AND: [
+                  ...(from && to && !Number.isNaN(from.getTime()) && !Number.isNaN(to.getTime())
+                    ? [fieldJobDateWindowWhere(from, to, fieldSector)]
+                    : []),
                   ...(Object.keys(fieldScope).length ? [fieldScope] : []),
                   ...(searchOr ? [{ OR: searchOr }] : []),
                 ],
@@ -974,7 +1003,10 @@ scheduleJobsRouter.get(
       }
       const leadNames = await leadNamesById(req.organizationId!, rows);
       let data = rows.map((row) => ({
-        ...applyQuoteLead(mapWorkOrder(row), row.quotes?.[0]?.leadId ? leadNames.get(row.quotes[0].leadId) || null : null),
+        ...presentWorkOrderForFieldSector(
+          applyQuoteLead(mapWorkOrder(row), row.quotes?.[0]?.leadId ? leadNames.get(row.quotes[0].leadId) || null : null),
+          fieldSector,
+        ),
         from_portal: portalSet.has(row.id),
       }));
       if (billingFilter) {
@@ -1077,11 +1109,12 @@ scheduleJobsRouter.get(
           err: err instanceof Error ? err.message : err,
         });
       }
+      const fieldSector = await resolveFieldSector(req);
       const row = await prisma.workOrder.findFirst({
         where: {
           id: jobId,
           organizationId: req.organizationId!,
-          ...fieldWorkOrderScope(req.user),
+          ...fieldWorkOrderScope(req.user, fieldSector),
         },
         include: woIncludeFor(req.user),
       });
@@ -1091,7 +1124,10 @@ scheduleJobsRouter.get(
       }
       const leadNames = await leadNamesById(req.organizationId!, [row]);
       const leadName = row.quotes?.[0]?.leadId ? leadNames.get(row.quotes[0].leadId) || null : null;
-      res.json({ success: true, data: applyQuoteLead(mapWorkOrder(row), leadName) });
+      res.json({
+        success: true,
+        data: presentWorkOrderForFieldSector(applyQuoteLead(mapWorkOrder(row), leadName), fieldSector),
+      });
     } catch (error) {
       next(error);
     }
@@ -2493,23 +2529,17 @@ scheduleJobsRouter.get(
         return;
       }
 
+      const fieldSector = await resolveFieldSector(req);
       const [workOrders, meetings, org, nickBuilders] = await Promise.all([
         prisma.workOrder.findMany({
           where: {
             organizationId: req.organizationId!,
             status: { not: "canceled" },
             AND: [
-              {
-                OR: [
-                  {
-                    scheduledStart: { not: null, lte: to },
-                    OR: [{ scheduledEnd: null }, { scheduledEnd: { gte: from } }],
-                  },
-                  { sandScheduledStart: { gte: from, lte: to } },
-                  { deliveryScheduledStart: { gte: from, lte: to } },
-                ],
-              },
-              ...(shouldScopeJobsToSelf(req.user) && req.user?.id ? [myJobAccessWhere(req.user.id)] : []),
+              fieldJobDateWindowWhere(from, to, fieldSector),
+              ...(shouldScopeJobsToSelf(req.user) && req.user?.id
+                ? [myFieldJobsWhere(req.user.id, fieldSector)]
+                : []),
             ],
           },
           include: woInclude,
@@ -2578,7 +2608,9 @@ scheduleJobsRouter.get(
             pickup: stop.pickup_address || stop.location_name || wo.deliveryPickupAddress || null,
           });
         }
-        return slots.map(({ at, role, deliveryId, pickup }) => {
+        return slots
+          .filter(({ role }) => fieldSlotMatchesSector(role, wo.sector, fieldSector))
+          .map(({ at, role, deliveryId, pickup }) => {
           const sand = role === "sand";
           const delivery = role === "delivery";
           const sector = sand ? "sand_finish" : wo.sector === "both" ? "installation" : wo.sector;

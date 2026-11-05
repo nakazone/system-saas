@@ -7,7 +7,7 @@
  */
 import { Prisma } from "@prisma/client";
 import type { PayrollTx } from "../../crm/lib/payroll-employee-link.js";
-import { myJobAccessWhere } from "../../crm/lib/campo-shared.js";
+import { fieldJobsOnDayWhere, fieldPayrollSector } from "../../crm/lib/field-sector.js";
 import { calcTimesheetHoursTotal, parseYmd } from "../../crm/lib/payroll-calc.js";
 import { parsePayCycle, periodBoundsFor } from "../settings/payroll-cycle.js";
 import { safeTimeZone, startOfZonedDay } from "../time/zoned.js";
@@ -51,19 +51,23 @@ export function dayBounds(workDate: Date, tz: string): { start: Date; end: Date 
 /** Jobs on the employee's agenda that day (assigned / member / crew), first one first. */
 export async function jobsForDay(tx: PayrollTx, userId: string, workDate: Date, tz: string) {
   const { start, end } = dayBounds(workDate, tz);
+  const sector = await fieldPayrollSector(tx, userId);
   const rows = await tx.workOrder.findMany({
     where: {
       status: { notIn: ["canceled", "completed"] },
-      ...myJobAccessWhere(userId),
-      scheduledStart: { lt: end },
-      OR: [{ scheduledEnd: { gte: start } }, { scheduledEnd: null, scheduledStart: { gte: start } }],
+      ...fieldJobsOnDayWhere(start, end, userId, sector),
     },
-    orderBy: [{ scheduledStart: "asc" }],
+    orderBy: [{ scheduledStart: "asc" }, { sandScheduledStart: "asc" }],
     select: jobSelect,
     take: 20,
   });
   // Jobs that start today come first (by time); multi-day jobs already running go after.
-  const startsToday = (w: { scheduledStart: Date | null }) => Boolean(w.scheduledStart && w.scheduledStart >= start);
+  const startsToday = (w: { scheduledStart: Date | null; sandScheduledStart: Date | null; sector: string | null }) => {
+    if (sector === "sand_finish" && w.sector === "both") {
+      return Boolean(w.sandScheduledStart && w.sandScheduledStart >= start && w.sandScheduledStart < end);
+    }
+    return Boolean(w.scheduledStart && w.scheduledStart >= start);
+  };
   return [...rows.filter(startsToday), ...rows.filter((w) => !startsToday(w))];
 }
 
@@ -73,8 +77,10 @@ export const jobSelect = {
   title: true,
   address: true,
   status: true,
+  sector: true,
   scheduledStart: true,
   scheduledEnd: true,
+  sandScheduledStart: true,
   geoLat: true,
   geoLng: true,
   needsDelivery: true,

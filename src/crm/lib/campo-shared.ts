@@ -7,6 +7,7 @@ import {
   DEFAULT_CAMPO_CHECKLIST,
   parseCampoChecklist,
 } from "../../lib/job-media/checklist.js";
+import { fieldAgendaAt, fieldPayrollSector, myFieldJobsWhere, type FieldPayrollSector } from "./field-sector.js";
 
 export type Tx = Parameters<Parameters<typeof withTenantTransaction>[1]>[0];
 
@@ -177,11 +178,12 @@ export function myJobAccessWhere(userId: string) {
 }
 
 export async function assertMyJob(tx: Tx, userId: string, jobId: string) {
+  const sector = await fieldPayrollSector(tx, userId);
   const wo = await tx.workOrder.findFirst({
     where: {
       id: jobId,
       status: { not: "canceled" },
-      ...myJobAccessWhere(userId),
+      ...myFieldJobsWhere(userId, sector),
     },
     include: woListInclude,
   });
@@ -192,11 +194,12 @@ export async function assertMyJob(tx: Tx, userId: string, jobId: string) {
 }
 
 export async function assertMyJobTicket(tx: Tx, userId: string, jobId: string) {
+  const sector = await fieldPayrollSector(tx, userId);
   const wo = await tx.workOrder.findFirst({
     where: {
       id: jobId,
       status: { not: "canceled" },
-      ...myJobAccessWhere(userId),
+      ...myFieldJobsWhere(userId, sector),
     },
     include: woTicketInclude,
   });
@@ -231,8 +234,10 @@ export function mapJobCard(
     status: string;
     fieldStatus?: string | null;
     address: string | null;
+    sector?: string | null;
     scheduledStart: Date | null;
     scheduledEnd: Date | null;
+    sandScheduledStart?: Date | null;
     sourceName?: string | null;
     customer?: { name: string } | null;
     builder?: { company?: string | null; firstName?: string | null; lastName?: string | null } | null;
@@ -240,7 +245,7 @@ export function mapJobCard(
     assignedUser?: { name: string } | null;
     members?: { user?: { name: string } | null }[];
   },
-  opts?: { currentWoId?: string | null },
+  opts?: { currentWoId?: string | null; fieldSector?: FieldPayrollSector },
 ) {
   const client = clientLabel(wo);
   const field = wo.fieldStatus || "scheduled";
@@ -248,6 +253,8 @@ export function mapJobCard(
   if (opts?.currentWoId === wo.id && field !== "completed") {
     status = "on_site";
   }
+  const at = fieldAgendaAt(wo, opts?.fieldSector ?? null) || wo.scheduledStart;
+  const sandView = opts?.fieldSector === "sand_finish" && (wo.sector === "both" || wo.sector === "sand_finish");
   return {
     id: wo.id,
     number: wo.number,
@@ -255,10 +262,13 @@ export function mapJobCard(
     client,
     client_short: shortClient(client),
     address: wo.address || "",
-    start: wo.scheduledStart ? dayOnlyLabel(wo.scheduledStart) : null,
+    start: at ? dayOnlyLabel(at) : null,
     end: null,
-    scheduled_start: wo.scheduledStart?.toISOString() ?? null,
-    scheduled_end: wo.scheduledEnd?.toISOString() ?? null,
+    scheduled_start: at?.toISOString() ?? null,
+    scheduled_end: sandView ? null : wo.scheduledEnd?.toISOString() ?? null,
+    sand_scheduled_start: wo.sandScheduledStart?.toISOString() ?? null,
+    sector: wo.sector ?? null,
+    phase: sandView ? "sand_finish" : wo.sector === "both" ? "installation" : wo.sector ?? null,
     status,
     field_status: field,
     field_status_label: fieldStatusLabel(field),
