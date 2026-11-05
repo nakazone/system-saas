@@ -239,6 +239,14 @@ export type JobsForecastDay = {
   }[];
 };
 
+export type WonDaily = {
+  unit: "money" | "count";
+  /** Running total for day 1..today of this month. */
+  current: number[];
+  /** Running total for every day of last month. */
+  previous: number[];
+};
+
 export type QuotesWaiting = {
   count: number;
   /** null without pricing.view */
@@ -278,7 +286,14 @@ export type DashboardOverview = {
     pipeline_open: { value: number | null; count: number; without_value: number } | null;
     conversion: { rate: number | null; won: number; lost: number } | null;
     leads_month: { count: number; previous_count: number } | null;
-    won_month: { value: number | null; count: number; previous_value: number | null; previous_count: number } | null;
+    won_month: {
+      value: number | null;
+      count: number;
+      previous_value: number | null;
+      previous_count: number;
+      /** Month-to-date running total by day (index 0 = day 1). Money with pricing.view, else quote counts. */
+      daily?: WonDaily;
+    } | null;
     receivables: { open_value: number; open_count: number; overdue_value: number; overdue_count: number } | null;
     /** Quoted margin on won deals this month: total − material − labor. */
     gross_profit: {
@@ -609,6 +624,11 @@ export function buildLeadSection(
 }
 
 /** When a won quote was closed: signature date, else last update. */
+function runningTotal(perDay: number[]): number[] {
+  let sum = 0;
+  return perDay.map((v) => (sum = round2(sum + v)));
+}
+
 function quoteClosedAt(q: QuoteRow): Date {
   return q.signedAt ?? q.updatedAt;
 }
@@ -648,6 +668,11 @@ export function buildQuoteSection(
   const attention: AttentionItem[] = [];
   const waiting: QuotesWaiting["items"] = [];
   let waitingValue = 0;
+  // Won per day of month (this month / last month), for the "Fechado no mês" chart.
+  const todayDay = Number(zonedDateKey(now, tz).slice(8, 10));
+  const prevMonthDays = Number(zonedDateKey(new Date(monthStart - 1), tz).slice(8, 10));
+  const wonByDay = new Array(Math.max(1, todayDay)).fill(0);
+  const prevWonByDay = new Array(Math.max(1, prevMonthDays)).fill(0);
 
   for (const q of quotes) {
     const status = String(q.status || "").toLowerCase();
@@ -664,6 +689,8 @@ export function buildQuoteSection(
       if (t >= monthStart) {
         value += q.total;
         count += 1;
+        const d = Math.min(wonByDay.length, Math.max(1, Number(zonedDateKey(new Date(t), tz).slice(8, 10))));
+        wonByDay[d - 1] += showMoney ? q.total : 1;
         gpValue += gross;
         gpCount += 1;
         gpRevenue += q.total;
@@ -671,6 +698,8 @@ export function buildQuoteSection(
       } else if (t >= prevMonthStart) {
         prevValue += q.total;
         prevCount += 1;
+        const d = Math.min(prevWonByDay.length, Math.max(1, Number(zonedDateKey(new Date(t), tz).slice(8, 10))));
+        prevWonByDay[d - 1] += showMoney ? q.total : 1;
         gpPrevValue += gross;
         gpPrevCount += 1;
       }
@@ -783,6 +812,11 @@ export function buildQuoteSection(
       count,
       previous_value: showMoney ? round2(prevValue) : null,
       previous_count: prevCount,
+      daily: {
+        unit: showMoney ? "money" : "count",
+        current: runningTotal(wonByDay),
+        previous: runningTotal(prevWonByDay),
+      },
     },
     gross_profit: {
       value: showMoney ? round2(gpValue) : null,

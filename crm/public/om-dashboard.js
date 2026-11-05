@@ -258,7 +258,18 @@
     if (k.won_month) {
       const w = k.won_month;
       const hasMoney = w.value != null;
-      const d = hasMoney ? delta(w.value, w.previous_value, prevMonth) : delta(w.count, w.previous_count, prevMonth);
+      // Compare like with like: month-to-date vs the same day of last month (the chart shows both paces).
+      const dl = w.daily;
+      const samePrev =
+        dl && dl.previous && dl.previous.length && dl.current && dl.current.length
+          ? dl.previous[Math.min(dl.previous.length, dl.current.length) - 1]
+          : null;
+      const d =
+        samePrev != null
+          ? delta(dl.current[dl.current.length - 1], samePrev, prevMonth)
+          : hasMoney
+            ? delta(w.value, w.previous_value, prevMonth)
+            : delta(w.count, w.previous_count, prevMonth);
       tiles.push({
         key: "won",
         group: "sales",

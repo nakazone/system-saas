@@ -1453,6 +1453,7 @@ body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd-c
 }
 
 .omd-empty--inline {
+  display: block;
   padding: 10px 2px;
   font-size: 13px;
   color: var(--omd-muted);
@@ -1850,6 +1851,10 @@ html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .
   html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="gross_profit"] .omd-kpi__split {
     grid-column: 1 / -1;
     grid-row: 3;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="gross_profit"] .omd-kpi__value {
+    font-size: clamp(22px, 1.8vw, 28px);
   }
 
   /* Pipeline aberto: bloco laranja alto */
@@ -2417,4 +2422,264 @@ html.omd-morphing::view-transition-group(root) {
 .omd-agrp.is-folded .omd-agrp__list {
   padding-bottom: 0;
   opacity: 0;
+}
+
+/* =====================================================================
+ * Gráficos da Home (paletas validadas com o skill dataviz — ver pipeline-lab.js).
+ * ===================================================================== */
+
+/* "Fechado no mês": acumulado do mês vs mês anterior, dentro do bloco grafite (só no mosaico). */
+.omd-chart {
+  display: none;
+}
+
+@media (min-width: 1180px) {
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] .omd-chart {
+    display: block;
+    order: 1;
+    flex: 1 1 auto;
+    min-height: 56px;
+    margin: 8px 0 4px;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] :is(.omd-kpi__value, .omd-kpi__meta) {
+    order: 2;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] .omd-kpi__value {
+    margin-top: 0;
+  }
+}
+
+.omd-chart svg {
+  display: block;
+  overflow: visible;
+  /* .omd svg (icon styles) sets a stroke on every svg; chart marks set their own. */
+  stroke: none;
+  stroke-width: 0;
+}
+
+.omd-chart__legend text {
+  fill: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* "Hoje": linha do tempo do dia */
+.omd-tl {
+  flex: none;
+  margin: 0 0 10px;
+}
+
+.omd-tl[hidden] {
+  display: none;
+}
+
+.omd-tl__track {
+  --lane-h: 13px;
+  position: relative;
+  height: calc(20px + var(--lanes, 1) * var(--lane-h));
+  border-bottom: 1px solid var(--omd-line);
+}
+
+.omd-tl__tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  padding-left: 3px;
+  border-left: 1px solid #F0F2F5;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--omd-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.omd-tl__block {
+  position: absolute;
+  top: calc(18px + var(--lane, 0) * var(--lane-h));
+  height: 9px;
+  min-width: 6px;
+  border-radius: 4px;
+  background: #C25E17;
+  transform-origin: left center;
+  transition: filter 150ms ease;
+}
+
+.omd-tl__block.is-visit {
+  background: #0F7FA0;
+}
+
+/* The hit area is bigger than the 9px bar. */
+.omd-tl__block::before {
+  content: "";
+  position: absolute;
+  inset: -7px -3px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .omd-tl__block:hover {
+    filter: brightness(1.12);
+  }
+}
+
+.omd-tl__block:focus-visible {
+  outline: 2px solid var(--omd-ink);
+  outline-offset: 2px;
+}
+
+.omd-tl__now {
+  position: absolute;
+  top: 12px;
+  bottom: -1px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--omd-ink);
+}
+
+.omd-tl__now::before {
+  content: "";
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--omd-ink);
+  box-shadow: 0 0 0 2px #fff;
+}
+
+.omd-tl__legend {
+  display: flex;
+  gap: 12px;
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--omd-muted);
+}
+
+.omd-tl__legend span::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 4px;
+  margin: 0 5px 2px 0;
+  border-radius: 2px;
+  vertical-align: middle;
+  background: #C25E17;
+}
+
+.omd-tl__legend .is-visit::before {
+  background: #0F7FA0;
+}
+
+.omd-tl__legend .is-now::before {
+  width: 2px;
+  height: 10px;
+  background: var(--omd-ink);
+}
+
+/* Tooltip (um só para a Home) */
+.omd-tip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100002;
+  max-width: 260px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #221E1A;
+  color: #fff;
+  box-shadow: 0 10px 24px -10px rgba(16, 24, 40, 0.45);
+  pointer-events: none;
+  font-size: 12.5px;
+}
+
+.omd-tip[hidden] {
+  display: none;
+}
+
+.omd-tip__title {
+  margin: 0 0 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.omd-tip__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 0;
+}
+
+.omd-tip__row i {
+  flex: none;
+  width: 10px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+.omd-tip__row b {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.omd-tip__row span {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Estados vazios com o Mate */
+.omd-empty--mate {
+  grid-template-columns: 84px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 12px;
+}
+
+.omd-empty__mate {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 76px;
+}
+
+/* Poses have different shapes (sleeping is wide): fit inside the box, never over the text. */
+.omd-empty__mate img {
+  display: block;
+  max-width: 84px;
+  max-height: 76px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Entrada (primeira visita da sessão): as linhas se desenham, os blocos do dia crescem. */
+@keyframes omdDraw {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+
+.omd--enter .omd-chart__line {
+  stroke-dasharray: 1;
+  animation: omdDraw 500ms var(--om-ease-out, cubic-bezier(0.23, 1, 0.32, 1)) 300ms both;
+}
+
+.omd--enter :is(.omd-chart__area, .omd-chart__dot) {
+  animation: omdFadeIn 200ms ease-out 650ms both;
+}
+
+.omd--enter .omd-tl__block {
+  animation: omdGrow 250ms var(--om-ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+  animation-delay: calc(360ms + var(--i, 0) * 40ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .omd--enter :is(.omd-chart__line, .omd-chart__area, .omd-chart__dot, .omd-tl__block) {
+    animation: none;
+  }
 }
