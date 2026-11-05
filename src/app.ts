@@ -119,7 +119,7 @@ export function createApp() {
   // CRM page loads ~30 of them. HTML shells still go through the tenant stack (branding).
   // Caching is unchanged: browsers revalidate with ETag (304), so edits show up immediately.
   const crmStatic = express.static(CRM_PUBLIC_DIR, { index: false, cacheControl: false, fallthrough: true });
-  const CRM_STATIC_FILE = /\.(?:css|js|mjs|map|png|jpe?g|gif|svg|webp|ico|woff2?|ttf)$/i;
+  const CRM_STATIC_FILE = /\.(?:css|js|mjs|map|png|jpe?g|gif|svg|webp|ico|woff2?|ttf|mp4|webm)$/i;
   app.use((req, res, next) => {
     if ((req.method !== "GET" && req.method !== "HEAD") || req.path.startsWith("/api/") || !CRM_STATIC_FILE.test(req.path)) {
       next();
