@@ -153,13 +153,28 @@
     } catch (_) {}
   }
 
+  /** Reload with a skeleton in the list; on failure an inline error with "Tentar de novo". */
+  async function reload() {
+    const list = $("cmAgendaList");
+    const sk = window.crmSkeleton;
+    if (list && sk) sk.fill(list, "rows", 3, { avatar: false });
+    try {
+      await load();
+      if (list && sk) sk.done(list);
+    } catch (err) {
+      console.warn("[campo/agenda]", err);
+      if (list && sk) sk.error(list, (err && err.message) || "Não foi possível carregar a agenda.", reload);
+      else if (window.crmToast) window.crmToast.error((err && err.message) || "Não foi possível carregar a agenda.");
+    }
+  }
+
   function shiftWeek(delta) {
     if (!weekStartYmd) return;
     const d = new Date(weekStartYmd + "T12:00:00");
     d.setDate(d.getDate() + delta * 7);
     weekStartYmd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     selectedYmd = weekStartYmd;
-    load().catch((e) => alert(e.message || "Falha ao carregar"));
+    void reload();
   }
 
   function bind() {
@@ -169,7 +184,7 @@
       const btn = e.target.closest("[data-ymd]");
       if (!btn) return;
       selectedYmd = btn.getAttribute("data-ymd");
-      load().catch((err) => alert(err.message || "Falha"));
+      void reload();
     });
   }
 
@@ -181,14 +196,18 @@
     } catch (_) {
       window.__campoRouteStart = "";
     }
+    const list = $("cmAgendaList");
+    const sk = window.crmSkeleton;
+    if (list && sk && !list.children.length) sk.fill(list, "rows", 3, { avatar: false });
     try {
       await load();
+      if (list && sk) sk.done(list);
     } catch (err) {
       console.warn("[campo/agenda]", err);
       // soft fallback empty
       $("cmWeekLabel").textContent = "Agenda indisponível";
-      $("cmAgendaList").innerHTML =
-        '<p class="cm-subtitle">Não foi possível carregar. Tente de novo.</p>';
+      if (list && sk) sk.error(list, "Não foi possível carregar a agenda.", reload);
+      else list.innerHTML = '<p class="cm-subtitle">Não foi possível carregar. Tente de novo.</p>';
     }
   }
 

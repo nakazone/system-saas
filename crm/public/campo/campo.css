@@ -1338,6 +1338,7 @@ body.cm-sheet-open {
 }
 
 .cm-ticket-tabs__btn {
+  position: relative;
   min-height: 40px;
   border-radius: 11px;
   font-size: 0.8125rem;
@@ -1345,7 +1346,79 @@ body.cm-sheet-open {
   color: var(--cm-muted);
   padding: 0.35rem 0.4rem;
 }
-
+.cm-ticket-tabs__btn.has-note .cm-ticket-tabs__dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: 0.35rem;
+  border-radius: 50%;
+  background: #c1652f;
+  vertical-align: middle;
+  box-shadow: 0 0 0 2px rgba(193, 101, 47, 0.2);
+}
+.cm-ticket-note-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #9a3412;
+  background: #ffedd5;
+  border: 1px solid rgba(193, 101, 47, 0.35);
+}
+.cm-ticket-has-note .cm-ticket-hero {
+  box-shadow: inset 0 0 0 2px rgba(193, 101, 47, 0.28);
+}
+.cm-note-cue {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+  background: #fff7ed;
+  border: 1px solid rgba(193, 101, 47, 0.22);
+  margin-bottom: 0.75rem;
+}
+.cm-note-cue__icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: #c1652f;
+  color: #fff;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.cm-note-cue__icon svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cm-note-cue__label {
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #9a3412;
+}
+.cm-note-cue__text {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: #7c2d12;
+  font-weight: 600;
+  white-space: pre-wrap;
+}
+.cm-notes-extra {
+  margin: 0.65rem 0 0.25rem;
+}
 .cm-ticket-tabs__btn.is-active {
   background: var(--cm-surface);
   color: var(--cm-ink);
@@ -1462,10 +1535,12 @@ body.cm-sheet-open {
 .cm-check-bar span {
   display: block;
   height: 100%;
-  width: 0;
+  width: 100%;
   background: var(--cm-green);
-  border-radius: 999px;
-  transition: width 0.2s ease;
+  /* the track clips the ends (overflow hidden + radius); scaleX keeps the fill on the compositor */
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform var(--om-dur-2, 200ms) var(--om-ease-out, ease-out);
 }
 
 .cm-check-item {
@@ -1610,6 +1685,42 @@ body.cm-sheet-open {
   color: #6b4e1e;
   font-size: 0.8125rem;
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.cm-photos-pending[hidden] {
+  display: none;
+}
+
+.cm-photos-pending__btn {
+  flex: none;
+  min-height: 44px;
+  padding: 0 1rem;
+  border: 0;
+  border-radius: 10px;
+  background: #6b4e1e;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.1s ease-out, opacity 0.15s ease-out;
+}
+
+.cm-photos-pending__btn:active {
+  transform: scale(0.97);
+}
+
+.cm-photos-pending__btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.cm-photos-pending__btn[hidden] {
+  display: none;
 }
 
 .cm-photo-stage {
@@ -1700,6 +1811,65 @@ body.cm-sheet-open {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+.cm-photo--uploading {
+  cursor: default;
+  animation: cmPhotoIn 0.2s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+.cm-photo--uploading img {
+  opacity: 0.55;
+}
+
+.cm-photo__uploading {
+  position: absolute;
+  left: 0.5rem;
+  bottom: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(33, 29, 26, 0.82);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.cm-photo__uploading i {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: cmSpin 0.8s linear infinite;
+}
+
+@keyframes cmPhotoIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes cmSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cm-photo--uploading {
+    animation: none;
+  }
+  .cm-photo__uploading i {
+    animation-duration: 2.4s;
+  }
 }
 
 .cm-photo img.is-broken {
@@ -2028,13 +2198,48 @@ body.cm-ticket .cm-tabbar {
   min-width: 1.7rem; height: 1.7rem; padding: 0 0.55rem 0 0.4rem; border-radius: 999px;
   background: linear-gradient(135deg, #1e293b 0%, #334155 100%); color: #f8fafc;
   font-size: 0.95rem; vertical-align: middle;
-  box-shadow: 0 0 0 0 rgba(232, 121, 44, 0.55);
-  animation: job-lockbox-pulse 2.2s ease-out infinite;
+  position: relative;
 }
+/* Attention ring on pseudo-elements: transform/opacity only, 3 beats then rest. */
+.job-lockbox-badge::after,
+.cm-lockbox::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  box-shadow: 0 0 0 4px rgba(232, 121, 44, 0.45); opacity: 0;
+  animation: cm-lockbox-ring 2.2s var(--om-ease-out, ease-out) 3;
+}
+/* the wide card only fades its ring (scaling a wide box would overshoot) */
+.cm-lockbox::after { animation-name: cm-lockbox-fade; }
 .job-lockbox-badge__icon { display: inline-flex; line-height: 1; }
 .job-lockbox-badge__code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.78rem; font-weight: 800; letter-spacing: 0.04em;
+}
+.job-lockbox-badge__cell {
+  min-width: 1.05rem; padding: 0.1rem 0.2rem; border-radius: 5px;
+  background: rgba(255, 255, 255, 0.12);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.78rem; font-weight: 800; text-align: center;
+}
+.cm-lockbox {
+  display: flex; align-items: center; gap: 0.75rem; margin: 0.55rem 0 0.35rem;
+  padding: 0.7rem 0.8rem; border-radius: 14px;
+  background: linear-gradient(160deg, #221E1A 0%, #3a342e 100%);
+  color: #F7F8FA;
+  position: relative;
+}
+.cm-lockbox__pad {
+  width: 2.5rem; height: 2.5rem; border-radius: 0.85rem;
+  display: grid; place-items: center; flex: none;
+  background: rgba(231, 121, 44, 0.18); color: #E7792C;
+}
+.cm-lockbox__cells { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.cm-lockbox .job-lockbox-badge__cell,
+.cm-lockbox__cells > span {
+  min-width: 1.55rem; height: 2rem; padding: 0 0.35rem; border-radius: 0.55rem;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.14);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 1rem; font-weight: 800; letter-spacing: 0.02em;
 }
 .job-delivery-badge {
   display: inline-flex; align-items: center; margin-left: 0.35rem;
@@ -2053,8 +2258,12 @@ body.cm-ticket .cm-tabbar {
 .cm-delivery__row small { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: #98A2B3; }
 .cm-delivery__row a { color: #B4561A; font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
 .cm-notes__text { margin-top: 0.45rem; white-space: pre-wrap; }
-@keyframes job-lockbox-pulse {
-  0% { box-shadow: 0 0 0 0 rgba(232, 121, 44, 0.5); }
-  55% { box-shadow: 0 0 0 8px rgba(232, 121, 44, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(232, 121, 44, 0); }
+@keyframes cm-lockbox-ring {
+  0% { opacity: 1; transform: scale(1); }
+  60%, 100% { opacity: 0; transform: scale(1.18); }
+}
+@keyframes cm-lockbox-fade {
+  0% { opacity: 0; }
+  25% { opacity: 1; }
+  70%, 100% { opacity: 0; }
 }

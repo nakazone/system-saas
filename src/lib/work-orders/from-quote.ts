@@ -5,6 +5,7 @@
 import { copyFieldQuoteToJob } from "../field-quote/job.js";
 import { discountLineLabel, readQuoteDiscount, type DiscountKind } from "../quotes/discount.js";
 import { calculateQuoteTotals } from "../quotes/totals.js";
+import { normalizeQuoteStatus } from "../quotes/transitions.js";
 import { Prisma } from "@prisma/client";
 import type { TenantPrisma } from "../tenant/prisma-tenant.js";
 import { recordActivity } from "../activity/record.js";
@@ -121,12 +122,12 @@ export async function ensureQuoteDiscountOnJob(
   organizationId: string,
   workOrderId: string,
 ): Promise<boolean> {
-  const quote = await tx.quote.findFirst({
+  const quotes = await tx.quote.findMany({
     where: { workOrderId },
     select: { subtotal: true, discountType: true, discountValue: true, payload: true },
   });
-  if (!quote) return false;
-  return syncQuoteDiscountOntoJob(tx, organizationId, workOrderId, quote);
+  if (quotes.length !== 1) return false;
+  return syncQuoteDiscountOntoJob(tx, organizationId, workOrderId, quotes[0]);
 }
 
 /** Same heal for a jobs list, so totals match the quote without opening each job. */
@@ -140,11 +141,18 @@ export async function ensureQuoteDiscountsOnJobs(
     where: { workOrderId: { in: workOrderIds } },
     select: { workOrderId: true, subtotal: true, discountType: true, discountValue: true, payload: true },
   });
-  const changed: string[] = [];
+  const byWo = new Map<string, typeof quotes>();
   for (const quote of quotes) {
     if (!quote.workOrderId) continue;
-    const did = await syncQuoteDiscountOntoJob(tx, organizationId, quote.workOrderId, quote);
-    if (did) changed.push(quote.workOrderId);
+    const list = byWo.get(quote.workOrderId) || [];
+    list.push(quote);
+    byWo.set(quote.workOrderId, list);
+  }
+  const changed: string[] = [];
+  for (const [workOrderId, list] of byWo) {
+    if (list.length !== 1) continue; // merged multi-quote jobs keep their own discount lines
+    const did = await syncQuoteDiscountOntoJob(tx, organizationId, workOrderId, list[0]);
+    if (did) changed.push(workOrderId);
   }
   return changed;
 }
@@ -329,6 +337,11 @@ export async function syncLinkedJobFromQuote(
     await tx.quote.update({ where: { id: quote.id }, data: { workOrderId: null } });
     return null;
   }
+  // Jobs linked to multiple quotes were merged on purpose — do not overwrite from one quote.
+  const linkedCount = await tx.quote.count({ where: { workOrderId: job.id } });
+  if (linkedCount > 1) {
+    return { id: job.id, status: job.status };
+  }
   await healCustomerAddressFromLead(tx, quote.customer);
   const ident = jobIdentityFromQuote(quote, await quotePersonName(tx, quote));
   const sameIdentity =
@@ -359,27 +372,45 @@ export async function syncLinkedJobFromQuote(
   });
   const invoiced = Number(invoicedAgg._sum.amount ?? 0);
   const next = quoteJobLineData(params.organizationId, quote);
-  const servicesTotal = next
+  // Keep job extras (post-quote add-ons) when re-syncing contract lines from the quote.
+  const { parseJobExtraNote } = await import("../invoices/job.js");
+  const keepExtras = job.lineItems.filter((li) => parseJobExtraNote(li.notes));
+  const nextWithExtras = [
+    ...next,
+    ...keepExtras.map((li, idx) => ({
+      organizationId: params.organizationId,
+      pricingItemId: li.pricingItemId,
+      serviceName: li.serviceName,
+      notes: li.notes,
+      quantitySqft: li.quantitySqft,
+      unitPrice: li.unitPrice,
+      lineTotal: li.lineTotal,
+      sortOrder: next.length + idx + 1,
+    })),
+  ];
+  const servicesTotal = nextWithExtras
     .filter((row) => row.notes !== QUOTE_DISCOUNT_NOTE && !/^discount\b/i.test(row.serviceName))
     .reduce((sum, row) => sum + Math.round(Number(row.lineTotal) * 100) / 100, 0);
   if (invoiced > 0.004 && servicesTotal + 0.004 < invoiced) throw invoicedFloorError(invoiced);
-  const linesDiffer = jobLineFingerprint(job.lineItems) !== jobLineFingerprint(next);
+  const linesDiffer = jobLineFingerprint(job.lineItems) !== jobLineFingerprint(nextWithExtras);
   if (linesDiffer) {
-      const pricingIds = [...new Set(next.map((row) => row.pricingItemId).filter((id): id is string => Boolean(id)))];
+      const pricingIds = [
+        ...new Set(nextWithExtras.map((row) => row.pricingItemId).filter((id): id is string => Boolean(id))),
+      ];
       if (pricingIds.length) {
         const live = await tx.pricingItem.findMany({
           where: { id: { in: pricingIds } },
           select: { id: true },
         });
         const ok = new Set(live.map((row) => row.id));
-        for (const row of next) {
+        for (const row of nextWithExtras) {
           if (row.pricingItemId && !ok.has(row.pricingItemId)) row.pricingItemId = null;
         }
       }
       await tx.workOrderLineItem.deleteMany({ where: { workOrderId: job.id } });
-      if (next.length) {
+      if (nextWithExtras.length) {
         await tx.workOrderLineItem.createMany({
-          data: next.map((row) => ({ ...row, workOrderId: job.id })),
+          data: nextWithExtras.map((row) => ({ ...row, workOrderId: job.id })),
         });
       }
   }
@@ -692,4 +723,341 @@ export async function linkQuoteInvoicesToWorkOrder(tx: TenantPrisma, quoteId: st
     where: { quoteId, workOrderId: null },
     data: { workOrderId },
   });
+}
+
+function httpErr(message: string, statusCode: number): Error & { statusCode: number } {
+  const err = new Error(message) as Error & { statusCode: number };
+  err.statusCode = statusCode;
+  return err;
+}
+
+function mergeJobNameKey(quote: QuoteForJob): string {
+  const payload = payloadOf(quote.payload);
+  return String(payload.job_name || quote.title || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+/** Expand customer↔builder links and Client ID twins from a seed party set. */
+async function expandPartyReach(
+  tx: TenantPrisma,
+  seed: { customerIds: Iterable<string>; builderIds: Iterable<string> },
+): Promise<{ customerIds: Set<string>; builderIds: Set<string> }> {
+  const customerIds = new Set([...seed.customerIds].filter(Boolean));
+  const builderIds = new Set([...seed.builderIds].filter(Boolean));
+  for (let round = 0; round < 3; round++) {
+    if (builderIds.size) {
+      const builders = await tx.builder.findMany({
+        where: { id: { in: [...builderIds] } },
+        select: { customerId: true },
+      });
+      for (const b of builders) {
+        if (b.customerId) customerIds.add(b.customerId);
+      }
+    }
+    if (customerIds.size) {
+      const linked = await tx.builder.findMany({
+        where: { customerId: { in: [...customerIds] } },
+        select: { id: true },
+      });
+      for (const b of linked) builderIds.add(b.id);
+      const seeds = await tx.customer.findMany({
+        where: { id: { in: [...customerIds] } },
+        select: { clientCode: true },
+      });
+      const codes = [
+        ...new Set(
+          seeds
+            .map((s) => (s.clientCode != null ? String(s.clientCode).trim() : ""))
+            .filter(Boolean),
+        ),
+      ];
+      if (codes.length) {
+        const twins = await tx.customer.findMany({
+          where: { clientCode: { in: codes } },
+          select: { id: true },
+          take: 50,
+        });
+        for (const t of twins) customerIds.add(t.id);
+      }
+    }
+  }
+  return { customerIds, builderIds };
+}
+
+async function quotesCompatibleForMerge(tx: TenantPrisma, quotes: QuoteForJob[]): Promise<boolean> {
+  if (quotes.length < 2) return false;
+  const allSameCustomer =
+    Boolean(quotes[0].customerId) && quotes.every((q) => q.customerId === quotes[0].customerId);
+  const allSameBuilder =
+    Boolean(quotes[0].builderId) && quotes.every((q) => q.builderId === quotes[0].builderId);
+  if (allSameCustomer || allSameBuilder) return true;
+
+  const job0 = mergeJobNameKey(quotes[0]);
+  if (job0.length >= 2 && quotes.every((q) => mergeJobNameKey(q) === job0)) return true;
+
+  const reach = await expandPartyReach(tx, {
+    customerIds: quotes[0].customerId ? [quotes[0].customerId] : [],
+    builderIds: quotes[0].builderId ? [quotes[0].builderId] : [],
+  });
+  if (!reach.customerIds.size && !reach.builderIds.size) return false;
+  return quotes.every(
+    (q) =>
+      (q.customerId != null && reach.customerIds.has(q.customerId)) ||
+      (q.builderId != null && reach.builderIds.has(q.builderId)),
+  );
+}
+
+/**
+ * Unify 2–5 open/approved quotes into a single draft job.
+ * Rules: same customer/builder graph (or same job name); linked jobs must be draft/canceled.
+ * Open quotes are auto-approved; canceled job links are cleared. Quotes keep their own record.
+ */
+export async function mergeQuotesIntoJob(
+  tx: TenantPrisma,
+  params: {
+    organizationId: string;
+    quoteIds: string[];
+    actorId?: string | null;
+  },
+): Promise<{ id: string; number: number | null; created: boolean; quoteIds: string[] }> {
+  const ids = [...new Set((params.quoteIds || []).map(String).filter(Boolean))];
+  if (ids.length < 2 || ids.length > 5) {
+    throw httpErr("Selecione entre 2 e 5 orçamentos para unificar.", 400);
+  }
+
+  const quotes: QuoteForJob[] = [];
+  for (const id of ids) {
+    const q = await loadQuoteForJob(tx, id);
+    if (!q) throw httpErr("Orçamento não encontrado.", 404);
+    quotes.push(q);
+  }
+
+  for (const q of quotes) {
+    const st = normalizeQuoteStatus(q.status);
+    if (st === "archived" || st === "expired") {
+      throw httpErr(
+        `O orçamento ${q.quoteNumber || `#${q.number}`} está arquivado/expirado e não pode ser unificado.`,
+        400,
+      );
+    }
+    if (q.workOrderId) {
+      const wo = await tx.workOrder.findFirst({
+        where: { id: q.workOrderId },
+        select: { status: true },
+      });
+      if (wo && String(wo.status || "").toLowerCase() === "canceled") {
+        await tx.quote.update({ where: { id: q.id }, data: { workOrderId: null } });
+        q.workOrderId = null;
+      }
+    }
+    // Open quotes can merge: mark approved here so the shared job is the only conversion.
+    if (!["approved", "converted"].includes(st)) {
+      await tx.quote.update({ where: { id: q.id }, data: { status: "approved" } });
+      q.status = "approved";
+    }
+  }
+
+  if (!(await quotesCompatibleForMerge(tx, quotes))) {
+    throw httpErr("Os orçamentos precisam ser do mesmo cliente, builder ou job.", 400);
+  }
+
+  const woIds = [...new Set(quotes.map((q) => q.workOrderId).filter((id): id is string => Boolean(id)))];
+  const draftJobs: { id: string; number: number | null; notes: string | null; address: string | null; customerId: string | null; builderId: string | null }[] = [];
+  for (const woId of woIds) {
+    const wo = await tx.workOrder.findFirst({
+      where: { id: woId },
+      select: {
+        id: true,
+        number: true,
+        status: true,
+        notes: true,
+        address: true,
+        customerId: true,
+        builderId: true,
+      },
+    });
+    if (!wo) continue;
+    if (wo.status !== "draft" && wo.status !== "canceled") {
+      if (woIds.length === 1 && quotes.every((q) => q.workOrderId === wo.id)) {
+        return { id: wo.id, number: wo.number, created: false, quoteIds: ids };
+      }
+      throw httpErr(
+        "Um dos orçamentos já tem um job em andamento. Não dá para unificar.",
+        409,
+      );
+    }
+    if (wo.status === "draft") {
+      draftJobs.push(wo);
+    }
+  }
+
+  const labels = quotes.map((q) => q.quoteNumber || `#${q.number}`);
+  const nums = labels.join(" + ");
+  const mergedLines: ReturnType<typeof quoteJobLineData> = [];
+  let sort = 0;
+  for (const q of quotes) {
+    const label = q.quoteNumber || `#${q.number}`;
+    const rows = quoteJobLineData(params.organizationId, q);
+    for (const row of rows) {
+      sort += 1;
+      const tag = `Orçamento ${label}`;
+      if (row.notes === QUOTE_DISCOUNT_NOTE) {
+        mergedLines.push({
+          ...row,
+          serviceName: `${row.serviceName} (${label})`.slice(0, 200),
+          sortOrder: sort,
+        });
+      } else {
+        mergedLines.push({
+          ...row,
+          notes: row.notes ? `${tag} — ${row.notes}`.slice(0, 2000) : tag,
+          sortOrder: sort,
+        });
+      }
+    }
+  }
+
+  await healCustomerAddressFromLead(tx, quotes[0].customer);
+  const person = await quotePersonName(tx, quotes[0]);
+  const ident = jobIdentityFromQuote(quotes[0], person);
+  const title = `${ident.title} · ${nums}`.slice(0, 200);
+  const customerId =
+    quotes.find((q) => q.customerId)?.customerId ?? draftJobs[0]?.customerId ?? null;
+  const builderId = quotes.find((q) => q.builderId)?.builderId ?? draftJobs[0]?.builderId ?? null;
+
+  let primary = draftJobs[0] || null;
+  const orphans = draftJobs.slice(1);
+  let created = false;
+
+  if (!primary) {
+    const number = await nextWorkOrderNumber(tx, params.organizationId);
+    const wo = await tx.workOrder.create({
+      data: {
+        organizationId: params.organizationId,
+        number,
+        title,
+        status: "draft",
+        sourceType: ident.sourceType,
+        sourceName: ident.sourceName,
+        clientRef: ident.clientRef,
+        customerId,
+        builderId,
+        address: ident.address,
+        notes: `Unificado de ${nums}`,
+        lineItems: { create: mergedLines },
+      },
+    });
+    primary = {
+      id: wo.id,
+      number: wo.number,
+      notes: wo.notes,
+      address: wo.address,
+      customerId: wo.customerId,
+      builderId: wo.builderId,
+    };
+    created = true;
+  } else {
+    const pricingIds = [
+      ...new Set(mergedLines.map((row) => row.pricingItemId).filter((id): id is string => Boolean(id))),
+    ];
+    if (pricingIds.length) {
+      const live = await tx.pricingItem.findMany({
+        where: { id: { in: pricingIds } },
+        select: { id: true },
+      });
+      const ok = new Set(live.map((row) => row.id));
+      for (const row of mergedLines) {
+        if (row.pricingItemId && !ok.has(row.pricingItemId)) row.pricingItemId = null;
+      }
+    }
+    await tx.workOrderLineItem.deleteMany({ where: { workOrderId: primary.id } });
+    if (mergedLines.length) {
+      await tx.workOrderLineItem.createMany({
+        data: mergedLines.map((row) => ({ ...row, workOrderId: primary!.id })),
+      });
+    }
+    const nextNotes = primary.notes
+      ? /Unificado de/i.test(primary.notes)
+        ? primary.notes
+        : `${primary.notes}\nUnificado de ${nums}`
+      : `Unificado de ${nums}`;
+    await tx.workOrder.update({
+      where: { id: primary.id },
+      data: {
+        title,
+        notes: nextNotes.slice(0, 8000),
+        customerId,
+        builderId,
+        address: primary.address || ident.address,
+        sourceType: ident.sourceType,
+        sourceName: ident.sourceName,
+        clientRef: ident.clientRef,
+      },
+    });
+  }
+
+  for (const orphan of orphans) {
+    await tx.quote.updateMany({
+      where: { workOrderId: orphan.id },
+      data: { workOrderId: null },
+    });
+    await tx.workOrder.update({
+      where: { id: orphan.id },
+      data: { status: "canceled" },
+    });
+  }
+
+  for (const q of quotes) {
+    await tx.quote.update({
+      where: { id: q.id },
+      data: { workOrderId: primary.id },
+    });
+    await linkQuoteInvoicesToWorkOrder(tx, q.id, primary.id);
+    try {
+      await copyFieldQuoteToJob(tx, {
+        organizationId: params.organizationId,
+        quoteId: q.id,
+        workOrderId: primary.id,
+      });
+    } catch {
+      /* best-effort */
+    }
+  }
+
+  try {
+    await ensureJobChatChannel(tx, params.organizationId, primary.id);
+  } catch {
+    /* best-effort */
+  }
+
+  await recordActivity(tx, {
+    organizationId: params.organizationId,
+    entityType: "work_order",
+    entityId: primary.id,
+    actorType: params.actorId ? "user" : "system",
+    actorId: params.actorId ?? null,
+    action: "work_order.merged_from_quotes",
+    changes: {
+      quoteIds: { from: null, to: ids },
+      labels: { from: null, to: nums },
+    },
+  });
+  for (const q of quotes) {
+    await recordActivity(tx, {
+      organizationId: params.organizationId,
+      entityType: "quote",
+      entityId: q.id,
+      actorType: params.actorId ? "user" : "system",
+      actorId: params.actorId ?? null,
+      action: "quote.merged_into_job",
+      changes: {
+        workOrderId: { from: q.workOrderId, to: primary.id },
+        with: { from: null, to: ids.filter((id) => id !== q.id) },
+      },
+    });
+  }
+
+  return { id: primary.id, number: primary.number, created, quoteIds: ids };
 }

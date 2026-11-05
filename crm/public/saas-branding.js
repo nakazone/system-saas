@@ -43,8 +43,10 @@
       el.style.display = "";
     });
 
+    // ObraCalendar, ObraCam and ObraCrew (the Campo pages) have their own Home Screen icons, also on their login pages.
+    var calApp = window.__OM_CAL_APP || window.__OM_FOCUS_APP || /^\/campo\//.test(location.pathname) || /[?&]app=(obracalendar|obracam|obracrew)\b/.test(location.search);
     document.querySelectorAll('link[rel="apple-touch-icon"]').forEach(function (el) {
-      el.setAttribute("href", SYSTEM_TOUCH_ICON);
+      if (!calApp) el.setAttribute("href", SYSTEM_TOUCH_ICON);
     });
     document.querySelectorAll('link[rel="icon"]').forEach(function (el) {
       var type = (el.getAttribute("type") || "").toLowerCase();

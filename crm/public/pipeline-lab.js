@@ -50,15 +50,40 @@
   // ---------------------------------------------------------------------------
 
   /** The Mate (fox mascot) next to the greeting: waves in the morning, tablet in the afternoon, laptop at night. */
+  /**
+   * The Mate's pose follows the day: pointing at the cards when something is urgent,
+   * celebrating when nothing needs attention, otherwise by time of day.
+   */
+  const MATE_POSES = {
+    point: "Tem coisa urgente para resolver",
+    celebrate: "Tudo em dia",
+    wave: "Bom dia",
+    tablet: "Boa tarde",
+    laptop: "Boa noite",
+  };
+
+  function matePose() {
+    const att = overview && overview.attention;
+    if (att && att.high > 0) return "point";
+    if (att && att.total === 0) return "celebrate";
+    const h = new Date().getHours();
+    return h >= 18 || h < 4 ? "laptop" : h >= 12 ? "tablet" : "wave";
+  }
+
   function renderMate() {
     const img = $("omdMateImg");
-    if (!img || img.dataset.done) return;
-    const h = new Date().getHours();
-    const pose = h >= 18 || h < 4 ? "laptop" : h >= 12 ? "tablet" : "wave";
-    img.src = `/assets/img/mascot/mate-${pose}.webp?v=20261027-m2`;
-    img.dataset.done = "1";
     const btn = $("omdMate");
-    btn.classList.add("omd-mate--" + pose);
+    if (!img || !btn) return;
+    const pose = matePose();
+    if (btn.dataset.pose !== pose) {
+      if (btn.dataset.pose) btn.classList.remove("omd-mate--" + btn.dataset.pose);
+      btn.dataset.pose = pose;
+      btn.classList.add("omd-mate--" + pose);
+      img.src = `/assets/img/mascot/mate-${pose}.webp?v=20261027-m2`;
+      btn.title = `${MATE_POSES[pose]} · Falar com o Mate`;
+    }
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = "1";
     btn.addEventListener("click", () => {
       btn.classList.remove("is-hop");
       void btn.offsetWidth;
@@ -93,118 +118,205 @@
     el.textContent = mins < 1 ? "Atualizado agora" : `Atualizado há ${mins} min`;
   }
 
-  /** Full-dollar value for the bento tiles ($48,350 instead of $48.4K). */
-  function fullValue(key, k) {
-    const pick = {
-      pipeline: k.pipeline_open && k.pipeline_open.value,
-      won: k.won_month && k.won_month.value,
-      receivables: k.receivables && k.receivables.open_value,
-      gross_profit: k.gross_profit && k.gross_profit.value,
-    }[key];
-    return pick == null ? "" : D.money(pick);
-  }
-
-  /** "▲ 12% vs setembro" → "+12% vs set." (or "+8%" for the narrow Gross Profit tile). */
-  function shortDelta(text, tiny) {
-    const t = String(text || "");
-    const m = /^([▲▼])\s*(\d+%)\s*vs\s*(\S+)/.exec(t);
-    if (!m) return t;
-    const sign = m[1] === "▲" ? "+" : "−";
-    if (tiny) return `${sign}${m[2]}`;
-    return `${sign}${m[2]} vs ${m[3].slice(0, 3)}.`;
-  }
-
-  /** Shorter / full-dollar meta lines used by the bento tiles. */
-  function bentoMeta(c, k) {
-    if (c.key === "pipeline" && k.pipeline_open) return "Quotes enviados em aberto";
-    if (c.key === "gross_profit" && k.gross_profit) return c.short || "";
-    if (c.key === "receivables" && k.receivables && k.receivables.overdue_count) {
-      const r = k.receivables;
-      return `${D.money(r.overdue_value)} vencido · ${D.plural(r.overdue_count, "invoice", "invoices")}`;
-    }
-    return "";
-  }
-
-  /** Extra detail shown only in the desktop bento tiles (values the overview already returns). */
+  /** Extra detail drawn only in the bento tiles (all from values the overview already returns). */
   function kpiExtra(key, k) {
     if (key === "pipeline" && k.pipeline_open) {
-      const p = k.pipeline_open;
-      return `<span class="omd-kpi__boxes" aria-hidden="true">
-        <span><b>${esc(String(p.count))}</b>${esc(p.count === 1 ? "quote enviado" : "quotes enviados")}</span>
-        <span><b>${esc(String(p.without_value || 0))}</b>sem valor</span>
-      </span>`;
+      // In the bento, conversion and new leads ride inside the pipeline block (their own tiles hide).
+      const c = k.conversion;
+      const l = k.leads_month;
+      const boxes = [];
+      if (c) boxes.push(`<span><b>${esc(c.rate == null ? "—" : `${Math.round(c.rate)}%`)}</b>conversão</span>`);
+      if (l) boxes.push(`<span><b>${esc(String(l.count))}</b>${esc(l.count === 1 ? "lead novo" : "leads novos")}</span>`);
+      const funnel = overview.board ? `<span class="omd-chart omd-chart--funnel" data-omd-chart="funnel"></span>` : "";
+      return funnel + (boxes.length ? `<span class="omd-kpi__boxes" aria-hidden="true">${boxes.join("")}</span>` : "");
     }
     if (key === "gross_profit" && k.gross_profit && k.gross_profit.value != null) {
       const g = k.gross_profit;
       const revenue = Number(g.revenue) || 0;
-      const cost = Number(g.cost) || 0;
       const margin = revenue > 0 ? Math.round((Number(g.value) / revenue) * 100) : null;
       const bar = margin != null ? Math.max(0, Math.min(100, margin)) : 0;
-      return `<div class="omd-kpi__split" aria-hidden="true">
-        ${margin != null ? `<span class="omd-kpi__bar"><i style="width:${bar}%"></i></span>` : ""}
-        ${margin != null ? `<span class="omd-kpi__line"><span>Margem</span><b>${margin}%</b></span>` : ""}
+      return `<span class="omd-kpi__split" aria-hidden="true">
+        ${margin != null ? `<span class="omd-kpi__bar"><i style="transform:scaleX(${bar / 100})"></i></span>` : ""}
         <span class="omd-kpi__line"><span>Receita</span><b>${esc(D.money(revenue))}</b></span>
-        <span class="omd-kpi__line"><span>Custo</span><b>${esc(D.money(cost))}</b></span>
-      </div>`;
+        <span class="omd-kpi__line"><span>Custo</span><b>${esc(D.money(g.cost || 0))}</b></span>
+      </span>`;
+    }
+    if (key === "won" && k.won_month && k.won_month.daily) {
+      return `<span class="omd-chart omd-chart--won" data-omd-chart="won"></span>`;
     }
     if (key === "receivables" && k.receivables && Number(k.receivables.open_value) > 0) {
       const open = Number(k.receivables.open_value) || 0;
       const overdue = Math.max(0, Math.min(open, Number(k.receivables.overdue_value) || 0));
-      return `<span class="omd-kpi__seg" aria-hidden="true"><i class="is-overdue" style="flex:${overdue}"></i><i style="flex:${
-        open - overdue
-      }"></i></span>`;
+      return `<span class="omd-kpi__seg" aria-hidden="true"><i class="is-overdue" style="flex:${overdue}"></i><i style="flex:${open - overdue}"></i></span>`;
     }
     return "";
   }
 
+  /** KPI tiles: a bento of big tiles on wide screens, a slim strip when folded or narrow. */
   function renderKpis() {
     const host = $("omdKpis");
-    const cards = D.kpiCards(overview);
-    if (!cards.length) {
+    const tiles = D.kpiStrip(overview);
+    const root = $("omdRoot");
+    if (!tiles.length) {
       host.hidden = true;
       return;
     }
     host.hidden = false;
-    host.style.gridTemplateColumns = cards.length < 4 ? `repeat(${cards.length}, minmax(0, 1fr))` : "";
-    // Bento layout (desktop) places each KPI by key; with fewer than 4 it falls back to the row layout.
-    const root = $("omdRoot");
-    if (root) root.classList.toggle("omd--kpi-partial", cards.length < 4);
+    host.style.setProperty("--omd-kpi-count", String(tiles.length));
+    // The bento has a fixed slot for each of the six tiles; with fewer (permissions) use the strip.
+    root.classList.toggle("omd--kpi-partial", tiles.length < 6);
     const k = (overview && overview.kpis) || {};
-    host.innerHTML = cards
-      .map((c) => {
-        const delta = c.delta
-          ? `<span class="omd-delta is-${esc(c.delta.tone)}"><span class="omd-v-row">${esc(c.delta.text)}</span><span class="omd-v-bento">${esc(
-              shortDelta(c.delta.text, c.key === "gross_profit"),
-            )}</span></span>`
-          : "";
-        const full = fullValue(c.key, k);
-        const value = full
-          ? `<span class="omd-v-row">${esc(c.value)}</span><span class="omd-v-bento">${esc(full)}</span>`
-          : esc(c.value);
-        const metaBento = bentoMeta(c, k);
-        const meta = metaBento
-          ? `<span class="omd-v-row">${esc(c.meta)}</span><span class="omd-v-bento">${esc(metaBento)}</span>`
-          : esc(c.meta);
-        const go = c.key === "pipeline" ? '<span class="omd-kpi__go" aria-hidden="true">Ver quotes →</span>' : "";
-        return `<a class="omd-kpi${c.tone === "dark" ? " omd-kpi--dark" : ""}" data-kpi="${esc(c.key)}" href="${esc(c.href)}"${
-          c.title ? ` title="${esc(c.title)}"` : ""
+    host.innerHTML = tiles
+      .map(
+        (t, i) => `<a class="omd-kpi${t.group === "money" && tiles[i - 1] && tiles[i - 1].group !== "money" ? " is-group-start" : ""}" data-kpi="${esc(t.key)}" href="${esc(t.href)}" style="--i:${i}"${
+          t.title ? ` title="${esc(t.title)}"` : ""
         }>
-          <p class="omd-kpi__label"><span>${esc(c.label)}</span>${go}</p>
-          <p class="omd-kpi__value">${value}</p>
-          <p class="omd-kpi__meta${c.metaTone ? ` is-${esc(c.metaTone)}` : ""}"><span>${meta}</span>${delta}</p>
-          ${kpiExtra(c.key, k)}
-        </a>`;
-      })
+          <span class="omd-kpi__label">${esc(t.label)}</span>
+          <span class="omd-kpi__value">${esc(t.value)}</span>
+          <span class="omd-kpi__meta${t.metaTone ? ` is-${esc(t.metaTone)}` : ""}">${esc(t.meta)}</span>
+          ${kpiExtra(t.key, k)}
+        </a>`,
+      )
       .join("");
+  }
+
+  /* ---------------------------------------------------------------------------
+   * Folding: the KPI bento folds into a slim strip, and stacked cards fold into a
+   * one-line summary so the card beside them gets the room. Per viewer, per browser.
+   * ------------------------------------------------------------------------- */
+  const FOLD_KEY = "omd_home_fold_v1";
+  let folded = {};
+  try {
+    folded = JSON.parse(localStorage.getItem(FOLD_KEY) || "{}") || {};
+  } catch (_) {
+    folded = {};
+  }
+
+  function saveFolds() {
+    try {
+      localStorage.setItem(FOLD_KEY, JSON.stringify(folded));
+    } catch (_) {}
+  }
+
+  function reducedMotion() {
+    return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  /** Layout changes morph through a view transition (boxes glide to their new size); instant without support. */
+  function morph(update) {
+    if (!document.startViewTransition || reducedMotion()) {
+      update();
+      return;
+    }
+    document.documentElement.classList.add("omd-morphing");
+    const vt = document.startViewTransition(update);
+    vt.finished.finally(() => document.documentElement.classList.remove("omd-morphing"));
+  }
+
+  function applyFolds() {
+    if (overview) requestAnimationFrame(drawCharts);
+    const root = $("omdRoot");
+    root.classList.toggle("omd--kpi-compact", !!folded.kpis);
+    const kb = $("omdKpiFold");
+    if (kb) {
+      kb.setAttribute("aria-expanded", folded.kpis ? "false" : "true");
+      kb.querySelector("span").textContent = folded.kpis ? "Abrir indicadores" : "Recolher indicadores";
+    }
+    document.querySelectorAll("[data-omd-card]").forEach((card) => {
+      const key = card.getAttribute("data-omd-card");
+      const isFolded = !!folded[key];
+      card.classList.toggle("is-folded", isFolded);
+      const btn = card.querySelector("[data-omd-fold]");
+      if (btn) {
+        btn.setAttribute("aria-expanded", isFolded ? "false" : "true");
+        const title = card.querySelector("h2");
+        btn.setAttribute("aria-label", `${isFolded ? "Abrir" : "Recolher"} ${title ? title.textContent : ""}`.trim());
+      }
+    });
+  }
+
+  function bindFolds() {
+    const kb = $("omdKpiFold");
+    if (kb && !kb.dataset.bound) {
+      kb.dataset.bound = "1";
+      kb.addEventListener("click", () => {
+        folded.kpis = !folded.kpis;
+        saveFolds();
+        morph(applyFolds);
+      });
+    }
+    document.querySelectorAll("[data-omd-fold]").forEach((btn) => {
+      if (btn.dataset.bound) return;
+      btn.dataset.bound = "1";
+      btn.addEventListener("click", () => {
+        const key = btn.getAttribute("data-omd-fold");
+        folded[key] = !folded[key];
+        saveFolds();
+        morph(applyFolds);
+      });
+    });
+  }
+
+  function setSummary(key, text) {
+    const el = document.querySelector(`[data-omd-summary="${key}"]`);
+    if (el) el.textContent = text || "";
+  }
+
+  /** One-line summaries shown on a folded card. */
+  function renderSummaries() {
+    const ev = overview.today_events || [];
+    const jobsToday = ev.filter((e) => e.type === "job").length;
+    const visits = ev.length - jobsToday;
+    setSummary(
+      "today",
+      ev.length
+        ? [visits ? D.plural(visits, "visita", "visitas") : "", jobsToday ? D.plural(jobsToday, "instalação", "instalações") : ""].filter(Boolean).join(" · ")
+        : "agenda livre",
+    );
+    const week = (overview.jobs_forecast || []).reduce((n, d) => n + (d.count || 0), 0);
+    setSummary("week", week ? D.plural(week, "job na semana", "jobs na semana") : "sem jobs na semana");
+    const s = overview.jobs_status;
+    if (s) {
+      setSummary(
+        "ops",
+        [
+          s.late ? D.plural(s.late, "atrasado", "atrasados") : "",
+          s.in_field ? `${s.in_field} em campo` : "",
+          s.to_invoice && s.to_invoice.count ? `${D.moneyCompact(s.to_invoice.value)} a faturar` : "",
+        ]
+          .filter(Boolean)
+          .join(" · ") || "tudo em dia",
+      );
+    }
+    const q = overview.quotes_waiting;
+    if (q) {
+      const unopened = q.count - q.viewed;
+      setSummary("quotes", q.count ? [D.plural(q.count, "enviado", "enviados"), unopened ? `${unopened} não ${unopened === 1 ? "aberto" : "abertos"}` : ""].filter(Boolean).join(" · ") : "nenhum aguardando");
+    }
+  }
+
+  /** First visit of the session: tiles and cards rise in once; later loads appear instantly. */
+  const ENTER_KEY = "omd_home_entered";
+  function playEntranceOnce() {
+    let seen = false;
+    try {
+      seen = sessionStorage.getItem(ENTER_KEY) === "1";
+      sessionStorage.setItem(ENTER_KEY, "1");
+    } catch (_) {}
+    if (seen || reducedMotion()) return;
+    const root = $("omdRoot");
+    root.classList.add("omd--enter");
+    setTimeout(() => root.classList.remove("omd--enter"), 1100);
+  }
+
+  /** Empty states carry the Mate in a pose that matches the message. */
+  function mateEmpty(pose) {
+    return `<span class="omd-empty__mate" aria-hidden="true"><img src="/assets/img/mascot/mate-${pose}.webp?v=20261027-m2" alt="" decoding="async" loading="lazy" /></span>`;
   }
 
   function attentionRow(it) {
     const v = D.attentionView(it, overview);
-    const badge = v.badge ? `<span class="omd-badge is-pulse omd-v-row">${esc(v.badge)}</span>` : "";
-    // Bento: the countdown moves into the detail line (orange) so the name never gets squeezed.
-    const bentoDetail = v.badge
-      ? [v.badge, it.source, it.amount > 0 ? D.moneyCompact(it.amount) : ""].filter(Boolean).join(" · ")
-      : "";
+    const badge = v.badge ? `<span class="omd-badge is-pulse">${esc(v.badge)}</span>` : "";
     const cta = v.tel
       ? `<a class="omd-btn omd-btn--ghost omd-btn--sm" href="${esc(v.tel)}" title="Ligar para ${esc(it.entity.name)}">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 16.9v3a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3.1 19.5 19.5 0 01-6-6A19.8 19.8 0 012.1 4.2 2 2 0 014.1 2h3a2 2 0 012 1.7c.1.9.4 1.8.7 2.7a2 2 0 01-.5 2.1L8 9.8a16 16 0 006 6l1.3-1.3a2 2 0 012.1-.4c.9.3 1.8.6 2.7.7a2 2 0 011.7 2z"/></svg>
@@ -214,20 +326,27 @@
       <span class="omd-row__icon">${v.icon}</span>
       <div class="omd-row__body">
         <p class="omd-row__title"><a href="${esc(v.href)}">${esc(v.title)}</a></p>
-        <p class="omd-row__detail">${
-          bentoDetail
-            ? `<span class="omd-v-row">${esc(v.detail)}</span><span class="omd-v-bento is-hot">${esc(bentoDetail)}</span>`
-            : esc(v.detail)
-        }</p>
+        <p class="omd-row__detail">${esc(v.detail)}</p>
       </div>
       <div class="omd-row__aside">${badge}${cta}</div>
     </li>`;
   }
 
+  /** Attention items grouped by what they are about; each group folds on its own. */
+  const ATTN_GROUPS = [
+    { key: "leads", label: "Leads", kinds: ["lead_sla", "lead_uncontacted"] },
+    { key: "followups", label: "Follow-ups", kinds: ["followup_overdue", "followup_today"] },
+    { key: "quotes", label: "Quotes", kinds: ["quote_changes", "quote_expiring", "quote_stale"] },
+    { key: "invoices", label: "Faturas vencidas", kinds: ["invoice_overdue"] },
+  ];
+  const ATTN_GROUP_OF = ATTN_GROUPS.reduce((m, g) => {
+    g.kinds.forEach((k) => (m[k] = g));
+    return m;
+  }, {});
+
   function renderAttention() {
     const list = $("omdAttnList");
     const count = $("omdAttnCount");
-    const more = $("omdAttnMore");
     const att = overview.attention || { total: 0, high: 0, items: [] };
     const items = att.items || [];
 
@@ -239,18 +358,60 @@
       count.hidden = true;
     }
 
-    if (more) more.hidden = true;
-
     if (!items.length) {
-      list.innerHTML = `<li class="omd-empty">
-        <span class="omd-empty__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg></span>
+      list.innerHTML = `<li class="omd-empty omd-empty--mate">
+        ${mateEmpty("celebrate")}
         <div><strong>Tudo em dia</strong><p>Nenhum lead esperando contato, follow-up atrasado, quote parado ou invoice vencida.</p></div>
       </li>`;
       return;
     }
 
-    // Fixed card height + list scroll — show everything, no expand toggle.
-    list.innerHTML = items.map(attentionRow).join("");
+    // Items arrive ranked by urgency; groups keep that order (the group holding the most urgent item first).
+    const groups = [];
+    const byKey = {};
+    items.forEach((it) => {
+      const g = ATTN_GROUP_OF[it.kind] || { key: "other", label: "Outros" };
+      if (!byKey[g.key]) {
+        byKey[g.key] = { ...g, items: [] };
+        groups.push(byKey[g.key]);
+      }
+      byKey[g.key].items.push(it);
+    });
+
+    list.innerHTML = groups
+      .map((g) => {
+        const foldKey = `attn_${g.key}`;
+        const isFolded = !!folded[foldKey];
+        const hot = g.items.some((it) => it.priority === "high");
+        const amount = g.items.reduce((sum, it) => sum + (Number(it.amount) > 0 ? Number(it.amount) : 0), 0);
+        const bodyId = `omdAttnGrp-${g.key}`;
+        return `<li class="omd-agrp${isFolded ? " is-folded" : ""}" data-attn-group="${esc(g.key)}">
+          <button type="button" class="omd-agrp__head" data-attn-fold="${esc(foldKey)}" aria-expanded="${isFolded ? "false" : "true"}" aria-controls="${bodyId}">
+            <span class="omd-agrp__name">${esc(g.label)}</span>
+            <span class="omd-agrp__count${hot ? " is-hot" : ""}">${g.items.length}</span>
+            ${amount > 0 ? `<span class="omd-agrp__amount">${esc(D.moneyCompact(amount))}</span>` : ""}
+            <svg class="omd-fold__chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="omd-agrp__body" id="${bodyId}">
+            <ul class="omd-agrp__list">${g.items.map(attentionRow).join("")}</ul>
+          </div>
+        </li>`;
+      })
+      .join("");
+
+    if (!list.dataset.foldBound) {
+      list.dataset.foldBound = "1";
+      list.addEventListener("click", (e) => {
+        const head = e.target.closest("[data-attn-fold]");
+        if (!head) return;
+        const key = head.getAttribute("data-attn-fold");
+        folded[key] = !folded[key];
+        saveFolds();
+        const grp = head.closest(".omd-agrp");
+        grp.classList.toggle("is-folded", !!folded[key]);
+        head.setAttribute("aria-expanded", folded[key] ? "false" : "true");
+      });
+    }
   }
 
   function renderToday() {
@@ -263,8 +424,8 @@
     }
     card.hidden = false;
     if (!events.length) {
-      list.innerHTML = `<li class="omd-empty">
-        <span class="omd-empty__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
+      list.innerHTML = `<li class="omd-empty omd-empty--mate">
+        ${mateEmpty("reading")}
         <div><strong>Agenda livre hoje</strong><p>Nenhuma visita ou instalação marcada. <a class="omd-link" href="schedule.html">Agendar visita</a></p></div>
       </li>`;
       return;
@@ -363,8 +524,8 @@
           : day
             ? `${WD_PT[new Date(`${day.date}T12:00:00Z`).getUTCDay()] || ""} ${Number(String(day.date).slice(-2))}`.trim()
             : "este dia";
-      list.innerHTML = `<li class="omd-empty">
-        <span class="omd-empty__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
+      list.innerHTML = `<li class="omd-empty omd-empty--mate">
+        ${mateEmpty("sleeping")}
         <div><strong>Sem jobs ${esc(label)}</strong><p>Nenhum job agendado. <a class="omd-link" href="schedule.html">Abrir agenda</a></p></div>
       </li>`;
       return;
@@ -408,527 +569,475 @@
     }
   }
 
-  let dayMap = null;
-  let dayMapMarkers = [];
-  let dayMapToken = 0;
-
-  function loadStylesheet(href) {
-    if ([...document.querySelectorAll('link[rel="stylesheet"]')].some((l) => (l.getAttribute("href") || "").includes(href.split("?")[0]))) {
-      return Promise.resolve();
-    }
-    return new Promise((resolve) => {
-      const link = document.createElement("link");
-      link.rel = "stylesheet";
-      link.href = href;
-      link.onload = () => resolve();
-      link.onerror = () => resolve();
-      document.head.appendChild(link);
-    });
-  }
-
-  function loadScript(src) {
-    return new Promise((resolve, reject) => {
-      if (window.L) {
-        resolve();
-        return;
-      }
-      if ([...document.querySelectorAll("script[src]")].some((s) => s.src === src || (s.getAttribute("src") || "") === src)) {
-        const wait = () => (window.L ? resolve() : setTimeout(wait, 40));
-        wait();
-        return;
-      }
-      const el = document.createElement("script");
-      el.src = src;
-      el.async = true;
-      el.onload = () => resolve();
-      el.onerror = () => reject(new Error(`Falha ao carregar ${src}`));
-      document.head.appendChild(el);
-    });
-  }
-
-  async function ensureLeaflet() {
-    await loadStylesheet("https://unpkg.com/leaflet@1.9.4/dist/leaflet.css");
-    if (!window.L) await loadScript("https://unpkg.com/leaflet@1.9.4/dist/leaflet.js");
-    return window.L;
-  }
-
-  async function geocodeClient(address) {
-    const q = String(address || "").trim();
-    if (!q) return null;
-    try {
-      const r = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`,
-        { headers: { Accept: "application/json" } },
-      );
-      const j = await r.json().catch(() => []);
-      if (!Array.isArray(j) || !j[0]) return null;
-      const lat = Number(j[0].lat);
-      const lng = Number(j[0].lon);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-      return { lat, lng };
-    } catch (_) {
-      return null;
-    }
-  }
-
-  function mapsUrl(ev) {
-    if (Number.isFinite(Number(ev.lat)) && Number.isFinite(Number(ev.lng))) {
-      return `https://www.google.com/maps?q=${Number(ev.lat)},${Number(ev.lng)}`;
-    }
-    if (ev.address) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ev.address)}`;
-    return null;
-  }
-
-  function destroyDayMap() {
-    if (!dayMap) return;
-    try {
-      dayMap.remove();
-    } catch (_) {}
-    dayMap = null;
-    dayMapMarkers = [];
-  }
-
-  async function resolveMapPoints(events) {
-    const points = [];
-    const pending = [];
-    for (const ev of events || []) {
-      const lat = Number(ev.lat);
-      const lng = Number(ev.lng);
-      if (Number.isFinite(lat) && Number.isFinite(lng)) {
-        points.push({ ...ev, lat, lng });
-      } else if (ev.address) {
-        pending.push(ev);
-      }
-    }
-    for (let i = 0; i < Math.min(pending.length, 6); i++) {
-      if (i > 0) await new Promise((r) => setTimeout(r, 1100));
-      const ev = pending[i];
-      const geo = await geocodeClient(ev.address);
-      if (geo) points.push({ ...ev, lat: geo.lat, lng: geo.lng });
-    }
-    return points;
-  }
-
-  async function paintDayMap(canvas, points) {
-    const L = await ensureLeaflet();
-    // Leaflet needs a visible, sized container — force reflow before init.
-    canvas.hidden = false;
-    canvas.getBoundingClientRect();
-    if (!dayMap || dayMap.getContainer() !== canvas) {
-      destroyDayMap();
-      dayMap = L.map(canvas, {
-        zoomControl: false,
-        attributionControl: false,
-        scrollWheelZoom: false,
-      });
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-        crossOrigin: true,
-      }).addTo(dayMap);
-      L.control.zoom({ position: "topright" }).addTo(dayMap);
-    }
-    dayMapMarkers.forEach((m) => {
-      try {
-        dayMap.removeLayer(m);
-      } catch (_) {}
-    });
-    dayMapMarkers = [];
-    const bounds = [];
-    points.forEach((p, i) => {
-      const icon = L.divIcon({
-        className: "omd-map-icon",
-        html: `<div class="omd-map-pin is-${p.type === "job" ? "job" : "visit"}"><span>${i + 1}</span></div>`,
-        iconSize: [28, 28],
-        iconAnchor: [14, 28],
-        popupAnchor: [0, -24],
-      });
-      const marker = L.marker([p.lat, p.lng], { icon }).addTo(dayMap);
-      const link = mapsUrl(p);
-      marker.bindPopup(
-        `<strong>${esc(p.title)}</strong><br>${esc(D.timeOf(p.start, overview))}${
-          p.address ? `<br>${esc(p.address)}` : ""
-        }${link ? `<br><a href="${esc(link)}" target="_blank" rel="noopener">Abrir no Maps</a>` : ""}`,
-      );
-      dayMapMarkers.push(marker);
-      bounds.push([p.lat, p.lng]);
-    });
-    if (bounds.length === 1) dayMap.setView(bounds[0], 13);
-    else dayMap.fitBounds(bounds, { padding: [36, 36], maxZoom: 14 });
-    requestAnimationFrame(() => {
-      dayMap && dayMap.invalidateSize(true);
-      setTimeout(() => dayMap && dayMap.invalidateSize(true), 120);
-      setTimeout(() => dayMap && dayMap.invalidateSize(true), 400);
-    });
-  }
-
-  async function renderDayMap() {
-    const card = $("omdMapCard");
-    const canvas = $("omdMapCanvas");
-    const empty = $("omdMapEmpty");
-    const meta = $("omdMapMeta");
-    if (!card || !canvas) return;
-    const events = overview.today_events;
-    if (events == null) {
-      card.hidden = true;
-      destroyDayMap();
-      return;
-    }
-    card.hidden = false;
-    const token = ++dayMapToken;
-
-    const withCoords = (events || []).filter((e) => Number.isFinite(Number(e.lat)) && Number.isFinite(Number(e.lng)));
-    const needClient = (events || []).filter(
-      (e) => e.address && !(Number.isFinite(Number(e.lat)) && Number.isFinite(Number(e.lng))),
-    );
-
-    if (!events.length) {
-      destroyDayMap();
-      canvas.hidden = true;
-      canvas.classList.remove("is-loading");
-      if (empty) {
-        empty.hidden = false;
-        empty.innerHTML = "<span>Agenda livre hoje — nada para mapear.</span>";
-      }
-      if (meta) meta.textContent = "";
-      return;
-    }
-
-    canvas.hidden = false;
-    canvas.classList.add("is-loading");
-    if (empty) empty.hidden = true;
-    if (meta) meta.textContent = withCoords.length ? D.plural(withCoords.length, "ponto", "pontos") : "localizando…";
-
-    let points = withCoords.map((e) => ({ ...e, lat: Number(e.lat), lng: Number(e.lng) }));
-    if (!points.length && needClient.length) {
-      points = await resolveMapPoints(events);
-    } else if (needClient.length && points.length < 3) {
-      const extra = await resolveMapPoints(needClient.slice(0, 4));
-      const seen = new Set(points.map((p) => p.id));
-      for (const p of extra) if (!seen.has(p.id)) points.push(p);
-    }
-
-    if (token !== dayMapToken) return;
-
-    if (!points.length) {
-      destroyDayMap();
-      canvas.hidden = true;
-      canvas.classList.remove("is-loading");
-      if (empty) {
-        empty.hidden = false;
-        const links = (events || [])
-          .filter((e) => e.address)
-          .slice(0, 4)
-          .map((e) => {
-            const href = mapsUrl(e);
-            return href
-              ? `<a class="omd-link" href="${esc(href)}" target="_blank" rel="noopener">${esc(e.title || e.address)}</a>`
-              : "";
-          })
-          .filter(Boolean)
-          .join("<br>");
-        empty.innerHTML = links
-          ? `<span>Sem coordenadas no mapa ainda.</span><div style="margin-top:.65rem;line-height:1.6">${links}</div>`
-          : "<span>Eventos de hoje sem endereço para mapear.</span>";
-      }
-      if (meta) meta.textContent = needClient.length ? `${needClient.length} sem localização` : "";
-      return;
-    }
-
-    try {
-      await paintDayMap(canvas, points);
-      if (token !== dayMapToken) return;
-      canvas.classList.remove("is-loading");
-      if (empty) empty.hidden = true;
-      const unresolved = Math.max(0, (events || []).filter((e) => e.address).length - points.length);
-      if (meta) {
-        meta.textContent =
-          D.plural(points.length, "ponto", "pontos") + (unresolved ? ` · ${unresolved} sem localização` : "");
-      }
-    } catch (_) {
-      if (token !== dayMapToken) return;
-      destroyDayMap();
-      canvas.hidden = true;
-      canvas.classList.remove("is-loading");
-      if (empty) {
-        empty.hidden = false;
-        empty.innerHTML = "<span>Mapa indisponível no momento.</span>";
-      }
-      if (meta) meta.textContent = "";
-    }
-  }
-
-  function stageColor(col) {
-    const c = col && col.color ? String(col.color).trim() : "";
-    if (/^#[0-9a-fA-F]{3,8}$/.test(c)) return c;
-    return STAGE_TONES[col?.slug] || "#98A2B3";
-  }
-
-  function leadCard(lead, ov, tone) {
-    const flag = lead.uncontacted
-      ? `<span class="omd-lead__flag${Date.now() - Date.parse(lead.created_at) < 30 * 60000 ? " is-sla" : ""}" title="Sem contato ainda"></span>`
-      : "";
-    const summary = lead.summary || lead.source || "";
-    const value =
-      lead.value != null && lead.value > 0
-        ? `<div class="omd-lead__val">${esc(D.moneyCompact(lead.value))}</div>`
-        : "";
-    const owner = lead.owner_name
-      ? `<span class="omd-lead__owner" title="Dono: ${esc(lead.owner_name)}">${esc(
-          String(lead.owner_name)
-            .split(/\s+/)
-            .filter(Boolean)
-            .slice(0, 2)
-            .map((p) => p[0])
-            .join("")
-            .toUpperCase() || "—",
-        )}</span>`
-      : '<span class="omd-lead__owner omd-lead__owner--none" title="Sem dono">—</span>';
-    const canEdit = can("leads.edit") || can("pipeline.manage") || (session && session.user && session.user.role === "admin");
-    return `<article class="omd-lead${canEdit ? " omd-lead--draggable" : ""}" style="--stage-color:${esc(tone || "#98A2B3")}" data-lead-id="${esc(lead.id)}" data-href="lead-detail.html?id=${encodeURIComponent(lead.id)}" tabindex="0" role="link">
-      <div class="omd-lead__r1">
-        <p class="omd-lead__name">${esc(lead.name)}</p>
-        ${flag}
-      </div>
-      ${value}
-      ${summary ? `<p class="omd-lead__sum">${esc(summary)}</p>` : ""}
-      <div class="omd-lead__foot">${owner}<span class="omd-lead__ago">${esc(D.ago(lead.created_at))}</span></div>
-    </article>`;
-  }
-
-  let omdSortables = [];
-  let omdSuppressLeadClick = false;
-
-  function destroyOmdSortables() {
-    omdSortables.forEach((s) => {
-      try {
-        s.destroy();
-      } catch (_) {}
-    });
-    omdSortables = [];
-  }
-
-  async function moveLeadToStage(leadId, stageSlug) {
-    if (typeof window.updateLeadPipelineStage === "function") {
-      return window.updateLeadPipelineStage(leadId, stageSlug);
-    }
-    const id = String(leadId || "").trim();
-    const slug = normalizeSlug(stageSlug);
-    if (!id || !slug) return false;
-    try {
-      const r = await fetch(`/api/leads/${encodeURIComponent(id)}`, {
-        method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: slug }),
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok || j.success === false) {
-        notify(j.error || "Não foi possível mover o lead.", "error");
-        return false;
-      }
-      return true;
-    } catch (e) {
-      notify(e.message || "Não foi possível mover o lead.", "error");
-      return false;
-    }
-  }
-
-  function initOmdSortables() {
-    destroyOmdSortables();
-    if (typeof Sortable === "undefined") return;
-    const board = $("omdBoard");
-    if (!board) return;
-    if (!can("leads.edit") && !can("pipeline.manage") && !(session && session.user && session.user.role === "admin")) {
-      return;
-    }
-
-    if (!board.dataset.dndClickGuard) {
-      board.dataset.dndClickGuard = "1";
-      board.addEventListener(
-        "click",
-        (e) => {
-          if (omdSuppressLeadClick) {
-            e.preventDefault();
-            e.stopPropagation();
-            return;
-          }
-          const card = e.target.closest(".omd-lead[data-href]");
-          if (!card || e.target.closest("button,a")) return;
-          const href = card.getAttribute("data-href");
-          if (href) location.href = href;
-        },
-        true,
-      );
-      board.addEventListener("keydown", (e) => {
-        if (e.key !== "Enter" && e.key !== " ") return;
-        const card = e.target.closest(".omd-lead[data-href]");
-        if (!card) return;
-        e.preventDefault();
-        const href = card.getAttribute("data-href");
-        if (href) location.href = href;
-      });
-    }
-
-    board.querySelectorAll(".omd-col__cards").forEach((el) => {
-      omdSortables.push(
-        Sortable.create(el, {
-          group: "omd-pipeline",
-          animation: 360,
-          easing: "cubic-bezier(0.2, 0.8, 0.2, 1)",
-          draggable: ".omd-lead[data-lead-id]",
-          filter: "button, a, .omd-col__empty, .omd-col__more, .omd-col__add",
-          preventOnFilter: false,
-          forceFallback: true,
-          fallbackOnBody: true,
-          fallbackTolerance: 4,
-          emptyInsertThreshold: 56,
-          swapThreshold: 0.5,
-          invertSwap: true,
-          direction: "vertical",
-          scroll: true,
-          bubbleScroll: true,
-          scrollSensitivity: 72,
-          scrollSpeed: 18,
-          delay: 90,
-          delayOnTouchOnly: true,
-          touchStartThreshold: 4,
-          ghostClass: "omd-lead--ghost",
-          chosenClass: "omd-lead--chosen",
-          dragClass: "omd-lead--drag",
-          fallbackClass: "omd-lead--drag",
-          onStart(evt) {
-            omdSuppressLeadClick = true;
-            document.body.classList.add("omd-dnd-active");
-            if (evt && evt.item) evt.item.classList.add("omd-lead--lifting");
-          },
-          async onAdd(evt) {
-            const card = evt.item;
-            const leadId = card && card.getAttribute("data-lead-id");
-            const toCol = evt.to && evt.to.closest(".omd-col");
-            const fromCol = evt.from && evt.from.closest(".omd-col");
-            const toSlug = toCol && toCol.dataset.stageSlug ? String(toCol.dataset.stageSlug) : "";
-            const fromSlug = fromCol && fromCol.dataset.stageSlug ? String(fromCol.dataset.stageSlug) : "";
-            if (!leadId || !toSlug || toSlug === fromSlug) {
-              await refresh(true);
-              return;
-            }
-            const ok = await moveLeadToStage(leadId, toSlug);
-            if (!ok) {
-              await refresh(true);
-              return;
-            }
-            notify("Lead atualizado no pipeline.", "success");
-            // Soft sync: keep Sortable FLIP; defer full refresh until drag UI settles.
-            setTimeout(() => {
-              if (!document.body.classList.contains("omd-dnd-active")) {
-                void refresh(true);
-              }
-            }, 520);
-          },
-          onEnd(evt) {
-            document.body.classList.remove("omd-dnd-active");
-            if (evt && evt.item) evt.item.classList.remove("omd-lead--lifting");
-            setTimeout(() => {
-              omdSuppressLeadClick = false;
-            }, 50);
-          },
-        }),
-      );
-    });
-  }
-
-  /** Fallback when overview board has no stage color (same defaults as Leads Kanban). */
-  const STAGE_TONES = {
-    new_lead: "#D0D5DD",
-    contacted: "#98A2B3",
-    meeting_scheduled: "#536249",
-    quote_sent: "#E7792C",
-    stand_by: "#EAECF0",
-    won: "#221E1A",
-  };
-
-  function renderPipeline() {
-    const card = $("omdPipeCard");
-    const board = overview.board;
-    if (!board) {
+  function renderOps() {
+    const card = $("omdOpsCard");
+    const s = overview.jobs_status;
+    if (!s) {
       card.hidden = true;
       return;
     }
     card.hidden = false;
-    const open = board.filter((c) => c.slug !== "won");
-    const openCount = open.reduce((s, c) => s + c.count, 0);
-    const openValue = open.reduce((s, c) => s + c.value, 0);
-    $("omdPipeMeta").textContent = `${D.plural(openCount, "lead aberto", "leads abertos")} · ${D.money(openValue)} em negociação`;
-
-    const funnel = $("omdFunnel");
-    if (openValue > 0) {
-      funnel.hidden = false;
-      funnel.setAttribute("role", "img");
-      funnel.setAttribute(
-        "aria-label",
-        "Valor por estágio: " +
-          open.map((c) => `${D.stageLabel(c.slug, c.name)} ${D.moneyCompact(c.value)}`).join(", "),
-      );
-      funnel.innerHTML = open
-        .filter((c) => c.value > 0)
-        .map(
-          (c) =>
-            `<i style="flex:${c.value};background:${esc(stageColor(c))}" title="${esc(D.stageLabel(c.slug, c.name))}: ${esc(
-              D.money(c.value),
-            )}"></i>`,
-        )
-        .join("");
+    const v = D.jobsStatusView(s);
+    $("omdOpsStats").innerHTML = v.stats
+      .map(
+        (st) => `<a class="omd-stat${st.tone ? ` is-${esc(st.tone)}` : ""}${st.value ? "" : " is-zero"}" href="${esc(st.href)}">
+          <span class="omd-stat__value">${esc(String(st.value))}</span>
+          <span class="omd-stat__label">${esc(st.label)}</span>
+        </a>`,
+      )
+      .join("");
+    const bill = $("omdOpsBill");
+    if (v.bill) {
+      bill.hidden = false;
+      bill.innerHTML = `<span class="omd-ops__bill-label">A faturar</span>
+        <span class="omd-ops__bill-value">${esc(v.bill.value)}</span>
+        <span class="omd-ops__bill-meta">${esc(v.bill.meta)}</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>`;
     } else {
-      funnel.hidden = true;
+      bill.hidden = true;
     }
-
-    const canCreate = can("leads.create");
-    destroyOmdSortables();
-    $("omdBoard").innerHTML = board
-      .map((col) => {
-        const label = D.stageLabel(col.slug, col.name);
-        const tone = stageColor(col);
-        const cards = col.leads.map((l) => leadCard(l, overview, tone)).join("");
-        const more =
-          col.count > col.leads.length
-            ? `<a class="omd-col__more" href="leads.html">Ver todos os ${col.count} →</a>`
-            : "";
-        const add = col.slug === "new_lead" && canCreate ? '<button type="button" class="omd-col__add" data-omd-new>+ Adicionar lead</button>' : "";
-        return `<section class="omd-col${col.slug === "won" ? " is-closed" : ""}" data-stage-slug="${esc(col.slug)}" style="--stage-color:${esc(tone)}" aria-label="${esc(label)}">
-          <header class="omd-col__head">
-            <span class="omd-col__dot${col.slug === "stand_by" ? " is-hollow" : ""}" style="background:${esc(tone)}"></span>
-            <h3 class="omd-col__name">${esc(label)}</h3>
-            <span class="omd-col__count">${col.count}</span>
-          </header>
-          <p class="omd-col__value">${esc(D.moneyCompact(col.value))}</p>
-          <div class="omd-col__cards" data-stage-slug="${esc(col.slug)}">
-            ${cards || '<p class="omd-col__empty">Nenhum lead</p>'}
+    const list = $("omdOpsList");
+    list.innerHTML = v.rows.length
+      ? v.rows
+          .map(
+            (r) => `<li class="omd-row omd-row--compact is-${esc(r.tone)}">
+          <div class="omd-row__body">
+            <p class="omd-row__title"><a href="${esc(r.href)}">${esc(r.title)}</a></p>
+            <p class="omd-row__detail">${esc(r.sub)}</p>
           </div>
-          ${more}${add}
-        </section>`;
+          ${r.aside ? `<span class="omd-row__amount">${esc(r.aside)}</span>` : ""}
+        </li>`,
+          )
+          .join("")
+      : `<li class="omd-empty omd-empty--inline"><p>Nenhum job atrasado ou esperando fatura.</p></li>`;
+  }
+
+  function renderQuotesWaiting() {
+    const card = $("omdQuotesCard");
+    const q = overview.quotes_waiting;
+    if (!q) {
+      card.hidden = true;
+      return;
+    }
+    card.hidden = false;
+    const sum = $("omdQuotesSum");
+    if (!q.count) {
+      sum.hidden = true;
+      $("omdQuotesList").innerHTML = `<li class="omd-empty omd-empty--mate">
+        ${mateEmpty("thumbs")}
+        <div><strong>Nenhum quote esperando resposta</strong><p>Os quotes enviados aparecem aqui até o cliente aprovar. <a class="omd-link" href="quote-builder.html">Novo quote</a></p></div>
+      </li>`;
+      return;
+    }
+    sum.hidden = false;
+    // The money in play is already the "Pipeline aberto" tile above; here: how many and who opened them.
+    const unopened = q.count - q.viewed;
+    sum.innerHTML = [
+      `<b>${esc(String(q.count))}</b> ${q.count === 1 ? "enviado" : "enviados"}`,
+      q.viewed ? `${esc(String(q.viewed))} ${q.viewed === 1 ? "visto" : "vistos"}` : "",
+      unopened ? `${esc(String(unopened))} não ${unopened === 1 ? "aberto" : "abertos"}` : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    $("omdQuotesList").innerHTML = q.items
+      .map((it) => {
+        const v = D.quoteWaitView(it);
+        return `<li class="omd-row omd-row--compact${v.stale ? " is-stale" : ""}">
+          <div class="omd-row__body">
+            <p class="omd-row__title"><a href="${esc(v.href)}">${esc(v.title)}</a></p>
+            <p class="omd-row__detail">${esc(v.sub)}</p>
+          </div>
+          <div class="omd-row__aside">
+            ${v.amount ? `<span class="omd-row__amount">${esc(v.amount)}</span>` : ""}
+            <span class="omd-seen is-${esc(v.seenTone)}">${esc(v.seen)}</span>
+          </div>
+        </li>`;
       })
       .join("");
-    $("omdBoard")
-      .querySelectorAll("[data-omd-new]")
-      .forEach((btn) => btn.addEventListener("click", () => openNewLead(() => refresh(true))));
-    initOmdSortables();
-    updateBoardOverflow();
   }
 
-  /** Narrow windows: fade the clipped edge and show ‹ › so hidden stages are discoverable. */
-  function updateBoardOverflow() {
-    const wrap = $("omdBoardWrap");
-    const nav = $("omdBoardNav");
-    if (!wrap || !nav) return;
-    const max = wrap.scrollWidth - wrap.clientWidth;
-    const overflow = max > 4;
-    nav.hidden = !overflow;
-    wrap.classList.toggle("fade-left", overflow && wrap.scrollLeft > 4);
-    wrap.classList.toggle("fade-right", overflow && wrap.scrollLeft < max - 4);
-    const [prev, next] = nav.querySelectorAll("button");
-    if (prev) prev.disabled = wrap.scrollLeft <= 4;
-    if (next) next.disabled = wrap.scrollLeft >= max - 4;
+
+  /* ---------------------------------------------------------------------------
+   * Charts (inline SVG, drawn at the real size; redrawn on resize).
+   * Palettes validated with the dataviz skill's validate_palette.js:
+   *   dark tile #221E1A: this month #D96B20 · last month #1FA2C2   (all checks pass)
+   *   white card:        installation #C25E17 · visit #0F7FA0       (all checks pass)
+   * ------------------------------------------------------------------------- */
+  const SVGNS = "http://www.w3.org/2000/svg";
+  const CHART = {
+    won: { now: "#D96B20", prev: "#1FA2C2", grid: "rgba(255,255,255,0.14)", surface: "#221E1A" },
+    day: { job: "#C25E17", visit: "#0F7FA0" },
+  };
+
+  function svgEl(tag, attrs) {
+    const el = document.createElementNS(SVGNS, tag);
+    Object.keys(attrs || {}).forEach((k) => el.setAttribute(k, attrs[k]));
+    return el;
   }
+
+  /** One tooltip for the whole Home; text set with textContent (values come from tenant data). */
+  function chartTip() {
+    let tip = document.getElementById("omdChartTip");
+    if (!tip) {
+      tip = document.createElement("div");
+      tip.id = "omdChartTip";
+      tip.className = "omd-tip";
+      tip.setAttribute("role", "status");
+      tip.hidden = true;
+      document.body.appendChild(tip);
+    }
+    return tip;
+  }
+
+  function showTip(x, y, title, rows) {
+    const tip = chartTip();
+    tip.textContent = "";
+    const t = document.createElement("p");
+    t.className = "omd-tip__title";
+    t.textContent = title;
+    tip.appendChild(t);
+    rows.forEach((r) => {
+      const row = document.createElement("p");
+      row.className = "omd-tip__row";
+      const key = document.createElement("i");
+      key.style.background = r.color;
+      const val = document.createElement("b");
+      val.textContent = r.value;
+      const name = document.createElement("span");
+      name.textContent = r.name;
+      row.append(key, val, name);
+      tip.appendChild(row);
+    });
+    tip.hidden = false;
+    const w = tip.offsetWidth;
+    const h = tip.offsetHeight;
+    const left = Math.min(window.innerWidth - w - 8, Math.max(8, x - w / 2));
+    const top = y - h - 12 < 8 ? y + 16 : y - h - 12;
+    tip.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
+  }
+
+  function hideTip() {
+    const tip = document.getElementById("omdChartTip");
+    if (tip) tip.hidden = true;
+  }
+
+  function monthShort(iso) {
+    const d = iso ? new Date(iso) : new Date();
+    try {
+      return new Intl.DateTimeFormat("pt-BR", { month: "short", timeZone: overview.timezone || undefined }).format(d).replace(".", "");
+    } catch (_) {
+      return "";
+    }
+  }
+
+  /**
+   * "Fechado no mês": closed per week of the month (1–7, 8–14, 15–21, 22–28, 29+).
+   * This month in orange; the same week of last month as a light shadow behind it.
+   */
+  function weekTotals(running, days) {
+    const out = [];
+    const at = (d) => (d <= 0 ? 0 : running[Math.min(running.length, d) - 1] || 0);
+    for (let start = 1; start <= days; start += 7) {
+      const end = Math.min(days, start + 6);
+      out.push({ start, end, value: Math.max(0, at(end) - at(start - 1)), reached: start <= running.length });
+    }
+    return out;
+  }
+
+  function drawWonChart() {
+    const host = document.querySelector('[data-omd-chart="won"]');
+    const daily = overview && overview.kpis && overview.kpis.won_month && overview.kpis.won_month.daily;
+    if (!host || !daily) return;
+    const W = Math.round(host.clientWidth);
+    const H = Math.round(host.clientHeight);
+    host.textContent = "";
+    if (W < 80 || H < 48) return;
+
+    const today = overview.today || "";
+    const y = Number(today.slice(0, 4)) || new Date().getFullYear();
+    const m = Number(today.slice(5, 7)) || new Date().getMonth() + 1;
+    const daysInMonth = new Date(y, m, 0).getDate();
+    const cur = weekTotals(daily.current || [], daysInMonth);
+    const prevWeeks = weekTotals(daily.previous || [], (daily.previous || []).length || 30);
+    const n = cur.length;
+    const prevOf = (i) => (prevWeeks[i] ? prevWeeks[i].value : 0);
+    const maxVal = Math.max(1, ...cur.map((w) => w.value), ...cur.map((w, i) => prevOf(i)));
+    const fmt = (v) => (daily.unit === "money" ? D.money(v) : D.plural(v, "quote", "quotes"));
+    const fmtShort = (v) => (daily.unit === "money" ? D.moneyCompact(v) : String(v));
+    const nowName = monthShort(overview.period && overview.period.month_start);
+    const prevName = monthShort(overview.period && overview.period.previous_month_start);
+    const curWeek = Math.max(0, Math.min(n - 1, Math.floor(((daily.current || []).length - 1) / 7)));
+
+    const legendH = 16;
+    const labelH = 14;
+    const plotTop = legendH + 14;
+    const plotH = Math.max(20, H - plotTop - labelH - 4);
+    const base = plotTop + plotH;
+    const slot = W / n;
+    const barW = Math.min(24, Math.max(10, slot * 0.42));
+    const shadowW = Math.min(30, barW + 8);
+
+    const svg = svgEl("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img" });
+    svg.setAttribute(
+      "aria-label",
+      `Fechado por semana em ${nowName}: ` +
+        cur.map((w, i) => `${w.start}–${w.end}: ${w.reached ? fmt(w.value) : "ainda não"}${prevOf(i) ? ` (${prevName} ${fmt(prevOf(i))})` : ""}`).join("; "),
+    );
+
+    const leg = svgEl("g", { class: "omd-chart__legend" });
+    leg.appendChild(svgEl("rect", { x: 0, y: 3, width: 10, height: 8, rx: 2, fill: CHART.won.now }));
+    const t1 = svgEl("text", { x: 15, y: 11 });
+    t1.textContent = nowName;
+    leg.appendChild(t1);
+    leg.appendChild(svgEl("rect", { x: 52, y: 3, width: 10, height: 8, rx: 2, fill: "rgba(255,255,255,0.22)" }));
+    const t2 = svgEl("text", { x: 67, y: 11 });
+    t2.textContent = prevName;
+    leg.appendChild(t2);
+    svg.appendChild(leg);
+
+    svg.appendChild(svgEl("line", { x1: 0, x2: W, y1: base + 0.5, y2: base + 0.5, stroke: CHART.won.grid, "stroke-width": 1 }));
+
+    // Bar with a 4px rounded top, square on the baseline.
+    const barPath = (cx, w, h) => {
+      if (h <= 0) return "";
+      const r = Math.min(4, w / 2, h);
+      const x0 = cx - w / 2;
+      const top = base - h;
+      return `M${x0},${base} L${x0},${top + r} Q${x0},${top} ${x0 + r},${top} L${x0 + w - r},${top} Q${x0 + w},${top} ${x0 + w},${top + r} L${x0 + w},${base} Z`;
+    };
+    const hv = (v) => (v / maxVal) * plotH;
+
+    cur.forEach((w, i) => {
+      const cx = slot * i + slot / 2;
+      const g = svgEl("g", { class: `omd-wk${i === curWeek ? " is-now" : ""}${w.reached ? "" : " is-future"}`, style: `--i:${i}` });
+      const shadow = barPath(cx, shadowW, hv(prevOf(i)));
+      if (shadow) g.appendChild(svgEl("path", { d: shadow, fill: "rgba(255,255,255,0.14)", class: "omd-wk__shadow" }));
+      const bar = barPath(cx, barW, hv(w.value));
+      if (bar && w.reached) g.appendChild(svgEl("path", { d: bar, fill: CHART.won.now, class: "omd-wk__bar" }));
+      // Only the current week is labelled on the chart; the rest live in the tooltip.
+      if (i === curWeek && w.value > 0) {
+        const lab = svgEl("text", { x: cx, y: base - hv(w.value) - 5, "text-anchor": "middle", class: "omd-wk__value" });
+        lab.textContent = fmtShort(w.value);
+        g.appendChild(lab);
+      }
+      const day = svgEl("text", { x: cx, y: base + labelH, "text-anchor": "middle", class: "omd-wk__label" });
+      // Narrow tile: only the first day of each week ("1", "8", "15"…); the tooltip has the range.
+      day.textContent = slot >= 38 ? `${w.start}–${w.end}` : String(w.start);
+      g.appendChild(day);
+      // Hit area: the whole column, not just the bar.
+      const hit = svgEl("rect", { x: slot * i, y: legendH, width: slot, height: H - legendH, fill: "transparent" });
+      const show = () => {
+        const r = hit.getBoundingClientRect();
+        const rows = [{ color: CHART.won.now, value: w.reached ? fmt(w.value) : "ainda não chegou", name: nowName }];
+        rows.push({ color: "rgba(255,255,255,0.5)", value: fmt(prevOf(i)), name: prevName });
+        showTip(r.left + r.width / 2, r.top + 8, `Dias ${w.start}–${w.end}`, rows);
+        g.classList.add("is-hover");
+      };
+      hit.addEventListener("pointerenter", show);
+      hit.addEventListener("pointerleave", () => {
+        hideTip();
+        g.classList.remove("is-hover");
+      });
+      g.appendChild(hit);
+      svg.appendChild(g);
+    });
+    host.appendChild(svg);
+  }
+
+  /**
+   * "Pipeline aberto": the open stages as a funnel (bar width = leads in the stage).
+     */
+  const FUNNEL_STAGES = ["new_lead", "contacted", "meeting_scheduled", "quote_sent", "follow_up_1"];
+
+  function drawFunnel() {
+    const host = document.querySelector('[data-omd-chart="funnel"]');
+    const board = overview && overview.board;
+    if (!host || !board) return;
+    const W = Math.round(host.clientWidth);
+    const H = Math.round(host.clientHeight);
+    host.textContent = "";
+    if (W < 80 || H < 44) return;
+    const stages = FUNNEL_STAGES.map((slug) => board.find((c) => c.slug === slug)).filter(Boolean);
+    if (!stages.length) return;
+    const n = stages.length;
+    const gap = Math.max(5, Math.min(9, (H - n * 10) / Math.max(1, n - 1)));
+    const barH = Math.max(8, Math.min(18, (H - gap * (n - 1)) / n));
+    const labelW = Math.min(118, Math.round(W * 0.42));
+    const countW = 28;
+    const trackW = Math.max(30, W - labelW - countW - 8);
+    const maxCount = Math.max(1, ...stages.map((c) => c.count || 0));
+    const total = stages.reduce((sum, c) => sum + (c.count || 0), 0);
+
+    const svg = svgEl("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img" });
+    svg.setAttribute("aria-label", "Leads por etapa: " + stages.map((c) => `${D.stageLabel(c.slug, c.name)} ${c.count || 0}`).join(", "));
+    stages.forEach((c, i) => {
+      const yTop = i * (barH + gap);
+      const w = c.count ? Math.max(barH, (c.count / maxCount) * trackW) : 3;
+      const cx = labelW + trackW / 2;
+      const g = svgEl("g", { class: "omd-fn__stage", style: `--i:${i}` });
+      const name = svgEl("text", { x: 0, y: yTop + barH / 2 + 4, class: "omd-fn__name" });
+      name.textContent = D.stageLabel(c.slug, c.name);
+      g.appendChild(name);
+      g.appendChild(svgEl("rect", { x: labelW, y: yTop, width: trackW, height: barH, rx: barH / 2, class: "omd-fn__track" }));
+      g.appendChild(svgEl("rect", { x: cx - w / 2, y: yTop, width: w, height: barH, rx: barH / 2, class: "omd-fn__bar" }));
+      const num = svgEl("text", { x: W, y: yTop + barH / 2 + 4, "text-anchor": "end", class: "omd-fn__count" });
+      num.textContent = String(c.count || 0);
+      g.appendChild(num);
+      const hit = svgEl("rect", { x: 0, y: yTop - gap / 2, width: W, height: barH + gap, fill: "transparent" });
+      hit.addEventListener("pointerenter", () => {
+        const r = hit.getBoundingClientRect();
+        const share = total ? Math.round(((c.count || 0) / total) * 100) : 0;
+        const rows = [{ color: "#fff", value: D.plural(c.count || 0, "lead", "leads"), name: `${share}% do funil` }];
+        if (c.value) rows.push({ color: "rgba(255,255,255,0.6)", value: D.money(c.value), name: "estimado" });
+        showTip(r.left + r.width / 2, r.top, D.stageLabel(c.slug, c.name), rows);
+        g.classList.add("is-hover");
+      });
+      hit.addEventListener("pointerleave", () => {
+        hideTip();
+        g.classList.remove("is-hover");
+      });
+      g.appendChild(hit);
+      svg.appendChild(g);
+    });
+    host.appendChild(svg);
+  }
+
+  /** "Hoje": the day as a timeline — visits and installations as blocks, with a "now" marker. */
+  function drawDayTimeline() {
+    const host = $("omdTodayTimeline");
+    if (!host) return;
+    const events = (overview && overview.today_events) || [];
+    host.textContent = "";
+    host.hidden = false;
+    const tz = overview.timezone || undefined;
+    const hourOf = (iso) => {
+      try {
+        const parts = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "numeric", hourCycle: "h23", timeZone: tz }).formatToParts(new Date(iso));
+        const h = Number(parts.find((p) => p.type === "hour").value);
+        const mi = Number(parts.find((p) => p.type === "minute").value);
+        return h + mi / 60;
+      } catch (_) {
+        const d = new Date(iso);
+        return d.getHours() + d.getMinutes() / 60;
+      }
+    };
+    const todayKey = overview.today || "";
+    const dayKey = (iso) => {
+      try {
+        return new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date(iso));
+      } catch (_) {
+        return "";
+      }
+    };
+    // Clamp multi-day events to today.
+    const spans = events.map((ev) => {
+      const s = dayKey(ev.start) < todayKey ? 0 : hourOf(ev.start);
+      const e = dayKey(ev.end) > todayKey ? 24 : Math.max(s + 0.25, hourOf(ev.end));
+      return { ev, s, e };
+    });
+    const nowH = hourOf(new Date().toISOString());
+    let from = 7;
+    let to = 19;
+    spans.forEach((sp) => {
+      from = Math.min(from, Math.floor(sp.s));
+      to = Math.max(to, Math.ceil(sp.e));
+    });
+    from = Math.max(0, Math.min(from, Math.floor(nowH)));
+    to = Math.min(24, Math.max(to, Math.ceil(nowH)));
+    const pct = (h) => `${(((h - from) / (to - from)) * 100).toFixed(2)}%`;
+
+    // Lanes: an event goes in the first lane where it does not overlap.
+    const lanes = [];
+    spans
+      .slice()
+      .sort((a, b) => a.s - b.s)
+      .forEach((sp) => {
+        let lane = lanes.findIndex((end) => end <= sp.s);
+        if (lane < 0) {
+          lane = lanes.length;
+          lanes.push(0);
+        }
+        lanes[lane] = sp.e;
+        sp.lane = Math.min(lane, 2);
+      });
+
+    const track = document.createElement("div");
+    track.className = "omd-tl__track";
+    track.style.setProperty("--lanes", String(Math.max(1, Math.min(3, lanes.length))));
+    // Ticks every 2h on a normal day, every 4h when an all-day job stretches the scale.
+    const step = to - from > 14 ? 4 : 2;
+    for (let h = Math.ceil(from / step) * step; h <= to; h += step) {
+      const tick = document.createElement("span");
+      tick.className = "omd-tl__tick";
+      tick.style.left = pct(h);
+      tick.textContent = `${h}h`;
+      track.appendChild(tick);
+    }
+    spans.forEach((sp, i) => {
+      const a = document.createElement("a");
+      const isJob = sp.ev.type === "job";
+      a.className = `omd-tl__block is-${isJob ? "job" : "visit"}`;
+      a.href = sp.ev.href;
+      a.style.left = pct(Math.max(from, sp.s));
+      a.style.width = `calc(${pct(Math.min(to, sp.e))} - ${pct(Math.max(from, sp.s))})`;
+      a.style.setProperty("--lane", String(sp.lane));
+      a.style.setProperty("--i", String(i));
+      const v = D.eventView(sp.ev, overview);
+      a.setAttribute("aria-label", `${v.tag}: ${sp.ev.title}, ${v.time}${v.until ? ` (${v.until})` : ""}`);
+      const tipFor = () => {
+        const r = a.getBoundingClientRect();
+        showTip(r.left + r.width / 2, r.top, `${v.time} · ${v.until || ""}`.replace(/ · $/, ""), [
+          { color: isJob ? CHART.day.job : CHART.day.visit, value: sp.ev.title, name: v.tag },
+        ]);
+      };
+      a.addEventListener("pointerenter", tipFor);
+      a.addEventListener("focus", tipFor);
+      a.addEventListener("pointerleave", hideTip);
+      a.addEventListener("blur", hideTip);
+      track.appendChild(a);
+    });
+    if (nowH >= from && nowH <= to) {
+      const now = document.createElement("span");
+      now.className = "omd-tl__now";
+      now.style.left = pct(nowH);
+      now.setAttribute("aria-hidden", "true");
+      track.appendChild(now);
+    }
+    host.appendChild(track);
+
+    const hasJob = spans.some((sp) => sp.ev.type === "job");
+    const hasVisit = spans.some((sp) => sp.ev.type !== "job");
+    const legend = document.createElement("p");
+    legend.className = "omd-tl__legend";
+    [
+      ["Instalação", "job", hasJob],
+      ["Visita", "visit", hasVisit],
+      ["Agora", "now", nowH >= from && nowH <= to],
+    ].forEach(([label, kind, show]) => {
+      if (!show) return;
+      const span = document.createElement("span");
+      span.className = `is-${kind}`;
+      span.textContent = label;
+      legend.appendChild(span);
+    });
+    host.appendChild(legend);
+  }
+
+  function drawCharts() {
+    drawWonChart();
+    drawFunnel();
+    drawDayTimeline();
+  }
+
+  let chartResizeTimer = null;
+  window.addEventListener("resize", () => {
+    clearTimeout(chartResizeTimer);
+    chartResizeTimer = setTimeout(() => {
+      if (!overview) return;
+      drawWonChart();
+      drawFunnel();
+    }, 120);
+  });
 
   function applyPermissions() {
     document.querySelectorAll("[data-omd-perm]").forEach((el) => {
@@ -942,8 +1051,11 @@
     renderAttention();
     renderToday();
     renderJobsForecast();
-    renderDayMap();
-    renderPipeline();
+    renderOps();
+    renderQuotesWaiting();
+    renderSummaries();
+    // Charts measure their boxes: draw after layout.
+    requestAnimationFrame(drawCharts);
     renderUpdated();
     $("omdRoot").setAttribute("aria-busy", "false");
   }
@@ -977,7 +1089,12 @@
       loadedAt = Date.now();
       $("omdError").hidden = true;
       applyPermissions();
+      const firstPaint = !overview || !$("omdRoot").dataset.painted;
       renderAll();
+      if (firstPaint) {
+        $("omdRoot").dataset.painted = "1";
+        playEntranceOnce();
+      }
     } catch (err) {
       if (err && err.status === 401) {
         location.href = "/login.html";
@@ -1006,24 +1123,15 @@
   }
 
   function bootDesktop() {
-    document.title = "Dashboard | ObraMate";
+    document.title = "Início | ObraMate";
     bindJobsForecastNav();
+    applyFolds();
+    bindFolds();
     $("omdNewLead").addEventListener("click", () => openNewLead(() => refresh(true)));
     $("plabDockNew").addEventListener("click", () => openNewLead(() => refresh(true)));
     $("plabDockSearch").addEventListener("click", () => openSearch());
     $("omdRefresh").addEventListener("click", () => refresh(true));
     $("omdRetry").addEventListener("click", () => refresh(true));
-    const wrap = $("omdBoardWrap");
-    wrap.addEventListener("scroll", updateBoardOverflow, { passive: true });
-    window.addEventListener("resize", updateBoardOverflow);
-    $("omdBoardNav")
-      .querySelectorAll("[data-omd-scroll]")
-      .forEach((btn) =>
-        btn.addEventListener("click", () => {
-          const dir = Number(btn.getAttribute("data-omd-scroll")) || 1;
-          wrap.scrollBy({ left: dir * Math.max(220, wrap.clientWidth * 0.7), behavior: "smooth" });
-        }),
-      );
     setupDock();
 
     document.addEventListener("visibilitychange", () => {
@@ -1155,7 +1263,13 @@
 
   async function deleteLeadById(id) {
     if (!id) return;
-    if (!confirm("Excluir este lead permanentemente? Esta ação não pode ser desfeita.")) return;
+    const ok = await window.crmConfirm({
+      title: "Excluir este lead?",
+      text: "O lead e o histórico dele são apagados. Isso não pode ser desfeito.",
+      ok: "Excluir lead",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       const r = await fetch(`/api/leads/${encodeURIComponent(id)}`, {
         method: "DELETE",

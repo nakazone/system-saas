@@ -11,6 +11,7 @@ import { requireCrmAuth, requireCrmPermission } from "../http.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import {
   isJobMediaEnabled,
+  JOB_MEDIA_PEOPLE,
   mapJobMedia,
   parsePhotoUploadMeta,
   sha256Buffer,
@@ -25,6 +26,8 @@ import {
   type JobReportTemplate,
 } from "../../lib/job-media/report.js";
 import { buildJobReportPdf } from "../../lib/job-media/report-pdf.js";
+import { cleanStickerIds } from "../../lib/job-media/stickers.js";
+import { jobPhaseContext, photoPhaseFields } from "../../lib/job-media/phases.js";
 import { isAiConfigured } from "../../lib/ai/client.js";
 import { recordActivity } from "../../lib/activity/record.js";
 import { storage } from "../../lib/storage/index.js";
@@ -138,12 +141,13 @@ jobReportsRouter.get(
           where: { workOrderId: jobId, deletedAt: null },
           orderBy: [{ createdAt: "desc" }],
           take: 200,
-          include: { author: { select: { id: true, name: true } } },
+          include: JOB_MEDIA_PEOPLE,
         });
         const jobGeo = await resolveJobSiteGeo(tx, jobId);
+        const phaseCtx = await jobPhaseContext(tx, req.organizationId!, jobId);
         const data = rows.map((row) => {
           const mapped = mapJobMedia(row);
-          return { ...mapped, ...photoDistanceFields(mapped, jobGeo) };
+          return { ...mapped, ...photoDistanceFields(mapped, jobGeo), ...photoPhaseFields(phaseCtx, row) };
         });
         return {
           data,
@@ -151,6 +155,7 @@ jobReportsRouter.get(
             ai_configured: isAiConfigured(),
             job_geo: jobGeo,
             far_threshold_m: 500,
+            phases: phaseCtx ? phaseCtx.phases : [],
           },
         };
       });
@@ -295,6 +300,12 @@ jobReportsRouter.post(
           select: { id: true, address: true },
         });
         if (!wo) throw Object.assign(new Error("Job not found"), { status: 404 });
+        // "Tirada por" must be someone in this company; anyone else is ignored and the uploader stands.
+        const takenBy =
+          meta.takenById && meta.takenById !== req.user!.id
+            ? await tx.user.findFirst({ where: { id: meta.takenById, organizationId: req.organizationId! }, select: { id: true } })
+            : null;
+        const stickerIds = await cleanStickerIds(tx, req.organizationId!, raw.sticker_ids);
 
         const row = await tx.jobMedia.create({
           data: {
@@ -317,8 +328,13 @@ jobReportsRouter.post(
             isPublic: meta.isPublic,
             clientUploadId: meta.clientUploadId,
             deviceLabel: meta.deviceLabel || "Office web",
+            takenById: takenBy?.id ?? null,
+            takenAtSource: meta.takenAtDevice ? meta.takenAtSource || "upload" : null,
+            locationSource: meta.locationSource,
+            cameraModel: meta.cameraModel,
+            stickerIds,
           },
-          include: { author: { select: { id: true, name: true } } },
+          include: JOB_MEDIA_PEOPLE,
         });
 
         await recordActivity(tx, {
@@ -331,7 +347,8 @@ jobReportsRouter.post(
           changes: { sha256: { from: null, to: hash }, stage: { from: null, to: meta.stage } },
         });
 
-        return mapJobMedia(row);
+        const phaseCtx = await jobPhaseContext(tx, req.organizationId!, wo.id);
+        return { ...mapJobMedia(row), ...photoPhaseFields(phaseCtx, row) };
       });
 
       console.info("[job-media] uploaded", {

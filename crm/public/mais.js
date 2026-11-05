@@ -101,7 +101,6 @@
       location.href = "/login.html";
     }
 
-    $("maisLogout")?.addEventListener("click", () => logout());
     $("maisLogoutCard")?.addEventListener("click", () => logout());
     $("logoutBtn")?.addEventListener("click", () => logout());
     document.querySelectorAll("[data-crm-logout]").forEach((el) => {

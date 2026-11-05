@@ -230,6 +230,143 @@
     return cards.slice(0, 4);
   }
 
+  /**
+   * Home KPI strip: sales (pipeline, won, conversion, new leads) and money (receivables, gross profit).
+   * Each tile: { key, group, label, value, title, meta, metaTone, href }.
+   */
+  function kpiStrip(ov) {
+    const k = (ov && ov.kpis) || {};
+    const tz = tzOf(ov);
+    const prevMonth = monthName(ov && ov.period && ov.period.previous_month_start, tz);
+    const shortPrev = prevMonth ? prevMonth.slice(0, 3) + "." : "";
+    const vs = (d) => (d ? d.text.replace(/^[▲▼]\s*/, d.tone === "down" ? "−" : "+").replace(` vs ${prevMonth}`, ` vs ${shortPrev}`) : "");
+    const tiles = [];
+
+    if (k.pipeline_open) {
+      const p = k.pipeline_open;
+      const hasMoney = p.value != null;
+      tiles.push({
+        key: "pipeline",
+        group: "sales",
+        label: "Pipeline aberto",
+        value: hasMoney ? money(p.value) : String(p.count),
+        title: hasMoney ? money(p.value) : "",
+        meta: plural(p.count, "quote em aberto", "quotes em aberto"),
+        href: "quotes.html?status=sent",
+      });
+    }
+    if (k.won_month) {
+      const w = k.won_month;
+      const hasMoney = w.value != null;
+      // Compare like with like: month-to-date vs the same day of last month (the chart shows both paces).
+      const dl = w.daily;
+      const samePrev =
+        dl && dl.previous && dl.previous.length && dl.current && dl.current.length
+          ? dl.previous[Math.min(dl.previous.length, dl.current.length) - 1]
+          : null;
+      const d =
+        samePrev != null
+          ? delta(dl.current[dl.current.length - 1], samePrev, prevMonth)
+          : hasMoney
+            ? delta(w.value, w.previous_value, prevMonth)
+            : delta(w.count, w.previous_count, prevMonth);
+      tiles.push({
+        key: "won",
+        group: "sales",
+        label: "Fechado no mês",
+        value: hasMoney ? money(w.value) : String(w.count),
+        meta: d ? vs(d) : plural(w.count, "quote aprovado", "quotes aprovados"),
+        metaTone: d ? d.tone : "",
+        href: "quotes.html",
+      });
+    }
+    if (k.conversion) {
+      const c = k.conversion;
+      tiles.push({
+        key: "conversion",
+        group: "sales",
+        label: "Conversão",
+        value: c.rate == null ? "—" : pct(c.rate),
+        meta: c.won + c.lost ? `${plural(c.won, "ganho", "ganhos")} · ${plural(c.lost, "perdido", "perdidos")}` : "sem leads fechados ainda",
+        href: "leads.html",
+      });
+    }
+    if (k.leads_month) {
+      const l = k.leads_month;
+      const d = delta(l.count, l.previous_count, prevMonth);
+      tiles.push({
+        key: "leads",
+        group: "sales",
+        label: "Leads novos",
+        value: String(l.count),
+        meta: d ? vs(d) : "neste mês",
+        metaTone: d ? d.tone : "",
+        href: "leads.html",
+      });
+    }
+    if (k.receivables) {
+      const r = k.receivables;
+      tiles.push({
+        key: "receivables",
+        group: "money",
+        label: "A receber",
+        value: money(r.open_value),
+        meta: r.overdue_count ? `${money(r.overdue_value)} vencido` : r.open_count ? "nada vencido" : "nenhuma invoice em aberto",
+        metaTone: r.overdue_count ? "danger" : "",
+        href: r.overdue_count ? "invoices.html?status=overdue" : "invoices.html?status=receivable",
+      });
+    }
+    if (k.gross_profit && k.gross_profit.value != null) {
+      const g = k.gross_profit;
+      const revenue = Number(g.revenue) || 0;
+      const margin = revenue > 0 ? Math.round((Number(g.value) / revenue) * 100) : null;
+      tiles.push({
+        key: "gross_profit",
+        group: "money",
+        label: "Lucro bruto",
+        value: money(g.value),
+        title: `Receita ${money(revenue)} − custo ${money(g.cost || 0)}`,
+        meta: margin != null ? `margem ${margin}%` : plural(g.count, "fechado no mês", "fechados no mês"),
+        href: "quotes.html",
+      });
+    }
+    return tiles;
+  }
+
+  /** One sent quote waiting for the client. */
+  function quoteWaitView(q) {
+    return {
+      title: q.name,
+      sub: [q.label ? `Quote ${q.label}` : "", q.days === 0 ? "enviado hoje" : `enviado há ${days(q.days)}`].filter(Boolean).join(" · "),
+      amount: q.amount != null ? money(q.amount) : "",
+      seen: q.viewed ? "Visto" : "Não aberto",
+      seenTone: q.viewed ? "ok" : "wait",
+      stale: q.days >= 7,
+      href: q.href,
+    };
+  }
+
+  /** Jobs status tiles + rows for the Home "Jobs" card. */
+  function jobsStatusView(s) {
+    const stats = [
+      { key: "field", label: "Em campo", value: s.in_field, href: "jobs.html?filter=field", tone: "" },
+      { key: "late", label: "Atrasados", value: s.late, href: "jobs.html?filter=late", tone: s.late ? "danger" : "" },
+      { key: "scheduled", label: "Agendados", value: s.scheduled, href: "jobs.html?filter=scheduled", tone: "" },
+      { key: "nodate", label: "Sem data", value: s.no_date, href: "jobs.html?filter=nodate", tone: s.no_date ? "warn" : "" },
+    ];
+    const bill = s.to_invoice && s.to_invoice.count
+      ? { value: money(s.to_invoice.value), meta: plural(s.to_invoice.count, "job concluído", "jobs concluídos") }
+      : null;
+    const rows = (s.items || []).map((it) => ({
+      title: it.title,
+      sub: it.kind === "late" ? `atrasado ${days(it.days || 1)}` : "concluído · falta faturar",
+      aside: it.kind === "to_invoice" && it.amount != null ? money(it.amount) : "",
+      tone: it.kind === "late" ? "danger" : "warn",
+      href: it.href,
+    }));
+    return { stats, bill, rows };
+  }
+
   const ICONS = {
     bolt: '<path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/>',
     phone:
@@ -433,6 +570,9 @@
     dateLabel,
     greeting,
     kpiCards,
+    kpiStrip,
+    quoteWaitView,
+    jobsStatusView,
     attentionView,
     eventView,
     summary,

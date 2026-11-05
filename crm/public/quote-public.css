@@ -10,6 +10,27 @@
   --qp-muted: #5a5e6b;
   --qp-rule: #dcdee9;
   --qp-page-w: 612px;
+  /* The document mirrors the PDF letter page (612px wide, 7.5–11px type).
+     On screen that type is unreadable, so small document text is multiplied
+     by --qp-fs on phones and the whole page is zoomed on wider screens. */
+  --qp-fs: 1;
+  --qp-zoom: 1;
+}
+
+@media screen and (max-width: 640px) {
+  :root {
+    --qp-fs: 1.5;
+  }
+}
+
+@media screen and (min-width: 700px) {
+  :root {
+    --qp-zoom: 1.4;
+  }
+
+  .qp-doc {
+    zoom: var(--qp-zoom);
+  }
 }
 
 * {
@@ -81,7 +102,7 @@ body.qp-page {
 .qp-company__tagline,
 .qp-company__contact {
   margin: 4px 0 0;
-  font-size: 8.5px;
+  font-size: calc(8.5px * var(--qp-fs, 1));
   line-height: 1.4;
   color: var(--qp-primary-muted);
 }
@@ -92,14 +113,14 @@ body.qp-page {
   background: var(--qp-panel-bg);
   border-left: 3px solid var(--qp-secondary-dark);
   padding: 12px 14px 10px 12px;
-  font-size: 8px;
+  font-size: calc(8px * var(--qp-fs, 1));
   color: var(--qp-muted);
   line-height: 1.45;
 }
 
 .qp-quote-panel__label {
   margin: 0 0 2px;
-  font-size: 11px;
+  font-size: calc(11px * var(--qp-fs, 1));
   font-weight: 700;
   color: var(--qp-primary);
   letter-spacing: 0.02em;
@@ -107,7 +128,7 @@ body.qp-page {
 
 .qp-quote-panel__number {
   margin: 0 0 8px;
-  font-size: 10px;
+  font-size: calc(10px * var(--qp-fs, 1));
   font-weight: 700;
   color: var(--qp-secondary-dark);
 }
@@ -122,7 +143,7 @@ body.qp-page {
 
 .qp-billto__label {
   margin: 0 0 4px;
-  font-size: 9px;
+  font-size: calc(9px * var(--qp-fs, 1));
   font-weight: 700;
   color: var(--qp-secondary-dark);
   text-transform: none;
@@ -130,14 +151,14 @@ body.qp-page {
 
 .qp-billto__name {
   margin: 0 0 4px;
-  font-size: 11px;
+  font-size: calc(11px * var(--qp-fs, 1));
   font-weight: 700;
   color: var(--qp-primary);
 }
 
 .qp-billto__meta {
   margin: 0;
-  font-size: 8.5px;
+  font-size: calc(8.5px * var(--qp-fs, 1));
   color: var(--qp-muted);
   line-height: 1.45;
 }
@@ -168,7 +189,7 @@ body.qp-page {
 
 .qp-section-title {
   margin: 0;
-  font-size: 9px;
+  font-size: calc(9px * var(--qp-fs, 1));
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -177,7 +198,7 @@ body.qp-page {
 
 .qp-section-total {
   margin: 0;
-  font-size: 8px;
+  font-size: calc(8px * var(--qp-fs, 1));
   font-weight: 600;
   color: var(--qp-muted);
   white-space: nowrap;
@@ -187,7 +208,7 @@ body.qp-page {
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
-  font-size: 8.5px;
+  font-size: calc(8.5px * var(--qp-fs, 1));
 }
 
 .qp-table thead {
@@ -216,7 +237,7 @@ body.qp-page {
 .qp-table thead th {
   padding: 7px 10px;
   text-align: left;
-  font-size: 8px;
+  font-size: calc(8px * var(--qp-fs, 1));
   font-weight: 700;
   letter-spacing: 0.04em;
   color: var(--qp-primary);
@@ -244,7 +265,7 @@ body.qp-page {
 
 .qp-line__title {
   display: block;
-  font-size: 9px;
+  font-size: calc(9px * var(--qp-fs, 1));
   font-weight: 700;
   color: var(--qp-primary);
   line-height: 1.35;
@@ -254,7 +275,7 @@ body.qp-page {
 .qp-line__detail {
   display: block;
   margin-top: 3px;
-  font-size: 7.5px;
+  font-size: calc(7.5px * var(--qp-fs, 1));
   font-style: italic;
   color: var(--qp-muted);
   line-height: 1.45;
@@ -266,7 +287,7 @@ body.qp-page {
 }
 
 .qp-empty {
-  font-size: 9px;
+  font-size: calc(9px * var(--qp-fs, 1));
   color: var(--qp-muted);
   margin: 0 0 16px;
 }
@@ -281,7 +302,7 @@ body.qp-page {
   width: 100%;
   max-width: 240px;
   margin-left: auto;
-  font-size: 9px;
+  font-size: calc(9px * var(--qp-fs, 1));
   color: var(--qp-muted);
   border-collapse: collapse;
 }
@@ -297,7 +318,7 @@ body.qp-page {
 
 .qp-totals-label {
   margin: 12px 0 6px;
-  font-size: 8px;
+  font-size: calc(8px * var(--qp-fs, 1));
   font-weight: 700;
   color: var(--qp-secondary-dark);
 }
@@ -313,7 +334,7 @@ body.qp-page {
 }
 
 .qp-grand-total__label {
-  font-size: 11px;
+  font-size: calc(11px * var(--qp-fs, 1));
   font-weight: 700;
   color: #fff;
   letter-spacing: 0.05em;
@@ -327,14 +348,14 @@ body.qp-page {
 
 .qp-block-title {
   margin: 16px 0 6px;
-  font-size: 9px;
+  font-size: calc(9px * var(--qp-fs, 1));
   font-weight: 700;
   color: var(--qp-secondary-dark);
 }
 
 .qp-block-text {
   margin: 0;
-  font-size: 7.5px;
+  font-size: calc(7.5px * var(--qp-fs, 1));
   line-height: 1.55;
   color: var(--qp-muted);
   white-space: pre-wrap;
@@ -443,17 +464,17 @@ body.qp-page {
   }
 
   .qp-table {
-    font-size: 8px;
+    font-size: calc(8px * var(--qp-fs, 1));
   }
 
   .qp-table col.col-qty {
-    width: 56px;
+    width: 62px;
   }
   .qp-table col.col-rate {
-    width: 64px;
+    width: 58px;
   }
   .qp-table col.col-amt {
-    width: 58px;
+    width: 78px;
   }
 
   .qp-sign-modal__panel {
@@ -616,5 +637,14 @@ body.qp-page {
   .qp-actions,
   .qp-approved-msg {
     display: none !important;
+  }
+}
+
+/* Keep actions and messages as wide as the zoomed document (see --qp-zoom). */
+@media screen and (min-width: 700px) {
+  .qp-actions,
+  .qp-approved,
+  .qp-error {
+    max-width: calc(var(--qp-page-w) * var(--qp-zoom));
   }
 }

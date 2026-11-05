@@ -45,6 +45,13 @@ export function hhmm(d: Date) {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/** Date-only label for Campo job cards (no clock time). */
+export function dayOnlyLabel(d: Date, today = new Date()) {
+  const y = (x: Date) => `${x.getFullYear()}-${pad(x.getMonth() + 1)}-${pad(x.getDate())}`;
+  if (y(d) === y(today)) return "Hoje";
+  return d.toLocaleDateString("pt-BR", { day: "numeric", month: "short" });
+}
+
 export function dayBoundsLocal(d = new Date()) {
   const start = new Date(d);
   start.setHours(0, 0, 0, 0);
@@ -248,8 +255,8 @@ export function mapJobCard(
     client,
     client_short: shortClient(client),
     address: wo.address || "",
-    start: wo.scheduledStart ? hhmm(wo.scheduledStart) : null,
-    end: wo.scheduledEnd ? hhmm(wo.scheduledEnd) : null,
+    start: wo.scheduledStart ? dayOnlyLabel(wo.scheduledStart) : null,
+    end: null,
     scheduled_start: wo.scheduledStart?.toISOString() ?? null,
     scheduled_end: wo.scheduledEnd?.toISOString() ?? null,
     status,

@@ -46,6 +46,10 @@ settingsScheduleRouter.get(
         select: { scheduleSettings: true },
       });
       let settings = parseScheduleSettings(org.scheduleSettings);
+      const rawCals = Array.isArray((org.scheduleSettings as { calendars?: unknown } | null)?.calendars)
+        ? ((org.scheduleSettings as { calendars: unknown[] }).calendars as { kind?: string; id?: string }[])
+        : [];
+      const storedDelivery = rawCals.some((c) => c && (c.kind === "delivery" || c.id === "delivery"));
 
       // Register custom agendas already used on meetings but missing from settings.
       const used = await prisma.meeting.findMany({
@@ -60,8 +64,8 @@ settingsScheduleRouter.get(
         settings,
         used.map((r) => r.calendarId),
       );
-      if (merged.added) {
-        settings = merged.settings;
+      settings = merged.settings;
+      if (merged.added || !storedDelivery) {
         const payload = serializeScheduleSettings(settings);
         await prisma.organization.update({
           where: { id: req.organizationId! },
@@ -91,18 +95,24 @@ settingsScheduleRouter.put(
         });
         return;
       }
-      const settings = applyScheduleSettingsPut(parsed.data);
+      const orgId = req.organizationId!;
+      const org = await prisma.organization.findUniqueOrThrow({
+        where: { id: orgId },
+        select: { scheduleSettings: true },
+      });
+      const previous = parseScheduleSettings(org.scheduleSettings);
+      const settings = applyScheduleSettingsPut(parsed.data, previous);
       const payload = serializeScheduleSettings(settings);
 
-      await withTenantTransaction(req.organizationId!, async (tx) => {
+      await withTenantTransaction(orgId, async (tx) => {
         await tx.organization.update({
-          where: { id: req.organizationId! },
+          where: { id: orgId },
           data: { scheduleSettings: payload as Prisma.InputJsonValue },
         });
         await recordActivity(tx, {
-          organizationId: req.organizationId!,
+          organizationId: orgId,
           entityType: "organization",
-          entityId: req.organizationId!,
+          entityId: orgId,
           actorType: "user",
           actorId: req.user!.id,
           action: "settings.schedule_updated",

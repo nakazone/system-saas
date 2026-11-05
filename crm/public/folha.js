@@ -80,7 +80,25 @@
   // ------------------------------------------------------------ utils
   function notify(msg, type) {
     if (typeof window.crmNotify === "function") window.crmNotify(msg, type || "info");
-    else alert(msg);
+    else if (window.crmToast) {
+      const t = type === "error" || type === "success" || type === "warning" ? type : "info";
+      window.crmToast[t](msg);
+    }
+  }
+  /** Loading skeleton / inline error (crm-skeleton.js is deferred — fall back to plain text). */
+  function skelFill(box, kind, n, opts) {
+    if (!box) return;
+    if (window.crmSkeleton) window.crmSkeleton.fill(box, kind, n, opts);
+    else box.innerHTML = '<div class="fo-empty">Carregando…</div>';
+  }
+  function skelDone(box) {
+    if (box && window.crmSkeleton) window.crmSkeleton.done(box);
+  }
+  function skelError(box, title, e, retry) {
+    if (!box) return;
+    const msg = e && e.message ? `${title} ${e.message}` : title;
+    if (window.crmSkeleton) window.crmSkeleton.error(box, msg, retry);
+    else box.innerHTML = `<div class="fo-empty"><b>${esc(title)}</b>${esc(e && e.message)}</div>`;
   }
   function esc(s) {
     return String(s == null ? "" : s)
@@ -200,7 +218,7 @@
   // ------------------------------------------------------------ semana
   async function loadWeek() {
     const box = $("foSemana");
-    if (!st.week) box.innerHTML = '<div class="fo-empty">Carregando…</div>';
+    if (!st.week) skelFill(box, "rows", 6);
     try {
       const j = await api(`/api/folha/semana${st.weekRef ? `?week=${st.weekRef}` : ""}`);
       const changed = !st.week || st.week.week.start !== j.data.week.start;
@@ -215,10 +233,11 @@
       await ensureEmps().catch(() => null);
       quickDefaults();
       renderWeek();
+      skelDone(box);
       writeHash();
       refreshPendCount(j.data);
     } catch (e) {
-      box.innerHTML = `<div class="fo-empty"><b>Não foi possível carregar a folha.</b>${esc(e.message)}</div>`;
+      skelError(box, "Não foi possível carregar a folha.", e, () => loadWeek());
     }
   }
   function refreshPendCount(week) {
@@ -1135,7 +1154,14 @@
   async function dayDelete(id, dateLabel) {
     if (!st.manage || !id) return;
     const label = dateLabel || "este dia";
-    if (!confirm(`Excluir a diária de ${label}?\n\nO lançamento some da folha e a data fica livre para um novo lançamento.`)) return;
+    const okDay = await window.crmConfirm({
+      title: `Excluir a diária de ${label}?`,
+      text: "O lançamento some da folha e a data fica livre para um novo lançamento.",
+      ok: "Excluir diária",
+      cancel: "Cancelar",
+      danger: true,
+    });
+    if (!okDay) return;
     try {
       await api(`/api/folha/dias/${id}/reverter`, { method: "POST", body: "{}" });
       notify("Diária excluída — data liberada.", "success");
@@ -1157,13 +1183,14 @@
     }
     const n = countHint || manual.length;
     const name = empLabel || r.name || "funcionário";
-    if (
-      !confirm(
-        `Excluir ${n} diária${n > 1 ? "s" : ""} de ${name} neste ciclo?\n\nSó remove lançamentos do escritório. Datas ficam livres.`,
-      )
-    ) {
-      return;
-    }
+    const okAll = await window.crmConfirm({
+      title: `Excluir ${n} diária${n > 1 ? "s" : ""} de ${name} neste ciclo?`,
+      text: "Só remove lançamentos do escritório. As datas ficam livres.",
+      ok: n > 1 ? "Excluir diárias" : "Excluir diária",
+      cancel: "Cancelar",
+      danger: true,
+    });
+    if (!okAll) return;
     let ok = 0;
     let fail = 0;
     for (const d of manual) {
@@ -1887,7 +1914,14 @@
     }
   }
   async function expDelete(expId, reopen) {
-    if (!confirm("Excluir este lançamento? O valor sai do líquido da semana.")) return;
+    const okExp = await window.crmConfirm({
+      title: "Excluir este lançamento?",
+      text: "O valor sai do líquido da semana.",
+      ok: "Excluir lançamento",
+      cancel: "Cancelar",
+      danger: true,
+    });
+    if (!okExp) return;
     try {
       await api(`/api/folha/despesas/${expId}`, { method: "DELETE" });
       notify("Lançamento excluído. Líquido atualizado.", "success");
@@ -1956,7 +1990,14 @@
     );
   }
   async function voidPay(id) {
-    if (!confirm("Estornar este pagamento? A saída no Financeiro é anulada e a semana volta a ficar aberta.")) return;
+    const okVoid = await window.crmConfirm({
+      title: "Estornar este pagamento?",
+      text: "A saída no Financeiro é anulada e a semana volta a ficar aberta.",
+      ok: "Estornar pagamento",
+      cancel: "Cancelar",
+      danger: true,
+    });
+    if (!okVoid) return;
     try {
       await api(`/api/folha/pagamentos/${id}/estornar`, { method: "POST", body: "{}" });
       notify("Pagamento estornado.", "success");
@@ -1972,15 +2013,16 @@
   // ------------------------------------------------------------ conferir
   async function loadPend() {
     const box = $("foConferir");
-    if (!st.pend) box.innerHTML = '<div class="fo-empty">Carregando…</div>';
+    if (!st.pend) skelFill(box, "rows", 5);
     try {
       const j = await api("/api/folha/pendencias");
       st.pend = j.data;
       for (const id of [...st.pendSel]) if (!j.data.pending.some((d) => d.id === id)) st.pendSel.delete(id);
       renderPend();
+      skelDone(box);
       refreshPendCount();
     } catch (e) {
-      box.innerHTML = `<div class="fo-empty"><b>Não foi possível carregar.</b>${esc(e.message)}</div>`;
+      skelError(box, "Não foi possível carregar.", e, () => loadPend());
     }
   }
   function pcard(d, opts) {
@@ -2059,13 +2101,14 @@
   async function loadPays() {
     const box = $("foPagamentos");
     const [from, to] = presetRange(st.payPreset);
-    if (!st.pays) box.innerHTML = '<div class="fo-empty">Carregando…</div>';
+    if (!st.pays) skelFill(box, "rows", 6);
     try {
       const j = await api(`/api/folha/relatorio?from=${from}&to=${to}`);
       st.pays = j.data;
       renderPays();
+      skelDone(box);
     } catch (e) {
-      box.innerHTML = `<div class="fo-empty"><b>Não foi possível carregar.</b>${esc(e.message)}</div>`;
+      skelError(box, "Não foi possível carregar.", e, () => loadPays());
     }
   }
   function renderPays() {
@@ -2109,14 +2152,15 @@
   }
   async function loadReport() {
     const box = $("foRelatorios");
-    if (!st.report) box.innerHTML = '<div class="fo-empty">Carregando…</div>';
+    if (!st.report) skelFill(box, "cards", 3);
     try {
       await ensureEmps().catch(() => null);
       const j = await api(`/api/folha/relatorio?${repQuery()}`);
       st.report = j.data;
       renderReport();
+      skelDone(box);
     } catch (e) {
-      box.innerHTML = `<div class="fo-empty"><b>Não foi possível carregar.</b>${esc(e.message)}</div>`;
+      skelError(box, "Não foi possível carregar.", e, () => loadReport());
     }
   }
   function renderReport() {
@@ -2163,13 +2207,14 @@
   // ------------------------------------------------------------ funcionários
   async function loadEmps() {
     const box = $("foFuncionarios");
-    if (!st.emps) box.innerHTML = '<div class="fo-empty">Carregando…</div>';
+    if (!st.emps) skelFill(box, "rows", 6);
     try {
       const j = await api("/api/folha/funcionarios");
       st.emps = j.data;
       renderEmps();
+      skelDone(box);
     } catch (e) {
-      box.innerHTML = `<div class="fo-empty"><b>Não foi possível carregar.</b>${esc(e.message)}</div>`;
+      skelError(box, "Não foi possível carregar.", e, () => loadEmps());
     }
   }
   function schedLabel(e) {
@@ -2179,37 +2224,52 @@
   }
   function renderEmps() {
     const q = (st.empSearch || "").trim().toLowerCase();
-    const active = (st.emps.employees || []).filter((e) => e.status === "active");
+    const all = st.emps.employees || [];
+    const active = all.filter((e) => e.status === "active");
+    const inactive = all.filter((e) => e.status !== "active");
     const match = (e) => !q || String(e.name || "").toLowerCase().includes(q);
+    const row = (e) => {
+      const ph = e.phone && typeof window.sfFormatPhone === "function" ? window.sfFormatPhone(e.phone) || e.phone : e.phone;
+      return `<tr class="is-row" data-emp-edit="${esc(e.id)}"><td><div class="fo-name"><span class="fo-av${e.sector === "sand_finish" ? " fo-av--sand" : ""}">${esc(initials(e.name))}</span><span><b>${esc(e.name)}</b><small>${esc(e.role_title || ph || e.email || "")}</small></span></div></td>
+                <td>${e.pay_type === "production" ? `Produção · ${money(e.production_rate)}/sq ft` : `Diária · ${money0(e.daily_rate)}`}<div class="fo-muted" style="font-size:12px">extra ${money(e.overtime_rate)}/h${e.payment_method ? ` · ${esc(METHOD_LABEL[e.payment_method] || e.payment_method)}` : ""}</div></td>
+                <td>${esc(schedLabel(e))}<div class="fo-muted" style="font-size:12px">${[e.require_photos ? "fotos obrigatórias" : "", e.require_gps ? "GPS" : ""].filter(Boolean).join(" · ") || "sem exigências"}</div></td>
+                <td>${e.user ? esc(e.user.name || e.user.email) : '<span class="fo-pill fo-pill--due">Sem login</span>'}</td></tr>`;
+    };
+    const table = (list) =>
+      list.length
+        ? `<table class="fo-tbl fo-tbl--scroll"><thead><tr><th>Funcionário</th><th>Pagamento</th><th>Horário padrão</th><th>Login no app</th></tr></thead><tbody>${list.map(row).join("")}</tbody></table>`
+        : "";
     const block = (sector, title) => {
       const list = active.filter((e) => (e.sector || "installation") === sector && match(e));
       return `<div class="fo-emps-block">
         <div class="fo-emps-block__hd"><h2>${esc(title)}</h2><span>${list.length}</span></div>
-        ${
-          list.length
-            ? `<table class="fo-tbl fo-tbl--scroll"><thead><tr><th>Funcionário</th><th>Pagamento</th><th>Horário padrão</th><th>Login no app</th></tr></thead><tbody>${list
-                .map((e) => {
-                  const ph = e.phone && typeof window.sfFormatPhone === "function" ? window.sfFormatPhone(e.phone) || e.phone : e.phone;
-                  return `<tr class="is-row" data-emp-edit="${esc(e.id)}"><td><div class="fo-name"><span class="fo-av${e.sector === "sand_finish" ? " fo-av--sand" : ""}">${esc(initials(e.name))}</span><span><b>${esc(e.name)}</b><small>${esc(e.role_title || ph || e.email || "")}</small></span></div></td>
-                <td>${e.pay_type === "production" ? `Produção · ${money(e.production_rate)}/sq ft` : `Diária · ${money0(e.daily_rate)}`}<div class="fo-muted" style="font-size:12px">extra ${money(e.overtime_rate)}/h${e.payment_method ? ` · ${esc(METHOD_LABEL[e.payment_method] || e.payment_method)}` : ""}</div></td>
-                <td>${esc(schedLabel(e))}<div class="fo-muted" style="font-size:12px">${[e.require_photos ? "fotos obrigatórias" : "", e.require_gps ? "GPS" : ""].filter(Boolean).join(" · ") || "sem exigências"}</div></td>
-                <td>${e.user ? esc(e.user.name || e.user.email) : '<span class="fo-pill fo-pill--due">Sem login</span>'}</td></tr>`;
-                })
-                .join("")}</tbody></table>`
-            : `<div class="fo-empty" style="padding:14px">${q ? "Nenhum resultado nesta busca." : "Nenhum funcionário ativo neste setor."}</div>`
-        }
+        ${table(list) || `<div class="fo-empty" style="padding:14px">${q ? "Nenhum resultado nesta busca." : "Nenhum funcionário ativo neste setor."}</div>`}
       </div>`;
     };
+    const inactiveList = inactive.filter(match);
+    const inactiveBlock =
+      inactive.length === 0
+        ? ""
+        : `<div class="fo-emps-block">
+        <div class="fo-emps-block__hd"><h2>Inativos</h2><span>${inactiveList.length}</span></div>
+        ${
+          inactiveList.length
+            ? table(inactiveList)
+            : `<div class="fo-empty" style="padding:14px">${q ? "Nenhum resultado nesta busca." : "Nenhum funcionário inativo."}</div>`
+        }
+        <p class="fo-muted" style="font-size:12px;font-weight:600;margin:8px 2px 0">Inativos somem da semana, mas o login ligado a eles continua ocupado até você desvincular.</p>
+      </div>`;
     const nInst = active.filter((e) => (e.sector || "installation") === "installation").length;
     const nLixa = active.filter((e) => e.sector === "sand_finish").length;
     $("foFuncionarios").innerHTML = `<div class="fo-tool">
         <label class="fo-field fo-emps-search"><span class="fo-sr">Buscar</span><input type="search" class="fo-in" id="foEmpSearch" value="${esc(st.empSearch)}" placeholder="Buscar por nome…" autocomplete="off" /></label>
-        <div class="fo-muted" style="font-weight:700;font-size:14px">${active.length} ativos · ${nInst} Instalação · ${nLixa} Lixa</div>
+        <div class="fo-muted" style="font-weight:700;font-size:14px">${active.length} ativos · ${nInst} Instalação · ${nLixa} Lixa${inactive.length ? ` · ${inactive.length} inativos` : ""}</div>
         ${st.manage ? '<button type="button" class="fo-btn fo-btn--pri" data-emp-new>+ Novo funcionário</button>' : ""}
       </div>
       <div class="fo-emps-blocks">
         ${block("installation", "Instalação")}
         ${block("sand_finish", "Lixa")}
+        ${inactiveBlock}
       </div>
       <p class="fo-muted" style="font-size:13px;font-weight:600;margin:10px 2px 0">Sem login no app, o funcionário não bate o ponto pelo celular — o escritório lança as diárias na aba Semana.</p>`;
   }
@@ -2245,9 +2305,15 @@
       </div>
       <div class="fo-box"><h3>Acesso</h3>
         <label class="fo-field">Login no app (para bater o ponto)<select class="fo-sel" id="feUser" ${dis}><option value="">Sem login</option>${users
-          .filter((u) => !u.linked || (v.user && v.user.id === u.id))
-          .map((u) => `<option value="${esc(u.id)}"${v.user && v.user.id === u.id ? " selected" : ""}>${esc(u.name || u.email)}${u.name ? ` · ${esc(u.email)}` : ""}</option>`)
-          .join("")}</select><small>Só aparecem usuários que ainda não estão ligados a outro funcionário.</small></label>
+          .map((u) => {
+            const mine = v.user && v.user.id === u.id;
+            const taken = u.linked && !mine;
+            const who = u.linked_to?.name || "outro funcionário";
+            const inactive = u.linked_to?.status && u.linked_to.status !== "active";
+            const label = `${u.name || u.email}${u.name ? ` · ${u.email}` : ""}${taken ? ` — já vinculado a ${who}${inactive ? " (inativo)" : ""}` : ""}`;
+            return `<option value="${esc(u.id)}"${mine ? " selected" : ""}${taken ? " disabled" : ""}>${esc(label)}</option>`;
+          })
+          .join("")}</select><small>Logins já ligados aparecem bloqueados. Se o nome estiver como (inativo), abra-o na seção Inativos da lista, desvincule o login e salve.</small></label>
         ${e ? `<label class="fo-check" style="margin-top:10px"><input type="checkbox" id="feActive" ${v.status === "active" ? "checked" : ""} ${dis} /> Ativo (inativos não aparecem na semana, mas o histórico fica)</label>` : ""}
       </div>`;
     openSheet(

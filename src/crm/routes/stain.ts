@@ -13,6 +13,7 @@ import { myJobAccessWhere } from "../lib/campo-shared.js";
 import { storage } from "../../lib/storage/index.js";
 import { checkLimit } from "../../lib/features/index.js";
 import { parsePhotoUploadMeta, sha256Buffer } from "../../lib/job-media/index.js";
+import { samplesStickerId } from "../../lib/job-media/stickers.js";
 import { recordActivity } from "../../lib/activity/record.js";
 import { DURASEAL_COLORS, SAMPLE_KINDS, parseBlend, sampleColorText } from "../../lib/stain/catalog.js";
 import { jobStainState, mediaIdsOf } from "../../lib/stain/service.js";
@@ -102,7 +103,8 @@ async function savePhoto(req: AuthedRequest, workOrderId: string, raw: Record<st
     body: photo.body,
     contentType: photo.contentType,
   });
-  const row = await withTenantTransaction(req.organizationId!, (tx) => tx.jobMedia.create({
+  // Every photo from the stain flow carries the Samples sticker, so ObraCam can filter them.
+  const row = await withTenantTransaction(req.organizationId!, async (tx) => tx.jobMedia.create({
     data: {
       organizationId: req.organizationId!,
       workOrderId,
@@ -121,6 +123,7 @@ async function savePhoto(req: AuthedRequest, workOrderId: string, raw: Record<st
       stage: "during",
       clientUploadId: meta.clientUploadId,
       deviceLabel: meta.deviceLabel,
+      stickerIds: await samplesStickerId(tx, req.organizationId!).then((id) => (id ? [id] : [])),
     },
     select: { id: true },
   }));

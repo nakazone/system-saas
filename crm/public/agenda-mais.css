@@ -417,6 +417,12 @@ body.mais-app.om-app .dashboard-main.mais-main {
   flex-shrink: 0;
 }
 
+/* Buttons in the list (Atualizar app, Sair) span the row like the links do. */
+.mais button.om-mod-card {
+  width: 100%;
+  cursor: pointer;
+}
+
 .mais .om-mod-card--danger {
   border-color: rgba(185, 28, 28, 0.28);
   background: rgba(185, 28, 28, 0.05);

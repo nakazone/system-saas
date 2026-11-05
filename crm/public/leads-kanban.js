@@ -872,8 +872,9 @@ function initKanbanSortables() {
         kanbanSortables.push(
             Sortable.create(el, {
                 group: 'leads-kanban',
-                animation: 360,
-                easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+                animation:
+                    window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 200,
+                easing: 'cubic-bezier(0.23, 1, 0.32, 1)',
                 draggable: '.kanban-card[data-lead-id]:not([data-lead-id=""])',
                 filter: '.btn-lead-delete-kanban, button, a, .kanban-column-empty, .lead-quote-icons',
                 preventOnFilter: false,
@@ -1312,7 +1313,7 @@ async function createLeadManual(e, force) {
     const hasEmail = String(formData.get('email') || '').trim().length > 3;
     if (!hasPhone && !hasEmail) {
         if (typeof crmNotify === 'function') crmNotify('Informe telefone ou e-mail.', 'error');
-        else alert('Informe telefone ou e-mail.');
+        else console.warn('Informe telefone ou e-mail.');
         return;
     }
     
@@ -1370,7 +1371,7 @@ async function createLeadManual(e, force) {
             const dupBox = form.querySelector('.lead-dup-notice');
             if (dupBox) dupBox.remove();
             if (typeof crmNotify === 'function') crmNotify('Lead criado com sucesso!', 'success');
-            else alert('Lead criado com sucesso!');
+            else console.warn('Lead criado com sucesso!');
             closeModal('newLeadModal');
             form.reset();
             if (currentView === 'kanban') {
@@ -1380,12 +1381,12 @@ async function createLeadManual(e, force) {
             }
         } else {
             if (typeof crmNotify === 'function') crmNotify('Erro ao criar lead: ' + (data.error || 'Desconhecido'), 'error');
-            else alert('Erro ao criar lead: ' + (data.error || 'Desconhecido'));
+            else console.warn('Erro ao criar lead: ' + (data.error || 'Desconhecido'));
         }
     } catch (error) {
         console.error('Error creating lead:', error);
         if (typeof crmNotify === 'function') crmNotify('Erro ao criar lead', 'error');
-        else alert('Erro ao criar lead');
+        else console.warn('Erro ao criar lead');
     }
 }
 
@@ -1416,7 +1417,7 @@ async function assignLead(e) {
         const data = await response.json();
         if (data.success) {
             if (typeof crmNotify === 'function') crmNotify('Lead designado com sucesso!', 'success');
-            else alert('Lead designado com sucesso!');
+            else console.warn('Lead designado com sucesso!');
             closeModal('assignLeadModal');
             if (currentView === 'kanban') {
                 loadKanbanBoard();
@@ -1425,12 +1426,12 @@ async function assignLead(e) {
             }
         } else {
             if (typeof crmNotify === 'function') crmNotify('Erro ao designar lead: ' + (data.error || 'Desconhecido'), 'error');
-            else alert('Erro ao designar lead: ' + (data.error || 'Desconhecido'));
+            else console.warn('Erro ao designar lead: ' + (data.error || 'Desconhecido'));
         }
     } catch (error) {
         console.error('Error assigning lead:', error);
         if (typeof crmNotify === 'function') crmNotify('Erro ao designar lead', 'error');
-        else alert('Erro ao designar lead');
+        else console.warn('Erro ao designar lead');
     }
 }
 
@@ -1476,17 +1477,17 @@ async function createFollowup(e) {
         const data = await response.json();
         if (data.success) {
             if (typeof crmNotify === 'function') crmNotify('Follow-up criado com sucesso!', 'success');
-            else alert('Follow-up criado com sucesso!');
+            else console.warn('Follow-up criado com sucesso!');
             closeModal('followupModal');
             form.reset();
         } else {
             if (typeof crmNotify === 'function') crmNotify('Erro ao criar follow-up: ' + (data.error || 'Desconhecido'), 'error');
-            else alert('Erro ao criar follow-up: ' + (data.error || 'Desconhecido'));
+            else console.warn('Erro ao criar follow-up: ' + (data.error || 'Desconhecido'));
         }
     } catch (error) {
         console.error('Error creating followup:', error);
         if (typeof crmNotify === 'function') crmNotify('Erro ao criar follow-up', 'error');
-        else alert('Erro ao criar follow-up');
+        else console.warn('Erro ao criar follow-up');
     }
 }
 
@@ -2092,7 +2093,16 @@ if (typeof window !== 'undefined') {
     async function deleteLead(id) {
         const leadId = String(id || '').trim();
         if (!leadId) return;
-        if (!confirm('Excluir este lead permanentemente? Esta ação não pode ser desfeita.')) return;
+        const ok = window.crmConfirm
+            ? await window.crmConfirm({
+                  title: 'Excluir este lead?',
+                  text: 'O lead será apagado permanentemente. Esta ação não pode ser desfeita.',
+                  ok: 'Excluir lead',
+                  cancel: 'Cancelar',
+                  danger: true,
+              })
+            : false;
+        if (!ok) return;
         try {
             const r = await fetch(`/api/leads/${encodeURIComponent(leadId)}`, {
                 method: 'DELETE',
@@ -2103,7 +2113,7 @@ if (typeof window !== 'undefined') {
                 const msg = d.error || 'Não foi possível excluir o lead.';
                 if (typeof crmNotify === 'function') crmNotify(msg, 'error');
                 else if (typeof notifyLeadsMobile === 'function') notifyLeadsMobile(msg, 'error');
-                else alert(msg);
+                else console.warn(msg);
                 return;
             }
             if (typeof crmNotify === 'function') crmNotify('Lead excluído.', 'success');
@@ -2119,7 +2129,7 @@ if (typeof window !== 'undefined') {
             const msg = 'Erro de rede ao excluir.';
             if (typeof crmNotify === 'function') crmNotify(msg, 'error');
             else if (typeof notifyLeadsMobile === 'function') notifyLeadsMobile(msg, 'error');
-            else alert(msg);
+            else console.warn(msg);
         }
     }
 

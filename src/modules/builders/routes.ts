@@ -87,6 +87,7 @@ import {
   saveMeasurement,
 } from "../../lib/builders/measurements.js";
 import { tradeInject } from "../../lib/trades/browser.js";
+import { presentationInputSchema, presentationPdf } from "../../lib/builders/presentation-pdf.js";
 import { builderReferralCoupon, couponTextEn } from "../../lib/billing/coupons.js";
 import { intakeItemsSchema, isIntakeReaderConfigured, readWorkOrder, type IntakeFile } from "../../lib/partner-intake/extract.js";
 
@@ -639,6 +640,12 @@ builderAccountRouter.get("/api/builder/measurements/:id/photo", requireBuilder, 
 });
 
 /** The floor quote in ObraMate's quote layout (company branding, builder as client). */
+/** inline/attachment header with a readable file name (ASCII fallback + UTF-8 filename*). */
+function pdfDisposition(kind: "inline" | "attachment", name: string): string {
+  const ascii = String(name || "document.pdf").replace(/[^\x20-\x7e]/g, "").replace(/["\\]/g, "") || "document.pdf";
+  return `${kind}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(name || "document.pdf")}`;
+}
+
 builderAccountRouter.post("/api/builder/quote-pdf", requireBuilder, needs("money.view"), async (req: BuilderReq, res, next) => {
   try {
     const parsed = z.object({
@@ -653,7 +660,7 @@ builderAccountRouter.post("/api/builder/quote-pdf", requireBuilder, needs("money
     const d = parsed.data;
     const out = await orderQuotePdf(req.builderMember!, { linkId: d.company, title: d.title, address: d.address, ref: d.ref, items: d.items, measurement: d.measurement });
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(out.name)}"`);
+    res.setHeader("Content-Disposition", pdfDisposition("inline", out.name));
     res.send(out.body);
   } catch (error) {
     sendError(res, error, next);
@@ -664,7 +671,21 @@ builderAccountRouter.get("/api/builder/measurements/:id/quote-pdf", requireBuild
   try {
     const out = await floorQuotePdf(req.builderMember!, String(req.params.id), typeof req.query.company === "string" ? req.query.company : null);
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `${req.query.download ? "attachment" : "inline"}; filename="${encodeURIComponent(out.name)}"`);
+    res.setHeader("Content-Disposition", pdfDisposition(req.query.download ? "attachment" : "inline", out.name));
+    res.send(out.body);
+  } catch (error) {
+    sendError(res, error, next);
+  }
+});
+
+/** The Present chapters as a landscape PDF; the browser sends the 3D stills and the quote lines it shows. */
+builderAccountRouter.post("/api/builder/measurements/:id/presentation-pdf", requireBuilder, async (req: BuilderReq, res, next) => {
+  try {
+    const parsed = presentationInputSchema.safeParse(req.body || {});
+    if (!parsed.success) { res.status(400).json({ success: false, error: "Could not read the presentation. Reload the page and try again." }); return; }
+    const out = await presentationPdf(req.builderMember!, String(req.params.id), parsed.data);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", pdfDisposition("inline", out.name));
     res.send(out.body);
   } catch (error) {
     sendError(res, error, next);
@@ -679,7 +700,7 @@ builderAccountRouter.get("/api/builder/measurements/:id/pdf", requireBuilder, as
     if (!pack) throw new BuilderError(404, "Measurement not found.");
     const pdf = pack.files[0]!;
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(pdf.name)}"`);
+    res.setHeader("Content-Disposition", pdfDisposition("inline", pdf.name));
     res.send(pdf.body);
   } catch (error) {
     sendError(res, error, next);

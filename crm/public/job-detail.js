@@ -40,7 +40,8 @@
   const $ = (id) => document.getElementById(id);
   function notify(msg, type) {
     if (typeof window.crmNotify === "function") window.crmNotify(msg, type || "info");
-    else alert(msg);
+    else if (window.crmToast?.show) window.crmToast.show(msg, { type: type || "info" });
+    else console.warn(msg);
   }
   function esc(s) {
     return String(s == null ? "" : s)
@@ -252,9 +253,7 @@
     const J = window.JobsInfo;
     const nxt = J?.nextFinish?.(job);
     const label = job?.title || clientName();
-    const ok = window.crmConfirm?.completeJob
-      ? await window.crmConfirm.completeJob(label, nxt)
-      : confirm(nxt?.confirm || "Marcar o job como concluído?");
+    const ok = await window.crmConfirm.completeJob(label, nxt);
     if (!ok) return;
     return setStatus("completed", nxt?.toast || "Job concluído.");
   }
@@ -673,7 +672,7 @@
     if (url && navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(url);
       notify("Link de assinatura copiado.", "success");
-    } else if (url) window.prompt("Link de assinatura:", url);
+    } else if (url) await window.crmShare({ url, title: "Link de assinatura", copiedMessage: "Link de assinatura copiado." });
     await loadProposals();
   }
 
@@ -1073,7 +1072,7 @@
       else if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(d.url);
         notify("Link copiado.", "success");
-      } else window.prompt("Link do job:", d.url);
+      } else await window.crmShare({ url: d.url, title: "Link do job" });
     } catch (e) {
       notify(e.message || "Erro ao gerar o link", "error");
     }
@@ -1182,7 +1181,7 @@
         if (navigator.clipboard?.writeText) {
           await navigator.clipboard.writeText(text);
           notify("Copiado.", "success");
-        } else window.prompt("Copie:", text);
+        } else await window.crmPrompt({ title: "Copie o texto", type: "textarea", value: text, rows: 6, ok: "Fechar", cancel: "Voltar" });
         return;
       }
       const temp = t.closest("[data-temp]");
@@ -1204,11 +1203,18 @@
         window.CamViewer.open({
           photos: list.map((m) => ({
             id: m.legacy ? null : m.id, url: m.url, thumb_url: m.thumb_url, stage: m.stage, created_at: m.created_at, taken_at_device: m.taken_at_device,
-            author: m.author_name, device: m.device_label, caption: m.caption, address: m.address || job.address, lat: m.lat, lng: m.lng,
+            author: m.author_name, device: m.device_label, caption: m.caption, uploaded_by_name: m.uploaded_by_name, taken_by_name: m.taken_by_name, taken_at_source: m.taken_at_source, location_source: m.location_source, camera_model: m.camera_model, annotations: m.annotations, sticker_ids: m.sticker_ids || [], address: m.address || job.address, lat: m.lat, lng: m.lng,
             location_available: m.location_available, distance_m: m.distance_m, far_from_job: m.far_from_job, in_portfolio: m.in_portfolio,
             job: { number: job.number, title: job.title || clientName(), client: clientName() },
           })),
           index: idx,
+          // Managers edit here too: note, stage, markup and stickers, saved to the photo itself.
+          ...(canManage && window.CamViewer.jobEditing
+            ? window.CamViewer.jobEditing(jobId, (row) => {
+                media = media.map((x) => (x.id === row.id ? { ...x, ...row } : x));
+                renderPhotos();
+              })
+            : {}),
           canPortfolio: canManage,
           onPortfolio: async (photo, next) => {
             const j = await api(`/api/work-orders/${jobId}/media/${photo.id}/portfolio`, { method: "PATCH", body: JSON.stringify({ in_portfolio: next }) });
@@ -1351,7 +1357,13 @@
     });
     $("btnDeleteJob").addEventListener("click", async () => {
       closeMenu();
-      if (!confirm("Excluir este job? Ele será cancelado e sairá da agenda.")) return;
+      const okDel = await window.crmConfirm({
+        title: "Excluir este job?",
+        text: "Ele será cancelado e sairá da agenda.",
+        ok: "Excluir job",
+        danger: true,
+      });
+      if (!okDel) return;
       try {
         await api(`/api/work-orders/${jobId}`, { method: "DELETE" });
         notify("Job excluído.", "success");

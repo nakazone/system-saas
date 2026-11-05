@@ -891,8 +891,10 @@
     const status = $("rptStatus");
     const err = $("rptError");
     const root = $("rptRoot");
-    if (root) root.classList.add("is-loading");
-    if (status && !hubData) {
+    const first = !hubData;
+    if (first && root && window.crmSkeleton) window.crmSkeleton.fill(root, "cards", 4);
+    else if (root) root.classList.add("is-loading");
+    if (status && first && !window.crmSkeleton) {
       status.hidden = false;
       status.textContent = "Carregando relatórios…";
     }
@@ -906,12 +908,15 @@
       syncPeriodUi();
       if (activeTab === "irss" && hubData.modules?.irss) await loadIrss(true);
       renderActive();
+      if (root && window.crmSkeleton) window.crmSkeleton.done(root);
     } catch (e) {
-      if (err) {
+      const msg = e.message || "Erro ao carregar relatórios";
+      // Error shown once, inline (no toast on top of it).
+      if (first && root && window.crmSkeleton) window.crmSkeleton.error(root, msg, () => load());
+      else if (err) {
         err.hidden = false;
-        err.textContent = e.message || "Erro ao carregar relatórios";
+        err.textContent = msg;
       }
-      window.crmToast?.error?.(e.message || "Erro");
     } finally {
       if (status) status.hidden = true;
       if (root) root.classList.remove("is-loading");

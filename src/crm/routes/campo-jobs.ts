@@ -17,7 +17,6 @@ import {
   clientLabel,
   FIELD_STATUSES,
   fieldStatusLabel,
-  hhmm,
   mapJobCard,
   myJobAccessWhere,
   nextFieldStatus,
@@ -38,6 +37,7 @@ import {
   sha256Buffer,
 } from "../../lib/job-media/index.js";
 import { isJobChecklistEnabled } from "../../lib/settings/jobs.js";
+import { resolveDeliveryStops } from "../../lib/work-orders/deliveries.js";
 import { sectorFinishPatch } from "../../lib/work-orders/sector-finish.js";
 import {
   JOB_REPORT_TEMPLATES,
@@ -184,11 +184,16 @@ function mapTicket(wo: Awaited<ReturnType<typeof assertMyJobTicket>>) {
   }));
   const today = ymdLocal(new Date());
   const startYmd = wo.scheduledStart ? ymdLocal(wo.scheduledStart) : null;
-  let whenLabel = "Sem horário";
+  let whenLabel = "Sem data";
   if (wo.scheduledStart) {
-    const dayPart = startYmd === today ? "Hoje" : startYmd || "";
-    const range = `${hhmm(wo.scheduledStart)}${wo.scheduledEnd ? ` – ${hhmm(wo.scheduledEnd)}` : ""}`;
-    whenLabel = dayPart ? `${dayPart} · ${range}` : range;
+    if (startYmd === today) whenLabel = "Hoje";
+    else {
+      whenLabel = wo.scheduledStart.toLocaleDateString("pt-BR", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+      });
+    }
   }
 
   const attention =
@@ -203,9 +208,12 @@ function mapTicket(wo: Awaited<ReturnType<typeof assertMyJobTicket>>) {
     client_short: shortClient(client),
     address: wo.address || "",
     notes: wo.notes,
+    homeowner_name: (wo as { homeownerName?: string | null }).homeownerName || null,
+    homeowner_phone: (wo as { homeownerPhone?: string | null }).homeownerPhone || null,
     needs_delivery: Boolean(wo.needsDelivery),
     delivery_pickup_address: wo.deliveryPickupAddress || null,
     delivery_notes: wo.deliveryNotes || null,
+    deliveries: resolveDeliveryStops(wo as Parameters<typeof resolveDeliveryStops>[0]),
     delivery_attachment: wo.deliveryAttachmentUrl
       ? { url: wo.deliveryAttachmentUrl, name: wo.deliveryAttachmentName || "Anexo" }
       : null,
@@ -214,8 +222,8 @@ function mapTicket(wo: Awaited<ReturnType<typeof assertMyJobTicket>>) {
     field_status_label: fieldStatusLabel(field),
     raw_status: wo.status,
     when_label: whenLabel,
-    start: wo.scheduledStart ? hhmm(wo.scheduledStart) : null,
-    end: wo.scheduledEnd ? hhmm(wo.scheduledEnd) : null,
+    start: null,
+    end: null,
     scheduled_start: wo.scheduledStart?.toISOString() ?? null,
     scheduled_end: wo.scheduledEnd?.toISOString() ?? null,
     team: teamLabel(wo),
@@ -633,6 +641,9 @@ campoJobsRouter.post(
             isPublic: meta.isPublic,
             clientUploadId: meta.clientUploadId,
             deviceLabel: meta.deviceLabel,
+            takenAtSource: meta.takenAtDevice ? meta.takenAtSource || "upload" : null,
+            locationSource: meta.locationSource,
+            cameraModel: meta.cameraModel,
           },
         });
 
