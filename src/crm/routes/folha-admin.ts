@@ -1636,7 +1636,9 @@ folhaAdminRouter.get("/api/folha/funcionarios", requireCrmAuth, requireCrmPermis
         tx.payrollEmployee.findMany({ include: empInclude, orderBy: [{ status: "asc" }, { name: "asc" }] }),
         tx.user.findMany({ where: { status: { not: "disabled" } }, select: { id: true, name: true, email: true }, orderBy: { name: "asc" } }),
       ]);
-      const linkedByUser = new Map(emps.filter((e) => e.userId).map((e) => [e.userId as string, { id: e.id, name: e.name }]));
+      const linkedByUser = new Map(
+        emps.filter((e) => e.userId).map((e) => [e.userId as string, { id: e.id, name: e.name, status: e.status }]),
+      );
       return {
         employees: emps.map(mapEmployee),
         users: users.map((u) => {

@@ -2220,37 +2220,52 @@
   }
   function renderEmps() {
     const q = (st.empSearch || "").trim().toLowerCase();
-    const active = (st.emps.employees || []).filter((e) => e.status === "active");
+    const all = st.emps.employees || [];
+    const active = all.filter((e) => e.status === "active");
+    const inactive = all.filter((e) => e.status !== "active");
     const match = (e) => !q || String(e.name || "").toLowerCase().includes(q);
+    const row = (e) => {
+      const ph = e.phone && typeof window.sfFormatPhone === "function" ? window.sfFormatPhone(e.phone) || e.phone : e.phone;
+      return `<tr class="is-row" data-emp-edit="${esc(e.id)}"><td><div class="fo-name"><span class="fo-av${e.sector === "sand_finish" ? " fo-av--sand" : ""}">${esc(initials(e.name))}</span><span><b>${esc(e.name)}</b><small>${esc(e.role_title || ph || e.email || "")}</small></span></div></td>
+                <td>${e.pay_type === "production" ? `Produção · ${money(e.production_rate)}/sq ft` : `Diária · ${money0(e.daily_rate)}`}<div class="fo-muted" style="font-size:12px">extra ${money(e.overtime_rate)}/h${e.payment_method ? ` · ${esc(METHOD_LABEL[e.payment_method] || e.payment_method)}` : ""}</div></td>
+                <td>${esc(schedLabel(e))}<div class="fo-muted" style="font-size:12px">${[e.require_photos ? "fotos obrigatórias" : "", e.require_gps ? "GPS" : ""].filter(Boolean).join(" · ") || "sem exigências"}</div></td>
+                <td>${e.user ? esc(e.user.name || e.user.email) : '<span class="fo-pill fo-pill--due">Sem login</span>'}</td></tr>`;
+    };
+    const table = (list) =>
+      list.length
+        ? `<table class="fo-tbl fo-tbl--scroll"><thead><tr><th>Funcionário</th><th>Pagamento</th><th>Horário padrão</th><th>Login no app</th></tr></thead><tbody>${list.map(row).join("")}</tbody></table>`
+        : "";
     const block = (sector, title) => {
       const list = active.filter((e) => (e.sector || "installation") === sector && match(e));
       return `<div class="fo-emps-block">
         <div class="fo-emps-block__hd"><h2>${esc(title)}</h2><span>${list.length}</span></div>
-        ${
-          list.length
-            ? `<table class="fo-tbl fo-tbl--scroll"><thead><tr><th>Funcionário</th><th>Pagamento</th><th>Horário padrão</th><th>Login no app</th></tr></thead><tbody>${list
-                .map((e) => {
-                  const ph = e.phone && typeof window.sfFormatPhone === "function" ? window.sfFormatPhone(e.phone) || e.phone : e.phone;
-                  return `<tr class="is-row" data-emp-edit="${esc(e.id)}"><td><div class="fo-name"><span class="fo-av${e.sector === "sand_finish" ? " fo-av--sand" : ""}">${esc(initials(e.name))}</span><span><b>${esc(e.name)}</b><small>${esc(e.role_title || ph || e.email || "")}</small></span></div></td>
-                <td>${e.pay_type === "production" ? `Produção · ${money(e.production_rate)}/sq ft` : `Diária · ${money0(e.daily_rate)}`}<div class="fo-muted" style="font-size:12px">extra ${money(e.overtime_rate)}/h${e.payment_method ? ` · ${esc(METHOD_LABEL[e.payment_method] || e.payment_method)}` : ""}</div></td>
-                <td>${esc(schedLabel(e))}<div class="fo-muted" style="font-size:12px">${[e.require_photos ? "fotos obrigatórias" : "", e.require_gps ? "GPS" : ""].filter(Boolean).join(" · ") || "sem exigências"}</div></td>
-                <td>${e.user ? esc(e.user.name || e.user.email) : '<span class="fo-pill fo-pill--due">Sem login</span>'}</td></tr>`;
-                })
-                .join("")}</tbody></table>`
-            : `<div class="fo-empty" style="padding:14px">${q ? "Nenhum resultado nesta busca." : "Nenhum funcionário ativo neste setor."}</div>`
-        }
+        ${table(list) || `<div class="fo-empty" style="padding:14px">${q ? "Nenhum resultado nesta busca." : "Nenhum funcionário ativo neste setor."}</div>`}
       </div>`;
     };
+    const inactiveList = inactive.filter(match);
+    const inactiveBlock =
+      inactive.length === 0
+        ? ""
+        : `<div class="fo-emps-block">
+        <div class="fo-emps-block__hd"><h2>Inativos</h2><span>${inactiveList.length}</span></div>
+        ${
+          inactiveList.length
+            ? table(inactiveList)
+            : `<div class="fo-empty" style="padding:14px">${q ? "Nenhum resultado nesta busca." : "Nenhum funcionário inativo."}</div>`
+        }
+        <p class="fo-muted" style="font-size:12px;font-weight:600;margin:8px 2px 0">Inativos somem da semana, mas o login ligado a eles continua ocupado até você desvincular.</p>
+      </div>`;
     const nInst = active.filter((e) => (e.sector || "installation") === "installation").length;
     const nLixa = active.filter((e) => e.sector === "sand_finish").length;
     $("foFuncionarios").innerHTML = `<div class="fo-tool">
         <label class="fo-field fo-emps-search"><span class="fo-sr">Buscar</span><input type="search" class="fo-in" id="foEmpSearch" value="${esc(st.empSearch)}" placeholder="Buscar por nome…" autocomplete="off" /></label>
-        <div class="fo-muted" style="font-weight:700;font-size:14px">${active.length} ativos · ${nInst} Instalação · ${nLixa} Lixa</div>
+        <div class="fo-muted" style="font-weight:700;font-size:14px">${active.length} ativos · ${nInst} Instalação · ${nLixa} Lixa${inactive.length ? ` · ${inactive.length} inativos` : ""}</div>
         ${st.manage ? '<button type="button" class="fo-btn fo-btn--pri" data-emp-new>+ Novo funcionário</button>' : ""}
       </div>
       <div class="fo-emps-blocks">
         ${block("installation", "Instalação")}
         ${block("sand_finish", "Lixa")}
+        ${inactiveBlock}
       </div>
       <p class="fo-muted" style="font-size:13px;font-weight:600;margin:10px 2px 0">Sem login no app, o funcionário não bate o ponto pelo celular — o escritório lança as diárias na aba Semana.</p>`;
   }
@@ -2290,10 +2305,11 @@
             const mine = v.user && v.user.id === u.id;
             const taken = u.linked && !mine;
             const who = u.linked_to?.name || "outro funcionário";
-            const label = `${u.name || u.email}${u.name ? ` · ${u.email}` : ""}${taken ? ` — já vinculado a ${who}` : ""}`;
+            const inactive = u.linked_to?.status && u.linked_to.status !== "active";
+            const label = `${u.name || u.email}${u.name ? ` · ${u.email}` : ""}${taken ? ` — já vinculado a ${who}${inactive ? " (inativo)" : ""}` : ""}`;
             return `<option value="${esc(u.id)}"${mine ? " selected" : ""}${taken ? " disabled" : ""}>${esc(label)}</option>`;
           })
-          .join("")}</select><small>Logins já ligados a outro funcionário aparecem bloqueados — abra o cadastro dele para trocar ou desvincular.</small></label>
+          .join("")}</select><small>Logins já ligados aparecem bloqueados. Se o nome estiver como (inativo), abra-o na seção Inativos da lista, desvincule o login e salve.</small></label>
         ${e ? `<label class="fo-check" style="margin-top:10px"><input type="checkbox" id="feActive" ${v.status === "active" ? "checked" : ""} ${dis} /> Ativo (inativos não aparecem na semana, mas o histórico fica)</label>` : ""}
       </div>`;
     openSheet(
