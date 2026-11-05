@@ -796,6 +796,7 @@ model Organization {
   stainSampleRounds        StainSampleRound[]
   jobPhases                JobPhase[]
   jobReworks               JobRework[]
+  slabs                    Slab[]
   pieceRates               PieceRate[]
   stainSamples             StainSample[]
   stainApprovals           StainApproval[]
@@ -1243,6 +1244,48 @@ model JobRework {
 
   @@index([organizationId, workOrderId])
   @@index([organizationId, createdAt])
+}
+
+/// Countertops: slabs and remnants (leftovers) in the yard, reserved for a job and then used.
+model Slab {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// slab | remnant
+  kind           String       @default("slab")
+  /// quartz | granite | quartzite | marble | porcelain | other
+  material       String
+  color          String
+  brand          String?
+  /// polished | honed | leathered | other
+  finish         String?
+  thicknessCm    Int          @default(3)
+  lengthIn       Decimal      @db.Decimal(7, 2)
+  widthIn        Decimal      @db.Decimal(7, 2)
+  /// Serial, lot or bundle number from the supplier's tag
+  serial         String?
+  supplier       String?
+  /// Where it sits in the yard (rack A3, inside, …)
+  location       String?
+  cost           Decimal?     @db.Decimal(12, 2)
+  /// available | reserved | used | scrapped
+  status         String       @default("available")
+  workOrderId    String?      @db.Uuid
+  workOrder      WorkOrder?   @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  reservedAt     DateTime?
+  usedAt         DateTime?
+  /// The slab a remnant was cut from
+  parentId       String?      @db.Uuid
+  photoUrl       String?
+  photoKey       String?
+  notes          String?      @db.Text
+  createdById    String?      @db.Uuid
+  createdByName  String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, status])
+  @@index([organizationId, workOrderId])
 }
 
 model StainSampleRound {
@@ -2860,6 +2903,7 @@ model WorkOrder {
   stainRounds        StainSampleRound[]
   phases             JobPhase[]
   reworks            JobRework[]
+  slabs              Slab[]
   stainApprovals     StainApproval[]
   inspections        JobInspection[]
   measurements       JobMeasurement[]

@@ -24,6 +24,7 @@ export function runWithTenant<T>(organizationId: string, fn: () => T): T {
 const TENANT_MODELS = new Set([
   "JobPhase",
   "JobRework",
+  "Slab",
   "PieceRate",
   "User",
   "Role",
