@@ -542,11 +542,17 @@
     confirmAddServiceLine();
   }
 
+  /** Styled confirm (crm-confirm.js, injected deferred on every page). */
+  function qbConfirm(opts) {
+    if (typeof window.crmConfirm !== 'function') return Promise.resolve(false);
+    return window.crmConfirm(Object.assign({ cancel: 'Cancelar' }, opts));
+  }
+
   function qbToast(msg, type) {
     if (window.crmToast && typeof window.crmToast.show === 'function') {
       window.crmToast.show(msg, { type: type === 'error' ? 'error' : type === 'info' ? 'info' : 'success' });
     } else {
-      alert(msg);
+      console.warn(msg);
     }
   }
 
@@ -876,10 +882,18 @@
     const p = descSavePending;
     if (!p || !p.pricingItemId) return;
     const field = p.field === 'name' ? 'name' : 'description';
-    const ok = confirm(
+    const ok = await qbConfirm(
       field === 'name'
-        ? 'Atualizar o nome deste serviço na Tabela de Valores?\n\nIsto altera o nome do sistema para todos os orçamentos futuros.'
-        : 'Atualizar a descrição deste serviço na Tabela de Valores?\n\nIsto altera a descrição do sistema para todos os orçamentos futuros.',
+        ? {
+            title: 'Atualizar o nome na Tabela de Valores?',
+            text: 'O novo nome passa a valer para todos os orçamentos futuros.',
+            ok: 'Atualizar nome',
+          }
+        : {
+            title: 'Atualizar a descrição na Tabela de Valores?',
+            text: 'A nova descrição passa a valer para todos os orçamentos futuros.',
+            ok: 'Atualizar descrição',
+          },
     );
     if (!ok) return;
     const btn = $('qbSaveDescTable');
@@ -1042,10 +1056,11 @@
     if (!p.pricingItemId) return;
     const field = pricingFieldKeyForSource(p.src);
     const label = pricingTypeLabel(p.src);
-    const ok = confirm(
-      `Atualizar a Tabela de Valores (${label}) para ${money(p.newRate)}?\n\n` +
-        `Isto altera o preço do sistema para todos os orçamentos futuros (exceto clientes com preço personalizado).`,
-    );
+    const ok = await qbConfirm({
+      title: `Atualizar a Tabela de Valores (${label}) para ${money(p.newRate)}?`,
+      text: 'O novo preço vale para todos os orçamentos futuros (exceto clientes com preço personalizado).',
+      ok: 'Atualizar preço',
+    });
     if (!ok) return;
     const btn = $('qbSaveRateTable');
     if (btn) btn.disabled = true;
@@ -4120,6 +4135,20 @@
     });
     search.addEventListener('keydown', (e) => {
       const open = box && !box.classList.contains('hidden') && box.querySelector('.qb-client-search__item');
+      if (typeof window.sfHandleListboxKeydown === 'function') {
+        const handled = window.sfHandleListboxKeydown(e, {
+          isOpen: () => !!open,
+          options: () => Array.from(box.querySelectorAll('.qb-client-search__item')),
+          getActiveIndex: () => clientSearchActive,
+          setActiveIndex: (i) => {
+            clientSearchActive = i;
+            syncClientSearchActive();
+          },
+          selectIndex: () => selectActiveClientResult(),
+          close: () => hideClientSearchResults(),
+        });
+        if (handled) return;
+      }
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         if (!open) return;
         e.preventDefault();
@@ -4514,6 +4543,21 @@
   function handleModalServiceNameKeydown(e) {
     const box = $('modalServiceResults');
     const open = box && !box.classList.contains('hidden') && modalServiceVisibleRows.length > 0;
+    if (typeof window.sfHandleListboxKeydown === 'function') {
+      const handled = window.sfHandleListboxKeydown(e, {
+        isOpen: () => !!(box && !box.classList.contains('hidden') && modalServiceVisibleRows.length > 0),
+        options: () => Array.from((box && box.querySelectorAll('[data-catalog-id]')) || []),
+        getActiveIndex: () => modalServiceActiveIndex,
+        setActiveIndex: (i) => {
+          modalServiceActiveIndex = i;
+          syncModalServiceActiveHighlight();
+        },
+        selectIndex: () => selectActiveModalServiceResult(),
+        close: () => hideModalServiceResults(),
+        open: () => scheduleModalServiceSearch(),
+      });
+      if (handled) return;
+    }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       if (!open) {
@@ -6244,7 +6288,13 @@
     if (!invoiceId) return;
     const inv = quoteInvoices.find((i) => String(i.id) === String(invoiceId));
     const label = inv?.invoice_number || `INV-${invoiceId}`;
-    if (!confirm(`Excluir a fatura ${label}? Esta ação não pode ser desfeita.`)) return;
+    const ok = await qbConfirm({
+      title: `Excluir a fatura ${label}?`,
+      text: 'A fatura será apagada. Esta ação não pode ser desfeita.',
+      ok: 'Excluir fatura',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api(`/api/quote-invoices/${invoiceId}`, { method: 'DELETE' });
       window.crmToast?.success?.(`Fatura ${label} excluída.`);
@@ -6584,13 +6634,13 @@
   async function deleteQuote() {
     if (!quoteId) return;
     const label = loadedQuoteNumber || `#${quoteId}`;
-    if (
-      !confirm(
-        `Excluir o orçamento ${label}?\n\nEsta ação não pode ser desfeita. Faturas ligadas a este orçamento também podem ser removidas.`,
-      )
-    ) {
-      return;
-    }
+    const ok = await qbConfirm({
+      title: `Excluir o orçamento ${label}?`,
+      text: 'Esta ação não pode ser desfeita. Faturas ligadas a este orçamento também podem ser removidas.',
+      ok: 'Excluir orçamento',
+      danger: true,
+    });
+    if (!ok) return;
     const btn = $('btnDeleteQuote');
     const prev = btn?.textContent;
     if (btn) {
@@ -7395,7 +7445,19 @@
     wireProjectEstimateRules();
 
     $('btnSaveTpl').addEventListener('click', async () => {
-      const name = prompt('Template name?');
+      const name =
+        typeof window.crmPrompt === 'function'
+          ? await window.crmPrompt({
+              title: 'Salvar como template',
+              text: 'Os itens deste orçamento ficam disponíveis para os próximos.',
+              label: 'Nome do template',
+              placeholder: 'ex.: Hardwood padrão',
+              ok: 'Salvar template',
+              cancel: 'Cancelar',
+              required: true,
+              requiredMessage: 'Dê um nome ao template.',
+            })
+          : null;
       if (!name) return;
       const body = {
         name,

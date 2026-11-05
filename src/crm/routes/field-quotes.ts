@@ -411,11 +411,14 @@ fieldQuotesRouter.post("/api/field-quotes", requireCrmAuth, async (req: AuthedRe
     const b = (req.body || {}) as Record<string, unknown>;
     const leadIdIn = b.lead_id && UUID_RE.test(String(b.lead_id)) ? String(b.lead_id) : null;
     const meetingIdIn = b.meeting_id && UUID_RE.test(String(b.meeting_id)) ? String(b.meeting_id) : null;
+    const customerIdIn = b.customer_id && UUID_RE.test(String(b.customer_id)) ? String(b.customer_id) : null;
+    const builderIdIn = b.builder_id && UUID_RE.test(String(b.builder_id)) ? String(b.builder_id) : null;
     const row = await txFor(req, async (tx) => {
       // A visit on the agenda points at its lead.
       let leadId = leadIdIn;
       let meetingId: string | null = null;
       let address: string | null = str(b.address);
+      let customerTypeHint: string | null = str(b.customer_type, 40);
       if (meetingIdIn) {
         const m = await tx.meeting.findFirst({ where: { id: meetingIdIn }, select: { id: true, leadId: true, location: true } });
         if (m) {
@@ -444,7 +447,81 @@ fieldQuotesRouter.post("/api/field-quotes", requireCrmAuth, async (req: AuthedRe
           }
         }
       }
-      const ct = String(b.customer_type || "particular").toLowerCase();
+      if (customerIdIn) {
+        const customer = await tx.customer.findFirst({
+          where: { id: customerIdIn },
+          select: {
+            id: true,
+            name: true,
+            company: true,
+            nickname: true,
+            phone: true,
+            email: true,
+            address: true,
+            customerType: true,
+            leadId: true,
+          },
+        });
+        if (customer) {
+          leadId = leadId || customer.leadId || null;
+          if (leadId && b.force_new !== true) {
+            const open = await tx.fieldQuote.findFirst({ where: { leadId, status: "draft" }, orderBy: { updatedAt: "desc" } });
+            if (open) return { row: open, reused: true };
+          }
+          clientName =
+            clientName ||
+            formatPersonName(customer.nickname) ||
+            formatPersonName(customer.company) ||
+            formatPersonName(customer.name);
+          clientPhone = clientPhone || customer.phone;
+          clientEmail = clientEmail || customer.email;
+          address = address || customer.address;
+          customerTypeHint = customerTypeHint || customer.customerType || null;
+        }
+      }
+      if (builderIdIn) {
+        const builder = await tx.builder.findFirst({
+          where: { id: builderIdIn },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            company: true,
+            nickname: true,
+            phone: true,
+            email: true,
+            address: true,
+            type: true,
+            customerId: true,
+          },
+        });
+        if (builder) {
+          const fullName = [builder.firstName, builder.lastName].filter(Boolean).join(" ").trim();
+          clientName =
+            clientName ||
+            formatPersonName(builder.nickname) ||
+            formatPersonName(builder.company) ||
+            formatPersonName(fullName);
+          clientPhone = clientPhone || builder.phone;
+          clientEmail = clientEmail || builder.email;
+          address = address || builder.address;
+          customerTypeHint = customerTypeHint || builder.type || "builder";
+          if (!customerIdIn && builder.customerId) {
+            const linked = await tx.customer.findFirst({
+              where: { id: builder.customerId },
+              select: { phone: true, email: true, address: true, customerType: true, leadId: true },
+            });
+            if (linked) {
+              clientPhone = clientPhone || linked.phone;
+              clientEmail = clientEmail || linked.email;
+              address = address || linked.address;
+              customerTypeHint = customerTypeHint || linked.customerType || null;
+              leadId = leadId || linked.leadId || null;
+            }
+          }
+        }
+      }
+      const ct = String(customerTypeHint || "particular").toLowerCase();
       const created = await tx.fieldQuote.create({
         data: {
           organizationId: req.organizationId!,

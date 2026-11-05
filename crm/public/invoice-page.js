@@ -100,7 +100,7 @@
   }
   function toast(msg, type) {
     if (window.crmToast) window.crmToast[type === 'error' ? 'error' : type === 'info' ? 'info' : 'success'](msg);
-    else alert(msg);
+    else console.warn(msg);
   }
   async function api(url, opts) {
     const r = await fetch(url, Object.assign({ credentials: 'include', headers: { 'Content-Type': 'application/json' } }, opts || {}));
@@ -501,7 +501,7 @@
         <span><b>${esc(q.number || 'Orçamento')}</b><small>${esc(quoteNote || (isJob ? q.title || '' : ''))}</small></span>
         <span>${money(q.total)}</span>
       </a>
-      <div class="inv-progress inv-progress--thin"><span style="width:${pct}%"></span></div>
+      <div class="inv-progress inv-progress--thin"><span style="transform:scaleX(${Math.max(0, pct) / 100})"></span></div>
       <p class="inv-muted">Faturado ${money(q.invoiced_total)} de ${money(q.total)}${q.remaining_to_invoice > 0 ? ` · falta faturar ${money(q.remaining_to_invoice)}` : ' · totalmente faturado'}</p>
       ${inv.sibling_invoices.length ? `<ul class="inv-siblings">${inv.sibling_invoices
         .map(
@@ -704,8 +704,22 @@
     const wrap = $('payMethodCashback');
     if (!wrap) return;
     wrap.hidden = true;
-    const check = document.querySelector('input[name="payMethod"][value="check"]');
-    if (check) check.checked = true;
+    // Default to the method of the last payment on this invoice (same customer, usually pays the
+    // same way); fall back to Cheque. Cashback is never pre-picked — it depends on the live balance.
+    let lastMethod = '';
+    let lastAt = '';
+    (inv && Array.isArray(inv.payments) ? inv.payments : []).forEach((p) => {
+      if (!p || !p.method || p.method === 'referral_credit') return;
+      const at = String(p.paid_at || '');
+      if (!lastMethod || at >= lastAt) {
+        lastMethod = p.method;
+        lastAt = at;
+      }
+    });
+    const preferred =
+      (lastMethod && document.querySelector(`input[name="payMethod"][value="${CSS.escape(lastMethod)}"]`)) ||
+      document.querySelector('input[name="payMethod"][value="check"]');
+    if (preferred) preferred.checked = true;
     const clientId = inv && inv.client && inv.client.id;
     if (!clientId) return;
     try {

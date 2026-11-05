@@ -8,7 +8,10 @@ import type { AuthedRequest } from "../../middleware/auth.js";
 import { requireCrmAuth, requireCrmPermission, dec } from "../http.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { storage } from "../../lib/storage/index.js";
-import { mapJobMedia, sha256Buffer } from "../../lib/job-media/index.js";
+import { JOB_MEDIA_PEOPLE, mapJobMedia, sha256Buffer } from "../../lib/job-media/index.js";
+import { normalizeAnnotations } from "../../lib/job-media/checklist.js";
+import { cleanStickerIds, ensureStickers, isStickerColor, mapSticker } from "../../lib/job-media/stickers.js";
+import { JOB_PHASES, PHASE_JOB_SELECT, jobPhaseContext, orgTimezone, phaseContextFromRow, photoPhaseFields } from "../../lib/job-media/phases.js";
 import { photoDistanceFields, resolveJobSiteGeo } from "../../lib/job-media/geo.js";
 import { extractLabelFromImageUrl, isFieldMeasureEnabled } from "../../lib/job-media/ocr.js";
 import { aiTranscribeAudio, aiChatJson, isAiConfigured } from "../../lib/ai/client.js";
@@ -18,6 +21,7 @@ import {
 } from "../lib/campo-shared.js";
 import { prisma } from "../../lib/prisma.js";
 import { recordActivity } from "../../lib/activity/record.js";
+import { jobBilling, jobBillingLabel } from "../../lib/invoices/job.js";
 
 export const jobFieldExtrasRouter = Router();
 
@@ -75,6 +79,7 @@ jobFieldExtrasRouter.get(
       const since = new Date();
       since.setDate(since.getDate() - days);
       const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const tz = await orgTimezone(tx, req.organizationId!);
         const rows = await tx.workOrder.findMany({
           where: { status: { in: ["draft", "scheduled", "in_progress", "completed"] } },
           select: {
@@ -84,13 +89,29 @@ jobFieldExtrasRouter.get(
             status: true,
             address: true,
             fieldStatus: true,
+            sector: true,
             scheduledStart: true,
+            sandScheduledStart: true,
+            installationDoneAt: true,
+            sandDoneAt: true,
+            scheduledEnd: true,
+            deliveryScheduledStart: true,
+            needsDelivery: true,
+            deliveries: true,
             geoLat: true,
             geoLng: true,
             sourceName: true,
             clientRef: true,
             customer: { select: { name: true, company: true, nickname: true, clientCode: true } },
             builder: { select: { company: true, firstName: true, lastName: true, nickname: true } },
+            lineItems: { select: { lineTotal: true, pricingItem: { select: { category: true } } } },
+            invoices: {
+              select: {
+                amount: true,
+                status: true,
+                receipts: { select: { amount: true } },
+              },
+            },
             media: {
               where: { deletedAt: null },
               orderBy: [{ createdAt: "desc" }],
@@ -109,6 +130,9 @@ jobFieldExtrasRouter.get(
                 inPortfolio: true,
                 deviceLabel: true,
                 author: { select: { name: true } },
+                takenBy: { select: { name: true } },
+                stickerIds: true,
+                phase: true,
               },
             },
             _count: { select: { media: { where: { deletedAt: null } } } },
@@ -130,6 +154,7 @@ jobFieldExtrasRouter.get(
               jobLat != null && jobLng != null && Number.isFinite(jobLat) && Number.isFinite(jobLng)
                 ? { lat: jobLat, lng: jobLng }
                 : null;
+            const phaseCtx = phaseContextFromRow(wo, tz);
             const photos = wo.media.map((m) => {
               const lat = m.lat != null ? Number(m.lat) : null;
               const lng = m.lng != null ? Number(m.lng) : null;
@@ -146,6 +171,9 @@ jobFieldExtrasRouter.get(
                 in_portfolio: m.inPortfolio,
                 device_label: m.deviceLabel || null,
                 author_name: m.author?.name || null,
+                taken_by_name: m.takenBy?.name || m.author?.name || null,
+                sticker_ids: m.stickerIds || [],
+                ...photoPhaseFields(phaseCtx, m),
               };
               return { ...mapped, ...photoDistanceFields(mapped, jobGeo) };
             });
@@ -153,14 +181,22 @@ jobFieldExtrasRouter.get(
             const builderName = wo.builder
               ? [wo.builder.firstName, wo.builder.lastName].filter(Boolean).join(" ").trim()
               : "";
+            const servicesTotal =
+              Math.round(
+                (wo.lineItems || []).reduce((sum, li) => sum + dec(li.lineTotal), 0) * 100,
+              ) / 100;
+            const billing = jobBilling(servicesTotal, wo.invoices || []);
+            const clientCode =
+              wo.customer?.clientCode != null ? String(wo.customer.clientCode).trim() || null : null;
             return {
               id: wo.id,
               number: wo.number,
               title: wo.title,
               status: wo.status,
               field_status: wo.fieldStatus,
+              sector: wo.sector || null,
               address: wo.address,
-              client_ref: (wo.clientRef && String(wo.clientRef).trim()) || null,
+              client_ref: (wo.clientRef && String(wo.clientRef).trim()) || clientCode || null,
               client_name:
                 wo.customer?.name ||
                 wo.builder?.company ||
@@ -185,9 +221,14 @@ jobFieldExtrasRouter.get(
               source_name: wo.sourceName || null,
               photo_count: wo._count.media,
               scheduled_start: wo.scheduledStart?.toISOString() ?? null,
+              sand_scheduled_start: wo.sandScheduledStart?.toISOString() ?? null,
+              installation_done_at: wo.installationDoneAt?.toISOString() ?? null,
+              sand_done_at: wo.sandDoneAt?.toISOString() ?? null,
+              billing: { ...billing, billing_status_label: jobBillingLabel(billing.billing_status) },
               geo_lat: jobGeo?.lat ?? null,
               geo_lng: jobGeo?.lng ?? null,
               last_photo: lastMapped,
+              phases: phaseCtx ? phaseCtx.phases : [],
               photos,
               stale: !last || last.createdAt < since,
               detail_url: `job-detail.html?id=${wo.id}`,
@@ -197,6 +238,7 @@ jobFieldExtrasRouter.get(
       });
 
       const feed = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const tz = await orgTimezone(tx, req.organizationId!);
         const photos = await tx.jobMedia.findMany({
           where: {
             organizationId: req.organizationId!,
@@ -206,12 +248,12 @@ jobFieldExtrasRouter.get(
           orderBy: [{ createdAt: "desc" }],
           take: 40,
           include: {
-            author: { select: { name: true } },
-            workOrder: { select: { id: true, number: true, title: true, status: true, geoLat: true, geoLng: true } },
+            ...JOB_MEDIA_PEOPLE,
+            workOrder: { select: { id: true, number: true, title: true, geoLat: true, geoLng: true, ...PHASE_JOB_SELECT } },
           },
         });
         return photos.map((p) => {
-          const mapped = mapJobMedia(p);
+          const mapped = { ...mapJobMedia(p), ...photoPhaseFields(phaseContextFromRow(p.workOrder, tz), p) };
           const jobLat = p.workOrder?.geoLat != null ? Number(p.workOrder.geoLat) : null;
           const jobLng = p.workOrder?.geoLng != null ? Number(p.workOrder.geoLng) : null;
           const jobGeo =
@@ -266,6 +308,246 @@ jobFieldExtrasRouter.delete(
         });
       });
       res.json({ success: true });
+    } catch (error: unknown) {
+      const err = error as { status?: number; message?: string };
+      if (err?.status) {
+        res.status(err.status).json({ success: false, error: err.message || "Error" });
+        return;
+      }
+      next(error);
+    }
+  },
+);
+
+/** ObraCam stickers (photo labels). Everyone who sees ObraCam reads them; managers create and edit. */
+jobFieldExtrasRouter.get(
+  "/api/job-media/stickers",
+  requireCrmAuth,
+  requireCrmPermission("work_orders.view"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const rows = await withTenantTransaction(req.organizationId!, (tx) => ensureStickers(tx, req.organizationId!));
+      res.json({ success: true, data: rows.map(mapSticker) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+const stickerName = z.string().trim().min(1).max(32);
+
+jobFieldExtrasRouter.post(
+  "/api/job-media/stickers",
+  requireCrmAuth,
+  requireCrmPermission("work_orders.manage"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const body = z.object({ name: stickerName, color: z.string().refine(isStickerColor) }).safeParse(req.body || {});
+      if (!body.success) {
+        res.status(400).json({ success: false, error: "Informe um nome (até 32 letras) e uma cor" });
+        return;
+      }
+      const row = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const all = await ensureStickers(tx, req.organizationId!);
+        const same = all.find((s) => !s.archivedAt && s.name.toLowerCase() === body.data.name.toLowerCase());
+        if (same) throw Object.assign(new Error("Já existe um sticker com esse nome"), { status: 409 });
+        const sortOrder = all.reduce((m, s) => Math.max(m, s.sortOrder), -1) + 1;
+        return tx.mediaSticker.create({ data: { organizationId: req.organizationId!, name: body.data.name, color: body.data.color, sortOrder } });
+      });
+      res.status(201).json({ success: true, data: mapSticker(row) });
+    } catch (error: unknown) {
+      const err = error as { status?: number; message?: string };
+      if (err?.status) {
+        res.status(err.status).json({ success: false, error: err.message || "Error" });
+        return;
+      }
+      next(error);
+    }
+  },
+);
+
+jobFieldExtrasRouter.patch(
+  "/api/job-media/stickers/:id",
+  requireCrmAuth,
+  requireCrmPermission("work_orders.manage"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const body = z
+        .object({ name: stickerName.optional(), color: z.string().refine(isStickerColor).optional(), archived: z.boolean().optional(), sort_order: z.number().int().min(0).max(999).optional() })
+        .safeParse(req.body || {});
+      if (!body.success) {
+        res.status(400).json({ success: false, error: "Dados do sticker inválidos" });
+        return;
+      }
+      const d = body.data;
+      const row = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const cur = await tx.mediaSticker.findFirst({ where: { id: String(req.params.id), organizationId: req.organizationId! } });
+        if (!cur) throw Object.assign(new Error("Sticker não encontrado"), { status: 404 });
+        if (d.name && d.name.toLowerCase() !== cur.name.toLowerCase()) {
+          const same = await tx.mediaSticker.findFirst({ where: { organizationId: req.organizationId!, archivedAt: null, name: { equals: d.name, mode: "insensitive" }, NOT: { id: cur.id } } });
+          if (same) throw Object.assign(new Error("Já existe um sticker com esse nome"), { status: 409 });
+        }
+        return tx.mediaSticker.update({
+          where: { id: cur.id },
+          data: {
+            name: d.name,
+            color: d.color,
+            sortOrder: d.sort_order,
+            archivedAt: d.archived === undefined ? undefined : d.archived ? cur.archivedAt || new Date() : null,
+          },
+        });
+      });
+      res.json({ success: true, data: mapSticker(row) });
+    } catch (error: unknown) {
+      const err = error as { status?: number; message?: string };
+      if (err?.status) {
+        res.status(err.status).json({ success: false, error: err.message || "Error" });
+        return;
+      }
+      next(error);
+    }
+  },
+);
+
+/** People a photo can be credited to ("Tirada por"): active users, name only. */
+jobFieldExtrasRouter.get(
+  "/api/job-media/people",
+  requireCrmAuth,
+  requireCrmPermission("work_orders.manage"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const rows = await withTenantTransaction(req.organizationId!, (tx) =>
+        tx.user.findMany({ where: { organizationId: req.organizationId!, status: "active" }, select: { id: true, name: true }, orderBy: { name: "asc" }, take: 300 }),
+      );
+      res.json({ success: true, data: rows.map((u) => ({ id: u.id, name: u.name || "" })) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+const mediaEditBody = z
+  .object({
+    caption: z.string().max(500).nullable().optional(),
+    stage: z.enum(["before", "during", "after"]).nullable().optional(),
+    annotations: z.unknown().optional(),
+    taken_by_id: z.string().uuid().nullable().optional(),
+    sticker_ids: z.array(z.string().uuid()).max(12).optional(),
+    /** a job phase to set it by hand, or null to go back to the automatic phase */
+    phase: z.enum(JOB_PHASES).nullable().optional(),
+  })
+  .refine((b) => Object.keys(b).length > 0, "Nothing to change");
+
+/** ObraCam edits on one photo: note, stage, markup layer and who took it. The photo file itself never changes. */
+jobFieldExtrasRouter.patch(
+  "/api/work-orders/:jobId/media/:mediaId",
+  requireCrmAuth,
+  requireCrmPermission("work_orders.manage"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const jobId = String(req.params.jobId);
+      const mediaId = String(req.params.mediaId);
+      const body = mediaEditBody.safeParse(req.body || {});
+      if (!body.success) {
+        res.status(400).json({ success: false, error: "Invalid photo changes" });
+        return;
+      }
+      const d = body.data;
+      const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const row = await tx.jobMedia.findFirst({ where: { id: mediaId, workOrderId: jobId, deletedAt: null } });
+        if (!row) throw Object.assign(new Error("Foto não encontrada"), { status: 404 });
+        let takenById: string | null | undefined;
+        if (d.taken_by_id !== undefined) {
+          if (d.taken_by_id === null || d.taken_by_id === row.authorId) takenById = null;
+          else {
+            const u = await tx.user.findFirst({ where: { id: d.taken_by_id, organizationId: req.organizationId! }, select: { id: true } });
+            if (!u) throw Object.assign(new Error("Pessoa não encontrada"), { status: 400 });
+            takenById = u.id;
+          }
+        }
+        const caption = d.caption !== undefined ? (d.caption || "").trim() || null : undefined;
+        const stickerIds = d.sticker_ids !== undefined ? await cleanStickerIds(tx, req.organizationId!, d.sticker_ids) : undefined;
+        const annotations =
+          d.annotations !== undefined
+            ? d.annotations === null
+              ? Prisma.DbNull
+              : (normalizeAnnotations(d.annotations) as unknown as Prisma.InputJsonValue)
+            : undefined;
+        const updated = await tx.jobMedia.update({
+          where: { id: row.id },
+          data: { caption, stage: d.stage, annotationsJson: annotations, takenById, stickerIds, phase: d.phase },
+          include: JOB_MEDIA_PEOPLE,
+        });
+        const changes: Record<string, { from: unknown; to: unknown }> = {};
+        if (caption !== undefined && caption !== (row.caption || null)) changes.caption = { from: row.caption || null, to: caption };
+        if (d.stage !== undefined && d.stage !== (row.stage || null)) changes.stage = { from: row.stage || null, to: d.stage };
+        if (annotations !== undefined) changes.annotations = { from: null, to: d.annotations ? "updated" : "cleared" };
+        if (takenById !== undefined && takenById !== (row.takenById || null)) changes.taken_by = { from: row.takenById || null, to: takenById };
+        if (stickerIds !== undefined && stickerIds.join() !== (row.stickerIds || []).join()) changes.stickers = { from: row.stickerIds || [], to: stickerIds };
+        if (d.phase !== undefined && d.phase !== (row.phase || null)) changes.phase = { from: row.phase || null, to: d.phase };
+        if (Object.keys(changes).length) {
+          await recordActivity(tx, {
+            organizationId: req.organizationId!,
+            entityType: "work_order",
+            entityId: jobId,
+            action: "job_media.edited",
+            actorType: "user",
+            actorId: req.user!.id,
+            changes: { media_id: { from: null, to: mediaId }, ...changes },
+          });
+        }
+        return { ...mapJobMedia(updated), ...photoPhaseFields(await jobPhaseContext(tx, req.organizationId!, jobId), updated) };
+      });
+      res.json({ success: true, data });
+    } catch (error: unknown) {
+      const err = error as { status?: number; message?: string };
+      if (err?.status) {
+        res.status(err.status).json({ success: false, error: err.message || "Error" });
+        return;
+      }
+      next(error);
+    }
+  },
+);
+
+/** Reclassify a photo (Antes / Durante / Depois, or null for Geral) from ObraCam. */
+jobFieldExtrasRouter.patch(
+  "/api/work-orders/:jobId/media/:mediaId/stage",
+  requireCrmAuth,
+  requireCrmPermission("work_orders.manage"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const jobId = String(req.params.jobId);
+      const mediaId = String(req.params.mediaId);
+      const body = z.object({ stage: z.enum(["before", "during", "after"]).nullable() }).safeParse(req.body || {});
+      if (!body.success) {
+        res.status(400).json({ success: false, error: "stage must be before, during, after or null" });
+        return;
+      }
+      const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const row = await tx.jobMedia.findFirst({
+          where: { id: mediaId, workOrderId: jobId, deletedAt: null },
+        });
+        if (!row) throw Object.assign(new Error("Foto não encontrada"), { status: 404 });
+        const updated = await tx.jobMedia.update({
+          where: { id: row.id },
+          data: { stage: body.data.stage },
+          include: JOB_MEDIA_PEOPLE,
+        });
+        if ((row.stage || null) !== body.data.stage) {
+          await recordActivity(tx, {
+            organizationId: req.organizationId!,
+            entityType: "work_order",
+            entityId: jobId,
+            action: "job_media.stage_changed",
+            actorType: "user",
+            actorId: req.user!.id,
+            changes: { stage: { from: row.stage || null, to: body.data.stage } },
+          });
+        }
+        return mapJobMedia(updated);
+      });
+      res.json({ success: true, data });
     } catch (error: unknown) {
       const err = error as { status?: number; message?: string };
       if (err?.status) {

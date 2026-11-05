@@ -12,10 +12,8 @@
   const fmt2 = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
   const fmt0 = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
   const money = (n) => fmt2.format(Number(n) || 0);
-  const short = (n) => {
-    const v = Number(n) || 0;
-    return Math.abs(v) >= 1000 || Number.isInteger(v) ? fmt0.format(v) : fmt2.format(v);
-  };
+  /** KPIs e totais: sempre em dólares inteiros. Linhas (um movimento, uma fatura) usam money(), com centavos. */
+  const short = (n) => fmt0.format(Math.round(Number(n) || 0));
   const signed = (n, f) => `${n < 0 ? "−" : n > 0 ? "+" : ""}${(f || short)(Math.abs(n))}`;
 
   const MONTHS = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
@@ -167,10 +165,18 @@
   const qs = (f, t) => `?from=${encodeURIComponent(f)}&to=${encodeURIComponent(t)}`;
 
   /* ---------------- dados */
+  // Each load() bumps the token; a response that arrives after a newer load started is ignored
+  // (prev/next clicked quickly used to render whichever period came back last).
+  let loadSeq = 0;
+  let loadedOnce = false;
   async function load() {
     computeRange();
     renderPeriod();
     const pr = prevRange();
+    const seq = ++loadSeq;
+    const rowsEl = $("fxRows");
+    if (!loadedOnce && window.crmSkeleton) window.crmSkeleton.fill(rowsEl, "rows", 7);
+    else rowsEl.classList.add("is-loading");
     const res = await Promise.allSettled([
       api(`/api/finance/summary${qs(S.from, S.to)}`),
       api(`/api/finance/cashflow${qs(S.from, S.to)}`),
@@ -179,11 +185,12 @@
       api("/api/finance/payroll"),
       api(`/api/finance/summary${qs(pr.from, pr.to)}`),
     ]);
+    if (seq !== loadSeq) return;
+    rowsEl.classList.remove("is-loading");
+    loadedOnce = true;
     const val = (i, d) => (res[i].status === "fulfilled" ? res[i].value.data : d);
-    if (res[0].status === "rejected") {
-      $("fxRows").innerHTML = `<p class="fx-empty">${esc(res[0].reason && res[0].reason.message)}</p>`;
-      if (res[0].reason && res[0].reason.status === 403) S.canManage = false;
-    }
+    const failed = res[0].status === "rejected" ? res[0].reason : null;
+    if (failed && failed.status === 403) S.canManage = false;
     S.summary = val(0, {}) || {};
     S.lines = (val(1, {}) || {}).lines || [];
     S.costs = val(2, []) || [];
@@ -191,6 +198,12 @@
     S.periods = (val(4, {}) || {}).periods || [];
     S.prev = val(5, null);
     render();
+    if (window.crmSkeleton) window.crmSkeleton.done(rowsEl);
+    if (failed) {
+      const msg = (failed && failed.message) || "Não foi possível carregar os movimentos.";
+      if (window.crmSkeleton) window.crmSkeleton.error(rowsEl, msg, () => load());
+      else rowsEl.innerHTML = `<p class="fx-empty">${esc(msg)}</p>`;
+    }
   }
 
   function moves() {
@@ -257,11 +270,14 @@
 
   function rowHtml(m) {
     const ico = m.dir === "in" ? ICO.up : m.dir === "draft" ? ICO.receipt : ICO.down;
-    const amt = m.dir === "draft" ? (m.amount == null ? "—" : short(m.amount)) : `${m.dir === "in" ? "+" : "−"}${money(m.amount)}`;
-    return `<a class="fx-row${S.sel === m.id ? " is-on" : ""}" href="#" data-id="${esc(m.id)}">
-      <span class="fx-ico is-${m.dir}">${ico}</span>
-      <span class="fx-row__b"><b>${esc(m.title)}</b><small class="${m.dir === "draft" ? "is-hot" : ""}">${esc(m.sub)}</small></span>
-      <span class="fx-amt is-${m.dir}">${amt}</span></a>`;
+    const amt = m.dir === "draft" ? (m.amount == null ? "—" : money(m.amount)) : `${m.dir === "in" ? "+" : "−"}${money(m.amount)}`;
+    return `<a class="fx-row ol-row${S.sel === m.id ? " is-on" : ""}" href="#" data-id="${esc(m.id)}">
+      <span class="fx-ico ol-lead is-${m.dir}">${ico}</span>
+      <b class="ol-t" title="${esc(m.title)}">${esc(m.title)}</b>
+      <span class="ol-v fx-amt is-${m.dir}">${amt}</span>
+      <span class="ol-m"><span class="${m.dir === "draft" ? "is-hot" : ""}">${esc(m.sub)}</span></span>
+      ${m.dir === "draft" ? `<span class="ol-d is-hot">a classificar</span>` : ""}
+    </a>`;
   }
 
   function renderList() {
@@ -274,11 +290,10 @@
       if (em) em.textContent = n[b.dataset.f] ? String(n[b.dataset.f]) : "";
     });
     const s = S.summary || {};
-    $("fxSums").innerHTML = `<div><dt>Entradas</dt><dd>${short(s.inflow)}</dd></div><div><dt>Saídas</dt><dd>${short(s.outflow)}</dd></div><div><dt>Resultado</dt><dd class="${(s.net || 0) < 0 ? "is-hot" : ""}">${signed(Number(s.net) || 0)}</dd></div>`;
     renderPhero(n.draft);
 
     const list = filtered(all);
-    let h = `<a class="fx-res${S.sel === "res" ? " is-on" : ""}" href="#" data-id="res"><span class="fx-res__ico">${ICO.chart}</span><span class="fx-res__b"><b>Resumo de ${esc(perName())}</b><small>Resultado ${signed(Number(s.net) || 0)}${todoCount() ? ` · ${todoCount()} para resolver` : ""}</small></span></a>`;
+    let h = `<a class="fx-res${S.sel === "res" ? " is-on" : ""}" href="#" data-id="res"><span class="fx-res__ico">${ICO.chart}</span><span class="fx-res__b"><b>Resumo de ${esc(perName())}</b><small>${todoCount() ? `${todoCount()} para resolver` : "semanas, categorias e a receber"}</small></span></a>`;
     if (!list.length) {
       h += `<p class="fx-empty">${S.q || S.filter !== "all" ? "Nenhum movimento com esse filtro." : "Sem movimentos neste período."}</p>`;
     } else {
@@ -289,7 +304,7 @@
       const flush = () => {
         if (!day) return;
         const t = tot ? `${tot > 0 ? "+" : "−"}${money(Math.abs(tot))}` : drafts ? `${drafts} a classificar` : "";
-        h += `<div class="fx-day"><span>${esc(dayLabel(day))}</span><em>${t}</em></div>${buf}`;
+        h += `<div class="fx-day ol-grp"><span>${esc(dayLabel(day))}</span><em>${t}</em></div>${buf}`;
       };
       list.forEach((m) => {
         if (m.date !== day) {
@@ -345,12 +360,12 @@
     const pd = payrollDue();
     const pdSum = pd.reduce((a, p) => a + p.due, 0);
     const prev = S.prev ? Number(S.prev.net) || 0 : null;
-    $("fxPhero").innerHTML = `<div class="fx-hero"><span>Resultado ${S.range === "month" ? "do mês" : "do período"}</span><b>${signed(net)}</b>
+    $("fxPhero").innerHTML = `<div class="fx-hero${net < 0 ? " is-neg" : ""}"><span>Resultado ${S.range === "month" ? "do mês" : "do período"}</span><b>${signed(net)}</b>
       <small>${S.from <= todayIso() && S.to >= todayIso() ? `até ${dShort(todayIso())}` : `${dShort(S.from)} – ${dShort(S.to)}`}${prev != null ? ` · ${esc(prevName())} ${signed(prev)}` : ""}</small>
       <div class="fx-hero__sp"><div><span>Entradas</span><b>${short(s.inflow)}</b></div><div><span>Saídas</span><b>${short(s.outflow)}</b></div></div></div>
       <div class="fx-g22">
         <a href="invoices.html"><span>A receber</span><b>${short(rec)}</b><small>${S.receivables.length} fatura${S.receivables.length === 1 ? "" : "s"}</small></a>
-        <a href="${od.length === 1 ? `invoices.html?id=${encodeURIComponent(od[0].id)}` : "invoices.html"}"><span>Vencido</span><b class="${odSum ? "is-hot" : ""}">${short(odSum)}</b><small>${od.length ? `há ${odDays} dia${odDays === 1 ? "" : "s"}` : "nada vencido"}</small></a>
+        <a class="fx-g22__od" href="${od.length === 1 ? `invoices.html?id=${encodeURIComponent(od[0].id)}` : "invoices.html"}"><span>Vencido</span><b class="${odSum ? "is-hot" : ""}">${short(odSum)}</b><small>${od.length ? `há ${odDays} dia${odDays === 1 ? "" : "s"}` : "nada vencido"}</small></a>
         <a href="#" data-fx-filter="draft"><span>A classificar</span><b>${nDraft}</b><small>${dr.length ? `${short(drSum)} em recibos` : "tudo lançado"}</small></a>
         <a href="${pd.length ? `folha.html#semana=${esc(pd[0].start_date)}` : "folha.html"}"><span>Folha a pagar</span><b>${short(pdSum)}</b><small>${pd.length ? `${pd.length} semana${pd.length === 1 ? "" : "s"}` : "em dia"}</small></a>
       </div>
@@ -434,7 +449,7 @@
       .slice(0, 2)
       .forEach((r) => {
         const d = r.due_date ? daysBetween(r.due_date, todayIso()) : 0;
-        items.push(`<div class="fx-todo"><i></i><div><b>Fatura vencida · ${esc(r.customer_name)}</b><small>${esc(r.invoice_number || "")} · ${short(r.balance)} · há ${d} dia${d === 1 ? "" : "s"}</small></div><a href="invoices.html?id=${encodeURIComponent(r.id)}">Cobrar</a></div>`);
+        items.push(`<div class="fx-todo"><i></i><div><b>Fatura vencida · ${esc(r.customer_name)}</b><small>${esc(r.invoice_number || "")} · ${money(r.balance)} · há ${d} dia${d === 1 ? "" : "s"}</small></div><a href="invoices.html?id=${encodeURIComponent(r.id)}">Cobrar</a></div>`);
       });
     payrollDue()
       .slice(0, 2)
@@ -464,7 +479,7 @@
     const li = rows.slice(0, 4).map((r) => {
       const d = r.due_date ? daysBetween(r.due_date, todayIso()) : null;
       const due = !r.due_date ? "sem vencimento" : r.overdue ? `venceu há ${d} dia${d === 1 ? "" : "s"}` : `vence ${dShort(r.due_date)}`;
-      return `<a class="fx-rcv" href="invoices.html?id=${encodeURIComponent(r.id)}"><span><b>${esc(r.customer_name)}</b><small class="${r.overdue ? "is-hot" : ""}">${esc(r.invoice_number || "")} · ${due}</small></span><b>${short(r.balance)}</b></a>`;
+      return `<a class="fx-rcv" href="invoices.html?id=${encodeURIComponent(r.id)}"><span><b>${esc(r.customer_name)}</b><small class="${r.overdue ? "is-hot" : ""}">${esc(r.invoice_number || "")} · ${due}</small></span><b>${money(r.balance)}</b></a>`;
     });
     return `<div class="fx-card"><h3>A receber <em>${short(sum)}</em><a class="fx-lnk" href="invoices.html">Invoices</a></h3>${li.join("") || '<p class="fx-mute">Nenhuma fatura em aberto.</p>'}${rows.length > 4 ? `<a class="fx-more" href="invoices.html">Ver todas (${rows.length})</a>` : ""}</div>`;
   }
@@ -542,7 +557,7 @@
     const x = m.line.meta || {};
     const bal = x.invoice_amount != null ? Math.max(0, x.invoice_amount - (x.invoice_paid || 0)) : null;
     const kp = x.invoice_amount != null
-      ? `<div class="fx-kpis"><div><span>Fatura</span><b>${short(x.invoice_amount)}</b></div><div><span>Recebido</span><b>${short(x.invoice_paid)}</b></div><div><span>Saldo</span><b>${short(bal)}</b></div><div><span>${bal ? "Vence" : "Status"}</span><b>${bal ? (x.invoice_due ? dShort(x.invoice_due) : "—") : "Paga"}</b></div></div>`
+      ? `<div class="fx-kpis"><div><span>Fatura</span><b>${money(x.invoice_amount)}</b></div><div><span>Recebido</span><b>${money(x.invoice_paid)}</b></div><div><span>Saldo</span><b>${money(bal)}</b></div><div><span>${bal ? "Vence" : "Status"}</span><b>${bal ? (x.invoice_due ? dShort(x.invoice_due) : "—") : "Paga"}</b></div></div>`
       : "";
     return `<div class="fx-mv"><div class="fx-mvh"><div class="fx-mvh__b"><div class="fx-chips"><span class="fx-chip is-ok">Recebimento</span>${x.method ? `<span class="fx-chip">${esc(methodLabel(x.method))}</span>` : ""}</div>
       <h2>+${money(m.amount)} · ${esc(m.title)}</h2><p>${esc([dayLabel(m.date), x.invoice_number, x.job_number ? `Job #${x.job_number}` : ""].filter(Boolean).join(" · "))}</p></div>
@@ -555,7 +570,7 @@
     const p = S.periods.find((q) => q.id === x.period_id);
     const lab = String(x.payroll_label || m.line.label || "");
     const kp = p
-      ? `<div class="fx-kpis"><div><span>Semana</span><b>${esc(dShort(p.start_date))} – ${esc(dShort(p.end_date))}</b></div><div><span>Custo da semana</span><b>${short(p.estimated_cost)}</b></div><div><span>Pago</span><b>${short(p.abatement ? p.abatement.amount : 0)}</b></div><div><span>A pagar</span><b>${short(Math.max(0, (p.estimated_cost || 0) - (p.abatement ? p.abatement.amount : 0)))}</b></div></div>`
+      ? `<div class="fx-kpis"><div><span>Semana</span><b>${esc(dShort(p.start_date))} – ${esc(dShort(p.end_date))}</b></div><div><span>Custo da semana</span><b>${money(p.estimated_cost)}</b></div><div><span>Pago</span><b>${money(p.abatement ? p.abatement.amount : 0)}</b></div><div><span>A pagar</span><b>${money(Math.max(0, (p.estimated_cost || 0) - (p.abatement ? p.abatement.amount : 0)))}</b></div></div>`
       : "";
     return `<div class="fx-mv"><div class="fx-mvh"><div class="fx-mvh__b"><div class="fx-chips"><span class="fx-chip is-dk">Folha</span>${x.method ? `<span class="fx-chip">${esc(methodLabel(x.method))}</span>` : ""}</div>
       <h2>−${money(m.amount)} · ${esc(m.title.replace(/^Folha · /, ""))}</h2><p>${esc([dayLabel(m.date), lab.split(" · ").slice(1).join(" · ")].filter(Boolean).join(" · "))}</p></div>

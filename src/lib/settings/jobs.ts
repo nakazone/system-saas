@@ -3,6 +3,14 @@
  */
 import { z } from "zod";
 
+export type DeliveryLocation = {
+  id: string;
+  name: string;
+  address: string;
+  /** Free-text hours, e.g. "Mon–Fri 7am–4pm". */
+  hours: string;
+};
+
 export type JobsSettings = {
   /** When false, checklist UI is hidden on Jobs, job modal, and Campo. Default: on. */
   checklist_enabled: boolean;
@@ -11,6 +19,8 @@ export type JobsSettings = {
    * from slab layout approval to install). null = the trade's default.
    */
   shop_lead_days: number | null;
+  /** Saved pickup places for Delivery (name + address + hours). */
+  delivery_locations: DeliveryLocation[];
 };
 
 /** The company's shop lead time (business days), or null to use the trade's default. */
@@ -28,13 +38,48 @@ export function isJobChecklistEnabled(featureFlags: unknown): boolean {
   return true;
 }
 
-export function parseJobsSettings(featureFlags: unknown): JobsSettings {
-  return { checklist_enabled: isJobChecklistEnabled(featureFlags), shop_lead_days: shopLeadDays(featureFlags) };
+function asRecord(v: unknown): Record<string, unknown> | null {
+  if (v && typeof v === "object" && !Array.isArray(v)) return v as Record<string, unknown>;
+  return null;
 }
+
+export function parseDeliveryLocations(featureFlags: unknown): DeliveryLocation[] {
+  const flags = asRecord(featureFlags);
+  const raw = flags?.delivery_locations ?? flags?.deliveryLocations;
+  if (!Array.isArray(raw)) return [];
+  const out: DeliveryLocation[] = [];
+  for (const row of raw) {
+    const r = asRecord(row);
+    if (!r) continue;
+    const id = String(r.id || "").trim();
+    const name = String(r.name || "").trim();
+    const address = String(r.address || "").trim();
+    const hours = String(r.hours || "").trim();
+    if (!id || !name || !address) continue;
+    out.push({ id, name, address, hours });
+  }
+  return out.slice(0, 40);
+}
+
+export function parseJobsSettings(featureFlags: unknown): JobsSettings {
+  return {
+    checklist_enabled: isJobChecklistEnabled(featureFlags),
+    delivery_locations: parseDeliveryLocations(featureFlags),
+    shop_lead_days: shopLeadDays(featureFlags),
+  };
+}
+
+const deliveryLocationSchema = z.object({
+  id: z.string().trim().min(1).max(40),
+  name: z.string().trim().min(1).max(120),
+  address: z.string().trim().min(1).max(500),
+  hours: z.string().trim().max(200).optional().default(""),
+});
 
 export const jobsSettingsPatchSchema = z.object({
   checklist_enabled: z.boolean().optional(),
   shop_lead_days: z.number().int().min(0).max(60).nullable().optional(),
+  delivery_locations: z.array(deliveryLocationSchema).max(40).optional(),
 });
 
 export type JobsSettingsPatch = z.infer<typeof jobsSettingsPatchSchema>;
@@ -55,6 +100,15 @@ export function applyJobsSettingsPatch(
   if (patch.shop_lead_days !== undefined) {
     if (patch.shop_lead_days === null) delete base.shop_lead_days;
     else base.shop_lead_days = patch.shop_lead_days;
+  }
+  if (patch.delivery_locations !== undefined) {
+    base.delivery_locations = patch.delivery_locations.map((row) => ({
+      id: row.id,
+      name: row.name,
+      address: row.address,
+      hours: row.hours || "",
+    }));
+    delete base.deliveryLocations;
   }
   return base;
 }

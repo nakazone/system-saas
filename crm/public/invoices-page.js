@@ -281,23 +281,14 @@
     const when = listDate(i);
     const addr = String(i.address || '').trim();
     const hot = i.display_status === 'overdue';
-    return `<a class="ix-row${String(i.id) === String(selId) ? ' is-on' : ''}" href="invoices.html?id=${encodeURIComponent(i.id)}" data-inv-id="${esc(i.id)}">
-      <span class="ix-row__b">
-        <span class="ix-row__l1"><b>${esc(i.customer_name || '—')}</b></span>
-        ${addr ? `<span class="ix-row__addr">${PIN}<span>${esc(addr)}</span></span>` : ''}
-        <span class="ix-row__bar">${progHtml(i)}</span>
-      </span>
-      <span class="ix-row__side">
-        <span class="ix-row__amt">${money(
-          open
-            ? Number(i.paid_amount) > 0.004
-              ? i.remaining_amount
-              : i.amount
-            : i.amount,
-        )}</span>
-        ${when.text ? `<span class="ix-row__when${when.hot ? ' is-hot' : ''}">${esc(when.text)}</span>` : ''}
-        <span class="ix-row__st${hot ? ' is-hot' : ''}">${esc(label)}</span>
-      </span>
+    const tone = { draft: 'wait', sent: 'act', viewed: 'act', partially_paid: 'act', overdue: 'hot', paid: 'ok', void: 'off' }[i.display_status] || 'act';
+    const due = open && Number(i.paid_amount) > 0.004;
+    return `<a class="ix-row ol-row${String(i.id) === String(selId) ? ' is-on' : ''}" href="invoices.html?id=${encodeURIComponent(i.id)}" data-inv-id="${esc(i.id)}">
+      <b class="ol-t" title="${esc(i.customer_name || '')}">${esc(i.customer_name || '—')}</b>
+      <span class="ol-v${i.display_status === 'void' ? ' is-mu' : ''}" title="${due ? 'Saldo em aberto' : 'Valor da fatura'}">${money(due ? i.remaining_amount : i.amount)}</span>
+      ${addr ? `<span class="ol-m ix-row__addr" title="${esc(addr)}">${PIN}<span>${esc(addr)}</span></span>` : '<span class="ol-m"></span>'}
+      ${when.text ? `<span class="ol-d${when.hot ? ' is-hot' : ''}">${esc(when.text)}</span>` : ''}
+      <span class="ol-f"><span class="ol-st is-${hot ? 'hot' : tone}">${esc(label)}</span>${due ? `<span class="ol-note">saldo a receber</span>` : ''}${progHtml(i)}</span>
     </a>`;
   }
 
@@ -327,7 +318,7 @@
     const byDate = (a, b) => new Date(b.created_at) - new Date(a.created_at);
     // Abas específicas: lista plana; Todos: agrupa por status.
     const band = (label, em, items, i) =>
-      `<section class="ix-band ix-band--${i % 2 ? 'b' : 'a'}"><p class="ix-grp"><span>${label}</span><em>${em}</em></p>${items.map(rowHtml).join('')}</section>`;
+      `<section class="ix-band ol-band"><p class="ix-grp ol-grp"><span>${label}</span><em>${em}</em></p>${items.map(rowHtml).join('')}</section>`;
     if (tab !== 'all') {
       const sorted = rows.slice().sort(tab === 'overdue' ? (a, b) => (b.days_overdue || 0) - (a.days_overdue || 0) : byDate);
       const tot = sorted.reduce((a, i) => a + Number(tab === 'paid' ? i.amount : i.remaining_amount) || 0, 0);
@@ -414,8 +405,11 @@
   }
 
   let loadSeq = 0;
+  let loadedOnce = false;
   async function load() {
     const seq = ++loadSeq;
+    // First load: rows-shaped placeholders instead of the static "Carregando…" line.
+    if (!loadedOnce && window.crmSkeleton) window.crmSkeleton.fill($('invRows'), 'rows', 7);
     try {
       const r = await fetchAll();
       if (seq !== loadSeq) return; // superseded by a newer reload (e.g. after discount/edit)
@@ -448,9 +442,13 @@
         }
       }
       renderAll();
+      loadedOnce = true;
+      if (window.crmSkeleton) window.crmSkeleton.done($('invRows'));
     } catch (err) {
       if (seq !== loadSeq) return;
-      $('invRows').innerHTML = `<p class="ix-empty"><b>Não foi possível carregar</b><br>${esc(err.message)}</p>`;
+      const msg = `Não foi possível carregar as faturas.${err && err.message ? ` ${err.message}` : ''}`;
+      if (window.crmSkeleton) window.crmSkeleton.error($('invRows'), msg, () => load());
+      else $('invRows').innerHTML = `<p class="ix-empty"><b>Não foi possível carregar</b><br>${esc(err.message)}</p>`;
     }
   }
 

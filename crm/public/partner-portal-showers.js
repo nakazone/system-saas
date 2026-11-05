@@ -89,7 +89,7 @@
     const l = document.createElement('link');
     l.id = CSS_ID;
     l.rel = 'stylesheet';
-    l.href = 'partner-portal-showers.css?v=20261103-sh2';
+    l.href = 'partner-portal-showers.css?v=20261105-ct9';
     document.head.appendChild(l);
   }
 

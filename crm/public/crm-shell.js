@@ -8,7 +8,7 @@
   const STORAGE_KEY = "crm_sidebar_collapsed";
   const NAV_HISTORY_KEY = "crm_nav_history_v1";
   const NAV_HISTORY_MAX = 50;
-  const SHELL_VER = "20261027-m2";
+  const SHELL_VER = "20261105-dockall";
 
   const CREATE_MENU_ITEMS = [
     {
@@ -200,10 +200,10 @@
       help.type = "button";
       help.id = "crmTopbarHelpBtn";
       help.className = "crm-topbar__icon-btn";
-      help.title = "Ajuda / Suporte";
-      help.setAttribute("aria-label", "Ajuda e suporte");
+      help.title = "Central de ajuda";
+      help.setAttribute("aria-label", "Central de ajuda");
       help.innerHTML =
-        '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 015.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>';
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.6 8.6 0 0 1-3.8-.9L3 21l1.9-5.7A8.5 8.5 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z"/><path d="M9.7 9.2a2.4 2.4 0 0 1 4.6.9c0 1.6-2.3 2.1-2.3 2.1"/><path d="M12 15.6h.01"/></svg>';
     }
     restoreTopbarBtn(help);
     if (help.parentElement !== topRight) topRight.appendChild(help);
@@ -306,8 +306,8 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 19h16"/></svg>
       <span>Instalar app</span>
     </button>
-    <button type="button" class="crm-topbar__icon-btn" id="crmTopbarHelpBtn" title="Ajuda / Suporte" aria-label="Ajuda e suporte">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 015.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+    <button type="button" class="crm-topbar__icon-btn" id="crmTopbarHelpBtn" title="Central de ajuda" aria-label="Central de ajuda">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.6 8.6 0 0 1-3.8-.9L3 21l1.9-5.7A8.5 8.5 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z"/><path d="M9.7 9.2a2.4 2.4 0 0 1 4.6.9c0 1.6-2.3 2.1-2.3 2.1"/><path d="M12 15.6h.01"/></svg>
     </button>
     <a href="configuracoes.html" class="crm-topbar__icon-btn" id="crmTopbarSettingsBtn" title="Menu da conta" aria-label="Menu da conta">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
@@ -1003,22 +1003,32 @@
       wrap.id = "notificationBellWrap";
       wrap.innerHTML = `
         <button type="button" id="notificationBellBtn" class="notification-bell-btn" aria-label="Notificações" aria-expanded="false" aria-controls="notificationPanel" title="Notificações">
-          <span class="notification-bell-icon" aria-hidden="true">🔔</span>
+          <span class="notification-bell-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span>
           <span id="notificationBellBadge" class="notification-bell-badge" hidden>0</span>
         </button>
-        <div id="notificationPanel" class="notification-panel" role="region" aria-label="Lista de notificações" hidden>
-          <div class="notification-panel-header">
-            <h3 class="notification-panel-title">Notificações</h3>
-            <div class="notification-panel-actions">
-              <button type="button" class="btn-notification-text" id="notificationMarkAllRead">Marcar lidas</button>
-              <button type="button" class="btn-notification-text btn-notification-text--danger" id="notificationClearAll">Limpar</button>
+        <div id="notificationPanel" class="notification-panel nc" role="dialog" aria-labelledby="ncTitle" hidden>
+          <div class="nc__head">
+            <div class="nc__heading">
+              <h3 class="nc__title" id="ncTitle">Notificações</h3>
+              <span class="nc__unread" id="ncUnread" hidden></span>
+            </div>
+            <div class="nc__actions">
+              <button type="button" class="nc__text-btn" id="notificationMarkAllRead">Marcar lidas</button>
+              <button type="button" class="nc__icon-btn" id="notificationClearAll" aria-label="Apagar todas" title="Apagar todas">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>
+              </button>
             </div>
           </div>
-          <div class="crm-push-panel">
-            <p class="crm-push-panel__status" data-crm-push-status>Receba avisos mesmo com o app fechado.</p>
-            <button type="button" class="crm-push-panel__btn" data-crm-push-enable data-label-off="Ativar alertas no dispositivo" data-label-on="Alertas ativos — tocar para desativar">Ativar alertas no dispositivo</button>
+          <div class="nc__tabs" role="group" aria-label="Filtro">
+            <button type="button" class="nc__tab" data-nc-filter="all" aria-pressed="true">Todas</button>
+            <button type="button" class="nc__tab" data-nc-filter="unread" aria-pressed="false">Não lidas</button>
           </div>
-          <div id="notificationPanelList" class="notification-panel-list"></div>
+          <div id="notificationPanelList" class="nc__list"></div>
+          <div class="crm-push-panel nc__push">
+            <svg class="nc__push-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>
+            <p class="crm-push-panel__status" data-crm-push-status>Receba avisos mesmo com o app fechado.</p>
+            <button type="button" class="crm-push-panel__btn" data-crm-push-enable data-label-off="Ativar" data-label-on="Desativar">Ativar</button>
+          </div>
         </div>`;
       const topRight = document.querySelector("#crmTopbar .crm-topbar__right");
       const help = document.getElementById("crmTopbarHelpBtn");
@@ -1032,7 +1042,13 @@
       el.src = src;
       document.body.appendChild(el);
     }
-    ensureScript("notification-center.js?v=20261027-m2", "notification-center.js");
+    if (!document.querySelector('link[href*="notification-center.css"]')) {
+      const css = document.createElement("link");
+      css.rel = "stylesheet";
+      css.href = "notification-center.css?v=20261105-nc2";
+      document.head.appendChild(css);
+    }
+    ensureScript("notification-center.js?v=20261105-nc1", "notification-center.js");
     ensureScript("crm-push.js?v=20261022-inbox1", "crm-push.js");
   }
 
@@ -1162,7 +1178,7 @@
     }
     if (!window.__mateAiPanel && !document.querySelector('script[src*="mate-panel.js"]')) {
       ensureStylesheet("mate-panel.css?v=20261027-m2");
-      jobs.push(ensureScript("mate-panel.js?v=20261027-m2").catch(() => {}));
+      jobs.push(ensureScript("mate-panel.js?v=20261104-ux2").catch(() => {}));
     }
     if (!document.querySelector('script[src*="saas-branding.js"]')) {
       jobs.push(ensureScript("saas-branding.js?v=20261002-branddoc1").catch(() => {}));

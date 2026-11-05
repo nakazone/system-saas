@@ -20,7 +20,14 @@ import { ensureJobChatChannel } from "../../lib/chat/job-channel.js";
 import { foldUnlinkedQuoteInvoices, jobBilling, jobBillingLabel } from "../../lib/invoices/job.js";
 import { isJobChecklistEnabled } from "../../lib/settings/jobs.js";
 import {
+  mirrorPrimaryDelivery,
+  parseDeliveryStops,
+  resolveDeliveryStops,
+} from "../../lib/work-orders/deliveries.js";
+import {
   parseScheduleSettings,
+  resolveDeliveryCalendar,
+  resolveDeliveryColor,
   resolveJobCalendar,
   resolveJobColor,
   resolveMeetingColor,
@@ -52,12 +59,12 @@ function normalizeWoSector(raw: unknown): string | null {
 }
 
 /**
- * Calendar emits `${workOrderId}:sand` for the Sand date of sector=both jobs.
- * Strip that suffix (and legacy :installation/:main) before Prisma UUID lookups.
+ * Calendar emits `${workOrderId}:sand` / `:delivery` for secondary dates.
+ * Strip those suffixes (and legacy :installation/:main) before Prisma UUID lookups.
  */
 function workOrderIdParam(req: AuthedRequest, name = "id"): string {
   return String(param(req, name) || "")
-    .replace(/:(sand|installation|main)$/i, "")
+    .replace(/:(sand|delivery|installation|main)$/i, "")
     .trim();
 }
 
@@ -191,12 +198,16 @@ function mapWorkOrder(wo: {
   builderId: string | null;
   address: string | null;
   clientRef?: string | null;
+  homeownerName?: string | null;
+  homeownerPhone?: string | null;
   managerId?: string | null;
   notes: string | null;
   campoAttention?: string | null;
   needsDelivery?: boolean;
   deliveryPickupAddress?: string | null;
   deliveryNotes?: string | null;
+  deliveryScheduledStart?: Date | null;
+  deliveries?: unknown;
   deliveryAttachmentUrl?: string | null;
   deliveryAttachmentKey?: string | null;
   deliveryAttachmentName?: string | null;
@@ -238,7 +249,7 @@ function mapWorkOrder(wo: {
     notes: string | null;
     createdAt: Date;
   }[];
-  quotes?: { quoteNumber: string | null; title: string; leadId?: string | null; payload?: unknown }[];
+  quotes?: { id?: string; quoteNumber: string | null; title: string; leadId?: string | null; payload?: unknown }[];
   lineItems?: {
     id: string;
     pricingItemId: string | null;
@@ -270,6 +281,7 @@ function mapWorkOrder(wo: {
   return {
     id: wo.id,
     number: wo.number,
+    quote_id: (linkedQuote as { id?: string } | null)?.id || null,
     quote_number: linkedQuote?.quoteNumber || null,
     quote_title: linkedQuote?.title || null,
     lead_name: null as string | null,
@@ -284,6 +296,8 @@ function mapWorkOrder(wo: {
     // Particular quote→job used to leave address empty; fall back to the customer site.
     address: (wo.address && String(wo.address).trim()) || wo.customer?.address || null,
     client_ref: (wo.clientRef && String(wo.clientRef).trim()) || quoteNote || null,
+    homeowner_name: wo.homeownerName || null,
+    homeowner_phone: wo.homeownerPhone || null,
     manager_id: wo.managerId || null,
     manager_name: managerName(wo.customer?.managers, wo.managerId),
     notes: wo.notes,
@@ -293,6 +307,8 @@ function mapWorkOrder(wo: {
     needs_delivery: Boolean(wo.needsDelivery),
     delivery_pickup_address: wo.deliveryPickupAddress || null,
     delivery_notes: wo.deliveryNotes || null,
+    delivery_scheduled_start: wo.deliveryScheduledStart?.toISOString() ?? null,
+    deliveries: resolveDeliveryStops(wo),
     delivery_attachment: wo.deliveryAttachmentUrl
       ? {
           url: wo.deliveryAttachmentUrl,
@@ -336,7 +352,7 @@ function mapWorkOrder(wo: {
     sand_scheduled_start: wo.sandScheduledStart?.toISOString() ?? null,
     installation_done_at: wo.installationDoneAt?.toISOString() ?? null,
     sand_done_at: wo.sandDoneAt?.toISOString() ?? null,
-    all_day: Boolean(wo.scheduledStart || wo.sandScheduledStart),
+    all_day: Boolean(wo.scheduledStart || wo.sandScheduledStart || wo.deliveryScheduledStart),
     created_at: wo.createdAt.toISOString(),
     updated_at: wo.updatedAt.toISOString(),
     customer: wo.customer
@@ -490,7 +506,7 @@ const woInclude = {
   },
   tempWorkers: { orderBy: { createdAt: "asc" as const } },
   quotes: {
-    select: { quoteNumber: true, title: true, leadId: true, payload: true },
+    select: { id: true, quoteNumber: true, title: true, leadId: true, payload: true },
     orderBy: { createdAt: "desc" as const },
     take: 1,
   },
@@ -1120,12 +1136,30 @@ const workOrderBody = z.object({
   builder_id: z.string().uuid().optional().nullable(),
   address: z.string().max(500).optional().nullable(),
   client_ref: z.string().max(120).optional().nullable(),
+  homeowner_name: z.string().max(200).optional().nullable(),
+  homeowner_phone: z.string().max(40).optional().nullable(),
   manager_id: z.string().uuid().optional().nullable(),
   notes: z.string().max(8000).optional().nullable(),
   campo_attention: z.string().max(2000).optional().nullable(),
   needs_delivery: z.boolean().optional(),
   delivery_pickup_address: z.string().max(500).optional().nullable(),
   delivery_notes: z.string().max(4000).optional().nullable(),
+  delivery_scheduled_start: z.string().datetime().optional().nullable(),
+  deliveries: z
+    .array(
+      z.object({
+        id: z.string().max(40).optional().nullable(),
+        scheduled_start: z.string().datetime().optional().nullable(),
+        pickup_address: z.string().max(500).optional().nullable(),
+        location_id: z.string().max(40).optional().nullable(),
+        location_name: z.string().max(120).optional().nullable(),
+        hours: z.string().max(200).optional().nullable(),
+        notes: z.string().max(4000).optional().nullable(),
+      }),
+    )
+    .max(8)
+    .optional()
+    .nullable(),
   clear_delivery_attachment: z.boolean().optional(),
   /** Checklist set by the office; done/photos already recorded by the crew are kept by id. */
   campo_checklist: z
@@ -1245,12 +1279,37 @@ scheduleJobsRouter.post(
           builderId: d.builder_id || null,
           address: d.address?.trim() || null,
           clientRef: d.client_ref?.trim() || null,
+          homeownerName: d.homeowner_name?.trim() || null,
+          homeownerPhone: d.homeowner_phone?.trim() || null,
           managerId,
           notes: d.notes?.trim() || null,
           campoAttention: d.campo_attention?.trim() || null,
-          needsDelivery: d.needs_delivery === true,
-          deliveryPickupAddress: d.needs_delivery === true ? d.delivery_pickup_address?.trim() || null : null,
-          deliveryNotes: d.needs_delivery === true ? d.delivery_notes?.trim() || null : null,
+          ...(() => {
+            const stops =
+              d.deliveries != null
+                ? parseDeliveryStops(d.deliveries)
+                : d.needs_delivery === true
+                  ? [
+                      {
+                        id: "primary",
+                        scheduled_start: d.delivery_scheduled_start || null,
+                        pickup_address: d.delivery_pickup_address?.trim() || null,
+                        location_id: null,
+                        location_name: null,
+                        hours: null,
+                        notes: d.delivery_notes?.trim() || null,
+                      },
+                    ]
+                  : [];
+            const mir = mirrorPrimaryDelivery(stops);
+            return {
+              needsDelivery: mir.needsDelivery,
+              deliveryPickupAddress: mir.deliveryPickupAddress,
+              deliveryNotes: mir.deliveryNotes,
+              deliveryScheduledStart: mir.deliveryScheduledStart,
+              deliveries: mir.deliveries ? (mir.deliveries as unknown as Prisma.InputJsonValue) : Prisma.DbNull,
+            };
+          })(),
           ...(d.campo_checklist?.length ? { campoChecklist: mergeOfficeChecklist(null, d.campo_checklist) } : {}),
           assignedUserId: d.assigned_user_id || null,
           crewId: d.crew_id || null,
@@ -1445,6 +1504,8 @@ scheduleJobsRouter.put(
             : {}),
           ...(d.address !== undefined ? { address: d.address?.trim() || null } : {}),
           ...(d.client_ref !== undefined ? { clientRef: d.client_ref?.trim().slice(0, 120) || null } : {}),
+          ...(d.homeowner_name !== undefined ? { homeownerName: d.homeowner_name?.trim() || null } : {}),
+          ...(d.homeowner_phone !== undefined ? { homeownerPhone: d.homeowner_phone?.trim() || null } : {}),
           ...(managerId !== undefined ? { managerId } : {}),
           // New address → forget the cached job location (re-geocoded on the next work day).
           ...(d.address !== undefined && (d.address?.trim() || null) !== existing.address
@@ -1452,25 +1513,91 @@ scheduleJobsRouter.put(
             : {}),
           ...(d.notes !== undefined ? { notes: d.notes?.trim() || null } : {}),
           ...(d.campo_attention !== undefined ? { campoAttention: d.campo_attention?.trim() || null } : {}),
-          ...(d.needs_delivery !== undefined ? { needsDelivery: d.needs_delivery === true } : {}),
-          ...(d.needs_delivery === false
-            ? {
+          ...(() => {
+            if (d.deliveries !== undefined) {
+              const mir = mirrorPrimaryDelivery(parseDeliveryStops(d.deliveries || []));
+              return {
+                needsDelivery: mir.needsDelivery,
+                deliveryPickupAddress: mir.deliveryPickupAddress,
+                deliveryNotes: mir.deliveryNotes,
+                deliveryScheduledStart: mir.deliveryScheduledStart,
+                deliveries: mir.deliveries ? (mir.deliveries as unknown as Prisma.InputJsonValue) : Prisma.DbNull,
+                ...(mir.needsDelivery
+                  ? {}
+                  : {
+                      deliveryAttachmentUrl: null,
+                      deliveryAttachmentKey: null,
+                      deliveryAttachmentName: null,
+                      deliveryAttachmentSharedWithPartners: false,
+                    }),
+                ...(d.clear_delivery_attachment
+                  ? {
+                      deliveryAttachmentUrl: null,
+                      deliveryAttachmentKey: null,
+                      deliveryAttachmentName: null,
+                      deliveryAttachmentSharedWithPartners: false,
+                    }
+                  : {}),
+              };
+            }
+            if (d.needs_delivery === false) {
+              return {
+                needsDelivery: false,
                 deliveryPickupAddress: null,
                 deliveryNotes: null,
+                deliveryScheduledStart: null,
+                deliveries: Prisma.DbNull,
                 deliveryAttachmentUrl: null,
                 deliveryAttachmentKey: null,
                 deliveryAttachmentName: null,
                 deliveryAttachmentSharedWithPartners: false,
-              }
-            : {
-                ...(d.delivery_pickup_address !== undefined
-                  ? { deliveryPickupAddress: d.delivery_pickup_address?.trim() || null }
-                  : {}),
-                ...(d.delivery_notes !== undefined ? { deliveryNotes: d.delivery_notes?.trim() || null } : {}),
+              };
+            }
+            if (d.needs_delivery === true || d.delivery_pickup_address !== undefined || d.delivery_notes !== undefined || d.delivery_scheduled_start !== undefined) {
+              const mir = mirrorPrimaryDelivery([
+                {
+                  id: "primary",
+                  scheduled_start:
+                    d.delivery_scheduled_start !== undefined
+                      ? d.delivery_scheduled_start
+                      : existing.deliveryScheduledStart?.toISOString() || null,
+                  pickup_address:
+                    d.delivery_pickup_address !== undefined
+                      ? d.delivery_pickup_address?.trim() || null
+                      : existing.deliveryPickupAddress,
+                  location_id: null,
+                  location_name: null,
+                  hours: null,
+                  notes:
+                    d.delivery_notes !== undefined ? d.delivery_notes?.trim() || null : existing.deliveryNotes,
+                },
+              ]);
+              return {
+                needsDelivery: mir.needsDelivery || d.needs_delivery === true,
+                deliveryPickupAddress: mir.deliveryPickupAddress,
+                deliveryNotes: mir.deliveryNotes,
+                deliveryScheduledStart: mir.deliveryScheduledStart,
+                deliveries: mir.deliveries ? (mir.deliveries as unknown as Prisma.InputJsonValue) : Prisma.DbNull,
                 ...(d.clear_delivery_attachment
-                  ? { deliveryAttachmentUrl: null, deliveryAttachmentKey: null, deliveryAttachmentName: null, deliveryAttachmentSharedWithPartners: false }
+                  ? {
+                      deliveryAttachmentUrl: null,
+                      deliveryAttachmentKey: null,
+                      deliveryAttachmentName: null,
+                      deliveryAttachmentSharedWithPartners: false,
+                    }
                   : {}),
-              }),
+              };
+            }
+            if (d.clear_delivery_attachment) {
+              return {
+                deliveryAttachmentUrl: null,
+                deliveryAttachmentKey: null,
+                deliveryAttachmentName: null,
+                deliveryAttachmentSharedWithPartners: false,
+              };
+            }
+            return {};
+          })(),
           ...(d.campo_checklist !== undefined
             ? {
                 campoChecklist: d.campo_checklist?.length
@@ -1609,6 +1736,150 @@ function parseDataUrl(dataUrl: string): { contentType: string; body: Buffer } | 
   if (!match) return null;
   return { contentType: match[1]!, body: Buffer.from(match[2]!, "base64") };
 }
+
+/**
+ * Push job extras marked "send to client" onto the linked quote as optional selected lines,
+ * so the office can open/send that quote to the customer.
+ */
+scheduleJobsRouter.post(
+  "/api/work-orders/:id/extras/send",
+  requireCrmAuth,
+  requireCrmPermission("work_orders.manage"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const jobId = workOrderIdParam(req);
+      const { parseJobExtraNote } = await import("../../lib/invoices/job.js");
+      const { calculateQuoteTotals } = await import("../../lib/quotes/totals.js");
+      const result = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const job = await tx.workOrder.findFirst({
+          where: { id: jobId },
+          include: {
+            lineItems: { orderBy: { sortOrder: "asc" } },
+            quotes: { orderBy: { updatedAt: "desc" }, take: 1 },
+          },
+        });
+        if (!job) return null;
+        const extras = job.lineItems
+          .map((li) => {
+            const flags = parseJobExtraNote(li.notes);
+            if (!flags?.sendToClient) return null;
+            return { li, flags };
+          })
+          .filter(Boolean) as {
+          li: (typeof job.lineItems)[number];
+          flags: NonNullable<ReturnType<typeof parseJobExtraNote>>;
+        }[];
+        if (!extras.length) {
+          const err = new Error('Marque “Enviar ao cliente” em pelo menos um extra e salve o job.') as Error & {
+            statusCode?: number;
+          };
+          err.statusCode = 400;
+          throw err;
+        }
+        const quote = job.quotes[0] || null;
+        if (!quote) {
+          const err = new Error(
+            "Este job não tem orçamento ligado. Abra o quote original para enviar extras ao cliente.",
+          ) as Error & { statusCode?: number };
+          err.statusCode = 400;
+          throw err;
+        }
+        const existing = await tx.quoteLineItem.findMany({
+          where: { quoteId: quote.id },
+          orderBy: { sortOrder: "asc" },
+        });
+        const maxSort = Math.max(0, ...existing.map((l) => l.sortOrder));
+        const stale = existing.filter((l) => {
+          const meta =
+            l.meta && typeof l.meta === "object" && !Array.isArray(l.meta)
+              ? (l.meta as Record<string, unknown>)
+              : {};
+          return meta.job_extra === true || String(meta.source || "") === "job_extra";
+        });
+        if (stale.length) {
+          await tx.quoteLineItem.deleteMany({ where: { id: { in: stale.map((l) => l.id) } } });
+        }
+        let sort = maxSort;
+        for (const { li, flags } of extras) {
+          sort += 1;
+          const qty = Number(li.quantitySqft) || 0;
+          const unitPrice = Number(li.unitPrice) || 0;
+          const amount = Number(li.lineTotal) || qty * unitPrice;
+          await tx.quoteLineItem.create({
+            data: {
+              organizationId: req.organizationId!,
+              quoteId: quote.id,
+              name: li.serviceName.slice(0, 200),
+              description: flags.note || li.serviceName,
+              quantity: new Prisma.Decimal(qty),
+              unit: "each",
+              unitCost: new Prisma.Decimal(0),
+              unitPrice: new Prisma.Decimal(unitPrice),
+              amount: new Prisma.Decimal(amount),
+              isOptional: true,
+              isSelected: true,
+              sortOrder: sort,
+              meta: {
+                job_extra: true,
+                source: "job_extra",
+                show_on_invoice: flags.showOnInvoice,
+                notes: flags.note || null,
+                work_order_line_id: li.id,
+              } as Prisma.InputJsonValue,
+            },
+          });
+        }
+        const full = await tx.quote.findFirst({
+          where: { id: quote.id },
+          include: { lineItems: true },
+        });
+        if (full) {
+          const totals = calculateQuoteTotals({
+            lines: full.lineItems.map((l) => ({
+              quantity: Number(l.quantity),
+              unitPrice: Number(l.unitPrice),
+              amount: Number(l.amount),
+              isOptional: l.isOptional,
+              isSelected: l.isSelected,
+            })),
+            discountType: (full.discountType as "percent" | "fixed" | null) || null,
+            discountValue: Number(full.discountValue),
+            taxRate: Number(full.taxRate),
+          });
+          await tx.quote.update({
+            where: { id: quote.id },
+            data: {
+              subtotal: new Prisma.Decimal(totals.subtotal),
+              taxTotal: new Prisma.Decimal(totals.taxTotal),
+              total: new Prisma.Decimal(totals.total),
+            },
+          });
+        }
+        return {
+          quote_id: quote.id,
+          quote_number: quote.quoteNumber,
+          created: false,
+          open_url: `quote-builder.html?id=${encodeURIComponent(quote.id)}&send=1`,
+        };
+      });
+      if (!result) {
+        res.status(404).json({ success: false, error: "Job não encontrado" });
+        return;
+      }
+      res.json({ success: true, data: result });
+    } catch (error) {
+      const status = (error as { statusCode?: number }).statusCode;
+      if (status && status >= 400 && status < 500) {
+        res.status(status).json({
+          success: false,
+          error: error instanceof Error ? error.message : "Não foi possível enviar",
+        });
+        return;
+      }
+      next(error);
+    }
+  },
+);
 
 /** Office upload for Delivery attachment (PO / PDF / photo). */
 scheduleJobsRouter.post(
@@ -2247,6 +2518,7 @@ scheduleJobsRouter.get(
                     OR: [{ scheduledEnd: null }, { scheduledEnd: { gte: from } }],
                   },
                   { sandScheduledStart: { gte: from, lte: to } },
+                  { deliveryScheduledStart: { gte: from, lte: to } },
                 ],
               },
               ...(shouldScopeJobsToSelf(req.user) && req.user?.id ? [myJobAccessWhere(req.user.id)] : []),
@@ -2293,14 +2565,36 @@ scheduleJobsRouter.get(
         : [];
       const originByLead = new Map(originLeads.map((lead) => [lead.id, lead]));
       const jobEvents = workOrders.flatMap((wo) => {
-        const slots: Array<{ at: Date; sand: boolean }> = [];
+        const slots: Array<{
+          at: Date;
+          role: "main" | "sand" | "delivery";
+          deliveryId: string | null;
+          pickup: string | null;
+        }> = [];
         const awaitingSand =
           wo.sector === COMBINED_PHASE && Boolean(wo.installationDoneAt) && !wo.sandDoneAt && wo.status !== "canceled";
-        if (wo.scheduledStart && !awaitingSand) slots.push({ at: wo.scheduledStart, sand: false });
-        if (wo.sector === COMBINED_PHASE && wo.sandScheduledStart) slots.push({ at: wo.sandScheduledStart, sand: true });
-        return slots.map(({ at, sand }) => {
+        if (wo.scheduledStart && !awaitingSand) {
+          slots.push({ at: wo.scheduledStart, role: "main", deliveryId: null, pickup: null });
+        }
+        if (wo.sector === COMBINED_PHASE && wo.sandScheduledStart) {
+          slots.push({ at: wo.sandScheduledStart, role: "sand", deliveryId: null, pickup: null });
+        }
+        for (const stop of resolveDeliveryStops(wo)) {
+          if (!stop.scheduled_start) continue;
+          const at = new Date(stop.scheduled_start);
+          if (Number.isNaN(at.getTime())) continue;
+          slots.push({
+            at,
+            role: "delivery",
+            deliveryId: stop.id,
+            pickup: stop.pickup_address || stop.location_name || wo.deliveryPickupAddress || null,
+          });
+        }
+        return slots.map(({ at, role, deliveryId, pickup }) => {
+          const sand = role === "sand";
+          const delivery = role === "delivery";
           const sector = sand ? PHASE_KEYS[1]! : wo.sector === COMBINED_PHASE ? PHASE_KEYS[0]! : wo.sector;
-          const jobCal = resolveJobCalendar(sched, sector);
+          const jobCal = delivery ? resolveDeliveryCalendar(sched) : resolveJobCalendar(sched, sector);
           const endIso = new Date(at.getTime() + 24 * 60 * 60 * 1000).toISOString();
           const quote = wo.quotes?.[0];
           const lead = quote?.leadId ? originByLead.get(quote.leadId) : undefined;
@@ -2327,12 +2621,12 @@ scheduleJobsRouter.get(
                 })),
               )
             : { nickname: directNick, company: wo.builder?.company || wo.customer?.company || null };
-          // Color (calendar) already shows Installation vs Sand — do not append sector text.
+          // Color (calendar) already shows Installation vs Sand / Delivery — do not append sector text.
           const calendarName = jobCalendarTitle({
             sourceType: wo.sourceType,
             builderId: wo.builderId,
             title: wo.title,
-            address: wo.address,
+            address: delivery ? pickup || wo.deliveryPickupAddress || wo.address : wo.address,
             clientRef,
             sourceName: wo.sourceName,
             customerName: wo.customer?.name,
@@ -2343,7 +2637,11 @@ scheduleJobsRouter.get(
             origin: originFromLeadRecord(lead),
           });
           return {
-            id: sand ? `${wo.id}:sand` : wo.id,
+            id: sand
+              ? `${wo.id}:sand`
+              : delivery
+                ? `${wo.id}:delivery:${deliveryId || "primary"}`
+                : wo.id,
             type: "job" as const,
             title: wo.title,
             label: calendarName,
@@ -2352,8 +2650,10 @@ scheduleJobsRouter.get(
             end: endIso,
             all_day: true,
             calendar_id: jobCal.id,
-            color: resolveJobColor(sched, wo.crew?.color || null, sector),
-            meta: { ...mapWorkOrder(wo), date_role: sand ? "sand" : "main" },
+            color: delivery
+              ? resolveDeliveryColor(sched)
+              : resolveJobColor(sched, wo.crew?.color || null, sector),
+            meta: { ...mapWorkOrder(wo), date_role: role, delivery_id: deliveryId },
           };
         });
       });

@@ -27,19 +27,19 @@
   var STRINGS = {
     en: {
       "menu.settings": "Settings", "menu.account": "My profile", "menu.company": "Company settings",
-      "menu.team": "Team", "menu.language": "Language", "menu.logout": "Log out", "menu.refresh": "Refresh app",
+      "menu.team": "Team", "menu.language": "Language", "menu.logout": "Log out", "menu.refresh": "Refresh app", "menu.install": "Install app",
       "menu.open": "Account menu", "lang.en": "English", "lang.pt": "Português", "lang.es": "Español",
       "nav.users": "Team", "nav.settings": "Settings",
     },
     pt: {
       "menu.settings": "Configurações", "menu.account": "Meu perfil", "menu.company": "Configurações da empresa",
-      "menu.team": "Equipe", "menu.language": "Idioma", "menu.logout": "Sair", "menu.refresh": "Atualizar app",
+      "menu.team": "Equipe", "menu.language": "Idioma", "menu.logout": "Sair", "menu.refresh": "Atualizar app", "menu.install": "Instalar app",
       "menu.open": "Menu da conta", "lang.en": "English", "lang.pt": "Português", "lang.es": "Español",
       "nav.users": "Equipe", "nav.settings": "Configurações",
     },
     es: {
       "menu.settings": "Configuración", "menu.account": "Mi perfil", "menu.company": "Configuración de la empresa",
-      "menu.team": "Equipo", "menu.language": "Idioma", "menu.logout": "Cerrar sesión", "menu.refresh": "Actualizar app",
+      "menu.team": "Equipo", "menu.language": "Idioma", "menu.logout": "Cerrar sesión", "menu.refresh": "Actualizar app", "menu.install": "Instalar app",
       "menu.open": "Menú de la cuenta", "lang.en": "English", "lang.pt": "Português", "lang.es": "Español",
       "nav.users": "Equipo", "nav.settings": "Configuración",
     },

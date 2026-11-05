@@ -1,0 +1,53 @@
+/* ObraCalendar: the Calendar page as its own installed app (only inside /obracalendar). */
+body.oc-app { --oc-tabs: calc(90px + env(safe-area-inset-bottom)); background: #fff; font-family: Geist, system-ui, sans-serif; }
+body.oc-app .ag, body.oc-app .ag * { font-family: inherit; }
+body.oc-app .mobile-app-header,
+body.oc-app #dashboardSidebar,
+body.oc-app .mobile-overlay,
+body.oc-app #omDock,
+body.oc-app .om-dock,
+body.oc-app .crm-shared-dock,
+body.oc-app .crm-pwa-install,
+body.oc-app .mate-fab { display: none !important; }
+body.oc-app .dashboard-container,
+body.oc-app .dashboard-main,
+body.oc-app.om-app .dashboard-main.ag-main { margin: 0 !important; padding: 0 !important; width: 100% !important; max-width: none !important; height: 100dvh !important; min-height: 0; }
+body.oc-app .ag { height: 100dvh !important; padding-top: env(safe-area-inset-top); box-sizing: border-box; }
+body.oc-app .ag-mfloat { bottom: calc(var(--oc-tabs) + 10px); }
+
+.oc-tabs { position: fixed; z-index: 30; left: 34px; right: 34px; bottom: calc(22px + env(safe-area-inset-bottom)); height: 64px; box-sizing: border-box; padding: 6px; border-radius: 32px; background: rgba(255, 255, 255, .96); border: 1px solid #E5E7EB; box-shadow: 0 8px 24px rgba(34, 30, 26, .12); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.oc-tab { appearance: none; border: 0; background: transparent; border-radius: 26px; color: #475467; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font: inherit; font-size: 11px; font-weight: 500; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.oc-tab svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: square; }
+.oc-tab.is-on { background: #FCEFE5; color: #B4561A; font-weight: 600; }
+
+.oc-panel { position: fixed; z-index: 20; inset: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; background: #F7F8FA; color: #221E1A; box-sizing: border-box; padding: calc(16px + env(safe-area-inset-top)) 20px calc(var(--oc-tabs) + 24px); }
+.oc-panel[hidden] { display: none; }
+.oc-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
+.oc-date { font-size: 14px; font-weight: 500; color: #667085; }
+.oc-title { margin: 2px 0 0; font-size: 34px; font-weight: 700; letter-spacing: -.03em; }
+.oc-round { appearance: none; width: 44px; height: 44px; flex: none; border-radius: 22px; background: #fff; border: 1px solid #E5E7EB; display: grid; place-items: center; color: #221E1A; cursor: pointer; padding: 0; }
+.oc-round svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: square; }
+
+.oc-next { display: block; width: 100%; box-sizing: border-box; text-align: left; font: inherit; background: #221E1A; color: #fff; border: 0; border-radius: 20px; padding: 18px; margin-bottom: 16px; }
+.oc-next__top { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; font-weight: 500; color: #D0D5DD; }
+.oc-next__name { font-size: 22px; font-weight: 700; letter-spacing: -.02em; margin-top: 10px; cursor: pointer; }
+.oc-next__sub { font-size: 14px; color: #D0D5DD; margin-top: 3px; line-height: 1.35; }
+.oc-next__acts { display: flex; gap: 8px; margin-top: 14px; }
+.oc-next__acts a, .oc-next__acts button { flex: 1; height: 44px; border-radius: 12px; border: 0; display: flex; align-items: center; justify-content: center; font: inherit; font-size: 15px; font-weight: 600; color: #fff; text-decoration: none; background: #3A352F; cursor: pointer; }
+.oc-next__acts .is-pri { background: #E7792C; }
+
+.oc-sec { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0 0 8px; }
+.oc-sec h2 { margin: 0; font-size: 17px; font-weight: 600; }
+.oc-sec span { font-size: 13px; color: #667085; }
+.oc-list { background: #fff; border: 1px solid #E5E7EB; border-radius: 16px; overflow: hidden; margin-bottom: 16px; }
+.oc-row { appearance: none; width: 100%; border: 0; border-bottom: 1px solid #F1F3F5; background: transparent; display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 8px 14px; box-sizing: border-box; text-align: left; font: inherit; color: inherit; cursor: pointer; text-decoration: none; }
+.oc-row:last-child { border-bottom: 0; }
+.oc-row__h { width: 64px; flex: none; font-size: 13px; font-weight: 600; color: #475467; }
+.oc-row__c { width: 3px; height: 34px; flex: none; }
+.oc-row__b { flex: 1; min-width: 0; }
+.oc-row__t { display: block; font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.oc-row__s { display: block; font-size: 13px; color: #667085; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.oc-empty { padding: 28px 16px; text-align: center; font-size: 15px; color: #475467; }
+.oc-panel .ag-btn { width: 100%; min-height: 52px; border-radius: 14px; }
+.oc-mate { appearance: none; width: 100%; min-height: 52px; margin-bottom: 16px; padding: 0 16px; box-sizing: border-box; border-radius: 14px; border: 1px solid #E5E7EB; background: #fff; color: #475467; display: flex; align-items: center; font: inherit; font-size: 15px; cursor: pointer; text-align: left; }
+.oc-mate b { color: #B4561A; font-weight: 600; margin-left: 4px; }

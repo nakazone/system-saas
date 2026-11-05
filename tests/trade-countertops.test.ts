@@ -144,7 +144,7 @@ describe("countertops: the company sets its own shop lead time", () => {
     const { getPack } = await import("../src/lib/trades/index.js");
     const flags = applyJobsSettingsPatch({ field_quote: true }, { shop_lead_days: 10 });
     expect(flags).toEqual({ field_quote: true, shop_lead_days: 10 });
-    expect(parseJobsSettings(flags)).toEqual({ checklist_enabled: true, shop_lead_days: 10 });
+    expect(parseJobsSettings(flags)).toEqual({ checklist_enabled: true, delivery_locations: [], shop_lead_days: 10 });
     expect(parseJobsSettings(applyJobsSettingsPatch(flags, { shop_lead_days: null })).shop_lead_days).toBeNull();
     expect(jobsSettingsPatchSchema.safeParse({ shop_lead_days: 90 }).success).toBe(false);
     const install = getPack("countertops").phases.find((p) => p.key === "install");

@@ -75,7 +75,7 @@
     const l = document.createElement("link");
     l.id = CSS_ID;
     l.rel = "stylesheet";
-    l.href = "/job-phases.css?v=20261105-rw2";
+    l.href = "/job-phases.css?v=20261105-ct9";
     document.head.appendChild(l);
   }
 

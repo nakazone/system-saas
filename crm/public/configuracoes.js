@@ -25,19 +25,6 @@
    */
   const AREAS = [
     {
-      id: "meu-perfil",
-      label: "Meu Perfil",
-      icon: "user",
-      desc: "Foto, assinatura, idioma e senha",
-      subs: [
-        { id: "mp-perfil", label: "Perfil", section: "meu-perfil", perm: null, desc: "Nome, telefone, foto e ponto de partida das rotas.", keywords: "meu perfil nome telefone foto avatar e-mail email rota partida senha conta" },
-        { id: "mp-assinatura", label: "Assinatura", section: "meu-perfil", perm: null, desc: "Assinatura por imagem nos orçamentos quando você é o responsável.", keywords: "assinatura signature orçamento quote pdf imagem" },
-        { id: "mp-idioma", label: "Idioma", section: "meu-perfil", perm: null, desc: "Idioma da interface neste aparelho.", keywords: "idioma language português english español" },
-        { id: "mp-senha", label: "Senha", section: "meu-perfil", perm: null, desc: "Alterar a senha de acesso ao CRM.", keywords: "senha password segurança alterar" },
-        { id: "mp-conta", label: "Conta", section: "meu-perfil", perm: null, desc: "Cargo e datas da sua conta.", keywords: "conta cargo role desde atualização" },
-      ],
-    },
-    {
       id: "empresa",
       label: "Empresa",
       icon: "home",
@@ -54,25 +41,26 @@
       id: "documentos",
       label: "Orçamentos e faturas",
       icon: "doc",
-      desc: "Numeração, documento do cliente e estimativa",
+      desc: "Numeração, documento do cliente, baixa e indicações",
       subs: [
         { id: "numeracao", label: "Numeração e padrões", section: "orcamentos", perm: "settings.manage", desc: "Valores de cada orçamento novo e a assinatura da empresa. Dá para mudar em cada orçamento.", keywords: "numeração prefixo próximo número validade imposto assinatura" },
         { id: "cliente", label: "O que o cliente vê", section: "orcamentos", perm: "settings.manage", desc: "What's Included, termos e as colunas que aparecem no PDF e no link do cliente.", keywords: "what's included inclusos termos condições colunas quantidade preço unitário cômodo prévia" },
         { id: "regras", label: "Regras de estimativa", section: "regras-estimativa", perm: "estimate_rules.manage", desc: "Desperdício e margens por tipo de piso, usados na estimativa rápida e na medição.", keywords: "desperdício waste markup margem tipo de piso madeira hardwood lvp laminado cerâmica carpete" },
+        { id: "faturas-baixa", label: "Baixa de fatura", section: "faturas-baixa", perm: "settings.manage", desc: "Data padrão ao registrar um pagamento (hoje ou vencimento).", keywords: "baixa pagamento fatura invoice data vencimento hoje due date" },
+        { id: "indicacoes", label: "Indicações", section: "indicacoes", perm: "settings.manage", desc: "Cashback para Particular quando a fatura do indicado é paga.", keywords: "indicação referral cashback comissão particular percentual projeto fatura" },
       ],
     },
     {
       id: "mensagens",
-      label: "Mensagens e automações",
+      label: "Mensagens",
       icon: "chat",
-      desc: "Textos de SMS, e-mail e follow-up",
+      desc: "Textos de SMS, e-mail e follow-up ao cliente",
       subs: [
-        { id: "msg-leads", label: "Leads por fase", section: "mensagens-fase", perm: "settings.manage", desc: "E-mails e SMS de cada fase do pipeline, com o cupom.", keywords: "mensagem email e-mail sms template fase pipeline lead novo visita follow-up cupom coupon gelo" },
         { id: "msg-orcamento", label: "Envio do orçamento", section: "mensagens-orcamento", perm: "settings.manage", desc: "SMS e WhatsApp ao enviar o orçamento e o follow-up depois que o cliente abriu.", keywords: "sms whatsapp mensagem orçamento quote enviar link follow-up" },
         { id: "msg-fatura", label: "E-mails da fatura", section: "mensagens-faturas", perm: "settings.manage", desc: "Texto padrão de cada tipo: parcial, saldo restante, total e recibo.", keywords: "sms email e-mail mensagem invoice fatura enviar link recibo parcial total saldo" },
-        { id: "faturas-baixa", label: "Baixa de fatura", section: "faturas-baixa", perm: "settings.manage", desc: "Data padrão ao registrar um pagamento (hoje ou vencimento).", keywords: "baixa pagamento fatura invoice data vencimento hoje due date" },
-        { id: "automacoes", label: "Automações", section: "automacoes-leads", perm: "settings.manage", desc: "Mover leads automaticamente no pipeline.", keywords: "automação follow-up quote sent estágio dias pipeline lead" },
-        { id: "indicacoes", label: "Indicações", section: "indicacoes", perm: "settings.manage", desc: "Cashback para Particular quando a fatura do indicado é paga.", keywords: "indicação referral cashback comissão particular percentual projeto fatura" },
+        { id: "msg-leads", label: "Leads por fase", section: "mensagens-fase", perm: "settings.manage", desc: "E-mails e SMS de cada fase do pipeline, com o cupom.", keywords: "mensagem email e-mail sms template fase pipeline lead novo visita follow-up cupom coupon gelo" },
+        { id: "msg-agenda", label: "SMS da agenda", section: "agenda", perm: "settings.manage", desc: "Textos do botão SMS da Agenda (job, visita, meeting, delivery).", keywords: "sms mensagem agenda cliente job visita meeting delivery lembrete texto template" },
+        { id: "automacoes", label: "Automação de follow-up", section: "automacoes-leads", perm: "settings.manage", desc: "Mover leads de Quote Sent para Follow-up automaticamente.", keywords: "automação follow-up quote sent estágio dias pipeline lead" },
       ],
     },
     {
@@ -96,10 +84,10 @@
       icon: "job",
       desc: "Agenda, Jobs e Folha",
       subs: [
-        { id: "agenda", label: "Agenda e calendários", section: "agenda", perm: "settings.manage", desc: "Calendários da agenda e o link para o Calendário do iPhone.", keywords: "agenda calendário schedule meeting job cor cores visita apple ics assinatura iphone sync" },
-        { id: "jobs", label: "Jobs e Campo", section: "jobs", perm: "settings.manage", desc: "Opções do job no escritório e no Campo.", keywords: "job checklist campo ticket lista exibir desativar prazo oficina fabricação instalação dias úteis" },
-        { id: "folha", label: "Folha de pagamento", section: "folha", perm: "settings.manage", desc: "Quando o período fecha, em que dia a empresa paga e onde cai o reembolso.", keywords: "folha pagamento ciclo semana quinzena mes sabado domingo fechamento reembolso" },
-        { id: "formas", label: "Formas de pagamento", section: "folha", perm: "settings.manage", desc: "Como o dinheiro chega ao funcionário (Zelle, cheque, dinheiro…).", keywords: "zelle pix forma pagamento cheque dinheiro ach" },
+        { id: "agenda", label: "Agenda e calendários", section: "agenda", perm: "settings.manage", desc: "Calendários, avisos da equipe e link do iPhone.", keywords: "agenda calendário schedule meeting job cor cores visita apple ics assinatura iphone sync automática lembrete push aviso equipe" },
+        { id: "jobs", label: "Jobs e Campo", section: "jobs", perm: "settings.manage", desc: "Opções do job no escritório e no Campo.", keywords: "job checklist campo ticket lista exibir desativar prazo oficina fabricação instalação dias úteis delivery local" },
+        { id: "folha", label: "Ciclo da folha", section: "folha", perm: "settings.manage", desc: "Quando o período fecha, em que dia a empresa paga e onde cai o reembolso.", keywords: "folha pagamento ciclo semana quinzena mes sabado domingo fechamento reembolso" },
+        { id: "formas", label: "Formas de pagamento da folha", section: "folha", perm: "settings.manage", desc: "Como o dinheiro chega ao funcionário (Zelle, cheque, dinheiro…).", keywords: "zelle pix forma pagamento folha funcionário equipe cheque dinheiro ach" },
       ],
     },
     {
@@ -108,7 +96,7 @@
       icon: "users",
       desc: "Usuários, cargos e permissões",
       subs: [
-        { id: "usuarios", label: "Usuários", href: "equipe.html", perm: ["users.view"], desc: "Quem acessa o workspace", keywords: "usuário equipe convidar senha" },
+        { id: "usuarios", label: "Usuários", section: "usuarios", perm: ["users.view"], desc: "Quem acessa o workspace", keywords: "usuário equipe convidar senha" },
         { id: "cargos", label: "Cargos e permissões", section: "cargos", perm: ["roles.manage", "users.view"], desc: "Cargos da equipe e as permissões padrão de cada um.", keywords: "cargo role permissão função acesso" },
       ],
     },
@@ -119,6 +107,19 @@
       desc: "Instalar e alertas",
       subs: [
         { id: "app", label: "App e alertas", section: "app", perm: null, desc: "Use o ObraMate como aplicativo e receba avisos neste dispositivo.", keywords: "instalar app celular notificação push alerta dispositivo" },
+      ],
+    },
+    {
+      id: "meu-perfil",
+      label: "Meu Perfil",
+      icon: "user",
+      desc: "Foto, assinatura, idioma e senha",
+      subs: [
+        { id: "mp-perfil", label: "Perfil", section: "meu-perfil", perm: null, desc: "Nome, telefone, foto e ponto de partida das rotas.", keywords: "meu perfil nome telefone foto avatar e-mail email rota partida senha conta" },
+        { id: "mp-assinatura", label: "Assinatura", section: "meu-perfil", perm: null, desc: "Assinatura por imagem nos orçamentos quando você é o responsável.", keywords: "assinatura signature orçamento quote pdf imagem" },
+        { id: "mp-idioma", label: "Idioma", section: "meu-perfil", perm: null, desc: "Idioma da interface neste aparelho.", keywords: "idioma language português english español" },
+        { id: "mp-senha", label: "Senha", section: "meu-perfil", perm: null, desc: "Alterar a senha de acesso ao CRM.", keywords: "senha password segurança alterar" },
+        { id: "mp-conta", label: "Conta", section: "meu-perfil", perm: null, desc: "Cargo e datas da sua conta.", keywords: "conta cargo role desde atualização" },
       ],
     },
   ];
@@ -174,6 +175,10 @@
     ["Cores da agenda Jobs", "agenda", "schedCalList"],
     ["Cores da agenda Meetings", "agenda", "schedCalList"],
     ["Criar agenda personalizada", "agenda", "btnAddSchedCal"],
+    ["Mensagens SMS ao cliente (agenda)", "agenda", "sm_company"],
+    ["Mensagens automáticas da agenda", "agenda", "ca_job_before"],
+    ["Lembrete antes do job", "agenda", "ca_job_before"],
+    ["Lembrete de visita", "agenda", "ca_visit"],
     ["Numeração dos orçamentos", "orcamentos", "q_number_prefix"],
     ["Validade do orçamento", "orcamentos", "q_validity_days"],
     ["Imposto padrão", "orcamentos", "q_tax_rate"],
@@ -194,6 +199,7 @@
     ["Formas de pagamento da folha", "folha", "cfgPayMethodsBody"],
     ["Desperdício por tipo de piso", "regras-estimativa", "rulesTable"],
     ["Markup de material e mão de obra", "regras-estimativa", "rulesTable"],
+    ["Usuários", "usuarios", "cfgUsersBody"],
     ["Cargos", "cargos", "cfgRolesBody"],
     ["Categorias de serviço", "categorias-servico", "cfgCatsBody"],
     ["Unidades", "unidades", "cfgUnitsBody"],
@@ -270,6 +276,8 @@
     rules: { loaded: false, snapshot: null },
     brand: { loaded: false, snapshot: null, logoDataUrl: null, clearLogo: false, logoUrl: null, name: "" },
     schedule: { loaded: false, snapshot: null, draft: null },
+    calAuto: { loaded: false, snapshot: null },
+    schedMsg: { loaded: false, snapshot: null, draft: null, activeSlug: "job" },
   };
 
   const $ = (id) => document.getElementById(id);
@@ -414,7 +422,7 @@
 
   function dirtyCount(id) {
     if (id === "empresa") return companyDirtyKeys().length;
-    if (id === "agenda") return scheduleDirty() ? 1 : 0;
+    if (id === "agenda") return (scheduleDirty() ? 1 : 0) + (calAutoDirty() ? 1 : 0) + (schedMsgDirty() ? 1 : 0);
     if (id === "marca") return brandDirty() ? 1 : 0;
     if (id === "orcamentos") return quotesDirtyKeys().length + (sigDirty() ? 1 : 0);
     if (id === "mensagens-orcamento") return shareMessagesDirty() ? 1 : 0;
@@ -665,7 +673,12 @@
 
   async function saveCurrent() {
     if (state.current === "empresa") return saveCompany();
-    if (state.current === "agenda") return saveSchedule();
+    if (state.current === "agenda") {
+      const okSched = scheduleDirty() ? await saveSchedule() : true;
+      const okMsg = schedMsgDirty() ? await saveSchedMessages() : true;
+      const okAuto = calAutoDirty() ? await saveCalAutomations() : true;
+      return okSched && okMsg && okAuto;
+    }
     if (state.current === "marca") return saveBrand();
     if (state.current === "orcamentos") return saveQuotes();
     if (state.current === "mensagens-orcamento") return saveQuoteShareMessages();
@@ -682,7 +695,11 @@
 
   function discardCurrent() {
     if (state.current === "empresa") fillCompany(state.company.snapshot);
-    if (state.current === "agenda") discardSchedule();
+    if (state.current === "agenda") {
+      discardSchedule();
+      discardSchedMessages();
+      discardCalAutomations();
+    }
     if (state.current === "marca") resetBrandToSnapshot();
     if (state.current === "orcamentos") discardQuotes();
     if (state.current === "mensagens-orcamento") discardQuoteShareMessages();
@@ -717,7 +734,7 @@
     { title: "Serviços e preços", desc: "Tabela de valor por tipo de cliente", href: "builder-pricing-admin.html", perm: ["builders.view", "quotes.edit"] },
     { title: "Produtos e fornecedores", desc: "Custos, margens e SKUs", href: "products-erp.html", perm: ["quotes.view"] },
     { title: "Cargos", desc: "Funções e permissões da equipe", href: "#cargos", perm: ["roles.manage", "users.view"] },
-    { title: "Usuários", desc: "Quem acessa o workspace", href: "equipe.html", perm: ["users.view"] },
+    { title: "Usuários", desc: "Quem acessa o workspace", href: "#usuarios", perm: ["users.view"] },
     { title: "App e alertas", desc: "Instalar e receber avisos", href: "#app", perm: null },
   ];
 
@@ -756,7 +773,7 @@
       $("cfgSetupDone").textContent = String(done);
       $("cfgSetupTotal").textContent = String(steps.length);
       const pct = steps.length ? Math.round((done / steps.length) * 100) : 0;
-      $("cfgSetupBar").style.width = `${pct}%`;
+      $("cfgSetupBar").style.transform = `scaleX(${pct / 100})`;
       $("cfgSetup").querySelector(".cfg-progress").setAttribute("aria-valuenow", String(pct));
       $("cfgSetupHint").textContent =
         done === steps.length
@@ -1350,7 +1367,11 @@
       renderScheduleCals();
       bindScheduleCalsOnce();
       bindCalFeedOnce();
+      bindSchedMessagesUi();
+      bindCalAutomationsUi();
       void loadCalFeed();
+      void loadSchedMessages(false);
+      void loadCalAutomations(false);
       return;
     }
     try {
@@ -1362,11 +1383,324 @@
       renderScheduleCals();
       bindScheduleCalsOnce();
       bindCalFeedOnce();
+      bindSchedMessagesUi();
+      bindCalAutomationsUi();
       void loadCalFeed();
+      void loadSchedMessages(force);
+      void loadCalAutomations(force);
       updateSavebar();
     } catch (err) {
       notify(err.status === 403 ? "Sem permissão para gerir agendas." : "Não foi possível carregar as agendas.", "error");
     }
+  }
+
+  function cloneSchedMsg(data) {
+    return JSON.parse(JSON.stringify(data || { company_name: null, kinds: [] }));
+  }
+
+  function schedMsgPutBody() {
+    syncSchedMsgDraftFromDom();
+    const kinds = {};
+    (state.schedMsg.draft?.kinds || []).forEach((k) => {
+      kinds[k.slug] = {
+        templates: (k.templates || []).map((t) => ({
+          id: t.id,
+          label: String(t.label || "").trim() || "Mensagem",
+          body: String(t.body || "").trim(),
+        })).filter((t) => t.body),
+      };
+    });
+    return {
+      company_name: String($("sm_company")?.value || "").trim() || null,
+      kinds,
+    };
+  }
+
+  function schedMsgDirty() {
+    if (!state.schedMsg.snapshot) return false;
+    try {
+      return JSON.stringify(schedMsgPutBody()) !== JSON.stringify({
+        company_name: state.schedMsg.snapshot.company_name || null,
+        kinds: Object.fromEntries(
+          (state.schedMsg.snapshot.kinds || []).map((k) => [
+            k.slug,
+            {
+              templates: (k.templates || []).map((t) => ({
+                id: t.id,
+                label: t.label,
+                body: t.body,
+              })),
+            },
+          ]),
+        ),
+      });
+    } catch (_) {
+      return true;
+    }
+  }
+
+  function renderSchedMsgKind(kind, active) {
+    const templates = kind.templates || [];
+    const list = templates
+      .map(
+        (t, idx) => `<div class="cfg-lm-tpl" data-sm-id="${esc(t.id)}">
+            <div class="cfg-lm-tpl__head">
+              <div class="cfg-field cfg-grow"><label>Título</label><input data-sm-label maxlength="120" value="${esc(t.label)}" /></div>
+              <button type="button" class="btn cfg-btn-sm cfg-btn-ghost" data-sm-del-tpl title="Remover">Remover</button>
+            </div>
+            <div class="cfg-field"><label>Texto SMS ${idx + 1}</label><textarea data-sm-body rows="4" maxlength="2000">${esc(t.body)}</textarea></div>
+          </div>`,
+      )
+      .join("");
+    return `<div class="cfg-lm-panel" data-sm-kind="${esc(kind.slug)}" ${active ? "" : "hidden"}>
+      <div class="cfg-lm-tpls">${list || '<p class="cfg-hint">Nenhuma mensagem ainda.</p>'}</div>
+      <button type="button" class="btn btn-secondary cfg-btn-sm" data-sm-add-tpl>Adicionar mensagem</button>
+    </div>`;
+  }
+
+  function renderSchedMessages(data) {
+    const kinds = data.kinds || [];
+    if (!kinds.length) return;
+    let active = state.schedMsg.activeSlug;
+    if (!kinds.some((k) => k.slug === active)) active = kinds[0].slug;
+    state.schedMsg.activeSlug = active;
+    if ($("sm_company")) $("sm_company").value = data.company_name || "";
+    $("smKindTabs").innerHTML = kinds
+      .map(
+        (k) =>
+          `<button type="button" class="cfg-lm-tab${k.slug === active ? " is-active" : ""}" role="tab" aria-selected="${
+            k.slug === active ? "true" : "false"
+          }" data-sm-tab="${esc(k.slug)}">${esc(k.label)}</button>`,
+      )
+      .join("");
+    $("smKindPanels").innerHTML = kinds.map((k) => renderSchedMsgKind(k, k.slug === active)).join("");
+  }
+
+  function syncSchedMsgDraftFromDom() {
+    if (!state.schedMsg.draft) return;
+    const company = String($("sm_company")?.value || "").trim() || null;
+    const kinds = (state.schedMsg.draft.kinds || []).map((k) => {
+      const panel = document.querySelector(`[data-sm-kind="${k.slug}"]`);
+      if (!panel) return k;
+      const templates = Array.from(panel.querySelectorAll(".cfg-lm-tpl")).map((row) => ({
+        id: row.getAttribute("data-sm-id") || `msg_${Date.now()}`,
+        label: String(row.querySelector("[data-sm-label]")?.value || "").trim() || "Mensagem",
+        body: String(row.querySelector("[data-sm-body]")?.value || "").trim(),
+      }));
+      return { ...k, templates };
+    });
+    state.schedMsg.draft = { company_name: company, kinds, tokens: state.schedMsg.draft.tokens };
+  }
+
+  function discardSchedMessages() {
+    if (!state.schedMsg.snapshot) return;
+    state.schedMsg.draft = cloneSchedMsg(state.schedMsg.snapshot);
+    renderSchedMessages(state.schedMsg.draft);
+  }
+
+  async function loadSchedMessages(force) {
+    if (state.schedMsg.loaded && !force) {
+      renderSchedMessages(state.schedMsg.draft || state.schedMsg.snapshot);
+      return;
+    }
+    try {
+      const j = await api("/api/settings/schedule-messages");
+      state.schedMsg.snapshot = cloneSchedMsg(j.data);
+      state.schedMsg.draft = cloneSchedMsg(j.data);
+      state.schedMsg.loaded = true;
+      renderSchedMessages(state.schedMsg.draft);
+      updateSavebar();
+    } catch (err) {
+      notify(err.message || "Não foi possível carregar as mensagens SMS.", "error");
+    }
+  }
+
+  async function saveSchedMessages() {
+    const body = schedMsgPutBody();
+    for (const slug of Object.keys(body.kinds || {})) {
+      if (!(body.kinds[slug].templates || []).length) {
+        notify("Mantenha ao menos uma mensagem em cada tipo.", "error");
+        return false;
+      }
+    }
+    setSaving(true);
+    try {
+      const j = await api("/api/settings/schedule-messages", {
+        method: "PUT",
+        body: JSON.stringify(body),
+      });
+      state.schedMsg.snapshot = cloneSchedMsg(j.data);
+      state.schedMsg.draft = cloneSchedMsg(j.data);
+      renderSchedMessages(state.schedMsg.draft);
+      notify("Mensagens SMS da agenda salvas.", "success");
+      updateSavebar();
+      return true;
+    } catch (err) {
+      notify(err.message || "Não foi possível salvar as mensagens SMS.", "error");
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function bindSchedMessagesUi() {
+    const form = $("schedMsgForm");
+    if (!form || form.dataset.bound === "1") return;
+    form.dataset.bound = "1";
+    form.addEventListener("input", () => {
+      syncSchedMsgDraftFromDom();
+      updateSavebar();
+    });
+    form.addEventListener("change", () => {
+      syncSchedMsgDraftFromDom();
+      updateSavebar();
+    });
+    form.addEventListener("click", (e) => {
+      const tab = e.target.closest("[data-sm-tab]");
+      if (tab) {
+        syncSchedMsgDraftFromDom();
+        state.schedMsg.activeSlug = tab.getAttribute("data-sm-tab");
+        renderSchedMessages(state.schedMsg.draft);
+        return;
+      }
+      if (e.target.closest("[data-sm-add-tpl]")) {
+        syncSchedMsgDraftFromDom();
+        const kind = state.schedMsg.draft?.kinds?.find((k) => k.slug === state.schedMsg.activeSlug);
+        if (!kind) return;
+        if ((kind.templates || []).length >= 12) {
+          notify("Limite de 12 mensagens por tipo.", "error");
+          return;
+        }
+        kind.templates = kind.templates || [];
+        kind.templates.push({
+          id: `custom_${Date.now().toString(36)}`,
+          label: "Nova mensagem",
+          body: "Hi [name], …",
+        });
+        renderSchedMessages(state.schedMsg.draft);
+        updateSavebar();
+        return;
+      }
+      const del = e.target.closest("[data-sm-del-tpl]");
+      if (del) {
+        syncSchedMsgDraftFromDom();
+        const row = del.closest(".cfg-lm-tpl");
+        const id = row?.getAttribute("data-sm-id");
+        const kind = state.schedMsg.draft?.kinds?.find((k) => k.slug === state.schedMsg.activeSlug);
+        if (!kind || !id) return;
+        if ((kind.templates || []).length <= 1) {
+          notify("Mantenha ao menos uma mensagem por tipo.", "error");
+          return;
+        }
+        kind.templates = kind.templates.filter((t) => t.id !== id);
+        renderSchedMessages(state.schedMsg.draft);
+        updateSavebar();
+      }
+    });
+  }
+
+  function readCalAutomations() {
+    const minRaw = Number(String($("ca_job_minutes")?.value || "").trim());
+    const hrsRaw = Number(String($("ca_visit_hours")?.value || "").trim());
+    return {
+      jobStartReminderEnabled: !!$("ca_job_before")?.checked,
+      jobStartReminderMinutesBefore: Number.isFinite(minRaw)
+        ? Math.min(1440, Math.max(0, Math.floor(minRaw)))
+        : 30,
+      jobStartAtTimeNudgeEnabled: !!$("ca_job_at")?.checked,
+      jobStartAutoOfficeStatus: !!$("ca_job_status")?.checked,
+      visitReminderEnabled: !!$("ca_visit")?.checked,
+      visitReminderHours: Number.isFinite(hrsRaw) ? Math.min(168, Math.max(0, Math.floor(hrsRaw))) : 24,
+    };
+  }
+
+  function fillCalAutomations(data) {
+    if ($("ca_job_before")) $("ca_job_before").checked = !!data?.jobStartReminderEnabled;
+    if ($("ca_job_minutes")) $("ca_job_minutes").value = String(data?.jobStartReminderMinutesBefore ?? 30);
+    if ($("ca_job_at")) $("ca_job_at").checked = !!data?.jobStartAtTimeNudgeEnabled;
+    if ($("ca_job_status")) $("ca_job_status").checked = !!data?.jobStartAutoOfficeStatus;
+    if ($("ca_visit")) $("ca_visit").checked = !!data?.visitReminderEnabled;
+    if ($("ca_visit_hours")) $("ca_visit_hours").value = String(data?.visitReminderHours ?? 24);
+  }
+
+  function calAutoDirty() {
+    if (!state.calAuto.snapshot) return false;
+    const cur = readCalAutomations();
+    const snap = state.calAuto.snapshot;
+    return (
+      !!cur.jobStartReminderEnabled !== !!snap.jobStartReminderEnabled ||
+      Number(cur.jobStartReminderMinutesBefore) !== Number(snap.jobStartReminderMinutesBefore) ||
+      !!cur.jobStartAtTimeNudgeEnabled !== !!snap.jobStartAtTimeNudgeEnabled ||
+      !!cur.jobStartAutoOfficeStatus !== !!snap.jobStartAutoOfficeStatus ||
+      !!cur.visitReminderEnabled !== !!snap.visitReminderEnabled ||
+      Number(cur.visitReminderHours) !== Number(snap.visitReminderHours)
+    );
+  }
+
+  function discardCalAutomations() {
+    if (!state.calAuto.snapshot) return;
+    fillCalAutomations(state.calAuto.snapshot);
+  }
+
+  async function loadCalAutomations(force) {
+    if (state.calAuto.loaded && !force) {
+      fillCalAutomations(state.calAuto.snapshot);
+      return;
+    }
+    try {
+      const j = await api("/api/settings/lead-automations");
+      const d = j.data || {};
+      state.calAuto.snapshot = {
+        jobStartReminderEnabled: d.jobStartReminderEnabled !== false,
+        jobStartReminderMinutesBefore: Number(d.jobStartReminderMinutesBefore ?? 30),
+        jobStartAtTimeNudgeEnabled: d.jobStartAtTimeNudgeEnabled !== false,
+        jobStartAutoOfficeStatus: d.jobStartAutoOfficeStatus !== false,
+        visitReminderEnabled: d.visitReminderEnabled !== false,
+        visitReminderHours: Number(d.visitReminderHours ?? 24),
+      };
+      state.calAuto.loaded = true;
+      fillCalAutomations(state.calAuto.snapshot);
+      updateSavebar();
+    } catch (err) {
+      notify(err.message || "Não foi possível carregar as mensagens automáticas.", "error");
+    }
+  }
+
+  async function saveCalAutomations() {
+    const body = readCalAutomations();
+    setSaving(true);
+    try {
+      const j = await api("/api/settings/lead-automations", {
+        method: "PUT",
+        body: JSON.stringify(body),
+      });
+      const d = j.data || body;
+      state.calAuto.snapshot = {
+        jobStartReminderEnabled: !!d.jobStartReminderEnabled,
+        jobStartReminderMinutesBefore: Number(d.jobStartReminderMinutesBefore ?? body.jobStartReminderMinutesBefore),
+        jobStartAtTimeNudgeEnabled: !!d.jobStartAtTimeNudgeEnabled,
+        jobStartAutoOfficeStatus: !!d.jobStartAutoOfficeStatus,
+        visitReminderEnabled: !!d.visitReminderEnabled,
+        visitReminderHours: Number(d.visitReminderHours ?? body.visitReminderHours),
+      };
+      fillCalAutomations(state.calAuto.snapshot);
+      notify("Mensagens automáticas salvas.", "success");
+      updateSavebar();
+      return true;
+    } catch (err) {
+      notify(err.message || "Não foi possível salvar as mensagens automáticas.", "error");
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function bindCalAutomationsUi() {
+    const form = $("calAutoForm");
+    if (!form || form.dataset.bound === "1") return;
+    form.dataset.bound = "1";
+    form.addEventListener("input", () => updateSavebar());
+    form.addEventListener("change", () => updateSavebar());
   }
 
   // ---------------------------------------------------------------- calendar feed (ICS / Apple Calendar)
@@ -1460,9 +1794,13 @@
       if (btn) btn.disabled = true;
       try {
         if (calFeedState.active || (calFeedState.feeds && calFeedState.feeds.length)) {
-          const ok = window.confirm(
-            "Gerar novos links invalida os anteriores. Calendários já assinados no iPhone param de atualizar. Continuar?",
-          );
+          const ok = await window.crmConfirm({
+            title: "Gerar novos links?",
+            text: "Os links anteriores deixam de valer e calendários já assinados no iPhone param de atualizar.",
+            ok: "Gerar novos links",
+            cancel: "Cancelar",
+            danger: true,
+          });
           if (!ok) return;
         }
         const j = await api("/api/settings/schedule/calendar-feed", { method: "POST", body: "{}" });
@@ -1484,7 +1822,14 @@
       void copyCalFeedUrl(btn.getAttribute("data-calfeed-copy"));
     });
     $("btnCalFeedRevoke")?.addEventListener("click", async () => {
-      if (!window.confirm("Revogar todos os links? As assinaturas no iPhone/Google deixam de atualizar.")) return;
+      const ok = await window.crmConfirm({
+        title: "Revogar todos os links?",
+        text: "As assinaturas no iPhone/Google deixam de atualizar.",
+        ok: "Revogar links",
+        cancel: "Cancelar",
+        danger: true,
+      });
+      if (!ok) return;
       try {
         await api("/api/settings/schedule/calendar-feed", { method: "DELETE" });
         calFeedState.active = false;
@@ -2032,14 +2377,23 @@
         saveInvoicePaymentDate();
       });
     }
-    $("btnInvShareMsgDefaults")?.addEventListener("click", () => {
+    $("btnInvShareMsgDefaults")?.addEventListener("click", async () => {
       const current = readInvoiceShareMessages();
       const hasCustom = Object.keys(INV_SHARE_MSG_DEFAULTS).some(
         (key) => current[key] && current[key] !== INV_SHARE_MSG_DEFAULTS[key],
       );
-      if (hasCustom && !window.confirm("Restaurar os textos padrão em inglês?")) return;
+      if (hasCustom && !(await confirmRestoreDefaults())) return;
       fillInvoiceShareMessages({ share_messages: INV_SHARE_MSG_DEFAULTS });
       updateSavebar();
+    });
+  }
+
+  function confirmRestoreDefaults() {
+    return window.crmConfirm({
+      title: "Restaurar os textos padrão em inglês?",
+      text: "Os textos que você personalizou são substituídos pelos padrão.",
+      ok: "Restaurar padrão",
+      cancel: "Cancelar",
     });
   }
 
@@ -2594,6 +2948,179 @@
   }
 
   // ---------------------------------------------------------------- jobs settings
+  function newDeliveryLocId() {
+    if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+    return `loc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+  }
+
+  const HOURS_DAYS = [
+    { id: "mon", short: "Seg", label: "Monday" },
+    { id: "tue", short: "Ter", label: "Tuesday" },
+    { id: "wed", short: "Qua", label: "Wednesday" },
+    { id: "thu", short: "Qui", label: "Thursday" },
+    { id: "fri", short: "Sex", label: "Friday" },
+    { id: "sat", short: "Sáb", label: "Saturday" },
+    { id: "sun", short: "Dom", label: "Sunday" },
+  ];
+  const HOURS_TIMES = (() => {
+    const out = [];
+    for (let h = 5; h <= 21; h += 1) {
+      for (const m of [0, 30]) {
+        if (h === 21 && m === 30) break;
+        out.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+      }
+    }
+    return out;
+  })();
+
+  function formatHoursLabel(days, open, close) {
+    const selected = HOURS_DAYS.filter((d) => days.has(d.id));
+    if (!selected.length || !open || !close) return "";
+    const pretty = (t) => {
+      const [hh, mm] = String(t).split(":").map(Number);
+      const ampm = hh >= 12 ? "pm" : "am";
+      const h12 = ((hh + 11) % 12) + 1;
+      return mm ? `${h12}:${String(mm).padStart(2, "0")}${ampm}` : `${h12}${ampm}`;
+    };
+    const ids = selected.map((d) => d.id);
+    const monFri = ["mon", "tue", "wed", "thu", "fri"];
+    let dayPart;
+    if (monFri.every((id) => ids.includes(id)) && ids.length === 5) dayPart = "Mon–Fri";
+    else if (ids.length === 7) dayPart = "Daily";
+    else if (ids.join(",") === "sat,sun") dayPart = "Sat–Sun";
+    else dayPart = selected.map((d) => d.label.slice(0, 3)).join(", ");
+    return `${dayPart} ${pretty(open)}–${pretty(close)}`;
+  }
+
+  function parseHoursLabel(raw) {
+    const text = String(raw || "").trim();
+    const days = new Set();
+    let open = "07:00";
+    let close = "16:00";
+    if (/mon\s*[–-]\s*fri/i.test(text) || /seg\s*[–-]\s*sex/i.test(text)) {
+      ["mon", "tue", "wed", "thu", "fri"].forEach((d) => days.add(d));
+    } else if (/daily|todos|every day/i.test(text)) {
+      HOURS_DAYS.forEach((d) => days.add(d.id));
+    } else if (/sat\s*[–-]\s*sun|s[áa]b\s*[–-]\s*dom/i.test(text)) {
+      days.add("sat");
+      days.add("sun");
+    } else {
+      HOURS_DAYS.forEach((d) => {
+        if (new RegExp(d.label.slice(0, 3), "i").test(text) || new RegExp(`\\b${d.short}\\b`, "i").test(text)) {
+          days.add(d.id);
+        }
+      });
+    }
+    if (!days.size) ["mon", "tue", "wed", "thu", "fri"].forEach((d) => days.add(d));
+    const timeBits = text.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/gi) || [];
+    const to24 = (chunk) => {
+      const m = String(chunk).trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
+      if (!m) return null;
+      let h = Number(m[1]);
+      const min = Number(m[2] || 0);
+      const ap = (m[3] || "").toLowerCase();
+      if (ap === "pm" && h < 12) h += 12;
+      if (ap === "am" && h === 12) h = 0;
+      if (!ap && h <= 21) {
+        /* already 24h-ish */
+      }
+      return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+    };
+    if (timeBits[0]) open = to24(timeBits[0]) || open;
+    if (timeBits[1]) close = to24(timeBits[1]) || close;
+    return { days, open, close };
+  }
+
+  function hoursEditorHtml(i, hoursText) {
+    const parsed = parseHoursLabel(hoursText);
+    const dayChips = HOURS_DAYS.map(
+      (d) =>
+        `<button type="button" class="cfg-loc-hours__day${parsed.days.has(d.id) ? " is-on" : ""}" data-jobs-hours-day="${d.id}" data-i="${i}" aria-pressed="${parsed.days.has(d.id) ? "true" : "false"}">${d.short}</button>`,
+    ).join("");
+    const opts = (selected) =>
+      HOURS_TIMES.map((t) => `<option value="${t}"${t === selected ? " selected" : ""}>${t}</option>`).join("");
+    const label = formatHoursLabel(parsed.days, parsed.open, parsed.close) || hoursText || "";
+    return `<div class="cfg-loc-hours" data-hours-i="${i}">
+      <span class="cfg-field" style="margin:0"><span>Dias</span></span>
+      <div class="cfg-loc-hours__days">${dayChips}</div>
+      <div class="cfg-grid2" style="margin-top:0.35rem">
+        <label class="cfg-field"><span>Abre</span><select data-jobs-hours-open data-i="${i}">${opts(parsed.open)}</select></label>
+        <label class="cfg-field"><span>Fecha</span><select data-jobs-hours-close data-i="${i}">${opts(parsed.close)}</select></label>
+      </div>
+      <input type="hidden" data-jobs-loc="hours" data-i="${i}" value="${esc(label)}" />
+      <p class="cfg-hint cfg-loc-hours__preview" style="margin:0.35rem 0 0">${esc(label || "Escolha os dias e o horário")}</p>
+    </div>`;
+  }
+
+  function syncHoursRow(row) {
+    if (!row) return;
+    const days = new Set(
+      Array.from(row.querySelectorAll(".cfg-loc-hours__day.is-on")).map((b) => b.getAttribute("data-jobs-hours-day")),
+    );
+    const open = row.querySelector("[data-jobs-hours-open]")?.value || "07:00";
+    const close = row.querySelector("[data-jobs-hours-close]")?.value || "16:00";
+    const label = formatHoursLabel(days, open, close);
+    const hidden = row.querySelector('[data-jobs-loc="hours"]');
+    const preview = row.querySelector(".cfg-loc-hours__preview");
+    if (hidden) hidden.value = label;
+    if (preview) preview.textContent = label || "Escolha os dias e o horário";
+  }
+
+  function attachJobsDeliveryAddressAutocomplete() {
+    const box = $("jobsDeliveryLocs");
+    if (!box || typeof window.sfAttachAddressAutocomplete !== "function") return;
+    const country = String(($("f_country") && $("f_country").value) || "US").toLowerCase();
+    box.querySelectorAll('[data-jobs-loc="address"]').forEach((el) => {
+      if (el.dataset.acBound === "1") return;
+      el.dataset.acBound = "1";
+      el.setAttribute("autocomplete", "off");
+      window.sfAttachAddressAutocomplete(el, { country }).catch(() => undefined);
+    });
+  }
+
+  function renderJobsDeliveryLocs(list) {
+    const box = $("jobsDeliveryLocs");
+    if (!box) return;
+    const rows = Array.isArray(list) ? list : [];
+    if (!rows.length) {
+      box.innerHTML = `<p class="cfg-hint" style="margin:0">Nenhum local ainda. Adicione depósitos, lojas ou pontos de retirada.</p>`;
+      return;
+    }
+    box.innerHTML = rows
+      .map(
+        (row, i) => `<div class="cfg-delivery-loc" data-i="${i}" style="display:grid;gap:0.45rem;padding:0.75rem;border:1px solid var(--line,#E5E7EB);border-radius:12px;background:#fff">
+          <div style="display:flex;justify-content:space-between;gap:0.5rem;align-items:center">
+            <strong style="font-size:0.85rem">Local ${i + 1}</strong>
+            <button type="button" class="btn btn-ghost" data-jobs-loc-del="${i}" style="height:auto;padding:0.2rem 0.45rem">Remover</button>
+          </div>
+          <label class="cfg-field"><span>Nome</span><input type="text" data-jobs-loc="name" data-i="${i}" maxlength="120" value="${esc(row.name || "")}" placeholder="Ex.: Home Depot — Midtown" /></label>
+          <label class="cfg-field"><span>Endereço</span><input type="text" data-jobs-loc="address" data-i="${i}" maxlength="500" value="${esc(row.address || "")}" placeholder="Rua, cidade" autocomplete="off" /></label>
+          ${hoursEditorHtml(i, row.hours || "")}
+          <input type="hidden" data-jobs-loc="id" data-i="${i}" value="${esc(row.id || "")}" />
+        </div>`,
+      )
+      .join("");
+    attachJobsDeliveryAddressAutocomplete();
+  }
+
+  function readJobsDeliveryLocs() {
+    const box = $("jobsDeliveryLocs");
+    if (!box) return [];
+    return Array.from(box.querySelectorAll(".cfg-delivery-loc"))
+      .map((row) => {
+        syncHoursRow(row);
+        const get = (k) => row.querySelector(`[data-jobs-loc="${k}"]`)?.value?.trim() || "";
+        return {
+          id: get("id") || newDeliveryLocId(),
+          name: get("name"),
+          address: get("address"),
+          hours: get("hours"),
+        };
+      })
+      .filter((r) => r.name && r.address)
+      .slice(0, 40);
+  }
+
   function fillJobsSettings(d) {
     const el = $("jobs_checklist_enabled");
     if (el) el.checked = d?.checklist_enabled !== false;
@@ -2608,10 +3135,11 @@
       inp.value = d.shop_lead_days == null ? "" : String(d.shop_lead_days);
       $("jobsLeadHint").textContent = `Vazio usa o padrão (${lt.default_days} dias úteis). A fase mostra a data mínima e avisa quando o job está agendado antes; não bloqueia.`;
     }
+    renderJobsDeliveryLocs(d?.delivery_locations || []);
   }
 
   function readJobsSettings() {
-    const out = { checklist_enabled: !!$("jobs_checklist_enabled")?.checked };
+    const out = { checklist_enabled: !!$("jobs_checklist_enabled")?.checked, delivery_locations: readJobsDeliveryLocs() };
     const inp = $("jobs_shop_lead_days");
     if (inp && state.jobs.snapshot && state.jobs.snapshot.lead_time) {
       const v = String(inp.value).trim();
@@ -2623,10 +3151,10 @@
   function jobsDirty() {
     if (!state.jobs.snapshot) return false;
     const cur = readJobsSettings();
-    return (
-      !!cur.checklist_enabled !== !!state.jobs.snapshot.checklist_enabled ||
-      ("shop_lead_days" in cur && cur.shop_lead_days !== (state.jobs.snapshot.shop_lead_days ?? null))
-    );
+    const snap = state.jobs.snapshot;
+    if (!!cur.checklist_enabled !== !!snap.checklist_enabled) return true;
+    if ("shop_lead_days" in cur && cur.shop_lead_days !== (snap.shop_lead_days ?? null)) return true;
+    return JSON.stringify(cur.delivery_locations || []) !== JSON.stringify(snap.delivery_locations || []);
   }
 
   function discardJobsSettings() {
@@ -2634,7 +3162,7 @@
     fillJobsSettings(state.jobs.snapshot);
   }
 
-  const jobsSnapshot = (d) => ({ checklist_enabled: d?.checklist_enabled !== false, shop_lead_days: d?.shop_lead_days ?? null, lead_time: d?.lead_time || null });
+  const jobsSnapshot = (d) => ({ checklist_enabled: d?.checklist_enabled !== false, delivery_locations: Array.isArray(d?.delivery_locations) ? d.delivery_locations : [], shop_lead_days: d?.shop_lead_days ?? null, lead_time: d?.lead_time || null });
 
   async function loadJobsSettings(force) {
     if (state.jobs.loaded && !force) {
@@ -2672,8 +3200,42 @@
     const form = $("jobsSettingsForm");
     if (!form || form.dataset.bound === "1") return;
     form.dataset.bound = "1";
-    form.addEventListener("change", () => updateSavebar());
     form.addEventListener("input", () => updateSavebar());
+    form.addEventListener("change", () => updateSavebar());
+    form.addEventListener("click", (e) => {
+      const dayBtn = e.target.closest("[data-jobs-hours-day]");
+      if (dayBtn) {
+        e.preventDefault();
+        dayBtn.classList.toggle("is-on");
+        dayBtn.setAttribute("aria-pressed", dayBtn.classList.contains("is-on") ? "true" : "false");
+        syncHoursRow(dayBtn.closest(".cfg-delivery-loc"));
+        updateSavebar();
+        return;
+      }
+      const add = e.target.closest("#jobsDeliveryLocAdd");
+      if (add) {
+        e.preventDefault();
+        const cur = readJobsDeliveryLocs();
+        cur.push({ id: newDeliveryLocId(), name: "", address: "", hours: "Mon–Fri 7am–4pm" });
+        renderJobsDeliveryLocs(cur);
+        updateSavebar();
+        return;
+      }
+      const del = e.target.closest("[data-jobs-loc-del]");
+      if (del) {
+        e.preventDefault();
+        const i = Number(del.getAttribute("data-jobs-loc-del"));
+        const cur = readJobsDeliveryLocs();
+        if (Number.isFinite(i)) cur.splice(i, 1);
+        renderJobsDeliveryLocs(cur);
+        updateSavebar();
+      }
+    });
+    form.addEventListener("change", (e) => {
+      if (e.target.matches?.("[data-jobs-hours-open], [data-jobs-hours-close]")) {
+        syncHoursRow(e.target.closest(".cfg-delivery-loc"));
+      }
+    });
   }
 
   // ---------------------------------------------------------------- indicações
@@ -3053,30 +3615,48 @@
       paintClientView();
       updateSavebar();
     });
-    $("btnTermsSample").addEventListener("click", () => {
+    $("btnTermsSample").addEventListener("click", async () => {
       const t = $("q_terms");
-      if (t.value.trim() && !window.confirm("Substituir o texto atual pelo exemplo?")) return;
+      if (
+        t.value.trim() &&
+        !(await window.crmConfirm({
+          title: "Substituir o texto atual pelo exemplo?",
+          text: "O que você escreveu nos termos é trocado pelo texto de exemplo.",
+          ok: "Usar exemplo",
+          cancel: "Cancelar",
+        }))
+      )
+        return;
       t.value = TERMS_SAMPLE;
       syncQuotesPreview();
       updateSavebar();
       t.focus();
     });
-    $("btnInclusionsSample")?.addEventListener("click", () => {
+    $("btnInclusionsSample")?.addEventListener("click", async () => {
       const t = $("q_inclusions");
       if (!t) return;
-      if (t.value.trim() && !window.confirm("Substituir a lista atual pelo exemplo?")) return;
+      if (
+        t.value.trim() &&
+        !(await window.crmConfirm({
+          title: "Substituir a lista atual pelo exemplo?",
+          text: "Os itens que você escreveu são trocados pela lista de exemplo.",
+          ok: "Usar exemplo",
+          cancel: "Cancelar",
+        }))
+      )
+        return;
       t.value = INCLUSIONS_SAMPLE;
       syncQuotesPreview();
       updateSavebar();
       t.focus();
     });
-    $("btnShareMsgDefaults")?.addEventListener("click", () => {
+    $("btnShareMsgDefaults")?.addEventListener("click", async () => {
       const sms = $("q_sms_body");
       const fu = $("q_followup_body");
       const hasCustom =
         (sms && sms.value.trim() && sms.value.trim() !== SHARE_MSG_DEFAULTS.sms_body) ||
         (fu && fu.value.trim() && fu.value.trim() !== SHARE_MSG_DEFAULTS.followup_body);
-      if (hasCustom && !window.confirm("Restaurar os textos padrão em inglês?")) return;
+      if (hasCustom && !(await confirmRestoreDefaults())) return;
       if (sms) sms.value = SHARE_MSG_DEFAULTS.sms_body;
       if (fu) fu.value = SHARE_MSG_DEFAULTS.followup_body;
       syncShareMsgCounts();
@@ -3663,6 +4243,285 @@
     return catalogState.permsByGroup;
   }
 
+  const usersState = { page: 1, search: "", status: "", roles: null };
+
+  function canViewUsersLocal() {
+    return state.isAdmin || state.perms.has("users.view");
+  }
+  function canCreateUsersLocal() {
+    return state.isAdmin || state.perms.has("users.create");
+  }
+  function canEditUsersLocal() {
+    return state.isAdmin || state.perms.has("users.edit");
+  }
+  function canDeleteUsersLocal() {
+    return state.isAdmin || state.perms.has("users.delete");
+  }
+  function canManageUserPermsLocal() {
+    return (
+      state.isAdmin ||
+      state.perms.has("users.manage") ||
+      state.perms.has("roles.manage") ||
+      state.perms.has("users.manage_permissions")
+    );
+  }
+
+  async function ensureRolesOptions() {
+    if (usersState.roles) return usersState.roles;
+    try {
+      const j = await api("/api/roles");
+      usersState.roles = j.data || [];
+    } catch (_) {
+      usersState.roles = [];
+    }
+    return usersState.roles;
+  }
+
+  async function populateUserRoleSelect(selectedKey) {
+    const sel = $("cfgUserRole");
+    if (!sel) return;
+    const roles = await ensureRolesOptions();
+    const preferred = selectedKey || sel.value || "";
+    sel.innerHTML = roles.length
+      ? roles.map((r) => `<option value="${esc(r.key)}">${esc(r.name || r.key)}</option>`).join("")
+      : '<option value="admin">Administrador</option><option value="sales">Sales</option>';
+    const keys = new Set([...sel.options].map((o) => o.value));
+    if (preferred && keys.has(preferred)) sel.value = preferred;
+    else if (keys.has("sales")) sel.value = "sales";
+    else if (sel.options.length) sel.selectedIndex = 0;
+  }
+
+  function collectUserPermIds() {
+    return [...document.querySelectorAll("#cfgUserPermsGroups input[type=checkbox]:checked")].map((el) => el.value).filter(Boolean);
+  }
+
+  async function loadUsersSection() {
+    const body = $("cfgUsersBody");
+    if (!body) return;
+    if (!canViewUsersLocal()) {
+      body.innerHTML = `<tr><td colspan="6" class="cfg-err">Sem permissão para ver usuários.</td></tr>`;
+      if ($("cfgUserAddBtn")) $("cfgUserAddBtn").hidden = true;
+      return;
+    }
+    body.innerHTML = `<tr><td colspan="6"><div class="cfg-skeleton"></div></td></tr>`;
+    if ($("cfgUserAddBtn")) $("cfgUserAddBtn").hidden = !canCreateUsersLocal();
+    try {
+      const searching = !!usersState.search;
+      const qs = new URLSearchParams({
+        page: searching ? "1" : String(usersState.page),
+        limit: searching ? "100" : "20",
+      });
+      if (usersState.status === "active") qs.set("active", "true");
+      if (usersState.status === "inactive") qs.set("active", "false");
+      const j = await api(`/api/users?${qs}`);
+      let rows = Array.isArray(j.data) ? j.data.slice() : [];
+      if (usersState.search) {
+        const q = usersState.search.toLowerCase();
+        rows = rows.filter((u) =>
+          [u.name, u.email, u.phone, u.role_name, u.role]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase()
+            .includes(q),
+        );
+      }
+      if (!rows.length) {
+        body.innerHTML = `<tr><td colspan="6" class="cfg-hint">Nenhum usuário encontrado.</td></tr>`;
+      } else {
+        const canEdit = canEditUsersLocal();
+        const canDel = canDeleteUsersLocal();
+        body.innerHTML = rows
+          .map((u) => {
+            const active = u.is_active !== undefined ? u.is_active : u.active;
+            const roleLabel = u.role_name || u.role || "—";
+            const created = u.created_at
+              ? new Date(u.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" })
+              : "—";
+            const contact = [u.email, u.phone].filter(Boolean).map((x) => esc(x)).join("<br>") || "—";
+            const actions = [];
+            if (canEdit) actions.push(`<button type="button" class="btn cfg-btn-ghost cfg-btn-sm" data-user-edit="${esc(u.id)}">Editar</button>`);
+            if (canDel && active) actions.push(`<button type="button" class="btn cfg-btn-ghost cfg-btn-sm" data-user-del="${esc(u.id)}">Desativar</button>`);
+            return `<tr>
+              <td><strong>${esc(u.name || "—")}</strong></td>
+              <td>${contact}</td>
+              <td>${esc(roleLabel)}</td>
+              <td>${active ? '<span class="cfg-badge cfg-badge--ok">Ativo</span>' : '<span class="cfg-badge">Inativo</span>'}</td>
+              <td>${esc(created)}</td>
+              <td class="cfg-actions">${actions.join(" ") || "—"}</td>
+            </tr>`;
+          })
+          .join("");
+      }
+      const totalPages = searching ? 1 : Math.ceil((j.total || 0) / 20) || 1;
+      const info = $("cfgUsersPageInfo");
+      const prev = $("cfgUsersPrev");
+      const next = $("cfgUsersNext");
+      if (info) {
+        info.textContent = searching
+          ? `${rows.length} resultado${rows.length === 1 ? "" : "s"}`
+          : `Página ${usersState.page} de ${totalPages}`;
+      }
+      if (prev) prev.disabled = searching || usersState.page <= 1;
+      if (next) next.disabled = searching || usersState.page >= totalPages;
+    } catch (err) {
+      body.innerHTML = `<tr><td colspan="6" class="cfg-err">${esc(err.message || "Erro ao carregar usuários")}</td></tr>`;
+    }
+  }
+
+  async function openUserEditor(userId) {
+    if (userId ? !canEditUsersLocal() : !canCreateUsersLocal()) {
+      notify("Sem permissão para gerir usuários", "error");
+      return;
+    }
+    const err = $("cfgUserFormError");
+    const form = $("cfgUserForm");
+    const permsSection = $("cfgUserPermsSection");
+    const groupsEl = $("cfgUserPermsGroups");
+    if (!form) return;
+    err.hidden = true;
+    form.reset();
+    $("cfgUserId").value = userId != null ? String(userId) : "";
+    $("cfgUserActive").checked = true;
+    $("cfgUserForcePw").checked = true;
+    $("cfgUserPassword").value = "";
+    const byGroup = await ensurePermRegistry();
+    const canManagePerms = canManageUserPermsLocal();
+    const roleSel = $("cfgUserRole");
+    const syncPermsVisibility = () => {
+      const isAdminRole = roleSel.value === "admin";
+      permsSection.hidden = isAdminRole;
+    };
+    roleSel.onchange = syncPermsVisibility;
+
+    if (userId != null) {
+      $("cfgUserModalTitle").textContent = "Editar usuário";
+      $("cfgUserPasswordHint").textContent = "(deixe vazio para não alterar)";
+      $("cfgUserFormSubmit").textContent = "Salvar";
+      const [ur, pr] = await Promise.all([
+        api(`/api/users/${encodeURIComponent(userId)}`),
+        api(`/api/users/${encodeURIComponent(userId)}/permissions`).catch(() => ({ data: { permission_ids: [] } })),
+      ]);
+      const d = ur.data || {};
+      $("cfgUserName").value = d.name || "";
+      $("cfgUserEmail").value = d.email || "";
+      $("cfgUserPhone").value = d.phone || "";
+      await populateUserRoleSelect(d.role || "");
+      const active = d.is_active !== undefined ? d.is_active : d.active;
+      $("cfgUserActive").checked = !!active;
+      $("cfgUserForcePw").checked = !!d.must_change_password;
+      const selected = new Set((pr.data && pr.data.permission_ids) || []);
+      $("cfgUserPermsHelp").textContent = canManagePerms
+        ? "Marque os módulos permitidos para este usuário (além do cargo)."
+        : "Só administradores ou quem gerencia cargos/usuários podem alterar isto.";
+      groupsEl.innerHTML = renderPermGroups(byGroup, [...selected]);
+      if (!canManagePerms) {
+        groupsEl.querySelectorAll("input").forEach((el) => {
+          el.disabled = true;
+        });
+      }
+      syncPermsVisibility();
+    } else {
+      $("cfgUserModalTitle").textContent = "Novo usuário";
+      $("cfgUserPasswordHint").textContent = "(obrigatório, mín. 8 caracteres)";
+      $("cfgUserFormSubmit").textContent = "Criar usuário";
+      await populateUserRoleSelect("");
+      $("cfgUserPermsHelp").textContent = "Opcional: deixe vazio para aplicar as permissões do cargo.";
+      groupsEl.innerHTML = renderPermGroups(byGroup, []);
+      syncPermsVisibility();
+    }
+    openCfgModal("cfgUserModal");
+  }
+
+  async function submitUserForm(e) {
+    e.preventDefault();
+    const err = $("cfgUserFormError");
+    err.hidden = true;
+    const id = $("cfgUserId").value.trim();
+    const name = $("cfgUserName").value.trim();
+    const email = $("cfgUserEmail").value.trim();
+    const phone = $("cfgUserPhone").value.trim();
+    const role = $("cfgUserRole").value;
+    const pw = $("cfgUserPassword").value;
+    const isActive = $("cfgUserActive").checked;
+    const forcePw = $("cfgUserForcePw").checked;
+    const btn = $("cfgUserFormSubmit");
+    if (!id && (!pw || pw.length < 8)) {
+      err.textContent = "Defina uma senha inicial com pelo menos 8 caracteres.";
+      err.hidden = false;
+      return;
+    }
+    if (pw && pw.length < 8) {
+      err.textContent = "A senha deve ter pelo menos 8 caracteres.";
+      err.hidden = false;
+      return;
+    }
+    btn.disabled = true;
+    try {
+      if (!id) {
+        const body = {
+          name,
+          email,
+          phone: phone || null,
+          role,
+          is_active: isActive,
+          force_password_change: forcePw,
+          password: pw,
+        };
+        if (role !== "admin") {
+          const pids = collectUserPermIds();
+          if (pids.length) body.permission_ids = pids;
+        }
+        await api("/api/users", { method: "POST", body: JSON.stringify(body) });
+        notify("Usuário criado", "success");
+      } else {
+        const body = {
+          name,
+          email,
+          phone: phone || null,
+          role,
+          is_active: isActive,
+          force_password_change: forcePw,
+        };
+        if (pw) body.password = pw;
+        await api(`/api/users/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(body) });
+        if (role !== "admin" && canManageUserPermsLocal()) {
+          await api(`/api/users/${encodeURIComponent(id)}/permissions`, {
+            method: "PUT",
+            body: JSON.stringify({ permission_ids: collectUserPermIds() }),
+          });
+        }
+        notify("Usuário atualizado", "success");
+      }
+      usersState.roles = null;
+      closeCfgModal("cfgUserModal");
+      await loadUsersSection();
+    } catch (ex) {
+      err.textContent = ex.message || "Erro ao salvar.";
+      err.hidden = false;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function deactivateUser(id) {
+    if (!canDeleteUsersLocal()) return;
+    const ok = await window.crmConfirm({
+      title: "Desativar este usuário?",
+      text: "Ele não poderá mais entrar no sistema.",
+      ok: "Desativar usuário",
+      cancel: "Cancelar",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api(`/api/users/${encodeURIComponent(id)}`, { method: "DELETE" });
+      notify("Usuário desativado", "success");
+      await loadUsersSection();
+    } catch (ex) {
+      notify(ex.message || "Não foi possível desativar", "error");
+    }
+  }
+
   async function loadRolesSection() {
     const body = $("cfgRolesBody");
     if (!body) return;
@@ -3713,7 +4572,7 @@
     $("cfgRoleKey").disabled = !!role;
     $("cfgRoleDescription").value = role ? role.description || "" : "";
     $("cfgRoleModalTitle").textContent = role ? "Editar cargo" : "Novo cargo";
-    $("cfgRoleFormSubmit").textContent = role ? "Guardar" : "Criar cargo";
+    $("cfgRoleFormSubmit").textContent = role ? "Salvar" : "Criar cargo";
     $("cfgRoleFormError").hidden = true;
     $("cfgRolePermsGroups").innerHTML = renderPermGroups(byGroup, role ? role.permission_ids || [] : []);
     openCfgModal("cfgRoleModal");
@@ -3752,7 +4611,7 @@
       closeCfgModal("cfgRoleModal");
       await loadRolesSection();
     } catch (ex) {
-      err.textContent = ex.message || "Erro ao guardar.";
+      err.textContent = ex.message || "Erro ao salvar.";
       err.hidden = false;
     } finally {
       btn.disabled = false;
@@ -3763,7 +4622,14 @@
     if (!canManageRolesLocal()) return;
     const role = (catalogState.roles || []).find((r) => r.id === id);
     if (!role || role.is_system) return;
-    if (!window.confirm(`Remover o cargo “${role.name}”?`)) return;
+    const ok = await window.crmConfirm({
+      title: `Remover o cargo “${role.name}”?`,
+      text: "O cargo sai da lista de cargos da empresa.",
+      ok: "Remover cargo",
+      cancel: "Cancelar",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api(`/api/roles/${id}`, { method: "DELETE" });
       notify("Cargo removido", "success");
@@ -3830,7 +4696,7 @@
       payroll_payment_method: item ? "Editar forma de pagamento" : "Nova forma de pagamento",
     };
     $("cfgCatalogModalTitle").textContent = titles[kind] || (item ? "Editar" : "Novo");
-    $("cfgCatalogFormSubmit").textContent = "Guardar";
+    $("cfgCatalogFormSubmit").textContent = "Salvar";
     $("cfgCatalogFormError").hidden = true;
     openCfgModal("cfgCatalogModal");
   }
@@ -3868,7 +4734,7 @@
       else if (kind === "payroll_payment_method") await loadCatalogKind("payroll_payment_method", "cfgPayMethodsBody", "cfgPayMethodAddBtn");
       else await loadCatalogKind("unit", "cfgUnitsBody", "cfgUnitAddBtn");
     } catch (ex) {
-      err.textContent = ex.message || "Erro ao guardar.";
+      err.textContent = ex.message || "Erro ao salvar.";
       err.hidden = false;
     } finally {
       btn.disabled = false;
@@ -3880,10 +4746,14 @@
     const item = (catalogState[kind] || []).find((x) => x.id === id);
     if (!item) return;
     const hardDelete = !item.is_system || kind === "payroll_payment_method";
-    const msg = hardDelete
-      ? `Remover “${item.label}”?`
-      : `Desativar “${item.label}”? (itens padrão não são apagados)`;
-    if (!window.confirm(msg)) return;
+    const ok = await window.crmConfirm({
+      title: hardDelete ? `Remover “${item.label}”?` : `Desativar “${item.label}”?`,
+      text: hardDelete ? "O item sai da lista." : "Itens padrão não são apagados — ficam só desativados.",
+      ok: hardDelete ? "Remover item" : "Desativar item",
+      cancel: "Cancelar",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api(`/api/settings/catalog/${kind}/${id}`, { method: "DELETE" });
       notify(hardDelete ? "Item removido" : "Item desativado", "success");
@@ -3897,6 +4767,36 @@
   }
 
   function bindCatalogUi() {
+    $("cfgUserAddBtn")?.addEventListener("click", () => openUserEditor(null));
+    $("cfgUserForm")?.addEventListener("submit", submitUserForm);
+    $("cfgUsersSearchBtn")?.addEventListener("click", () => {
+      usersState.search = ($("cfgUsersSearch")?.value || "").trim();
+      usersState.status = ($("cfgUsersStatus")?.value || "").trim();
+      usersState.page = 1;
+      loadUsersSection();
+    });
+    $("cfgUsersClearBtn")?.addEventListener("click", () => {
+      usersState.search = "";
+      usersState.status = "";
+      usersState.page = 1;
+      if ($("cfgUsersSearch")) $("cfgUsersSearch").value = "";
+      if ($("cfgUsersStatus")) $("cfgUsersStatus").value = "";
+      loadUsersSection();
+    });
+    $("cfgUsersSearch")?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        $("cfgUsersSearchBtn")?.click();
+      }
+    });
+    $("cfgUsersPrev")?.addEventListener("click", () => {
+      usersState.page = Math.max(1, usersState.page - 1);
+      loadUsersSection();
+    });
+    $("cfgUsersNext")?.addEventListener("click", () => {
+      usersState.page += 1;
+      loadUsersSection();
+    });
     $("cfgRoleAddBtn")?.addEventListener("click", () => openRoleEditor(null));
     $("cfgRoleForm")?.addEventListener("submit", submitRoleForm);
     $("cfgCatAddBtn")?.addEventListener("click", () => openCatalogEditor("service_category", null));
@@ -3907,8 +4807,18 @@
 
     document.addEventListener("click", (e) => {
       const closeId = e.target.closest?.("[data-close]")?.getAttribute("data-close");
-      if (closeId === "cfgRoleModal" || closeId === "cfgCatalogModal" || closeId === "cfgCancelModal") {
+      if (closeId === "cfgUserModal" || closeId === "cfgRoleModal" || closeId === "cfgCatalogModal" || closeId === "cfgCancelModal") {
         closeCfgModal(closeId);
+        return;
+      }
+      const editUser = e.target.closest?.("[data-user-edit]");
+      if (editUser) {
+        openUserEditor(editUser.getAttribute("data-user-edit"));
+        return;
+      }
+      const delUser = e.target.closest?.("[data-user-del]");
+      if (delUser) {
+        deactivateUser(delUser.getAttribute("data-user-del"));
         return;
       }
       const editRole = e.target.closest?.("[data-role-edit]");
@@ -3949,6 +4859,7 @@
     if (id === "jobs") return loadJobsSettings();
     if (id === "indicacoes") return loadReferralsSettings();
     if (id === "regras-estimativa") return loadRules();
+    if (id === "usuarios") return loadUsersSection();
     if (id === "cargos") return loadRolesSection();
     if (id === "categorias-servico") return loadCatalogKind("service_category", "cfgCatsBody", "cfgCatAddBtn");
     if (id === "unidades") return loadCatalogKind("unit", "cfgUnitsBody", "cfgUnitAddBtn");
@@ -4003,6 +4914,7 @@
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
         if (!$("cfgLeaveModal").hidden) closeLeaveModal();
+        else if ($("cfgUserModal") && !$("cfgUserModal").hidden) closeCfgModal("cfgUserModal");
         else if ($("cfgRoleModal") && !$("cfgRoleModal").hidden) closeCfgModal("cfgRoleModal");
         else if ($("cfgCatalogModal") && !$("cfgCatalogModal").hidden) closeCfgModal("cfgCatalogModal");
         else if ($("cfgCancelModal") && !$("cfgCancelModal").hidden) closeCfgModal("cfgCancelModal");

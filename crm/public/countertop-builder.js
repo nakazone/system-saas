@@ -356,7 +356,7 @@
   }
 
   function ensureCss() {
-    [['ppShowersCss', '/partner-portal-showers.css?v=20261103-sh2'], ['ctTopsCss', '/countertop-builder.css?v=20261104-ct1']].forEach(([id, href]) => {
+    [['ppShowersCss', '/partner-portal-showers.css?v=20261105-ct9'], ['ctTopsCss', '/countertop-builder.css?v=20261105-ct9']].forEach(([id, href]) => {
       if (document.getElementById(id)) return;
       const l = document.createElement('link');
       l.id = id;

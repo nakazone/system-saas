@@ -10,22 +10,28 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261102-jobs-desc";
+  const CSS_HREF = "crm-job-modal.css?v=20261104-ux2";
   const QPE_CSS = "quote-services-popup.css?v=20261102-svc2";
   const QPE_JS = "quote-services-popup.js?v=20261102-qfix";
   const PAPER_CSS = "quote-paper.css?v=20261027-om1";
-  const PAPER_JS = "quote-paper.js?v=20261028-addon";
+  const PAPER_JS = "quote-paper.js?v=20261105-ct9";
   let prevQBBridge = null;
   let qpeAssetsPromise = null;
-  const SECTIONS = ["details", "schedule", "services", "team", "campo", "notes"];
+  const SECTIONS = ["details", "schedule", "services", "team", "notes", "campo"];
   const SECTION_TITLES = {
     details: "Cliente e endereço",
     schedule: "Start",
-    team: "Equipe & funcionário extra",
+    team: "Equipe",
     services: "Serviços do job",
-    campo: "Atenção e checklist do campo",
     notes: "Notas",
+    campo: "Checklist do campo",
   };
+  const LOCKBOX_PAD_SVG =
+    `<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">` +
+    `<rect x="5" y="11" width="14" height="10" rx="2"/>` +
+    `<path class="jm-lockbox__shackle" d="M8 11V8a4 4 0 018 0v3"/>` +
+    `<circle cx="12" cy="16" r="1.2" fill="currentColor" stroke="none"/>` +
+    `</svg>`;
   /** Quick-start lists the office can drop into a job's checklist (appended, duplicates skipped). */
   const CK_TEMPLATES = [
     { key: "pre", name: "Pré-instalação", items: [["Umidade medida e anotada", false], ["Contrapiso nivelado e limpo", true], ["Material aclimatado", false], ["Área livre de móveis", true]] },
@@ -72,6 +78,8 @@
       addressTouched: false,
       /** Client ID for this job only. Comes from the quote note. */
       clientRef: "",
+      /** Last Client ID we already prompted about (avoid repeat dialogs). */
+      clientRefPrompted: "",
       date: "",
       time: "07:30",
       /** Jobs are always all-day. The second date is the Sand & Finish start. */
@@ -89,9 +97,18 @@
       lines: [],
       notes: "",
       attention: "",
+      needsLockbox: false,
+      lockboxCode: "",
+      homeownerName: "",
+      homeownerPhone: "",
       needsDelivery: false,
+      /** [{ id, date, pickup, locationId, locationName, hours, notes }] */
+      deliveries: [],
+      deliveryLocOpen: null,
+      deliveryLocQuery: "",
       deliveryPickupAddress: "",
       deliveryNotes: "",
+      deliveryDate: "",
       deliveryAttachment: null,
       deliveryAttachmentPending: null,
       clearDeliveryAttachment: false,
@@ -102,6 +119,10 @@
       pendingTemps: [],
       pickerOpen: true,
       pickerQuery: "",
+      /** Keyboard highlight index in the client picker list (-1 = none). */
+      pickerKb: -1,
+      teamMenuOpen: false,
+      teamQuery: "",
       moreOpen: false,
       busy: false,
       /** Job acabou de nascer do Quote (mensagem de setup). */
@@ -110,13 +131,33 @@
       quoteNumber: null,
       /** Painel Adicionar/Editar serviço (igual ao Quote): null | { i, name, note, qty, price, pricingId, unit, query, open } */
       svcPanel: null,
+      /** Date chosen on Calendar (kept when importing an open quote). */
+      prefDate: "",
+      /** Open quotes for the selected client (create flow only). */
+      openQuotes: null,
+      openQuotesLoading: false,
+      openQuotesDismissed: false,
+      /** Quote ids selected for “unificar em 1 job” (create flow). */
+      mergeQuoteIds: [],
+      /** Extra work beyond the original quote (send-to-client / invoice flags). */
+      extras: [],
+      quoteId: null,
     };
   }
 
+  const OPEN_QUOTE_STATUSES = new Set(["draft", "sent", "viewed", "changes_requested"]);
+  const OPEN_QUOTE_STATUS_LBL = {
+    draft: "Rascunho",
+    sent: "Enviado",
+    viewed: "Visto",
+    changes_requested: "Pediu alterações",
+  };
+  let openQuotesFetchSeq = 0;
+
   const SECTOR_OPTS = [
-    { id: "installation", label: "Installation" },
-    { id: "sand_finish", label: "Sand & Finish" },
-    { id: "both", label: "Installation + Sand & Finish" },
+    { id: "installation", label: "Installation", chip: "Installation" },
+    { id: "sand_finish", label: "Sand & Finish", chip: "Sand & Finish" },
+    { id: "both", label: "Installation + Sand & Finish", chip: "Install + Sand" },
   ];
   const sectorLabel = (s) => SECTOR_OPTS.find((o) => o.id === (s || ""))?.label || "—";
 
@@ -124,7 +165,8 @@
   const $ = (id) => document.getElementById(id);
   function notify(msg, type) {
     if (typeof window.crmNotify === "function") window.crmNotify(msg, type || "info");
-    else alert(msg);
+    else if (window.crmToast?.show) window.crmToast.show(msg, { type: type || "info" });
+    else console.warn(msg);
   }
   function esc(s) {
     return String(s == null ? "" : s)
@@ -134,23 +176,60 @@
       .replace(/"/g, "&quot;");
   }
 
-  /** `/lockbox 4821` in internal notes → house lockbox code badge. */
+  /** `/lockbox 4821` in internal notes → house lockbox code (ticket + Campo). */
   function parseJobLockbox(notes) {
     const m = String(notes || "").match(/\/lockbox\s*[#:]?\s*([0-9A-Za-z-]{2,24})\b/i);
-    return m ? m[1] : null;
+    return m ? sanitizeLockboxCode(m[1]) || null : null;
+  }
+  function stripLockboxFromNotes(notes) {
+    return String(notes || "")
+      .replace(/\/lockbox\s*[#:]?\s*[0-9A-Za-z-]{2,24}\b\s*[—–-]?\s*/gi, "")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+  function upsertLockboxInNotes(notes, code) {
+    const clean = String(code || "")
+      .toUpperCase()
+      .replace(/[^0-9A-Z-]/g, "")
+      .slice(0, 24);
+    const rest = stripLockboxFromNotes(notes);
+    if (clean.length < 2) return rest;
+    return rest ? `/lockbox ${clean}\n${rest}` : `/lockbox ${clean}`;
+  }
+  function sanitizeLockboxCode(raw) {
+    return String(raw || "")
+      .toUpperCase()
+      .replace(/[^0-9A-Z-]/g, "")
+      .slice(0, 24);
+  }
+  function syncNotesFromLockbox() {
+    if (!st) return;
+    if (st.needsLockbox && st.lockboxCode.length >= 2) {
+      st.notes = upsertLockboxInNotes(st.notes, st.lockboxCode);
+    } else if (!st.needsLockbox) {
+      st.notes = stripLockboxFromNotes(st.notes);
+    } else {
+      st.notes = stripLockboxFromNotes(st.notes);
+    }
+    if ($("jobNotes") && document.activeElement !== $("jobNotes")) {
+      $("jobNotes").value = st.notes;
+    }
   }
   function jobLockboxBadgeHtml(notes) {
     const code = parseJobLockbox(notes);
     if (!code) return "";
+    const cells = [...String(code)]
+      .map((ch) => `<span class="job-lockbox-badge__cell">${esc(ch)}</span>`)
+      .join("");
     return (
-      `<span class="job-lockbox-badge" title="Código da caixa (lockbox)">` +
+      `<span class="job-lockbox-badge job-lockbox-badge--cells" title="LockBox ${esc(code)}" aria-label="LockBox ${esc(code)}">` +
       `<span class="job-lockbox-badge__icon" aria-hidden="true">` +
       `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">` +
       `<rect x="5" y="11" width="14" height="10" rx="2"/>` +
       `<path d="M8 11V8a4 4 0 018 0v3"/>` +
       `<circle cx="12" cy="16" r="1.2" fill="currentColor" stroke="none"/>` +
       `</svg></span>` +
-      `<span class="job-lockbox-badge__code">${esc(code)}</span>` +
+      `<span class="job-lockbox-badge__cells">${cells}</span>` +
       `</span>`
     );
   }
@@ -341,7 +420,13 @@
     const seenBuilder = new Set();
     builders.forEach((b) => builderDupKeys(b).forEach((k) => seenBuilder.add(k)));
     const bRows = builders
-      .filter((b) => match(builderName(b)) || match(b.email) || match([b.first_name, b.last_name].join(" ")))
+      .filter(
+        (b) =>
+          match(builderName(b)) ||
+          match(b.nickname) ||
+          match(b.email) ||
+          match([b.first_name, b.last_name].join(" ")),
+      )
       .map((b) => {
         let type = String(b.type || "builder").toLowerCase();
         if (type === "contractor") type = "builder";
@@ -350,12 +435,23 @@
           id: b.id,
           name: builderName(b),
           type,
-          sub: [b.first_name, b.last_name].filter(Boolean).join(" ") || b.email || "",
+          sub: [b.nickname, b.first_name, b.last_name].filter(Boolean).join(" · ") || b.email || "",
         };
       });
     const cRows = customers
       .filter((c) => {
-        if (!(match(c.name) || match(c.company) || match(c.email) || match(c.phone) || match(c.client_code) || match(c.display_name))) return false;
+        if (
+          !(
+            match(c.name) ||
+            match(c.nickname) ||
+            match(c.company) ||
+            match(c.email) ||
+            match(c.phone) ||
+            match(c.client_code) ||
+            match(c.display_name)
+          )
+        )
+          return false;
         let type = String(c.customer_type || "particular").toLowerCase();
         if (type === "contractor") type = "builder";
         // Builder/loja customers mirrored from the Builders module — keep Builder row only.
@@ -375,7 +471,7 @@
           id: c.id,
           name: c.name || c.company || "Cliente",
           type,
-          sub: [c.address, c.phone].filter(Boolean)[0] || "",
+          sub: [c.nickname, c.address, c.phone].filter(Boolean)[0] || "",
           raw: c,
         };
       });
@@ -415,7 +511,36 @@
     return Math.round((Number(l.qty) || 0) * (Number(l.price) || 0) * 100) / 100;
   }
   function linesTotal() {
-    return st.lines.reduce((s, l) => s + lineTotal(l), 0);
+    const svc = st.lines.reduce((s, l) => s + lineTotal(l), 0);
+    const extras = (st.extras || []).reduce((s, l) => s + lineTotal(l), 0);
+    return Math.round((svc + extras) * 100) / 100;
+  }
+
+  function parseExtraNote(notes) {
+    const raw = String(notes || "");
+    const m = raw.match(/^\[\[extra\|send=([01])\|invoice=([01])\]\](?:\n([\s\S]*))?$/);
+    if (!m) return null;
+    return {
+      sendToClient: m[1] === "1",
+      showOnInvoice: m[2] === "1",
+      note: String(m[3] || "").trim(),
+    };
+  }
+  function encodeExtraNote(ex) {
+    const head = `[[extra|send=${ex.sendToClient ? "1" : "0"}|invoice=${ex.showOnInvoice ? "1" : "0"}]]`;
+    const note = String(ex.note || "").trim();
+    return note ? `${head}\n${note.slice(0, 1900)}` : head;
+  }
+  function blankExtra(opts) {
+    const o = opts || {};
+    return {
+      name: o.name || "",
+      qty: o.qty != null ? o.qty : 1,
+      price: o.price != null ? o.price : 0,
+      note: o.note || "",
+      sendToClient: o.sendToClient !== false,
+      showOnInvoice: o.showOnInvoice !== false,
+    };
   }
   function repriceLines() {
     st.lines.forEach((l) => {
@@ -652,10 +777,11 @@
     if (!p || !p.pricingItemId) return;
     const field = rateKey();
     const label = pricingTypeLabel();
-    const ok = confirm(
-      `Atualizar a Tabela de Valores (${label}) para ${money(p.newRate)}?\n\n` +
-        `Isto altera o preço do sistema para jobs e orçamentos futuros (exceto clientes com preço personalizado).`,
-    );
+    const ok = await window.crmConfirm({
+      title: `Atualizar a Tabela de Valores (${label}) para ${money(p.newRate)}?`,
+      text: "Isto altera o preço do sistema para jobs e orçamentos futuros (exceto clientes com preço personalizado).",
+      ok: "Atualizar tabela",
+    });
     if (!ok) return;
     const btn = $("jmSaveRateTable");
     if (btn) btn.disabled = true;
@@ -751,10 +877,18 @@
     const p = descSavePending;
     if (!p || !p.pricingItemId) return;
     const field = p.field === "name" ? "name" : "description";
-    const ok = confirm(
+    const ok = await window.crmConfirm(
       field === "name"
-        ? "Atualizar o nome deste serviço na Tabela de Valores?\n\nIsto altera o nome do sistema para jobs e orçamentos futuros."
-        : "Atualizar a descrição deste serviço na Tabela de Valores?\n\nIsto altera a descrição do sistema para jobs e orçamentos futuros.",
+        ? {
+            title: "Atualizar o nome deste serviço na Tabela de Valores?",
+            text: "Isto altera o nome do sistema para jobs e orçamentos futuros.",
+            ok: "Atualizar nome",
+          }
+        : {
+            title: "Atualizar a descrição deste serviço na Tabela de Valores?",
+            text: "Isto altera a descrição do sistema para jobs e orçamentos futuros.",
+            ok: "Atualizar descrição",
+          },
     );
     if (!ok) return;
     const btn = $("jmSaveDescTable");
@@ -851,27 +985,41 @@
         <section class="jm-sec" data-job-section="schedule">
           <h3 class="jm-sec__t"><span class="jm-n">2</span>Start</h3>
           <div class="jm-when">
-            <label class="jm-field">Setor
-              <select id="jmSector" class="jm-in">
-                <option value="">Escolher</option>
-                <option value="installation">Installation</option>
-                <option value="sand_finish">Sand & Finish</option>
-                <option value="both">Installation + Sand & Finish</option>
-              </select>
-            </label>
+            <div class="jm-field">Setor
+              <div class="jm-sector" id="jmSectorChips" role="radiogroup" aria-label="Setor">
+                ${SECTOR_OPTS.map(
+                  (o) =>
+                    `<button type="button" class="jm-sector__opt" role="radio" data-act="sector" data-id="${o.id}" aria-checked="false" title="${esc(o.label)}">${esc(o.chip)}</button>`,
+                ).join("")}
+              </div>
+            </div>
           </div>
           <div class="jm-when" style="margin-top:10px">
             <label class="jm-field" id="jmDateLabel">Data de início<input type="date" id="jmDate" class="jm-in" /></label>
             <label class="jm-field" id="jmSandWrap" hidden>Início Sand & Finish<input type="date" id="jmSandDate" class="jm-in" /></label>
           </div>
           <p class="jm-hint" id="jmCompleteInfo"></p>
-          <p class="jm-hint">Jobs são sempre o dia inteiro, sem horário. Só Installation + Sand & Finish pede duas datas.</p>
+          <p class="jm-hint">Jobs são sempre o dia inteiro, sem horário. Em Installation + Sand & Finish as duas datas podem ser iguais.</p>
+          <label class="jm-check" style="margin-top:12px">
+            <input type="checkbox" id="jmNeedsDelivery" />
+            <span><strong>Delivery</strong> — retirar material da obra</span>
+          </label>
+          <div class="jm-delivery" id="jmDeliveryBox" hidden></div>
+          <label class="jm-check" style="margin-top:12px">
+            <input type="checkbox" id="jmNeedsLockbox" />
+            <span><strong>LockBox</strong> — código da caixa da casa</span>
+          </label>
+          <div class="jm-lockbox" id="jmLockboxBox" hidden>
+            <div class="jm-lockbox__stage" id="jmLockboxStage"></div>
+            <p class="jm-hint">Aparece no ticket do job no Campo, com o cadeado e o código.</p>
+          </div>
         </section>
 
         <section class="jm-sec" data-job-section="services">
           <h3 class="jm-sec__t"><span class="jm-n">3</span>Serviços</h3>
           <div class="jm-svc" id="jmSvc"></div>
           <p class="jm-hint" id="jmPriceHint"></p>
+          <div class="jm-extras" id="jmExtras"></div>
         </section>
 
         <section class="jm-sec" data-job-section="team">
@@ -880,38 +1028,14 @@
           <div id="jmTemps"></div>
         </section>
 
-        <section class="jm-sec" data-job-section="campo">
-          <h3 class="jm-sec__t"><span class="jm-n">5</span>Para o campo</h3>
-          <label class="jm-field">Atenção
-            <textarea id="jmAttention" class="jm-in jm-ta jm-ta--sm" rows="2" maxlength="2000" placeholder="Ex.: Proteger os degraus com papelão antes de começar."></textarea>
-          </label>
-          <p class="jm-hint">Aparece em destaque no ticket do funcionário e no Campo.</p>
-          <label class="jm-check">
-            <input type="checkbox" id="jmNeedsDelivery" />
-            <span><strong>Delivery</strong> — retirar material da obra</span>
-          </label>
-          <div class="jm-delivery" id="jmDeliveryBox" hidden>
-            <label class="jm-field">Endereço da retirada
-              <span class="jm-inwrap"><input type="text" id="jmDeliveryPickup" class="jm-in" maxlength="500" autocomplete="off" placeholder="Onde pegar o material (pode ser diferente do job)" /></span>
-            </label>
-            <label class="jm-field">Notas / nº do PO
-              <textarea id="jmDeliveryNotes" class="jm-in jm-ta jm-ta--sm" rows="2" maxlength="4000" placeholder="Ex.: PO 45821 — retirar sobras de madeira"></textarea>
-            </label>
-            <div class="jm-delivery__file">
-              <label class="jm-btn jm-btn--sm" for="jmDeliveryFile">Anexar arquivo</label>
-              <input type="file" id="jmDeliveryFile" class="jm-sr" accept="image/*,application/pdf,.pdf,.png,.jpg,.jpeg,.webp" />
-              <span class="jm-delivery__file-name" id="jmDeliveryFileName">Nenhum arquivo</span>
-              <button type="button" class="jm-btn jm-btn--ghost jm-btn--sm" id="jmDeliveryFileClear" hidden>Remover</button>
-            </div>
-            <p class="jm-hint">PDF ou foto do PO / packing list. Aparece no ticket do Campo.</p>
-          </div>
-          <div class="jm-ck" id="jmCk"></div>
+        <section class="jm-sec" data-job-section="notes">
+          <h3 class="jm-sec__t"><span class="jm-n">5</span>Notas internas</h3>
+          <textarea id="jobNotes" class="jm-in jm-ta" rows="3" maxlength="8000" placeholder="Notas internas da equipe"></textarea>
         </section>
 
-        <section class="jm-sec" data-job-section="notes">
-          <h3 class="jm-sec__t"><span class="jm-n">6</span>Notas internas <span id="jmLockbox" class="jm-lockbox-slot" hidden></span></h3>
-          <textarea id="jobNotes" class="jm-in jm-ta" rows="3" maxlength="8000" placeholder="Ex.: /lockbox 4821 — código da caixa da casa"></textarea>
-          <p class="jm-hint">Escreva <code>/lockbox</code> e o código para mostrar o cadeado aqui nas notas.</p>
+        <section class="jm-sec" data-job-section="campo">
+          <h3 class="jm-sec__t"><span class="jm-n">6</span>Para o campo</h3>
+          <div class="jm-ck" id="jmCk"></div>
         </section>
       </div>
       <aside class="jm__side" id="jmSide" aria-label="Resumo"></aside>
@@ -1042,6 +1166,7 @@
         <small>${esc(card.sub || (card.custom ? "Tabela personalizada" : ""))}</small></span>
         <button type="button" class="jm-link" data-act="change-client">Trocar</button>
       </div>
+      ${openQuotesHtml()}
       <label class="jm-field jm-field--wide" style="margin-top:10px">ID do cliente
         <input type="text" id="jmClientCode" class="jm-in" maxlength="120" value="${esc(st.clientRef || "")}" placeholder="Só neste job" autocomplete="off" />
       </label>
@@ -1059,6 +1184,17 @@
               </select>
             </label>`
           : ""
+      }
+      ${
+        isBuilderJob()
+          ? `<div class="jm-homeowner">
+              <p class="jm-grp">HomeOwner</p>
+              <div class="jm-when">
+                <label class="jm-field">Nome<input type="text" id="jmHomeownerName" class="jm-in" maxlength="200" value="${esc(st.homeownerName || "")}" placeholder="Nome do morador" autocomplete="name" /></label>
+                <label class="jm-field">Telefone<input type="tel" id="jmHomeownerPhone" class="jm-in" maxlength="40" value="${esc(st.homeownerPhone || "")}" placeholder="(555) 555-5555" autocomplete="tel" /></label>
+              </div>
+            </div>`
+          : ""
       }`;
       return;
     }
@@ -1067,20 +1203,24 @@
     const list = rows.slice(0, q ? 12 : 6);
     const fixed = list.filter((r) => r.type !== "particular");
     const part = list.filter((r) => r.type === "particular");
-    const item = (r) => {
+    const flat = [...fixed, ...part];
+    if (typeof st.pickerKb !== "number" || st.pickerKb >= flat.length) st.pickerKb = flat.length ? 0 : -1;
+    const item = (r, idx) => {
       const label = r.kind === "customer" ? clientDisplayLabel(r.raw || r) : r.name;
-      return `<button type="button" class="jm-opt" data-act="pick" data-kind="${r.kind}" data-id="${esc(r.id)}">
+      const on = idx === st.pickerKb;
+      return `<button type="button" class="jm-opt${on ? " is-active" : ""}" role="option" aria-selected="${on ? "true" : "false"}" data-act="pick" data-kind="${r.kind}" data-id="${esc(r.id)}" data-pick-i="${idx}">
         <span class="jm-av jm-av--sm">${esc(initials(r.name))}</span>
         <span class="jm-opt__txt"><b>${esc(label)}</b><small>${esc(r.sub)}</small></span>
         <span class="jm-tag jm-tag--soft">${esc(TYPE_LABEL[r.type] || r.type)}</span>
       </button>`;
     };
+    let fi = 0;
     box.innerHTML = `<div class="jm-picker">
       <span class="jm-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-        <input type="search" id="jmClientQ" class="jm-in" placeholder="Buscar builder ou cliente…" autocomplete="off" value="${esc(st.pickerQuery)}" /></span>
-      <div class="jm-opts">
-        ${fixed.length ? `<p class="jm-grp">Builders</p>${fixed.map(item).join("")}` : ""}
-        ${part.length ? `<p class="jm-grp">Particulares</p>${part.map(item).join("")}` : ""}
+        <input type="search" id="jmClientQ" class="jm-in" role="combobox" aria-autocomplete="list" aria-expanded="true" placeholder="Buscar builder ou cliente…" autocomplete="off" value="${esc(st.pickerQuery)}" /></span>
+      <div class="jm-opts" role="listbox" aria-label="Clientes">
+        ${fixed.length ? `<p class="jm-grp">Builders</p>${fixed.map((r) => item(r, fi++)).join("")}` : ""}
+        ${part.length ? `<p class="jm-grp">Particulares</p>${part.map((r) => item(r, fi++)).join("")}` : ""}
         ${!list.length ? `<p class="jm-empty">${q ? "Ninguém com esse nome." : "Nenhum cliente cadastrado ainda."}</p>` : ""}
         ${
           q
@@ -1091,6 +1231,17 @@
         ${card ? `<button type="button" class="jm-link jm-link--back" data-act="keep-client">Manter ${esc(card.name)}</button>` : ""}
       </div>
     </div>`;
+  }
+
+  function clientPickerButtons() {
+    return Array.from($("jmClient")?.querySelectorAll(".jm-opt[data-act='pick']") || []);
+  }
+
+  function selectClientPickerActive() {
+    const btns = clientPickerButtons();
+    const i = typeof st.pickerKb === "number" ? st.pickerKb : 0;
+    const btn = btns[i] || btns[0];
+    if (btn) btn.click();
   }
 
   function renderAddrHint() {
@@ -1123,28 +1274,11 @@
 
   function renderMore() {
     const box = $("jmMore");
-    const isEdit = Boolean(st.id);
-    const auto = autoTitle();
-    const titleShown = st.titleTouched ? st.title : st.title || auto;
-    const srcUi = sourceTypeUi(st.sourceType);
-    if (!st.moreOpen) {
-      const bits = [
-        `<span><em>Título</em> ${esc(titleShown || "automático")}</span>`,
-        `<span><em>Origem</em> ${esc(SRC_OPTS.find((o) => o[0] === srcUi)?.[1] || srcUi)}</span>`,
-        isEdit ? `<span><em>Status</em> ${esc(STATUS_OPTS.find((o) => o[0] === st.status)?.[1] || st.status)}</span>` : "",
-      ].join("");
-      box.innerHTML = `<button type="button" class="jm-more__toggle" data-act="more">${bits}<b>Editar</b></button>`;
-      return;
-    }
-    box.innerHTML = `<div class="jm-more__panel">
-      <label class="jm-field jm-field--wide">Título do job
-        <input type="text" id="jobTitle" class="jm-in" maxlength="200" value="${esc(titleShown)}" placeholder="${esc(auto || "Ex.: Summit — Lot 14")}" />
-      </label>
-      ${isEdit ? `<label class="jm-field">Status<select id="jobStatus" class="jm-in">${STATUS_OPTS.map(([v, l]) => `<option value="${v}"${v === st.status ? " selected" : ""}>${l}</option>`).join("")}</select></label>` : ""}
-      <label class="jm-field">Origem (coluna de preço)<select id="jobSourceType" class="jm-in">${SRC_OPTS.map(([v, l]) => `<option value="${v}"${v === srcUi ? " selected" : ""}>${l}</option>`).join("")}</select></label>
-      <label class="jm-field jm-field--wide">Nome da origem<input type="text" id="jobSourceName" class="jm-in" maxlength="200" value="${esc(st.sourceName)}" placeholder="Empresa / contato" /></label>
-      <button type="button" class="jm-link" data-act="more">Fechar opções</button>
-    </div>`;
+    if (!box) return;
+    // Title / origem / status ficam automáticos — não exibir ao usuário.
+    box.hidden = true;
+    box.innerHTML = "";
+    st.moreOpen = false;
   }
 
   async function ensureInstallOptions() {
@@ -1171,8 +1305,14 @@
     if (sandWrap) sandWrap.hidden = st.sector !== "both";
     if ($("jmSandDate")) $("jmSandDate").value = st.sandDate || "";
     st.allDay = true;
-    const sec = $("jmSector");
-    if (sec) sec.value = st.sector || "";
+    const chips = $("jmSectorChips");
+    if (chips) {
+      chips.querySelectorAll("[data-act='sector']").forEach((btn) => {
+        const on = btn.getAttribute("data-id") === (st.sector || "");
+        btn.classList.toggle("is-on", on);
+        btn.setAttribute("aria-checked", on ? "true" : "false");
+      });
+    }
     const done = $("jmCompleteInfo");
     if (done) {
       if (st.status === "completed") {
@@ -1639,6 +1779,7 @@
       ? `Serviços do orçamento · preços da <b>${esc(pricingLabel())}</b>${card ? ` (${esc(card.name)})` : ""}. Abra a folha para adicionar ou editar.`
       : `Preços da <b>${esc(pricingLabel())}</b>${card ? ` (${esc(card.name)})` : ""}. Mesma tela do orçamento: passos à esquerda e folha à direita.`;
     updateSvcCount();
+    renderExtras();
   }
 
   function updateSvcCount() {
@@ -1646,21 +1787,250 @@
     if (cnt) cnt.innerHTML = st.lines.length ? `${st.lines.length} serviço${st.lines.length > 1 ? "s" : ""} · <b>${money(linesTotal())}</b>` : "";
   }
 
+  function renderExtras() {
+    const box = $("jmExtras");
+    if (!box || !st) return;
+    const rows = (st.extras || [])
+      .map((ex, i) => {
+        const tot = lineTotal(ex);
+        return `<article class="jm-extra" data-ex-i="${i}">
+          <div class="jm-extra__grid">
+            <label class="jm-field">Trabalho extra
+              <input type="text" class="jm-in jm-in--sm" data-ex="name" data-i="${i}" maxlength="200" value="${esc(ex.name || "")}" placeholder="Ex.: Remoção de baseboard" />
+            </label>
+            <label class="jm-field">Qtd
+              <input type="text" class="jm-in jm-in--sm" inputmode="decimal" data-ex="qty" data-i="${i}" value="${Number(ex.qty) ? esc(ex.qty) : ""}" />
+            </label>
+            <label class="jm-field">Preço
+              <input type="text" class="jm-in jm-in--sm" inputmode="decimal" data-ex="price" data-i="${i}" value="${Number(ex.price) ? esc(Number(ex.price).toFixed(2)) : ""}" />
+            </label>
+            <span class="jm-extra__tot">${money(tot)}</span>
+            <button type="button" class="jm-ln__del" data-act="extra-del" data-i="${i}" aria-label="Remover extra">×</button>
+          </div>
+          <label class="jm-field">Nota
+            <input type="text" class="jm-in jm-in--sm" data-ex="note" data-i="${i}" maxlength="500" value="${esc(ex.note || "")}" placeholder="Opcional" />
+          </label>
+          <div class="jm-extra__flags">
+            <label class="jm-check jm-check--inline"><input type="checkbox" data-ex="send" data-i="${i}"${ex.sendToClient ? " checked" : ""} /><span>Enviar ao cliente</span></label>
+            <label class="jm-check jm-check--inline"><input type="checkbox" data-ex="invoice" data-i="${i}"${ex.showOnInvoice ? " checked" : ""} /><span>No Invoice</span></label>
+          </div>
+        </article>`;
+      })
+      .join("");
+    const sendable = (st.extras || []).some((ex) => ex.sendToClient && String(ex.name || "").trim());
+    box.innerHTML = `<div class="jm-extras__hd">
+        <p class="jm-grp">Trabalhos extras</p>
+        <span class="jm-hint">Adição ao orçamento original — escolha se vai ao cliente e se entra no Invoice.</span>
+      </div>
+      ${rows || `<p class="jm-empty jm-empty--svc">Nenhum extra ainda.</p>`}
+      <div class="jm-extras__foot">
+        <button type="button" class="jm-svc__add" data-act="extra-add">+ Extra</button>
+        ${
+          st.id && sendable
+            ? `<button type="button" class="jm-btn jm-btn--sm" data-act="extra-send"${st.busy ? " disabled" : ""}>Enviar extras ao cliente</button>`
+            : ""
+        }
+      </div>`;
+  }
+
+  async function sendExtrasToClient() {
+    if (!st?.id || st.busy) return;
+    const list = (st.extras || []).filter((ex) => ex.sendToClient && String(ex.name || "").trim());
+    if (!list.length) {
+      notify("Marque “Enviar ao cliente” em pelo menos um extra.", "info");
+      return;
+    }
+    st.busy = true;
+    renderFoot();
+    renderExtras();
+    try {
+      // Persist first so the API reads the latest extras from the job.
+      await api(`/api/work-orders/${encodeURIComponent(st.id)}`, {
+        method: "PUT",
+        body: JSON.stringify(payload()),
+      });
+      const j = await api(`/api/work-orders/${encodeURIComponent(st.id)}/extras/send`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      const quoteId = j.data?.quote_id || null;
+      if (quoteId) st.quoteId = quoteId;
+      notify(
+        j.data?.created
+          ? "Extras adicionados ao orçamento. Abra o quote para enviar ao cliente."
+          : "Extras atualizados no orçamento.",
+        "success",
+      );
+      if (quoteId && j.data?.open_url) {
+        location.href = j.data.open_url;
+        return;
+      }
+    } catch (err) {
+      notify(err.message || "Não foi possível enviar os extras.", "error");
+    } finally {
+      if (st) {
+        st.busy = false;
+        renderFoot();
+        renderExtras();
+      }
+    }
+  }
+
+  function foldSearch(s) {
+    return String(s || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+  }
+
+  function teamAvailableRows() {
+    const q = foldSearch(st.teamQuery || "").trim();
+    return users.filter((u) => {
+      if (isTeamMember(u)) return false;
+      if (!q) return true;
+      const hay = foldSearch(`${u.name || ""} ${u.email || ""}`);
+      return hay.includes(q);
+    });
+  }
+
+  function teamListHtml() {
+    const available = teamAvailableRows();
+    const q = String(st.teamQuery || "").trim();
+    if (!users.length) return `<p class="jm-empty">Nenhum usuário disponível.</p>`;
+    if (!available.length) return `<p class="jm-empty">${q ? "Nenhum resultado." : "Todos já estão na equipe."}</p>`;
+    return available
+      .map(
+        (u) => `<button type="button" class="jm-team__opt" data-act="user" data-id="${esc(u.id)}">
+          <span class="jm-dot">${esc(initials(u.name || u.email))}</span>
+          <span class="jm-team__opt-txt"><b>${esc(u.name || u.email)}</b>${u.email && u.name ? `<small>${esc(u.email)}</small>` : ""}</span>
+          <span class="jm-team__opt-add" aria-hidden="true">+</span>
+        </button>`,
+      )
+      .join("");
+  }
+
+  function teamPickedHtml() {
+    const team = users.filter((u) => isTeamMember(u));
+    if (!team.length) return `<p class="jm-hint jm-team__empty">Ninguém na equipe ainda.</p>`;
+    return `<div class="jm-team__picked">${team
+      .map((u) => {
+        const lead = String(st.assigneeId) === String(u.id);
+        return `<button type="button" class="jm-team__chip" data-act="user" data-id="${esc(u.id)}" title="Remover">
+          <span class="jm-dot">${esc(initials(u.name || u.email))}</span>
+          <span class="jm-team__chip-name">${esc(u.name || u.email)}</span>
+          ${lead ? '<small>resp.</small>' : ""}
+          <span class="jm-team__chip-x" aria-hidden="true">×</span>
+        </button>`;
+      })
+      .join("")}</div>`;
+  }
+
+  function teamTriggerLabel() {
+    const n = users.filter((u) => isTeamMember(u)).length;
+    if (n) return `Adicionar · ${n} na equipe`;
+    return users.length ? "Adicionar equipe" : "Sem usuários";
+  }
+
+  function focusTeamSearch(caret) {
+    const q = $("jmTeamQ");
+    if (!q || !st?.teamMenuOpen) return;
+    try {
+      q.focus({ preventScroll: true });
+    } catch (_) {
+      q.focus();
+    }
+    try {
+      const n = typeof caret === "number" ? caret : String(q.value || "").length;
+      q.setSelectionRange(n, n);
+    } catch (_) {}
+  }
+
+  function refreshTeamList() {
+    const list = $("jmTeamList");
+    if (!list) {
+      renderTeam();
+      return;
+    }
+    const qEl = $("jmTeamQ");
+    const hadFocus = document.activeElement === qEl;
+    const caret = typeof qEl?.selectionStart === "number" ? qEl.selectionStart : null;
+    list.innerHTML = teamListHtml();
+    if (hadFocus) focusTeamSearch(caret);
+  }
+
+  /** Update chips + list + trigger without destroying the search field. */
+  function softUpdateTeam() {
+    const root = $("jmTeam")?.querySelector(".jm-team");
+    if (!root) {
+      renderTeam();
+      return;
+    }
+    const qEl = $("jmTeamQ");
+    const hadFocus = document.activeElement === qEl;
+    const caret = typeof qEl?.selectionStart === "number" ? qEl.selectionStart : null;
+    if (qEl && qEl.value !== String(st.teamQuery || "")) qEl.value = st.teamQuery || "";
+    const pickedSlot = root.querySelector("[data-team-picked]");
+    if (pickedSlot) pickedSlot.innerHTML = teamPickedHtml();
+    const trig = root.querySelector(".jm-team__trig span:first-child");
+    if (trig) trig.textContent = teamTriggerLabel();
+    refreshTeamList();
+    const leadWrap = $("jmTemps");
+    if (leadWrap) {
+      const team = users.filter((u) => isTeamMember(u));
+      const existingLead = leadWrap.querySelector(".jm-lead");
+      if (team.length > 1) {
+        const html = `<label class="jm-lead">Responsável <select id="jmLead" class="jm-in jm-in--sm">${team
+          .map((u) => `<option value="${esc(u.id)}"${String(u.id) === String(st.assigneeId) ? " selected" : ""}>${esc(u.name || u.email)}</option>`)
+          .join("")}</select></label>`;
+        if (existingLead) existingLead.outerHTML = html;
+        else leadWrap.insertAdjacentHTML("afterbegin", html);
+      } else if (existingLead) {
+        existingLead.remove();
+      }
+    }
+    if (hadFocus || st.teamMenuOpen) focusTeamSearch(caret);
+  }
+
+  function isTeamMember(u) {
+    return st.members.has(String(u.id)) || String(st.assigneeId) === String(u.id);
+  }
+
+  function toggleTeamUser(id) {
+    if (!st || !id) return;
+    const sid = String(id);
+    if (st.members.has(sid) || String(st.assigneeId) === sid) {
+      st.members.delete(sid);
+      if (String(st.assigneeId) === sid) st.assigneeId = [...st.members][0] || null;
+    } else {
+      st.members.add(sid);
+      if (!st.assigneeId) st.assigneeId = sid;
+      // Keep the list open; clear search so the next person is easy to find.
+      if (st.teamMenuOpen) st.teamQuery = "";
+    }
+    if (st.teamMenuOpen) softUpdateTeam();
+    else renderTeam();
+    renderSide();
+  }
+
   function renderTeam() {
     const box = $("jmTeam");
-    if (!users.length) {
-      box.innerHTML = '<p class="jm-empty">Nenhum usuário disponível.</p>';
-    } else {
-      box.innerHTML = users
-        .map((u) => {
-          const lead = String(st.assigneeId) === String(u.id);
-          const on = lead || st.members.has(String(u.id));
-          return `<button type="button" class="jm-chip jm-chip--user${on ? " is-on" : ""}" data-act="user" data-id="${esc(u.id)}" aria-pressed="${on}">
-            <span class="jm-dot">${esc(initials(u.name || u.email))}</span>${esc(u.name || u.email)}${lead ? '<small> · responsável</small>' : ""}</button>`;
-        })
-        .join("");
-    }
-    const team = users.filter((u) => st.members.has(String(u.id)) || String(st.assigneeId) === String(u.id));
+    if (!box || !st) return;
+    const team = users.filter((u) => isTeamMember(u));
+    const trigLbl = teamTriggerLabel();
+    box.innerHTML = `<div class="jm-team">
+      <div data-team-picked>${teamPickedHtml()}</div>
+      <div class="jm-team__dd${st.teamMenuOpen ? " is-open" : ""}">
+        <button type="button" class="jm-team__trig" data-act="team-toggle" aria-expanded="${st.teamMenuOpen ? "true" : "false"}"${users.length ? "" : " disabled"}>
+          <span>${esc(trigLbl)}</span>
+          <span class="jm-team__chev" aria-hidden="true"></span>
+        </button>
+        <div class="jm-team__panel"${st.teamMenuOpen ? "" : " hidden"}>
+          <input type="text" id="jmTeamQ" class="jm-in jm-in--sm" value="${esc(st.teamQuery || "")}" placeholder="Buscar nome…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+          <div class="jm-team__list" id="jmTeamList">${teamListHtml()}</div>
+        </div>
+      </div>
+    </div>`;
+    if (st.teamMenuOpen) setTimeout(() => focusTeamSearch(), 30);
     const leadPick =
       team.length > 1
         ? `<label class="jm-lead">Responsável <select id="jmLead" class="jm-in jm-in--sm">${team
@@ -1690,7 +2060,7 @@
           )
           .join("");
     temps.innerHTML = `${leadPick}<div class="jm-temps">
-      <p class="jm-grp">Funcionário extra / temporário (link por WhatsApp/SMS)</p>
+      <p class="jm-grp">Extra Worker</p>
       ${tempRows}
       <div class="jm-temp-add">
         <input type="text" id="tempName" class="jm-in jm-in--sm" maxlength="200" placeholder="Nome *" />
@@ -1699,13 +2069,14 @@
       </div>
       ${
         st.id
-          ? ""
+          ? '<p class="jm-hint">Envie o link por WhatsApp ou SMS depois de cadastrar.</p>'
           : '<p class="jm-hint">Cadastre aqui na criação do job. O link de acesso é gerado ao salvar.</p>'
       }
     </div>`;
   }
 
   let checklistEnabled = true;
+  let deliveryLocations = [];
   let jobsSettingsLoaded = false;
 
   async function ensureJobsSettings() {
@@ -1713,10 +2084,70 @@
     try {
       const j = await api("/api/settings/jobs");
       checklistEnabled = j?.data?.checklist_enabled !== false;
+      deliveryLocations = Array.isArray(j?.data?.delivery_locations) ? j.data.delivery_locations : [];
     } catch (_) {
       checklistEnabled = true;
+      deliveryLocations = [];
     }
     jobsSettingsLoaded = true;
+  }
+
+  function blankDeliveryStop() {
+    return {
+      id: `d_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+      date: "",
+      pickup: "",
+      locationId: null,
+      locationName: "",
+      hours: "",
+      notes: "",
+    };
+  }
+
+  function ensureDeliveryStops() {
+    if (!st) return;
+    if (!Array.isArray(st.deliveries)) st.deliveries = [];
+    if (st.needsDelivery && !st.deliveries.length) {
+      const stop = blankDeliveryStop();
+      stop.date = st.deliveryDate || st.date || "";
+      stop.pickup = st.deliveryPickupAddress || "";
+      stop.notes = st.deliveryNotes || "";
+      st.deliveries = [stop];
+    }
+    if (!st.needsDelivery) st.deliveries = [];
+  }
+
+  function syncLegacyDeliveryFromStops() {
+    if (!st) return;
+    const first = (st.deliveries || [])[0];
+    if (!st.needsDelivery || !first) {
+      st.deliveryDate = "";
+      st.deliveryPickupAddress = "";
+      st.deliveryNotes = "";
+      return;
+    }
+    st.deliveryDate = first.date || "";
+    st.deliveryPickupAddress = first.pickup || "";
+    st.deliveryNotes = first.notes || "";
+  }
+
+  function deliveriesPayload() {
+    return (st.deliveries || []).map((d) => ({
+      id: d.id,
+      scheduled_start: dayFromYmd(d.date) ? dayFromYmd(d.date).toISOString() : null,
+      pickup_address: String(d.pickup || "").trim() || null,
+      location_id: d.locationId || null,
+      location_name: String(d.locationName || "").trim() || null,
+      hours: String(d.hours || "").trim() || null,
+      notes: String(d.notes || "").trim() || null,
+    }));
+  }
+
+  function isBuilderJob() {
+    if (!st) return false;
+    if (st.builderId) return true;
+    const t = String(st.sourceType || "").toLowerCase();
+    return t === "builder" || t === "contractor" || t === "loja";
   }
 
   function renderChecklist() {
@@ -1792,7 +2223,16 @@
         <div><dt>Preços</dt><dd>${esc(customRates() ? "Personalizada" : TYPE_LABEL[st.sourceType] || "Particular")}</dd></div>
         <div><dt>Start</dt><dd>${esc(whenLabel())}</dd></div>
         <div><dt>Setor</dt><dd>${esc(sectorLabel(st.sector))}</dd></div>
-        <div><dt>Delivery</dt><dd>${st.needsDelivery ? esc(st.deliveryPickupAddress || "Retirar material") : "—"}</dd></div>
+        <div><dt>Delivery</dt><dd>${
+          st.needsDelivery
+            ? esc(
+                (st.deliveries || []).length > 1
+                  ? `${st.deliveries.length} retiros`
+                  : st.deliveryPickupAddress || (st.deliveries?.[0]?.pickup) || "Retirar material",
+              )
+            : "—"
+        }</dd></div>
+        <div><dt>LockBox</dt><dd>${st.needsLockbox && st.lockboxCode ? esc(st.lockboxCode) : st.needsLockbox ? "Sem código" : "—"}</dd></div>
         <div><dt>Equipe</dt><dd>${esc(assignee ? `${assignee.name || assignee.email}${others ? ` +${others}` : ""}` : "—")}</dd></div>
         <div><dt>Status</dt><dd>${esc(statusLbl)}</dd></div>
       </dl>
@@ -1826,25 +2266,70 @@
     renderSide();
   }
 
-  function renderLockbox() {
-    const slot = $("jmLockbox");
-    if (!slot) return;
-    const html = jobLockboxBadgeHtml(st?.notes);
-    if (html) {
-      slot.innerHTML = html;
-      slot.hidden = false;
-    } else {
-      slot.innerHTML = "";
-      slot.hidden = true;
+  function lockboxCellsHtml(code) {
+    const chars = [...String(code || "")];
+    const slots = Math.max(4, Math.min(8, chars.length + (chars.length < 8 ? 1 : 0)));
+    const cells = [];
+    for (let i = 0; i < slots; i += 1) {
+      const ch = chars[i];
+      cells.push(
+        ch
+          ? `<span class="jm-lockbox__cell is-filled">${esc(ch)}</span>`
+          : `<span class="jm-lockbox__cell is-empty" aria-hidden="true"></span>`,
+      );
     }
+    return cells.join("");
   }
 
-  function attachDeliveryAddressAutocomplete() {
-    const el = $("jmDeliveryPickup");
+  function renderLockbox() {
+    const box = $("jmLockboxBox");
+    const chk = $("jmNeedsLockbox");
+    if (chk) chk.checked = Boolean(st?.needsLockbox);
+    if (!box) return;
+    if (!st?.needsLockbox) {
+      box.hidden = true;
+      const stage = $("jmLockboxStage");
+      if (stage) stage.innerHTML = "";
+      return;
+    }
+    box.hidden = false;
+    const code = String(st.lockboxCode || "");
+    const ready = code.length >= 2;
+    const stage = $("jmLockboxStage");
+    if (!stage) return;
+    stage.innerHTML = `
+      <div class="jm-lockbox__pad${ready ? " is-ready" : " is-wait"}" aria-hidden="true">${LOCKBOX_PAD_SVG}</div>
+      <div class="jm-lockbox__main">
+        <div class="jm-lockbox__cells" aria-hidden="true">${lockboxCellsHtml(code)}</div>
+        <input type="text" id="jmLockboxCode" class="jm-lockbox__input" maxlength="24" autocomplete="off" inputmode="text" spellcheck="false" placeholder="Digite o código" value="${esc(code)}" aria-label="Código LockBox" />
+      </div>`;
+  }
+
+  function attachDeliveryAddressAutocomplete(el) {
     if (!el || !window.sfAttachAddressAutocomplete) return;
     try {
       window.sfAttachAddressAutocomplete(el, { map: { combined: el } });
     } catch (_) {}
+  }
+
+  function deliveryLocOptionsHtml(i, q) {
+    const needle = String(q || "").trim().toLowerCase();
+    const list = (deliveryLocations || []).filter((loc) => {
+      if (!needle) return true;
+      const hay = `${loc.name || ""} ${loc.address || ""} ${loc.hours || ""}`.toLowerCase();
+      return hay.includes(needle);
+    });
+    if (!list.length) {
+      return `<p class="jm-empty">${needle ? "Nenhum local salvo." : "Cadastre locais em Configurações › Jobs."}</p>`;
+    }
+    return list
+      .map(
+        (loc) => `<button type="button" class="jm-delivery__loc-opt" data-act="delivery-loc-pick" data-i="${i}" data-id="${esc(loc.id)}">
+          <b>${esc(loc.name)}</b>
+          <small>${esc(loc.address)}${loc.hours ? ` · ${esc(loc.hours)}` : ""}</small>
+        </button>`,
+      )
+      .join("");
   }
 
   function renderDeliveryBox() {
@@ -1852,29 +2337,66 @@
     if (!box) return;
     const on = Boolean(st.needsDelivery);
     box.hidden = !on;
-    ["jmDeliveryPickup", "jmDeliveryNotes", "jmDeliveryFile"].forEach((id) => {
-      const el = $(id);
-      if (el) el.disabled = !on;
-    });
-    if ($("jmDeliveryPickup")) $("jmDeliveryPickup").value = st.deliveryPickupAddress || "";
-    if ($("jmDeliveryNotes")) $("jmDeliveryNotes").value = st.deliveryNotes || "";
-    const nameEl = $("jmDeliveryFileName");
-    const clearBtn = $("jmDeliveryFileClear");
+    if (!on) {
+      box.innerHTML = "";
+      return;
+    }
+    ensureDeliveryStops();
+    syncLegacyDeliveryFromStops();
+    const stops = st.deliveries || [];
     const pending = st.deliveryAttachmentPending;
     const existing = st.deliveryAttachment;
+    let fileHtml = "";
     if (pending) {
-      if (nameEl) nameEl.textContent = pending.name || "Arquivo selecionado";
-      if (clearBtn) clearBtn.hidden = !on;
+      fileHtml = `<span class="jm-delivery__file-name">${esc(pending.name || "Arquivo selecionado")}</span>
+        <button type="button" class="jm-btn jm-btn--ghost jm-btn--sm" id="jmDeliveryFileClear">Remover</button>`;
     } else if (existing && existing.url && !st.clearDeliveryAttachment) {
-      if (nameEl) {
-        nameEl.innerHTML = `<a href="${esc(existing.url)}" target="_blank" rel="noopener">${esc(existing.name || "Anexo")}</a>`;
-      }
-      if (clearBtn) clearBtn.hidden = !on;
+      fileHtml = `<span class="jm-delivery__file-name"><a href="${esc(existing.url)}" target="_blank" rel="noopener">${esc(existing.name || "Anexo")}</a></span>
+        <button type="button" class="jm-btn jm-btn--ghost jm-btn--sm" id="jmDeliveryFileClear">Remover</button>`;
     } else {
-      if (nameEl) nameEl.textContent = "Nenhum arquivo";
-      if (clearBtn) clearBtn.hidden = true;
+      fileHtml = `<span class="jm-delivery__file-name">Nenhum arquivo</span>`;
     }
-    if (on) attachDeliveryAddressAutocomplete();
+    box.innerHTML = `${stops
+      .map((d, i) => {
+        const open = st.deliveryLocOpen === i;
+        const label = d.locationName
+          ? `${d.locationName}${d.hours ? ` · ${d.hours}` : ""}`
+          : "";
+        return `<div class="jm-delivery__stop" data-delivery-i="${i}">
+          <div class="jm-delivery__stop-hd">
+            <b>Delivery ${stops.length > 1 ? i + 1 : ""}</b>
+            ${stops.length > 1 ? `<button type="button" class="jm-link" data-act="delivery-del" data-i="${i}">Remover</button>` : ""}
+          </div>
+          <label class="jm-field">Data
+            <input type="date" class="jm-in" data-del-f="date" data-i="${i}" value="${esc(d.date || "")}" />
+          </label>
+          <div class="jm-field">
+            <span>Local / endereço de retirada</span>
+            <div class="jm-delivery__loc${open ? " is-open" : ""}">
+              <input type="text" class="jm-in" data-del-f="pickup" data-i="${i}" value="${esc(d.pickup || "")}" maxlength="500" autocomplete="off" placeholder="Pesquisar local salvo ou digitar endereço" />
+              ${label ? `<small class="jm-delivery__loc-meta">${esc(label)}</small>` : ""}
+              <div class="jm-delivery__loc-panel" ${open ? "" : "hidden"}>
+                <input type="search" class="jm-in jm-in--sm" data-del-f="loc-q" data-i="${i}" value="${esc(st.deliveryLocOpen === i ? st.deliveryLocQuery || "" : "")}" placeholder="Buscar nome do local…" />
+                <div class="jm-delivery__loc-list">${deliveryLocOptionsHtml(i, st.deliveryLocOpen === i ? st.deliveryLocQuery : "")}</div>
+              </div>
+            </div>
+          </div>
+          <label class="jm-field">Notas / nº do PO
+            <textarea class="jm-in jm-ta jm-ta--sm" rows="2" maxlength="4000" data-del-f="notes" data-i="${i}" placeholder="Ex.: PO 45821 — retirar sobras">${esc(d.notes || "")}</textarea>
+          </label>
+        </div>`;
+      })
+      .join("")}
+      <div class="jm-delivery__acts">
+        <button type="button" class="jm-btn jm-btn--sm" data-act="delivery-add"${stops.length >= 8 ? " disabled" : ""}>+ Delivery</button>
+      </div>
+      <div class="jm-delivery__file">
+        <label class="jm-btn jm-btn--sm" for="jmDeliveryFile">Anexar arquivo</label>
+        <input type="file" id="jmDeliveryFile" class="jm-sr" accept="image/*,application/pdf,.pdf,.png,.jpg,.jpeg,.webp" />
+        ${fileHtml}
+      </div>
+      <p class="jm-hint">Cada data aparece na agenda Delivery. Locais padrão ficam em Configurações › Jobs.</p>`;
+    box.querySelectorAll('[data-del-f="pickup"]').forEach((el) => attachDeliveryAddressAutocomplete(el));
   }
 
   function readFileAsDataUrl(file) {
@@ -1894,13 +2416,13 @@
     if (st.sector === "sand_finish") await ensureInstallOptions();
     renderWhen();
     renderServices();
+    renderExtras();
     renderTeam();
     $("jobNotes").value = st.notes;
-    $("jmAttention").value = st.attention;
     if ($("jmNeedsDelivery")) $("jmNeedsDelivery").checked = Boolean(st.needsDelivery);
     renderDeliveryBox();
-    renderChecklist();
     renderLockbox();
+    renderChecklist();
     renderSide();
     renderFoot();
     applySection();
@@ -1911,8 +2433,17 @@
     const all = st.section === "all";
     modal.dataset.section = st.section;
     document.querySelectorAll("#jobModalMain [data-job-section]").forEach((el) => {
-      el.hidden = !all && el.getAttribute("data-job-section") !== st.section;
+      const key = el.getAttribute("data-job-section");
+      if (key === "campo" && !checklistEnabled) {
+        el.hidden = true;
+        return;
+      }
+      el.hidden = !all && key !== st.section;
     });
+    const notesN = document.querySelector('#jobModalMain [data-job-section="notes"] .jm-n');
+    const campoN = document.querySelector('#jobModalMain [data-job-section="campo"] .jm-n');
+    if (notesN) notesN.textContent = "5";
+    if (campoN) campoN.textContent = "6";
     $("jmSide").hidden = !all;
     $("jobModalTitle").textContent = all
       ? st.id
@@ -1932,6 +2463,266 @@
   }
 
   // ---------------------------------------------------------------- client selection
+  /** Open quote, approved, or draft/canceled job that can still become a new job. */
+  function isImportableQuoteRow(q) {
+    if (!q) return false;
+    const woId = q.work_order_id;
+    const woStatus = String(q.work_order_status || "").toLowerCase();
+    if (woId) {
+      // Draft = unfinished setup; canceled = previous job voided — quote is free again.
+      return !woStatus || woStatus === "draft" || woStatus === "canceled";
+    }
+    const raw = String(q.status_raw || "").toLowerCase();
+    const norm = String(q.status || "").toLowerCase();
+    if (
+      ["approved", "converted", "accepted", "invoiced"].includes(raw) ||
+      ["approved", "converted", "accepted"].includes(norm)
+    ) {
+      return true;
+    }
+    return OPEN_QUOTE_STATUSES.has(raw) || OPEN_QUOTE_STATUSES.has(norm);
+  }
+
+  function quoteImportStatusLabel(q) {
+    const woId = q && q.work_order_id;
+    const woStatus = String((q && q.work_order_status) || "").toLowerCase();
+    if (woId && woStatus === "canceled") return "Job cancelado";
+    if (woId && (!woStatus || woStatus === "draft")) return "Continuar job";
+    const raw = String(q.status_raw || q.status || "").toLowerCase();
+    if (["approved", "converted", "accepted", "invoiced"].includes(raw)) return "Aprovado";
+    return OPEN_QUOTE_STATUS_LBL[raw] || "Aberto";
+  }
+
+  /** Any importable quote can be selected for unify (open ones are auto-approved on merge). */
+  function isMergeableQuoteRow(q) {
+    return isImportableQuoteRow(q);
+  }
+
+  function selectedClientDisplayName() {
+    if (!st) return "";
+    if (st.customerId) {
+      const c = currentCustomer();
+      return String((c && (c.name || c.company)) || st.sourceName || "").trim();
+    }
+    if (st.builderId) {
+      const b = currentBuilder();
+      return String((b && builderName(b)) || st.sourceName || "").trim();
+    }
+    return String(st.sourceName || "").trim();
+  }
+
+  function openQuotesHtml() {
+    if (!st || st.id || st.pickerOpen || st.openQuotesDismissed) return "";
+    if (st.openQuotesLoading) {
+      return `<p class="jm-quote-import jm-hint">A verificar orçamentos em aberto…</p>`;
+    }
+    const list = Array.isArray(st.openQuotes) ? st.openQuotes : [];
+    if (!list.length) return "";
+    const selected = new Set((st.mergeQuoteIds || []).map(String));
+    const canMerge = list.filter(isMergeableQuoteRow).length >= 2;
+    const mergeCount = selected.size;
+    return `<div class="jm-quote-import">
+      <p class="jm-quote-import__hd"><b>${list.length === 1 ? "1 orçamento disponível" : `${list.length} orçamentos disponíveis`}</b>
+        <span>${canMerge ? "Toque para importar um, ou marque 2+ para unificar num só job." : "Importe ou continue um job em rascunho a partir do orçamento."}</span></p>
+      <div class="jm-quote-import__list">${list
+        .map((q) => {
+          const num = q.quote_number || (q.number != null ? `#${q.number}` : "Orçamento");
+          const who =
+            String(q.customer_name || q.builder_name || q.builder_company || "").trim() ||
+            String(q.job_name || q.title || "").trim() ||
+            "Cliente";
+          const addr = String(q.job_address || q.customer_address || q.property_label || "").trim();
+          const title = String(q.job_name || q.title || "").trim();
+          const stLbl = quoteImportStatusLabel(q);
+          const tot = Number(q.total ?? q.total_amount ?? 0);
+          const on = selected.has(String(q.id));
+          const mergeable = canMerge && isMergeableQuoteRow(q);
+          return `<div class="jm-quote-import__row${on ? " is-merge-on" : ""}">
+            ${
+              mergeable
+                ? `<label class="jm-quote-import__check" title="Selecionar para unificar">
+                    <input type="checkbox" data-act="toggle-merge-quote" data-id="${esc(q.id)}"${on ? " checked" : ""} />
+                  </label>`
+                : ""
+            }
+            <button type="button" class="jm-quote-import__go" data-act="import-quote" data-id="${esc(q.id)}">
+              <span class="jm-quote-import__body">
+                <span class="jm-quote-import__l1"><b>${esc(who)}</b></span>
+                ${addr ? `<span class="jm-quote-import__addr">${esc(addr)}</span>` : ""}
+                <span class="jm-quote-import__l3">${esc(num)}${title && title !== who ? ` · ${esc(title)}` : ""}</span>
+              </span>
+              <span class="jm-quote-import__side">
+                ${tot > 0 ? `<span class="jm-quote-import__when">${esc(money(tot))}</span>` : ""}
+                <span class="jm-quote-import__st">${esc(stLbl)}</span>
+              </span>
+            </button>
+          </div>`;
+        })
+        .join("")}</div>
+      ${
+        mergeCount >= 2
+          ? `<button type="button" class="jm-btn jm-btn--pri jm-quote-import__merge" data-act="merge-quotes">Unificar ${mergeCount} orçamentos num job</button>`
+          : canMerge
+            ? `<p class="jm-hint jm-quote-import__merge-hint">Marque 2 ou mais orçamentos para unificar num job.</p>`
+            : ""
+      }
+      <button type="button" class="jm-link jm-quote-import__skip" data-act="skip-quotes">Continuar sem orçamento</button>
+    </div>`;
+  }
+
+  async function refreshOpenQuotes() {
+    if (!st || st.id || st.openQuotesDismissed) return;
+    if (!st.customerId && !st.builderId) {
+      st.openQuotes = [];
+      st.openQuotesLoading = false;
+      renderClient();
+      return;
+    }
+    const seq = ++openQuotesFetchSeq;
+    const customerSnap = st.customerId;
+    const builderSnap = st.builderId;
+    const nameSnap = selectedClientDisplayName();
+    st.openQuotesLoading = true;
+    renderClient();
+    try {
+      let customerId = customerSnap;
+      const builderId = builderSnap;
+      if (builderId && !customerId) {
+        const pc = await ensurePricingCustomer();
+        if (!st || seq !== openQuotesFetchSeq) return;
+        if (pc) customerId = pc.id;
+      }
+      const params = new URLSearchParams({ limit: "20" });
+      if (customerId) params.set("customer_id", String(customerId));
+      if (builderId) params.set("builder_id", String(builderId));
+      if (nameSnap) params.set("name", nameSnap);
+      if (!customerId && !builderId && !nameSnap) {
+        st.openQuotes = [];
+        return;
+      }
+      let j;
+      try {
+        j = await api(`/api/quotes/job-import-candidates?${params.toString()}`);
+      } catch (_) {
+        // Older deploy fallback: expanded party filter on /api/quotes.
+        const fallback = new URLSearchParams({ limit: "30" });
+        if (customerId) fallback.set("customer_id", String(customerId));
+        if (builderId) fallback.set("builder_id", String(builderId));
+        j = await api(`/api/quotes?${fallback.toString()}`);
+      }
+      if (!st || seq !== openQuotesFetchSeq) return;
+      if (String(st.customerId || "") !== String(customerSnap || "") || String(st.builderId || "") !== String(builderSnap || "")) return;
+      st.openQuotes = (j.data || []).filter(isImportableQuoteRow).slice(0, 12);
+    } catch (_) {
+      if (!st || seq !== openQuotesFetchSeq) return;
+      st.openQuotes = [];
+    } finally {
+      if (st && seq === openQuotesFetchSeq) {
+        st.openQuotesLoading = false;
+        renderClient();
+      }
+    }
+  }
+
+  async function importOpenQuote(quoteId) {
+    if (!st || !quoteId || st.busy) return;
+    const prefDate = st.prefDate || st.date || "";
+    st.busy = true;
+    showErr("");
+    renderFoot();
+    try {
+      // Resume an existing draft job if this quote was already converted (user closed without Save).
+      const existing = await api(`/api/quotes/${encodeURIComponent(quoteId)}`);
+      let jobId = existing.data?.work_order_id || null;
+      const woStatus = String(existing.data?.work_order_status || "").toLowerCase();
+      if (jobId && woStatus && woStatus !== "draft" && woStatus !== "canceled") {
+        close();
+        await openEdit(jobId, { prefDate });
+        notify("Este orçamento já tem um job. Abrindo o job existente.", "info");
+        return;
+      }
+      // Canceled job: free the quote and create a fresh draft.
+      if (jobId && woStatus === "canceled") jobId = null;
+      if (!jobId) {
+        const j = await api(`/api/quotes/${encodeURIComponent(quoteId)}/status`, {
+          method: "POST",
+          body: JSON.stringify({ status: "approved" }),
+        });
+        jobId = j.created_job_id || (j.data && j.data.work_order_id) || null;
+        if (!jobId) {
+          const fresh = await api(`/api/quotes/${encodeURIComponent(quoteId)}`);
+          jobId = fresh.data?.work_order_id || null;
+        }
+      }
+      if (!jobId) throw new Error("Não foi possível criar o job a partir do orçamento.");
+      close();
+      await openEdit(jobId, { fromQuote: true, prefDate });
+    } catch (err) {
+      const msg = err && err.message ? String(err.message) : "Não foi possível importar o orçamento";
+      if (/403|permiss|forbidden/i.test(msg)) {
+        notify("Sem permissão para aprovar o orçamento. Abrindo o orçamento…", "info");
+        location.href = `quote-builder.html?id=${encodeURIComponent(quoteId)}&create_job=1`;
+        return;
+      }
+      if (st) {
+        st.busy = false;
+        showErr(msg);
+        renderFoot();
+      }
+      notify(msg, "error");
+    }
+  }
+
+  function toggleMergeQuote(quoteId) {
+    if (!st || !quoteId) return;
+    const id = String(quoteId);
+    const cur = new Set((st.mergeQuoteIds || []).map(String));
+    if (cur.has(id)) cur.delete(id);
+    else {
+      if (cur.size >= 5) {
+        notify("No máximo 5 orçamentos por unificação.", "info");
+        return;
+      }
+      cur.add(id);
+    }
+    st.mergeQuoteIds = [...cur];
+    renderClient();
+  }
+
+  async function mergeSelectedQuotes() {
+    if (!st || st.busy) return;
+    const ids = (st.mergeQuoteIds || []).map(String).filter(Boolean);
+    if (ids.length < 2) {
+      notify("Selecione pelo menos 2 orçamentos.", "info");
+      return;
+    }
+    const prefDate = st.prefDate || st.date || "";
+    st.busy = true;
+    showErr("");
+    renderFoot();
+    renderClient();
+    try {
+      const j = await api("/api/quotes/merge-job", {
+        method: "POST",
+        body: JSON.stringify({ quote_ids: ids }),
+      });
+      const jobId = j.created_job_id || j.data?.work_order_id || null;
+      if (!jobId) throw new Error("Não foi possível unificar os orçamentos.");
+      close();
+      await openEdit(jobId, { fromQuote: true, prefDate });
+      notify(`${ids.length} orçamentos unificados num job.`, "success");
+    } catch (err) {
+      const msg = err && err.message ? String(err.message) : "Não foi possível unificar";
+      if (st) {
+        st.busy = false;
+        showErr(msg);
+        renderFoot();
+        renderClient();
+      }
+      notify(msg, "error");
+    }
+  }
+
   function setClient(kind, id) {
     if (kind === "customer") {
       st.customerId = id;
@@ -1963,10 +2754,23 @@
     }
     st.pickerOpen = false;
     st.pickerQuery = "";
+    st.openQuotes = null;
+    st.openQuotesDismissed = false;
+    st.openQuotesLoading = !st.id;
+    st.mergeQuoteIds = [];
     repriceLines();
     renderAll();
+    if (!st.id) void refreshOpenQuotes();
     setTimeout(() => {
       if (!st) return;
+      const code = $("jmClientCode");
+      if (code) {
+        code.focus();
+        try {
+          code.select();
+        } catch (_) {}
+        return;
+      }
       if (!st.address.trim()) $("jobAddress")?.focus();
     }, 30);
   }
@@ -2029,7 +2833,7 @@
   async function loadLookups() {
     if (lookupsReady) return;
     const [u, c, b, p] = await Promise.all([
-      api("/api/users?limit=100").catch(() => ({ data: [] })),
+      api("/api/users?limit=200").catch(() => ({ data: [] })),
       api("/api/customers?limit=200").catch(() => ({ data: [] })),
       api("/api/builders?limit=100").catch(() => api("/api/builders/select").catch(() => ({ data: [] }))),
       api("/api/work-orders/pricing-catalog").catch(() => ({ data: [] })),
@@ -2097,11 +2901,13 @@
     st = blankState();
     const o = opts || {};
     let start = o.start ? new Date(o.start) : null;
+    let keepPrefDate = Boolean(o.start);
     if (!start || Number.isNaN(start.getTime())) {
       const pref = sessionStorage.getItem("obramate_job_pref_start");
       if (pref) {
         sessionStorage.removeItem("obramate_job_pref_start");
         start = new Date(pref);
+        keepPrefDate = true;
       }
     }
     st.allDay = true;
@@ -2114,6 +2920,7 @@
       t.setDate(t.getDate() + 1);
       st.date = ymd(t);
     }
+    st.prefDate = keepPrefDate ? st.date || "" : "";
     if (meId && users.some((x) => String(x.id) === String(meId))) {
       st.assigneeId = String(meId);
       st.members.add(String(meId));
@@ -2146,7 +2953,9 @@
       st.titleTouched = true;
     }
     st.lines = [blankLine()];
+    st.extras = [];
     open();
+    if ((st.customerId || st.builderId) && !st.pickerOpen) void refreshOpenQuotes();
     if (o.openServices) {
       setTimeout(() => {
         if (st && !st.id) openJobServicesPopup().catch(() => {});
@@ -2157,26 +2966,51 @@
   async function openScheduleLixaFrom(wo) {
     const base = wo || null;
     if (!base || !base.id) return;
-    const start = nextDayAfter(base.scheduled_end || base.scheduled_start);
-    await openCreate({
-      start,
-      sector: "sand_finish",
-      relatedWorkOrderId: base.id,
-      relatedWorkOrder: {
+    if (!canManage) {
+      notify("Sem permissão para agendar jobs.", "error");
+      return;
+    }
+    // Same ticket → Installation + Sand & Finish (keep install date; no second job).
+    if (String(base.sector || "") === "both") {
+      await openStartDate(base);
+      return;
+    }
+    // Prefer the already scheduled service day (not "today" / next day).
+    const refIso = base.scheduled_start || base.scheduled_end || null;
+    const sand = refIso
+      ? (() => {
+          const d = new Date(refIso);
+          return Number.isNaN(d.getTime()) ? nextDayAfter(null) : new Date(d.getFullYear(), d.getMonth(), d.getDate(), 7, 30, 0, 0);
+        })()
+      : nextDayAfter(null);
+    try {
+      const j = await api(`/api/work-orders/${encodeURIComponent(base.id)}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          sector: "both",
+          sand_scheduled_start: sand.toISOString(),
+        }),
+      });
+      const updated = j.data || {};
+      notify("Job atualizado para Installation + Sand & Finish.", "success");
+      const snap = {
+        ...base,
+        ...updated,
         id: base.id,
-        number: base.number,
-        title: base.title,
-        sector: base.sector,
-        status: base.status,
-      },
-      customerId: base.customer_id || null,
-      builderId: base.builder_id || null,
-      sourceType: base.source_type || "particular",
-      sourceName: base.source_name || "",
-      address: base.address || "",
-      notes: base.notes || "",
-      title: base.title ? `${base.title} — Lixa` : "Lixa",
-    });
+        sector: "both",
+        title: updated.title || base.title,
+        scheduled_start: updated.scheduled_start || base.scheduled_start || null,
+        sand_scheduled_start: updated.sand_scheduled_start || sand.toISOString(),
+      };
+      savedListeners.forEach((fn) => {
+        try {
+          fn({ id: base.id });
+        } catch (_) {}
+      });
+      await openStartDate(snap);
+    } catch (err) {
+      notify((err && err.message) || "Não foi possível agendar a Lixa.", "error");
+    }
   }
 
   /** True when the job title looks auto-built from a client display label (+ optional street). */
@@ -2190,6 +3024,121 @@
     const street = String(st.address || "").split(",")[0].trim();
     if (street && t === `${lbl} — ${street}`) return true;
     return false;
+  }
+
+  function ensureClientRefDialog() {
+    if ($("jmClientRefBox")) return;
+    const wrap = document.createElement("div");
+    wrap.innerHTML = `<div class="jm-start" id="jmClientRefBox" hidden>
+      <div class="jm-start__panel" role="dialog" aria-modal="true" aria-labelledby="jmClientRefHeading">
+        <button type="button" class="jm-start__x" id="jmClientRefClose" aria-label="Fechar">×</button>
+        <h2 id="jmClientRefHeading">ID do cliente já existe</h2>
+        <p class="jm-hint" id="jmClientRefMsg"></p>
+        <div class="jm-start__acts">
+          <button type="button" class="jm-btn" id="jmClientRefNew">Criar um novo</button>
+          <button type="button" class="jm-btn jm-btn--pri" id="jmClientRefUse">Utilizar o existente</button>
+        </div>
+      </div>
+    </div>`;
+    document.body.appendChild(wrap.firstElementChild);
+    const close = () => {
+      $("jmClientRefBox").hidden = true;
+      st._clientRefChoice = null;
+    };
+    $("jmClientRefClose").addEventListener("click", close);
+    $("jmClientRefNew").addEventListener("click", () => {
+      const choice = st._clientRefChoice;
+      close();
+      if (!choice) return;
+      st.clientRefPrompted = choice.code;
+      st.clientRef = choice.code;
+      notify(
+        choice.kind === "job" ? "Continuando com um job novo neste ID." : "Mantendo o ID sem trocar o cliente.",
+        "info",
+      );
+      if (st.id) {
+        void api(`/api/work-orders/${encodeURIComponent(st.id)}`, {
+          method: "PUT",
+          body: JSON.stringify({ client_ref: choice.code || null }),
+        }).catch((err) => notify(err.message || "Não foi possível salvar o ID do cliente", "error"));
+      }
+    });
+    $("jmClientRefUse").addEventListener("click", () => {
+      const choice = st._clientRefChoice;
+      close();
+      if (!choice) return;
+      st.clientRefPrompted = choice.code;
+      if (choice.kind === "job" && choice.jobId) {
+        void openEdit(choice.jobId)
+          .then(() => notify("Job existente aberto.", "success"))
+          .catch((err) => notify(err.message || "Não foi possível abrir o job.", "error"));
+        return;
+      }
+      if (choice.kind === "customer" && choice.customerId) {
+        setClient("customer", choice.customerId);
+        st.clientRef = choice.code;
+        const input = $("jmClientCode");
+        if (input) input.value = choice.code;
+        renderClient();
+        renderSide();
+        notify("Cliente existente selecionado.", "success");
+        if (st.id) {
+          void api(`/api/work-orders/${encodeURIComponent(st.id)}`, {
+            method: "PUT",
+            body: JSON.stringify({ client_ref: choice.code || null, customer_id: choice.customerId }),
+          }).catch((err) => notify(err.message || "Não foi possível salvar", "error"));
+        }
+      }
+    });
+  }
+
+  function askClientRefChoice(payload) {
+    ensureClientRefDialog();
+    st._clientRefChoice = payload;
+    const msg = $("jmClientRefMsg");
+    if (payload.kind === "job") {
+      msg.textContent = `Já existe o job #${payload.number || "—"} (${payload.title || "sem título"}) com o ID “${payload.code}”. Abrir o existente ou continuar criando um novo?`;
+    } else {
+      msg.textContent = `Já existe o cliente “${payload.name || "Cliente"}” com o ID “${payload.code}”. Utilizar este cliente ou criar um novo job com o mesmo ID?`;
+    }
+    $("jmClientRefBox").hidden = false;
+  }
+
+  async function lookupClientRefConflict(code) {
+    const norm = String(code || "").trim().toLowerCase();
+    if (!norm) return null;
+    try {
+      const [jobsRes, custRes] = await Promise.all([
+        api(`/api/work-orders?q=${encodeURIComponent(code)}&limit=40`).catch(() => null),
+        api(`/api/customers?q=${encodeURIComponent(code)}&limit=40`).catch(() => null),
+      ]);
+      const jobs = (jobsRes?.data || jobsRes?.items || []).filter((w) => {
+        if (!w || !w.id) return false;
+        if (st.id && String(w.id) === String(st.id)) return false;
+        return String(w.client_ref || "").trim().toLowerCase() === norm;
+      });
+      if (jobs.length) {
+        const w = jobs[0];
+        return {
+          kind: "job",
+          code,
+          jobId: w.id,
+          number: w.number,
+          title: w.title || w.customer_name || "",
+        };
+      }
+      const customersList = custRes?.data || custRes?.items || [];
+      const hit = customersList.find((c) => String(c.client_code || "").trim().toLowerCase() === norm);
+      if (hit && (!st.customerId || String(hit.id) !== String(st.customerId))) {
+        return {
+          kind: "customer",
+          code,
+          customerId: hit.id,
+          name: hit.display_name || hit.name || hit.company || "Cliente",
+        };
+      }
+    } catch (_) {}
+    return null;
   }
 
   async function saveClientCode(raw) {
@@ -2208,6 +3157,16 @@
       try {
         input.setSelectionRange(selStart, selEnd ?? selStart);
       } catch (_) {}
+    }
+    if (code && code !== st.clientRefPrompted) {
+      const conflict = await lookupClientRefConflict(code);
+      if (conflict) {
+        askClientRefChoice(conflict);
+        return;
+      }
+      st.clientRefPrompted = code;
+    } else if (!code) {
+      st.clientRefPrompted = "";
     }
     if (!st.id) return;
     try {
@@ -2265,23 +3224,78 @@
     st.sandDate = sand && !Number.isNaN(sand.getTime()) ? ymd(sand) : "";
     st.assigneeId = wo.assigned_user_id ? String(wo.assigned_user_id) : null;
     (wo.members || []).forEach((m) => st.members.add(String(m.user_id)));
-    st.lines = (wo.line_items || []).map((li) =>
-      blankLine({
-        pricingId: li.pricing_item_id || null,
-        name: li.service_name || "",
-        qty: li.quantity_sqft || 0,
-        price: li.unit_price || 0,
-        unit: li.unit || null,
-        priceTouched: true,
-        manual: !li.pricing_item_id,
-        note: li.notes || "",
-      }),
-    );
+    st.lines = [];
+    st.extras = [];
+    (wo.line_items || []).forEach((li) => {
+      const extra = parseExtraNote(li.notes);
+      if (extra) {
+        st.extras.push(
+          blankExtra({
+            name: li.service_name || "",
+            qty: li.quantity_sqft || 0,
+            price: li.unit_price || 0,
+            note: extra.note,
+            sendToClient: extra.sendToClient,
+            showOnInvoice: extra.showOnInvoice,
+          }),
+        );
+        return;
+      }
+      st.lines.push(
+        blankLine({
+          pricingId: li.pricing_item_id || null,
+          name: li.service_name || "",
+          qty: li.quantity_sqft || 0,
+          price: li.unit_price || 0,
+          unit: li.unit || null,
+          priceTouched: true,
+          manual: !li.pricing_item_id,
+          note: li.notes || "",
+        }),
+      );
+    });
+    st.quoteId = wo.quote_id || (wo.quotes && wo.quotes[0] && wo.quotes[0].id) || null;
     st.notes = wo.notes || "";
+    st.lockboxCode = parseJobLockbox(st.notes) || "";
+    st.needsLockbox = Boolean(st.lockboxCode);
     st.attention = wo.campo_attention || "";
+    st.homeownerName = wo.homeowner_name || "";
+    st.homeownerPhone = wo.homeowner_phone || "";
     st.needsDelivery = Boolean(wo.needs_delivery);
     st.deliveryPickupAddress = wo.delivery_pickup_address || "";
     st.deliveryNotes = wo.delivery_notes || "";
+    {
+      const del = wo.delivery_scheduled_start ? new Date(wo.delivery_scheduled_start) : null;
+      st.deliveryDate = del && !Number.isNaN(del.getTime()) ? ymd(del) : "";
+    }
+    {
+      const rawStops = Array.isArray(wo.deliveries) ? wo.deliveries : [];
+      st.deliveries = rawStops.length
+        ? rawStops.map((d) => {
+            const at = d.scheduled_start ? new Date(d.scheduled_start) : null;
+            return {
+              id: d.id || blankDeliveryStop().id,
+              date: at && !Number.isNaN(at.getTime()) ? ymd(at) : "",
+              pickup: d.pickup_address || "",
+              locationId: d.location_id || null,
+              locationName: d.location_name || "",
+              hours: d.hours || "",
+              notes: d.notes || "",
+            };
+          })
+        : st.needsDelivery
+          ? [
+              {
+                ...blankDeliveryStop(),
+                date: st.deliveryDate || "",
+                pickup: st.deliveryPickupAddress || "",
+                notes: st.deliveryNotes || "",
+              },
+            ]
+          : [];
+    }
+    st.deliveryLocOpen = null;
+    st.deliveryLocQuery = "";
     st.deliveryAttachment = wo.delivery_attachment || null;
     st.deliveryAttachmentPending = null;
     st.clearDeliveryAttachment = false;
@@ -2303,10 +3317,21 @@
       st.svcPanel = null;
       st.notes = "";
       if (!wo.scheduled_start) {
-        st.date = "";
-        st.time = "";
+        const keep = String((opts && opts.prefDate) || "").trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(keep)) {
+          st.date = keep;
+          st.prefDate = keep;
+        } else {
+          st.date = "";
+          st.time = "";
+        }
       }
-      notify("Job criado a partir do orçamento. Complete Start, Setor, Equipe, Campo e Notas.", "success");
+      notify(
+        checklistEnabled
+          ? "Job criado a partir do orçamento. Complete Start, Setor, Equipe, Campo e Notas."
+          : "Job criado a partir do orçamento. Complete Start, Setor, Equipe e Notas.",
+        "success",
+      );
     }
     open();
   }
@@ -2326,27 +3351,42 @@
       builder_id: st.builderId || null,
       address: st.address.trim() || null,
       client_ref: String(st.clientRef || "").trim() || null,
+      homeowner_name: isBuilderJob() ? String(st.homeownerName || "").trim() || null : null,
+      homeowner_phone: isBuilderJob() ? String(st.homeownerPhone || "").trim() || null : null,
       manager_id: st.managerId || null,
       notes: st.notes.trim() || null,
-      campo_attention: st.attention.trim() || null,
       needs_delivery: Boolean(st.needsDelivery),
+      deliveries: st.needsDelivery ? deliveriesPayload() : [],
       delivery_pickup_address: st.needsDelivery ? st.deliveryPickupAddress.trim() || null : null,
       delivery_notes: st.needsDelivery ? st.deliveryNotes.trim() || null : null,
+      delivery_scheduled_start:
+        st.needsDelivery && dayFromYmd(st.deliveryDate) ? dayFromYmd(st.deliveryDate).toISOString() : null,
       clear_delivery_attachment: Boolean(st.clearDeliveryAttachment),
       assigned_user_id: st.assigneeId || null,
       member_user_ids: members,
-      line_items: st.lines
-        .filter((l) => l.pricingId || String(l.name || "").trim())
-        .map((l) => {
-          const item = l.pricingId ? pricing.find((p) => p.id === l.pricingId) : null;
-          return {
-            pricing_item_id: l.pricingId || null,
-            service_name: (item?.name || l.name || "Serviço").trim(),
-            quantity_sqft: Number(l.qty) || 0,
-            unit_price: Number(l.price) || 0,
-            notes: String(l.note || "").trim() || null,
-          };
-        }),
+      line_items: [
+        ...st.lines
+          .filter((l) => l.pricingId || String(l.name || "").trim())
+          .map((l) => {
+            const item = l.pricingId ? pricing.find((p) => p.id === l.pricingId) : null;
+            return {
+              pricing_item_id: l.pricingId || null,
+              service_name: (item?.name || l.name || "Serviço").trim(),
+              quantity_sqft: Number(l.qty) || 0,
+              unit_price: Number(l.price) || 0,
+              notes: String(l.note || "").trim() || null,
+            };
+          }),
+        ...(st.extras || [])
+          .filter((ex) => String(ex.name || "").trim())
+          .map((ex) => ({
+            pricing_item_id: null,
+            service_name: String(ex.name || "Extra").trim().slice(0, 200),
+            quantity_sqft: Number(ex.qty) || 0,
+            unit_price: Number(ex.price) || 0,
+            notes: encodeExtraNote(ex),
+          })),
+      ],
       scheduled_start: start ? start.toISOString() : null,
       scheduled_end: null,
       sand_scheduled_start: st.sector === "both" && dayFromYmd(st.sandDate) ? dayFromYmd(st.sandDate).toISOString() : null,
@@ -2365,17 +3405,39 @@
   function sectionPayload(full) {
     if (st.section === "all") return full;
     const pick = {
-      details: ["title", "source_type", "source_name", "customer_id", "builder_id", "manager_id", "address", "status"],
-      schedule: ["scheduled_start", "scheduled_end", "sand_scheduled_start", "all_day", "sector"],
+      details: [
+        "title",
+        "source_type",
+        "source_name",
+        "customer_id",
+        "builder_id",
+        "manager_id",
+        "address",
+        "status",
+        "homeowner_name",
+        "homeowner_phone",
+        "client_ref",
+      ],
+      schedule: [
+        "scheduled_start",
+        "scheduled_end",
+        "sand_scheduled_start",
+        "all_day",
+        "sector",
+        "needs_delivery",
+        "deliveries",
+        "delivery_pickup_address",
+        "delivery_notes",
+        "delivery_scheduled_start",
+        "clear_delivery_attachment",
+      ],
       services: ["line_items"],
       team: ["assigned_user_id", "member_user_ids"],
-      campo: checklistEnabled
-        ? ["campo_attention", "campo_checklist", "needs_delivery", "delivery_pickup_address", "delivery_notes", "clear_delivery_attachment"]
-        : ["campo_attention", "needs_delivery", "delivery_pickup_address", "delivery_notes", "clear_delivery_attachment"],
+      campo: checklistEnabled ? ["campo_checklist"] : [],
       notes: ["notes"],
     }[st.section];
     const out = {};
-    pick.forEach((k) => {
+    (pick || []).forEach((k) => {
       if (full[k] !== undefined) out[k] = full[k];
     });
     // Scheduling a draft from the agenda section moves it to "scheduled".
@@ -2386,13 +3448,15 @@
   function validate(body) {
     const all = st.section === "all";
     if ((all || st.section === "details") && !st.customerId && !st.builderId && !(st.titleTouched && st.title.trim())) {
-      return "Escolha para quem é o job (ou escreva um título em Editar).";
-    }
-    if ((all || st.section === "schedule") && st.sector === "both" && st.date && st.sandDate && st.date === st.sandDate) {
-      return "Installation e Sand & Finish precisam de datas diferentes.";
+      return "Escolha para quem é o job.";
     }
     if ((all || st.section === "schedule") && body.scheduled_start && body.scheduled_end) {
       if (new Date(body.scheduled_end) <= new Date(body.scheduled_start)) return "O fim precisa ser depois do início.";
+    }
+    if ((all || st.section === "schedule") && st.needsDelivery) {
+      ensureDeliveryStops();
+      const missing = (st.deliveries || []).some((d) => !String(d.date || "").trim());
+      if (missing || !(st.deliveries || []).length) return "Informe a data de cada Delivery.";
     }
     if (all || st.section === "services") {
       const bad = st.lines.find((l) => (l.pricingId || String(l.name || "").trim()) && !(Number(l.qty) > 0));
@@ -2404,6 +3468,11 @@
   async function save(e) {
     e.preventDefault();
     if (!canManage || !st || st.busy) return;
+    syncNotesFromLockbox();
+    if (st.needsDelivery) {
+      ensureDeliveryStops();
+      syncLegacyDeliveryFromStops();
+    }
     const full = payload();
     const err = validate(full);
     if (err) {
@@ -2485,7 +3554,13 @@
 
   async function cancelJob() {
     if (!st?.id || !canManage) return;
-    if (!confirm("Excluir este job? Ele será marcado como cancelado e sairá da agenda.")) return;
+    const okDel = await window.crmConfirm({
+      title: "Excluir este job?",
+      text: "Ele será marcado como cancelado e sairá da agenda.",
+      ok: "Excluir job",
+      danger: true,
+    });
+    if (!okDel) return;
     try {
       await api(`/api/work-orders/${st.id}`, { method: "DELETE" });
       notify("Job excluído.", "success");
@@ -2510,7 +3585,7 @@
       else if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(d.url);
         notify("Link copiado.", "success");
-      } else window.prompt("Link do job:", d.url);
+      } else await window.crmShare({ url: d.url, title: "Link do job" });
     } catch (err) {
       notify(err.message || "Erro ao gerar o link", "error");
     }
@@ -2550,7 +3625,13 @@
     renderTeam();
   }
   async function tempDel(id) {
-    if (!confirm("Remover este funcionário extra? O link dele deixa de funcionar.")) return;
+    const okDel = await window.crmConfirm({
+      title: "Remover este funcionário extra?",
+      text: "O link dele deixa de funcionar.",
+      ok: "Remover funcionário",
+      danger: true,
+    });
+    if (!okDel) return;
     try {
       await api(`/api/work-orders/${st.id}/temp-workers/${id}`, { method: "DELETE" });
       st.temps = st.temps.filter((t) => t.id !== id);
@@ -2625,6 +3706,7 @@
         break;
       case "change-client":
         st.pickerOpen = true;
+        st.openQuotesDismissed = false;
         renderClient();
         setTimeout(() => $("jmClientQ")?.focus(), 20);
         break;
@@ -2632,6 +3714,37 @@
         st.pickerOpen = false;
         st.pickerQuery = "";
         renderClient();
+        if (!st.id) void refreshOpenQuotes();
+        break;
+      case "skip-quotes":
+        st.openQuotesDismissed = true;
+        st.mergeQuoteIds = [];
+        renderClient();
+        break;
+      case "import-quote":
+        importOpenQuote(btn.getAttribute("data-id"));
+        break;
+      case "toggle-merge-quote":
+        toggleMergeQuote(btn.getAttribute("data-id"));
+        break;
+      case "merge-quotes":
+        void mergeSelectedQuotes();
+        break;
+      case "extra-add":
+        st.extras = st.extras || [];
+        st.extras.push(blankExtra());
+        renderExtras();
+        refreshNumbers();
+        break;
+      case "extra-del": {
+        const i = Number(btn.getAttribute("data-i"));
+        if (Number.isFinite(i)) st.extras.splice(i, 1);
+        renderExtras();
+        refreshNumbers();
+        break;
+      }
+      case "extra-send":
+        void sendExtrasToClient();
         break;
       case "quick-client":
         quickCreateClient(btn.getAttribute("data-type"));
@@ -2755,19 +3868,76 @@
         scheduleQuotePriceSync();
         break;
       }
-      case "user": {
-        const id = String(btn.getAttribute("data-id"));
-        if (st.members.has(id) || String(st.assigneeId) === id) {
-          st.members.delete(id);
-          if (String(st.assigneeId) === id) st.assigneeId = [...st.members][0] || null;
-        } else {
-          st.members.add(id);
-          if (!st.assigneeId) st.assigneeId = id;
+      case "sector": {
+        const id = btn.getAttribute("data-id");
+        st.sector = id === "installation" || id === "sand_finish" || id === "both" ? id : null;
+        if (st.sector !== "both") {
+          st.sandDate = "";
+        } else if (!st.sandDate && st.date) {
+          // Keep the already scheduled service day when adding Sand & Finish.
+          st.sandDate = st.date;
         }
+        renderWhen();
+        renderSide();
+        renderFoot();
+        break;
+      }
+      case "team-toggle":
+        st.teamMenuOpen = !st.teamMenuOpen;
+        if (!st.teamMenuOpen) st.teamQuery = "";
         renderTeam();
+        if (st.teamMenuOpen) {
+          setTimeout(() => {
+            $("jmTeam")?.querySelector(".jm-team__panel")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+            focusTeamSearch();
+          }, 40);
+        }
+        break;
+      case "delivery-add": {
+        ensureDeliveryStops();
+        if ((st.deliveries || []).length >= 8) break;
+        const stop = blankDeliveryStop();
+        stop.date = st.date || "";
+        st.deliveries.push(stop);
+        syncLegacyDeliveryFromStops();
+        renderDeliveryBox();
         renderSide();
         break;
       }
+      case "delivery-del": {
+        const i = Number(btn.getAttribute("data-i"));
+        if (!Number.isFinite(i) || i < 0) break;
+        st.deliveries.splice(i, 1);
+        if (!st.deliveries.length) {
+          st.needsDelivery = false;
+          if ($("jmNeedsDelivery")) $("jmNeedsDelivery").checked = false;
+        }
+        st.deliveryLocOpen = null;
+        syncLegacyDeliveryFromStops();
+        renderDeliveryBox();
+        renderSide();
+        break;
+      }
+      case "delivery-loc-pick": {
+        const i = Number(btn.getAttribute("data-i"));
+        const id = btn.getAttribute("data-id");
+        const loc = (deliveryLocations || []).find((x) => String(x.id) === String(id));
+        const stop = st.deliveries?.[i];
+        if (!loc || !stop) break;
+        stop.locationId = loc.id;
+        stop.locationName = loc.name || "";
+        stop.hours = loc.hours || "";
+        stop.pickup = loc.address || stop.pickup || "";
+        st.deliveryLocOpen = null;
+        st.deliveryLocQuery = "";
+        syncLegacyDeliveryFromStops();
+        renderDeliveryBox();
+        renderSide();
+        break;
+      }
+      case "user":
+        toggleTeamUser(btn.getAttribute("data-id"));
+        break;
       case "cancel-job":
         cancelJob();
         break;
@@ -2797,23 +3967,111 @@
   function onInput(e) {
     if (!st) return;
     const t = e.target;
+    if (t.hasAttribute && t.hasAttribute("data-ex")) {
+      const i = Number(t.getAttribute("data-i"));
+      const ex = st.extras?.[i];
+      if (!ex) return;
+      const f = t.getAttribute("data-ex");
+      if (f === "name") ex.name = t.value;
+      if (f === "qty") ex.qty = Number(String(t.value).replace(",", ".")) || 0;
+      if (f === "price") ex.price = Number(String(t.value).replace(",", ".")) || 0;
+      if (f === "note") ex.note = t.value;
+      const row = t.closest(".jm-extra");
+      const tot = row?.querySelector(".jm-extra__tot");
+      if (tot) tot.textContent = money(lineTotal(ex));
+      refreshNumbers();
+      return;
+    }
     if (t.hasAttribute && t.hasAttribute("data-ck-text")) {
       const c = st.checklist[Number(t.getAttribute("data-ck-text"))];
       if (c) c.text = t.value;
       return;
     }
+    if (t.hasAttribute && t.hasAttribute("data-del-f")) {
+      const i = Number(t.getAttribute("data-i"));
+      const stop = st.deliveries?.[i];
+      if (!stop) return;
+      const f = t.getAttribute("data-del-f");
+      if (f === "date") stop.date = t.value || "";
+      if (f === "pickup") {
+        stop.pickup = t.value;
+        stop.locationId = null;
+        stop.locationName = "";
+        stop.hours = "";
+        st.deliveryLocOpen = i;
+        st.deliveryLocQuery = t.value;
+        const panel = t.closest(".jm-delivery__loc")?.querySelector(".jm-delivery__loc-panel");
+        const list = t.closest(".jm-delivery__loc")?.querySelector(".jm-delivery__loc-list");
+        if (panel) panel.hidden = false;
+        if (list) list.innerHTML = deliveryLocOptionsHtml(i, st.deliveryLocQuery);
+      }
+      if (f === "notes") stop.notes = t.value;
+      if (f === "loc-q") {
+        st.deliveryLocQuery = t.value;
+        st.deliveryLocOpen = i;
+        const list = t.closest(".jm-delivery__loc")?.querySelector(".jm-delivery__loc-list");
+        if (list) list.innerHTML = deliveryLocOptionsHtml(i, st.deliveryLocQuery);
+        return;
+      }
+      syncLegacyDeliveryFromStops();
+      renderSide();
+      return;
+    }
     switch (t.id) {
-      case "jmAttention":
-        st.attention = t.value;
+      case "jmTeamQ":
+        st.teamQuery = t.value;
+        refreshTeamList();
         return;
       case "jmNeedsDelivery":
         st.needsDelivery = Boolean(t.checked);
         if (!st.needsDelivery) {
           st.clearDeliveryAttachment = true;
           st.deliveryAttachmentPending = null;
+          st.deliveryDate = "";
+          st.deliveries = [];
+          st.deliveryLocOpen = null;
+        } else {
+          ensureDeliveryStops();
+          if (st.deliveries[0] && !st.deliveries[0].date && st.date) st.deliveries[0].date = st.date;
         }
+        syncLegacyDeliveryFromStops();
         renderDeliveryBox();
         renderSide();
+        return;
+      case "jmHomeownerName":
+        st.homeownerName = t.value;
+        return;
+      case "jmHomeownerPhone":
+        st.homeownerPhone = t.value;
+        return;
+      case "jmNeedsLockbox":
+        st.needsLockbox = Boolean(t.checked);
+        if (!st.needsLockbox) st.lockboxCode = "";
+        syncNotesFromLockbox();
+        renderLockbox();
+        renderSide();
+        if (st.needsLockbox) setTimeout(() => $("jmLockboxCode")?.focus(), 30);
+        return;
+      case "jmLockboxCode": {
+        const caret = typeof t.selectionStart === "number" ? t.selectionStart : null;
+        st.lockboxCode = sanitizeLockboxCode(t.value);
+        st.needsLockbox = true;
+        syncNotesFromLockbox();
+        renderLockbox();
+        renderSide();
+        setTimeout(() => {
+          const inp = $("jmLockboxCode");
+          if (!inp) return;
+          inp.focus();
+          const n = caret == null ? inp.value.length : Math.min(caret, inp.value.length);
+          try {
+            inp.setSelectionRange(n, n);
+          } catch (_) {}
+        }, 0);
+        return;
+      }
+      case "jmDeliveryDate":
+        st.deliveryDate = t.value || "";
         return;
       case "jmDeliveryPickup":
         // Address autocomplete writes the value without an input event.
@@ -2825,6 +4083,7 @@
         return;
       case "jmClientQ":
         st.pickerQuery = t.value;
+        st.pickerKb = 0;
         renderPickerKeepFocus();
         remoteSearch(t.value.trim());
         return;
@@ -2851,10 +4110,19 @@
         st.sourceName = t.value;
         st.sourceNameAuto = false;
         return;
-      case "jobNotes":
+      case "jobNotes": {
         st.notes = t.value;
+        const code = parseJobLockbox(st.notes);
+        if (code) {
+          st.lockboxCode = code;
+          st.needsLockbox = true;
+        } else if (st.needsLockbox && !code) {
+          // Keep checkbox on while typing empty slots; only clear code mirror.
+          st.lockboxCode = "";
+        }
         renderLockbox();
         return;
+      }
       default:
         break;
     }
@@ -2919,6 +4187,16 @@
   function onChange(e) {
     if (!st) return;
     const t = e.target;
+    if (t.hasAttribute && t.hasAttribute("data-ex")) {
+      const i = Number(t.getAttribute("data-i"));
+      const ex = st.extras?.[i];
+      if (!ex) return;
+      const f = t.getAttribute("data-ex");
+      if (f === "send") ex.sendToClient = Boolean(t.checked);
+      if (f === "invoice") ex.showOnInvoice = Boolean(t.checked);
+      renderExtras();
+      return;
+    }
     switch (t.id) {
       case "jmDate":
         st.date = t.value;
@@ -2929,14 +4207,33 @@
         st.sandDate = t.value;
         renderSide();
         return;
+      case "jmDeliveryDate":
+        st.deliveryDate = t.value || "";
+        renderSide();
+        return;
       case "jmNeedsDelivery":
         st.needsDelivery = Boolean(t.checked);
         if (!st.needsDelivery) {
           st.clearDeliveryAttachment = true;
           st.deliveryAttachmentPending = null;
+          st.deliveryDate = "";
+          st.deliveries = [];
+          st.deliveryLocOpen = null;
+        } else {
+          ensureDeliveryStops();
+          if (st.deliveries[0] && !st.deliveries[0].date && st.date) st.deliveries[0].date = st.date;
         }
+        syncLegacyDeliveryFromStops();
         renderDeliveryBox();
         renderSide();
+        return;
+      case "jmNeedsLockbox":
+        st.needsLockbox = Boolean(t.checked);
+        if (!st.needsLockbox) st.lockboxCode = "";
+        syncNotesFromLockbox();
+        renderLockbox();
+        renderSide();
+        if (st.needsLockbox) setTimeout(() => $("jmLockboxCode")?.focus(), 30);
         return;
       case "jmDeliveryFile": {
         const file = t.files && t.files[0];
@@ -2961,13 +4258,6 @@
       case "jmManager":
         st.managerId = t.value || null;
         renderSide();
-        return;
-      case "jmSector":
-        st.sector = t.value === "installation" || t.value === "sand_finish" || t.value === "both" ? t.value : null;
-        if (st.sector !== "both") st.sandDate = "";
-        renderWhen();
-        renderSide();
-        renderFoot();
         return;
       case "jmRelated":
         st.relatedWorkOrderId = t.value || null;
@@ -3073,6 +4363,46 @@
 
   function onKey(e) {
     if (!st) return;
+    // Address suggestions open: let address helper own Enter/Esc; don't close modal.
+    if (
+      (e.target.id === "jobAddress" || e.target.getAttribute?.("data-del-f") === "pickup") &&
+      typeof window.sfAddressSuggestionsOpen === "function" &&
+      window.sfAddressSuggestionsOpen()
+    ) {
+      if (e.key === "Enter" || e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      return;
+    }
+    if (e.target.id === "jmClientQ" && st.pickerOpen) {
+      const handled =
+        typeof window.sfHandleListboxKeydown === "function" &&
+        window.sfHandleListboxKeydown(e, {
+          isOpen: () => clientPickerButtons().length > 0,
+          options: () => clientPickerButtons(),
+          getActiveIndex: () => (typeof st.pickerKb === "number" ? st.pickerKb : -1),
+          setActiveIndex: (i) => {
+            st.pickerKb = i;
+            if (typeof window.sfSyncListboxActive === "function") {
+              window.sfSyncListboxActive(clientPickerButtons(), i, "is-active");
+            } else {
+              clientPickerButtons().forEach((btn, idx) => btn.classList.toggle("is-active", idx === i));
+            }
+          },
+          selectIndex: () => selectClientPickerActive(),
+          close: () => {
+            st.pickerKb = -1;
+            clientPickerButtons().forEach((btn) => btn.classList.remove("is-active"));
+          },
+        });
+      if (handled) return;
+      if (e.key === "Enter") {
+        e.preventDefault();
+        selectClientPickerActive();
+        return;
+      }
+    }
     const inSvc = e.target.closest?.("[data-svc-editor]");
     if (inSvc && (e.key === "ArrowDown" || e.key === "ArrowUp") && e.target.getAttribute?.("data-f") === "panel-q") {
       if (st.svcPanel && !st.svcPanel.open) {
@@ -3141,9 +4471,10 @@
       $("jmSvc")?.querySelector('[data-act="svc-save"]')?.click();
       return;
     }
-    if (e.key === "Enter" && e.target.id === "jmClientQ") {
+    if (e.key === "Enter" && e.target.id === "jmClientCode") {
       e.preventDefault();
-      $("jmClient").querySelector('[data-act="pick"]')?.click();
+      $("jobAddress")?.focus();
+      return;
     }
     if (e.key === "Enter" && e.target.id === "jmCkNew") {
       e.preventDefault();
@@ -3217,9 +4548,17 @@
     document.addEventListener("pointerdown", (e) => {
       if (!st || !modal.classList.contains("is-open")) return;
       if (e.target.closest(".jm-svc-pick")) return;
-      if (!st.svcPanel?.open) return;
-      st.svcPanel.open = false;
-      renderServices();
+      if (st.svcPanel?.open) {
+        st.svcPanel.open = false;
+        renderServices();
+      }
+      // Close team picker only on outside taps — use closest on the whole team block
+      // (panel is in-flow, so list taps stay inside .jm-team).
+      if (st.teamMenuOpen && !e.target.closest?.("#jmTeam, .jm-team")) {
+        st.teamMenuOpen = false;
+        st.teamQuery = "";
+        renderTeam();
+      }
     });
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && $("jmSaveRateModal") && !$("jmSaveRateModal").classList.contains("hidden")) {
@@ -3233,6 +4572,12 @@
         return;
       }
       if (e.key === "Escape" && st && modal.classList.contains("is-open")) {
+        if (st.teamMenuOpen) {
+          st.teamMenuOpen = false;
+          renderTeam();
+          e.stopPropagation();
+          return;
+        }
         if (st.svcPanel?.open) {
           st.svcPanel.open = false;
           renderServices();
@@ -3247,8 +4592,11 @@
         }
         // Let the address suggestions close first.
         if (
-          (document.activeElement?.id === "jobAddress" || document.activeElement?.id === "jmDeliveryPickup") &&
-          document.querySelector(".crm-photon-ac:not([hidden]), .pac-container[style*='block']")
+          (document.activeElement?.id === "jobAddress" ||
+            document.activeElement?.getAttribute?.("data-del-f") === "pickup") &&
+          (typeof window.sfAddressSuggestionsOpen === "function"
+            ? window.sfAddressSuggestionsOpen()
+            : document.querySelector(".crm-photon-ac:not([hidden]), .pac-container"))
         )
           return;
         close();
@@ -3314,7 +4662,13 @@
     $("jmStartDateLabel").firstChild.textContent = both ? "Início Installation" : "Data de início";
     $("jmStartSandWrap").hidden = !both;
     $("jmStartDate").value = wo.scheduled_start ? ymd(new Date(wo.scheduled_start)) : "";
-    $("jmStartSand").value = wo.sand_scheduled_start ? ymd(new Date(wo.sand_scheduled_start)) : "";
+    if (wo.sand_scheduled_start) {
+      $("jmStartSand").value = ymd(new Date(wo.sand_scheduled_start));
+    } else if (both && wo.scheduled_start) {
+      $("jmStartSand").value = ymd(new Date(wo.scheduled_start));
+    } else {
+      $("jmStartSand").value = "";
+    }
     $("jmStartBox").hidden = false;
   }
   async function saveStartDate() {
@@ -3325,10 +4679,6 @@
     const both = wo.sector === "both";
     if (!date && !(both && sand)) {
       notify("Escolha a data de início.", "error");
-      return;
-    }
-    if (both && date && sand && date === sand) {
-      notify("Installation e Sand & Finish precisam de datas diferentes.", "error");
       return;
     }
     const start = date ? dayFromYmd(date) : null;

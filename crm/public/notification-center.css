@@ -1,0 +1,601 @@
+/* =====================================================================
+ * Centro de notificações (sino): ícone de linha igual aos da barra,
+ * painel em blocos por assunto, cada bloco recolhível.
+ * Carregado pelo crm-shell.js em todas as páginas.
+ * ===================================================================== */
+
+/* ---------- Sino ---------- */
+.notification-bell-wrap .notification-bell-icon {
+  display: inline-flex;
+  font-size: 0;
+  line-height: 0;
+}
+
+.notification-bell-wrap .notification-bell-icon svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.notification-bell-wrap .notification-bell-badge {
+  top: 5px;
+  right: 5px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border: 2px solid var(--color-surface, #fff);
+  background: var(--color-accent, #E7792C);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  box-sizing: content-box;
+}
+
+/* No notifications: only the bell (the badge's display:flex would beat [hidden]). */
+.notification-bell-wrap .notification-bell-badge[hidden] {
+  display: none !important;
+}
+
+.notification-bell-wrap .notification-bell-btn[aria-expanded="true"] {
+  background: var(--color-surface-secondary, #F7F8FA);
+  color: var(--color-text-primary, #221E1A);
+}
+
+/* ---------- Painel ---------- */
+.notification-bell-wrap .notification-panel.nc {
+  width: min(400px, calc(100vw - 24px));
+  max-height: min(640px, calc(100vh - 88px));
+  max-height: min(640px, calc(100dvh - 88px));
+  padding: 0;
+  border: 1px solid var(--color-border, #E5E7EB);
+  border-radius: 20px;
+  background: var(--color-surface, #fff);
+  box-shadow: 0 18px 48px rgba(34, 30, 26, 0.16), 0 2px 6px rgba(34, 30, 26, 0.06);
+  color: var(--color-text-primary, #221E1A);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform-origin: top right;
+}
+
+.notification-bell-wrap .notification-panel.nc:not([hidden]) {
+  animation: ncIn 180ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+@keyframes ncIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+}
+
+.nc__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 16px 10px 18px;
+}
+
+.nc__heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.nc__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  color: var(--color-text-primary, #221E1A);
+}
+
+.nc__unread {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(231, 121, 44, 0.12);
+  color: #B4561A;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.nc__unread[hidden] {
+  display: none;
+}
+
+.nc__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.nc__text-btn,
+.nc__icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-text-secondary, #667085);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.nc__text-btn {
+  padding: 0 10px;
+}
+
+.nc__icon-btn {
+  width: 32px;
+}
+
+.nc__icon-btn svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nc__text-btn:disabled,
+.nc__icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .nc__text-btn:not(:disabled):hover {
+    background: var(--color-surface-secondary, #F7F8FA);
+    color: var(--color-text-primary, #221E1A);
+  }
+
+  .nc__icon-btn:not(:disabled):hover {
+    background: rgba(197, 48, 48, 0.08);
+    color: #B42318;
+  }
+}
+
+/* Filtro Todas / Não lidas */
+.nc__tabs {
+  display: flex;
+  gap: 4px;
+  margin: 0 16px 8px 18px;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--color-surface-secondary, #F7F8FA);
+  align-self: flex-start;
+}
+
+.nc__tab {
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--color-text-secondary, #667085);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
+}
+
+.nc__tab[aria-pressed="true"] {
+  background: var(--color-surface, #fff);
+  color: var(--color-text-primary, #221E1A);
+  box-shadow: 0 1px 2px rgba(34, 30, 26, 0.1);
+}
+
+/* Lista */
+.nc__list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 8px 8px;
+}
+
+/* ---------- Blocos ---------- */
+.nc-grp + .nc-grp {
+  margin-top: 4px;
+  border-top: 1px solid var(--color-border, #EEF0F3);
+  padding-top: 4px;
+}
+
+.nc-grp__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--color-text-primary, #221E1A);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .nc-grp__head:hover {
+    background: var(--color-surface-secondary, #F7F8FA);
+  }
+}
+
+.nc-grp__icon {
+  display: inline-flex;
+  color: var(--color-text-secondary, #667085);
+}
+
+.nc-grp__icon svg,
+.nc-grp__chev {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.85;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nc-grp__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.nc-grp__badge,
+.nc-grp__total {
+  min-width: 20px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.nc-grp__badge {
+  background: var(--color-accent, #E7792C);
+  color: #fff;
+}
+
+.nc-grp__total {
+  background: var(--color-surface-secondary, #F2F3F5);
+  color: var(--color-text-secondary, #667085);
+}
+
+.nc-grp__chev {
+  color: var(--color-text-secondary, #667085);
+  transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.nc-grp.is-folded .nc-grp__chev {
+  transform: rotate(-90deg);
+}
+
+/* Recolher: a altura vai a zero (grid 1fr → 0fr), sem medir em JS. */
+.nc-grp__body {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 220ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.nc-grp.is-folded .nc-grp__body {
+  grid-template-rows: 0fr;
+}
+
+.nc-grp__inner {
+  min-height: 0;
+  overflow: hidden;
+  transition: opacity 180ms ease;
+}
+
+.nc-grp.is-folded .nc-grp__inner {
+  opacity: 0;
+}
+
+.nc-grp__more {
+  display: block;
+  margin: 2px 0 6px 52px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #B4561A;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .nc-grp__more:hover {
+    background: rgba(231, 121, 44, 0.1);
+  }
+}
+
+/* ---------- Item ---------- */
+.nc-item {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 28px 10px 10px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 150ms ease, transform 120ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .nc-item:hover {
+    background: var(--color-surface-secondary, #F7F8FA);
+  }
+}
+
+.nc-item:active {
+  transform: scale(0.99);
+}
+
+.nc-item.is-unread {
+  background: rgba(231, 121, 44, 0.05);
+}
+
+/* Ícone uniforme: quadrado arredondado, traço fino, mesma cor para todos */
+.nc-tile {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  background: var(--color-surface-secondary, #F2F3F5);
+  color: var(--color-text-primary, #221E1A);
+}
+
+.nc-tile svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.85;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nc-tile--ok {
+  background: rgba(83, 98, 73, 0.12);
+  color: #536249;
+}
+
+.nc-tile--warn {
+  background: rgba(180, 35, 24, 0.09);
+  color: #B42318;
+}
+
+.nc-tile--mate {
+  background: rgba(231, 121, 44, 0.12);
+  overflow: hidden;
+}
+
+.nc-tile--mate img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+
+.nc-item__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.nc-item__top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--color-text-secondary, #667085);
+}
+
+.nc-item__who {
+  font-weight: 700;
+  color: #B4561A;
+}
+
+.nc-item__who::after {
+  content: "·";
+  margin-left: 6px;
+  color: var(--color-text-secondary, #98A2B3);
+}
+
+.nc-item__time {
+  font-variant-numeric: tabular-nums;
+}
+
+.nc-item__repeat {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--color-surface-secondary, #F2F3F5);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.nc-item__title {
+  font-size: 13.5px;
+  font-weight: 650;
+  line-height: 1.35;
+  color: var(--color-text-primary, #221E1A);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.nc-item:not(.is-unread) .nc-item__title {
+  font-weight: 550;
+  color: #3D3833;
+}
+
+.nc-item__body {
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--color-text-secondary, #667085);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.nc-item__dot {
+  position: absolute;
+  top: 16px;
+  right: 12px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent, #E7792C);
+}
+
+/* ---------- Vazio ---------- */
+.nc-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 20px 24px 28px;
+  text-align: center;
+}
+
+.nc-empty img {
+  width: 84px;
+  height: 76px;
+  object-fit: contain;
+  margin-bottom: 6px;
+}
+
+.nc-empty strong {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.nc-empty span {
+  max-width: 280px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--color-text-secondary, #667085);
+}
+
+/* ---------- Alertas no aparelho (rodapé) ---------- */
+.nc .nc__push {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 14px 10px 18px;
+  border-top: 1px solid var(--color-border, #EEF0F3);
+  border-bottom: 0;
+  background: var(--color-surface-secondary, #F7F8FA);
+}
+
+.nc__push-icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  stroke: var(--color-text-secondary, #667085);
+  fill: none;
+  stroke-width: 1.85;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nc .nc__push .crm-push-panel__status {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--color-text-secondary, #667085);
+}
+
+.nc .nc__push .crm-push-panel__btn {
+  flex: none;
+  width: auto;
+  min-height: 30px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--color-accent, #E7792C);
+  border-radius: 9px;
+  background: var(--color-surface, #fff);
+  color: #B4561A;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.nc .nc__push .crm-push-panel__btn.is-active {
+  border-color: var(--color-border, #D0D5DD);
+  color: var(--color-text-secondary, #667085);
+}
+
+/* ---------- Celular / tablet: painel preso à tela ---------- */
+@media (max-width: 1024px) {
+  html .notification-bell-wrap .notification-panel.nc {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 64px);
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-width: 440px;
+    margin-left: auto;
+    max-height: calc(100vh - 180px);
+    max-height: calc(100dvh - 180px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notification-bell-wrap .notification-panel.nc:not([hidden]) {
+    animation: ncFade 120ms ease both;
+  }
+
+  .nc-grp__body,
+  .nc-grp__chev,
+  .nc-item {
+    transition: none;
+  }
+}
+
+@keyframes ncFade {
+  from {
+    opacity: 0;
+  }
+}
