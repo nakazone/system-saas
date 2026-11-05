@@ -36,6 +36,8 @@
   let weekFilter = null;
   /** ymd of the day chosen on the week strip, or null to show the whole week. */
   let dayFilter = null;
+  /** 1 slides the week strip forward, -1 backward. Cleared after the paint. */
+  let weekSlide = 0;
   let calCursor = new Date();
   let calOpen = false;
   /** Which week blocks inside Próximos jobs stay open. Key is the Sunday ymd. */
@@ -424,8 +426,9 @@
   function groupHead(key, label, count) {
     const bar = BAR_GROUPS.has(key) ? ' data-ol-bar="1"' : "";
     const closed = key === "nodate" ? ' data-ol-closed="1"' : "";
+    const open = key === "field" ? ' data-ol-open="1"' : "";
     const countHtml = key === "nodate" ? `<em class="jx-ping"><i aria-hidden="true"></i>${count}</em>` : `<em>${count}</em>`;
-    return `<p class="jx-grp ol-grp"${bar}${closed}><span>${label}</span>${countHtml}</p>`;
+    return `<p class="jx-grp ol-grp"${bar}${closed}${open}><span>${label}</span>${countHtml}</p>`;
   }
   function weekFoldHtml(weeks) {
     const chev = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>`;
@@ -512,10 +515,14 @@
   function stripWeek() {
     return weekFilter ? weekSunday(weekFilter) : weekSunday(new Date());
   }
-  function renderWeekStrip() {
-    const host = $("jxWeekStrip");
-    if (!host) return;
+  function shiftWeek(delta) {
     const start = stripWeek();
+    weekFilter = new Date(start.getFullYear(), start.getMonth(), start.getDate() + delta * 7);
+    dayFilter = null;
+    weekSlide = delta > 0 ? 1 : -1;
+    renderList();
+  }
+  function weekPage(start) {
     const names = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
     const today = ymd(new Date());
     const counts = {};
@@ -525,16 +532,51 @@
       const key = ymd(sod(d));
       counts[key] = (counts[key] || 0) + 1;
     });
-    host.innerHTML = Array.from({ length: 7 }, (_, i) => {
+    const chips = Array.from({ length: 7 }, (_, i) => {
       const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
       const key = ymd(d);
       const on = dayFilter === key;
       const dot = counts[key] ? `<span class="jx-daychip__dot"></span>` : `<span class="jx-daychip__dot is-empty"></span>`;
       return `<button type="button" class="jx-daychip${on ? " is-on" : ""}${key === today ? " is-today" : ""}" data-jx-strip="${key}" role="tab" aria-selected="${on ? "true" : "false"}"><span class="jx-daychip__name">${names[d.getDay()]}</span><b>${d.getDate()}</b>${dot}</button>`;
     }).join("");
+    return `<div class="jx-weekpage">${chips}</div>`;
+  }
+  function renderWeekStrip() {
+    const host = $("jxWeekStrip");
+    if (!host) return;
+    const start = stripWeek();
+    const dir = weekSlide;
+    weekSlide = 0;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!dir || reduce) {
+      host.innerHTML = weekPage(start);
+      return;
+    }
+    const other = new Date(start.getFullYear(), start.getMonth(), start.getDate() - dir * 7);
+    const pages = dir > 0 ? weekPage(other) + weekPage(start) : weekPage(start) + weekPage(other);
+    host.innerHTML = `<div class="jx-weektrack">${pages}</div>`;
+    const track = host.querySelector(".jx-weektrack");
+    const fromX = dir > 0 ? "0px" : "-50%";
+    const toX = dir > 0 ? "-50%" : "0px";
+    track.style.transform = `translateX(${fromX})`;
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      if (host.contains(track)) host.innerHTML = weekPage(start);
+    };
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        track.style.transition = "transform .46s cubic-bezier(.22, .7, .3, 1)";
+        track.style.transform = `translateX(${toX})`;
+      });
+    });
+    track.addEventListener("transitionend", (e) => {
+      if (e.target === track && e.propertyName === "transform") finish();
+    });
+    setTimeout(finish, 520);
   }
   function renderList() {
-    renderWeekCal();
     renderWeekStrip();
     let rows = visibleRows();
     if (dayFilter) {
@@ -1677,11 +1719,8 @@
     ["jxStatus", "jxSource"].forEach((id) => $(id)?.addEventListener("change", syncFiltBadge));
     syncFiltBadge();
     renderWeekStrip();
-    $("jxCalBtn")?.addEventListener("click", (e) => {
-      e.stopPropagation();
-      calOpen = !calOpen;
-      renderWeekCal();
-    });
+    $("jxWeekPrev")?.addEventListener("click", () => shiftWeek(-1));
+    $("jxWeekNext")?.addEventListener("click", () => shiftWeek(1));
     $("jxWeekStrip")?.addEventListener("click", (e) => {
       const btn = e.target.closest("[data-jx-strip]");
       if (!btn) return;

@@ -83,7 +83,7 @@
         [null, "Jobs", "Depois do orçamento aprovado, a obra vira um job. Aqui você acompanha tudo.", "Jobs", "Once a quote is approved it becomes a job. Track everything here."],
         ["#btnNewJob", "Novo job", "Crie direto ou a partir do orçamento aprovado.", "New job", "Create it directly or from the approved quote."],
         ["#jxTiles", "Por etapa", "Agendado, em campo, concluído… Toque para filtrar.", "By stage", "Scheduled, in the field, done… Tap to filter."],
-        ["#jxCalBtn", "Por semana", "Veja só os jobs de uma semana.", "By week", "See only one week's jobs."],
+        ["#jxWeekStrip", "Por semana", "Use as setas para ver outra semana.", "By week", "Use the arrows to see another week."],
         ["#jxRows", "Detalhes", "Abra um job para escolher a equipe, ver fotos e faturar.", "Details", "Open a job to pick the crew, see photos and invoice."],
       ],
     },

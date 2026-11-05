@@ -99,24 +99,32 @@
 .jx-cal-btn:hover { background: #e4e7eb; }
 .jx-cal-btn.is-on, .jx-cal-btn[aria-expanded="true"] { background: var(--jx-ink); color: #fff; }
 .jx-weekbar { position: relative; display: flex; align-items: stretch; gap: 6px; margin-top: 10px; }
-.jx-weekstrip { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
-.jx-daychip {
-  min-width: 0; border: 0; border-radius: 12px; background: #fff; box-shadow: 0 0 0 1px var(--jx-line);
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
-  padding: 6px 0 5px; cursor: pointer; color: var(--jx-ink); font: inherit;
+.jx-weeknav {
+  width: 34px; flex: none; align-self: stretch; display: inline-flex; align-items: center; justify-content: center;
+  padding: 0; border: 0; border-radius: 12px; background: #F2F4F7; color: #3E4654; cursor: pointer;
 }
-.jx-daychip:hover { background: #F7F8FA; }
-.jx-daychip__name { font-size: 11px; font-weight: 650; letter-spacing: .01em; text-transform: uppercase; color: var(--jx-ink2); }
-.jx-daychip b { font-size: 14px; font-weight: 750; line-height: 1.1; font-variant-numeric: tabular-nums; }
-.jx-daychip__dot { width: 5px; height: 5px; margin-top: 2px; border-radius: 50%; background: var(--jx-or); }
+.jx-weeknav:hover { background: #E6E9EE; }
+.jx-weeknav svg { width: 16px; height: 16px; }
+.jx-weekclip { flex: 1; min-width: 0; overflow: hidden; }
+.jx-weekstrip { min-width: 0; }
+.jx-weekpage { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.jx-weekstrip > .jx-weekpage { width: 100%; }
+.jx-weektrack { display: flex; width: 200%; will-change: transform; }
+.jx-weektrack .jx-weekpage { width: 50%; flex: none; }
+.jx-daychip {
+  min-width: 0; border: 0; border-radius: 12px; background: #F2F4F7; box-shadow: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  padding: 6px 0 5px; cursor: pointer; color: #3E4654; font: inherit;
+}
+.jx-daychip:hover { background: #E6E9EE; }
+.jx-daychip__name { font-size: 11px; font-weight: 650; letter-spacing: .01em; text-transform: uppercase; color: #4B5563; }
+.jx-daychip b { font-size: 14px; font-weight: 750; line-height: 1.1; font-variant-numeric: tabular-nums; color: #3E4654; }
+.jx-daychip__dot { width: 5px; height: 5px; margin-top: 2px; border-radius: 50%; background: #1C1917; }
 .jx-daychip__dot.is-empty { background: transparent; }
-.jx-daychip.is-today { box-shadow: 0 0 0 1.5px var(--jx-or); }
-.jx-daychip.is-on { background: var(--jx-ink); box-shadow: none; color: #fff; }
-.jx-daychip.is-on .jx-daychip__name { color: rgba(255, 255, 255, .72); }
-.jx-daychip.is-on .jx-daychip__dot { background: #fdba74; }
-.jx-daychip.is-on .jx-daychip__dot.is-empty { background: transparent; }
-.jx-weekbar .jx-cal-btn { width: 40px; height: auto; align-self: stretch; border-radius: 12px; }
-.jx-weekbar .jx-cal { top: calc(100% + 6px); }
+.jx-daychip.is-today, .jx-daychip.is-on { box-shadow: inset 0 0 0 1.5px #1C1917; }
+@media (prefers-reduced-motion: reduce) {
+  .jx-weektrack { transition: none !important; }
+}
 .jx-cal {
   position: absolute; top: calc(100% + 6px); right: 0; z-index: 8; width: min(280px, 100%);
   margin: 0; padding: 10px; border-radius: 16px; background: #fff;

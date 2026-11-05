@@ -128,9 +128,10 @@
       if (h) {
         var saved = Object.prototype.hasOwnProperty.call(folds, g.label) ? folds[g.label] : null;
         var forceClosed = h.getAttribute("data-ol-closed") === "1";
+        var forceOpen = h.getAttribute("data-ol-open") === "1";
         var hot = !forceClosed && HOT_RE.test(g.label);
         var auto = forceClosed || (!hot && (DONE_RE.test(g.label) || openSlots <= 0));
-        if (q) collapsed = false;
+        if (q || forceOpen) collapsed = false;
         else if (saved !== null) collapsed = saved;
         else if (forceClosed) collapsed = true;
         else collapsed = multi && auto;
@@ -229,6 +230,7 @@
   }
 
   function toggle(L, h) {
+    if (h.getAttribute("data-ol-open") === "1") return;
     var folds = store(L.key);
     var label = h.dataset.olLabel;
     folds[label] = !h.classList.contains("is-folded");
