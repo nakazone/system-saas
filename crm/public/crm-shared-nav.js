@@ -50,8 +50,6 @@
       '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 01-2 2H7a2 2 0 01-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 010-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 010 5"/></svg>',
     mate:
       '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>',
-    more:
-      '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>',
     reports:
       '<svg class="nav-icon-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 17V9"/><path d="M12 17V7"/><path d="M16 17v-5"/></svg>',
   };
@@ -101,9 +99,6 @@
   function getSidebarGroups(role) {
     if (isFieldRole(role)) return getFieldSidebarGroups();
     // Groups with label:null → visual bar between clusters (dock + sidebar).
-    // Groups with `more: true` go into the "Mais" popover on the desktop dock, so the
-    // dock keeps 7 everyday destinations (Hick/Miller). Their `label` titles the popover
-    // section; in the vertical sidebar/drawer they are listed inline under that title.
     return [
       {
         label: null,
@@ -119,21 +114,6 @@
         label: null,
         items: [
           { href: 'leads.html', label: 'Leads', perm: 'leads.view', page: 'leads', iconKey: 'leads' },
-          { href: 'quotes.html', label: 'Quotes', perm: 'quotes.view', page: 'quotes', iconKey: 'quotes' },
-          { href: 'jobs.html', label: 'Jobs', perm: 'work_orders.view', page: '', iconKey: 'jobs' },
-          { href: 'invoices.html', label: 'Invoices', perm: 'invoices.view', page: 'invoices', iconKey: 'invoices' },
-        ],
-      },
-      {
-        label: null,
-        items: [
-          { href: 'chat.html', label: 'ObraChat', perm: 'chat.use', page: '', iconKey: 'chat', badge: 'chat' },
-        ],
-      },
-      {
-        label: 'Clientes',
-        more: true,
-        items: [
           {
             href: 'customers.html',
             label: 'Clientes',
@@ -152,8 +132,16 @@
         ],
       },
       {
-        label: 'Obra',
-        more: true,
+        label: null,
+        items: [
+          { href: 'quotes.html', label: 'Quotes', perm: 'quotes.view', page: 'quotes', iconKey: 'quotes' },
+          { href: 'mate-ai.html', label: 'Mate AI', perm: 'quotes.create', page: '', iconKey: 'mate' },
+          { href: 'jobs.html', label: 'Jobs', perm: 'work_orders.view', page: '', iconKey: 'jobs' },
+          { href: 'invoices.html', label: 'Invoices', perm: 'invoices.view', page: 'invoices', iconKey: 'invoices' },
+        ],
+      },
+      {
+        label: null,
         items: [
           {
             href: 'job-media-board.html',
@@ -162,12 +150,11 @@
             page: '',
             iconKey: 'camera',
           },
-          { href: 'mate-ai.html', label: 'Mate AI', perm: 'quotes.create', page: '', iconKey: 'mate' },
+          { href: 'chat.html', label: 'ObraChat', perm: 'chat.use', page: '', iconKey: 'chat', badge: 'chat' },
         ],
       },
       {
-        label: 'Financeiro',
-        more: true,
+        label: null,
         items: [
           {
             href: 'folha.html',
@@ -198,8 +185,7 @@
         ],
       },
       {
-        label: 'Gestão',
-        more: true,
+        label: null,
         items: [
           {
             href: 'relatorios.html',
@@ -209,6 +195,11 @@
             page: '',
             iconKey: 'reports',
           },
+        ],
+      },
+      {
+        label: null,
+        items: [
           {
             href: 'configuracoes.html',
             label: 'Config',
@@ -240,7 +231,7 @@
   const NAV_CACHE_HTML = 'crm_shared_nav_html_v2';
   const NAV_CACHE_META = 'crm_shared_nav_meta_v2';
   // Bump when sidebar groups/items change so role+perm cache does not hide new links.
-  const NAV_STRUCTURE_VERSION = '20261104-dock7';
+  const NAV_STRUCTURE_VERSION = '20261105-dockall';
 
   function itemFromAnchor(a) {
     const hrefAttr = a.getAttribute('href') || '';
@@ -268,9 +259,6 @@
       const item = itemFromAnchor(a);
       a.classList.toggle('crm-shared-nav__link--active', linkActive(item, file, page));
     });
-    syncMoreActive(host);
-    const openWrap = host.querySelector('.sidebar-nav-group--more.is-open');
-    if (openWrap) setMoreOpen(openWrap, false);
   }
 
   function paintNavFromCache() {
@@ -445,7 +433,6 @@
     const keys = new Set(perms);
     const file = currentFile();
     const page = pageParam();
-    let morePanel = null;
     getSidebarGroups(role).forEach((group) => {
       const visible = group.items.filter((item) => {
         if (!featureOk(item)) return false;
@@ -455,25 +442,6 @@
         return canSee(item.perm, role, keys, item.permAny);
       });
       if (visible.length === 0) return;
-      if (group.more) {
-        if (!morePanel) morePanel = mountMoreGroup(host);
-        const section = document.createElement('div');
-        section.className = 'nav-more-section';
-        if (group.label) {
-          const lab = document.createElement('p');
-          lab.className = 'sidebar-nav-group-label nav-more-section__title';
-          lab.textContent = group.label;
-          section.appendChild(lab);
-        }
-        const row = document.createElement('div');
-        row.className = 'nav-more-section__items';
-        visible.forEach((item) => {
-          row.appendChild(createSidebarLink(item, file, page));
-        });
-        section.appendChild(row);
-        morePanel.appendChild(section);
-        return;
-      }
       const wrap = document.createElement('div');
       wrap.className = 'sidebar-nav-group';
       if (group.label) {
@@ -486,79 +454,6 @@
         wrap.appendChild(createSidebarLink(item, file, page));
       });
       host.appendChild(wrap);
-    });
-    syncMoreActive(host);
-  }
-
-  /**
-   * "Mais" on the desktop dock: a toggle plus a grouped popover. In the vertical
-   * sidebar / phone drawer the toggle is hidden by CSS and the panel is listed inline.
-   * Listeners are delegated (bindMoreMenu) because the nav HTML is restored from cache.
-   */
-  function mountMoreGroup(host) {
-    const wrap = document.createElement('div');
-    wrap.className = 'sidebar-nav-group sidebar-nav-group--more';
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'nav-item nav-more-toggle';
-    btn.setAttribute('data-nav-more-toggle', '1');
-    btn.setAttribute('aria-expanded', 'false');
-    btn.setAttribute('aria-controls', 'crmNavMorePanel');
-    btn.setAttribute('aria-label', 'Mais módulos');
-    btn.setAttribute('title', 'Mais módulos');
-    const tpl = document.createElement('template');
-    tpl.innerHTML = ICONS.more.trim();
-    btn.appendChild(tpl.content);
-    const span = document.createElement('span');
-    span.className = 'nav-item__label';
-    span.textContent = 'Mais';
-    btn.appendChild(span);
-    const panel = document.createElement('div');
-    panel.className = 'nav-more-panel';
-    panel.id = 'crmNavMorePanel';
-    panel.setAttribute('role', 'group');
-    panel.setAttribute('aria-label', 'Mais módulos');
-    wrap.appendChild(btn);
-    wrap.appendChild(panel);
-    host.appendChild(wrap);
-    return panel;
-  }
-
-  function syncMoreActive(host) {
-    const wrap = host && host.querySelector('.sidebar-nav-group--more');
-    if (!wrap) return;
-    const toggle = wrap.querySelector('[data-nav-more-toggle]');
-    if (toggle) toggle.classList.toggle('active', !!wrap.querySelector('.nav-more-panel a.nav-item.active'));
-  }
-
-  function setMoreOpen(wrap, open) {
-    if (!wrap) return;
-    wrap.classList.toggle('is-open', open);
-    const toggle = wrap.querySelector('[data-nav-more-toggle]');
-    if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-  }
-
-  function bindMoreMenu() {
-    if (document.documentElement.dataset.crmNavMoreBound === '1') return;
-    document.documentElement.dataset.crmNavMoreBound = '1';
-    document.addEventListener('click', (e) => {
-      const toggle = e.target.closest && e.target.closest('[data-nav-more-toggle]');
-      const openWrap = document.querySelector('.sidebar-nav-group--more.is-open');
-      if (toggle) {
-        const wrap = toggle.closest('.sidebar-nav-group--more');
-        setMoreOpen(wrap, !wrap.classList.contains('is-open'));
-        return;
-      }
-      if (!openWrap) return;
-      // A link inside the panel navigates; anything outside closes the panel.
-      if (e.target.closest('.nav-more-panel a') || !openWrap.contains(e.target)) setMoreOpen(openWrap, false);
-    });
-    document.addEventListener('keydown', (e) => {
-      if (e.key !== 'Escape') return;
-      const openWrap = document.querySelector('.sidebar-nav-group--more.is-open');
-      if (!openWrap) return;
-      setMoreOpen(openWrap, false);
-      openWrap.querySelector('[data-nav-more-toggle]')?.focus();
     });
   }
 
@@ -795,7 +690,6 @@
   }
 
   // Paint cached sidebar ASAP (script runs at end of body — host exists)
-  bindMoreMenu();
   paintNavFromCache();
 
   window.__crmSharedNav = { init, remount, syncActiveFromLocation, paintNavFromCache, clearNavCache };
