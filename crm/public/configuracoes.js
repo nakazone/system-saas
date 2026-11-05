@@ -25,19 +25,6 @@
    */
   const AREAS = [
     {
-      id: "meu-perfil",
-      label: "Meu Perfil",
-      icon: "user",
-      desc: "Foto, assinatura, idioma e senha",
-      subs: [
-        { id: "mp-perfil", label: "Perfil", section: "meu-perfil", perm: null, desc: "Nome, telefone, foto e ponto de partida das rotas.", keywords: "meu perfil nome telefone foto avatar e-mail email rota partida senha conta" },
-        { id: "mp-assinatura", label: "Assinatura", section: "meu-perfil", perm: null, desc: "Assinatura por imagem nos orçamentos quando você é o responsável.", keywords: "assinatura signature orçamento quote pdf imagem" },
-        { id: "mp-idioma", label: "Idioma", section: "meu-perfil", perm: null, desc: "Idioma da interface neste aparelho.", keywords: "idioma language português english español" },
-        { id: "mp-senha", label: "Senha", section: "meu-perfil", perm: null, desc: "Alterar a senha de acesso ao CRM.", keywords: "senha password segurança alterar" },
-        { id: "mp-conta", label: "Conta", section: "meu-perfil", perm: null, desc: "Cargo e datas da sua conta.", keywords: "conta cargo role desde atualização" },
-      ],
-    },
-    {
       id: "empresa",
       label: "Empresa",
       icon: "home",
@@ -54,25 +41,26 @@
       id: "documentos",
       label: "Orçamentos e faturas",
       icon: "doc",
-      desc: "Numeração, documento do cliente e estimativa",
+      desc: "Numeração, documento do cliente, baixa e indicações",
       subs: [
         { id: "numeracao", label: "Numeração e padrões", section: "orcamentos", perm: "settings.manage", desc: "Valores de cada orçamento novo e a assinatura da empresa. Dá para mudar em cada orçamento.", keywords: "numeração prefixo próximo número validade imposto assinatura" },
         { id: "cliente", label: "O que o cliente vê", section: "orcamentos", perm: "settings.manage", desc: "What's Included, termos e as colunas que aparecem no PDF e no link do cliente.", keywords: "what's included inclusos termos condições colunas quantidade preço unitário cômodo prévia" },
         { id: "regras", label: "Regras de estimativa", section: "regras-estimativa", perm: "estimate_rules.manage", desc: "Desperdício e margens por tipo de piso, usados na estimativa rápida e na medição.", keywords: "desperdício waste markup margem tipo de piso madeira hardwood lvp laminado cerâmica carpete" },
+        { id: "faturas-baixa", label: "Baixa de fatura", section: "faturas-baixa", perm: "settings.manage", desc: "Data padrão ao registrar um pagamento (hoje ou vencimento).", keywords: "baixa pagamento fatura invoice data vencimento hoje due date" },
+        { id: "indicacoes", label: "Indicações", section: "indicacoes", perm: "settings.manage", desc: "Cashback para Particular quando a fatura do indicado é paga.", keywords: "indicação referral cashback comissão particular percentual projeto fatura" },
       ],
     },
     {
       id: "mensagens",
-      label: "Mensagens e automações",
+      label: "Mensagens",
       icon: "chat",
-      desc: "Textos de SMS, e-mail e follow-up",
+      desc: "Textos de SMS, e-mail e follow-up ao cliente",
       subs: [
-        { id: "msg-leads", label: "Leads por fase", section: "mensagens-fase", perm: "settings.manage", desc: "E-mails e SMS de cada fase do pipeline, com o cupom.", keywords: "mensagem email e-mail sms template fase pipeline lead novo visita follow-up cupom coupon gelo" },
         { id: "msg-orcamento", label: "Envio do orçamento", section: "mensagens-orcamento", perm: "settings.manage", desc: "SMS e WhatsApp ao enviar o orçamento e o follow-up depois que o cliente abriu.", keywords: "sms whatsapp mensagem orçamento quote enviar link follow-up" },
         { id: "msg-fatura", label: "E-mails da fatura", section: "mensagens-faturas", perm: "settings.manage", desc: "Texto padrão de cada tipo: parcial, saldo restante, total e recibo.", keywords: "sms email e-mail mensagem invoice fatura enviar link recibo parcial total saldo" },
-        { id: "faturas-baixa", label: "Baixa de fatura", section: "faturas-baixa", perm: "settings.manage", desc: "Data padrão ao registrar um pagamento (hoje ou vencimento).", keywords: "baixa pagamento fatura invoice data vencimento hoje due date" },
-        { id: "automacoes", label: "Automações", section: "automacoes-leads", perm: "settings.manage", desc: "Mover leads automaticamente no pipeline.", keywords: "automação follow-up quote sent estágio dias pipeline lead" },
-        { id: "indicacoes", label: "Indicações", section: "indicacoes", perm: "settings.manage", desc: "Cashback para Particular quando a fatura do indicado é paga.", keywords: "indicação referral cashback comissão particular percentual projeto fatura" },
+        { id: "msg-leads", label: "Leads por fase", section: "mensagens-fase", perm: "settings.manage", desc: "E-mails e SMS de cada fase do pipeline, com o cupom.", keywords: "mensagem email e-mail sms template fase pipeline lead novo visita follow-up cupom coupon gelo" },
+        { id: "msg-agenda", label: "SMS da agenda", section: "agenda", perm: "settings.manage", desc: "Textos do botão SMS da Agenda (job, visita, meeting, delivery).", keywords: "sms mensagem agenda cliente job visita meeting delivery lembrete texto template" },
+        { id: "automacoes", label: "Automação de follow-up", section: "automacoes-leads", perm: "settings.manage", desc: "Mover leads de Quote Sent para Follow-up automaticamente.", keywords: "automação follow-up quote sent estágio dias pipeline lead" },
       ],
     },
     {
@@ -96,10 +84,10 @@
       icon: "job",
       desc: "Agenda, Jobs e Folha",
       subs: [
-        { id: "agenda", label: "Agenda e calendários", section: "agenda", perm: "settings.manage", desc: "Calendários, SMS ao cliente, avisos da equipe e link do iPhone.", keywords: "agenda calendário schedule meeting job cor cores visita apple ics assinatura iphone sync mensagem sms automática lembrete push" },
+        { id: "agenda", label: "Agenda e calendários", section: "agenda", perm: "settings.manage", desc: "Calendários, avisos da equipe e link do iPhone.", keywords: "agenda calendário schedule meeting job cor cores visita apple ics assinatura iphone sync automática lembrete push aviso equipe" },
         { id: "jobs", label: "Jobs e Campo", section: "jobs", perm: "settings.manage", desc: "Opções do job no escritório e no Campo.", keywords: "job checklist campo ticket lista exibir desativar" },
-        { id: "folha", label: "Folha de pagamento", section: "folha", perm: "settings.manage", desc: "Quando o período fecha, em que dia a empresa paga e onde cai o reembolso.", keywords: "folha pagamento ciclo semana quinzena mes sabado domingo fechamento reembolso" },
-        { id: "formas", label: "Formas de pagamento", section: "folha", perm: "settings.manage", desc: "Como o dinheiro chega ao funcionário (Zelle, cheque, dinheiro…).", keywords: "zelle pix forma pagamento cheque dinheiro ach" },
+        { id: "folha", label: "Ciclo da folha", section: "folha", perm: "settings.manage", desc: "Quando o período fecha, em que dia a empresa paga e onde cai o reembolso.", keywords: "folha pagamento ciclo semana quinzena mes sabado domingo fechamento reembolso" },
+        { id: "formas", label: "Formas de pagamento da folha", section: "folha", perm: "settings.manage", desc: "Como o dinheiro chega ao funcionário (Zelle, cheque, dinheiro…).", keywords: "zelle pix forma pagamento folha funcionário equipe cheque dinheiro ach" },
       ],
     },
     {
@@ -119,6 +107,19 @@
       desc: "Instalar e alertas",
       subs: [
         { id: "app", label: "App e alertas", section: "app", perm: null, desc: "Use o ObraMate como aplicativo e receba avisos neste dispositivo.", keywords: "instalar app celular notificação push alerta dispositivo" },
+      ],
+    },
+    {
+      id: "meu-perfil",
+      label: "Meu Perfil",
+      icon: "user",
+      desc: "Foto, assinatura, idioma e senha",
+      subs: [
+        { id: "mp-perfil", label: "Perfil", section: "meu-perfil", perm: null, desc: "Nome, telefone, foto e ponto de partida das rotas.", keywords: "meu perfil nome telefone foto avatar e-mail email rota partida senha conta" },
+        { id: "mp-assinatura", label: "Assinatura", section: "meu-perfil", perm: null, desc: "Assinatura por imagem nos orçamentos quando você é o responsável.", keywords: "assinatura signature orçamento quote pdf imagem" },
+        { id: "mp-idioma", label: "Idioma", section: "meu-perfil", perm: null, desc: "Idioma da interface neste aparelho.", keywords: "idioma language português english español" },
+        { id: "mp-senha", label: "Senha", section: "meu-perfil", perm: null, desc: "Alterar a senha de acesso ao CRM.", keywords: "senha password segurança alterar" },
+        { id: "mp-conta", label: "Conta", section: "meu-perfil", perm: null, desc: "Cargo e datas da sua conta.", keywords: "conta cargo role desde atualização" },
       ],
     },
   ];

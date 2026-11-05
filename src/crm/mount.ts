@@ -19,6 +19,7 @@ import { i18nCrmRouter } from "../lib/i18n/routes.js";
 import { i18nVersion, orgDefaultUiLocale } from "../lib/i18n/index.js";
 import type { TenantRequest } from "../lib/tenant/resolve-tenant.js";
 import { SAAS_DISABLED_HTML } from "./disabled-modules.js";
+import { legacyDashboardPageUrl } from "./legacy-dashboard.js";
 import { isMateVoiceEnabled } from "../lib/mate-voice/staging.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -200,11 +201,12 @@ export function createCrmRouter(): Router {
     res.redirect("/dashboard");
   });
 
-  // Início = /dashboard (pipeline board). Legacy SPA only when ?page= is set.
+  // Início = /dashboard (pipeline board). The old single-page dashboard (?page=…) is retired:
+  // its sections now live on their own pages, so old links and bookmarks land there.
   router.get(["/dashboard", "/dashboard.html"], requireAuth, async (req, res, next) => {
     try {
       if (req.query.page) {
-        await sendCrmHtml(req, res, "dashboard.html");
+        res.redirect(302, legacyDashboardPageUrl(req.query));
         return;
       }
       await sendCrmHtml(req, res, "pipeline-lab.html");
@@ -297,6 +299,22 @@ export function createCrmRouter(): Router {
     }
   });
 
+  // Removed legacy pages → the screens that replaced them (old bookmarks keep working).
+  const REMOVED_PAGES: Record<string, string> = {
+    "/onsite-quote.html": "/field-quote.html",
+    "/estimate-builder.html": "/quotes.html",
+    "/schedule-antiga.html": "/schedule.html",
+    "/vendors-hub.html": "/suppliers.html",
+  };
+  router.get(Object.keys(REMOVED_PAGES), requireAuth, (req, res) => {
+    res.redirect(301, REMOVED_PAGES[req.path] || "/dashboard");
+  });
+
+  // The old payroll screen was replaced by Folha (office) and Minhas horas (field roles).
+  router.get("/payroll-module.html", requireAuth, (req: AuthedRequest, res) => {
+    res.redirect(302, OBRACREW_ROLES.has(req.user?.roleKey ?? "") ? "/campo/horas.html" : "/folha.html");
+  });
+
   // Keep ?view=list (and any other query) so tablet Lista → list shell still works.
   router.get("/pipeline-lab.html", requireAuth, (req, res) => {
     const qs = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
@@ -316,9 +334,9 @@ export function createCrmRouter(): Router {
     next();
   });
 
-  if (!fs.existsSync(path.join(CRM_PUBLIC_DIR, "dashboard.html"))) {
+  if (!fs.existsSync(path.join(CRM_PUBLIC_DIR, "pipeline-lab.html"))) {
     console.error(
-      `[crm] dashboard.html not found under ${CRM_PUBLIC_DIR} (cwd=${process.cwd()}, __dirname=${__dirname})`,
+      `[crm] pipeline-lab.html not found under ${CRM_PUBLIC_DIR} (cwd=${process.cwd()}, __dirname=${__dirname})`,
     );
   }
 

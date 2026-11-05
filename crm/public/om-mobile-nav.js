@@ -4,7 +4,7 @@
  * Field staff: Hoje / Calendar / Jobs / Chat / Horas (Campo shell links)
  */
 (function () {
-  const VER = "20261104-jobstab1";
+  const VER = "20261104-ux3";
   const MQ = window.matchMedia("(max-width: 900px)");
   const FIELD_ROLES = new Set(["installer", "crew_lead", "subcontractor"]);
   const SHEET_MS = 380;
@@ -51,7 +51,7 @@
       if (f === "agenda.html" || f === "schedule.html") return "agenda";
       if (f === "jobs.html" || f === "job-detail.html") return "jobs";
       if (f === "chat.html") return "chat";
-      if (f === "horas.html" || f === "payroll-module.html") return "horas";
+      if (f === "horas.html") return "horas";
       return "";
     }
     if (f === "home.html" || f === "") return "home";
@@ -79,8 +79,6 @@
       f === "equipe.html" ||
       f === "configuracoes.html" ||
       f === "finance.html" ||
-      f === "financial.html" ||
-      f === "payroll-module.html" ||
       f === "folha.html"
     ) {
       return "more";

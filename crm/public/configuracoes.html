@@ -20,8 +20,7 @@
   <link rel="stylesheet" href="crm-toast.css?v=20261104-ux2" />
   <link rel="stylesheet" href="crm-pwa-install.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-push.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="configuracoes.css?v=20261104-ux2" />
-  <link rel="stylesheet" href="configuracoes-v2.css?v=20261014-perfil5" />
+  <link rel="stylesheet" href="configuracoes.css?v=20261104-ux3" />
   <link rel="stylesheet" href="cfg-meu-perfil.css?v=20261015-sig2" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -236,7 +235,7 @@
                 <h2 class="cfg-title">Agenda e calendários</h2>
                 <p class="cfg-lead">Crie e edite agendas do Schedule. Para separar Instalação e Lixa, use duas agendas do tipo Jobs com setores diferentes.</p>
               </header>
-              <article class="cfg-card" data-form="agenda">
+              <article class="cfg-card" data-form="agenda" data-sub="agenda">
                 <div class="cfg-card__head">
                   <div>
                     <h3 class="cfg-card__title">Calendários</h3>
@@ -247,7 +246,7 @@
                 <div class="cfg-sched-cals" id="schedCalList"></div>
                 <p class="cfg-hint">No Schedule, use a lista à esquerda para mostrar ou ocultar cada agenda. Meetings novos podem escolher a agenda no formulário. Jobs sem setor caem na agenda Jobs com setor “Todos”.</p>
               </article>
-              <article class="cfg-card" id="cfgCalFeedCard">
+              <article class="cfg-card" id="cfgCalFeedCard" data-sub="agenda">
                 <div class="cfg-card__head">
                   <div>
                     <h3 class="cfg-card__title">Calendário no iPhone / Apple Calendar</h3>
@@ -262,7 +261,7 @@
                 <div id="cfgCalFeedList" class="cfg-calfeed-list" hidden style="margin-top:14px"></div>
               </article>
               <form id="schedMsgForm" class="cfg-form" novalidate autocomplete="off" data-form="sched-msg">
-                <article class="cfg-card">
+                <article class="cfg-card" data-sub="msg-agenda">
                   <h3 class="cfg-card__title">Mensagens SMS ao cliente</h3>
                   <p class="cfg-card__desc">Textos usados no botão SMS da Agenda (job, visita, meeting, delivery). Use <code>[name]</code>, <code>[company]</code>, <code>[date]</code>, <code>[address]</code>, <code>[job]</code> e <code>[client_id]</code>.</p>
                   <div class="cfg-field" style="max-width:22rem;margin-top:0.75rem">
@@ -275,7 +274,7 @@
                 </article>
               </form>
               <form id="calAutoForm" class="cfg-form" novalidate autocomplete="off" data-form="cal-auto">
-                <article class="cfg-card">
+                <article class="cfg-card" data-sub="agenda">
                   <h3 class="cfg-card__title">Avisos automáticos (equipe)</h3>
                   <p class="cfg-card__desc">Push interno para a equipe do job e lembretes de visita. Não envia SMS ao cliente.</p>
                   <label class="cfg-check" style="display:flex;align-items:flex-start;gap:0.65rem;margin-top:0.85rem">
@@ -1417,7 +1416,7 @@
   </div>
   <script src="crm-i18n.js?v=20261104-ux1"></script>
   <script src="crm-shell.js?v=20261104-ux2"></script>
-  <script src="crm-shared-nav.js?v=20261104-dock7"></script>
+  <script src="crm-shared-nav.js?v=20261104-ux3"></script>
   <script src="crm-account-menu.js?v=20261104-ux1"></script>
   <script src="crm-toast.js"></script>
   <script src="crm-pwa-install.js?v=20261104-ux1"></script>
@@ -1425,6 +1424,6 @@
   <script src="crm-address-autocomplete.js?v=20261103-addr1"></script>
   <script src="quote-signature-auto.js?v=20260708"></script>
   <script src="cfg-meu-perfil.js?v=20261104-ux2"></script>
-  <script src="configuracoes.js?v=20261104-ux2"></script>
+  <script src="configuracoes.js?v=20261104-ux3"></script>
 </body>
 </html>
