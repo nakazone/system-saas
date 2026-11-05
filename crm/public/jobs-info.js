@@ -98,19 +98,20 @@
     return wo.status === "draft" || wo.status === "scheduled" || wo.status === "in_progress";
   }
 
-  /** { days, label, kind } quando o job passou da data e ainda não foi concluído; senão null. */
+  /**
+   * { days, label, kind } when a job still needs Start and the scheduled day has passed.
+   * Once the crew has given Start (in_progress), the job is in production until they
+   * finish — past calendar dates do not mark it late (there is no separate end-day gate).
+   */
   function late(wo, now) {
-    const anchor = awaitingSand(wo) ? wo.sand_scheduled_start : wo.scheduled_start;
-    if (!isActive(wo) || !anchor) return null;
+    if (!isActive(wo) || wo.status === "in_progress") return null;
+    const sand = awaitingSand(wo);
+    const anchor = sand ? wo.sand_scheduled_start : wo.scheduled_start;
+    if (!anchor) return null;
     const t = now || Date.now();
-    if (wo.status === "in_progress") {
-      const end = new Date(awaitingSand(wo) ? anchor : wo.scheduled_end || anchor).getTime();
-      if (end >= t) return null;
-      const d = Math.max(1, Math.floor((t - end) / DAY));
-      return { days: d, kind: "late", label: `atrasado ${d} dia${d > 1 ? "s" : ""}`, short: `Atrasado ${d} dia${d > 1 ? "s" : ""}` };
-    }
     const start = new Date(anchor).getTime();
-    const end = new Date(wo.scheduled_end || anchor).getTime();
+    // Sand phase uses the sand date only — never the installation scheduled_end.
+    const end = new Date(sand ? anchor : wo.scheduled_end || anchor).getTime();
     if (start >= t - DAY / 2 && end >= t) return null;
     if (end < t) {
       const d = Math.max(1, Math.floor((t - end) / DAY));

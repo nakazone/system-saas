@@ -346,19 +346,21 @@ function awaitingSand(wo: JobStatusRow): boolean {
   return Boolean(wo.installationDoneAt);
 }
 
-/** Days past due for an active job, or null when it is on time (mirrors JobsInfo.late). */
+/**
+ * Days past the scheduled day for a job that still needs Start, or null when on time.
+ * Mirrors JobsInfo.late: once status is in_progress the job is in production until finish —
+ * past calendar dates do not count as late.
+ */
 export function jobLateDays(wo: JobStatusRow, now: Date): number | null {
   if (!(ACTIVE_JOB_STATUSES as readonly string[]).includes(wo.status)) return null;
+  if (wo.status === "in_progress") return null;
   const sand = awaitingSand(wo);
   const anchor = sand ? wo.sandScheduledStart : wo.scheduledStart;
   if (!anchor) return null;
   const t = now.getTime();
-  if (wo.status === "in_progress") {
-    const end = (sand ? anchor : wo.scheduledEnd || anchor).getTime();
-    return end >= t ? null : Math.max(1, Math.floor((t - end) / DAY_MS));
-  }
   const start = anchor.getTime();
-  const end = (wo.scheduledEnd || anchor).getTime();
+  // Sand phase uses the sand date only — never the installation scheduledEnd.
+  const end = (sand ? anchor : wo.scheduledEnd || anchor).getTime();
   if (start >= t - DAY_MS / 2 && end >= t) return null;
   return end < t ? Math.max(1, Math.floor((t - end) / DAY_MS)) : null;
 }
