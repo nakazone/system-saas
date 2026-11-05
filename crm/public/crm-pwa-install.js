@@ -248,7 +248,7 @@
     void runInstall(false);
   };
 
-  window.__crmPwaInstall = { init, bindButtons, open: window.openCrmPwaInstall };
+  window.__crmPwaInstall = { init, bindButtons, sync: syncVisibility, open: window.openCrmPwaInstall };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);

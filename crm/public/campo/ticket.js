@@ -11,6 +11,8 @@
   let tab = "details";
   let photoStage = "";
   let pendingCount = 0;
+  /** Photos being prepared/sent right now: { key, previewUrl }. Shown as tiles so the crew sees the shot instantly. */
+  const uploadsInFlight = [];
   let latestReport = null;
   let annotMediaId = null;
   let annotShapes = [];
@@ -416,14 +418,17 @@
     if (!el) return;
     if (!pendingCount) {
       el.hidden = true;
-      el.textContent = "";
       return;
     }
     el.hidden = false;
-    el.textContent =
-      pendingCount === 1
-        ? "1 foto pendente de envio (offline). Será enviada ao reconectar."
-        : `${pendingCount} fotos pendentes de envio (offline). Serão enviadas ao reconectar.`;
+    const text = $("cmPhotosPendingText");
+    if (text) {
+      text.textContent =
+        pendingCount === 1 ? "1 foto na fila para enviar" : `${pendingCount} fotos na fila para enviar`;
+    }
+    const send = $("cmPhotosPendingSend");
+    if (send) send.hidden = !navigator.onLine;
+    if (ticket) renderPhotos();
   }
 
   function renderReportCard() {
@@ -456,7 +461,7 @@
   function renderPhotos() {
     const t = ticket;
     const photos = photoList();
-    const total = photos.length + pendingCount;
+    const total = photos.length + pendingCount + uploadsInFlight.length;
     $("cmTabPhotos").textContent = `Fotos · ${total}`;
     const grid = $("cmPhotosGrid");
     renderReportCard();
@@ -467,12 +472,21 @@
         renderLightbox();
       }
     }
-    if (!photos.length) {
+    const inFlightHtml = uploadsInFlight
+      .map(
+        (u) => `
+      <div class="cm-photo cm-photo--uploading" aria-label="Enviando foto">
+        <img src="${escapeHtml(u.previewUrl)}" alt="" />
+        <span class="cm-photo__uploading"><i aria-hidden="true"></i>Enviando…</span>
+      </div>`,
+      )
+      .join("");
+    if (!photos.length && !inFlightHtml) {
       grid.innerHTML =
         '<p class="cm-subtitle" style="margin:0.5rem 0">Nenhuma foto ainda.</p>';
       return;
     }
-    grid.innerHTML = photos
+    grid.innerHTML = inFlightHtml + photos
       .map((p, idx) => {
         const stage = p.stage && STAGE_LABEL[p.stage] ? STAGE_LABEL[p.stage] : "";
         const gps = p.location_available ? " · GPS" : "";
@@ -569,6 +583,30 @@
         "success",
       );
     }
+    return results;
+  }
+
+  async function sendQueuedNow(btn) {
+    if (btn.disabled) return;
+    btn.disabled = true;
+    const label = btn.textContent;
+    btn.textContent = "Enviando…";
+    try {
+      const results = (await flushQueue()) || [];
+      if (results.some((r) => !r.ok)) {
+        toast("Ainda não foi possível enviar. Tentamos de novo quando a conexão melhorar.", "warning");
+      }
+    } catch (_) {
+      toast("Ainda não foi possível enviar. Tentamos de novo quando a conexão melhorar.", "warning");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = label;
+    }
+  }
+
+  function refreshPendingUi() {
+    if (!window.__campoMediaQueue) return;
+    window.__campoMediaQueue.list().then(updatePendingUi).catch(() => {});
   }
 
   async function uploadOrQueue(file) {
@@ -576,6 +614,22 @@
       toast("Fotos desativadas para esta organização");
       return;
     }
+    // Show the shot right away; EXIF, compression and the upload can take seconds on 4G.
+    const inFlight = { key: `f-${Date.now()}-${Math.random()}`, previewUrl: URL.createObjectURL(file) };
+    uploadsInFlight.unshift(inFlight);
+    showTab("photos");
+    renderPhotos();
+    try {
+      await sendOrQueue(file);
+    } finally {
+      const i = uploadsInFlight.indexOf(inFlight);
+      if (i >= 0) uploadsInFlight.splice(i, 1);
+      URL.revokeObjectURL(inFlight.previewUrl);
+      renderPhotos();
+    }
+  }
+
+  async function sendOrQueue(file) {
     // Time, GPS and camera come from the photo itself when it has them (EXIF), before compression drops them.
     const shot = window.PhotoExif
       ? await window.PhotoExif.uploadMeta(file, { live: true, deviceGps: getGps })
@@ -601,11 +655,9 @@
       isPublic,
     };
 
-    showTab("photos");
-
     if (!navigator.onLine && window.__campoMediaQueue) {
       await window.__campoMediaQueue.enqueue(payload);
-      toast("Sem rede — foto guardada para enviar depois", "success");
+      toast("Sem rede. A foto ficou na fila e sobe quando a conexão voltar.", "warning");
       return;
     }
 
@@ -631,7 +683,7 @@
     } catch (err) {
       if (window.__campoMediaQueue) {
         await window.__campoMediaQueue.enqueue(payload);
-        toast("Upload falhou — foto na fila offline", "success");
+        toast("Não deu para enviar agora. A foto ficou na fila.", "warning");
       } else {
         toast(err.message || "Falha no upload");
       }
@@ -1495,7 +1547,13 @@
     });
 
     window.addEventListener("online", () => {
+      refreshPendingUi();
       flushQueue().catch(() => {});
+    });
+    window.addEventListener("offline", refreshPendingUi);
+
+    $("cmPhotosPendingSend")?.addEventListener("click", (e) => {
+      sendQueuedNow(e.currentTarget).catch(() => {});
     });
 
     if (window.__campoMediaQueue) {

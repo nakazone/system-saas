@@ -15,8 +15,9 @@
 
   function show(message, opts) {
     if (!message) return;
-    const type = opts && opts.type === 'error' ? 'error' : opts && opts.type === 'info' ? 'info' : 'success';
-    const durationMs = (opts && opts.durationMs) || (type === 'error' ? 7000 : 4500);
+    const requested = opts && opts.type;
+    const type = ['error', 'info', 'warning'].includes(requested) ? requested : 'success';
+    const durationMs = (opts && opts.durationMs) || (type === 'error' || type === 'warning' ? 7000 : 4500);
     const host = ensureHost();
     const el = document.createElement('div');
     el.className = 'crm-toast crm-toast--' + type;
@@ -59,6 +60,7 @@
     success: (message) => show(message, { type: 'success' }),
     error: (message) => show(message, { type: 'error' }),
     info: (message) => show(message, { type: 'info' }),
+    warning: (message) => show(message, { type: 'warning' }),
   };
   window.crmNotify = notify;
 })();
