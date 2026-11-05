@@ -2286,9 +2286,14 @@
       </div>
       <div class="fo-box"><h3>Acesso</h3>
         <label class="fo-field">Login no app (para bater o ponto)<select class="fo-sel" id="feUser" ${dis}><option value="">Sem login</option>${users
-          .filter((u) => !u.linked || (v.user && v.user.id === u.id))
-          .map((u) => `<option value="${esc(u.id)}"${v.user && v.user.id === u.id ? " selected" : ""}>${esc(u.name || u.email)}${u.name ? ` · ${esc(u.email)}` : ""}</option>`)
-          .join("")}</select><small>Só aparecem usuários que ainda não estão ligados a outro funcionário.</small></label>
+          .map((u) => {
+            const mine = v.user && v.user.id === u.id;
+            const taken = u.linked && !mine;
+            const who = u.linked_to?.name || "outro funcionário";
+            const label = `${u.name || u.email}${u.name ? ` · ${u.email}` : ""}${taken ? ` — já vinculado a ${who}` : ""}`;
+            return `<option value="${esc(u.id)}"${mine ? " selected" : ""}${taken ? " disabled" : ""}>${esc(label)}</option>`;
+          })
+          .join("")}</select><small>Logins já ligados a outro funcionário aparecem bloqueados — abra o cadastro dele para trocar ou desvincular.</small></label>
         ${e ? `<label class="fo-check" style="margin-top:10px"><input type="checkbox" id="feActive" ${v.status === "active" ? "checked" : ""} ${dis} /> Ativo (inativos não aparecem na semana, mas o histórico fica)</label>` : ""}
       </div>`;
     openSheet(

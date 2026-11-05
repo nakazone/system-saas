@@ -89,6 +89,9 @@ describe.skipIf(!privileged)("folha — painel do admin (HTTP)", () => {
     const pedro = await mk({ name: "Pedro", sector: "sand_finish", pay_type: "production", production_rate: 0.5 });
     // Same login can't be linked twice.
     expect((await call(admin, "POST", "/api/folha/funcionarios", { name: "Dup", user_id: installerUserId })).status).toBe(409);
+    const afterLink = await call(admin, "GET", "/api/folha/funcionarios");
+    const linkedUser = afterLink.json.data.users.find((u: { id: string }) => u.id === installerUserId);
+    expect(linkedUser).toMatchObject({ linked: true, linked_to: { id: rafa.id, name: "Rafa" } });
     // Bad time format.
     expect((await call(admin, "PUT", `/api/folha/funcionarios/${marcos.id}`, { schedule: { end_time: "5pm" } })).status).toBe(400);
 
