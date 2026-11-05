@@ -8,8 +8,8 @@ const BADGE_URL = "/__om_app_badge_count";
 const PRECACHE = [
   // Generated from the Campo pages and the assets the server injects (see src/crm/mount.ts).
   "/offline.html",
-  "/om-shell.css?v=20261105-shell9",
-  "/om-shell.js?v=20261105-shell9",
+  "/om-shell.css?v=20261105-hammer1",
+  "/om-shell.js?v=20261105-hammer1",
   // what offline.html itself shows
   "/manifest.json?v=20260930-native2",
   "/assets/favicon-192.png?v=20260924-pwa",

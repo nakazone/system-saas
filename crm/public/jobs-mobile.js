@@ -261,34 +261,39 @@
     </article>`;
   }
 
-  function fieldDayParts(iso) {
-    if (!iso) return { top: "—", bot: "—", today: false };
+  /** Same mini calendar as desktop Jobs: qua / 5 / nov (jobs-page dayBlock). */
+  function fieldDayBlock(wo) {
+    const J = window.JobsInfo;
+    const finished = wo.status === "completed" || wo.status === "canceled";
+    const iso = (J && J.listAnchorIso(wo)) || (finished ? wo.updated_at || wo.scheduled_end : null);
+    if (!iso) return `<span class="jx-day is-none" aria-hidden="true"><small>sem</small><b>—</b><small>data</small></span>`;
     const d = new Date(iso);
+    const wd = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"][d.getDay()];
+    const mo = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"][d.getMonth()];
     const today = isToday(iso);
-    if (today) {
-      const pad = (n) => String(n).padStart(2, "0");
-      return { top: "Hoje", bot: `${pad(d.getHours())}:${pad(d.getMinutes())}`, today: true };
-    }
-    const wd = d.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "");
-    return {
-      top: wd.charAt(0).toUpperCase() + wd.slice(1),
-      bot: String(d.getDate()),
-      today: false,
-    };
+    const tone = !finished && (today || wo.status === "in_progress") ? " is-now" : finished ? " is-done" : "";
+    return `<span class="jx-day${tone}" aria-label="${today ? "Hoje" : `${wd} ${d.getDate()} ${mo}`}"><small>${today ? "hoje" : wd}</small><b>${d.getDate()}</b><small>${mo}</small></span>`;
+  }
+
+  function fieldTimeText(wo) {
+    const J = window.JobsInfo;
+    const iso = (J && J.listAnchorIso(wo)) || wo.scheduled_start;
+    if (!iso || wo.status === "completed" || wo.status === "canceled") return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime()) || (d.getHours() === 0 && d.getMinutes() === 0)) return "";
+    return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   }
 
   function renderFieldCard(wo) {
     const J = window.JobsInfo;
     const maps = wo.address ? `https://maps.google.com/?q=${encodeURIComponent(wo.address)}` : "";
-    const anchor = (J && J.listAnchorIso(wo)) || wo.scheduled_start;
-    const when = fieldDayParts(anchor);
-    const time = anchor ? fmtTimeRange(anchor, wo.scheduled_end) : "";
     const tone = J && J.stageTone ? J.stageTone(wo) : "wait";
     const listed = J && J.listWhen ? J.listWhen(wo) : null;
     const stText = listed?.status || statusPt(wo.status);
     const title = cardTitle(wo);
     const jobName = String(wo.title || "").trim();
     const sub = jobName && jobName.toLowerCase() !== title.toLowerCase() ? jobName : "";
+    const time = fieldTimeText(wo);
     const campoHref = `/campo/ticket.html?id=${encodeURIComponent(wo.id)}`;
     const detailHref = `job-detail.html?id=${encodeURIComponent(wo.id)}`;
     return `<article class="om-swipe jcm-job-swipe" data-job-id="${escapeHtml(wo.id)}">
@@ -296,19 +301,16 @@
         <a class="om-swipe__act--edit" href="${campoHref}">Abrir</a>
         <a class="om-swipe__act--open" href="${detailHref}">Detalhe</a>
       </div>
-      <div class="om-swipe__body crew-job${when.today ? " is-today" : ""}">
+      <div class="om-swipe__body crew-job">
         <a class="crew-job__main" href="${campoHref}">
-          <div class="crew-job__when" aria-label="${escapeHtml(when.today ? `Hoje ${time}` : `${when.top} ${when.bot}${time ? `, ${time}` : ""}`)}">
-            <b>${escapeHtml(when.top)}</b>
-            <span>${escapeHtml(when.bot)}</span>
-          </div>
+          ${fieldDayBlock(wo)}
           <div class="crew-job__copy">
             <b class="crew-job__title">${escapeHtml(title)}</b>
             ${sub ? `<span class="crew-job__sub">${escapeHtml(sub)}</span>` : ""}
             ${wo.address ? `<span class="crew-job__addr">${escapeHtml(wo.address)}</span>` : ""}
             <span class="crew-job__meta">
               ${stText ? `<span class="ol-st is-${tone}">${escapeHtml(stText)}</span>` : ""}
-              ${!when.today && time ? `<span class="crew-job__clock">${escapeHtml(time)}</span>` : ""}
+              ${time ? `<span class="crew-job__clock">${escapeHtml(time)}</span>` : ""}
             </span>
           </div>
         </a>

@@ -1200,7 +1200,7 @@
         }
       })();
     if (wantMobileNav) {
-      if (!window.__omMobileNav && !document.querySelector('script[src*="om-mobile-nav.js?v=20261105-shell9"]')) {
+      if (!window.__omMobileNav && !document.querySelector('script[src*="om-mobile-nav.js?v=20261105-hammer1"]')) {
         ensureStylesheet(`om-mobile-nav.css?v=${SHELL_VER}`);
         ensureStylesheet(`om-native-app.css?v=${SHELL_VER}`);
         ensureStylesheet(`om-gestures.css?v=20261102-ptr1`);

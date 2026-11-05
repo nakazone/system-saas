@@ -113,7 +113,7 @@ body.om-device-mobile.jobs-app .jcm-empty { padding: 28px 8px; text-align: cente
 body.om-device-mobile.jobs-app .jcm-portal { margin: 6px 2px 2px; font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: #B4561A; }
 body.om-device-mobile.jobs-app .jcm-portal-card { margin-bottom: 8px; }
 
-/* cartão Obra Crew — horário | conteúdo | mapa */
+/* cartão Obra Crew — mini calendário (jx-day) | conteúdo | mapa */
 body.jcm-field .jcm-list { gap: 8px; margin-top: 12px; }
 .crew-job {
   display: grid;
@@ -125,10 +125,9 @@ body.jcm-field .jcm-list { gap: 8px; margin-top: 12px; }
   border-radius: 16px;
   overflow: hidden;
 }
-.crew-job.is-today { border-color: #E5C9B0; }
 .crew-job__main {
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr);
+  grid-template-columns: 46px minmax(0, 1fr);
   gap: 12px;
   align-items: start;
   min-width: 0;
@@ -137,36 +136,18 @@ body.jcm-field .jcm-list { gap: 8px; margin-top: 12px; }
   text-decoration: none !important;
   -webkit-tap-highlight-color: transparent;
 }
-.crew-job__when {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  min-height: 52px;
-  padding: 8px 4px;
-  border-radius: 12px;
-  background: #F4F5F7;
-  text-align: center;
+.crew-job .jx-day {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  width: 46px; padding: 6px 0 5px; margin: 0;
+  border-radius: 11px; background: #F1F3F5; color: #221E1A;
+  line-height: 1; text-transform: uppercase;
 }
-.crew-job.is-today .crew-job__when { background: #FDF0E6; }
-.crew-job__when b {
-  font-size: 11px;
-  font-weight: 750;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #667085;
-  line-height: 1;
-}
-.crew-job.is-today .crew-job__when b { color: #B4561A; }
-.crew-job__when span {
-  font-size: 15px;
-  font-weight: 750;
-  letter-spacing: -0.02em;
-  color: #221E1A;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.1;
-}
+.crew-job .jx-day b { font-size: 19px; font-weight: 750; letter-spacing: -.02em; margin: 3px 0 2px; font-variant-numeric: tabular-nums; }
+.crew-job .jx-day small { font-size: 10px; font-weight: 650; letter-spacing: .04em; color: #667085; }
+.crew-job .jx-day.is-now b { color: #C8641C; }
+.crew-job .jx-day.is-done { color: #667085; }
+.crew-job .jx-day.is-none b { font-size: 16px; color: #98A2B3; margin: 2px 0 3px; }
+.crew-job .jx-day.is-none small { text-transform: none; letter-spacing: 0; font-size: 9.5px; }
 .crew-job__copy {
   min-width: 0;
   display: flex;
