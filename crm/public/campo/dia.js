@@ -90,7 +90,7 @@
       );
     });
   }
-  const SECTOR = { installation: "Instalação", sand_finish: "Lixa" };
+  const SECTOR = { installation: "Installation", sand_finish: "Sand & Finish" };
   const ICON = {
     cam: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h1.6l1.4-2h7l1.4 2h1.6A2.5 2.5 0 0 1 21 8.5v9A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5z"/><circle cx="12" cy="13" r="3.6"/></svg>',
     pin: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.1-7-11.5A7 7 0 0 1 19 9.5C19 14.9 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>',
@@ -208,7 +208,11 @@
     const first = emp ? emp.name.split(/\s+/)[0] : "";
     const h = new Date().getHours();
     $("dyHello").textContent = `${h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite"}${first ? `, ${first}` : ""}`;
-    $("dyDate").textContent = `${S.today_label}${emp && emp.sector ? ` · ${SECTOR[emp.sector] || emp.sector}` : ""}`;
+    const dateEl = $("dyDate");
+    const sectorLbl = emp && emp.sector ? SECTOR[emp.sector] || emp.sector : "";
+    dateEl.innerHTML = sectorLbl
+      ? `<span class="dy-hd__date">${esc(S.today_label || "")}</span><span class="dy-hd__dot" aria-hidden="true"></span><span class="dy-hd__sector">${esc(sectorLbl)}</span>`
+      : `<span class="dy-hd__date">${esc(S.today_label || "")}</span>`;
     $("dyAv").textContent = emp ? initials(emp.name) : "·";
     renderReturned();
     renderCard();
@@ -254,7 +258,7 @@
         <h2>${j ? esc(jobLine(j)) : "Nenhum job na agenda hoje"}</h2>
         <p class="dy-card__sub">${j ? `${j.start_label ? `${esc(j.start_label)} · ` : ""}${esc(j.client || "")}${j.address ? ` · ${esc(j.address)}` : ""}` : "Você pode começar e escolher o job."}</p>
         <div style="margin-top:16px"><button type="button" class="dy-btn dy-btn--terra dy-btn--full" data-act="start" data-om-press>${ICON.play} Começar o dia</button></div>
-        <p class="dy-card__hint">Depois das ${esc(endLbl)} conta hora extra.<br><button type="button" data-act="manual">Esqueci de bater o ponto</button></p>`;
+        <p class="dy-card__hint"><button type="button" data-act="manual">Esqueci de bater o ponto</button></p>`;
       return;
     }
     if (d.status === "in_progress") {

@@ -9,7 +9,10 @@ body.om-device-mobile.job-detail-app .jcm {
 }
 body.om-device-mobile.jobs-app .jcm-title { font-size: 28px; font-weight: 700; letter-spacing: -.035em; line-height: 1; }
 body.om-device-mobile.jobs-app .jcm-sub { display: none; }
-body.om-device-mobile.jobs-app.jcm-field .jcm-sub { display: block; font-size: 13px; color: #667085; margin-top: 4px; }
+body.jcm-field .jcm-partner-requests,
+body.jcm-field .jmx-filters,
+body.jcm-field .jcm-nav { display: none !important; }
+body.jcm-field .jcm-sub[hidden] { display: none !important; }
 .jcm-icon-btn { border: 0; box-shadow: 0 0 0 1px #E5E7EB; border-radius: 12px; }
 .jcm-icon-btn--accent { background: #E7792C; color: #fff; box-shadow: none; border-radius: 50%; }
 .jcm-role { background: #EEF0F3; border-radius: 11px; padding: 3px; }
@@ -51,7 +54,23 @@ body.om-device-mobile .jcm-seg.jmx-pills { background: none; padding: 0 16px; ma
 .jmx-pills .jcm-seg__btn[hidden] { display: none; }
 .jmx-pills .jcm-seg__btn em { font-style: normal; font-size: 11.5px; font-weight: 650; color: #98A2B3; }
 .jmx-pills .jcm-seg__btn.is-active { background: #221E1A; color: #fff; box-shadow: none; }
-.jmx-pills .jcm-seg__btn.is-active em { color: #98A2B3; }
+.jmx-pills .jcm-seg__btn.is-active em { color: rgba(255, 255, 255, .72); }
+
+/* Obra Crew: filtros em segmento cheio, sem dropdown */
+body.jcm-field .jcm-seg.jmx-pills {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px;
+  margin: 14px 0 6px; padding: 4px; background: #EEF0F3; border-radius: 14px;
+}
+body.jcm-field .jmx-pills .jcm-seg__btn {
+  flex: 1; justify-content: center; height: 40px; padding: 0 8px; border-radius: 11px;
+  background: transparent; box-shadow: none; color: #667085; font-size: 13px;
+}
+body.jcm-field .jmx-pills .jcm-seg__btn.is-active {
+  background: #fff; color: #221E1A; box-shadow: 0 1px 2px rgba(16, 24, 40, .08);
+}
+body.jcm-field .jmx-pills .jcm-seg__btn.is-active em { color: #98A2B3; }
+body.jcm-field .jmx-pills .jcm-seg__btn[hidden] { display: none; }
+body.jcm-field .jcm-search { margin-top: 10px; }
 
 /* cartão do job (escritório) */
 .jcm-job-swipe.is-nodate .jmx-card { background: #fff; box-shadow: 0 0 0 1px #E5E7EB; }
@@ -94,22 +113,18 @@ body.om-device-mobile.jobs-app .jcm-empty { padding: 28px 8px; text-align: cente
 body.om-device-mobile.jobs-app .jcm-portal { margin: 6px 2px 2px; font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: #B4561A; }
 body.om-device-mobile.jobs-app .jcm-portal-card { margin-bottom: 8px; }
 
-/* cartão do instalador (modo campo) — hairline, sem sombra pesada */
-.jcm-job {
-  border: 0 !important;
-  box-shadow: 0 0 0 1px #E5E7EB !important;
-  border-radius: 18px !important;
-  background: #fff !important;
+/* cartão Obra Crew */
+body.jcm-field .jmx-card--crew {
+  padding: 14px 14px 12px;
 }
-body.jcm-field .jcm-job--field {
-  border: 1.5px solid #D0D5DD !important;
-  border-left: 4px solid var(--job-accent, #E7792C) !important;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, .04) !important;
-}
-.jcm-job__cta--start { background: #E7792C !important; color: #fff !important; box-shadow: none !important; font-weight: 650 !important; }
-body.jcm-field .jcm-job__title { font-size: 1.05rem !important; font-weight: 650 !important; letter-spacing: -.02em; }
-body.jcm-field .jcm-job__time { font-weight: 700 !important; }
-.jcm-job__day.is-today { color: #B4561A !important; }
+body.jcm-field .jmx-card--crew .jmx-card__r1 > span.is-today { color: #B4561A; font-weight: 700; }
+body.jcm-field .jmx-card--crew .jmx-card__t { margin-top: 6px; font-size: 16px; line-height: 1.3; }
+body.jcm-field .jmx-card--crew .jmx-card__addr { margin-top: 6px; color: #667085; font-size: 13px; line-height: 1.35; }
+body.jcm-field .jmx-card--crew .jmx-card__r3 { margin-top: 12px; gap: 8px; }
+body.jcm-field .jmx-card--crew .jmx-b { height: 40px; border-radius: 12px; font-size: 13.5px; }
+body.jcm-field .jmx-card--crew .jmx-b--sq { width: 40px; }
+body.jcm-field .jmx-card--crew .jmx-b--or { flex: 1; }
+body.jcm-field .jcm-list { gap: 10px; margin-top: 12px; }
 
 /* status (lista e página) */
 .jcm-badge { margin-top: 0; height: 22px; padding: 0 9px; font-size: 12px; font-weight: 650; background: #F1F3F5; color: #221E1A; }
