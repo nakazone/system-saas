@@ -178,7 +178,14 @@ async function loadMarketingAdSpend() {
 }
 
 async function deleteAdSpendRow(id) {
-  if (!confirm('Excluir esta linha de spend?')) return;
+  const ok = await window.crmConfirm({
+    title: 'Excluir esta linha de gasto?',
+    text: 'O valor sai dos totais de investimento do período.',
+    ok: 'Excluir linha',
+    cancel: 'Cancelar',
+    danger: true,
+  });
+  if (!ok) return;
   await fetch(`/api/marketing/ad-spend/${id}`, { method: 'DELETE', credentials: 'include' });
   loadMarketingAdSpend();
   loadMarketingDashboard();
@@ -204,7 +211,7 @@ async function submitAdSpend(e) {
   const j = await r.json();
   if (!j.success) {
     if (typeof crmNotify === 'function') crmNotify(j.error || 'Erro ao salvar', 'error');
-    else alert(j.error || 'Erro ao salvar');
+    else window.crmToast?.error(j.error || 'Erro ao salvar');
     return;
   }
   e.target.reset();
@@ -240,7 +247,7 @@ async function refreshMarketingUrgentBanner() {
       '<div class="mkt-urgent-banner-inner">' +
       '<span class="mkt-urgent-banner-icon" aria-hidden="true">⏱</span>' +
       '<div class="mkt-urgent-banner-text">' +
-      `<strong>${n} lead(s) sem contacto</strong> há mais de 5 minutos.` +
+      `<strong>${n} lead(s) sem contato</strong> há mais de 5 minutos.` +
       (sample ? `<span class="mkt-urgent-banner-names"> Ex.: ${sample}${more}.</span>` : '') +
       '</div>' +
       '<button type="button" class="btn btn-secondary" onclick="showPage(\'leads\')">Ver leads</button>' +

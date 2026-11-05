@@ -184,7 +184,7 @@
 .inv-summary__balance small { color: var(--inv-muted); font-size: 0.82rem; }
 .inv-summary__balance small.is-overdue { color: var(--inv-danger); font-weight: 700; }
 .inv-progress { height: 8px; background: var(--inv-line-2); border-radius: 99px; overflow: hidden; margin: 14px 0 12px; }
-.inv-progress span { display: block; height: 100%; background: linear-gradient(90deg, var(--inv-accent), var(--inv-accent-2)); border-radius: inherit; transition: width 0.5s ease; }
+.inv-progress span { display: block; height: 100%; background: linear-gradient(90deg, var(--inv-accent), var(--inv-accent-2)); border-radius: inherit; transform-origin: left center; transition: transform 0.5s var(--om-ease-out, ease-out); }
 .inv-progress--thin { height: 5px; margin: 10px 0 0; }
 .inv-summary__rows { margin: 0; display: grid; gap: 6px; font-size: 0.88rem; }
 .inv-summary__rows div { display: flex; justify-content: space-between; }
@@ -237,9 +237,9 @@
 /* ---------- modal ---------- */
 .inv-modal { position: fixed; inset: 0; z-index: 5000; display: grid; place-items: center; padding: 16px; }
 .inv-modal[hidden] { display: none; }
-.inv-modal__backdrop { position: absolute; inset: 0; background: rgba(33, 29, 26, 0.45); opacity: 0; transition: opacity 0.18s ease; }
+.inv-modal__backdrop { position: absolute; inset: 0; background: rgba(33, 29, 26, 0.45); opacity: 0; transition: opacity var(--om-dur-2, 200ms) var(--om-ease-out, ease-out); }
 .inv-modal.is-open .inv-modal__backdrop { opacity: 1; }
-.inv-modal__panel { position: relative; width: min(560px, 100%); max-height: calc(100dvh - 32px); display: flex; flex-direction: column; background: #fff; border-radius: 16px; box-shadow: 0 30px 60px -20px rgba(33, 29, 26, 0.45); transform: translateY(8px) scale(0.98); opacity: 0; transition: transform 0.2s ease, opacity 0.2s ease; }
+.inv-modal__panel { position: relative; width: min(560px, 100%); max-height: calc(100dvh - 32px); display: flex; flex-direction: column; background: #fff; border-radius: 16px; box-shadow: 0 30px 60px -20px rgba(33, 29, 26, 0.45); transform: translateY(8px) scale(0.98); opacity: 0; transition: transform var(--om-dur-2, 200ms) var(--om-ease-out, ease-out), opacity var(--om-dur-2, 200ms) var(--om-ease-out, ease-out); }
 .inv-modal.is-open .inv-modal__panel { transform: none; opacity: 1; }
 .inv-modal__panel--sm { width: min(440px, 100%); }
 .inv-modal__panel--wide { width: min(680px, 100%); }

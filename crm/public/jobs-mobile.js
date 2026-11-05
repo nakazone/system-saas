@@ -424,7 +424,13 @@
 
   async function deleteJob(id, label, btn) {
     if (!id || !canManage) return;
-    if (!confirm(`Excluir o job “${label || id}”?\n\nO job será cancelado e sai da lista ativa.`)) return;
+    const okDel = await window.crmConfirm({
+      title: `Excluir o job “${label || id}”?`,
+      text: "O job será cancelado e sai da lista ativa.",
+      ok: "Excluir job",
+      danger: true,
+    });
+    if (!okDel) return;
     const prev = btn?.textContent;
     if (btn) {
       btn.disabled = true;
@@ -459,9 +465,7 @@
       const nxt = wo && window.JobsInfo?.nextFinish ? window.JobsInfo.nextFinish(wo) : null;
       if (nxt?.toast) doneToast = nxt.toast;
       const label = wo?.title || (wo ? clientLabel(wo) : "");
-      const ok = window.crmConfirm?.completeJob
-        ? await window.crmConfirm.completeJob(label, nxt)
-        : confirm(nxt?.confirm || "Marcar o job como concluído?");
+      const ok = await window.crmConfirm.completeJob(label, nxt);
       if (!ok) return;
     }
     try {

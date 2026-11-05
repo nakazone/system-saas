@@ -21,9 +21,27 @@
       .replace(/"/g, '&quot;');
   }
 
+  const COLS = 6;
+
+  /** One full-width row (empty state / error host). */
+  function wideRow(tb, html) {
+    tb.innerHTML = `<tr><td colspan="${COLS}" class="px-4 py-8 text-center text-slate-500">${html}</td></tr>`;
+    return tb.querySelector('td');
+  }
+
   function render() {
     const tb = $('tbody');
     tb.innerHTML = '';
+    tb.removeAttribute('aria-busy');
+    if (!rows.length) {
+      wideRow(
+        tb,
+        $('showInactive').checked
+          ? 'Nenhum fornecedor cadastrado.'
+          : 'Nenhum fornecedor ativo. Use <b>+ Supplier</b> para cadastrar ou marque para ver os inativos.',
+      );
+      return;
+    }
     rows.forEach((r) => {
       const tr = document.createElement('tr');
       tr.className = 'border-b border-slate-100';
@@ -48,11 +66,27 @@
     );
   }
 
+  let loadSeq = 0;
   async function load() {
+    const tb = $('tbody');
+    const seq = ++loadSeq;
     const all = $('showInactive').checked ? '1' : '0';
-    const r = await api('/api/erp/suppliers' + (all === '1' ? '?all=1' : ''));
-    rows = r.data || [];
-    render();
+    if (window.crmSkeleton) {
+      tb.innerHTML = window.crmSkeleton.tableRows(5, COLS);
+      tb.setAttribute('aria-busy', 'true');
+    }
+    try {
+      const r = await api('/api/erp/suppliers' + (all === '1' ? '?all=1' : ''));
+      if (seq !== loadSeq) return;
+      rows = r.data || [];
+      render();
+    } catch (e) {
+      if (seq !== loadSeq) return;
+      const td = wideRow(tb, '');
+      if (window.crmSkeleton) window.crmSkeleton.error(td, e.message || 'Não foi possível carregar os fornecedores.', () => load());
+      else td.textContent = e.message || 'Não foi possível carregar os fornecedores.';
+      tb.removeAttribute('aria-busy');
+    }
   }
 
   function openM() {
@@ -82,8 +116,21 @@
   }
 
   async function del(id) {
-    if (!confirm('Deactivate supplier?')) return;
-    await api('/api/erp/suppliers/' + id, { method: 'DELETE' });
+    const r = rows.find((x) => Number(x.id) === id);
+    const ok = await window.crmConfirm({
+      title: r && r.name ? `Desativar o fornecedor “${r.name}”?` : 'Desativar este fornecedor?',
+      text: 'Ele some da lista de ativos; os produtos e o histórico ficam guardados.',
+      ok: 'Desativar fornecedor',
+      cancel: 'Cancelar',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api('/api/erp/suppliers/' + id, { method: 'DELETE' });
+    } catch (e) {
+      window.crmToast?.error(e.message || 'Não foi possível desativar.');
+      return;
+    }
     await load();
   }
 

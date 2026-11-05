@@ -601,3 +601,16 @@
 @media (min-width: 1025px) {
   .jx-list:not(.is-filt) .jx-list__bar { display: none; }
 }
+
+/* ---------- Toque: alvos de 44px (Fitts). No mouse a lista continua compacta. */
+@media (pointer: coarse) {
+  .ol-list .ol-seg > button,
+  .ol-idx__b,
+  .ol-list .ol-more { min-height: 44px; }
+  .ol-filt .ol-chip,
+  .ol-filt .ol-clear,
+  .ol-filt .ol-foldall { min-height: 40px; font-size: 13px; }
+  .ol-idx__fold { width: 44px; height: 44px; }
+  .ol-list .ol-rows .jx-foot > .jmx-b { height: 44px; font-size: 13.5px; }
+  .ol-list .ol-rows .jx-foot > .jmx-b--sq { width: 44px; }
+}

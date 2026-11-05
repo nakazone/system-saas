@@ -13,6 +13,17 @@
   let loadedAt = 0;
   let expanded = false;
 
+  // Mascot entrance only on the first Início of the session. Runs as soon as this script
+  // executes (end of <body>), before the first frame of the CSS animation.
+  (function markMateSeen() {
+    const btn = document.getElementById("homeMate");
+    if (!btn) return;
+    try {
+      if (sessionStorage.getItem("om_home_mate_seen")) btn.classList.add("home-mate--seen");
+      else sessionStorage.setItem("om_home_mate_seen", "1");
+    } catch (_) {}
+  })();
+
   /** The Mate (fox mascot) next to the greeting: waves in the morning, tablet in the afternoon, laptop at night. */
   function renderMate() {
     const img = $("homeMateImg");
@@ -23,6 +34,7 @@
     img.dataset.done = "1";
     const btn = $("homeMate");
     btn.classList.add("home-mate--" + pose);
+
     btn.addEventListener("click", () => {
       if (window.MateAI && typeof window.MateAI.open === "function") window.MateAI.open();
     });
@@ -83,11 +95,55 @@
     }
   }
 
+  // Remember how many KPI cards / whether "Hoje" showed last time, so the skeleton
+  // matches the real layout (mobile grid: 1 wide card + up to 3 small) and nothing jumps.
+  const LAYOUT_KEY = "om_home_layout_v1";
+  function readLayout() {
+    try {
+      const v = JSON.parse(sessionStorage.getItem(LAYOUT_KEY) || "null");
+      if (v && typeof v.kpis === "number") return v;
+    } catch (_) {}
+    return { kpis: 4, today: true };
+  }
+  function saveLayout(kpis, today) {
+    try {
+      sessionStorage.setItem(LAYOUT_KEY, JSON.stringify({ kpis, today }));
+    } catch (_) {}
+  }
+
+  function renderSkeletons() {
+    const layout = readLayout();
+    const kpiHost = $("homeKpis");
+    if (kpiHost) {
+      const n = Math.max(0, Math.min(4, layout.kpis));
+      kpiHost.hidden = n === 0;
+      let html = "";
+      for (let i = 0; i < n; i++) {
+        html += `<div class="home-kpi ${i === 0 ? "home-kpi--dark" : "home-kpi--light"} is-skeleton" aria-hidden="true"></div>`;
+      }
+      kpiHost.innerHTML = html;
+    }
+    const todayCard = $("homeTodayCard");
+    const todayList = $("homeTodayList");
+    if (todayCard && todayList) {
+      todayCard.hidden = !layout.today;
+      $("homeTodayEmpty").hidden = true;
+      todayList.innerHTML =
+        window.crmSkeleton && layout.today ? `<li aria-hidden="true">${window.crmSkeleton.rows(2, { avatar: false })}</li>` : "";
+    }
+    const attnList = $("homeAttnList");
+    if (attnList && !attnList.querySelector(".is-skeleton")) {
+      attnList.innerHTML = '<li class="home-attn__item is-skeleton"></li><li class="home-attn__item is-skeleton"></li>';
+      $("homeAttnEmpty").hidden = true;
+    }
+  }
+
   function renderKpis() {
     const host = $("homeKpis");
     const cards = D.kpiCards(overview);
     if (!cards.length) {
       host.hidden = true;
+      host.innerHTML = "";
       return;
     }
     host.hidden = false;
@@ -228,16 +284,33 @@
       renderKpis();
       renderAttention();
       renderToday();
+      saveLayout(D.kpiCards(overview).length, overview.today_events != null);
     } catch (err) {
       if (err && err.status === 401) {
         location.href = "/login.html";
         return;
       }
       if (err && err.status === 403) return; // field roles: crm-field-gate.js redirects them
-      $("homeError").hidden = false;
       if (!overview) {
+        // Nothing to show yet: replace the skeletons with one inline error + retry
+        // instead of leaving blank cards.
+        $("homeError").hidden = true;
         $("homeKpis").innerHTML = "";
-        $("homeAttnList").innerHTML = "";
+        $("homeKpis").hidden = true;
+        $("homeTodayCard").hidden = true;
+        const list = $("homeAttnList");
+        list.innerHTML = '<li class="home-load-error"></li>';
+        if (window.crmSkeleton) {
+          window.crmSkeleton.error(list.firstChild, "Não foi possível carregar o Início.", () => {
+            renderSkeletons();
+            load(true);
+          });
+        } else {
+          list.innerHTML = "";
+          $("homeError").hidden = false;
+        }
+      } else {
+        $("homeError").hidden = false;
       }
     } finally {
       root.setAttribute("aria-busy", "false");
@@ -270,6 +343,7 @@
       if (overview) renderAttention();
     }, 30 * 1000);
     window.__omPullRefresh = () => load(true);
+    renderSkeletons();
     load(true);
   }
 

@@ -658,7 +658,7 @@
           jobId,
           workOrder: job,
           compact: true,
-          onError: (err) => alert(err.message || "Erro"),
+          onError: (err) => window.crmToast?.error(err.message || "Erro no ObraChat"),
         });
       } else {
         $("jobMobExtra").innerHTML = `<p class="jcm-empty">ObraChat indisponível.</p>`;
@@ -793,9 +793,7 @@
     const J = window.JobsInfo;
     const nxt = J?.nextFinish?.(job);
     const label = job?.title || (J && job ? J.client(job) : "");
-    const ok = window.crmConfirm?.completeJob
-      ? await window.crmConfirm.completeJob(label, nxt)
-      : confirm(nxt?.confirm || "Marcar o job como concluído?");
+    const ok = await window.crmConfirm.completeJob(label, nxt);
     if (!ok) return;
     await setStatus("completed");
     window.crmToast?.success?.(nxt?.toast || "Job concluído");

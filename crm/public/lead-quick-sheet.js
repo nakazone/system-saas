@@ -921,7 +921,7 @@
 
   function notifySheet(msg, kind) {
     if (typeof global.crmNotify === 'function') global.crmNotify(msg, kind || 'info');
-    else if (kind === 'error') alert(msg);
+    else if (kind === 'error') console.warn(msg);
   }
 
   let kanbanSoftReloadTimer = null;
@@ -2093,8 +2093,18 @@
     const delBtn = e.target.closest('[data-lqs-delete-quote]');
     if (delBtn && sheetLeadId) {
       const qid = delBtn.getAttribute('data-lqs-delete-quote');
-      if (!qid || !confirm('Excluir este orcamento (quote)?')) return;
+      if (!qid) return;
       void (async () => {
+        const ok = window.crmConfirm
+          ? await window.crmConfirm({
+              title: 'Excluir este quote?',
+              text: 'O orçamento será removido deste lead. Esta ação não pode ser desfeita.',
+              ok: 'Excluir quote',
+              cancel: 'Cancelar',
+              danger: true,
+            })
+          : false;
+        if (!ok) return;
         try {
           const res = await fetch(
             `/api/quotes/${encodeURIComponent(qid)}?lead_id=${encodeURIComponent(String(sheetLeadId))}`,

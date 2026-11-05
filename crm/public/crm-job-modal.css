@@ -871,18 +871,31 @@ body.om-device-mobile .jm-btn--pri { flex: 1; height: 48px; }
   background: linear-gradient(160deg, #221E1A 0%, #3a342e 100%);
   color: #E7792C;
   flex: none;
-  box-shadow: 0 0 0 0 rgba(231, 121, 44, 0.45);
+  position: relative;
+}
+/* Attention ring: a static shadow on a pseudo-element, animated with transform + opacity only.
+   Every loop is finite (3 beats) so the modal settles. */
+.jm-lockbox__pad.is-wait::after,
+.jm-lockbox__pad.is-ready::after,
+.job-lockbox-badge::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 4px rgba(232, 121, 44, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  animation: jm-lockbox-ring 2.2s var(--om-ease-out, ease-out) 3;
 }
 .jm-lockbox__pad.is-wait {
-  animation: jm-lockbox-bob 1.7s ease-in-out infinite, job-lockbox-pulse 2.2s ease-out infinite;
+  animation: jm-lockbox-bob 1.7s ease-in-out 3;
 }
 .jm-lockbox__pad.is-ready {
-  animation: job-lockbox-pulse 2.2s ease-out infinite;
   color: #f8fafc;
   background: linear-gradient(160deg, #1e293b 0%, #334155 100%);
 }
 .jm-lockbox__pad.is-ready .jm-lockbox__shackle { animation: none; }
-.jm-lockbox__shackle { transform-origin: 12px 8px; animation: jm-lockbox-shackle 1.7s ease-in-out infinite; }
+.jm-lockbox__shackle { transform-origin: 12px 8px; animation: jm-lockbox-shackle 1.7s ease-in-out 3; }
 .jm-lockbox__main { display: grid; gap: 8px; min-width: 0; flex: 1; }
 .jm-lockbox__cells { display: flex; flex-wrap: wrap; gap: 6px; }
 .jm-lockbox__cell {
@@ -901,13 +914,13 @@ body.om-device-mobile .jm-btn--pri { flex: 1; height: 48px; }
 .jm-lockbox__cell.is-empty {
   border-color: #E7792C;
   background: rgba(253, 240, 230, 0.65);
-  animation: jm-lockbox-slot 1.6s ease-in-out infinite;
+  animation: jm-lockbox-slot 1.6s ease-in-out 3;
 }
 .jm-lockbox__cell.is-filled {
   border-style: solid;
   border-color: #221E1A;
   background: #fff;
-  animation: jm-lockbox-pop 0.28s ease;
+  animation: jm-lockbox-pop 0.28s var(--om-ease-out, ease-out);
 }
 .jm-lockbox__input {
   width: 100%;
@@ -939,8 +952,8 @@ body.om-device-mobile .jm-btn--pri { flex: 1; height: 48px; }
   50% { transform: translateY(-1.5px); }
 }
 @keyframes jm-lockbox-slot {
-  0%, 100% { border-color: #E7792C; box-shadow: inset 0 0 0 0 rgba(231, 121, 44, 0.12); }
-  50% { border-color: #B4561A; box-shadow: inset 0 0 0 2px rgba(231, 121, 44, 0.1); }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
 }
 @keyframes jm-lockbox-pop {
   0% { transform: scale(0.92); }
@@ -968,8 +981,7 @@ body.om-device-mobile .jm-lockbox__input { height: 46px; font-size: 16px; }
   letter-spacing: 0.04em;
   font-variant-numeric: tabular-nums;
   vertical-align: middle;
-  box-shadow: 0 0 0 0 rgba(232, 121, 44, 0.55);
-  animation: job-lockbox-pulse 2.2s ease-out infinite;
+  position: relative;
 }
 .job-lockbox-badge--cells {
   gap: 0.45rem;
@@ -996,10 +1008,9 @@ body.om-device-mobile .jm-lockbox__input { height: 46px; font-size: 16px; }
 }
 .jm-lockbox-slot[hidden] { display: none !important; }
 .jm-sec__t .job-lockbox-badge { vertical-align: middle; }
-@keyframes job-lockbox-pulse {
-  0% { box-shadow: 0 0 0 0 rgba(232, 121, 44, 0.5); }
-  55% { box-shadow: 0 0 0 8px rgba(232, 121, 44, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(232, 121, 44, 0); }
+@keyframes jm-lockbox-ring {
+  0% { opacity: 1; transform: scale(1); }
+  60%, 100% { opacity: 0; transform: scale(1.18); }
 }
 
 /* Para o campo — atenção + checklist definido pelo escritório */

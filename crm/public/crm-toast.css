@@ -21,11 +21,59 @@
   line-height: 1.4;
   box-shadow: 0 10px 40px rgba(26, 32, 54, 0.18);
   border: 1px solid rgba(0, 0, 0, 0.06);
-  animation: crmToastIn 0.22s ease-out;
+  animation: crmToastIn var(--om-dur-2, 200ms) var(--om-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+}
+
+.crm-toast.is-leaving {
+  animation: crmToastOut 150ms ease-out forwards;
+}
+
+@keyframes crmToastOut {
+  to {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.crm-toast__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.crm-toast__action {
+  flex: none;
+  min-height: 36px;
+  padding: 0 0.85rem;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(33, 29, 26, 0.08);
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 100ms ease-out, background-color 150ms ease-out;
+}
+
+.crm-toast__action:hover {
+  background: rgba(33, 29, 26, 0.14);
+}
+
+.crm-toast__action:active {
+  transform: scale(0.97);
+}
+
+@media (pointer: coarse) {
+  .crm-toast__action {
+    min-height: 44px;
+  }
+  .crm-toast__close {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 
 @keyframes crmToastIn {

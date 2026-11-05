@@ -1090,7 +1090,7 @@
   }
 
   function historyListHtml(list) {
-    if (!list) return '<p class="mate-empty">Carregando…</p>';
+    if (!list) return window.crmSkeleton ? window.crmSkeleton.rows(4, { avatar: false }) : '<p class="mate-empty">Carregando…</p>';
     if (!list.length) return '<p class="mate-empty">' + (state.historyQ ? 'Nenhuma conversa com essa busca.' : 'Suas conversas com o Mate aparecem aqui.') + '</p>';
     var html = '';
     var current = '';

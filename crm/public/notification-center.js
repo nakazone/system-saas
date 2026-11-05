@@ -195,8 +195,16 @@
     }).catch(function () {});
   }
 
-  function clearAll() {
-    if (!confirm('Apagar todo o histórico de notificações neste dispositivo?')) return;
+  async function clearAll() {
+    var ok = window.crmConfirm
+      ? await window.crmConfirm({
+          title: 'Apagar todas as notificações?',
+          text: 'O histórico de notificações deste aparelho fica vazio.',
+          ok: 'Apagar tudo',
+          danger: true,
+        })
+      : false;
+    if (!ok) return;
     writeAll([]);
     updateBellBadge();
     renderList();

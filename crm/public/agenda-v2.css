@@ -135,9 +135,9 @@ html body.dashboard-app-body .ag .ag-md__n.is-today {
   body.ag-body .dashboard-container { width: 100% !important; }
   .ag:not(.is-phone) .ag-title small { font-size: 13px; }
   .ag:not(.is-phone) .ag-nav { gap: 4px; }
-  .ag:not(.is-phone) .ag-nav .ag-icon { width: 32px; height: 32px; border-radius: 10px; box-shadow: 0 0 0 1px var(--line); }
+  .ag:not(.is-phone) .ag-nav .ag-icon { width: 40px; height: 40px; border-radius: 10px; box-shadow: 0 0 0 1px var(--line); }
   .ag:not(.is-phone) .ag-nav .ag-icon svg { width: 16px; height: 16px; }
-  .ag:not(.is-phone) .ag-today { height: 32px; padding: 0 12px; border-radius: 10px; box-shadow: 0 0 0 1px var(--line); font-size: 13px; font-weight: 600; color: var(--ink); }
+  .ag:not(.is-phone) .ag-today { height: 40px; padding: 0 12px; border-radius: 10px; box-shadow: 0 0 0 1px var(--line); font-size: 13px; font-weight: 600; color: var(--ink); }
   .ag:not(.is-phone) .ag-seg button { padding: 6px 13px; font-size: 13px; border-radius: 9px; }
   .ag:not(.is-phone) .ag-seg { border-radius: 12px !important; }
   .ag:not(.is-phone) .ag-capsule { box-shadow: 0 0 0 1px var(--line); border: 0; border-radius: 12px; }
@@ -243,3 +243,9 @@ html body.dashboard-app-body .ag .ag-md__n.is-today {
 .ag.is-phone .ag-mm__t span { color: var(--ink) !important; border-color: var(--ink) !important; }
 .ag.is-phone .ag-mday__route .ag-btn { min-height: 46px; }
 .ag.is-phone .ag-md.is-we { background: transparent; }
+
+/* Touch: 44px nav targets (desktop stays at 40px). */
+@media (min-width: 768px) and (pointer: coarse) {
+  .ag:not(.is-phone) .ag-nav .ag-icon { width: 44px; height: 44px; }
+  .ag:not(.is-phone) .ag-today { height: 44px; }
+}

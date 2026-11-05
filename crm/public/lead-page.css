@@ -329,3 +329,16 @@ body.lp-modal-open { overflow: hidden; }
 @media (max-width: 760px) {
   .lp-head__left { flex: 1 1 0; }
 }
+
+/* ---------- touch targets (UX phase 2) */
+@media (pointer: coarse) {
+  /* Funnel: the 6px bar stays thin; the button itself grows to a 44px hit area. */
+  .lp-step { position: relative; min-height: 44px; display: flex; flex-direction: column; justify-content: center; }
+  .lp-icon-btn { width: 44px; height: 44px; }
+  /* 24px circle visually, 44px to the finger. */
+  .lp-check::before { content: ""; position: absolute; inset: -10px; border-radius: 50%; }
+}
+@media (hover: none) {
+  /* No hover to reveal it: the delete is always visible and finger-sized. */
+  .lp-tl__del { opacity: 1; width: 44px; height: 44px; margin: -10px -10px -10px 0; }
+}

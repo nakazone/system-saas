@@ -262,3 +262,10 @@
   .qs-head h2 { font-size: 24px; }
   .qs-paper__bar .qs-btn { display: none; }
 }
+
+/* Touch targets (UX phase 2): status select, filter tiles and segments reach 44px to the finger. */
+@media (pointer: coarse) {
+  .qs-status select { height: 44px; }
+  .qs-tile { min-height: 44px; }
+  .qs-seg button { min-height: 44px; }
+}

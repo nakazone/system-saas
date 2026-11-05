@@ -224,7 +224,13 @@
 
   async function deleteJob(id, label, btn) {
     if (!id || !canManage) return;
-    if (!confirm(`Excluir o job “${label || id}”?\n\nO job será cancelado e sai da lista ativa.`)) return;
+    const okDel = await window.crmConfirm({
+      title: `Excluir o job “${label || id}”?`,
+      text: "O job será cancelado e sai da lista ativa.",
+      ok: "Excluir job",
+      danger: true,
+    });
+    if (!okDel) return;
     const prev = btn?.textContent;
     if (btn) {
       btn.disabled = true;
@@ -567,7 +573,11 @@
       return;
     }
     if (!mediaCache[j.id]) {
-      host.innerHTML = headHtml(j, null) + `<div class="cam-box"><p class="cam-empty">Carregando fotos…</p></div>`;
+      host.innerHTML =
+        headHtml(j, null) +
+        (window.crmSkeleton
+          ? `<div class="cam-box" aria-busy="true">${window.crmSkeleton.cards(3)}</div>`
+          : `<div class="cam-box"><p class="cam-empty">Carregando fotos…</p></div>`);
       try {
         const m = await api(`/api/work-orders/${encodeURIComponent(j.id)}/media`);
         mediaCache[j.id] = (m.data || []).filter((p) => (p.type || "photo") === "photo" && p.url);
@@ -848,7 +858,13 @@
   }
   async function deletePicked() {
     const list = pickedPhotos();
-    if (!confirm(`Apagar ${list.length} foto${list.length === 1 ? "" : "s"}? Elas saem dos jobs e do ObraCam.`)) return;
+    const okDel = await window.crmConfirm({
+      title: `Apagar ${list.length} foto${list.length === 1 ? "" : "s"}?`,
+      text: "Elas saem dos jobs e do ObraCam.",
+      ok: list.length === 1 ? "Apagar foto" : "Apagar fotos",
+      danger: true,
+    });
+    if (!okDel) return;
     const bar = $("camSelBar");
     bar?.querySelectorAll("button").forEach((x) => (x.disabled = true));
     const ok = await eachPhoto(list, "Apagando", async (p) => {

@@ -821,7 +821,6 @@ a.omd-kpi:hover {
   margin-right: 0.35rem;
   border-radius: 50%;
   background: currentColor;
-  animation: omdPulse 1.4s ease-in-out infinite;
 }
 
 @keyframes omdPulse {
@@ -951,7 +950,6 @@ a.omd-kpi:hover {
   height: 7px;
   border-radius: 50%;
   background: currentColor;
-  animation: omdPulse 1.6s ease-in-out infinite;
 }
 
 /* Sources */
@@ -1327,7 +1325,8 @@ body.omd-dnd-active .omd-lead {
 }
 
 .omd-lead__flag.is-sla {
-  animation: omdPulse 1.2s ease-in-out infinite;
+  /* The only pulse left on the dashboard: draws the eye 3 times, then stays still. */
+  animation: omdPulse 1.2s ease-in-out 3;
 }
 
 @media (prefers-reduced-motion: reduce) {

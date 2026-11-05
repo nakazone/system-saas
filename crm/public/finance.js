@@ -167,10 +167,18 @@
   const qs = (f, t) => `?from=${encodeURIComponent(f)}&to=${encodeURIComponent(t)}`;
 
   /* ---------------- dados */
+  // Each load() bumps the token; a response that arrives after a newer load started is ignored
+  // (prev/next clicked quickly used to render whichever period came back last).
+  let loadSeq = 0;
+  let loadedOnce = false;
   async function load() {
     computeRange();
     renderPeriod();
     const pr = prevRange();
+    const seq = ++loadSeq;
+    const rowsEl = $("fxRows");
+    if (!loadedOnce && window.crmSkeleton) window.crmSkeleton.fill(rowsEl, "rows", 7);
+    else rowsEl.classList.add("is-loading");
     const res = await Promise.allSettled([
       api(`/api/finance/summary${qs(S.from, S.to)}`),
       api(`/api/finance/cashflow${qs(S.from, S.to)}`),
@@ -179,11 +187,12 @@
       api("/api/finance/payroll"),
       api(`/api/finance/summary${qs(pr.from, pr.to)}`),
     ]);
+    if (seq !== loadSeq) return;
+    rowsEl.classList.remove("is-loading");
+    loadedOnce = true;
     const val = (i, d) => (res[i].status === "fulfilled" ? res[i].value.data : d);
-    if (res[0].status === "rejected") {
-      $("fxRows").innerHTML = `<p class="fx-empty">${esc(res[0].reason && res[0].reason.message)}</p>`;
-      if (res[0].reason && res[0].reason.status === 403) S.canManage = false;
-    }
+    const failed = res[0].status === "rejected" ? res[0].reason : null;
+    if (failed && failed.status === 403) S.canManage = false;
     S.summary = val(0, {}) || {};
     S.lines = (val(1, {}) || {}).lines || [];
     S.costs = val(2, []) || [];
@@ -191,6 +200,12 @@
     S.periods = (val(4, {}) || {}).periods || [];
     S.prev = val(5, null);
     render();
+    if (window.crmSkeleton) window.crmSkeleton.done(rowsEl);
+    if (failed) {
+      const msg = (failed && failed.message) || "Não foi possível carregar os movimentos.";
+      if (window.crmSkeleton) window.crmSkeleton.error(rowsEl, msg, () => load());
+      else rowsEl.innerHTML = `<p class="fx-empty">${esc(msg)}</p>`;
+    }
   }
 
   function moves() {
