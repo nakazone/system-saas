@@ -1732,24 +1732,62 @@ html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .
   }
 
   /* Saudação grande, ações embaixo */
+  /* Saudação grande à esquerda, o Mate grande à direita, as ações embaixo (as duas faixas de cima). */
   html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-head {
-    grid-column: 1 / 5;
+    grid-column: 1 / 6;
+    grid-row: 1 / 3;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 12px 8px;
+    padding: 4px 0 0;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-head__text {
+    grid-column: 1;
     grid-row: 1;
-    grid-template-columns: auto minmax(0, 1fr);
-    grid-template-rows: auto auto;
-    align-content: center;
-    gap: 10px 14px;
+    align-self: center;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-mate {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: end;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-mate img,
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-mate--laptop img {
+    height: clamp(116px, 18vh, 172px);
+    filter: drop-shadow(0 12px 16px rgba(16, 24, 40, 0.14));
+  }
+
+  /* Sentado com o laptop, o Mate é mais baixo: um pouco menor para não parecer outro tamanho. */
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-mate--laptop img {
+    height: clamp(112px, 17vh, 156px);
   }
 
   html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-head__actions {
     grid-column: 1 / -1;
     grid-row: 2;
-    flex-wrap: wrap;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-date {
+    font-size: 13.5px;
   }
 
   html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-title {
-    font-size: clamp(28px, 2.4vw, 38px);
-    letter-spacing: -0.04em;
+    margin-top: 2px;
+    font-size: clamp(34px, 3.1vw, 48px);
+    font-weight: 750;
+    letter-spacing: -0.045em;
+    line-height: 1.04;
+  }
+
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-summary {
+    margin-top: 8px;
+    font-size: 14.5px;
   }
 
   /* Indicadores: blocos grandes */
@@ -1776,15 +1814,15 @@ html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .
     font-size: 13px;
   }
 
-  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="conversion"] { grid-column: 1 / 3; grid-row: 2; }
-  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="leads"] { grid-column: 3 / 5; grid-row: 2; }
-  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] { grid-column: 5 / 8; grid-row: 1 / 3; }
-  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] { grid-column: 8 / 10; grid-row: 1 / 3; }
-  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="receivables"] { grid-column: 10 / 13; grid-row: 1; }
-  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="gross_profit"] { grid-column: 10 / 13; grid-row: 2; }
+  /* Conversão e Leads novos ficam dentro do bloco do pipeline (caixas) no mosaico. */
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi:is([data-kpi="conversion"], [data-kpi="leads"]) { display: none; }
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="pipeline"] { grid-column: 6 / 9; grid-row: 1 / 3; }
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="won"] { grid-column: 9 / 11; grid-row: 1 / 3; }
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="receivables"] { grid-column: 11 / 13; grid-row: 1; }
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="gross_profit"] { grid-column: 11 / 13; grid-row: 2; }
 
-  /* Short tiles in the second row: value and caption side by side, the margin bar underneath. */
-  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi:is([data-kpi="conversion"], [data-kpi="leads"], [data-kpi="gross_profit"]) {
+  /* Lucro bruto (short tile in the second row): value and caption side by side, the margin bar underneath. */
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="gross_profit"] {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
     grid-template-rows: auto 1fr auto;
@@ -1793,23 +1831,23 @@ html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .
     padding-bottom: 13px;
   }
 
-  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi:is([data-kpi="conversion"], [data-kpi="leads"], [data-kpi="gross_profit"]) .omd-kpi__label {
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="gross_profit"] .omd-kpi__label {
     grid-column: 1 / -1;
   }
 
-  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi:is([data-kpi="conversion"], [data-kpi="leads"], [data-kpi="gross_profit"]) .omd-kpi__value {
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="gross_profit"] .omd-kpi__value {
     grid-row: 2;
     align-self: end;
     margin: 0;
   }
 
-  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi:is([data-kpi="conversion"], [data-kpi="leads"], [data-kpi="gross_profit"]) .omd-kpi__meta {
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="gross_profit"] .omd-kpi__meta {
     grid-row: 2;
     align-self: end;
     margin: 0 0 4px;
   }
 
-  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi:is([data-kpi="conversion"], [data-kpi="leads"], [data-kpi="gross_profit"]) .omd-kpi__split {
+  html body.plab.dashboard-app-body:not(.om-device-mobile):not(.plab-leads-list) .omd:not(.omd--kpi-compact):not(.omd--kpi-partial) .omd-kpi[data-kpi="gross_profit"] .omd-kpi__split {
     grid-column: 1 / -1;
     grid-row: 3;
   }
@@ -2252,4 +2290,131 @@ html.omd-morphing::view-transition-group(root) {
 
 .omd--kpi-partial .omd-fold--kpis {
   display: none !important;
+}
+
+/* =====================================================================
+ * "Precisa da sua atenção" em blocos por tipo (Leads, Follow-ups, Quotes, Faturas).
+ * Cada bloco recolhe como um acordeão: grid-template-rows 1fr → 0fr (o caso em que
+ * animar a altura é aceito), 200 ms ease-out.
+ * ===================================================================== */
+.omd-agrp {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--omd-line);
+}
+
+.omd-agrp:first-child {
+  border-top: 0;
+}
+
+.omd-agrp__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  margin: 0;
+  padding: 8px 2px;
+  border: 0;
+  background: transparent;
+  color: var(--omd-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.omd-agrp__head:focus-visible {
+  outline: 2px solid var(--omd-accent);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+.omd-agrp__name {
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.omd-agrp__count {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--omd-soft);
+  color: var(--omd-muted);
+  font-size: 12px;
+  font-weight: 750;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.omd-agrp__count.is-hot {
+  background: var(--omd-danger-soft);
+  color: var(--omd-danger-strong);
+}
+
+.omd-agrp__amount {
+  margin-left: auto;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--omd-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.omd-agrp__head .omd-fold__chev {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--omd-muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.omd-agrp__amount + .omd-fold__chev {
+  margin-left: 0;
+}
+
+.omd-agrp__count + .omd-fold__chev {
+  margin-left: auto;
+}
+
+.omd-agrp.is-folded .omd-fold__chev {
+  transform: rotate(-90deg);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .omd-agrp__head:hover .omd-agrp__name {
+    color: var(--omd-accent-deep);
+  }
+}
+
+@media (pointer: coarse) {
+  .omd-agrp__head {
+    min-height: 44px;
+  }
+}
+
+.omd-agrp__body {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 200ms var(--om-ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.omd-agrp.is-folded .omd-agrp__body {
+  grid-template-rows: 0fr;
+}
+
+.omd-agrp__list {
+  min-height: 0;
+  margin: 0;
+  padding: 0 0 6px;
+  list-style: none;
+  overflow: hidden;
+  transition: opacity 150ms ease-out;
+}
+
+.omd-agrp.is-folded .omd-agrp__list {
+  padding-bottom: 0;
+  opacity: 0;
 }

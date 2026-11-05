@@ -50,15 +50,40 @@
   // ---------------------------------------------------------------------------
 
   /** The Mate (fox mascot) next to the greeting: waves in the morning, tablet in the afternoon, laptop at night. */
+  /**
+   * The Mate's pose follows the day: pointing at the cards when something is urgent,
+   * celebrating when nothing needs attention, otherwise by time of day.
+   */
+  const MATE_POSES = {
+    point: "Tem coisa urgente para resolver",
+    celebrate: "Tudo em dia",
+    wave: "Bom dia",
+    tablet: "Boa tarde",
+    laptop: "Boa noite",
+  };
+
+  function matePose() {
+    const att = overview && overview.attention;
+    if (att && att.high > 0) return "point";
+    if (att && att.total === 0) return "celebrate";
+    const h = new Date().getHours();
+    return h >= 18 || h < 4 ? "laptop" : h >= 12 ? "tablet" : "wave";
+  }
+
   function renderMate() {
     const img = $("omdMateImg");
-    if (!img || img.dataset.done) return;
-    const h = new Date().getHours();
-    const pose = h >= 18 || h < 4 ? "laptop" : h >= 12 ? "tablet" : "wave";
-    img.src = `/assets/img/mascot/mate-${pose}.webp?v=20261027-m2`;
-    img.dataset.done = "1";
     const btn = $("omdMate");
-    btn.classList.add("omd-mate--" + pose);
+    if (!img || !btn) return;
+    const pose = matePose();
+    if (btn.dataset.pose !== pose) {
+      if (btn.dataset.pose) btn.classList.remove("omd-mate--" + btn.dataset.pose);
+      btn.dataset.pose = pose;
+      btn.classList.add("omd-mate--" + pose);
+      img.src = `/assets/img/mascot/mate-${pose}.webp?v=20261027-m2`;
+      btn.title = `${MATE_POSES[pose]} · Falar com o Mate`;
+    }
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = "1";
     btn.addEventListener("click", () => {
       btn.classList.remove("is-hop");
       void btn.offsetWidth;
@@ -96,11 +121,13 @@
   /** Extra detail drawn only in the bento tiles (all from values the overview already returns). */
   function kpiExtra(key, k) {
     if (key === "pipeline" && k.pipeline_open) {
-      const p = k.pipeline_open;
-      return `<span class="omd-kpi__boxes" aria-hidden="true">
-        <span><b>${esc(String(p.count))}</b>${esc(p.count === 1 ? "quote enviado" : "quotes enviados")}</span>
-        <span><b>${esc(String(p.without_value || 0))}</b>sem valor</span>
-      </span>`;
+      // In the bento, conversion and new leads ride inside the pipeline block (their own tiles hide).
+      const c = k.conversion;
+      const l = k.leads_month;
+      const boxes = [];
+      if (c) boxes.push(`<span><b>${esc(c.rate == null ? "—" : `${Math.round(c.rate)}%`)}</b>conversão</span>`);
+      if (l) boxes.push(`<span><b>${esc(String(l.count))}</b>${esc(l.count === 1 ? "lead novo" : "leads novos")}</span>`);
+      return boxes.length ? `<span class="omd-kpi__boxes" aria-hidden="true">${boxes.join("")}</span>` : "";
     }
     if (key === "gross_profit" && k.gross_profit && k.gross_profit.value != null) {
       const g = k.gross_profit;
@@ -295,10 +322,21 @@
     </li>`;
   }
 
+  /** Attention items grouped by what they are about; each group folds on its own. */
+  const ATTN_GROUPS = [
+    { key: "leads", label: "Leads", kinds: ["lead_sla", "lead_uncontacted"] },
+    { key: "followups", label: "Follow-ups", kinds: ["followup_overdue", "followup_today"] },
+    { key: "quotes", label: "Quotes", kinds: ["quote_changes", "quote_expiring", "quote_stale"] },
+    { key: "invoices", label: "Faturas vencidas", kinds: ["invoice_overdue"] },
+  ];
+  const ATTN_GROUP_OF = ATTN_GROUPS.reduce((m, g) => {
+    g.kinds.forEach((k) => (m[k] = g));
+    return m;
+  }, {});
+
   function renderAttention() {
     const list = $("omdAttnList");
     const count = $("omdAttnCount");
-    const more = $("omdAttnMore");
     const att = overview.attention || { total: 0, high: 0, items: [] };
     const items = att.items || [];
 
@@ -310,8 +348,6 @@
       count.hidden = true;
     }
 
-    if (more) more.hidden = true;
-
     if (!items.length) {
       list.innerHTML = `<li class="omd-empty">
         <span class="omd-empty__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg></span>
@@ -320,8 +356,52 @@
       return;
     }
 
-    // Fixed card height + list scroll — show everything, no expand toggle.
-    list.innerHTML = items.map(attentionRow).join("");
+    // Items arrive ranked by urgency; groups keep that order (the group holding the most urgent item first).
+    const groups = [];
+    const byKey = {};
+    items.forEach((it) => {
+      const g = ATTN_GROUP_OF[it.kind] || { key: "other", label: "Outros" };
+      if (!byKey[g.key]) {
+        byKey[g.key] = { ...g, items: [] };
+        groups.push(byKey[g.key]);
+      }
+      byKey[g.key].items.push(it);
+    });
+
+    list.innerHTML = groups
+      .map((g) => {
+        const foldKey = `attn_${g.key}`;
+        const isFolded = !!folded[foldKey];
+        const hot = g.items.some((it) => it.priority === "high");
+        const amount = g.items.reduce((sum, it) => sum + (Number(it.amount) > 0 ? Number(it.amount) : 0), 0);
+        const bodyId = `omdAttnGrp-${g.key}`;
+        return `<li class="omd-agrp${isFolded ? " is-folded" : ""}" data-attn-group="${esc(g.key)}">
+          <button type="button" class="omd-agrp__head" data-attn-fold="${esc(foldKey)}" aria-expanded="${isFolded ? "false" : "true"}" aria-controls="${bodyId}">
+            <span class="omd-agrp__name">${esc(g.label)}</span>
+            <span class="omd-agrp__count${hot ? " is-hot" : ""}">${g.items.length}</span>
+            ${amount > 0 ? `<span class="omd-agrp__amount">${esc(D.moneyCompact(amount))}</span>` : ""}
+            <svg class="omd-fold__chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <div class="omd-agrp__body" id="${bodyId}">
+            <ul class="omd-agrp__list">${g.items.map(attentionRow).join("")}</ul>
+          </div>
+        </li>`;
+      })
+      .join("");
+
+    if (!list.dataset.foldBound) {
+      list.dataset.foldBound = "1";
+      list.addEventListener("click", (e) => {
+        const head = e.target.closest("[data-attn-fold]");
+        if (!head) return;
+        const key = head.getAttribute("data-attn-fold");
+        folded[key] = !folded[key];
+        saveFolds();
+        const grp = head.closest(".omd-agrp");
+        grp.classList.toggle("is-folded", !!folded[key]);
+        head.setAttribute("aria-expanded", folded[key] ? "false" : "true");
+      });
+    }
   }
 
   function renderToday() {
