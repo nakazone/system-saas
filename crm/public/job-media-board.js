@@ -309,6 +309,21 @@
     return `<span class="ol-lead jx-day${tone}" aria-label="${today ? "Hoje" : `${wd} ${d.getDate()} ${mo}`}"><small>${today ? "hoje" : wd}</small><b>${d.getDate()}</b><small>${mo}</small></span>`;
   }
 
+  /** ObraCrew Jobs card day block (jobs-mobile fieldDayBlock). */
+  function crewDayBlock(j) {
+    const J = window.JobsInfo;
+    const finished = j.status === "completed" || j.status === "canceled";
+    const iso = (J && J.listAnchorIso ? J.listAnchorIso(j) : null) || (finished ? j.updated_at || j.scheduled_end : null);
+    if (!iso) return `<span class="jx-day is-none" aria-hidden="true"><small>sem</small><b>—</b><small>data</small></span>`;
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return `<span class="jx-day is-none" aria-hidden="true"><small>sem</small><b>—</b><small>data</small></span>`;
+    const wd = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"][d.getDay()];
+    const mo = MO[d.getMonth()];
+    const today = sod(d).getTime() === sod(new Date()).getTime();
+    const tone = !finished && (today || j.status === "in_progress") ? " is-now" : finished ? " is-done" : "";
+    return `<span class="jx-day${tone}" aria-label="${today ? "Hoje" : `${wd} ${d.getDate()} ${mo}`}"><small>${today ? "hoje" : wd}</small><b>${d.getDate()}</b><small>${mo}</small></span>`;
+  }
+
   function timeText(j) {
     const J = window.JobsInfo;
     const iso = J && J.listAnchorIso ? J.listAnchorIso(j) : j.scheduled_start;
@@ -318,12 +333,48 @@
     return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   }
 
+  /** ObraCrew Jobs card: day · client · address · status/hora · mapa. */
+  function crewRowHtml(j) {
+    const J = window.JobsInfo;
+    const who = listWho(j);
+    const head = who && who !== "Sem cliente" ? who : j.title || "Job";
+    const href = `#cam-${encodeURIComponent(j.id)}`;
+    const maps = j.address ? `https://maps.google.com/?q=${encodeURIComponent(j.address)}` : "";
+    const listed = J && J.listWhen ? J.listWhen(j) : null;
+    const stText = listed?.status || jobStageLabel(j);
+    const tone = J && J.stageTone ? J.stageTone(j) : "wait";
+    const time = timeText(j);
+    const on = String(j.id) === String(selId) && mode !== "photos" ? " is-on" : "";
+    const id = esc(j.id);
+    const mapPin =
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>';
+    return `<div class="crew-job cam-crew-job${on}">
+      <a class="crew-job__main cam-row" href="${href}" data-cam-id="${id}">
+        ${crewDayBlock(j)}
+        <div class="crew-job__copy">
+          <b class="crew-job__title">${esc(head)}</b>
+          ${j.address ? `<span class="crew-job__addr">${esc(j.address)}</span>` : `<span class="crew-job__addr">Sem endereço</span>`}
+          <span class="crew-job__meta">
+            ${stText ? `<span class="ol-st is-${tone}">${esc(stText)}</span>` : ""}
+            ${time ? `<span class="crew-job__clock">${esc(time)}</span>` : ""}
+          </span>
+        </div>
+      </a>
+      ${
+        maps
+          ? `<a class="crew-job__map" href="${maps}" target="_blank" rel="noopener" aria-label="Abrir mapa">${mapPin}</a>`
+          : `<span class="crew-job__map is-off" aria-hidden="true">${mapPin}</span>`
+      }
+    </div>`;
+  }
+
   /** Same card anatomy as Jobs: day · client · address · progress · status + map + CTA. */
   function rowHtml(j) {
+    if (crewMode) return crewRowHtml(j);
     const n = j.photo_count != null ? j.photo_count : (j.photos || []).length;
     const who = listWho(j);
     const head = who && who !== "Sem cliente" ? who : j.title || "Job";
-    const href = crewMode ? `#cam-${encodeURIComponent(j.id)}` : jobOpenHref(j.id, "#fotos");
+    const href = jobOpenHref(j.id, "#fotos");
     const openHref = jobOpenHref(j.id);
     const addr = j.address
       ? `<span class="ol-m jx-row__addr" title="${esc(j.address)}">${SVG.pin}<span>${esc(j.address)}</span></span>`
@@ -331,10 +382,10 @@
     const stale = needsPhoto(j);
     const lt = window.JobsInfo?.late ? window.JobsInfo.late(j) : null;
     const tone = window.JobsInfo?.stageTone ? window.JobsInfo.stageTone(j) : "wait";
-    const stText = crewMode ? "" : lt ? lt.short : jobStageLabel(j);
+    const stText = lt ? lt.short : jobStageLabel(j);
     const maps = j.address ? `https://maps.google.com/?q=${encodeURIComponent(j.address)}` : "";
-    const time = crewMode ? "" : timeText(j);
-    const prog = crewMode ? "" : window.JobsInfo?.progHtml ? window.JobsInfo.progHtml(j) : "";
+    const time = timeText(j);
+    const prog = window.JobsInfo?.progHtml ? window.JobsInfo.progHtml(j) : "";
     const on = String(j.id) === String(selId) && mode !== "photos" ? " is-on" : "";
     const ctaLbl = n ? `${n} foto${n === 1 ? "" : "s"}` : stale ? "Tirar foto" : "Fotos";
     const ctaCls = stale || !n ? "jmx-b jmx-b--or" : "jmx-b";

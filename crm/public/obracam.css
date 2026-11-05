@@ -562,11 +562,20 @@ body.om-field-nav.cam-app .cam-seg button em {
   opacity: 0.72;
   margin-left: 4px;
 }
-/* Crew list: date + client + address + fotos — no status/time/progress chrome */
-body.om-field-nav.cam-app .jmx-card .ol-time,
-body.om-field-nav.cam-app .jmx-card .ol-st,
-body.om-field-nav.cam-app .jmx-card .jx-prog {
-  display: none !important;
+/* Crew list uses ObraCrew Jobs cards (.crew-job from jobs-mobile.css) */
+body.om-field-nav.cam-app .cam-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 2px 0 10px;
+  background: transparent;
+  box-shadow: none;
+}
+body.om-field-nav.cam-app .cam-crew-job.is-on {
+  box-shadow: 0 0 0 1.5px var(--cam-deep, #e7792c);
+}
+body.om-field-nav.cam-app .cam-empty {
+  margin: 12px 4px;
 }
 @media (max-width: 900px) {
   body.om-field-nav.cam-app.om-has-tabbar .cam-pbar,
