@@ -521,3 +521,32 @@ html body.cam-selecting .oc-tabs.om-shell-tabs { display: none; }
 }
 @keyframes cam-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes cam-fade-out { from { opacity: 1; } to { opacity: 0; } }
+
+/* ObraCrew: ObraCam inside the field shell — no office chrome, room for the crew tabbar */
+body.om-field-nav.cam-app .cam-top h1,
+body.om-field-nav.cam-app .cam-add,
+body.om-field-nav.cam-app .cam-order,
+body.om-field-nav.cam-app .dashboard-sidebar,
+body.om-field-nav.cam-app #mobileOverlay {
+  display: none !important;
+}
+body.om-field-nav.cam-app .cam-top {
+  margin-bottom: 8px;
+}
+body.om-field-nav.cam-app .cam-views {
+  flex: 1;
+}
+@media (max-width: 900px) {
+  body.om-field-nav.cam-app.om-has-tabbar .cam-pbar,
+  body.om-field-nav.cam-app.om-has-tabbar .cam-selbar {
+    bottom: calc(4.35rem + env(safe-area-inset-bottom, 0px));
+  }
+  body.om-field-nav.cam-app.cam-detail-open .cam,
+  body.om-field-nav.cam-app.cam-selecting .cam {
+    padding-bottom: calc(6.25rem + env(safe-area-inset-bottom, 0px));
+  }
+  /* Field already has ObraCrew tabs; keep the Mais/office dock hidden */
+  body.om-field-nav.cam-app.cam-detail-open .om-tabbar.om-tabbar--field {
+    display: flex !important;
+  }
+}

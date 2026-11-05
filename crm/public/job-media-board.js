@@ -72,6 +72,13 @@
   let canManage = false;
   /** Field crew can edit/upload photos on their jobs without office manage. */
   let canEditMedia = false;
+  /** ObraCrew shell: calendar jobs only, ticket links, no office chrome. */
+  let crewMode = false;
+
+  function jobOpenHref(id, hash) {
+    if (crewMode) return `/campo/ticket.html?id=${encodeURIComponent(id)}`;
+    return `job-detail.html?id=${encodeURIComponent(id)}${hash || ""}`;
+  }
   const mediaCache = {};
   const metaCache = {};
   let map = null;
@@ -259,8 +266,9 @@
     ).includes(q);
   }
 
-  /** Same identity line as Jobs: Nickname/Builder - Client ID. */
+  /** Same identity line as Jobs; ObraCrew uses homeowner/client only (no nickname). */
   function listWho(j) {
+    if (crewMode && window.JobsInfo?.fieldClient) return window.JobsInfo.fieldClient(j) || "Sem cliente";
     if (window.JobsInfo?.client) return window.JobsInfo.client(j);
     const nick = String(j.builder?.nickname || j.customer?.nickname || "").trim();
     const base = String(
@@ -315,8 +323,8 @@
     const n = j.photo_count != null ? j.photo_count : (j.photos || []).length;
     const who = listWho(j);
     const head = who && who !== "Sem cliente" ? who : j.title || "Job";
-    const href = `job-detail.html?id=${encodeURIComponent(j.id)}#fotos`;
-    const openHref = `jobs.html?id=${encodeURIComponent(j.id)}`;
+    const href = crewMode ? `#cam-${encodeURIComponent(j.id)}` : jobOpenHref(j.id, "#fotos");
+    const openHref = jobOpenHref(j.id);
     const addr = j.address
       ? `<span class="ol-m jx-row__addr" title="${esc(j.address)}">${SVG.pin}<span>${esc(j.address)}</span></span>`
       : `<span class="ol-m"><span>Sem endereço</span></span>`;
@@ -326,7 +334,7 @@
     const stText = lt ? lt.short : jobStageLabel(j);
     const maps = j.address ? `https://maps.google.com/?q=${encodeURIComponent(j.address)}` : "";
     const time = timeText(j);
-    const prog = window.JobsInfo?.progHtml ? window.JobsInfo.progHtml(j) : "";
+    const prog = crewMode ? "" : window.JobsInfo?.progHtml ? window.JobsInfo.progHtml(j) : "";
     const on = String(j.id) === String(selId) && mode !== "photos" ? " is-on" : "";
     const ctaLbl = n ? `${n} foto${n === 1 ? "" : "s"}` : stale ? "Tirar foto" : "Fotos";
     const ctaCls = stale || !n ? "jmx-b jmx-b--or" : "jmx-b";
@@ -419,14 +427,21 @@
   function isToday(iso) {
     return !!iso && new Date(iso).toDateString() === new Date().toDateString();
   }
-  /** Quick filters: what the office checks every morning. */
-  const FILTERS = [
-    ["all", "Todos", () => true],
-    ["need", "Precisa de foto", (j) => needsPhoto(j)],
-    ["today", "Hoje", (j) => isToday(j.scheduled_start) || isToday(j.sand_scheduled_start)],
-    ["nogps", "Sem GPS", (j) => (j.photos || []).some((p) => !hasGps(p))],
-    ["far", "Longe", (j) => (j.photos || []).some((p) => p.far_from_job)],
-  ];
+  /** Quick filters: office checks GPS/distance; crew keeps day + needs photo. */
+  function filtersForMode() {
+    const base = [
+      ["all", "Todos", () => true],
+      ["need", "Precisa de foto", (j) => needsPhoto(j)],
+      ["today", "Hoje", (j) => isToday(j.scheduled_start) || isToday(j.sand_scheduled_start)],
+    ];
+    if (crewMode) return base;
+    return [
+      ...base,
+      ["nogps", "Sem GPS", (j) => (j.photos || []).some((p) => !hasGps(p))],
+      ["far", "Longe", (j) => (j.photos || []).some((p) => p.far_from_job)],
+    ];
+  }
+  let FILTERS = filtersForMode();
   /** The client a job is grouped under: the builder or customer, without the job reference. */
   function clientKey(j) {
     return String(j.builder?.nickname || j.builder?.company || j.customer?.nickname || j.customer?.company || j.customer?.name || j.client_name || j.source_name || "").trim() || "Sem cliente";
@@ -510,7 +525,7 @@
     $("camRows").removeAttribute("aria-busy");
     $("camRows").innerHTML =
       html ||
-      `<p class="cam-empty">${listPref.filter !== "all" ? `Nenhum job em “${esc((FILTERS.find(([k]) => k === listPref.filter) || [])[1] || "")}”. <button type="button" class="cam-link" data-filter="all">Ver todos</button>` : q ? "Nenhum job com essa busca." : mode === "done" ? "Nenhum job concluído." : "Nenhum job ativo."}</p>`;
+      `<p class="cam-empty">${listPref.filter !== "all" ? `Nenhum job em “${esc((FILTERS.find(([k]) => k === listPref.filter) || [])[1] || "")}”. <button type="button" class="cam-link" data-filter="all">Ver todos</button>` : q ? "Nenhum job com essa busca." : mode === "done" ? "Nenhum job concluído." : crewMode ? "Nenhuma obra no seu calendário." : "Nenhum job ativo."}</p>`;
     if (window.OmGestures) window.OmGestures.bindSwipeRow?.($("camRows"));
   }
 
@@ -682,27 +697,31 @@
     const addr = j.address
       ? `<a class="cam-dloc" href="${esc(mapsHref(j.address))}" target="_blank" rel="noopener" title="${esc(j.address)} · abrir no mapa">${SVG.pin}<span>${esc(j.address)}</span></a>`
       : `<span class="cam-dloc cam-dloc--none">${SVG.pin}<span>Sem endereço</span></span>`;
+    const open = jobOpenHref(j.id);
+    const openLbl = crewMode ? "Ticket" : "Abrir job";
     return `<a class="cam-back" href="#" data-cam-back>${SVG.back}ObraCam</a>
       <div class="cam-dh">
         <div class="cam-dh__t">
-          <h2><a href="job-detail.html?id=${encodeURIComponent(j.id)}" title="${esc(name)}">${esc(name)}</a></h2>
-          ${sub ? `<p class="cam-dsub" title="${esc(sub)}">${esc(sub)}</p>` : ""}
+          <h2><a href="${open}" title="${esc(name)}">${esc(name)}</a></h2>
+          ${sub && !crewMode ? `<p class="cam-dsub" title="${esc(sub)}">${esc(sub)}</p>` : ""}
           <div class="cam-dmeta">
             <span class="cam-pill${st ? ` cam-pill--${st}` : ""}">${esc(stage)}</span>
             <span class="cam-pill${needsPhoto(j) ? " cam-pill--hot" : ""}">${esc(lastTxt)}</span>
-            ${facts.map((x) => `<span class="cam-dfact">${x}</span>`).join("")}
+            ${crewMode ? "" : facts.map((x) => `<span class="cam-dfact">${x}</span>`).join("")}
             ${addr}
           </div>
         </div>
         <div class="cam-dh__acts">
-          <button type="button" class="cam-btn" data-cam-upload="${esc(j.id)}">${SVG.cam}Adicionar fotos</button>
-          <a class="cam-btn cam-btn--pri" href="job-detail.html?id=${encodeURIComponent(j.id)}">Abrir job</a>
+          <button type="button" class="cam-btn" data-cam-upload="${esc(j.id)}">${SVG.cam}${crewMode ? "Tirar foto" : "Adicionar fotos"}</button>
+          <a class="cam-btn cam-btn--pri" href="${open}">${openLbl}</a>
         </div>
       </div>`;
   }
 
   function pbarHtml(j) {
-    return `<div class="cam-pbar" id="camPbar"><a class="cam-btn" href="job-detail.html?id=${encodeURIComponent(j.id)}">Abrir job</a><button type="button" class="cam-btn cam-btn--pri" data-cam-upload="${esc(j.id)}">${SVG.cam}Tirar foto</button></div>`;
+    const open = jobOpenHref(j.id);
+    const openLbl = crewMode ? "Ticket" : "Abrir job";
+    return `<div class="cam-pbar" id="camPbar"><a class="cam-btn" href="${open}">${openLbl}</a><button type="button" class="cam-btn cam-btn--pri" data-cam-upload="${esc(j.id)}">${SVG.cam}Tirar foto</button></div>`;
   }
   function movePbar() {
     document.querySelectorAll("body > .cam-pbar").forEach((x) => x.remove());
@@ -738,7 +757,9 @@
     shown = list.map((p) => toViewer(j, p));
     let body;
     if (!list.length) {
-      body = `<div class="cam-box cam-none"><span class="cam-none__ic">${SVG.cam}</span><b>Nenhuma foto ainda</b><p>A equipe tira as fotos pelo Campo (ticket do job). Você também pode adicionar aqui.</p><button type="button" class="cam-btn" data-cam-upload="${esc(j.id)}">Adicionar fotos</button></div>`;
+      body = crewMode
+        ? `<div class="cam-box cam-none"><span class="cam-none__ic">${SVG.cam}</span><b>Nenhuma foto ainda</b><p>Tire a primeira foto desta obra.</p><button type="button" class="cam-btn" data-cam-upload="${esc(j.id)}">Tirar foto</button></div>`
+        : `<div class="cam-box cam-none"><span class="cam-none__ic">${SVG.cam}</span><b>Nenhuma foto ainda</b><p>A equipe tira as fotos pelo Campo (ticket do job). Você também pode adicionar aqui.</p><button type="button" class="cam-btn" data-cam-upload="${esc(j.id)}">Adicionar fotos</button></div>`;
     } else {
       // One grid for every width, filtered by stage: Antes, Durante and Depois always show (zero is information); Geral only when it has photos.
       // Phase chips in work order: the job's own phases always show (zero is information), others only with photos.
@@ -2154,16 +2175,32 @@
     .then((s) => {
       const perms = s?.user?.permissions || [];
       const role = String(s?.user?.role || "").toLowerCase();
-      const field = role === "installer" || role === "crew_lead" || role === "subcontractor";
+      const field =
+        (window.__crmFieldGate && window.__crmFieldGate.isFieldRole(role)) ||
+        role === "installer" ||
+        role === "crew_lead" ||
+        role === "subcontractor";
+      crewMode = field;
       // Office-only: create/delete jobs, stickers admin, portfolio. Field never gets these.
       canManage = !field && (role === "admin" || perms.includes("work_orders.manage"));
       canEditMedia = canManage || field || perms.includes("work_orders.view");
       meId = s?.user?.id || "";
+      if (crewMode) {
+        document.body.classList.add("cam-crew", "om-field-nav");
+        FILTERS = filtersForMode();
+        if (listPref.filter === "nogps" || listPref.filter === "far") listPref.filter = "all";
+        if (listPref.sort === "recent") listPref.sort = "schedule";
+        listPref.group = "status";
+        savePref();
+        const q = $("camQ");
+        if (q) q.placeholder = "Buscar obra ou endereço";
+      }
       const add = $("camAddJob");
       if (add) add.hidden = !canManage;
       // Session arrives after the first paint — rebuild rows so swipe-delete appears.
       renderList();
-      if (window.__crmJobModal?.onSaved) {
+      if (selId) renderJob();
+      if (!crewMode && window.__crmJobModal?.onSaved) {
         window.__crmJobModal.onSaved((data, meta) => {
           if (data && meta?.created) openNewJobTicket(data);
           else if (data) load().then(() => select(data.id, true)).catch(() => {});

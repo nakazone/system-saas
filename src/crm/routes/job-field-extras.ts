@@ -19,7 +19,7 @@ import {
   assertMyJob,
   canUseCampo,
 } from "../lib/campo-shared.js";
-import { fieldPayrollSector, myFieldJobsWhere } from "../lib/field-sector.js";
+import { fieldJobDateWindowWhere, fieldPayrollSector, myFieldJobsWhere } from "../lib/field-sector.js";
 import { prisma } from "../../lib/prisma.js";
 import { recordActivity } from "../../lib/activity/record.js";
 import { jobBilling, jobBillingLabel } from "../../lib/invoices/job.js";
@@ -32,14 +32,25 @@ function isFieldRole(user: AuthedRequest["user"]) {
   return FIELD_ROLES.has(String(user?.roleKey || "").toLowerCase());
 }
 
-/** Office managers see every job; ObraCrew only their Folha sector / assigned jobs. */
+/**
+ * ObraCrew ObraCam: only jobs that land on the worker's calendar
+ * (Folha sector / assigned + a scheduled day in a near window).
+ */
 async function fieldBoardScope(
   tx: Parameters<Parameters<typeof withTenantTransaction>[1]>[0],
   req: AuthedRequest,
 ) {
   if (!isFieldRole(req.user) || !req.user?.id) return {};
   const sector = await fieldPayrollSector(tx, req.user.id, req.organizationId!);
-  return myFieldJobsWhere(req.user.id, sector);
+  const from = new Date();
+  from.setHours(0, 0, 0, 0);
+  from.setDate(from.getDate() - 45);
+  const to = new Date();
+  to.setHours(23, 59, 59, 999);
+  to.setDate(to.getDate() + 90);
+  return {
+    AND: [myFieldJobsWhere(req.user.id, sector), fieldJobDateWindowWhere(from, to, sector)],
+  };
 }
 
 /**
@@ -138,6 +149,7 @@ jobFieldExtrasRouter.get(
             geoLng: true,
             sourceName: true,
             clientRef: true,
+            homeownerName: true,
             customer: { select: { name: true, company: true, nickname: true, clientCode: true } },
             builder: { select: { company: true, firstName: true, lastName: true, nickname: true } },
             lineItems: { select: { lineTotal: true, pricingItem: { select: { category: true } } } },
@@ -234,11 +246,13 @@ jobFieldExtrasRouter.get(
               address: wo.address,
               client_ref: (wo.clientRef && String(wo.clientRef).trim()) || clientCode || null,
               client_name:
+                wo.homeownerName ||
                 wo.customer?.name ||
                 wo.builder?.company ||
                 builderName ||
                 wo.sourceName ||
                 null,
+              homeowner_name: wo.homeownerName || null,
               customer: wo.customer
                 ? {
                     name: wo.customer.name,
