@@ -12,6 +12,7 @@
   let camJob = null;
   const Q = window.__campoMediaQueue || null;
   let queued = {}; // jobId → count waiting to upload
+  let justSent = false; // "Dia enviado" mascot entrance plays once, after this phone sends the day
 
   // ------------------------------------------------------------ utils
   function esc(s) {
@@ -31,12 +32,35 @@
     if (!h) return `${r} min`;
     return r ? `${h}h${String(r).padStart(2, "0")}` : `${h}h`;
   }
-  function toast(msg) {
+  /**
+   * kind: "success" | "error" | undefined (neutro). sticky: fica até o próximo toast (ex.: enquanto pega o GPS).
+   * Entra com transição (opacity + translateY 8px, 200ms) e sai em 150ms; reduced-motion só faz fade (dia.css?v=20261105-apps3).
+   */
+  function toast(msg, kind, opts) {
     const t = $("dyToast");
+    clearTimeout(toast._t);
+    clearTimeout(toast._h);
+    const wasHidden = t.hidden;
+    t.className = `dy-toast${kind ? ` dy-toast--${kind}` : ""}`;
+    t.setAttribute("role", kind === "error" ? "alert" : "status");
     t.textContent = msg;
     t.hidden = false;
-    clearTimeout(toast._t);
-    toast._t = setTimeout(() => (t.hidden = true), 3200);
+    if (wasHidden) void t.offsetWidth; // start the enter transition from the hidden state
+    t.classList.add("is-in");
+    if (opts && opts.sticky) return;
+    toast._t = setTimeout(() => {
+      t.classList.remove("is-in");
+      toast._h = setTimeout(() => (t.hidden = true), 160);
+    }, kind === "error" ? 5000 : 3200);
+  }
+  const ui = () => window.OmUI || null;
+  function haptic(kind) {
+    if (ui()) ui().haptic(kind);
+  }
+  function setBusy(btn, on) {
+    if (!btn || !btn.isConnected) return;
+    if (ui()) ui().busy(btn, on);
+    else btn.disabled = !!on;
   }
   async function api(url, opts) {
     if (window.OmOffline && typeof window.OmOffline.api === "function") {
@@ -74,6 +98,63 @@
     stop: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2.5"/></svg>',
   };
 
+  // ------------------------------------------------------------ offline clock-in
+  const PENDING_START_KEY = "om-campo-pending-start";
+  function savePendingStart(p) {
+    try {
+      localStorage.setItem(PENDING_START_KEY, JSON.stringify(p));
+    } catch (_) {}
+  }
+  function readPendingStart() {
+    try {
+      const p = JSON.parse(localStorage.getItem(PENDING_START_KEY) || "null");
+      return p && p.at ? p : null;
+    } catch (_) {
+      return null;
+    }
+  }
+  function clearPendingStart() {
+    try {
+      localStorage.removeItem(PENDING_START_KEY);
+    } catch (_) {}
+  }
+  function hhmm(iso) {
+    const d = new Date(iso);
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  }
+  /** Shows a started day built from the queued clock-in, until the server has it. */
+  function applyPendingStart() {
+    const p = readPendingStart();
+    if (!p || !S || !S.linked) return false;
+    if (S.day || (p.today && S.today_label && p.today !== S.today_label)) {
+      clearPendingStart();
+      return false;
+    }
+    const job = (S.jobs_today || []).find((j) => j.id === p.jobId) || (p.jobId ? null : (S.jobs_today || [])[0]);
+    S.day = {
+      status: "in_progress",
+      pending_sync: true,
+      clock_in: p.at,
+      clock_in_label: hhmm(p.at),
+      expected_end_label: S.employee && S.employee.schedule ? S.employee.schedule.end_time : "",
+      overtime_minutes: 0,
+      jobs: job ? [job] : [],
+      sqft: 0,
+      amount: 0,
+      flags: [],
+    };
+    return true;
+  }
+  /** Online again with fresh data and nothing left in the queue: the pending start is settled (or was dropped). */
+  async function settlePendingStart() {
+    if (!readPendingStart() || !S || S.__offline || navigator.onLine === false) return;
+    if (S.day) return clearPendingStart();
+    try {
+      const rows = window.OmOffline && window.OmOffline.listMutations ? await window.OmOffline.listMutations() : [];
+      if (!rows.some((r) => r.url === "/api/campo/dia/start")) clearPendingStart();
+    } catch (_) {}
+  }
+
   // ------------------------------------------------------------ load
   async function load() {
     try {
@@ -84,6 +165,8 @@
         /* ignore */
       }
       S = await api("/api/campo/dia");
+      await settlePendingStart();
+      applyPendingStart();
       await refreshQueue();
       render();
       // Warm ticket caches for today's jobs so Campo works offline on site.
@@ -170,7 +253,7 @@
       box.innerHTML = `${mateLine("wave", "Bora começar?", "Quando chegar, toque em Começar o dia. Precisa de algo? É só me chamar.")}<div class="dy-card__lbl"><span>Seu dia</span><span>Fim padrão ${esc(endLbl)}</span></div>
         <h2>${j ? esc(jobLine(j)) : "Nenhum job na agenda hoje"}</h2>
         <p class="dy-card__sub">${j ? `${j.start_label ? `${esc(j.start_label)} · ` : ""}${esc(j.client || "")}${j.address ? ` · ${esc(j.address)}` : ""}` : "Você pode começar e escolher o job."}</p>
-        <div style="margin-top:16px"><button class="dy-btn dy-btn--terra dy-btn--full" data-act="start">${ICON.play} Começar o dia</button></div>
+        <div style="margin-top:16px"><button type="button" class="dy-btn dy-btn--terra dy-btn--full" data-act="start" data-om-press>${ICON.play} Começar o dia</button></div>
         <p class="dy-card__hint">Registra a hora e sua localização. Depois das ${esc(endLbl)} conta hora extra.<br><button type="button" data-act="manual">Esqueci de bater o ponto</button></p>`;
       return;
     }
@@ -190,7 +273,7 @@
         return Math.min(1, elapsed / total);
       })();
       const otNow = Math.max(d.overtime_minutes, 0);
-      box.innerHTML = `<div class="dy-card__lbl"><span>Dia em andamento</span><span class="dy-pill dy-pill--in_progress">desde ${esc(d.clock_in_label)}</span></div>
+      box.innerHTML = `<div class="dy-card__lbl"><span>Dia em andamento</span><span class="dy-pill dy-pill--in_progress">desde ${esc(d.clock_in_label)}${d.pending_sync ? " · aguardando sinal" : ""}</span></div>
         <div class="dy-time"><b>${esc(minLabel(elapsed))}</b><span>trabalhando</span></div>
         <div class="dy-bar" aria-hidden="true"><i style="width:${(pctBase * 100).toFixed(1)}%"></i></div>
         <div class="dy-bar__lbl"><span>${esc(d.clock_in_label)}</span><span>${esc(endAt || endLbl)}</span></div>
@@ -200,11 +283,13 @@
           <div class="dy-stat"><small>${emp.pay_type === "production" ? "Produção" : "Hoje"}</small><b>${emp.pay_type === "production" ? `${d.sqft || 0} sq ft` : esc(money(d.amount))}</b></div>
         </div>
         ${here ? `<div class="dy-now"><span class="dy-now__dot" aria-hidden="true"></span><div><small>Onde você está</small><b>${esc(jobLine(here))}</b></div></div>` : ""}
-        <div style="margin-top:14px"><button class="dy-btn dy-btn--terra dy-btn--full" data-act="finish">${ICON.stop} Finalizar o dia</button></div>`;
+        <div style="margin-top:14px"><button type="button" class="dy-btn dy-btn--terra dy-btn--full" data-act="finish" data-om-press>${ICON.stop} Finalizar o dia</button></div>`;
       return;
     }
-    // finished
+    // finished — the mascot enters once, right after this phone sent the day (not on every load)
     const pillCls = d.status;
+    const enter = justSent;
+    justSent = false;
     box.innerHTML = `${mateLine("thumbs", "Dia enviado. Bom trabalho!", d.status === "approved" ? "Já está na folha da semana." : "Descansa que o resto é com o escritório.")}<div class="dy-card__lbl"><span>Dia enviado</span><span class="dy-pill dy-pill--${pillCls}">${esc(d.status_label)}</span></div>
       <div class="dy-time"><b>${esc(d.worked_label)}</b><span>${esc(d.clock_in_label)} – ${esc(d.clock_out_label || "")}</span></div>
       <div class="dy-stats">
@@ -227,6 +312,7 @@
           : ""
       }
       ${d.note ? `<p class="dy-card__hint" style="text-align:left">Nota: ${esc(d.note)}</p>` : ""}`;
+    if (enter) box.querySelector(".dy-mate")?.classList.add("dy-mate--enter");
   }
 
   function photoTag(j) {
@@ -250,7 +336,7 @@
     const title = inDay ? "Jobs do seu dia" : d ? "Jobs do dia" : "Agenda de hoje";
     box.className = "dy-sec";
     box.innerHTML = `<div class="dy-sec__hd"><h3>${title}</h3><span class="dy-sec__acts">${
-      window.__crmDayRoute && (list || []).some((j) => j.address || j.delivery_pickup_address)
+      (list || []).some((j) => j.address || j.delivery_pickup_address)
         ? `<button type="button" class="dy-link" data-act="day-route">Ver rota</button>`
         : ""
     }${inDay ? `<button type="button" data-act="addjob">+ Outro job</button>` : `<a href="agenda.html">Semana</a>`}</span></div>
@@ -296,31 +382,59 @@
   }
 
   // ------------------------------------------------------------ actions
-  async function startDay() {
+  async function startDay(btn) {
     if (busy) return;
     const jobs = S.jobs_today;
-    if (jobs.length > 1) return openPickJob("start");
-    if (!jobs.length) return openPickJob("start");
-    await doStart(jobs[0].id);
+    if (jobs.length !== 1) return openPickJob("start");
+    await doStart(jobs[0].id, btn);
   }
 
-  async function doStart(jobId) {
+  async function doStart(jobId, btn) {
+    if (busy) return;
     busy = true;
-    toast("Pegando sua localização…");
+    haptic("tap");
+    setBusy(btn, true);
+    // The GPS can take up to 9 s: the button stays busy and this message stays until the answer.
+    toast("Pegando sua localização…", null, { sticky: true });
     const g = await gps();
     try {
-      S = await api("/api/campo/dia/start", {
+      const deviceAtIso = new Date().toISOString();
+      const out = await api("/api/campo/dia/start", {
         method: "POST",
-        body: JSON.stringify({ work_order_id: jobId || null, lat: g?.lat, lng: g?.lng, accuracy: g?.accuracy, device_at: new Date().toISOString() }),
+        body: JSON.stringify({
+          work_order_id: jobId || null,
+          lat: g?.lat,
+          lng: g?.lng,
+          accuracy: g?.accuracy,
+          device_at: deviceAtIso,
+          offline_queued: navigator.onLine === false,
+        }),
       });
+      if (out && out.queued) {
+        // No signal: the start waits in the offline queue with the tap time; show the day as started.
+        savePendingStart({ at: deviceAtIso, jobId: jobId || null, today: S.today_label });
+        applyPendingStart();
+        closeSheet();
+        render();
+        toast("Dia começou. Sem sinal: o horário fica salvo e é enviado quando a conexão voltar.");
+        return;
+      }
+      S = out;
+      clearPendingStart();
       closeSheet();
       render();
       const d = S.day;
       const far = d?.gps_in?.distance_m;
-      toast(!g ? "Dia começou — sem localização (ative o GPS)." : far != null && far > 500 ? `Dia começou — você está a ${(far / 1000).toFixed(1)} km do job.` : "Bom trabalho! Dia começou.");
+      haptic("success");
+      toast(
+        !g ? "Dia começou — sem localização (ative o GPS)." : far != null && far > 500 ? `Dia começou — você está a ${(far / 1000).toFixed(1)} km do job.` : "Bom trabalho! Dia começou.",
+        !g || (far != null && far > 500) ? null : "success",
+      );
     } catch (e) {
-      toast(e.message);
+      haptic("error");
+      toast(e.message, "error");
     } finally {
+      setBusy(btn, false);
       busy = false;
     }
   }
@@ -332,9 +446,9 @@
       S = await api("/api/campo/dia/jobs", { method: "POST", body: JSON.stringify({ work_order_id: jobId }) });
       closeSheet();
       render();
-      toast("Job atualizado.");
+      toast("Job atualizado.", "success");
     } catch (e) {
-      toast(e.message);
+      toast(e.message, "error");
     } finally {
       busy = false;
     }
@@ -347,25 +461,10 @@
     $("dyCam").click();
   }
 
+  /** One compression for every Campo screen (campo-photo.js?v=20261105-apps3): 1600px max side, JPEG 0.74. */
   function compress(file) {
-    return new Promise((resolve, reject) => {
-      const url = URL.createObjectURL(file);
-      const img = new Image();
-      img.onload = () => {
-        const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
-        const c = document.createElement("canvas");
-        c.width = Math.round(img.naturalWidth * k);
-        c.height = Math.round(img.naturalHeight * k);
-        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-        URL.revokeObjectURL(url);
-        resolve(c.toDataURL("image/jpeg", 0.74));
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        reject(new Error("Não deu para ler a foto"));
-      };
-      img.src = url;
-    });
+    if (!window.CampoPhoto) return Promise.reject(new Error("Não deu para ler a foto"));
+    return window.CampoPhoto.compress(file);
   }
 
   async function onPhoto(file) {
@@ -383,7 +482,7 @@
           renderFinish();
         }
       } catch (e) {
-        toast(e.message || "Falha na foto");
+        toast(e.message || "Falha na foto", "error");
       }
       return;
     }
@@ -403,13 +502,15 @@
         bumpPhoto(jobId);
       }
     } catch (e) {
-      toast(e.message || "Falha na foto");
+      toast(e.message || "Falha na foto", "error");
     }
   }
 
   function postPhoto(row) {
     return api(`/api/campo/jobs/${encodeURIComponent(row.jobId)}/photos`, {
       method: "POST",
+      // The photo already waits in the media queue; never let it move to the generic queue and count as sent.
+      allowQueue: false,
       body: JSON.stringify({
         data_url: row.dataUrl,
         stage: row.stage,
@@ -435,7 +536,7 @@
 
   let flushing = false;
   async function flushPhotos() {
-    if (!Q || flushing) return;
+    if (!Q || flushing || navigator.onLine === false) return;
     flushing = true;
     try {
       const res = await Q.flush(null, async (row) => {
@@ -448,11 +549,27 @@
       await refreshQueue();
       rerenderAll();
       $("dyNet").hidden = !bad;
-      if (ok) toast(ok === 1 ? "Foto enviada." : `${ok} fotos enviadas.`);
+      if (ok) toast(ok === 1 ? "Foto enviada." : `${ok} fotos enviadas.`, "success");
     } catch (_) {
     } finally {
       flushing = false;
     }
+  }
+
+  /** "Tentar enviar fotos agora" in the finish sheet. */
+  async function flushNow(btn) {
+    if (navigator.onLine === false) {
+      toast("Sem sinal agora. As fotos sobem sozinhas quando a conexão voltar.", "error");
+      return;
+    }
+    setBusy(btn, true);
+    try {
+      await flushPhotos();
+    } finally {
+      setBusy(btn, false);
+    }
+    const left = Object.values(queued).reduce((s, n) => s + n, 0);
+    if (left) toast(`Ainda faltam ${left} foto${left > 1 ? "s" : ""}. Tentamos de novo sozinhos quando o sinal melhorar.`, "error");
   }
 
   function rerenderAll() {
@@ -461,25 +578,43 @@
   }
 
   // ------------------------------------------------------------ sheets
+  // One sheet (#dyLayer) for every flow. OmUI.layer gives Esc, focus trap/return, Android back,
+  // the exit animation and drag-to-close by the grab handle. Without OmUI it just shows/hides.
+  let layer = null;
+  function sheetLayer() {
+    if (!layer && ui()) {
+      layer = ui().layer($("dyLayer"), {
+        onClose: onSheetClosed,
+        dragHandle: $("dySheet").querySelector(".dy-sheet__grab"),
+        initialFocus: () => $("dySheet").querySelector(".dy-sheet__hd .dy-x"),
+      });
+    }
+    return layer;
+  }
+  function onSheetClosed() {
+    sheet = null;
+    document.body.classList.remove("dy-lock");
+  }
   function openSheet(kind, title, extra) {
     sheet = { kind, ...(extra || {}) };
     $("dySheetTitle").textContent = title;
-    $("dySheet").hidden = false;
-    $("dyBackdrop").hidden = false;
     document.body.classList.add("dy-lock");
+    const l = sheetLayer();
+    if (l) l.open();
+    else $("dyLayer").hidden = false;
   }
   function closeSheet() {
-    sheet = null;
-    $("dySheet").hidden = true;
-    $("dyBackdrop").hidden = true;
-    document.body.classList.remove("dy-lock");
+    const l = sheetLayer();
+    if (l && l.isOpen()) return l.close();
+    $("dyLayer").hidden = true;
+    onSheetClosed();
   }
 
   function jobPickHtml(list, selected, multi) {
     return `<div class="dy-pick">${list
       .map((j) => {
         const on = selected.includes(j.id);
-        return `<button type="button" class="${on ? "is-on" : ""}" data-act="${multi ? "toggle" : "pick"}" data-job="${esc(j.id)}">
+        return `<button type="button" class="${on ? "is-on" : ""}" data-act="${multi ? "toggle" : "pick"}" data-job="${esc(j.id)}" data-om-press>
           <span class="dy-pick__ck">${on ? "✓" : ""}</span><div><b>${esc(jobLine(j))}</b><small>${esc([j.start_label, j.client, j.address].filter(Boolean).join(" · "))}</small></div></button>`;
       })
       .join("")}</div>`;
@@ -499,7 +634,7 @@
       <p class="dy-step__t" style="margin-top:14px">Outro job</p>
       <input class="dy-in" id="dyQ" placeholder="Buscar por número, cliente ou endereço" value="${esc(sheet.q)}" autocomplete="off" />
       <div style="margin-top:8px">${res ? (res.length ? jobPickHtml(res.filter((j) => !inDay.has(j.id)), [], false) : '<p class="dy-empty">Nada encontrado.</p>') : ""}</div>`;
-    $("dySheetFt").innerHTML = sheet.mode === "start" ? `<button class="dy-btn dy-btn--line dy-btn--full" data-act="start-nojob">Começar sem job</button>` : "";
+    $("dySheetFt").innerHTML = sheet.mode === "start" ? `<button type="button" class="dy-btn dy-btn--line dy-btn--full" data-act="start-nojob" data-om-press>Começar sem job</button>` : "";
   }
   let searchT = null;
   function searchJobs(q) {
@@ -554,7 +689,11 @@
   function renderFinish() {
     const d = S.day;
     const emp = S.employee;
+    // The server only counts photos that already arrived (require_photos): a job whose only photo is
+    // still in the queue blocks; extra photos still uploading do not — they keep syncing after the send.
     const missing = d.jobs.filter((j) => emp.require_photos && !(j.photos_today || 0));
+    const missingQueued = missing.filter((j) => queued[j.id]);
+    const missingNone = missing.filter((j) => !queued[j.id]);
     const waiting = d.jobs.reduce((s, j) => s + (queued[j.id] || 0), 0);
     const est = finishEstimate();
     const now = new Date();
@@ -594,7 +733,7 @@
                   (e, i) => `<li>
                   ${e.receipt_url ? `<a href="${esc(e.receipt_url)}" target="_blank" rel="noopener"><img src="${esc(e.receipt_url)}" alt="" /></a>` : "<span class='dy-exp__ph'>Sem foto</span>"}
                   <div><b>${esc(money(e.amount))}</b><small>${esc(e.description || "Reembolso")}</small></div>
-                  <button type="button" class="dy-x" data-act="rm-exp" data-i="${i}" aria-label="Remover">×</button>
+                  <button type="button" class="dy-x" data-act="rm-exp" data-i="${i}" aria-label="Remover reembolso">×</button>
                 </li>`,
                 )
                 .join("")}</ul>`
@@ -621,10 +760,19 @@
           <div class="big"><small>${emp.pay_type === "production" ? `${est.sqft || 0} sq ft` : "Estimativa do dia"}</small><b>${esc(money(est.amount))}</b></div>
         </div>
         <p class="dy-gps">${ICON.pin} Ao enviar registramos a hora e sua localização.${est.reimb ? " O reembolso vai para o escritório conferir." : ""}</p></div>`;
-    const blocked = missing.length > 0 || waiting > 0;
-    $("dySheetFt").innerHTML = `${blocked ? `<p>${waiting ? `Enviando ${waiting} foto${waiting > 1 ? "s" : ""}… espere o sinal.` : `Falta foto em ${missing.length} job${missing.length > 1 ? "s" : ""}.`}</p>` : ""}
-      <button class="dy-btn dy-btn--terra dy-btn--full" data-act="send" ${blocked ? "disabled" : ""}>${ICON.stop} Enviar o dia</button>
-      ${sheet.err ? `<p class="dy-err">${esc(sheet.err)}</p>` : ""}`;
+    const blocked = missing.length > 0;
+    const plural = (n, w) => `${n} ${w}${n > 1 ? "s" : ""}`;
+    let note = "";
+    if (missingNone.length) note = `Falta foto em ${plural(missingNone.length, "job")}.`;
+    else if (missingQueued.length)
+      note = `A foto de ${plural(missingQueued.length, "job")} ainda está subindo. O dia só pode ser enviado quando chegar pelo menos 1 foto de cada job.`;
+    else if (waiting) note = `${plural(waiting, "foto")} ${waiting > 1 ? "continuam" : "continua"} subindo em segundo plano. Pode enviar o dia.`;
+    $("dySheetFt").innerHTML = `${note ? `<p>${esc(note)}</p>` : ""}
+      ${missingQueued.length && !missingNone.length ? `<button type="button" class="dy-btn dy-btn--line dy-btn--full dy-btn--retry" data-act="flush-now" data-om-press>Tentar enviar fotos agora</button>` : ""}
+      <button type="button" class="dy-btn dy-btn--terra dy-btn--full" data-act="send" data-om-press ${blocked ? "disabled" : ""}>${ICON.stop} Enviar o dia</button>
+      ${sheet.err ? `<p class="dy-err" role="alert">${esc(sheet.err)}</p>` : ""}`;
+    // A re-render while sending (photo queue, sqft input) must keep the busy state.
+    if (sheet._sending) setBusy($("dySheetFt").querySelector('[data-act="send"]'), true);
   }
   function fileToDataUrl(file) {
     return new Promise((resolve, reject) => {
@@ -682,14 +830,13 @@
     input.value = "";
     input.click();
   }
-  async function sendFinish() {
-    if (busy) return;
+  async function sendFinish(btn) {
+    if (busy || !sheet) return;
     busy = true;
-    const btn = document.querySelector('[data-act="send"]');
-    if (btn) {
-      btn.disabled = true;
-      btn.textContent = "Enviando…";
-    }
+    sheet._sending = true;
+    sheet.err = "";
+    haptic("tap");
+    setBusy(btn, true);
     const g = await gps();
     try {
       const jobs = S.day.jobs.map((j) => ({ work_order_id: j.id, sqft: Number(sheet.sqft[j.id]) || 0 }));
@@ -711,20 +858,26 @@
           device_at: new Date().toISOString(),
         }),
       });
+      haptic("success");
       closeSheet();
+      justSent = true;
       render();
-      toast(S.day && S.day.status === "approved" ? "Dia enviado e aprovado. Bom descanso!" : "Dia enviado — o escritório vai conferir.");
+      toast(S.day && S.day.status === "approved" ? "Dia enviado e aprovado. Bom descanso!" : "Dia enviado — o escritório vai conferir.", "success");
     } catch (e) {
+      haptic("error");
       if (e.code === "PHOTOS_REQUIRED" && e.data && e.data.missing) {
         S.day.jobs.forEach((j) => {
           if (e.data.missing.includes(j.id)) j.photos_today = 0;
         });
       }
       if (sheet) {
+        sheet._sending = false;
         sheet.err = e.message;
         renderFinish();
       }
     } finally {
+      if (sheet) sheet._sending = false;
+      setBusy(btn, false);
       busy = false;
     }
   }
@@ -785,12 +938,13 @@
       </div>
       <div class="dy-step"><p class="dy-step__t">Nota</p><textarea class="dy-in dy-ta" id="dyMNote" maxlength="1000" placeholder="Por que lançou manualmente? Como foi o dia?">${esc(m.note)}</textarea></div>
       <p class="dy-gps">As fotos desse dia precisam estar no job. Lançamentos manuais passam pela aprovação do escritório.</p>`;
-    $("dySheetFt").innerHTML = `<button class="dy-btn dy-btn--terra dy-btn--full" data-act="send-manual">${m.day ? "Reenviar dia" : "Enviar dia"}</button>${m.err ? `<p class="dy-err">${esc(m.err)}</p>` : ""}`;
+    $("dySheetFt").innerHTML = `<button type="button" class="dy-btn dy-btn--terra dy-btn--full" data-act="send-manual" data-om-press>${m.day ? "Reenviar dia" : "Enviar dia"}</button>${m.err ? `<p class="dy-err">${esc(m.err)}</p>` : ""}`;
   }
-  async function sendManual() {
+  async function sendManual(btn) {
     if (busy) return;
     const m = sheet;
     busy = true;
+    setBusy(btn, true);
     try {
       S = await api("/api/campo/dia/manual", {
         method: "POST",
@@ -803,13 +957,16 @@
           note: m.note || null,
         }),
       });
+      haptic("success");
       closeSheet();
       render();
-      toast("Dia enviado para aprovação.");
+      toast("Dia enviado para aprovação.", "success");
     } catch (e) {
+      haptic("error");
       m.err = e.code === "PHOTOS_REQUIRED" ? "Falta foto desse dia em algum job. Tire/envie a foto pelo ticket do job." : e.message;
-      renderManual();
+      if (sheet === m) renderManual();
     } finally {
+      setBusy(btn, false);
       busy = false;
     }
   }
@@ -824,35 +981,24 @@
       case "reload":
         return load();
       case "start":
-        return startDay();
+        return startDay(b);
       case "start-nojob":
-        return doStart(null);
+        return doStart(null, b);
       case "pick":
-        if (sheet && sheet.mode === "start") return doStart(job);
+        if (sheet && sheet.mode === "start") return doStart(job, b);
         return gotoJob(job);
       case "goto":
         return gotoJob(job);
       case "addjob":
         return openPickJob("add");
-      case "day-route": {
-        if (!window.__crmDayRoute) return;
-        const d = S.day;
-        const inDay = d && d.status === "in_progress";
-        const list = inDay ? d.jobs : d ? d.jobs : S.jobs_today;
-        const stops = window.__crmDayRoute.stopsFromCampoJobs(list || []);
-        window.__crmDayRoute.open({
-          title: "Rota do dia",
-          subtitle: $("dyDate")?.textContent || "",
-          origin: routeStart || "",
-          stops,
-          onSaveOrigin: (addr) => {
-            routeStart = addr || "";
-          },
-        });
-        return;
-      }
+      case "day-route":
+        return openDayRoute(b);
       case "finish":
+        haptic("tap");
+        if (S && S.day && S.day.pending_sync) return toast("O início do dia ainda está esperando sinal. Finalize quando a conexão voltar.");
         return openFinish();
+      case "flush-now":
+        return flushNow(b);
       case "photo":
         return takePhoto(job);
       case "rmjob":
@@ -862,9 +1008,9 @@
             render();
             if (sheet && sheet.kind === "finish") renderFinish();
           })
-          .catch((err) => toast(err.message));
+          .catch((err) => toast(err.message, "error"));
       case "send":
-        return sendFinish();
+        return sendFinish(b);
       case "exp-photo":
         return pickExpensePhoto();
       case "exp-add":
@@ -897,12 +1043,37 @@
         return renderManual();
       }
       case "send-manual":
-        return sendManual();
+        return sendManual(b);
       case "close":
         return closeSheet();
     }
   });
   $("dyBackdrop").addEventListener("click", closeSheet);
+
+  /** The route panel (and the address autocomplete it uses) is loaded on first use, not on every page view. */
+  async function openDayRoute(btn) {
+    setBusy(btn, true);
+    try {
+      const route = window.__campoNav && window.__campoNav.loadDayRoute ? await window.__campoNav.loadDayRoute() : window.__crmDayRoute;
+      if (!route) throw new Error("Não deu para abrir a rota agora.");
+      const d = S.day;
+      const inDay = d && d.status === "in_progress";
+      const list = inDay ? d.jobs : d ? d.jobs : S.jobs_today;
+      route.open({
+        title: "Rota do dia",
+        subtitle: $("dyDate")?.textContent || "",
+        origin: routeStart || "",
+        stops: route.stopsFromCampoJobs(list || []),
+        onSaveOrigin: (addr) => {
+          routeStart = addr || "";
+        },
+      });
+    } catch (e) {
+      toast(e.message || "Não deu para abrir a rota agora.", "error");
+    } finally {
+      setBusy(btn, false);
+    }
+  }
   document.addEventListener("input", (e) => {
     const t = e.target;
     if (!sheet) return;
@@ -926,10 +1097,12 @@
   window.addEventListener("online", () => {
     $("dyNet").hidden = true;
     flushPhotos();
+    // Give the offline queue a moment to replay the clock-in, then show the server's day.
+    if (readPendingStart()) setTimeout(() => !sheet && load(), 2500);
   });
   window.addEventListener("offline", () => ($("dyNet").hidden = false));
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible" && !sheet) load();
+    if (document.visibilityState === "visible" && !sheet && !busy) load();
   });
 
   load();

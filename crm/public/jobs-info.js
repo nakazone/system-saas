@@ -105,8 +105,8 @@
    */
   function late(wo, now) {
     if (!isActive(wo) || wo.status === "in_progress") return null;
-    const sand = awaitingSand(wo);
-    const anchor = sand ? wo.sand_scheduled_start : wo.scheduled_start;
+    const sand = awaitingSand(wo) || listOnSandDay(wo);
+    const anchor = sand ? wo.sand_scheduled_start || listAnchorIso(wo) : listAnchorIso(wo) || wo.scheduled_start;
     if (!anchor) return null;
     const t = now || Date.now();
     const start = new Date(anchor).getTime();
@@ -284,17 +284,32 @@
   }
 
   /**
-   * Date that places the job on the list. After installation is finished, that is the sand date.
+   * Date that places the job on the list.
+   * Prefer the sand day when that is today, when install is done, or when install day is already past.
    */
   function listAnchorIso(wo) {
     if (!wo) return null;
     if (awaitingSand(wo) && wo.sand_scheduled_start) return wo.sand_scheduled_start;
-    return wo.scheduled_start || (wo.sector === "both" ? wo.sand_scheduled_start : null) || null;
+    if (wo.sand_scheduled_start && isToday(wo.sand_scheduled_start)) return wo.sand_scheduled_start;
+    if (wo.sector === "both" && wo.sand_scheduled_start && wo.scheduled_start) {
+      const inst = new Date(wo.scheduled_start);
+      const now = new Date();
+      const today0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      if (!Number.isNaN(inst.getTime()) && inst < today0) return wo.sand_scheduled_start;
+    }
+    if (wo.sector === "sand_finish") return wo.scheduled_start || wo.sand_scheduled_start || null;
+    return wo.scheduled_start || (wo.sector === "both" ? wo.sand_scheduled_start : null) || wo.sand_scheduled_start || null;
+  }
+
+  /** True when the list is showing the sand calendar day for this job. */
+  function listOnSandDay(wo) {
+    const anchor = listAnchorIso(wo);
+    return Boolean(anchor && wo.sand_scheduled_start && String(anchor) === String(wo.sand_scheduled_start));
   }
 
   /**
-   * List row: one date, no sector labels. A finished job never reads as "sem data"
-   * just because installation or sand was left blank.
+   * List row: one date. Both-sector jobs show Installation vs Sanding from the anchored day.
+   * A finished job never reads as "sem data" just because one sector date was left blank.
    */
   function listWhen(wo) {
     const anchor = listAnchorIso(wo);
@@ -302,7 +317,10 @@
     const finished = wo.status === "completed" || wo.status === "canceled";
     if (!date && wo.status === "completed") date = dayShort(wo.updated_at || wo.scheduled_end) || "";
     if (!date && !finished) date = "Sem data";
-    const stage = stageLabel(wo);
+    let stage = stageLabel(wo);
+    if (!finished && wo.sector === "both" && listOnSandDay(wo) && (stage === "Agendado" || stage === "Installing")) {
+      stage = wo.status === "in_progress" ? "Sanding" : "Agendado · Lixa";
+    }
     const fallback = {
       draft: "Rascunho",
       scheduled: "Agendado",
@@ -390,6 +408,6 @@
 
   window.JobsInfo = {
     esc, stageTone, money, money0, client, builderName, findLine, searchText, displayName, isActive, late, step, STEP_NAMES, STATUS_BY_STEP, STATUS_STEP_MSG,
-    statusForStep, atStatus, stageLabel, fieldPhaseLabel, isInFieldStage, progHtml, sectorProgress, nextFinish, fieldHalves, bill, dateRange, listWhen, listAnchorIso, awaitingSand, dayShort, completeLabel, compareNearest, startMs, isToday, initials, team,
+    statusForStep, atStatus, stageLabel, fieldPhaseLabel, isInFieldStage, progHtml, sectorProgress, nextFinish, fieldHalves, bill, dateRange, listWhen, listAnchorIso, listOnSandDay, awaitingSand, dayShort, completeLabel, compareNearest, startMs, isToday, initials, team,
   };
 })();

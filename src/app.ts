@@ -2,6 +2,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import express from "express";
+import compression from "compression";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import cookieParser from "cookie-parser";
@@ -87,6 +88,19 @@ export function createApp() {
   app.set("views", path.join(__dirname, "views"));
   app.set("trust proxy", 1);
 
+  // gzip/brotli for HTML, JS, CSS and JSON (they were going out uncompressed). Server-sent events
+  // (chat stream) must stay unbuffered, so they are skipped.
+  app.use(
+    compression({
+      filter: (req, res) => {
+        const type = String(res.getHeader("Content-Type") || "");
+        if (type.startsWith("text/event-stream")) return false;
+        if (String(req.headers.accept || "").includes("text/event-stream")) return false;
+        return compression.filter(req, res);
+      },
+    }),
+  );
+
   // Stripe needs the raw body to check the signature: before the JSON parser.
   app.use(stripeWebhookRouter);
   app.use(resendWebhookRouter);
@@ -111,7 +125,9 @@ export function createApp() {
       next();
       return;
     }
-    res.setHeader("Cache-Control", "no-cache");
+    // A ?v= URL never changes content (a new version gets a new ?v=), so the browser keeps it for a year
+    // without asking again. Unversioned URLs still revalidate with the ETag, so edits show up at once.
+    res.setHeader("Cache-Control", req.query.v ? "public, max-age=31536000, immutable" : "no-cache");
     crmStatic(req, res, next);
   });
 

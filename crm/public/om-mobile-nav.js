@@ -1,14 +1,56 @@
 /**
- * Mobile bottom nav — Início / Leads / Calendar / Jobs / Mais
- * (Jobs is the daily centre of a flooring company; Quotes lives in Mais and in + Criar.)
- * Field staff: Hoje / Calendar / Jobs / Chat / Horas (Campo shell links)
+ * Mobile bottom nav — Início / Leads / Agenda / Jobs / Mais
+ * (Jobs is the daily centre of a flooring company; Orçamentos lives in Mais and in + Criar.)
+ * Field staff: Hoje / Agenda / Jobs / Chat / Horas (Campo shell links)
+ *
+ * Rótulos, ordem e URLs das abas e do menu "Criar" vêm de window.OmNav (crm-shared-nav.js,
+ * fonte única do menu). FALLBACK_* abaixo só vale se aquele arquivo não carregou.
  */
 (function () {
   const VER = "20261105-camswipe1";
   const MQ = window.matchMedia("(max-width: 900px)");
   const FIELD_ROLES = new Set(["installer", "crew_lead", "subcontractor"]);
   const SHEET_MS = 380;
-  const TAB_HREFS = ["home.html", "/dashboard", "schedule.html", "jobs.html", "mais.html"];
+  const MENU_EXIT_MS = 120;
+
+  // Cópia mínima de OmNav para quando crm-shared-nav.js não está na página.
+  const FALLBACK_ITEMS = {
+    home: { href: "/dashboard", phoneHref: "/home.html", label: "Início" },
+    leads: { href: "leads.html", phoneHref: "/dashboard", label: "Leads" },
+    schedule: { href: "schedule.html", label: "Agenda" },
+    jobs: { href: "jobs.html", label: "Jobs", perm: "work_orders.view" },
+    more: { href: "mais.html", label: "Mais" },
+  };
+  const FALLBACK_TABS = [{ key: "home" }, { key: "leads" }, { key: "schedule" }, { key: "jobs", gated: true }, { key: "more" }];
+  const FALLBACK_CREATE = [
+    { key: "lead", label: "Novo lead", sub: "Adicionar ao pipeline", action: "new-lead", icon: "lead" },
+    { key: "schedule", label: "Agendar", sub: "Visita, job ou compromisso", href: "schedule.html?new=1", icon: "agendaAdd" },
+    { key: "quote", label: "Novo orçamento", sub: "Proposta para o cliente", href: "quote-builder.html", icon: "quote", group: 2 },
+    { key: "invoice", label: "Nova fatura", sub: "Nova cobrança", href: "invoices.html?new=1", icon: "invoice", group: 2 },
+  ];
+  // Chave do OmNav → id da aba usado por activeTab()/syncActive() e ícone da barra.
+  const TAB_ID = { home: "home", leads: "pipeline", schedule: "agenda", jobs: "jobs", more: "more" };
+  const TAB_ICON = { home: "home", leads: "pipeline", schedule: "agenda", jobs: "jobs", more: "more" };
+
+  function navData() {
+    const n = window.OmNav;
+    return {
+      items: (n && n.items) || FALLBACK_ITEMS,
+      tabs: (n && n.tabs) || FALLBACK_TABS,
+      create: (n && n.create) || FALLBACK_CREATE,
+    };
+  }
+
+  /** Destino de um item no celular (este arquivo só monta a interface do celular). */
+  function phoneHref(key) {
+    const item = navData().items[key] || FALLBACK_ITEMS[key];
+    if (!item) return "";
+    return item.phoneHref || item.href;
+  }
+
+  function tabHrefs() {
+    return navData().tabs.map((t) => phoneHref(t.key)).filter(Boolean);
+  }
   let edgeSwipeBound = false;
 
   const ICONS = {
@@ -433,7 +475,7 @@
 
   function prefetchTabs() {
     const run = () => {
-      TAB_HREFS.forEach((href) => {
+      tabHrefs().forEach((href) => {
         try {
           const link = document.createElement("link");
           link.rel = "prefetch";
@@ -465,53 +507,46 @@
     create.setAttribute("aria-modal", "true");
     create.setAttribute("aria-labelledby", "omCreateSheetTitle");
     create.hidden = true;
+    const cards = navData()
+      .create.map((c) => {
+        const inner = `
+          <span class="om-mod-card__icon" aria-hidden="true">${ICONS[c.icon] || ICONS.plus}</span>
+          <span>
+            <p class="om-mod-card__title">${escapeHtml(c.label)}</p>
+            ${c.sub ? `<p class="om-mod-card__sub">${escapeHtml(c.sub)}</p>` : ""}
+          </span>`;
+        return c.action
+          ? `<button type="button" class="om-mod-card" data-om-create="${escapeHtml(c.action)}">${inner}</button>`
+          : `<a class="om-mod-card" href="${escapeHtml(c.href)}">${inner}</a>`;
+      })
+      .join("");
     create.innerHTML = `
       <div class="om-sheet__grab" aria-hidden="true"></div>
       <h2 class="om-sheet__title" id="omCreateSheetTitle">Criar</h2>
-      <div class="om-mod-grid">
-        <button type="button" class="om-mod-card" id="omCreateNewLead">
-          <span class="om-mod-card__icon" aria-hidden="true">${ICONS.lead}</span>
-          <span>
-            <p class="om-mod-card__title">Novo lead</p>
-            <p class="om-mod-card__sub">Adicionar ao pipeline</p>
-          </span>
-        </button>
-        <a class="om-mod-card" href="schedule.html?new=1" id="omCreateSchedule">
-          <span class="om-mod-card__icon" aria-hidden="true">${ICONS.agendaAdd}</span>
-          <span>
-            <p class="om-mod-card__title">Agendar</p>
-            <p class="om-mod-card__sub">Visita, job ou compromisso</p>
-          </span>
-        </a>
-        <a class="om-mod-card" href="quote-builder.html">
-          <span class="om-mod-card__icon" aria-hidden="true">${ICONS.quote}</span>
-          <span>
-            <p class="om-mod-card__title">Quote</p>
-            <p class="om-mod-card__sub">Novo orçamento</p>
-          </span>
-        </a>
-        <a class="om-mod-card" href="invoices.html">
-          <span class="om-mod-card__icon" aria-hidden="true">${ICONS.invoice}</span>
-          <span>
-            <p class="om-mod-card__title">Invoice</p>
-            <p class="om-mod-card__sub">Nova cobrança</p>
-          </span>
-        </a>
-      </div>`;
+      <div class="om-mod-grid">${cards}</div>`;
 
     document.body.appendChild(backdrop);
     document.body.appendChild(create);
     bindSheetDrag(create);
 
-    create.querySelector("#omCreateNewLead")?.addEventListener("click", () => {
+    create.querySelector('[data-om-create="new-lead"]')?.addEventListener("click", () => {
       closeSheets();
-      haptic(8);
-      if (window.__omNovoLeadSheet && window.__omNovoLeadSheet.openNewLead()) return;
-      try {
-        sessionStorage.setItem("obramate_open_new_lead", "1");
-      } catch (_) {}
-      location.href = "/dashboard";
+      openNewLead();
     });
+  }
+
+  function escapeHtml(v) {
+    return String(v == null ? "" : v).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]);
+  }
+
+  /** "Novo lead": abre o painel na própria página; sem ele, vai para a lista de Leads e abre lá. */
+  function openNewLead() {
+    haptic(8);
+    if (window.__omNovoLeadSheet && window.__omNovoLeadSheet.openNewLead()) return;
+    try {
+      sessionStorage.setItem("obramate_open_new_lead", "1");
+    } catch (_) {}
+    location.href = phoneHref("leads");
   }
 
   function initials(name) {
@@ -531,7 +566,7 @@
     top.className = "om-app-top";
     top.setAttribute("aria-label", "Barra superior");
     top.innerHTML = `
-      <a class="om-app-top__brand" href="home.html" aria-label="ObraMate">
+      <a class="om-app-top__brand" href="${escapeHtml(phoneHref("home"))}" aria-label="ObraMate — Início">
         <img class="om-app-top__logo" src="/assets/favicon-192.png?v=20260924-pwa" alt="ObraMate" width="36" height="36" onerror="this.style.display='none'" />
       </a>
       <div class="om-app-top__actions">
@@ -548,10 +583,10 @@
     document.body.classList.add("om-has-apptop");
     top.querySelector("#omTopPlus")?.addEventListener("click", openCreateMenu);
 
-    // On Home, home.js owns the bell. Elsewhere: go to Início attention.
+    // On Home, home.js owns the bell. Elsewhere: go to Início ("Precisa da sua atenção").
     if (fileName() !== "home.html") {
       top.querySelector("#homeBell")?.addEventListener("click", () => {
-        location.href = "home.html";
+        location.href = phoneHref("home");
       });
       fetch("/api/auth/session", { credentials: "include" })
         .then((r) => r.json())
@@ -582,19 +617,21 @@
     const tab = activeTab(false);
     nav.className = "om-tabbar om-tabbar--ios";
     const item = (key, href, icon, label, perm) =>
-      `<a class="om-tabbar__item${tab === key ? " is-active" : ""}" href="${href}" data-om-tab="${key}"${
+      `<a class="om-tabbar__item${tab === key ? " is-active" : ""}" href="${escapeHtml(href)}" data-om-tab="${key}"${
         tab === key ? ' aria-current="page"' : ""
-      }${perm ? ` data-crm-permission="${perm}"` : ""}>
+      }${perm ? ` data-crm-permission="${escapeHtml(perm)}"` : ""}>
         ${icon}
-        <span>${label}</span>
+        <span>${escapeHtml(label)}</span>
       </a>`;
-    nav.innerHTML = [
-      item("home", "home.html", ICONS.home, "Início"),
-      item("pipeline", "/dashboard", ICONS.pipeline, "Leads"),
-      item("agenda", "schedule.html", ICONS.agenda, "Calendar"),
-      item("jobs", "jobs.html", ICONS.jobs, "Jobs", "work_orders.view"),
-      item("more", "mais.html", ICONS.more, "Mais"),
-    ].join("");
+    const { items, tabs } = navData();
+    nav.innerHTML = tabs
+      .map((t) => {
+        const it = items[t.key] || FALLBACK_ITEMS[t.key];
+        if (!it) return "";
+        const id = TAB_ID[t.key] || t.key;
+        return item(id, phoneHref(t.key), ICONS[TAB_ICON[t.key]] || ICONS.more, it.label, t.gated ? it.perm : "");
+      })
+      .join("");
 
     document.body.appendChild(nav);
     document.body.classList.add("om-has-tabbar");
@@ -644,26 +681,27 @@
     menu.setAttribute("role", "menu");
     menu.setAttribute("aria-label", "Criar");
     menu.hidden = true;
-    menu.innerHTML = `
-      <button type="button" role="menuitem" id="omPdNewLead">Novo lead${ICONS.lead}</button>
-      <a role="menuitem" href="schedule.html?new=1">Agendar${ICONS.agenda}</a>
-      <div class="om-pulldown__sep" aria-hidden="true"></div>
-      <a role="menuitem" href="quote-builder.html">Novo quote${ICONS.quote}</a>
-      <a role="menuitem" href="invoices.html?new=1">Nova invoice${ICONS.invoice}</a>
-      <div class="om-pulldown__sep" aria-hidden="true"></div>
-      <a role="menuitem" href="quote-builder.html">Novo orçamento${ICONS.job}</a>`;
+    let lastGroup = null;
+    menu.innerHTML = navData()
+      .create.map((c) => {
+        const group = c.group || 1;
+        const sep = lastGroup != null && group !== lastGroup ? '<div class="om-pulldown__sep" aria-hidden="true"></div>' : "";
+        lastGroup = group;
+        // Ícone da agenda simples no menu (o "agendaAdd" com + é do cartão grande).
+        const icon = ICONS[c.icon === "agendaAdd" ? "agenda" : c.icon] || "";
+        const label = escapeHtml(c.label);
+        return c.action
+          ? `${sep}<button type="button" role="menuitem" data-om-create="${escapeHtml(c.action)}">${label}${icon}</button>`
+          : `${sep}<a role="menuitem" href="${escapeHtml(c.href)}">${label}${icon}</a>`;
+      })
+      .join("");
     document.body.appendChild(scrim);
     document.body.appendChild(menu);
     scrim.addEventListener("click", closeCreateMenu);
     menu.querySelectorAll("a").forEach((a) => a.addEventListener("click", closeCreateMenu));
-    menu.querySelector("#omPdNewLead")?.addEventListener("click", () => {
+    menu.querySelector('[data-om-create="new-lead"]')?.addEventListener("click", () => {
       closeCreateMenu();
-      haptic(8);
-      if (window.__omNovoLeadSheet && window.__omNovoLeadSheet.openNewLead()) return;
-      try {
-        sessionStorage.setItem("obramate_open_new_lead", "1");
-      } catch (_) {}
-      location.href = "/dashboard";
+      openNewLead();
     });
   }
 
@@ -679,19 +717,46 @@
     const scrim = document.getElementById("omPulldownScrim");
     if (!menu || !scrim) return;
     haptic(8);
+    clearTimeout(menuExitTimer);
+    menu.classList.remove("is-closing");
+    scrim.classList.remove("is-closing");
+    // O menu cresce a partir do "+" que o abriu.
+    const trigger = document.getElementById("omTopPlus");
     scrim.hidden = false;
     menu.hidden = false;
+    if (trigger) {
+      const t = trigger.getBoundingClientRect();
+      const m = menu.getBoundingClientRect();
+      const x = Math.max(0, Math.min(m.width, t.left + t.width / 2 - m.left));
+      menu.style.transformOrigin = `${Math.round(x)}px top`;
+    }
     document.body.classList.add("om-menu-open");
-    document.getElementById("omTopPlus")?.setAttribute("aria-expanded", "true");
+    trigger?.setAttribute("aria-expanded", "true");
+    menu.querySelector('[role="menuitem"]')?.focus({ preventScroll: true });
   }
 
+  let menuExitTimer = 0;
   function closeCreateMenu() {
     const menu = document.getElementById("omPulldown");
     const scrim = document.getElementById("omPulldownScrim");
-    if (menu) menu.hidden = true;
-    if (scrim) scrim.hidden = true;
+    const trigger = document.getElementById("omTopPlus");
+    const wasOpen = !!(menu && !menu.hidden && !menu.classList.contains("is-closing"));
     document.body.classList.remove("om-menu-open");
-    document.getElementById("omTopPlus")?.setAttribute("aria-expanded", "false");
+    trigger?.setAttribute("aria-expanded", "false");
+    if (!wasOpen) return;
+    // Saída curta (120ms) antes de esconder; o foco volta ao "+".
+    if (menu && menu.contains(document.activeElement)) trigger?.focus({ preventScroll: true });
+    menu.classList.add("is-closing");
+    scrim?.classList.add("is-closing");
+    clearTimeout(menuExitTimer);
+    menuExitTimer = setTimeout(() => {
+      menu.hidden = true;
+      menu.classList.remove("is-closing");
+      if (scrim) {
+        scrim.hidden = true;
+        scrim.classList.remove("is-closing");
+      }
+    }, MENU_EXIT_MS);
   }
 
   /** Field worker nav — mirrors Campo tabs on Jobs / Schedule / Chat pages. */
@@ -719,7 +784,7 @@
         tab === "agenda" ? ' aria-current="page"' : ""
       }>
         ${ICONS.agenda}
-        <span>Calendar</span>
+        <span>Agenda</span>
       </a>
       <a class="om-tabbar__item${tab === "jobs" ? " is-active" : ""}" href="/jobs.html" data-om-tab="jobs"${
         tab === "jobs" ? ' aria-current="page"' : ""

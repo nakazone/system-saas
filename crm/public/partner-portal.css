@@ -1,28 +1,31 @@
 :root {
   color-scheme: light;
-  --partner-ink: #221e1a;
-  --partner-muted: #667085;
-  --partner-faint: #98a2b3;
-  --partner-line: #e5e7eb;
-  --partner-surface: #fff;
-  --partner-surface-muted: #f1f3f5;
-  --partner-background: #f7f8fa;
-  --partner-accent: #e7792c;
-  --partner-accent-dark: #b4561a;
-  --partner-accent-soft: #fdf0e6;
-  --partner-green: #536249;
-  --partner-shadow: 0 1px 2px rgba(16, 24, 40, .04);
-  font-family: "Geist", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  /* Aliases of the shared ObraMate tokens (om-tokens.css?v=20261105-apps3), same look as the portal; fallbacks if that file is missing. */
+  --partner-ink: var(--om-ink, #221e1a);
+  --partner-muted: var(--om-ink-2, #667085);
+  --partner-faint: var(--om-p-gray-400, #98a2b3);
+  --partner-line: var(--om-line, #e5e7eb);
+  --partner-surface: var(--om-card, #fff);
+  --partner-surface-muted: var(--om-surface, #f1f3f5);
+  --partner-background: var(--om-bg, #f7f8fa);
+  /* accent = fills and rings; accent-dark carries white text at AA */
+  --partner-accent: var(--om-accent, #e7792c);
+  --partner-accent-dark: var(--om-accent-strong, #b4561a);
+  --partner-accent-darker: var(--om-accent-strong-hover, #8f4313);
+  --partner-accent-soft: var(--om-accent-soft, #fdf0e6);
+  --partner-green: var(--om-p-olive-600, #536249);
+  --partner-shadow: var(--om-shadow-1, 0 1px 2px rgba(16, 24, 40, .05));
+  font-family: var(--om-font, "Geist", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; min-height: 100vh; color: var(--partner-ink); background: var(--partner-background); }
+body { margin: 0; min-height: 100vh; min-height: 100dvh; color: var(--partner-ink); background: var(--partner-background); font-family: var(--om-font, "Geist", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif); -webkit-font-smoothing: antialiased; }
 button, input { font: inherit; }
 a { color: inherit; }
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid rgba(231, 121, 44, .35); outline-offset: 2px; }
 
 .partner-auth-page { display: grid; place-items: center; padding: 24px; }
-.partner-auth-card { width: min(100%, 440px); padding: clamp(24px, 5vw, 40px); background: var(--partner-surface); border: 1px solid var(--partner-line); border-radius: 20px; box-shadow: 0 18px 50px rgba(28, 39, 56, .08); }
+.partner-auth-card { width: min(100%, 440px); padding: clamp(24px, 5vw, 40px); background: var(--partner-surface); border: 1px solid var(--partner-line); border-radius: 20px; box-shadow: var(--om-shadow-2, 0 4px 14px rgba(16, 24, 40, .08)); }
 .partner-brand { display: inline-flex; align-items: center; gap: 12px; text-decoration: none; font-weight: 700; letter-spacing: -.02em; }
 .partner-brand img { display: block; object-fit: contain; border-radius: 10px; }
 .partner-brand small { display: block; margin-top: 2px; color: var(--partner-muted); font-size: 12px; font-weight: 500; letter-spacing: 0; }
@@ -32,13 +35,15 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .partner-form { display: grid; gap: 10px; }
 .partner-form label { margin-top: 6px; font-size: 14px; font-weight: 600; }
 .partner-form label span { color: var(--partner-muted); font-weight: 400; }
-.partner-form input { width: 100%; min-height: 48px; padding: 11px 13px; color: var(--partner-ink); background: #fff; border: 1px solid #cfd5dd; border-radius: 9px; }
+.partner-form input { width: 100%; min-height: 48px; padding: 11px 13px; color: var(--partner-ink); background: #fff; border: 1px solid #cfd5dd; border-radius: 12px; font-size: 16px; }
+.partner-form input:focus { outline: none; border-color: var(--partner-accent); box-shadow: var(--om-focus-ring, 0 0 0 3px rgba(231, 121, 44, .35)); }
 .partner-form input::placeholder { color: #8a94a3; }
 .partner-workspace-field { display: grid; gap: 8px; margin-top: 4px; }
 .partner-workspace-field small { color: var(--partner-muted); font-size: 12px; line-height: 1.5; }
-.partner-button { min-height: 48px; padding: 12px 18px; color: #fff; background: var(--partner-accent); border: 1px solid var(--partner-accent); border-radius: 10px; font-weight: 700; cursor: pointer; transition: background-color .16s ease, transform .16s ease; }
-.partner-button:hover:not(:disabled) { background: var(--partner-accent-dark); border-color: var(--partner-accent-dark); }
-.partner-button:active:not(:disabled) { transform: translateY(1px); }
+.partner-button { min-height: 48px; padding: 12px 18px; color: #fff; background: var(--partner-accent-dark); border: 1px solid var(--partner-accent-dark); border-radius: 999px; font-weight: 700; cursor: pointer; transition: background-color 160ms ease, transform 120ms var(--om-ease-out, cubic-bezier(.23, 1, .32, 1)); }
+@media (hover: hover) and (pointer: fine) { .partner-button:hover:not(:disabled) { background: var(--partner-accent-darker); border-color: var(--partner-accent-darker); } }
+.partner-button:active:not(:disabled) { transform: scale(.98); }
+@media (prefers-reduced-motion: reduce) { .partner-button:active:not(:disabled) { transform: none; } }
 .partner-button:disabled { opacity: .65; cursor: wait; }
 .partner-error { margin: 4px 0; padding: 10px 12px; color: #9b2c25; background: #fff3f1; border: 1px solid #f3ccc7; border-radius: 9px; line-height: 1.5; }
 .partner-footnote { margin: 20px 0 0; color: var(--partner-muted); font-size: 13px; line-height: 1.5; text-align: center; }

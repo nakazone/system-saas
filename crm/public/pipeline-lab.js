@@ -625,7 +625,7 @@
       sum.hidden = true;
       $("omdQuotesList").innerHTML = `<li class="omd-empty omd-empty--mate">
         ${mateEmpty("thumbs")}
-        <div><strong>Nenhum quote esperando resposta</strong><p>Os quotes enviados aparecem aqui até o cliente aprovar. <a class="omd-link" href="quote-builder.html">Novo quote</a></p></div>
+        <div><strong>Nenhum quote esperando resposta</strong><p>Os quotes enviados aparecem aqui até o cliente aprovar. <a class="omd-link" href="quote-builder.html">Novo orçamento</a></p></div>
       </li>`;
       return;
     }
@@ -1074,8 +1074,18 @@
     }
   }
 
-  async function refresh(force) {
-    if (!force && Date.now() - loadedAt < STALE_AFTER_MS) return;
+  // focus and visibilitychange fire together when the tab comes back: one load, not two.
+  let refreshing = null;
+  function refresh(force) {
+    // A forced refresh (new lead, button) must see data saved after the one already running started.
+    if (refreshing) return force ? refreshing.then(() => refresh(true)) : refreshing;
+    if (!force && Date.now() - loadedAt < STALE_AFTER_MS) return Promise.resolve();
+    refreshing = doRefresh().finally(() => {
+      refreshing = null;
+    });
+    return refreshing;
+  }
+  async function doRefresh() {
     const btn = $("omdRefresh");
     btn.classList.add("is-spinning");
     try {

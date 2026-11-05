@@ -1,41 +1,54 @@
 /**
  * ObraMate — service worker (static cache + Campo offline + Web Push).
  */
-const CACHE = "om-static-v65";
+const CACHE = "om-static-v67";
 const API_CACHE = "om-api-v1";
 const BADGE_CACHE = "om-badge-v1";
 const BADGE_URL = "/__om_app_badge_count";
 const PRECACHE = [
+  // Generated from the Campo pages and the assets the server injects (see src/crm/mount.ts).
   "/offline.html",
-  "/home.html",
-  "/mais.html",
-  "/dashboard.html",
-  "/campo/hoje.html",
-  "/campo/agenda.html",
-  "/campo/horas.html",
-  "/campo/ticket.html",
-  "/campo/campo.css?v=20261104-ux2",
-  "/campo/dia.css?v=20261104-ux2",
-  "/campo/campo-nav.js?v=20261013-off1",
-  "/campo/campo-media-queue.js?v=20261104-exif1",
-  "/photo-exif.js?v=20261104-exif1",
-  "/campo/dia.js?v=20261104-exif1",
-  "/campo/agenda.js?v=20261104-ux2",
-  "/campo/horas.js?v=20261013-off1",
-  "/campo/ticket.js?v=20261104-ux2",
-  "/om-offline.js?v=20261013-off1",
-  "/om-device.js?v=20261013-badge1",
-  "/styles.css",
-  "/design-system.css",
-  "/mobile-design-system.css",
-  "/om-mobile-nav.css",
-  "/om-native-app.css",
-  "/obramate-app.css",
+  // what offline.html itself shows
   "/manifest.json?v=20260930-native2",
   "/assets/favicon-192.png?v=20260924-pwa",
   "/assets/img/mascot/mate-sleeping.webp?v=20261027-m2",
-  "/crm-shell.css",
-  "/crm-pwa-install.css",
+  "/campo/agenda.html",
+  "/assets/favicon-192.png?v=20260924-pwa",
+  "/campo/campo.css?v=20261105-apps3",
+  "/om-device.js?v=20261013-badge1",
+  "/om-stable-viewport.css?v=20261007-stable1",
+  "/assets/obracrew/apple-touch-icon.png?v=1",
+  "/om-offline.js?v=20261105-apps3",
+  "/campo/campo-data.js?v=20260925-campo3",
+  "/campo/campo-gate.js?v=20260925-campo3",
+  "/campo/campo-nav.js?v=20261105-apps3",
+  "/campo/agenda.js?v=20261105-apps3",
+  "/mate-panel.css?v=20261027-m2",
+  "/mate-panel.js?v=20261104-ux2",
+  "/campo/hoje.html",
+  "/campo/dia.css?v=20261105-apps3",
+  "/photo-exif.js?v=20261104-exif1",
+  "/campo/campo-photo.js?v=20261105-apps3",
+  "/campo/campo-media-queue.js?v=20261104-exif1",
+  "/campo/dia.js?v=20261105-apps3",
+  "/campo/horas.html",
+  "/campo/horas.js?v=20261105-apps3",
+  "/campo/index.html",
+  "/campo/stain.html",
+  "/campo/stain.css?v=20261105-apps3",
+  "/campo/stain.js?v=20261105-apps3",
+  "/campo/ticket.html",
+  "/crm-toast.css?v=20261105-apps3",
+  "/crm-toast.js?v=20261104-ux2",
+  "/campo/ticket.js?v=20261105-apps3",
+  "/om-tokens.css?v=20261105-apps3",
+  "/om-ui.css?v=20261105-apps3",
+  "/om-ui.js?v=20261105-apps3",
+  "/om-theme.css?v=20261105-apps3",
+  "/saas-branding.js?v=20261104-crew1",
+  "/crm-confirm.css?v=20261105-apps3",
+  "/crm-confirm.js?v=20261105-apps3",
+  "/crm-skeleton.js?v=20261104-ux2",
 ];
 
 function isApiGet(url) {
@@ -50,70 +63,137 @@ function isNavRequest(request) {
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(PRECACHE).catch(() => {})));
+  // One by one: a single missing file used to make addAll fail and leave nothing precached.
+  event.waitUntil(
+    caches.open(CACHE).then((cache) => Promise.allSettled(PRECACHE.map((u) => cache.add(u)))),
+  );
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter((k) => k !== CACHE && k !== API_CACHE && k !== BADGE_CACHE)
-            .map((k) => caches.delete(k)),
-        ),
-      )
-      .then(() => self.clients.claim()),
+    (async () => {
+      // Lets the page request start while the worker boots, so it no longer delays every navigation.
+      if (self.registration.navigationPreload) {
+        try {
+          await self.registration.navigationPreload.enable();
+        } catch (_) {}
+      }
+      const keys = await caches.keys();
+      await Promise.all(
+        keys.filter((k) => k !== CACHE && k !== API_CACHE && k !== BADGE_CACHE).map((k) => caches.delete(k)),
+      );
+      await self.clients.claim();
+    })(),
   );
 });
+
+/** fetch() that gives up after `ms`, so a weak signal falls back to the cache instead of hanging. */
+function fetchWithin(request, ms, preload) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("timeout")), ms);
+    Promise.resolve(preload)
+      .then((pre) => pre || fetch(request))
+      .then(
+        (res) => {
+          clearTimeout(timer);
+          resolve(res);
+        },
+        (err) => {
+          clearTimeout(timer);
+          reject(err);
+        },
+      );
+  });
+}
+
+/** Keeps one copy per asset path: a new ?v= replaces the old ones, so the cache no longer grows forever. */
+async function putVersioned(request, res) {
+  const cache = await caches.open(CACHE);
+  const url = new URL(request.url);
+  const old = await cache.keys();
+  await Promise.all(
+    old
+      .filter((r) => {
+        const u = new URL(r.url);
+        return u.pathname === url.pathname && u.search !== url.search;
+      })
+      .map((r) => cache.delete(r)),
+  );
+  await cache.put(request, res);
+}
+
+const STATIC_RE = /\.(css|js|mjs|png|jpe?g|svg|webp|ico|woff2?)$/i;
+// Only the field app needs its pages offline; other HTML is per-user (no-store) and is not kept.
+const OFFLINE_PAGE_RE = /^\/campo\//;
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
 
-  // HTML navigations: network-first, offline shell fallback.
+  // HTML: network first (with the preloaded response), offline copy only for Campo pages.
   if (isNavRequest(event.request)) {
+    const keep = OFFLINE_PAGE_RE.test(url.pathname);
     event.respondWith(
-      fetch(event.request)
-        .then((res) => {
-          const copy = res.clone();
-          if (res.ok) caches.open(CACHE).then((c) => c.put(event.request, copy));
+      (async () => {
+        try {
+          const res = await fetchWithin(event.request, keep ? 6000 : 30000, event.preloadResponse);
+          if (keep && res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(event.request, copy));
+          }
           return res;
-        })
-        .catch(() =>
-          caches.match(event.request).then((r) => r || caches.match("/offline.html")),
-        ),
+        } catch (_) {
+          return (keep && (await caches.match(event.request))) || (await caches.match("/offline.html")) || Response.error();
+        }
+      })(),
     );
     return;
   }
 
-  // Campo / session API: network-first, cache for offline.
+  // Campo / session API: network first, but a weak signal falls back to the last copy after 6s.
   if (isApiGet(url)) {
     event.respondWith(
-      fetch(event.request)
+      fetchWithin(event.request, 6000)
         .then((res) => {
           const copy = res.clone();
           if (res.ok) caches.open(API_CACHE).then((c) => c.put(event.request, copy));
           return res;
         })
-        .catch(() => caches.open(API_CACHE).then((c) => c.match(event.request)).then((r) => r || Promise.reject())),
+        .catch(() => caches.open(API_CACHE).then((c) => c.match(event.request)).then((r) => r || Response.error())),
     );
     return;
   }
 
-  // Static assets: network-first with cache put.
+  if (!STATIC_RE.test(url.pathname)) return;
+
+  // Versioned assets (?v=) never change: cache first, no network at all once stored.
+  if (url.searchParams.has("v")) {
+    event.respondWith(
+      caches.match(event.request).then(
+        (hit) =>
+          hit ||
+          fetch(event.request).then((res) => {
+            if (res.ok) {
+              const copy = res.clone();
+              event.waitUntil(putVersioned(event.request, copy));
+            }
+            return res;
+          }),
+      ),
+    );
+    return;
+  }
+
+  // Unversioned assets can change at any time: network first, cached copy when offline or too slow.
   event.respondWith(
-    fetch(event.request)
+    fetchWithin(event.request, 8000)
       .then((res) => {
         const copy = res.clone();
-        if (res.ok && /\.(css|js|png|jpg|svg|woff2?)$/i.test(url.pathname)) {
-          caches.open(CACHE).then((c) => c.put(event.request, copy));
-        }
+        if (res.ok) caches.open(CACHE).then((c) => c.put(event.request, copy));
         return res;
       })
-      .catch(() => caches.match(event.request).then((r) => r || Promise.reject())),
+      .catch(() => caches.match(event.request).then((r) => r || Response.error())),
   );
 });
 

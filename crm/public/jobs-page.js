@@ -224,7 +224,7 @@
     const wd = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"][d.getDay()];
     const mo = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"][d.getMonth()];
     const today = sod(d).getTime() === sod(new Date()).getTime();
-    // Bloco sempre cinza; só a data fica laranja quando o job é para agora (em campo ou hoje).
+    // Bloco sempre cinza; só o número fica laranja quando o job é para agora (em campo ou hoje).
     const tone = !finished && (today || wo.status === "in_progress") ? " is-now" : finished ? " is-done" : "";
     return `<span class="ol-lead jx-day${tone}" aria-label="${today ? "Hoje" : `${wd} ${d.getDate()} ${mo}`}"><small>${today ? "hoje" : wd}</small><b>${d.getDate()}</b><small>${mo}</small></span>`;
   }
@@ -239,7 +239,7 @@
   function rowHtml(wo, now = false) {
     const J = I();
     const finished = wo.status === "completed" || wo.status === "canceled";
-    const undated = !finished && !wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start);
+    const undated = !finished && !J.listAnchorIso(wo);
     const when = J.listWhen ? J.listWhen(wo) : { date: undated ? "Sem data" : J.dateRange(wo), status: "" };
     const who = J.client(wo);
     const head = who && who !== "Sem cliente" ? who : wo.title || "Job";

@@ -492,8 +492,8 @@
       until: long ? `até ${timeOf(ev.end, ov)}` : duration(ev.start, ev.end),
       title: ev.title,
       sub: [ev.person, ev.address].filter(Boolean).join(" · "),
-      tag: isJob ? "Instalação" : "Visita",
-      tagTone: isJob ? "job" : "visit",
+      tag: isJob ? (ev.phase === "sand_finish" ? "Lixa" : "Instalação") : "Visita",
+      tagTone: isJob ? (ev.phase === "sand_finish" ? "sand" : "job") : "visit",
       status,
       live: isJob && (ev.status === "in_progress" || ev.status === "on_site"),
       href: ev.href,
@@ -504,13 +504,16 @@
     const parts = [];
     const ev = (ov && ov.today_events) || null;
     if (ev) {
-      const jobs = ev.filter((e) => e.type === "job").length;
-      const visits = ev.length - jobs;
+      const jobEv = ev.filter((e) => e.type === "job");
+      const visits = ev.length - jobEv.length;
+      const sand = jobEv.filter((e) => e.phase === "sand_finish").length;
+      const install = jobEv.length - sand;
       if (!ev.length) parts.push("Agenda livre hoje");
       else {
         const x = [];
         if (visits) x.push(plural(visits, "visita", "visitas"));
-        if (jobs) x.push(plural(jobs, "instalação", "instalações"));
+        if (install) x.push(plural(install, "instalação", "instalações"));
+        if (sand) x.push(plural(sand, "lixa", "lixas"));
         parts.push(`Hoje: ${x.join(" e ")}`);
       }
     }

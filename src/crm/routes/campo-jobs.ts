@@ -63,6 +63,7 @@ import { Prisma } from "@prisma/client";
 import { recordActivity } from "../../lib/activity/record.js";
 import { alertFieldProblem } from "../../lib/mate-ai/alerts.js";
 import { prisma } from "../../lib/prisma.js";
+import { uploadPhotoThumb } from "../../lib/job-media/thumb.js";
 
 export const campoJobsRouter = Router();
 
@@ -622,6 +623,7 @@ campoJobsRouter.post(
         body: parsed.body,
         contentType: parsed.contentType || "image/jpeg",
       });
+      const thumbUrl = await uploadPhotoThumb(stored.key, parsed.body, stored.url);
 
       const data = await withTenantTransaction(req.organizationId!, async (tx) => {
         const wo = await assertMyJob(tx, req.user!.id, jobId);
@@ -633,7 +635,7 @@ campoJobsRouter.post(
             type: "photo",
             storageKey: stored.key,
             url: stored.url,
-            thumbUrl: stored.url,
+            thumbUrl,
             sha256: hash,
             takenAtDevice: meta.takenAtDevice,
             receivedAtServer: new Date(),

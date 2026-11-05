@@ -322,7 +322,21 @@ const startBody = z.object({
   lng: z.number().optional().nullable(),
   accuracy: z.number().optional().nullable(),
   device_at: z.string().optional().nullable(),
+  /** Sent when the start was saved offline and is being replayed after the signal came back. */
+  offline_queued: z.boolean().optional().nullable(),
 });
+
+/** An offline clock-in keeps the time the worker tapped, within a sane window (no future, at most 18h old). */
+const OFFLINE_START_MAX_AGE_MS = 18 * 60 * 60 * 1000;
+export function offlineStartAt(body: Record<string, unknown>, serverNow: Date): Date | null {
+  if (body.offline_queued !== true) return null;
+  const d = deviceAt(body);
+  if (!d) return null;
+  const t = d.getTime();
+  const n = serverNow.getTime();
+  if (t > n + 2 * 60 * 1000 || n - t > OFFLINE_START_MAX_AGE_MS) return null;
+  return t > n ? serverNow : d;
+}
 
 async function accessibleJob(tx: PayrollTx, id: string) {
   const wo = await tx.workOrder.findFirst({ where: { id, status: { not: "canceled" } }, select: { id: true } });
@@ -341,7 +355,8 @@ campoDiaRouter.post("/api/campo/dia/start", requireCrmAuth, async (req: AuthedRe
     const tz = await orgTz(req.organizationId!);
     const userId = req.user!.id;
     const gps = gpsFrom(req.body || {});
-    const now = new Date();
+    const replayedAt = offlineStartAt(req.body || {}, new Date());
+    const now = replayedAt ?? new Date();
     // Pick the job first (outside the write) so we can geocode it before measuring distance.
     const pre = await withTenantTransaction(req.organizationId!, async (tx) => {
       const emp = await ownEmployee(tx, req);
@@ -357,6 +372,8 @@ campoDiaRouter.post("/api/campo/dia/start", requireCrmAuth, async (req: AuthedRe
       await autoCloseStaleDays(tx, userId, tz, now);
       const today = workDateFor(now, tz);
       const exists = await tx.campoShift.findFirst({ where: { userId, workDate: today } });
+      // A replayed offline start must not block the queue: the day is already there, so return it.
+      if (exists && replayedAt) return loadState(tx, req, tz, new Date());
       if (exists) {
         throw httpErr(409, exists.reviewStatus === "in_progress" ? "Seu dia já começou." : "O dia de hoje já foi finalizado.", "DAY_EXISTS");
       }
@@ -388,7 +405,7 @@ campoDiaRouter.post("/api/campo/dia/start", requireCrmAuth, async (req: AuthedRe
           data: { organizationId: req.organizationId!, shiftId: shift.id, activityKind: "on_site", workOrderId: pre, startedAt: now },
         });
       }
-      return loadState(tx, req, tz, now);
+      return loadState(tx, req, tz, replayedAt ? new Date() : now);
     });
     res.status(201).json({ success: true, data });
   } catch (error) {

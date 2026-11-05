@@ -21,7 +21,7 @@ body.marketing-page {
   min-height: 100vh;
 }
 
-/* Área principal sem padding duplo (styles.css aplica padding ao .dashboard-main) */
+/* Área principal sem padding duplo (styles.css?v=20261105-apps3 aplica padding ao .dashboard-main) */
 body.marketing-page .dashboard-main {
   padding: 0;
   background: var(--color-surface-secondary, #f5f4f1);

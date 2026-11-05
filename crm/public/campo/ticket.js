@@ -23,6 +23,8 @@
   let inspectStartedAt = null;
   let inspectMarks = [];
   let lightboxIndex = -1;
+  /** Item just ticked by this tap: its check plays the 160ms pop once on the next render. */
+  let justChecked = null;
 
   function escapeHtml(s) {
     return String(s || "")
@@ -42,31 +44,62 @@
     return appleMapsUrl(address);
   }
 
+  // Bottom sheets (#cmMapsLayer, #cmProblemLayer, #cmAnnotLayer): OmUI.layer gives Esc, focus trap and
+  // return, Android back, the exit animation and drag-to-close by the grab. Without OmUI: plain show/hide.
+  const layers = {};
+  function sheetLayer(name) {
+    const root = $(`cm${name}Layer`);
+    if (!root) return null;
+    if (!layers[name] && window.OmUI) {
+      layers[name] = window.OmUI.layer(root, {
+        onClose: () => onLayerClosed(name),
+        dragHandle: root.querySelector(".cm-sheet__grab"),
+        initialFocus: () => root.querySelector(".cm-sheet__close"),
+      });
+    }
+    return layers[name] || null;
+  }
+  function showLayer(name) {
+    document.body.classList.add("cm-sheet-open");
+    const l = sheetLayer(name);
+    if (l) l.open();
+    else if ($(`cm${name}Layer`)) $(`cm${name}Layer`).hidden = false;
+  }
+  function hideLayer(name) {
+    const l = sheetLayer(name);
+    if (l && l.isOpen()) return l.close();
+    if ($(`cm${name}Layer`)) $(`cm${name}Layer`).hidden = true;
+    onLayerClosed(name);
+  }
+  function onLayerClosed(name) {
+    if (!Object.keys(layers).some((k) => layers[k].isOpen())) document.body.classList.remove("cm-sheet-open");
+    if (name === "Annot") {
+      annotMediaId = null;
+      annotDrawing = null;
+    }
+  }
+
   function openMapsChooser(address) {
     const addr = String(address || "").trim();
     if (!addr) return;
     $("cmMapsAddr").textContent = addr;
     $("cmMapsApple").href = appleMapsUrl(addr);
     $("cmMapsGoogle").href = googleMapsUrl(addr);
-    $("cmMapsBackdrop").hidden = false;
-    $("cmMapsSheet").hidden = false;
-    document.body.classList.add("cm-sheet-open");
+    showLayer("Maps");
   }
   function closeMapsChooser() {
-    $("cmMapsBackdrop").hidden = true;
-    $("cmMapsSheet").hidden = true;
-    document.body.classList.remove("cm-sheet-open");
+    hideLayer("Maps");
   }
 
   async function api(path, opts) {
     if (window.OmOffline && typeof window.OmOffline.api === "function") {
       const json = await window.OmOffline.api(path, {
         credentials: "same-origin",
-        ...(opts || {}),
         allowQueue: true,
+        ...(opts || {}),
       });
       if (json && json.queued) {
-        toast(json.message || "Guardado offline — envia ao reconectar.", "success");
+        toast(json.message || "Salvo sem sinal — enviamos quando a conexão voltar.", "success");
       }
       return json;
     }
@@ -118,48 +151,14 @@
     });
   }
 
-  function compressImage(file, maxEdge, quality) {
-    return new Promise((resolve, reject) => {
-      const url = URL.createObjectURL(file);
-      const img = new Image();
-      img.onload = () => {
-        try {
-          let { width, height } = img;
-          const edge = Math.max(width, height);
-          const scale = edge > maxEdge ? maxEdge / edge : 1;
-          width = Math.round(width * scale);
-          height = Math.round(height * scale);
-          const canvas = document.createElement("canvas");
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext("2d");
-          if (!ctx) {
-            reject(new Error("Canvas unavailable"));
-            return;
-          }
-          ctx.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL("image/jpeg", quality);
-          URL.revokeObjectURL(url);
-          resolve(dataUrl);
-        } catch (e) {
-          URL.revokeObjectURL(url);
-          reject(e);
-        }
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        reject(new Error("Falha ao processar imagem"));
-      };
-      img.src = url;
-    });
-  }
-
   async function fileToUploadDataUrl(file) {
     if (!file.type || !file.type.startsWith("image/")) {
       throw new Error("Selecione uma imagem");
     }
     try {
-      return await compressImage(file, 1600, 0.72);
+      // One compression for every Campo screen (campo-photo.js?v=20261105-apps3): 1600px max side, JPEG 0.74.
+      if (!window.CampoPhoto) throw new Error("no compressor");
+      return await window.CampoPhoto.compress(file);
     } catch (_) {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -393,8 +392,8 @@
           .filter(Boolean)
           .join(" · ");
         return `
-      <div class="cm-check-item${item.done ? " is-done" : ""}" data-check-wrap="${escapeHtml(item.id)}">
-        <button type="button" class="cm-check-item__main" data-check-id="${escapeHtml(item.id)}" style="display:flex;gap:0.65rem;align-items:flex-start;width:100%;border:0;background:transparent;padding:0;text-align:left;cursor:pointer">
+      <div class="cm-check-item${item.done ? " is-done" : ""}${item.done && item.id === justChecked ? " is-just-done" : ""}" data-check-wrap="${escapeHtml(item.id)}">
+        <button type="button" class="cm-check-item__main" data-check-id="${escapeHtml(item.id)}" data-om-press aria-pressed="${item.done ? "true" : "false"}" style="display:flex;gap:0.65rem;align-items:flex-start;width:100%;border:0;background:transparent;padding:0;text-align:left;cursor:pointer">
           <span class="cm-check-item__box" aria-hidden="true">${item.done ? "✓" : ""}</span>
           <span class="cm-check-item__text">
             ${escapeHtml(item.text)}
@@ -409,6 +408,7 @@
       </div>`;
       })
       .join("");
+    justChecked = null;
   }
 
   function updatePendingUi(rows) {
@@ -530,15 +530,11 @@
 
   function openProblem() {
     $("cmProblemNote").value = ticket?.problem_note || "";
-    $("cmProblemBackdrop").hidden = false;
-    $("cmProblemSheet").hidden = false;
-    document.body.classList.add("cm-sheet-open");
+    showLayer("Problem");
   }
 
   function closeProblem() {
-    $("cmProblemBackdrop").hidden = true;
-    $("cmProblemSheet").hidden = true;
-    document.body.classList.remove("cm-sheet-open");
+    hideLayer("Problem");
   }
 
   async function postPhotoPayload(row) {
@@ -560,6 +556,8 @@
     };
     const json = await api(`/api/campo/jobs/${jobId}/photos`, {
       method: "POST",
+      // Already in the media queue: a dropped connection must fail here, not move to the generic queue.
+      allowQueue: false,
       body: JSON.stringify(body),
     });
     return json.data;
@@ -692,7 +690,7 @@
 
   function voiceCaptionOnDevice() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) return Promise.reject(new Error("Speech recognition not supported on this browser"));
+    if (!SR) return Promise.reject(new Error("Reconhecimento de voz não disponível neste navegador"));
     return new Promise((resolve, reject) => {
       const rec = new SR();
       rec.lang = "en-US";
@@ -795,7 +793,7 @@
         return;
       }
       if (action === "ocr") {
-        toast("A ler etiqueta…", "success");
+        toast("Lendo etiqueta…", "success");
         const json = await api(`/api/campo/jobs/${jobId}/media/${mediaId}/ocr`, {
           method: "POST",
           body: JSON.stringify({}),
@@ -882,7 +880,7 @@
     const btn = $("cmPhotoReportBtn");
     if (btn) btn.disabled = true;
     try {
-      toast("A gerar relatório…", "success");
+      toast("Gerando relatório…", "success");
       const json = await api(`/api/campo/jobs/${jobId}/reports/generate`, {
         method: "POST",
         body: JSON.stringify({ template_key: "site_visit" }),
@@ -911,7 +909,7 @@
       ? Math.floor((Date.now() - inspectStartedAt) / 1000)
       : 0;
     el.hidden = false;
-    el.textContent = `A gravar vistoria · ${secs}s · ${inspectMarks.length} marca(s) · toque no botão para parar`;
+    el.textContent = `Gravando vistoria · ${secs}s · ${inspectMarks.length} marca(s) · toque no botão para parar`;
     btn.textContent = "Parar vistoria";
   }
 
@@ -921,7 +919,7 @@
       return;
     }
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
-      toast("Gravação de áudio não suportada neste browser");
+      toast("Gravação de áudio não disponível neste navegador");
       return;
     }
     try {
@@ -942,7 +940,7 @@
       };
       inspectRec.start(1000);
       updateInspectUi();
-      toast("Vistoria a gravar — tire fotos para marcar no áudio", "success");
+      toast("Gravando vistoria — tire fotos para marcar no áudio", "success");
       const tick = setInterval(() => {
         if (!inspectRec) {
           clearInterval(tick);
@@ -962,7 +960,7 @@
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result || ""));
-      reader.onerror = () => reject(new Error("Falha a ler áudio"));
+      reader.onerror = () => reject(new Error("Falha ao ler o áudio"));
       reader.readAsDataURL(blob);
     });
   }
@@ -996,12 +994,12 @@
     updateInspectUi();
 
     if (!blob || blob.size < 200) {
-      toast("Áudio demasiado curto");
+      toast("Áudio muito curto");
       return;
     }
 
     try {
-      toast("A enviar vistoria…", "success");
+      toast("Enviando vistoria…", "success");
       const dataUrl = await blobToDataUrl(blob);
       const ended = Date.now();
       await api(`/api/campo/jobs/${jobId}/inspections`, {
@@ -1016,12 +1014,12 @@
       });
       toast(
         marks.length
-          ? `Vistoria guardada (${marks.length} marca${marks.length === 1 ? "" : "s"})`
-          : "Vistoria guardada",
+          ? `Vistoria salva (${marks.length} marca${marks.length === 1 ? "" : "s"})`
+          : "Vistoria salva",
         "success",
       );
     } catch (err) {
-      toast(err.message || "Falha ao guardar vistoria");
+      toast(err.message || "Falha ao salvar a vistoria");
     }
   }
 
@@ -1058,7 +1056,7 @@
           source: "manual",
         }),
       });
-      toast("Medição guardada", "success");
+      toast("Medição salva", "success");
     } catch (err) {
       toast(err.message || "Medições desativadas ou falha");
     }
@@ -1142,18 +1140,12 @@
     });
     $("cmAnnotImg").onload = () => redrawAnnotations();
     $("cmAnnotImg").src = photo.url;
-    $("cmAnnotBackdrop").hidden = false;
-    $("cmAnnotSheet").hidden = false;
-    document.body.classList.add("cm-sheet-open");
+    showLayer("Annot");
     setTimeout(redrawAnnotations, 50);
   }
 
   function closeAnnotator() {
-    $("cmAnnotBackdrop").hidden = true;
-    $("cmAnnotSheet").hidden = true;
-    document.body.classList.remove("cm-sheet-open");
-    annotMediaId = null;
-    annotDrawing = null;
+    hideLayer("Annot");
   }
 
   function pointerNorm(e, canvas) {
@@ -1194,9 +1186,9 @@
         });
         apply(json.data);
         closeAnnotator();
-        toast("Anotações guardadas", "success");
+        toast("Anotações salvas", "success");
       } catch (err) {
-        toast(err.message || "Falha ao guardar");
+        toast(err.message || "Falha ao salvar");
       }
     });
 
@@ -1450,8 +1442,14 @@
       });
     });
 
-    $("cmTicketCta")?.addEventListener("click", async () => {
+    $("cmTicketCta")?.addEventListener("click", async (e) => {
       if (!ticket?.next_status) return;
+      const btn = e.currentTarget;
+      if (btn.classList.contains("om-busy")) return;
+      if (window.OmUI) {
+        window.OmUI.haptic("tap");
+        window.OmUI.busy(btn, true);
+      }
       try {
         const json = await api(`/api/campo/jobs/${jobId}/field-status`, {
           method: "POST",
@@ -1467,7 +1465,12 @@
         }
         apply(json.data);
       } catch (err) {
+        if (window.OmUI) window.OmUI.haptic("error");
         toast(err.message || "Falha ao atualizar status");
+      } finally {
+        if (window.OmUI) window.OmUI.busy(btn, false);
+        // renderHero decides: no next step → "Visita concluída", disabled
+        btn.disabled = !(ticket && ticket.cta_label);
       }
     });
 
@@ -1505,6 +1508,7 @@
       const item = (ticket.checklist || []).find((c) => c.id === id);
       if (!item) return;
       try {
+        if (!item.done) justChecked = id;
         const json = await api(`/api/campo/jobs/${jobId}/checklist`, {
           method: "PATCH",
           body: JSON.stringify({ item_id: id, done: !item.done }),

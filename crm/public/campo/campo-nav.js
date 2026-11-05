@@ -37,19 +37,19 @@
     nav.className = "cm-tabbar";
     nav.setAttribute("aria-label", "Campo");
     nav.innerHTML = `
-      <a class="cm-tabbar__item${tab === "hoje" ? " is-active" : ""}" href="hoje.html" data-cm-tab="hoje">
+      <a data-om-press class="cm-tabbar__item${tab === "hoje" ? " is-active" : ""}" href="hoje.html" data-cm-tab="hoje">
         ${ICONS.hoje}<span>Hoje</span>
       </a>
-      <a class="cm-tabbar__item${tab === "agenda" ? " is-active" : ""}" href="agenda.html" data-cm-tab="agenda">
+      <a data-om-press class="cm-tabbar__item${tab === "agenda" ? " is-active" : ""}" href="agenda.html" data-cm-tab="agenda">
         ${ICONS.agenda}<span>Agenda</span>
       </a>
-      <a class="cm-tabbar__item${tab === "jobs" ? " is-active" : ""}" href="/jobs.html" data-cm-tab="jobs">
+      <a data-om-press class="cm-tabbar__item${tab === "jobs" ? " is-active" : ""}" href="/jobs.html" data-cm-tab="jobs">
         ${ICONS.jobs}<span>Jobs</span>
       </a>
-      <a class="cm-tabbar__item${tab === "chat" ? " is-active" : ""}" href="/chat.html" data-cm-tab="chat">
+      <a data-om-press class="cm-tabbar__item${tab === "chat" ? " is-active" : ""}" href="/chat.html" data-cm-tab="chat">
         ${ICONS.chat}<span>ObraChat</span>
       </a>
-      <a class="cm-tabbar__item${tab === "horas" ? " is-active" : ""}" href="horas.html" data-cm-tab="horas">
+      <a data-om-press class="cm-tabbar__item${tab === "horas" ? " is-active" : ""}" href="horas.html" data-cm-tab="horas">
         ${ICONS.horas}<span>Horas</span>
       </a>
     `;
@@ -63,5 +63,37 @@
     ensure();
   }
 
-  window.__campoNav = { VER, ensure, activeTab };
+  // Route panel on demand: crm-day-route.js (and the address autocomplete it uses for the start
+  // address) used to load on every Campo page; now they load the first time "Ver rota" is tapped.
+  // Same versioned URLs the pages had.
+  const LAZY = {
+    autocomplete: "/crm-address-autocomplete.js?v=20261105-u1",
+    dayRoute: "/crm-day-route.js?v=20261104-ux2",
+  };
+  const loading = {};
+  function loadScript(src) {
+    if (!loading[src]) {
+      loading[src] = new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = src;
+        s.async = false;
+        s.onload = () => resolve();
+        s.onerror = () => {
+          delete loading[src];
+          s.remove();
+          reject(new Error("Sem conexão para abrir a rota agora."));
+        };
+        document.head.appendChild(s);
+      });
+    }
+    return loading[src];
+  }
+  async function loadDayRoute() {
+    if (window.__crmDayRoute) return window.__crmDayRoute;
+    if (typeof window.sfEnsureCrmAddressAutocomplete !== "function") await loadScript(LAZY.autocomplete);
+    await loadScript(LAZY.dayRoute);
+    return window.__crmDayRoute || null;
+  }
+
+  window.__campoNav = { VER, ensure, activeTab, loadDayRoute };
 })();

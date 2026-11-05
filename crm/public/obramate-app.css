@@ -212,7 +212,7 @@ body.om-app:has(#qbActionBar) .dashboard-main {
   }
 }
 
-/* Always stack main content vertically (styles.css sets display:flex row by default) */
+/* Always stack main content vertically (styles.css?v=20261105-apps3 sets display:flex row by default) */
 body.om-app .dashboard-main {
   display: flex !important;
   flex-direction: column !important;

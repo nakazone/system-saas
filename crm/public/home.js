@@ -387,7 +387,7 @@
       expanded = !expanded;
       renderAttention();
     });
-    // The bell lives in the shared mobile top bar (om-mobile-nav.js); on Início it jumps to the list.
+    // The bell lives in the shared mobile top bar (om-mobile-nav.js?v=20261105-apps3); on Início it jumps to the list.
     document.addEventListener("click", (e) => {
       const bell = e.target && e.target.closest ? e.target.closest("#homeBell") : null;
       if (!bell) return;

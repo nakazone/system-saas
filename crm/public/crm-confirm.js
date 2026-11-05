@@ -9,10 +9,10 @@
 (function () {
   if (window.crmPrompt) return;
 
-  const CSS_HREF = "/crm-confirm.css?v=20261104-ux2";
+  const CSS_HREF = "/crm-confirm.css?v=20261105-apps3";
 
   function ensureCss() {
-    if ([...document.querySelectorAll('link[rel="stylesheet"]')].some((l) => (l.getAttribute("href") || "").includes("crm-confirm.css"))) {
+    if ([...document.querySelectorAll('link[rel="stylesheet"]')].some((l) => (l.getAttribute("href") || "").includes("crm-confirm.css?v=20261105-apps3"))) {
       return;
     }
     const link = document.createElement("link");
@@ -21,18 +21,103 @@
     document.head.appendChild(link);
   }
 
+
+  const PHONE_MQ = "(max-width: 640px)";
+  const layers = new Map();
+
+  function isPhone() {
+    try {
+      return window.matchMedia(PHONE_MQ).matches;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /**
+   * Abre o diálogo como camada acessível: OmUI.layer (om-ui.js?v=20261105-apps3) cuida de Esc, foco preso e
+   * devolvido, botão voltar do Android e da animação de saída. Sem OmUI, faz o mínimo aqui.
+   * onDismiss roda quando a camada fecha por Esc, voltar ou toque no fundo.
+   */
+  function openLayer(root, panel, initialFocus, onDismiss) {
+    // Celular: painel de baixo. Desktop: aparece no lugar.
+    panel.setAttribute("data-om-motion", isPhone() ? "sheet" : "pop");
+    let entry = layers.get(root);
+    if (!entry) {
+      entry = { onDismiss: null, closing: false, api: null };
+      layers.set(root, entry);
+    }
+    if (!entry.api) {
+      if (window.OmUI && typeof window.OmUI.layer === "function") {
+        entry.history = isPhone();
+        entry.api = window.OmUI.layer(root, {
+          history: entry.history,
+          initialFocus: () => entry.focus,
+          onClose: () => {
+            document.body.classList.remove("crm-confirm-open");
+            if (!entry.closing && entry.onDismiss) entry.onDismiss();
+          },
+        });
+      }
+    }
+    entry.onDismiss = onDismiss;
+    entry.focus = initialFocus;
+    entry.closing = false;
+    document.body.classList.add("crm-confirm-open");
+    if (entry.api) {
+      entry.api.open();
+    } else {
+      root.hidden = false;
+      root.classList.remove("om-ui-closing");
+      root.classList.add("om-ui-open");
+      try {
+        initialFocus.focus();
+      } catch (_) {}
+    }
+    return {
+      /** Fecha por decisão do usuário (OK/Cancelar). `done` roda depois que o histórico assentou. */
+      close(done) {
+        entry.closing = true;
+        document.body.classList.remove("crm-confirm-open");
+        if (entry.api) {
+          const pushed = entry.history;
+          entry.api.close();
+          // Com entrada no histórico, espera o history.back() terminar antes de seguir,
+          // para não competir com uma navegação que o chamador faça logo depois.
+          if (pushed) {
+            let called = false;
+            const go = () => {
+              if (called) return;
+              called = true;
+              window.removeEventListener("popstate", go);
+              done();
+            };
+            window.addEventListener("popstate", go);
+            setTimeout(go, 150);
+            return;
+          }
+        } else {
+          root.classList.remove("om-ui-open");
+          root.hidden = true;
+        }
+        done();
+      },
+    };
+  }
+
   function ensureDom() {
     let dlg = document.getElementById("crmConfirm");
     if (dlg) return dlg;
     const wrap = document.createElement("div");
     wrap.innerHTML = `
-      <div class="crm-confirm-backdrop" id="crmConfirmBackdrop" hidden></div>
-      <div class="crm-confirm" id="crmConfirm" role="alertdialog" aria-modal="true" aria-labelledby="crmConfirmTitle" aria-describedby="crmConfirmText" hidden>
-        <h2 id="crmConfirmTitle"></h2>
-        <p class="crm-confirm__text" id="crmConfirmText"></p>
-        <div class="crm-confirm__foot">
-          <button type="button" class="btn btn-secondary" id="crmConfirmCancel">Cancelar</button>
-          <button type="button" class="btn btn-primary" id="crmConfirmOk">Confirmar</button>
+      <div class="crm-confirm-layer" id="crmConfirmLayer" role="presentation" hidden>
+        <div class="crm-confirm-backdrop" id="crmConfirmBackdrop" data-om-backdrop></div>
+        <div class="crm-confirm" id="crmConfirm" role="alertdialog" aria-modal="true" aria-labelledby="crmConfirmTitle" aria-describedby="crmConfirmText" data-om-motion="pop">
+          <h2 id="crmConfirmTitle"></h2>
+          <p class="crm-confirm__text" id="crmConfirmText"></p>
+          <div class="crm-confirm__foot">
+            <button type="button" class="btn btn-secondary" id="crmConfirmCancel">Cancelar</button>
+            <button type="button" class="btn btn-primary" id="crmConfirmOk">Confirmar</button>
+          </div>
         </div>
       </div>`;
     while (wrap.firstChild) document.body.appendChild(wrap.firstChild);
@@ -56,29 +141,34 @@
     cancelBtn.textContent = o.cancel || "Cancelar";
     okBtn.className = `btn ${o.danger ? "btn-danger" : "btn-primary"}`;
 
+    const root = document.getElementById("crmConfirmLayer");
     return new Promise((resolve) => {
-      const prevFocus = document.activeElement;
-      const finish = (value) => {
-        dlg.classList.remove("is-open");
-        backdrop.classList.remove("is-open");
-        dlg.hidden = true;
-        backdrop.hidden = true;
-        document.body.classList.remove("crm-confirm-open");
+      let settled = false;
+      let layer = null;
+      const cleanup = () => {
         okBtn.removeEventListener("click", onOk);
         cancelBtn.removeEventListener("click", onCancel);
         backdrop.removeEventListener("click", onCancel);
         document.removeEventListener("keydown", onKey);
-        if (prevFocus && typeof prevFocus.focus === "function") {
-          try {
-            prevFocus.focus();
-          } catch (_) {}
-        }
-        resolve(value);
+      };
+      // value vem de um botão: fecha a camada e responde depois.
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        layer.close(() => resolve(value));
+      };
+      // Esc, voltar do Android ou toque fora: a camada já fechou.
+      const dismissed = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(false);
       };
       const onOk = () => finish(true);
       const onCancel = () => finish(false);
       const onKey = (e) => {
-        if (e.key === "Escape") {
+        if (e.key === "Escape" && !(window.OmUI && window.OmUI.layer)) {
           e.preventDefault();
           finish(false);
         } else if (e.key === "Enter" && document.activeElement !== cancelBtn) {
@@ -92,14 +182,7 @@
       backdrop.addEventListener("click", onCancel);
       document.addEventListener("keydown", onKey);
 
-      dlg.hidden = false;
-      backdrop.hidden = false;
-      document.body.classList.add("crm-confirm-open");
-      requestAnimationFrame(() => {
-        dlg.classList.add("is-open");
-        backdrop.classList.add("is-open");
-        okBtn.focus();
-      });
+      layer = openLayer(root, dlg, okBtn, dismissed);
     });
   }
 
@@ -109,8 +192,9 @@
     if (dlg) return dlg;
     const wrap = document.createElement("div");
     wrap.innerHTML = `
-      <div class="crm-confirm-backdrop" id="crmPromptBackdrop" hidden></div>
-      <form class="crm-confirm crm-prompt" id="crmPrompt" role="dialog" aria-modal="true" aria-labelledby="crmPromptTitle" hidden novalidate>
+      <div class="crm-confirm-layer" id="crmPromptLayer" role="presentation" hidden>
+      <div class="crm-confirm-backdrop" id="crmPromptBackdrop" data-om-backdrop></div>
+      <form class="crm-confirm crm-prompt" id="crmPrompt" role="dialog" aria-modal="true" aria-labelledby="crmPromptTitle" data-om-motion="pop" novalidate>
         <h2 id="crmPromptTitle"></h2>
         <p class="crm-confirm__text" id="crmPromptText"></p>
         <label class="crm-prompt__label" id="crmPromptLabel" for="crmPromptField"></label>
@@ -120,7 +204,8 @@
           <button type="button" class="btn btn-secondary" id="crmPromptCancel">Cancelar</button>
           <button type="submit" class="btn btn-primary" id="crmPromptOk">Salvar</button>
         </div>
-      </form>`;
+      </form>
+      </div>`;
     while (wrap.firstChild) document.body.appendChild(wrap.firstChild);
     return document.getElementById("crmPrompt");
   }
@@ -179,24 +264,27 @@
     if (!o.label) field.setAttribute("aria-label", o.title || "Valor");
     fieldWrap.appendChild(field);
 
+    const root = document.getElementById("crmPromptLayer");
     return new Promise((resolve) => {
-      const prevFocus = document.activeElement;
-      const finish = (value) => {
-        dlg.classList.remove("is-open");
-        backdrop.classList.remove("is-open");
-        dlg.hidden = true;
-        backdrop.hidden = true;
-        document.body.classList.remove("crm-confirm-open");
+      let settled = false;
+      let layer = null;
+      const cleanup = () => {
         dlg.removeEventListener("submit", onSubmit);
         cancelBtn.removeEventListener("click", onCancel);
         backdrop.removeEventListener("click", onCancel);
         document.removeEventListener("keydown", onKey);
-        if (prevFocus && typeof prevFocus.focus === "function") {
-          try {
-            prevFocus.focus();
-          } catch (_) {}
-        }
-        resolve(value);
+      };
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        layer.close(() => resolve(value));
+      };
+      const dismissed = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(null);
       };
       const onSubmit = (e) => {
         e.preventDefault();
@@ -223,7 +311,7 @@
       };
       const onCancel = () => finish(null);
       const onKey = (e) => {
-        if (e.key === "Escape") {
+        if (e.key === "Escape" && !(window.OmUI && window.OmUI.layer)) {
           e.preventDefault();
           finish(null);
         }
@@ -233,19 +321,12 @@
       backdrop.addEventListener("click", onCancel);
       document.addEventListener("keydown", onKey);
 
-      dlg.hidden = false;
-      backdrop.hidden = false;
-      document.body.classList.add("crm-confirm-open");
-      requestAnimationFrame(() => {
-        dlg.classList.add("is-open");
-        backdrop.classList.add("is-open");
-        field.focus();
-        if (field.select && o.type !== "select") {
-          try {
-            field.select();
-          } catch (_) {}
-        }
-      });
+      layer = openLayer(root, dlg, field, dismissed);
+      if (field.select && o.type !== "select") {
+        try {
+          field.select();
+        } catch (_) {}
+      }
     });
   }
 

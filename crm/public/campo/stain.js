@@ -24,17 +24,37 @@
   let busy = false;
   let company = "";
 
+  /** kind: "success" | "error" | undefined. Enter 200ms (opacity + translateY 8px), exit 150ms; see stain.css. */
   function toast(msg, kind) {
     const t = $("stToast");
-    t.textContent = msg;
-    t.className = `st-toast${kind === "error" ? " is-error" : ""}`;
-    t.hidden = false;
     clearTimeout(toast._t);
-    toast._t = setTimeout(() => (t.hidden = true), 3200);
+    clearTimeout(toast._h);
+    const wasHidden = t.hidden;
+    t.className = `st-toast${kind ? ` st-toast--${kind}` : ""}`;
+    t.setAttribute("role", kind === "error" ? "alert" : "status");
+    t.textContent = msg;
+    t.hidden = false;
+    if (wasHidden) void t.offsetWidth;
+    t.classList.add("is-in");
+    toast._t = setTimeout(() => {
+      t.classList.remove("is-in");
+      toast._h = setTimeout(() => (t.hidden = true), 160);
+    }, kind === "error" ? 5000 : 3200);
   }
 
+  const OFFLINE_MSG = "Sem conexão. Tente de novo quando o sinal voltar.";
   async function api(path, opts) {
-    const res = await fetch(path, { credentials: "same-origin", headers: { Accept: "application/json", "Content-Type": "application/json" }, ...(opts || {}) });
+    const method = String((opts && opts.method) || "GET").toUpperCase();
+    // Reads go through the offline cache (last copy of this job's samples when there is no signal).
+    if (method === "GET" && window.OmOffline && typeof window.OmOffline.api === "function") {
+      return window.OmOffline.api(path, { credentials: "same-origin", dataOnly: true });
+    }
+    let res;
+    try {
+      res = await fetch(path, { credentials: "same-origin", headers: { Accept: "application/json", "Content-Type": "application/json" }, ...(opts || {}) });
+    } catch (_) {
+      throw new Error(OFFLINE_MSG);
+    }
     const json = await res.json().catch(() => ({}));
     if (res.status === 401) {
       location.href = "/login.html";
@@ -47,39 +67,33 @@
   const patch = (path, body) => api(path, { method: "PATCH", body: JSON.stringify(body || {}) });
   const del = (path) => api(path, { method: "DELETE" });
 
-  async function guarded(fn) {
+  /** Runs one action at a time. The tapped button shows the shared spinner (OmUI.busy); without one the view dims. */
+  async function guarded(fn, btn) {
     if (busy) return;
     busy = true;
+    const UI = window.OmUI;
+    const spin = Boolean(btn && UI && btn.isConnected);
+    if (spin) UI.busy(btn, true);
     document.body.classList.add("st-busy");
+    if (!spin) document.body.classList.add("st-busy--dim");
     try {
       await fn();
     } catch (err) {
-      if (err.message !== "unauth") toast(err.message || "Erro", "error");
+      if (err.message !== "unauth") {
+        if (UI) UI.haptic("error");
+        toast(err.message || "Erro", "error");
+      }
     } finally {
       busy = false;
-      document.body.classList.remove("st-busy");
+      if (spin && btn.isConnected) UI.busy(btn, false);
+      document.body.classList.remove("st-busy", "st-busy--dim");
     }
   }
 
-  function shrink(file, max) {
-    return new Promise((ok, bad) => {
-      const img = new Image();
-      const url = URL.createObjectURL(file);
-      img.onload = () => {
-        const s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
-        const c = document.createElement("canvas");
-        c.width = Math.round(img.naturalWidth * s);
-        c.height = Math.round(img.naturalHeight * s);
-        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-        URL.revokeObjectURL(url);
-        ok(c.toDataURL("image/jpeg", 0.85));
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        bad(new Error("Não consegui ler a foto. Tente de novo."));
-      };
-      img.src = url;
-    });
+  /** One compression for every Campo screen (campo-photo.js?v=20261105-apps3): 1600px max side, JPEG 0.74. */
+  function shrink(file) {
+    if (!window.CampoPhoto) return Promise.reject(new Error("Não consegui ler a foto. Tente de novo."));
+    return window.CampoPhoto.compress(file);
   }
 
   function photoMeta() {
@@ -152,7 +166,7 @@
         <p class="st-hint" style="font-size:13px">Para cada sample: tire a foto no piso, com o número da fita aparecendo, e escolha a cor. Depois mande o link para a cliente escolher e assinar.</p>
       </div>
       ${historyHtml()}`;
-    setBar('<button type="button" class="st-btn" data-act="new-round">Começar rodada de samples</button>');
+    setBar('<button type="button" class="st-btn" data-om-press data-act="new-round">Começar rodada de samples</button>');
   }
 
   function sampleRow(s, editable) {
@@ -188,7 +202,7 @@
       </button>
       ${r.samples.length ? "" : '<p class="st-hint" style="text-align:center">Comece pelo sample #1: foto primeiro, depois a cor.</p>'}
       <button type="button" class="st-btn st-btn--line st-btn--sm" style="align-self:center" data-act="discard">Descartar rodada</button>`;
-    setBar(`<button type="button" class="st-btn" data-act="review" ${ready ? "" : "disabled"}>${ready ? "Revisar e enviar à cliente" : r.samples.length ? "Falta foto em algum sample" : "Adicione os samples"}</button>`);
+    setBar(`<button type="button" class="st-btn" data-om-press data-act="review" ${ready ? "" : "disabled"}>${ready ? "Revisar e enviar à cliente" : r.samples.length ? "Falta foto em algum sample" : "Adicione os samples"}</button>`);
   }
 
   function renderWaiting(r) {
@@ -246,7 +260,7 @@
       </div>
       ${d.id ? '<button type="button" class="st-btn st-btn--line st-btn--sm" style="align-self:center" data-act="delete-sample">Excluir sample</button>' : ""}`;
     const label = sampleColorLabel(d);
-    setBar(`<button type="button" class="st-btn" data-act="save-sample">${label ? `Salvar sample #${d.number} · ${esc(label)}` : `Salvar sample #${d.number}`}</button>
+    setBar(`<button type="button" class="st-btn" data-om-press data-act="save-sample">${label ? `Salvar sample #${d.number} · ${esc(label)}` : `Salvar sample #${d.number}`}</button>
       <button type="button" class="st-btn st-btn--line" data-act="cancel">Cancelar</button>`);
     const q = $("stQ");
     if (q && d.focusQuery) {
@@ -270,7 +284,7 @@
       ${data.job.has_builder ? `<div class="st-card"><span class="st-label">JOB DE BUILDER${data.job.builder_name ? ` · ${esc(data.job.builder_name)}` : ""}</span>
         <label class="st-switch"><input type="checkbox" id="stBuilder" ${r.send_to_builder ? "checked" : ""}><span><b>Mandar a aprovação ao builder</b><small>Foto, cor e PDF entram no job dele no ObraBuilder, com aviso no celular.</small></span></label></div>` : ""}
       <p class="st-hint" style="text-align:center">${r.samples.length} samples · link vale 14 dias</p>`;
-    setBar(`<button type="button" class="st-btn" data-act="send">Enviar para a cliente</button>
+    setBar(`<button type="button" class="st-btn" data-om-press data-act="send">Enviar para a cliente</button>
       <button type="button" class="st-btn st-btn--line" data-act="approve-here">Cliente aprova agora, neste celular</button>`);
   }
 
@@ -326,7 +340,7 @@
     }
     draft = null;
     view = "home";
-    toast(`Sample #${d.number} salvo`);
+    toast(`Sample #${d.number} salvo`, "success");
     render();
   }
 
@@ -353,7 +367,8 @@
     }
     data = out;
     view = "home";
-    toast(out.emailed ? "Enviado para a cliente" : "Link criado");
+    if (window.OmUI) window.OmUI.haptic("success");
+    toast(out.emailed ? "Enviado para a cliente" : "Link criado", "success");
     render();
   }
 
@@ -373,11 +388,11 @@
       const file = e.target.files && e.target.files[0];
       if (!file) return;
       try {
-        const dataUrl = await shrink(file, 1600);
+        const dataUrl = await shrink(file);
         if (cameraFor === "board") {
           await guarded(async () => {
             data = await post(`/api/stain/rounds/${encodeURIComponent(current().id)}/board-photo`, { data_url: dataUrl, ...photoMeta() });
-            toast("Foto do conjunto salva");
+            toast("Foto do conjunto salva", "success");
             render();
           });
         } else if (draft) {
@@ -412,7 +427,7 @@
         guarded(async () => {
           data = await patch(`/api/stain/rounds/${encodeURIComponent(current().id)}`, { wood_species: w });
           render();
-        });
+        }, t);
         return;
       }
       if (t.hasAttribute("data-kind")) {
@@ -439,7 +454,7 @@
         render();
         return;
       }
-      if (act === "new-round") guarded(ensureRound);
+      if (act === "new-round") guarded(ensureRound, t);
       if (act === "add-sample") openSample(null);
       if (act === "camera") openCamera("sample");
       if (act === "board") openCamera("board");
@@ -447,7 +462,7 @@
         draft.blend.push({ color: "", percent: 0 });
         render();
       }
-      if (act === "save-sample") guarded(saveSample);
+      if (act === "save-sample") guarded(saveSample, t);
       if (act === "cancel") {
         draft = null;
         view = "home";
@@ -486,9 +501,9 @@
         render();
         window.scrollTo(0, 0);
       }
-      if (act === "send") guarded(() => sendNow(false));
-      if (act === "approve-here") guarded(() => sendNow(true));
-      if (act === "resend") guarded(() => sendNow(false));
+      if (act === "send") guarded(() => sendNow(false), t);
+      if (act === "approve-here") guarded(() => sendNow(true), t);
+      if (act === "resend") guarded(() => sendNow(false), t);
     });
 
     document.addEventListener("input", (e) => {

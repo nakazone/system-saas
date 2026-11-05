@@ -6,27 +6,24 @@
  * - iPhone: barra de abas em vidro (Início, Leads, Calendar, Invoices, Mais) + busca + "+" no topo.
  */
 
-/* ===================== Movimento (tokens) =====================
-   Use estes valores em vez de números soltos:
+/* ===================== Movimento =====================
+   Os tokens (--om-ease-out, --om-ease-in-out, --om-ease-drawer, --om-dur-1/2/3, --om-dur-sheet)
+   vêm de om-tokens.css, injetado antes deste arquivo. Use-os em vez de números soltos:
    - --om-ease-out: entradas e respostas a toque (rápido no começo, assenta suave).
    - --om-ease-in-out: algo que já está na tela e muda de lugar.
    - --om-dur-1 150ms: hover, press, cor. --om-dur-2 200ms: popover, menu, toast.
-     --om-dur-3 250ms: painel de baixo (sheet), modal. Nada de UI acima de 300ms.
+     --om-dur-3 250ms: modal. --om-dur-sheet 300ms: painel de baixo. Nada de UI acima de 300ms.
    - Anime só transform e opacity. Nada de ease-in em interface. */
-:root {
-  --om-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --om-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
-  --om-dur-1: 150ms;
-  --om-dur-2: 200ms;
-  --om-dur-3: 250ms;
-}
 
-/* Quem pede menos movimento no sistema recebe o app sem animações de deslocamento.
-   Uma regra só, para o app inteiro: hoje só alguns arquivos tratavam isso. */
+/* Quem pede menos movimento no sistema recebe o app sem deslocamentos: por padrão toda
+   transição/animação vira instantânea. O que já tem uma versão própria "só esmaecer" (fade de
+   ~120ms, sem transform) fica de fora: o que tiver .om-motion-safe, e as regras de menos
+   movimento de om-ui.css (sheets/diálogos), do toast e do menu Criar, que vencem esta pelo
+   seletor mais forte. */
 @media (prefers-reduced-motion: reduce) {
-  html *,
-  html *::before,
-  html *::after {
+  html *:not(.om-motion-safe, .om-motion-safe *),
+  html *:not(.om-motion-safe, .om-motion-safe *)::before,
+  html *:not(.om-motion-safe, .om-motion-safe *)::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
@@ -35,19 +32,14 @@
 }
 
 body.dashboard-app-body {
-  --om-bg: #F7F8FA;
-  --om-card: #FFFFFF;
-  --om-surface: #F1F3F5;
-  --om-line: #E5E7EB;
-  --om-ink: #221E1A;
-  --om-ink2: #667085;
-  --om-ink3: #98A2B3;
-  --om-accent: #E7792C;
-  --om-accent-soft: #FDF0E6;
-  --om-accent-deep: #B4561A;
-  --om-olive: #536249;
+  /* --om-bg, --om-card, --om-surface, --om-line, --om-ink, --om-accent, --om-accent-soft e
+     --om-font vêm de :root em om-tokens.css (mesmos valores). Aqui só os apelidos antigos. */
+  --om-ink2: var(--om-ink-2);
+  /* cinza claro de ícones/legendas (2.6:1): só para o que é decorativo */
+  --om-ink3: var(--om-p-gray-400);
+  --om-accent-deep: var(--om-accent-strong);
+  --om-olive: var(--om-p-olive-600);
   --om-olive-soft: #EEF1EC;
-  --om-font: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
   --om-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
 
   --brand: var(--om-accent);
@@ -642,14 +634,32 @@ html body.dashboard-app-body.om-device-mobile.om-menu-open .om-tabbar-search {
   backdrop-filter: blur(30px) saturate(1.8);
   -webkit-backdrop-filter: blur(30px) saturate(1.8);
   box-shadow: 0 0 0 1px rgba(16, 24, 40, 0.06), 0 20px 50px -12px rgba(16, 24, 40, 0.35);
-  transform-origin: top right;
-  animation: om-pulldown-in 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.15);
+  /* origem no "+" (om-mobile-nav.js?v=20261105-apps3 ajusta o x); sem overshoot */
+  transform-origin: calc(100% - 92px) top;
+  animation: om-pulldown-in 180ms var(--om-ease-out) both;
   font-family: var(--om-font);
 }
-@keyframes om-pulldown-in {
-  from { opacity: 0; transform: scale(0.85); }
-  to { opacity: 1; transform: scale(1); }
+.om-pulldown.is-closing {
+  animation: om-pulldown-out 120ms var(--om-ease-out) both;
+  pointer-events: none;
 }
+.om-pulldown-scrim:not([hidden]) {
+  animation: om-pulldown-fade-in 180ms ease both;
+}
+.om-pulldown-scrim.is-closing {
+  animation: om-pulldown-fade-out 120ms ease both;
+  pointer-events: none;
+}
+@keyframes om-pulldown-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes om-pulldown-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: scale(0.96); }
+}
+@keyframes om-pulldown-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes om-pulldown-fade-out { from { opacity: 1; } to { opacity: 0; } }
 .om-pulldown a,
 .om-pulldown button {
   position: relative;
@@ -696,8 +706,12 @@ html body.dashboard-app-body.om-device-mobile.om-menu-open .om-tabbar-search {
   height: 8px;
   background: rgba(0, 0, 0, 0.06);
 }
+/* Menos movimento: o menu só esmaece (sem escala). Vence a regra global pelo seletor mais forte. */
 @media (prefers-reduced-motion: reduce) {
-  .om-pulldown { animation: none; }
+  html body .om-pulldown,
+  html body .om-pulldown-scrim:not([hidden]) { animation: om-pulldown-fade-in 120ms ease both !important; }
+  html body .om-pulldown.is-closing,
+  html body .om-pulldown-scrim.is-closing { animation: om-pulldown-fade-out 120ms ease both !important; }
 }
 
 /* Tela "Mais": lista agrupada como nos Ajustes do iPhone */
@@ -1191,4 +1205,20 @@ html body.dashboard-app-body:not(.om-device-mobile) .mobile-app-header img {
 .om-load-error__retry:active { transform: scale(0.97); }
 @media (pointer: coarse) {
   .om-load-error__retry { min-height: 44px; }
+}
+
+/* ===================== Toque: resposta ao apertar =====================
+   Doca, barra de abas e botões principais encolhem um pouco (scale .97, 120ms) para o
+   dedo sentir que o app ouviu. Só transform; a troca de aba/página em si não anima. */
+html body.dashboard-app-body :is(.om-dock__btn, .om-dock__primary, .plab-dock__btn, .om-tabbar__item, .btn-primary, .omd-btn--primary, .crm-topbar__create-btn) {
+  transition: transform 120ms var(--om-ease-out), background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease, opacity 150ms ease, filter 150ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+html body.dashboard-app-body :is(.om-dock__btn, .om-dock__primary, .plab-dock__btn, .om-tabbar__item, .btn-primary, .omd-btn--primary, .crm-topbar__create-btn):not(:disabled):active {
+  transform: scale(0.97);
+}
+@media (prefers-reduced-motion: reduce) {
+  html body.dashboard-app-body :is(.om-dock__btn, .om-dock__primary, .plab-dock__btn, .om-tabbar__item, .btn-primary, .omd-btn--primary, .crm-topbar__create-btn):active {
+    transform: none;
+  }
 }
