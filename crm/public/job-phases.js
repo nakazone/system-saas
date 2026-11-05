@@ -75,7 +75,7 @@
     const l = document.createElement("link");
     l.id = CSS_ID;
     l.rel = "stylesheet";
-    l.href = "/job-phases.css?v=20261105-rw1";
+    l.href = "/job-phases.css?v=20261105-rw2";
     document.head.appendChild(l);
   }
 
@@ -290,22 +290,30 @@
       .map(
         (r) => `<li class="jp-rw__i">
           <div><b>${esc(r.piece)}</b><small>${esc(r.reason_label)} · ${esc(r.responsible_label)}${r.phase_label ? ` · ${esc(r.phase_label)}` : ""}</small>
-          ${r.notes ? `<small class="jp-rw__note">${esc(r.notes)}</small>` : ""}<small class="jp-rw__by">${esc(r.by || "")}${r.by ? " · " : ""}${esc(dayLabel(new Date(r.at), st.now))}</small></div>
+          ${r.notes ? `<small class="jp-rw__note">${esc(r.notes)}</small>` : ""}${r.photo ? `<a class="jp-rw__img" href="${esc(r.photo.url)}" target="_blank" rel="noopener"><img src="${esc(r.photo.thumb_url)}" alt="Foto da peça ${esc(r.piece)}" loading="lazy" /></a>` : ""}<small class="jp-rw__by">${esc(r.by || "")}${r.by ? " · " : ""}${esc(dayLabel(new Date(r.at), st.now))}</small></div>
           ${office ? `<div class="jp-rw__side">${r.cost != null ? `<b translate="no">${money(r.cost)}</b>` : '<span class="jp-rw__nocost">sem custo</span>'}<button type="button" class="jp-link" data-rw-del="${esc(r.id)}" ${st.busy ? "disabled" : ""}>Remover</button></div>` : ""}
         </li>`,
       )
       .join("");
-    const opts = (list) => list.map((o) => `<option value="${esc(o.key)}">${esc(o.label)}</option>`).join("");
+    // What was typed survives a redraw (a photo picked, the signal coming back…).
+    const dr = st.rwDraft || {};
+    const opts = (list, v) => list.map((o) => `<option value="${esc(o.key)}" ${v === o.key ? "selected" : ""}>${esc(o.label)}</option>`).join("");
     const cur = d.phases.find((p) => p.status !== "done" && p.status !== "skipped");
-    const phaseOpts = `<option value="">—</option>${d.phases.map((p) => `<option value="${esc(p.key)}" ${cur && cur.key === p.key ? "selected" : ""}>${esc(p.label)}</option>`).join("")}`;
+    const ph = dr.phase_key !== undefined ? dr.phase_key : cur ? cur.key : "";
+    const phaseOpts = `<option value="">—</option>${d.phases.map((p) => `<option value="${esc(p.key)}" ${ph === p.key ? "selected" : ""}>${esc(p.label)}</option>`).join("")}`;
     const form = st.rework
       ? `<form class="jp-rw__form" data-rw-form>
-          <label><span>Peça</span><input name="piece" required maxlength="120" placeholder="Ilha, bancada da pia…" /></label>
-          <label><span>Motivo</span><select name="reason" required>${opts(rw.reasons)}</select></label>
-          <label><span>Responsável</span><select name="responsible" required>${opts(rw.responsible)}</select></label>
+          <label><span>Peça</span><input name="piece" required maxlength="120" placeholder="Ilha, bancada da pia…" value="${esc(dr.piece || "")}" /></label>
+          <label><span>Motivo</span><select name="reason" required>${opts(rw.reasons, dr.reason)}</select></label>
+          <label><span>Responsável</span><select name="responsible" required>${opts(rw.responsible, dr.responsible)}</select></label>
           <label><span>Fase</span><select name="phase_key">${phaseOpts}</select></label>
-          ${office ? `<label><span>Custo (slab, mão de obra, viagem)</span><input name="cost" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" /></label>` : ""}
-          <label class="jp-rw__wide"><span>Observação</span><input name="notes" maxlength="1000" placeholder="O que aconteceu" /></label>
+          ${office ? `<label><span>Custo (slab, mão de obra, viagem)</span><input name="cost" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" value="${esc(dr.cost || "")}" /></label>` : ""}
+          <label class="jp-rw__wide"><span>Observação</span><input name="notes" maxlength="1000" placeholder="O que aconteceu" value="${esc(dr.notes || "")}" /></label>
+          <div class="jp-rw__wide jp-rw__ph">${
+            st.rwPhoto
+              ? `<img src="${esc(st.rwPhoto.data_url)}" alt="Foto da peça" /><button type="button" class="jp-link" data-rw-photo-x>Tirar foto</button>`
+              : `<button type="button" class="jp-b" data-rw-photo>Foto da peça</button><small>Ajuda a cobrar do fornecedor ou da transportadora.</small>`
+          }</div>
           <div class="jp-rw__act"><button type="submit" class="jp-b jp-b--pri" ${st.busy ? "disabled" : ""}>Registrar</button><button type="button" class="jp-link" data-rw-cancel>Cancelar</button></div>
         </form>`
       : `<button type="button" class="jp-link jp-rw__add" data-rw-open ${st.canAct ? "" : "hidden"}>+ Registrar peça refeita</button>`;
@@ -425,6 +433,8 @@
     const base = `/api/work-orders/${encodeURIComponent(ctx.jobId)}/phases`;
     const paint = () => {
       st.now = new Date();
+      const f = box.querySelector("[data-rw-form]");
+      if (f) st.rwDraft = Object.fromEntries(new FormData(f).entries());
       if (data) render(box, data, st);
     };
     const took = (d, msg) => {
@@ -550,6 +560,8 @@
       }
       if (e.target.closest("[data-rw-open]")) {
         st.rework = true;
+        st.rwDraft = null;
+        st.rwPhoto = null;
         paint();
         box.querySelector("[data-rw-form] input[name=piece]")?.focus();
         return;
@@ -557,6 +569,29 @@
       if (e.target.closest("[data-rw-cancel]")) {
         st.rework = false;
         paint();
+        st.rwDraft = null;
+        st.rwPhoto = null;
+        return;
+      }
+      if (e.target.closest("[data-rw-photo-x]")) {
+        st.rwPhoto = null;
+        paint();
+        return;
+      }
+      if (e.target.closest("[data-rw-photo]")) {
+        pickPhoto().then(async (file) => {
+          if (!file) return;
+          const type = String(file.type || "").toLowerCase();
+          if (type.includes("heic") || type.includes("heif")) return notify("Foto HEIC não suportada — exporte como JPG.", "error");
+          st.rwPhoto = {
+            data_url: await compressImage(file, 1600, 0.72),
+            taken_at_device: new Date(file.lastModified || Date.now()).toISOString(),
+            address: ctx.address || null,
+            client_upload_id: window.crypto?.randomUUID ? crypto.randomUUID() : `rw-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+            device_label: ctx.deviceLabel || "Office web",
+          };
+          paint();
+        });
         return;
       }
       const del = e.target.closest("[data-rw-del]");
@@ -613,10 +648,13 @@
           phase_key: String(fd.get("phase_key") || "") || null,
           notes: String(fd.get("notes") || "").trim() || null,
           ...(cost ? { cost: Number(cost) } : {}),
+          ...(st.rwPhoto ? { photo: st.rwPhoto } : {}),
         };
         run(async () => {
           const d = await api(`/api/work-orders/${encodeURIComponent(ctx.jobId)}/reworks`, { method: "POST", body: JSON.stringify(body) });
           st.rework = false;
+          st.rwPhoto = null;
+          st.rwDraft = null;
           took(d, "Peça refeita registrada.");
         });
         return;

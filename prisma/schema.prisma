@@ -1233,6 +1233,8 @@ model JobRework {
   responsible    String
   cost           Decimal?     @db.Decimal(12, 2)
   notes          String?      @db.Text
+  /// Photo of the damaged piece (ObraCam photo of the job), for supplier or carrier claims
+  mediaId        String?      @db.Uuid
   createdById    String?      @db.Uuid
   createdByName  String?
   createdAt      DateTime     @default(now())

@@ -104,6 +104,20 @@ describe.skipIf(!privileged)("remakes on a countertops job", () => {
     expect(r3.json.data.reworks.items).toHaveLength(1);
   });
 
+  it("a photo of the damaged piece goes to the job's ObraCam and shows on the record", async () => {
+    const PIXEL = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=";
+    const photo = { data_url: PIXEL, client_upload_id: `rwph-${suffix}`, device_label: "iPhone" };
+    const r = await call("crew", "POST", `/api/work-orders/${job}/reworks`, { piece: "Sink wall", reason: "material", responsible: "supplier", photo });
+    expect(r.status).toBe(200);
+    const item = r.json.data.reworks.items.find((x: any) => x.piece === "Sink wall");
+    expect(item.photo?.url).toBeTruthy();
+    const media = await withTenantTransaction(org.tops, (tx) => tx.jobMedia.count({ where: { workOrderId: job } }));
+    expect(media).toBe(1);
+    // A bad file is refused before anything is saved.
+    expect((await call("crew", "POST", `/api/work-orders/${job}/reworks`, { piece: "X", reason: "other", responsible: "other", photo: { data_url: "data:text/plain;base64,aGk=" } })).status).toBe(400);
+    await withTenantTransaction(org.tops, (tx) => tx.jobRework.deleteMany({ where: { id: item.id } }));
+  });
+
   it("a hardwood company has no remakes", async () => {
     const r = await call("wood", "GET", `/api/work-orders/${woodJob}/phases`);
     expect(r.json.data.reworks).toBeNull();

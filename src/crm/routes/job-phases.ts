@@ -143,6 +143,10 @@ async function reworksOf(tx: TenantPrisma, req: AuthedRequest, jobId: string, pa
   const cfg = pack.rework!;
   const label = (list: typeof cfg.reasons, key: string) => list.find((x) => x.key === key)?.label["pt-BR"] ?? key;
   const rows = await tx.jobRework.findMany({ where: { workOrderId: jobId }, orderBy: { createdAt: "asc" } });
+  const ids = rows.map((r) => r.mediaId).filter((id): id is string => Boolean(id));
+  const photos = new Map(
+    ids.length ? (await tx.jobMedia.findMany({ where: { id: { in: ids }, workOrderId: jobId, deletedAt: null }, select: { id: true, url: true, thumbUrl: true } })).map((m) => [m.id, { url: m.url, thumb_url: m.thumbUrl || m.url }]) : [],
+  );
   return {
     reasons: cfg.reasons.map((r) => ({ key: r.key, label: r.label["pt-BR"], label_en: r.label["en-US"] })),
     responsible: cfg.responsible.map((r) => ({ key: r.key, label: r.label["pt-BR"], label_en: r.label["en-US"] })),
@@ -159,6 +163,7 @@ async function reworksOf(tx: TenantPrisma, req: AuthedRequest, jobId: string, pa
       phase_label: r.phaseKey ? pack.phases.find((p) => p.key === r.phaseKey)?.label["pt-BR"] ?? r.phaseKey : null,
       cost: office && r.cost != null ? Number(r.cost) : null,
       notes: r.notes,
+      photo: r.mediaId ? photos.get(r.mediaId) ?? null : null,
       by: r.createdByName,
       at: r.createdAt.toISOString(),
     })),
@@ -166,6 +171,16 @@ async function reworksOf(tx: TenantPrisma, req: AuthedRequest, jobId: string, pa
 }
 
 const reworkBody = z.object({
+  /** Photo of the damaged piece (JPG/PNG data URL), saved to the job's ObraCam like a phase proof. */
+  photo: z
+    .object({
+      data_url: z.string().startsWith("data:").max(17_000_000),
+      taken_at_device: z.string().max(40).optional().nullable(),
+      address: z.string().max(400).optional().nullable(),
+      device_label: z.string().max(120).optional().nullable(),
+      client_upload_id: z.string().max(80).optional().nullable(),
+    })
+    .optional(),
   piece: z.string().trim().min(1).max(120),
   reason: z.string().trim().min(1).max(40),
   responsible: z.string().trim().min(1).max(40),
@@ -180,6 +195,12 @@ jobPhasesRouter.post("/api/work-orders/:id/reworks", requireCrmAuth, async (req:
     const body = reworkBody.safeParse(req.body || {});
     if (!body.success) throw new PhaseError("Preencha a peça, o motivo e o responsável.", 400, "invalid");
     const jobId = jobIdOf(req);
+    let mediaId: string | null = null;
+    if (body.data.photo) {
+      const pack = await withTenantTransaction(req.organizationId!, (tx) => packOf(tx, req.organizationId!));
+      if (!pack.rework) throw new PhaseError("Este ofício não registra peças refeitas.", 409, "no_rework");
+      mediaId = await storePhasePhoto(req, jobId, body.data.photo);
+    }
     const data = await withTenantTransaction(req.organizationId!, async (tx) => {
       await reachJob(tx, req, jobId, true);
       const pack = await packOf(tx, req.organizationId!);
@@ -199,6 +220,7 @@ jobPhasesRouter.post("/api/work-orders/:id/reworks", requireCrmAuth, async (req:
           responsible: body.data.responsible,
           cost: perms(req).manage && body.data.cost != null ? body.data.cost : null,
           notes: body.data.notes || null,
+          mediaId,
           createdById: req.user?.id ?? null,
           createdByName: req.user?.name ?? null,
         },
