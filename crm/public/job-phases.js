@@ -344,7 +344,7 @@
         </li>`,
       )
       .join("");
-    const add = sb.can_manage && st.canAct ? `<a class="jp-link jp-rw__add" href="slabs.html?job=${encodeURIComponent(jobId)}">${sb.items.length ? "+ Outro slab" : "Reservar slab"}</a>` : "";
+    const add = sb.can_manage && st.canAct ? `<a class="jp-link jp-rw__add" href="/slabs.html?job=${encodeURIComponent(jobId)}">${sb.items.length ? "+ Outro slab" : "Reservar slab"}</a>` : "";
     return `<div class="jd-card jp-rw jp-sl">
       <div class="jd-ch"><h2>Slab do job</h2><span class="jp-n" translate="no" data-no-i18n>${sb.items.length}</span></div>
       ${sb.items.length ? `<ul class="jp-rw__list">${items}</ul>` : `<p class="jp-s">${sb.can_manage ? "Reserve no pátio a pedra que o cliente escolheu. Na Fabricação ela passa a usada." : "O escritório reserva a pedra no pátio."}</p>`}
