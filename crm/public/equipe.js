@@ -1,5 +1,5 @@
 /**
- * Equipe — utilizadores e cargos (página standalone).
+ * Equipe — usuários e cargos (página standalone).
  */
 (function () {
   let usersPage = 1;
@@ -168,7 +168,8 @@
   async function loadUsers() {
     const list = document.getElementById("usersTableBody");
     if (!list) return;
-    list.innerHTML = '<p class="customers-list-empty">A carregar…</p>';
+    if (window.crmSkeleton) window.crmSkeleton.fill(list, "rows", 6);
+    else list.innerHTML = '<p class="customers-list-empty">Carregando…</p>';
     updateActions();
     try {
       const searching = !!usersSearchFilter;
@@ -208,7 +209,7 @@
         });
       }
       if (!rows.length) {
-        list.innerHTML = '<p class="customers-list-empty">Nenhum utilizador encontrado</p>';
+        list.innerHTML = '<p class="customers-list-empty">Nenhum usuário encontrado</p>';
       } else {
         list.innerHTML = rows
           .map((u, i) => {
@@ -275,8 +276,10 @@
       if (prev) prev.disabled = searching || usersPage <= 1;
       if (next) next.disabled = searching || usersPage >= totalPages;
     } catch (error) {
-      list.innerHTML =
-        '<p class="customers-list-empty">Erro: ' + escapeHtml(error.message) + "</p>";
+      if (window.crmSkeleton) window.crmSkeleton.error(list, `Não foi possível carregar a equipe. ${error.message || ""}`.trim(), () => loadUsers());
+      else list.innerHTML = '<p class="customers-list-empty">Erro: ' + escapeHtml(error.message) + "</p>";
+    } finally {
+      list.removeAttribute("aria-busy");
     }
   }
 
@@ -336,14 +339,14 @@
     roleSelect.onchange = onRoleChange;
 
     if (userId != null) {
-      title.textContent = "Editar utilizador";
+      title.textContent = "Editar usuário";
       document.getElementById("crmUserPasswordHint").textContent = "(deixe vazio para não alterar)";
       const [ur, pr] = await Promise.all([
         fetch(`/api/users/${userId}`, { credentials: "include" }).then((r) => r.json()),
         fetch(`/api/users/${userId}/permissions`, { credentials: "include" }).then((r) => r.json()),
       ]);
       if (!ur.success || !ur.data) {
-        toast(ur.error || "Erro ao carregar utilizador", "error");
+        toast(ur.error || "Erro ao carregar usuário", "error");
         return;
       }
       const d = ur.data;
@@ -364,12 +367,12 @@
       } else {
         permsSection.style.display = "";
         document.getElementById("crmUserPermsHelp").textContent = canManage
-          ? "Marque os módulos permitidos para este utilizador (além do cargo)."
-          : "Só administradores ou quem gere cargos/utilizadores podem alterar isto.";
+          ? "Marque os módulos permitidos para este usuário (além do cargo)."
+          : "Só administradores ou quem gerencia cargos/usuários podem alterar isto.";
         groupsEl.innerHTML = renderPermCheckboxes(byG, selected, canManage);
       }
     } else {
-      title.textContent = "Novo utilizador";
+      title.textContent = "Novo usuário";
       document.getElementById("crmUserPasswordHint").textContent = "(obrigatório, mín. 8 caracteres)";
       await populateRoleSelect("");
       updateAvatarPreview("");
@@ -383,7 +386,14 @@
   }
 
   async function deactivateUser(id) {
-    if (!confirm("Desativar este utilizador? Não poderá iniciar sessão.")) return;
+    const ok = await window.crmConfirm({
+      title: "Desativar este usuário?",
+      text: "Ele não poderá mais entrar no sistema.",
+      ok: "Desativar usuário",
+      cancel: "Cancelar",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/users/${id}`, { method: "DELETE", credentials: "include" });
       const j = await res.json();
@@ -637,7 +647,7 @@
       window.__crmUserRole = crmUserRole;
       window.__crmPalettePerms = crmUserPermissions.slice();
       window.__crmPaletteRole = crmUserRole;
-      const disp = (u.name && String(u.name).trim()) || u.email || "Utilizador";
+      const disp = (u.name && String(u.name).trim()) || u.email || "Usuário";
       const sn = document.getElementById("sidebarUserName");
       const sr = document.getElementById("sidebarUserRole");
       const sa = document.getElementById("sidebarUserAvatar");

@@ -210,3 +210,11 @@ body.om-device-mobile.job-detail-app .jcm-foot.jmx-foot.is-visible {
 .jmx-foot__sq { flex: none; width: 46px; height: 46px; border: 0; border-radius: 14px; background: #fff; box-shadow: 0 0 0 1px #E5E7EB; display: grid; place-items: center; color: #221E1A; cursor: pointer; }
 .jmx-foot__sq[hidden] { display: none; }
 .jmx-foot__sq svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Touch targets: 44px tall, ≥14px text (desktop mouse density unchanged). */
+@media (pointer: coarse) {
+  .jcm-role__btn { min-height: 44px; font-size: 14px; }
+  .jmx-pills .jcm-seg__btn { height: 44px; font-size: 14px; padding: 0 14px; }
+  .jmx-pills .jcm-seg__btn em { font-size: 13px; }
+  body.om-device-mobile.job-detail-app .jcm-seg__btn { min-height: 44px; font-size: 14px; }
+}

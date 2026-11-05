@@ -1183,3 +1183,23 @@ body.ag-dragging {
 body.ag-dragging {
   overflow: hidden;
 }
+
+/* ---------- loading: dim the grid while a range loads (no layout jump) */
+.ag-stage { transition: opacity var(--om-dur-2, 200ms) var(--om-ease-out, ease-out); }
+.ag-stage.is-loading { opacity: .55; }
+.ag-stage .ag-skel { padding: 16px; }
+
+/* ---------- touch (iPad / touch laptops): readable pills, bigger hit areas.
+   Desktop mouse density is unchanged. Bar heights stay tied to the 19px lane step set in agenda.js. */
+@media (pointer: coarse) {
+  .ag:not(.is-phone)[data-view="month"] .ag-pill { height: 26px; font-size: 13px; }
+  .ag:not(.is-phone)[data-view="month"] .ag-pill i { width: 13px; height: 13px; }
+  .ag:not(.is-phone)[data-view="month"] .ag-bars--m .ag-bar { height: 18px; font-size: 13px; }
+  .ag-row { font-size: 13px; }
+  .ag-row time { font-size: 12px; }
+  /* "+N mais": 44px tall hit area without growing the day cell */
+  .ag-more, .ag:not(.is-phone)[data-view="month"] .ag-pill--more { position: relative; font-size: 13px; }
+  .ag-more::before, .ag:not(.is-phone)[data-view="month"] .ag-pill--more::before {
+    content: ""; position: absolute; left: -4px; right: -4px; top: 50%; height: 44px; transform: translateY(-50%);
+  }
+}

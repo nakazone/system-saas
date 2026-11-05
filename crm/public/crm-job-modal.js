@@ -10,7 +10,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261103-addr1";
+  const CSS_HREF = "crm-job-modal.css?v=20261104-ux2";
   const QPE_CSS = "quote-services-popup.css?v=20261102-svc2";
   const QPE_JS = "quote-services-popup.js?v=20261102-qfix";
   const PAPER_CSS = "quote-paper.css?v=20261027-om1";
@@ -165,7 +165,8 @@
   const $ = (id) => document.getElementById(id);
   function notify(msg, type) {
     if (typeof window.crmNotify === "function") window.crmNotify(msg, type || "info");
-    else alert(msg);
+    else if (window.crmToast?.show) window.crmToast.show(msg, { type: type || "info" });
+    else console.warn(msg);
   }
   function esc(s) {
     return String(s == null ? "" : s)
@@ -776,10 +777,11 @@
     if (!p || !p.pricingItemId) return;
     const field = rateKey();
     const label = pricingTypeLabel();
-    const ok = confirm(
-      `Atualizar a Tabela de Valores (${label}) para ${money(p.newRate)}?\n\n` +
-        `Isto altera o preço do sistema para jobs e orçamentos futuros (exceto clientes com preço personalizado).`,
-    );
+    const ok = await window.crmConfirm({
+      title: `Atualizar a Tabela de Valores (${label}) para ${money(p.newRate)}?`,
+      text: "Isto altera o preço do sistema para jobs e orçamentos futuros (exceto clientes com preço personalizado).",
+      ok: "Atualizar tabela",
+    });
     if (!ok) return;
     const btn = $("jmSaveRateTable");
     if (btn) btn.disabled = true;
@@ -875,10 +877,18 @@
     const p = descSavePending;
     if (!p || !p.pricingItemId) return;
     const field = p.field === "name" ? "name" : "description";
-    const ok = confirm(
+    const ok = await window.crmConfirm(
       field === "name"
-        ? "Atualizar o nome deste serviço na Tabela de Valores?\n\nIsto altera o nome do sistema para jobs e orçamentos futuros."
-        : "Atualizar a descrição deste serviço na Tabela de Valores?\n\nIsto altera a descrição do sistema para jobs e orçamentos futuros.",
+        ? {
+            title: "Atualizar o nome deste serviço na Tabela de Valores?",
+            text: "Isto altera o nome do sistema para jobs e orçamentos futuros.",
+            ok: "Atualizar nome",
+          }
+        : {
+            title: "Atualizar a descrição deste serviço na Tabela de Valores?",
+            text: "Isto altera a descrição do sistema para jobs e orçamentos futuros.",
+            ok: "Atualizar descrição",
+          },
     );
     if (!ok) return;
     const btn = $("jmSaveDescTable");
@@ -3544,7 +3554,13 @@
 
   async function cancelJob() {
     if (!st?.id || !canManage) return;
-    if (!confirm("Excluir este job? Ele será marcado como cancelado e sairá da agenda.")) return;
+    const okDel = await window.crmConfirm({
+      title: "Excluir este job?",
+      text: "Ele será marcado como cancelado e sairá da agenda.",
+      ok: "Excluir job",
+      danger: true,
+    });
+    if (!okDel) return;
     try {
       await api(`/api/work-orders/${st.id}`, { method: "DELETE" });
       notify("Job excluído.", "success");
@@ -3569,7 +3585,7 @@
       else if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(d.url);
         notify("Link copiado.", "success");
-      } else window.prompt("Link do job:", d.url);
+      } else await window.crmShare({ url: d.url, title: "Link do job" });
     } catch (err) {
       notify(err.message || "Erro ao gerar o link", "error");
     }
@@ -3609,7 +3625,13 @@
     renderTeam();
   }
   async function tempDel(id) {
-    if (!confirm("Remover este funcionário extra? O link dele deixa de funcionar.")) return;
+    const okDel = await window.crmConfirm({
+      title: "Remover este funcionário extra?",
+      text: "O link dele deixa de funcionar.",
+      ok: "Remover funcionário",
+      danger: true,
+    });
+    if (!okDel) return;
     try {
       await api(`/api/work-orders/${st.id}/temp-workers/${id}`, { method: "DELETE" });
       st.temps = st.temps.filter((t) => t.id !== id);

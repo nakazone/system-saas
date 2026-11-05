@@ -9,7 +9,8 @@
 
   function notify(msg, type) {
     if (typeof window.crmNotify === "function") window.crmNotify(msg, type || "info");
-    else alert(msg);
+    else if (window.crmToast?.show) window.crmToast.show(msg, { type: type || "info" });
+    else console.warn(msg);
   }
 
   function escapeHtml(s) {

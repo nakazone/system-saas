@@ -1535,10 +1535,12 @@ body.cm-sheet-open {
 .cm-check-bar span {
   display: block;
   height: 100%;
-  width: 0;
+  width: 100%;
   background: var(--cm-green);
-  border-radius: 999px;
-  transition: width 0.2s ease;
+  /* the track clips the ends (overflow hidden + radius); scaleX keeps the fill on the compositor */
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform var(--om-dur-2, 200ms) var(--om-ease-out, ease-out);
 }
 
 .cm-check-item {
@@ -2196,9 +2198,17 @@ body.cm-ticket .cm-tabbar {
   min-width: 1.7rem; height: 1.7rem; padding: 0 0.55rem 0 0.4rem; border-radius: 999px;
   background: linear-gradient(135deg, #1e293b 0%, #334155 100%); color: #f8fafc;
   font-size: 0.95rem; vertical-align: middle;
-  box-shadow: 0 0 0 0 rgba(232, 121, 44, 0.55);
-  animation: job-lockbox-pulse 2.2s ease-out infinite;
+  position: relative;
 }
+/* Attention ring on pseudo-elements: transform/opacity only, 3 beats then rest. */
+.job-lockbox-badge::after,
+.cm-lockbox::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  box-shadow: 0 0 0 4px rgba(232, 121, 44, 0.45); opacity: 0;
+  animation: cm-lockbox-ring 2.2s var(--om-ease-out, ease-out) 3;
+}
+/* the wide card only fades its ring (scaling a wide box would overshoot) */
+.cm-lockbox::after { animation-name: cm-lockbox-fade; }
 .job-lockbox-badge__icon { display: inline-flex; line-height: 1; }
 .job-lockbox-badge__code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -2215,8 +2225,7 @@ body.cm-ticket .cm-tabbar {
   padding: 0.7rem 0.8rem; border-radius: 14px;
   background: linear-gradient(160deg, #221E1A 0%, #3a342e 100%);
   color: #F7F8FA;
-  box-shadow: 0 0 0 0 rgba(231, 121, 44, 0.45);
-  animation: job-lockbox-pulse 2.2s ease-out infinite;
+  position: relative;
 }
 .cm-lockbox__pad {
   width: 2.5rem; height: 2.5rem; border-radius: 0.85rem;
@@ -2249,8 +2258,12 @@ body.cm-ticket .cm-tabbar {
 .cm-delivery__row small { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: #98A2B3; }
 .cm-delivery__row a { color: #B4561A; font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
 .cm-notes__text { margin-top: 0.45rem; white-space: pre-wrap; }
-@keyframes job-lockbox-pulse {
-  0% { box-shadow: 0 0 0 0 rgba(232, 121, 44, 0.5); }
-  55% { box-shadow: 0 0 0 8px rgba(232, 121, 44, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(232, 121, 44, 0); }
+@keyframes cm-lockbox-ring {
+  0% { opacity: 1; transform: scale(1); }
+  60%, 100% { opacity: 0; transform: scale(1.18); }
+}
+@keyframes cm-lockbox-fade {
+  0% { opacity: 0; }
+  25% { opacity: 1; }
+  70%, 100% { opacity: 0; }
 }

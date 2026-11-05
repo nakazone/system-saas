@@ -11,6 +11,7 @@
     conversations: [],
     jobs: [],
     jobsLoading: false,
+    jobsError: "",
     jobsLoadSeq: 0,
     jobsSearchTimer: null,
     filter: "all",
@@ -387,10 +388,23 @@
     const empty = $("chatListEmpty");
     const root = $("chatListSections");
     if (state.jobsLoading && !state.jobs.length) {
-      empty.hidden = false;
-      empty.textContent = "Carregando jobs…";
-      root.hidden = true;
-      root.innerHTML = "";
+      if (window.crmSkeleton) {
+        empty.hidden = true;
+        root.hidden = false;
+        window.crmSkeleton.fill(root, "rows", 6);
+      } else {
+        empty.hidden = false;
+        empty.textContent = "Carregando jobs…";
+        root.hidden = true;
+        root.innerHTML = "";
+      }
+      return;
+    }
+    root.removeAttribute("aria-busy");
+    if (state.jobsError && !state.jobs.length && window.crmSkeleton) {
+      empty.hidden = true;
+      root.hidden = false;
+      window.crmSkeleton.error(root, state.jobsError, () => loadJobsList());
       return;
     }
     if (!state.jobs.length) {
@@ -453,6 +467,7 @@
     if (state.filter !== "job") return;
     const seq = ++state.jobsLoadSeq;
     state.jobsLoading = true;
+    state.jobsError = "";
     renderJobsList();
     try {
       const params = new URLSearchParams();
@@ -467,7 +482,8 @@
     } catch (err) {
       if (seq !== state.jobsLoadSeq) return;
       state.jobs = [];
-      notify(err.message || "Falha ao carregar jobs", "error");
+      state.jobsError = err.message || "Falha ao carregar jobs";
+      if (!window.crmSkeleton) notify(state.jobsError, "error");
     } finally {
       if (seq === state.jobsLoadSeq) {
         state.jobsLoading = false;
@@ -910,9 +926,12 @@
       });
       const data = j.data;
       if (data.non_member_mentions?.length && addMembers == null) {
-        const ok = window.confirm(
-          "Há pessoas mencionadas que não estão nesta conversa. Deseja adicioná-las?",
-        );
+        const ok = await window.crmConfirm({
+          title: "Adicionar as pessoas mencionadas?",
+          text: "Há pessoas mencionadas que não estão nesta conversa. Elas passam a ver esta conversa.",
+          ok: "Adicionar pessoas",
+          cancel: "Agora não",
+        });
         if (ok) {
           return sendMessage({
             body,
@@ -1678,7 +1697,13 @@
       const hideBtn = e.target.closest("[data-hide]");
       if (hideBtn) {
         const id = hideBtn.getAttribute("data-hide");
-        if (!window.confirm("Remover esta mensagem? (soft delete — gestores ainda podem ver)")) return;
+        const okDel = await window.crmConfirm({
+          title: "Apagar mensagem?",
+          text: "Ela some da conversa. Gestores ainda verão o histórico.",
+          ok: "Apagar mensagem",
+          danger: true,
+        });
+        if (!okDel) return;
         try {
           const j = await api(`/api/chat/messages/${id}`, { method: "DELETE" });
           const idx = state.messages.findIndex((m) => m.id === id);

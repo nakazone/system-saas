@@ -5,7 +5,7 @@
 
   function notify(msg, type) {
     if (typeof window.crmNotify === "function") window.crmNotify(msg, type || "info");
-    else alert(msg);
+    else console.warn(msg);
   }
 
   async function api(url, opts) {

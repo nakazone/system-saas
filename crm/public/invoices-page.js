@@ -405,8 +405,11 @@
   }
 
   let loadSeq = 0;
+  let loadedOnce = false;
   async function load() {
     const seq = ++loadSeq;
+    // First load: rows-shaped placeholders instead of the static "Carregando…" line.
+    if (!loadedOnce && window.crmSkeleton) window.crmSkeleton.fill($('invRows'), 'rows', 7);
     try {
       const r = await fetchAll();
       if (seq !== loadSeq) return; // superseded by a newer reload (e.g. after discount/edit)
@@ -439,9 +442,13 @@
         }
       }
       renderAll();
+      loadedOnce = true;
+      if (window.crmSkeleton) window.crmSkeleton.done($('invRows'));
     } catch (err) {
       if (seq !== loadSeq) return;
-      $('invRows').innerHTML = `<p class="ix-empty"><b>Não foi possível carregar</b><br>${esc(err.message)}</p>`;
+      const msg = `Não foi possível carregar as faturas.${err && err.message ? ` ${err.message}` : ''}`;
+      if (window.crmSkeleton) window.crmSkeleton.error($('invRows'), msg, () => load());
+      else $('invRows').innerHTML = `<p class="ix-empty"><b>Não foi possível carregar</b><br>${esc(err.message)}</p>`;
     }
   }
 

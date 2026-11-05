@@ -88,7 +88,7 @@
 
   function toast(msg, type) {
     if (window.crmToast?.show) window.crmToast.show(msg, { type: type || "error" });
-    else if (type !== "success") alert(msg);
+    else if (type !== "success") console.warn(msg);
   }
 
   function deviceLabel() {
@@ -380,7 +380,7 @@
     if ($("cmCheckCount")) $("cmCheckCount").textContent = `${done} de ${total}`;
     if (tabBtn) tabBtn.textContent = `Checklist ${done}/${total}`;
     const pct = total ? Math.round((done / total) * 100) : 0;
-    if ($("cmCheckBarFill")) $("cmCheckBarFill").style.width = `${pct}%`;
+    if ($("cmCheckBarFill")) $("cmCheckBarFill").style.transform = `scaleX(${Math.max(0, Math.min(100, Number(pct) || 0)) / 100})`;
 
     $("cmCheckList").innerHTML = (t.checklist || [])
       .map((item) => {
@@ -820,7 +820,13 @@
         return;
       }
       if (action === "apagar") {
-        if (!confirm("Apagar esta foto?")) return;
+        const okDel = await window.crmConfirm({
+          title: "Apagar esta foto?",
+          text: "Ela sai do job e não pode ser recuperada.",
+          ok: "Apagar foto",
+          danger: true,
+        });
+        if (!okDel) return;
         const json = await api(`/api/campo/jobs/${jobId}/media/${mediaId}`, {
           method: "DELETE",
         });
@@ -847,7 +853,14 @@
         return;
       }
       if (action === "legenda") {
-        const next = window.prompt("Legenda", photo.caption || "");
+        const next = await window.crmPrompt({
+          title: "Legenda da foto",
+          type: "textarea",
+          value: photo.caption || "",
+          placeholder: "Ex.: Subfloor nivelado na sala",
+          rows: 3,
+          ok: "Salvar legenda",
+        });
         if (next == null) return;
         const json = await api(`/api/campo/jobs/${jobId}/media/${mediaId}`, {
           method: "PATCH",
@@ -1013,9 +1026,21 @@
   }
 
   async function addMeasurement() {
-    const label = window.prompt("Área / divisão", "Living room");
+    const label = await window.crmPrompt({
+      title: "Nova medição",
+      label: "Área / divisão",
+      value: "Living room",
+      ok: "Continuar",
+    });
     if (!label || !label.trim()) return;
-    const raw = window.prompt("Área em sqft", "");
+    const raw = await window.crmPrompt({
+      title: `Área de “${label.trim()}”`,
+      label: "Área em sqft",
+      type: "number",
+      inputMode: "decimal",
+      placeholder: "Ex.: 350",
+      ok: "Salvar medição",
+    });
     if (raw == null) return;
     const value = Number(String(raw).replace(",", "."));
     if (!Number.isFinite(value) || value <= 0) {
@@ -1175,11 +1200,16 @@
       }
     });
 
-    const onStart = (e) => {
+    const onStart = async (e) => {
       e.preventDefault();
       const p = pointerNorm(e, canvas);
       if (annotTool === "text") {
-        const text = window.prompt("Texto na foto", "");
+        const text = await window.crmPrompt({
+          title: "Texto na foto",
+          label: "Texto",
+          placeholder: "Ex.: Trinca aqui",
+          ok: "Adicionar texto",
+        });
         if (!text) return;
         annotShapes.push({
           id: `t-${Date.now()}`,
@@ -1297,8 +1327,18 @@
     try {
       const json = await api(`/api/campo/jobs/${jobId}/checklist/templates`);
       const list = json.data || [];
-      const labels = list.map((t, i) => `${i + 1}) ${t.name}`).join("\n");
-      const pick = window.prompt(`Escolha o template:\n${labels}`, "1");
+      if (!list.length) {
+        toast("Nenhum template disponível");
+        return;
+      }
+      const pick = await window.crmPrompt({
+        title: "Escolha o template",
+        type: "select",
+        label: "Template",
+        options: list.map((t, i) => ({ value: String(i + 1), label: t.name })),
+        value: "1",
+        ok: "Continuar",
+      });
       if (!pick) return;
       const idx = Number(pick) - 1;
       const tpl = list[idx];
@@ -1306,7 +1346,13 @@
         toast("Template inválido");
         return;
       }
-      if (!confirm(`Substituir checklist por “${tpl.name}”?`)) return;
+      const okTpl = await window.crmConfirm({
+        title: `Substituir checklist por “${tpl.name}”?`,
+        text: "Os itens atuais do checklist serão trocados pelos do template.",
+        ok: "Substituir checklist",
+        danger: true,
+      });
+      if (!okTpl) return;
       const res = await api(`/api/campo/jobs/${jobId}/checklist/from-template`, {
         method: "POST",
         body: JSON.stringify({ template_key: tpl.key }),
@@ -1324,7 +1370,15 @@
       try {
         transcript = await voiceCaptionOnDevice();
       } catch (_) {
-        transcript = window.prompt("Digite os itens (separados por vírgula)", "") || "";
+        transcript =
+          (await window.crmPrompt({
+            title: "Itens do checklist",
+            label: "Digite os itens (separados por vírgula)",
+            type: "textarea",
+            rows: 3,
+            placeholder: "Ex.: Proteger rodapé, tirar foto do subfloor",
+            ok: "Propor itens",
+          })) || "";
       }
       if (!transcript) return;
       toast("A propor checklist…", "success");
@@ -1337,8 +1391,13 @@
         toast("Nenhum item proposto");
         return;
       }
-      const preview = items.map((i) => `• ${i.text}${i.photo_required ? " (foto)" : ""}`).join("\n");
-      if (!confirm(`Aplicar estes itens?\n\n${preview}`)) return;
+      const preview = items.map((i) => `${i.text}${i.photo_required ? " (foto)" : ""}`).join(" · ");
+      const okApply = await window.crmConfirm({
+        title: `Adicionar ${items.length} ite${items.length === 1 ? "m" : "ns"} ao checklist?`,
+        text: preview,
+        ok: "Adicionar itens",
+      });
+      if (!okApply) return;
       const res = await api(`/api/campo/jobs/${jobId}/checklist/apply`, {
         method: "POST",
         body: JSON.stringify({

@@ -38,7 +38,11 @@
   function notify(msg, type) {
     if (typeof window.crmNotify === "function") window.crmNotify(msg, type || "info");
     else if (window.crmToast && window.crmToast[type || "info"]) window.crmToast[type || "info"](msg);
-    else alert(msg);
+    else console.warn(msg);
+  }
+  function askConfirm(opts) {
+    if (typeof window.crmConfirm !== "function") return Promise.resolve(false);
+    return window.crmConfirm(Object.assign({ cancel: "Cancelar" }, opts));
   }
   async function api(url, opts) {
     const r = await fetch(url, {
@@ -267,6 +271,31 @@
     renderSummary();
     renderChips();
     renderList();
+    if (window.crmSkeleton) window.crmSkeleton.done($("cxRows"));
+  }
+
+  /** First list load: skeleton rows right away, inline error + retry on failure. */
+  async function loadListWithSkeleton() {
+    const host = $("cxRows");
+    if (window.crmSkeleton) window.crmSkeleton.fill(host, "rows", 8);
+    try {
+      await loadList();
+      return true;
+    } catch (e) {
+      const message = e.message || "Erro ao carregar";
+      if (window.crmSkeleton) {
+        window.crmSkeleton.error(host, message, async () => {
+          if (await loadListWithSkeleton()) {
+            refreshDupButton();
+            if (!selectedId && !single()) {
+              const first = firstVisibleId();
+              if (first) openDetail(first);
+            }
+          }
+        });
+      } else host.innerHTML = `<p class="cx-empty">${esc(message)}</p>`;
+      return false;
+    }
   }
 
   // ---------------------------------------------------------------- detail
@@ -574,16 +603,28 @@
       else history.replaceState({ cx: id }, "", u.pathname + "?" + u.searchParams.toString());
     }
     const host = $("cxDetail");
-    if (!detail || String(detail.customer.id) !== String(id)) host.innerHTML = `<div class="cx-blank"><p>Carregando…</p></div>`;
+    if (!detail || String(detail.customer.id) !== String(id)) {
+      if (window.crmSkeleton) {
+        host.innerHTML = `<div class="cx-blank">${window.crmSkeleton.cards(3)}${window.crmSkeleton.rows(4, { avatar: false })}</div>`;
+        host.setAttribute("aria-busy", "true");
+      } else host.innerHTML = `<div class="cx-blank"><p>Carregando…</p></div>`;
+    }
     try {
       const j = await api(`/api/customers/${encodeURIComponent(id)}/overview`);
       if (String(selectedId) !== String(id)) return;
       detail = j.data;
       showMoney = detail.show_money !== false;
       renderDetail();
+      host.removeAttribute("aria-busy");
       if (single()) window.scrollTo(0, 0);
     } catch (e) {
-      host.innerHTML = `<div class="cx-blank"><p>${esc(e.status === 404 ? "Cliente não encontrado." : e.message || "Erro ao carregar")}</p></div>`;
+      if (String(selectedId) !== String(id)) return;
+      if (e.status !== 404 && window.crmSkeleton) {
+        window.crmSkeleton.error(host, e.message || "Erro ao carregar o cliente.", () => openDetail(id, { keepUrl: true }));
+      } else {
+        host.removeAttribute("aria-busy");
+        host.innerHTML = `<div class="cx-blank"><p>${esc(e.status === 404 ? "Cliente não encontrado." : e.message || "Erro ao carregar")}</p></div>`;
+      }
     }
   }
 
@@ -905,13 +946,25 @@
 
   async function deleteCustomer(id, name) {
     if (!id) return;
-    if (!confirm(`Excluir o cliente “${name || ""}”?\n\nEsta ação não pode ser desfeita.`)) return;
+    const ok = await askConfirm({
+      title: name ? `Excluir o cliente “${name}”?` : "Excluir este cliente?",
+      text: "O cadastro será apagado. Esta ação não pode ser desfeita.",
+      ok: "Excluir cliente",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       try {
         await api(`/api/customers/${encodeURIComponent(id)}`, { method: "DELETE" });
       } catch (e) {
         if (e.status !== 409) throw e;
-        if (!confirm(`${e.message}\n\nExcluir mesmo assim? Quotes, jobs e faturas ficam sem cliente.`)) return;
+        const force = await askConfirm({
+          title: "Excluir mesmo assim?",
+          text: `${e.message} Quotes, jobs e faturas ficam sem cliente.`,
+          ok: "Excluir mesmo assim",
+          danger: true,
+        });
+        if (!force) return;
         await api(`/api/customers/${encodeURIComponent(id)}?force=1`, { method: "DELETE" });
       }
       notify("Cliente excluído.", "success");
@@ -966,16 +1019,27 @@
     $("cxPriceSearch").value = "";
     $("cxPriceIntro").textContent = `Em branco = usa a coluna ${TYPE_PT[form.type]} da Tabela de Valores.`;
     $("cxPriceModal").dataset.fromDetail = fromDetail ? "1" : "";
-    $("cxPriceList").innerHTML = '<p class="cx-none">Carregando serviços…</p>';
+    if (window.crmSkeleton) window.crmSkeleton.fill($("cxPriceList"), "rows", 6, { avatar: false });
+    else $("cxPriceList").innerHTML = '<p class="cx-none">Carregando serviços…</p>';
     openModal("cxPriceModal");
+    await loadPriceList();
+  }
+  async function loadPriceList() {
+    const list = $("cxPriceList");
     try {
       if (!pricingCache) {
         const j = await api("/api/pricing");
         pricingCache = Array.isArray(j.data) ? j.data : [];
       }
       renderPrices();
+      list.removeAttribute("aria-busy");
     } catch (e) {
-      $("cxPriceList").innerHTML = `<p class="cx-none">${esc(e.message || "Erro ao carregar")}</p>`;
+      if (window.crmSkeleton) {
+        window.crmSkeleton.error(list, e.message || "Erro ao carregar os serviços.", () => {
+          window.crmSkeleton.fill(list, "rows", 6, { avatar: false });
+          loadPriceList();
+        });
+      } else list.innerHTML = `<p class="cx-none">${esc(e.message || "Erro ao carregar")}</p>`;
     }
   }
   async function applyPrices() {
@@ -1059,7 +1123,13 @@
     const keep = (g.customers || []).find((c) => String(c.id) === String(keepId));
     const others = (g.customers || []).filter((c) => String(c.id) !== String(keepId));
     if (!keep || !others.length) return;
-    if (!confirm(`Unificar ${others.length} cadastro(s) em “${keep.name}”? Os outros serão removidos.`)) return;
+    const ok = await askConfirm({
+      title: `Unificar ${others.length + 1} cadastros?`,
+      text: `Tudo passa para “${keep.name}”. ${others.length === 1 ? "O outro cadastro será removido" : `Os outros ${others.length} cadastros serão removidos`}.`,
+      ok: "Unificar cadastros",
+      danger: true,
+    });
+    if (!ok) return;
     btn.disabled = true;
     try {
       for (const o of others) {
@@ -1089,8 +1159,25 @@
     if (!detail) return;
     const customerId = detail.customer.id;
     const action = button.getAttribute("data-partner-access");
-    if (action === "disable" && !confirm("Suspender o acesso ao portal para este parceiro?")) return;
-    if (action === "reset" && !confirm("Gerar uma nova senha temporária? O parceiro precisará trocá-la ao entrar.")) return;
+    if (
+      action === "disable" &&
+      !(await askConfirm({
+        title: "Suspender acesso ao portal?",
+        text: "O parceiro deixa de conseguir entrar no portal até você reativar.",
+        ok: "Suspender acesso",
+        danger: true,
+      }))
+    )
+      return;
+    if (
+      action === "reset" &&
+      !(await askConfirm({
+        title: "Gerar nova senha temporária?",
+        text: "A senha atual deixa de funcionar. O parceiro precisará trocá-la ao entrar.",
+        ok: "Gerar senha",
+      }))
+    )
+      return;
     const originalLabel = button.textContent;
     button.disabled = true;
     button.textContent = "Salvando…";
@@ -1332,6 +1419,8 @@
   }
 
   async function boot() {
+    // Skeleton rows replace the static "Carregando…" while the session check runs.
+    if (window.crmSkeleton) window.crmSkeleton.fill($("cxRows"), "rows", 8);
     let s;
     try {
       s = await api("/api/auth/session");
@@ -1363,11 +1452,7 @@
       q = qp.get("q").trim().toLowerCase();
     }
     bind();
-    try {
-      await loadList();
-    } catch (e) {
-      $("cxRows").innerHTML = `<p class="cx-empty">${esc(e.message || "Erro ao carregar")}</p>`;
-    }
+    await loadListWithSkeleton();
     refreshDupButton();
 
     const id = qp.get("id") || qp.get("edit");

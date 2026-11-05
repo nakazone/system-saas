@@ -6,6 +6,34 @@
  * - iPhone: barra de abas em vidro (Início, Leads, Calendar, Invoices, Mais) + busca + "+" no topo.
  */
 
+/* ===================== Movimento (tokens) =====================
+   Use estes valores em vez de números soltos:
+   - --om-ease-out: entradas e respostas a toque (rápido no começo, assenta suave).
+   - --om-ease-in-out: algo que já está na tela e muda de lugar.
+   - --om-dur-1 150ms: hover, press, cor. --om-dur-2 200ms: popover, menu, toast.
+     --om-dur-3 250ms: painel de baixo (sheet), modal. Nada de UI acima de 300ms.
+   - Anime só transform e opacity. Nada de ease-in em interface. */
+:root {
+  --om-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --om-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --om-dur-1: 150ms;
+  --om-dur-2: 200ms;
+  --om-dur-3: 250ms;
+}
+
+/* Quem pede menos movimento no sistema recebe o app sem animações de deslocamento.
+   Uma regra só, para o app inteiro: hoje só alguns arquivos tratavam isso. */
+@media (prefers-reduced-motion: reduce) {
+  html *,
+  html *::before,
+  html *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 body.dashboard-app-body {
   --om-bg: #F7F8FA;
   --om-card: #FFFFFF;
@@ -1181,4 +1209,89 @@ html body #dashboardSidebar .nav-item.nav-more-toggle {
 #crmTopbar .crm-topbar__refresh-btn,
 #crmTopbar .crm-topbar__install-btn {
   display: none !important;
+}
+
+/* ===================== Esqueletos de carregamento (crm-skeleton.js) ===================== */
+.om-skel {
+  display: block;
+  border-radius: 6px;
+  background: #E9ECF0;
+  animation: omSkelPulse 1.1s ease-in-out infinite alternate;
+}
+.om-skel--line { height: 12px; }
+.om-skel--sm { height: 10px; }
+.om-skel--lg { height: 22px; border-radius: 8px; }
+.om-skel--circle { flex: none; width: 36px; height: 36px; border-radius: 50%; }
+.om-skel--value { flex: none; width: 56px; height: 12px; margin-left: auto; }
+.om-skel-list { display: flex; flex-direction: column; }
+.om-skel-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #F0F2F5;
+}
+.om-skel-row:last-child { border-bottom: 0; }
+.om-skel-row__lines { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+.om-skel-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+.om-skel-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--om-line, #E5E7EB);
+}
+.om-skel-tr td { padding: 12px 10px; }
+.om-skel-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+/* Rows fade in one after another so the block feels alive without moving. */
+.om-skel-row:nth-child(2) .om-skel { animation-delay: 80ms; }
+.om-skel-row:nth-child(3) .om-skel { animation-delay: 160ms; }
+.om-skel-row:nth-child(4) .om-skel { animation-delay: 240ms; }
+.om-skel-row:nth-child(5) .om-skel { animation-delay: 320ms; }
+.om-skel-row:nth-child(n+6) .om-skel { animation-delay: 400ms; }
+@keyframes omSkelPulse {
+  from { opacity: 0.55; }
+  to { opacity: 1; }
+}
+
+/* Erro na própria área que falhou, com "Tentar de novo" (em vez de toast + área vazia). */
+.om-load-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 28px 16px;
+  text-align: center;
+  color: #667085;
+  font-size: 14px;
+}
+.om-load-error p { margin: 0; }
+.om-load-error__retry {
+  min-height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  background: #221E1A;
+  color: #fff;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+  transition: transform 100ms ease-out;
+}
+.om-load-error__retry:active { transform: scale(0.97); }
+@media (pointer: coarse) {
+  .om-load-error__retry { min-height: 44px; }
 }

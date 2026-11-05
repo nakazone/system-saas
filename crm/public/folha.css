@@ -214,6 +214,12 @@ tr.is-open .fo-chev { transform: rotate(90deg); }
   font-family: "Plus Jakarta Sans", system-ui, sans-serif;
   overflow: hidden;
 }
+/* Entrada: roda sempre que o JS tira o [hidden] (display none → visível).
+   Usa `translate` (propriedade própria) para somar ao transform de centralização. */
+.fo-scrim:not([hidden]) { animation: fo-scrim-in var(--om-dur-2, 200ms) var(--om-ease-out, ease-out); }
+.fo-sheet:not([hidden]) { animation: fo-sheet-in var(--om-dur-3, 250ms) var(--om-ease-out, ease-out); }
+@keyframes fo-scrim-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fo-sheet-in { from { opacity: 0; translate: 0 16px; } to { opacity: 1; translate: 0 0; } }
 /* Relatório de conferência: altura fixa; o corpo (.fo-sheet__bd) precisa rolar */
 .fo-sheet--report {
   height: min(820px, calc(100dvh - 32px));

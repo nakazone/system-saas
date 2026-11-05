@@ -76,7 +76,25 @@
   // ------------------------------------------------------------ utils
   function notify(msg, type) {
     if (typeof window.crmNotify === "function") window.crmNotify(msg, type || "info");
-    else alert(msg);
+    else if (window.crmToast) {
+      const t = type === "error" || type === "success" || type === "warning" ? type : "info";
+      window.crmToast[t](msg);
+    }
+  }
+  /** Loading skeleton / inline error (crm-skeleton.js is deferred — fall back to plain text). */
+  function skelFill(box, kind, n, opts) {
+    if (!box) return;
+    if (window.crmSkeleton) window.crmSkeleton.fill(box, kind, n, opts);
+    else box.innerHTML = '<div class="fo-empty">Carregando…</div>';
+  }
+  function skelDone(box) {
+    if (box && window.crmSkeleton) window.crmSkeleton.done(box);
+  }
+  function skelError(box, title, e, retry) {
+    if (!box) return;
+    const msg = e && e.message ? `${title} ${e.message}` : title;
+    if (window.crmSkeleton) window.crmSkeleton.error(box, msg, retry);
+    else box.innerHTML = `<div class="fo-empty"><b>${esc(title)}</b>${esc(e && e.message)}</div>`;
   }
   function esc(s) {
     return String(s == null ? "" : s)
@@ -196,7 +214,7 @@
   // ------------------------------------------------------------ semana
   async function loadWeek() {
     const box = $("foSemana");
-    if (!st.week) box.innerHTML = '<div class="fo-empty">Carregando…</div>';
+    if (!st.week) skelFill(box, "rows", 6);
     try {
       const j = await api(`/api/folha/semana${st.weekRef ? `?week=${st.weekRef}` : ""}`);
       const changed = !st.week || st.week.week.start !== j.data.week.start;
@@ -211,10 +229,11 @@
       await ensureEmps().catch(() => null);
       quickDefaults();
       renderWeek();
+      skelDone(box);
       writeHash();
       refreshPendCount(j.data);
     } catch (e) {
-      box.innerHTML = `<div class="fo-empty"><b>Não foi possível carregar a folha.</b>${esc(e.message)}</div>`;
+      skelError(box, "Não foi possível carregar a folha.", e, () => loadWeek());
     }
   }
   function refreshPendCount(week) {
@@ -1131,7 +1150,14 @@
   async function dayDelete(id, dateLabel) {
     if (!st.manage || !id) return;
     const label = dateLabel || "este dia";
-    if (!confirm(`Excluir a diária de ${label}?\n\nO lançamento some da folha e a data fica livre para um novo lançamento.`)) return;
+    const okDay = await window.crmConfirm({
+      title: `Excluir a diária de ${label}?`,
+      text: "O lançamento some da folha e a data fica livre para um novo lançamento.",
+      ok: "Excluir diária",
+      cancel: "Cancelar",
+      danger: true,
+    });
+    if (!okDay) return;
     try {
       await api(`/api/folha/dias/${id}/reverter`, { method: "POST", body: "{}" });
       notify("Diária excluída — data liberada.", "success");
@@ -1153,13 +1179,14 @@
     }
     const n = countHint || manual.length;
     const name = empLabel || r.name || "funcionário";
-    if (
-      !confirm(
-        `Excluir ${n} diária${n > 1 ? "s" : ""} de ${name} neste ciclo?\n\nSó remove lançamentos do escritório. Datas ficam livres.`,
-      )
-    ) {
-      return;
-    }
+    const okAll = await window.crmConfirm({
+      title: `Excluir ${n} diária${n > 1 ? "s" : ""} de ${name} neste ciclo?`,
+      text: "Só remove lançamentos do escritório. As datas ficam livres.",
+      ok: n > 1 ? "Excluir diárias" : "Excluir diária",
+      cancel: "Cancelar",
+      danger: true,
+    });
+    if (!okAll) return;
     let ok = 0;
     let fail = 0;
     for (const d of manual) {
@@ -1883,7 +1910,14 @@
     }
   }
   async function expDelete(expId, reopen) {
-    if (!confirm("Excluir este lançamento? O valor sai do líquido da semana.")) return;
+    const okExp = await window.crmConfirm({
+      title: "Excluir este lançamento?",
+      text: "O valor sai do líquido da semana.",
+      ok: "Excluir lançamento",
+      cancel: "Cancelar",
+      danger: true,
+    });
+    if (!okExp) return;
     try {
       await api(`/api/folha/despesas/${expId}`, { method: "DELETE" });
       notify("Lançamento excluído. Líquido atualizado.", "success");
@@ -1952,7 +1986,14 @@
     );
   }
   async function voidPay(id) {
-    if (!confirm("Estornar este pagamento? A saída no Financeiro é anulada e a semana volta a ficar aberta.")) return;
+    const okVoid = await window.crmConfirm({
+      title: "Estornar este pagamento?",
+      text: "A saída no Financeiro é anulada e a semana volta a ficar aberta.",
+      ok: "Estornar pagamento",
+      cancel: "Cancelar",
+      danger: true,
+    });
+    if (!okVoid) return;
     try {
       await api(`/api/folha/pagamentos/${id}/estornar`, { method: "POST", body: "{}" });
       notify("Pagamento estornado.", "success");
@@ -1968,15 +2009,16 @@
   // ------------------------------------------------------------ conferir
   async function loadPend() {
     const box = $("foConferir");
-    if (!st.pend) box.innerHTML = '<div class="fo-empty">Carregando…</div>';
+    if (!st.pend) skelFill(box, "rows", 5);
     try {
       const j = await api("/api/folha/pendencias");
       st.pend = j.data;
       for (const id of [...st.pendSel]) if (!j.data.pending.some((d) => d.id === id)) st.pendSel.delete(id);
       renderPend();
+      skelDone(box);
       refreshPendCount();
     } catch (e) {
-      box.innerHTML = `<div class="fo-empty"><b>Não foi possível carregar.</b>${esc(e.message)}</div>`;
+      skelError(box, "Não foi possível carregar.", e, () => loadPend());
     }
   }
   function pcard(d, opts) {
@@ -2055,13 +2097,14 @@
   async function loadPays() {
     const box = $("foPagamentos");
     const [from, to] = presetRange(st.payPreset);
-    if (!st.pays) box.innerHTML = '<div class="fo-empty">Carregando…</div>';
+    if (!st.pays) skelFill(box, "rows", 6);
     try {
       const j = await api(`/api/folha/relatorio?from=${from}&to=${to}`);
       st.pays = j.data;
       renderPays();
+      skelDone(box);
     } catch (e) {
-      box.innerHTML = `<div class="fo-empty"><b>Não foi possível carregar.</b>${esc(e.message)}</div>`;
+      skelError(box, "Não foi possível carregar.", e, () => loadPays());
     }
   }
   function renderPays() {
@@ -2105,14 +2148,15 @@
   }
   async function loadReport() {
     const box = $("foRelatorios");
-    if (!st.report) box.innerHTML = '<div class="fo-empty">Carregando…</div>';
+    if (!st.report) skelFill(box, "cards", 3);
     try {
       await ensureEmps().catch(() => null);
       const j = await api(`/api/folha/relatorio?${repQuery()}`);
       st.report = j.data;
       renderReport();
+      skelDone(box);
     } catch (e) {
-      box.innerHTML = `<div class="fo-empty"><b>Não foi possível carregar.</b>${esc(e.message)}</div>`;
+      skelError(box, "Não foi possível carregar.", e, () => loadReport());
     }
   }
   function renderReport() {
@@ -2159,13 +2203,14 @@
   // ------------------------------------------------------------ funcionários
   async function loadEmps() {
     const box = $("foFuncionarios");
-    if (!st.emps) box.innerHTML = '<div class="fo-empty">Carregando…</div>';
+    if (!st.emps) skelFill(box, "rows", 6);
     try {
       const j = await api("/api/folha/funcionarios");
       st.emps = j.data;
       renderEmps();
+      skelDone(box);
     } catch (e) {
-      box.innerHTML = `<div class="fo-empty"><b>Não foi possível carregar.</b>${esc(e.message)}</div>`;
+      skelError(box, "Não foi possível carregar.", e, () => loadEmps());
     }
   }
   function schedLabel(e) {

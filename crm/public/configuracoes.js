@@ -772,7 +772,7 @@
       $("cfgSetupDone").textContent = String(done);
       $("cfgSetupTotal").textContent = String(steps.length);
       const pct = steps.length ? Math.round((done / steps.length) * 100) : 0;
-      $("cfgSetupBar").style.width = `${pct}%`;
+      $("cfgSetupBar").style.transform = `scaleX(${pct / 100})`;
       $("cfgSetup").querySelector(".cfg-progress").setAttribute("aria-valuenow", String(pct));
       $("cfgSetupHint").textContent =
         done === steps.length
@@ -1793,9 +1793,13 @@
       if (btn) btn.disabled = true;
       try {
         if (calFeedState.active || (calFeedState.feeds && calFeedState.feeds.length)) {
-          const ok = window.confirm(
-            "Gerar novos links invalida os anteriores. Calendários já assinados no iPhone param de atualizar. Continuar?",
-          );
+          const ok = await window.crmConfirm({
+            title: "Gerar novos links?",
+            text: "Os links anteriores deixam de valer e calendários já assinados no iPhone param de atualizar.",
+            ok: "Gerar novos links",
+            cancel: "Cancelar",
+            danger: true,
+          });
           if (!ok) return;
         }
         const j = await api("/api/settings/schedule/calendar-feed", { method: "POST", body: "{}" });
@@ -1817,7 +1821,14 @@
       void copyCalFeedUrl(btn.getAttribute("data-calfeed-copy"));
     });
     $("btnCalFeedRevoke")?.addEventListener("click", async () => {
-      if (!window.confirm("Revogar todos os links? As assinaturas no iPhone/Google deixam de atualizar.")) return;
+      const ok = await window.crmConfirm({
+        title: "Revogar todos os links?",
+        text: "As assinaturas no iPhone/Google deixam de atualizar.",
+        ok: "Revogar links",
+        cancel: "Cancelar",
+        danger: true,
+      });
+      if (!ok) return;
       try {
         await api("/api/settings/schedule/calendar-feed", { method: "DELETE" });
         calFeedState.active = false;
@@ -2365,14 +2376,23 @@
         saveInvoicePaymentDate();
       });
     }
-    $("btnInvShareMsgDefaults")?.addEventListener("click", () => {
+    $("btnInvShareMsgDefaults")?.addEventListener("click", async () => {
       const current = readInvoiceShareMessages();
       const hasCustom = Object.keys(INV_SHARE_MSG_DEFAULTS).some(
         (key) => current[key] && current[key] !== INV_SHARE_MSG_DEFAULTS[key],
       );
-      if (hasCustom && !window.confirm("Restaurar os textos padrão em inglês?")) return;
+      if (hasCustom && !(await confirmRestoreDefaults())) return;
       fillInvoiceShareMessages({ share_messages: INV_SHARE_MSG_DEFAULTS });
       updateSavebar();
+    });
+  }
+
+  function confirmRestoreDefaults() {
+    return window.crmConfirm({
+      title: "Restaurar os textos padrão em inglês?",
+      text: "Os textos que você personalizou são substituídos pelos padrão.",
+      ok: "Restaurar padrão",
+      cancel: "Cancelar",
     });
   }
 
@@ -3583,30 +3603,48 @@
       paintClientView();
       updateSavebar();
     });
-    $("btnTermsSample").addEventListener("click", () => {
+    $("btnTermsSample").addEventListener("click", async () => {
       const t = $("q_terms");
-      if (t.value.trim() && !window.confirm("Substituir o texto atual pelo exemplo?")) return;
+      if (
+        t.value.trim() &&
+        !(await window.crmConfirm({
+          title: "Substituir o texto atual pelo exemplo?",
+          text: "O que você escreveu nos termos é trocado pelo texto de exemplo.",
+          ok: "Usar exemplo",
+          cancel: "Cancelar",
+        }))
+      )
+        return;
       t.value = TERMS_SAMPLE;
       syncQuotesPreview();
       updateSavebar();
       t.focus();
     });
-    $("btnInclusionsSample")?.addEventListener("click", () => {
+    $("btnInclusionsSample")?.addEventListener("click", async () => {
       const t = $("q_inclusions");
       if (!t) return;
-      if (t.value.trim() && !window.confirm("Substituir a lista atual pelo exemplo?")) return;
+      if (
+        t.value.trim() &&
+        !(await window.crmConfirm({
+          title: "Substituir a lista atual pelo exemplo?",
+          text: "Os itens que você escreveu são trocados pela lista de exemplo.",
+          ok: "Usar exemplo",
+          cancel: "Cancelar",
+        }))
+      )
+        return;
       t.value = INCLUSIONS_SAMPLE;
       syncQuotesPreview();
       updateSavebar();
       t.focus();
     });
-    $("btnShareMsgDefaults")?.addEventListener("click", () => {
+    $("btnShareMsgDefaults")?.addEventListener("click", async () => {
       const sms = $("q_sms_body");
       const fu = $("q_followup_body");
       const hasCustom =
         (sms && sms.value.trim() && sms.value.trim() !== SHARE_MSG_DEFAULTS.sms_body) ||
         (fu && fu.value.trim() && fu.value.trim() !== SHARE_MSG_DEFAULTS.followup_body);
-      if (hasCustom && !window.confirm("Restaurar os textos padrão em inglês?")) return;
+      if (hasCustom && !(await confirmRestoreDefaults())) return;
       if (sms) sms.value = SHARE_MSG_DEFAULTS.sms_body;
       if (fu) fu.value = SHARE_MSG_DEFAULTS.followup_body;
       syncShareMsgCounts();
@@ -4346,7 +4384,7 @@
     if (userId != null) {
       $("cfgUserModalTitle").textContent = "Editar usuário";
       $("cfgUserPasswordHint").textContent = "(deixe vazio para não alterar)";
-      $("cfgUserFormSubmit").textContent = "Guardar";
+      $("cfgUserFormSubmit").textContent = "Salvar";
       const [ur, pr] = await Promise.all([
         api(`/api/users/${encodeURIComponent(userId)}`),
         api(`/api/users/${encodeURIComponent(userId)}/permissions`).catch(() => ({ data: { permission_ids: [] } })),
@@ -4362,7 +4400,7 @@
       const selected = new Set((pr.data && pr.data.permission_ids) || []);
       $("cfgUserPermsHelp").textContent = canManagePerms
         ? "Marque os módulos permitidos para este usuário (além do cargo)."
-        : "Só administradores ou quem gere cargos/usuários podem alterar isto.";
+        : "Só administradores ou quem gerencia cargos/usuários podem alterar isto.";
       groupsEl.innerHTML = renderPermGroups(byGroup, [...selected]);
       if (!canManagePerms) {
         groupsEl.querySelectorAll("input").forEach((el) => {
@@ -4446,7 +4484,7 @@
       closeCfgModal("cfgUserModal");
       await loadUsersSection();
     } catch (ex) {
-      err.textContent = ex.message || "Erro ao guardar.";
+      err.textContent = ex.message || "Erro ao salvar.";
       err.hidden = false;
     } finally {
       btn.disabled = false;
@@ -4455,7 +4493,14 @@
 
   async function deactivateUser(id) {
     if (!canDeleteUsersLocal()) return;
-    if (!window.confirm("Desativar este usuário? Não poderá iniciar sessão.")) return;
+    const ok = await window.crmConfirm({
+      title: "Desativar este usuário?",
+      text: "Ele não poderá mais entrar no sistema.",
+      ok: "Desativar usuário",
+      cancel: "Cancelar",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api(`/api/users/${encodeURIComponent(id)}`, { method: "DELETE" });
       notify("Usuário desativado", "success");
@@ -4515,7 +4560,7 @@
     $("cfgRoleKey").disabled = !!role;
     $("cfgRoleDescription").value = role ? role.description || "" : "";
     $("cfgRoleModalTitle").textContent = role ? "Editar cargo" : "Novo cargo";
-    $("cfgRoleFormSubmit").textContent = role ? "Guardar" : "Criar cargo";
+    $("cfgRoleFormSubmit").textContent = role ? "Salvar" : "Criar cargo";
     $("cfgRoleFormError").hidden = true;
     $("cfgRolePermsGroups").innerHTML = renderPermGroups(byGroup, role ? role.permission_ids || [] : []);
     openCfgModal("cfgRoleModal");
@@ -4554,7 +4599,7 @@
       closeCfgModal("cfgRoleModal");
       await loadRolesSection();
     } catch (ex) {
-      err.textContent = ex.message || "Erro ao guardar.";
+      err.textContent = ex.message || "Erro ao salvar.";
       err.hidden = false;
     } finally {
       btn.disabled = false;
@@ -4565,7 +4610,14 @@
     if (!canManageRolesLocal()) return;
     const role = (catalogState.roles || []).find((r) => r.id === id);
     if (!role || role.is_system) return;
-    if (!window.confirm(`Remover o cargo “${role.name}”?`)) return;
+    const ok = await window.crmConfirm({
+      title: `Remover o cargo “${role.name}”?`,
+      text: "O cargo sai da lista de cargos da empresa.",
+      ok: "Remover cargo",
+      cancel: "Cancelar",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api(`/api/roles/${id}`, { method: "DELETE" });
       notify("Cargo removido", "success");
@@ -4632,7 +4684,7 @@
       payroll_payment_method: item ? "Editar forma de pagamento" : "Nova forma de pagamento",
     };
     $("cfgCatalogModalTitle").textContent = titles[kind] || (item ? "Editar" : "Novo");
-    $("cfgCatalogFormSubmit").textContent = "Guardar";
+    $("cfgCatalogFormSubmit").textContent = "Salvar";
     $("cfgCatalogFormError").hidden = true;
     openCfgModal("cfgCatalogModal");
   }
@@ -4670,7 +4722,7 @@
       else if (kind === "payroll_payment_method") await loadCatalogKind("payroll_payment_method", "cfgPayMethodsBody", "cfgPayMethodAddBtn");
       else await loadCatalogKind("unit", "cfgUnitsBody", "cfgUnitAddBtn");
     } catch (ex) {
-      err.textContent = ex.message || "Erro ao guardar.";
+      err.textContent = ex.message || "Erro ao salvar.";
       err.hidden = false;
     } finally {
       btn.disabled = false;
@@ -4682,10 +4734,14 @@
     const item = (catalogState[kind] || []).find((x) => x.id === id);
     if (!item) return;
     const hardDelete = !item.is_system || kind === "payroll_payment_method";
-    const msg = hardDelete
-      ? `Remover “${item.label}”?`
-      : `Desativar “${item.label}”? (itens padrão não são apagados)`;
-    if (!window.confirm(msg)) return;
+    const ok = await window.crmConfirm({
+      title: hardDelete ? `Remover “${item.label}”?` : `Desativar “${item.label}”?`,
+      text: hardDelete ? "O item sai da lista." : "Itens padrão não são apagados — ficam só desativados.",
+      ok: hardDelete ? "Remover item" : "Desativar item",
+      cancel: "Cancelar",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api(`/api/settings/catalog/${kind}/${id}`, { method: "DELETE" });
       notify(hardDelete ? "Item removido" : "Item desativado", "success");

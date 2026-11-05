@@ -8,7 +8,7 @@
   const STORAGE_KEY = "crm_sidebar_collapsed";
   const NAV_HISTORY_KEY = "crm_nav_history_v1";
   const NAV_HISTORY_MAX = 50;
-  const SHELL_VER = "20261104-ux1";
+  const SHELL_VER = "20261104-ux2";
 
   const CREATE_MENU_ITEMS = [
     {
@@ -1032,7 +1032,7 @@
       el.src = src;
       document.body.appendChild(el);
     }
-    ensureScript("notification-center.js?v=20261027-m2", "notification-center.js");
+    ensureScript("notification-center.js?v=20261104-ux2", "notification-center.js");
     ensureScript("crm-push.js?v=20261022-inbox1", "crm-push.js");
   }
 
@@ -1162,7 +1162,7 @@
     }
     if (!window.__mateAiPanel && !document.querySelector('script[src*="mate-panel.js"]')) {
       ensureStylesheet("mate-panel.css?v=20261027-m2");
-      jobs.push(ensureScript("mate-panel.js?v=20261027-m2").catch(() => {}));
+      jobs.push(ensureScript("mate-panel.js?v=20261104-ux2").catch(() => {}));
     }
     if (!document.querySelector('script[src*="saas-branding.js"]')) {
       jobs.push(ensureScript("saas-branding.js?v=20261002-branddoc1").catch(() => {}));

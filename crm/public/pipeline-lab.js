@@ -1155,7 +1155,13 @@
 
   async function deleteLeadById(id) {
     if (!id) return;
-    if (!confirm("Excluir este lead permanentemente? Esta ação não pode ser desfeita.")) return;
+    const ok = await window.crmConfirm({
+      title: "Excluir este lead?",
+      text: "O lead e o histórico dele são apagados. Isso não pode ser desfeito.",
+      ok: "Excluir lead",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       const r = await fetch(`/api/leads/${encodeURIComponent(id)}`, {
         method: "DELETE",

@@ -376,13 +376,13 @@ function renderTable() {
         <td class="mk-actions-col">
           <div class="mk-row-actions">
             <button type="button" class="mk-icon-btn" data-edit="${row.id}" title="Editar">✏️</button>
-            <button type="button" class="mk-icon-btn mk-icon-btn--danger" data-del="${row.id}" title="Eliminar">🗑️</button>
+            <button type="button" class="mk-icon-btn mk-icon-btn--danger" data-del="${row.id}" title="Excluir">🗑️</button>
           </div>
         </td>
       </tr>`;
     })
     .join('');
-  if (info) info.textContent = `Página ${state.currentPage} de ${totalP} (${state.filteredCampaigns.length} registos)`;
+  if (info) info.textContent = `Página ${state.currentPage} de ${totalP} (${state.filteredCampaigns.length} registros)`;
   tbody.querySelectorAll('[data-edit]').forEach((b) =>
     b.addEventListener('click', (ev) => {
       ev.preventDefault();
@@ -406,14 +406,21 @@ function renderTable() {
 }
 
 async function deleteRow(id) {
-  if (!confirm('Eliminar este registo? (arquivo)')) return;
+  const ok = await window.crmConfirm({
+    title: 'Excluir este registro?',
+    text: 'O registro de gasto é arquivado e sai dos totais do período.',
+    ok: 'Excluir registro',
+    cancel: 'Cancelar',
+    danger: true,
+  });
+  if (!ok) return;
   const r = await fetch(`/api/marketing/ad-spend/${id}`, { method: 'DELETE', credentials: 'include' });
   const j = await r.json();
   if (!j.success) {
     showToast(j.error || 'Erro', 'danger');
     return;
   }
-  showToast('Registo removido');
+  showToast('Registro removido');
   loadAdSpend();
   loadStats(state.period);
 }
@@ -480,7 +487,7 @@ function initImportModal() {
   document.getElementById('impBack2')?.addEventListener('click', () => showImportStep(1));
   document.getElementById('impNext2')?.addEventListener('click', () => {
     if (!state.importFile) {
-      showToast('Selecione um ficheiro', 'danger');
+      showToast('Selecione um arquivo', 'danger');
       return;
     }
     const ds = document.getElementById('impStart').value;

@@ -993,7 +993,13 @@
       }
     } else if (a === "del" && st.onDelete) {
       if (!p?.id) return;
-      if (!confirm("Apagar esta foto? Ela sai do job e do ObraCam.")) return;
+      const ok = await window.crmConfirm({
+        title: "Apagar esta foto?",
+        text: "Ela sai do job e do ObraCam.",
+        ok: "Apagar foto",
+        danger: true,
+      });
+      if (!ok) return;
       try {
         await st.onDelete(p);
         st.photos.splice(st.index, 1);

@@ -380,11 +380,28 @@
     const t = S.loaded ? new Date(Math.max(to, S.loaded.to)) : to;
     return fetchRange(f, t);
   }
+  let fetching = 0;
   async function fetchRange(from, to) {
-    const j = await api(`/api/schedule/events?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`);
-    S.events = (j.data || []).map(normalize);
-    S.loaded = { from, to };
-    S.searchPool = null;
+    // While a range loads: dim what is on screen (no layout jump); the very first load gets a light skeleton.
+    const stage = document.getElementById('agStage');
+    fetching += 1;
+    if (stage) {
+      stage.classList.add('is-loading');
+      stage.setAttribute('aria-busy', 'true');
+      if (!stage.children.length && window.crmSkeleton) stage.innerHTML = `<div class="ag-skel">${window.crmSkeleton.rows(6, { avatar: false })}</div>`;
+    }
+    try {
+      const j = await api(`/api/schedule/events?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`);
+      S.events = (j.data || []).map(normalize);
+      S.loaded = { from, to };
+      S.searchPool = null;
+    } finally {
+      fetching -= 1;
+      if (stage && !fetching) {
+        stage.classList.remove('is-loading');
+        stage.removeAttribute('aria-busy');
+      }
+    }
   }
   async function reload() {
     if (!S.loaded) return;

@@ -126,15 +126,25 @@
   }
   async function load() {
     error.hidden = true;
-    if (!rows.length) list.innerHTML = '<p class="rq-empty">Carregando pedidos…</p>';
+    const sk = window.crmSkeleton;
+    if (!rows.length) {
+      if (sk) sk.fill(list, 'rows', 4, { avatar: false });
+      else list.innerHTML = '<p class="rq-empty">Carregando pedidos…</p>';
+    }
     try {
       const result = await request('/api/partner-requests?status=all');
       rows = result.data || [];
+      if (sk) sk.done(list);
       paint();
     } catch (err) {
-      error.textContent = err.message || 'Não foi possível carregar os pedidos.';
-      error.hidden = false;
-      list.innerHTML = '';
+      const msg = err.message || 'Não foi possível carregar os pedidos.';
+      if (sk) {
+        sk.error(list, msg, load);
+      } else {
+        error.textContent = msg;
+        error.hidden = false;
+        list.innerHTML = '';
+      }
     }
   }
   function paint() {
@@ -232,7 +242,19 @@
     const id = button.getAttribute('data-id');
     const action = button.getAttribute('data-action');
     const note = $(`review-${id}`)?.value.trim() || '';
-    if (action === 'decline' && !note && !window.confirm('Não aprovar este pedido sem uma mensagem para o builder?')) return;
+    if (action === 'decline' && !note) {
+      const okDecline = await window.crmConfirm({
+        title: 'Não aprovar sem mensagem?',
+        text: 'O builder não vai saber o motivo. Você pode escrever uma mensagem antes.',
+        ok: 'Não aprovar mesmo assim',
+        cancel: 'Escrever mensagem',
+        danger: true,
+      });
+      if (!okDecline) {
+        $(`review-${id}`)?.focus();
+        return;
+      }
+    }
     let schedule = null;
     if (action === 'accept') {
       const date = $(`sd-${id}`) ? $(`sd-${id}`).value : '';

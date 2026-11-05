@@ -101,10 +101,21 @@
     }
   }
 
+  function askConfirm(opts) {
+    if (typeof window.crmConfirm !== 'function') return Promise.resolve(false);
+    return window.crmConfirm(Object.assign({ cancel: 'Cancelar' }, opts));
+  }
+
   async function deleteBuilderCadastro(builderId) {
     const id = parseInt(builderId, 10);
     if (!id) return;
-    if (!confirm('Excluir este cadastro de builder? Esta ação não pode ser desfeita.')) return;
+    const ok = await askConfirm({
+      title: 'Excluir este builder?',
+      text: 'O cadastro será removido. Esta ação não pode ser desfeita.',
+      ok: 'Excluir builder',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await api(`/api/builders/${id}`, { method: 'DELETE' });
       crmNotify('Cadastro excluído.', 'success');
@@ -119,8 +130,25 @@
     const action = button.dataset.portalAction;
     if (!id || !action) return;
     const enabled = action !== 'disable';
-    if (action === 'disable' && !confirm('Suspender o acesso ao portal para este parceiro?')) return;
-    if (action === 'reset' && !confirm('Gerar uma nova senha temporária? O parceiro precisará trocá-la ao entrar.')) return;
+    if (
+      action === 'disable' &&
+      !(await askConfirm({
+        title: 'Suspender acesso ao portal?',
+        text: 'O parceiro deixa de conseguir entrar no portal até você reativar.',
+        ok: 'Suspender acesso',
+        danger: true,
+      }))
+    )
+      return;
+    if (
+      action === 'reset' &&
+      !(await askConfirm({
+        title: 'Gerar nova senha temporária?',
+        text: 'A senha atual deixa de funcionar. O parceiro precisará trocá-la ao entrar.',
+        ok: 'Gerar senha',
+      }))
+    )
+      return;
     button.disabled = true;
     try {
       const j = await api(`/api/builders/${encodeURIComponent(id)}/portal-access`, {

@@ -278,7 +278,13 @@
 
   async function deleteJob(id, label, btn) {
     if (!id || !canManage) return;
-    if (!confirm(`Excluir o job “${label || id}”?\n\nO job será cancelado e sai da lista ativa.`)) return;
+    const okDel = await window.crmConfirm({
+      title: `Excluir o job “${label || id}”?`,
+      text: "O job será cancelado e sai da lista ativa.",
+      ok: "Excluir job",
+      danger: true,
+    });
+    if (!okDel) return;
     const prev = btn?.textContent;
     if (btn) {
       btn.disabled = true;
@@ -625,7 +631,11 @@
   }
   function partnerDocsHtml(wo) {
     const J = I();
-    if (!partnerDocs || String(partnerDocs.jobId) !== String(wo.id)) return `<p class="jx-none" id="jxPartnerWait">Carregando o que o parceiro vê…</p>`;
+    if (!partnerDocs || String(partnerDocs.jobId) !== String(wo.id)) {
+      return window.crmSkeleton
+        ? `<div id="jxPartnerWait" aria-busy="true">${window.crmSkeleton.rows(3, { avatar: false })}</div>`
+        : `<p class="jx-none" id="jxPartnerWait">Carregando o que o parceiro vê…</p>`;
+    }
     const rows = [];
     const file = wo.delivery_attachment;
     if (file?.url) {
@@ -1390,9 +1400,7 @@
     const J = I();
     const nxt = J.nextFinish(wo);
     const label = wo?.title || (wo ? J.client(wo) : "");
-    const ok = window.crmConfirm?.completeJob
-      ? await window.crmConfirm.completeJob(label, nxt)
-      : confirm(nxt?.confirm || "Marcar o job como concluído?");
+    const ok = await window.crmConfirm.completeJob(label, nxt);
     if (!ok) return;
     await setStatus(wo.id, "completed", nxt?.toast || "Job concluído.");
   }
@@ -1401,9 +1409,7 @@
     const J = I();
     const nxt = J.nextFinish(wo);
     const label = wo?.title || (wo ? J.client(wo) : "");
-    const ok = window.crmConfirm?.completeJob
-      ? await window.crmConfirm.completeJob(label, nxt)
-      : confirm(nxt?.confirm || "Marcar o job como concluído?");
+    const ok = await window.crmConfirm.completeJob(label, nxt);
     if (!ok) return;
     await setStatus(selId, "completed", nxt?.toast || "Job concluído.");
   }
@@ -1661,9 +1667,32 @@
     });
   }
 
+  /** First paint of the list: skeleton rows in place of the "Carregando…" line. */
+  function listSkeleton() {
+    const host = $("jxRows");
+    if (host && window.crmSkeleton) window.crmSkeleton.fill(host, "rows", 6);
+  }
+  function listLoadError(err, retry) {
+    const host = $("jxRows");
+    const msg = err?.message || "Falha ao carregar os jobs";
+    if (host && window.crmSkeleton) window.crmSkeleton.error(host, msg, retry);
+    else notify(msg, "error");
+  }
+  async function retryLoad() {
+    listSkeleton();
+    try {
+      await load();
+      window.crmSkeleton?.done($("jxRows"));
+    } catch (err) {
+      listLoadError(err, retryLoad);
+    }
+  }
+
   async function boot() {
     if (!$("jx")) return;
     if (window.__omDevice?.isMobile?.()) return;
+    let bound = false;
+    listSkeleton();
     try {
       await window.__crmJobModal.ready;
       const s = await api("/api/auth/session");
@@ -1689,7 +1718,9 @@
         $("jxSource").closest(".jx-sel")?.classList.add("is-on");
       }
       bind();
+      bound = true;
       await load();
+      window.crmSkeleton?.done($("jxRows"));
       const openId = sessionStorage.getItem("obramate_open_job");
       if (openId) {
         sessionStorage.removeItem("obramate_open_job");
@@ -1708,7 +1739,8 @@
         return;
       }
     } catch (err) {
-      notify(err.message || "Falha ao carregar os jobs", "error");
+      if (!all.length) listLoadError(err, bound ? retryLoad : () => location.reload());
+      else notify(err.message || "Falha ao carregar os jobs", "error");
     }
   }
 
