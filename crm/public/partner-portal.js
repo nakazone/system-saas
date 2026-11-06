@@ -1618,7 +1618,7 @@
   /** The company's services (for "Service in … price list") and the builder's agreed prices, when not loaded yet. */
   async function loadQuoteRefs(s) {
     const jobs = [];
-    if (!(s.catalog && s.catalog.length)) jobs.push(api('/api/partner-portal/price-list').then((r) => { if (Array.isArray(r.data)) s.catalog = r.data; }).catch(() => {}));
+    if (!(s.catalog && s.catalog.length)) jobs.push(api('/api/partner-portal/price-list', state.builder && sendCo() ? { co: s.co || sendCo().id } : undefined).then((r) => { if (Array.isArray(r.data)) s.catalog = r.data; }).catch(() => {}));
     if (state.builder && canDo('money.view') && !(s.agreed && s.agreed.length) && sendCo()) {
       jobs.push(api(`/api/builder/prices?company=${encodeURIComponent(sendCo().id)}`).then((r) => { s.agreed = r.data || []; applyAgreed(s); }).catch(() => {}));
     }
@@ -6238,6 +6238,7 @@
       quantity: l.qty, uom: ({ steps: 'STEP', 'sq ft': 'SF', LF: 'LF' })[l.uom] || 'EA', rate: l.rate, total: null,
       // Without a service of the company's price list, the line is for this job only (no new services in their list).
       pricing_item_id: l.pricing_item_id || null, service_name: l.service_name || l.name.split(' · ')[0], create_service: Boolean(l.pricing_item_id), remove: false, from_meas: true,
+      ...(l.item ? { meas_item: l.item, meas_sec: l.sec } : {}),
     }));
     s.measurement = {
       id: m.id, address: m.address, status: m.status, counts: { ...c, floor_text: totals.map((t) => `${t.label} ${fmtSf(t.area)}`).join(' · ') },
@@ -6248,7 +6249,19 @@
       measured_by: m.completed_by || m.updated_by || m.created_by, measured_at: m.completed_at || m.updated_at,
     };
     s.useMeasurement = m.status !== 'used';
-    loadQuoteRefs(s).catch(() => {});
+    // Shower and countertop lines go to the same service in the company's list (no guessing on their side).
+    loadQuoteRefs(s).then(() => {
+      const kit = { Showers: window.ObShowers, Countertops: window.ObTops };
+      let n = 0;
+      (s.items || []).forEach((it) => {
+        const k = it.meas_item && kit[it.meas_sec];
+        if (!k || it.pricing_item_id) return;
+        const unitOf = (u) => (/sq|sf/i.test(u || '') ? 'SF' : /lin|lf/i.test(u || '') ? 'LF' : 'EA');
+        const c = k.matchPrice(it.meas_item, (s.catalog || []).filter((x) => unitOf(x.unit) === it.uom));
+        if (c) { it.pricing_item_id = c.id; it.service_name = c.name; it.create_service = true; n += 1; }
+      });
+      if (n && state.send === s) renderSendBody();
+    }).catch(() => {});
     s.fromMeas = { id: m.id, hasPlans: Boolean(plan && plan.file) };
     s.ai = false; s.mode = 'new'; s.phase = 'review'; s.step = 'measure';
     s.measData = m.data;
@@ -6555,10 +6568,10 @@
     // Showers and countertops: the same lines the company's Field Quote makes, priced from the agreed list.
     const UNIT = { sq_ft: 'sq ft', linear_ft: 'LF', each: 'EA' };
     if (window.ObShowers && (d.showers || []).length) {
-      window.ObShowers.quoteLines(d.showers).forEach((l) => out.push({ sec: 'Showers', name: l.name, spec: l.description, qty: l.quantity, uom: UNIT[l.unit] || 'EA', ...priced(window.ObShowers.matchPrice(l.item, prices)) }));
+      window.ObShowers.quoteLines(d.showers).forEach((l) => out.push({ sec: 'Showers', item: l.item, name: l.name, spec: l.description, qty: l.quantity, uom: UNIT[l.unit] || 'EA', ...priced(window.ObShowers.matchPrice(l.item, prices)) }));
     }
     if (window.ObTops && d.tops && (d.tops.pieces || []).length) {
-      window.ObTops.quoteLines(d.tops).forEach((l) => out.push({ sec: 'Countertops', name: l.name, spec: l.description, qty: l.quantity, uom: UNIT[l.unit] || 'EA', ...priced(window.ObTops.matchPrice(l.item, prices)) }));
+      window.ObTops.quoteLines(d.tops).forEach((l) => out.push({ sec: 'Countertops', item: l.item, name: l.name, spec: l.description, qty: l.quantity, uom: UNIT[l.unit] || 'EA', ...priced(window.ObTops.matchPrice(l.item, prices)) }));
     }
     return out;
   }
