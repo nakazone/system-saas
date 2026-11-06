@@ -81,22 +81,27 @@ const UOM_UNITS: Record<string, string[]> = {
 };
 
 function words(text: string): string[] {
-  return String(text || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" ").filter((w) => w.length > 1);
+  // Single digits count ("Level 1" is not "Level 2"; '4" Backsplash').
+  return String(text || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" ").filter((w) => w.length > 1 || /\d/.test(w));
 }
 
 /** A price-list item whose name is fully inside the line text and whose unit matches. */
 export function matchPricingItem(line: { description: string; detail: string; uom: string }, items: Array<{ id: string; name: string; unit: string }>) {
-  const hay = new Set(words(`${line.description} ${line.detail}`));
   const units = UOM_UNITS[line.uom.toUpperCase()] || [line.uom.toLowerCase()];
-  let best: { id: string; name: string; unit: string } | null = null;
-  let bestLen = 0;
-  for (const it of items) {
-    const w = words(it.name);
-    if (w.length < 2 || !w.every((x) => hay.has(x))) continue;
-    if (!units.includes(unitKey(it.unit))) continue;
-    if (w.length > bestLen) { best = it; bestLen = w.length; }
-  }
-  return best;
+  const find = (text: string) => {
+    const hay = new Set(words(text));
+    let best: { id: string; name: string; unit: string } | null = null;
+    let bestLen = 0;
+    for (const it of items) {
+      const w = words(it.name);
+      if (w.length < 2 || !w.every((x) => hay.has(x))) continue;
+      if (!units.includes(unitKey(it.unit))) continue;
+      if (w.length > bestLen) { best = it; bestLen = w.length; }
+    }
+    return best;
+  };
+  // The service name first: sizes in the detail ("3 cm", "96 × 25.5") must not pick another level.
+  return find(line.description) || find(`${line.description} ${line.detail}`);
 }
 
 function lineName(l: IntakeLine): string {

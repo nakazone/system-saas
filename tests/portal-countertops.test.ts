@@ -94,3 +94,20 @@ describe("the portal uses the same countertop quantities as the server", () => {
     expect(js).toContain("window.ObShowers.quoteLines(d.showers)");
   });
 });
+
+describe("the company's job lines from a countertop work order", () => {
+  it("links each line to the service of the same level and unit", async () => {
+    const { matchPricingItem } = await import("../src/lib/builders/jobs.js");
+    const list = [
+      { id: "l1", name: "Countertop – Level 1 (fabricate & install)", unit: "sq_ft" },
+      { id: "l2", name: "Countertop – Level 2 (fabricate & install)", unit: "sq_ft" },
+      { id: "l3", name: "Countertop – Level 3 (fabricate & install)", unit: "sq_ft" },
+      { id: "s4", name: '4" Backsplash', unit: "linear_ft" },
+      { id: "sf", name: "Full-Height Backsplash", unit: "sq_ft" },
+    ];
+    expect(matchPricingItem({ description: "Countertop – Level 2 (fabricate & install)", detail: "Sink wall · 96″ × 25.5″ · Quartz · 3 cm", uom: "SF" }, list)?.id).toBe("l2");
+    expect(matchPricingItem({ description: "Countertop – Level 1 (fabricate & install)", detail: "Island · 3 cm", uom: "SF" }, list)?.id).toBe("l1");
+    expect(matchPricingItem({ description: '4" Backsplash', detail: "Quartz · 3 cm", uom: "LF" }, list)?.id).toBe("s4");
+    expect(matchPricingItem({ description: "Countertop – Level 2 (fabricate & install)", detail: "", uom: "EA" }, list)).toBeNull();
+  });
+});
