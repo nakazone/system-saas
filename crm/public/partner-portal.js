@@ -4301,6 +4301,17 @@
   function measuresShowers() {
     return Boolean(window.__OM_TRADE && Array.isArray(window.__OM_TRADE.measureTabs) && window.__OM_TRADE.measureTabs.includes('showers'));
   }
+  /** Countertops companies measure countertops (the countertop builder) instead of stairs and vents. */
+  function measuresTops() {
+    return Boolean(window.__OM_TRADE && Array.isArray(window.__OM_TRADE.measureTabs) && window.__OM_TRADE.measureTabs.includes('countertops'));
+  }
+  function topsTotals(data) {
+    const t = data.tops && Array.isArray(data.tops.pieces) ? data.tops : null;
+    if (!t || !t.pieces.length || !window.ObTops) return { n: 0, sf: 0, edge: 0, cutouts: 0, splash: '', slabs: 0 };
+    const q = window.ObTops.quantities(t);
+    const sinks = (q.sinks.undermount || 0) + (q.sinks.farmhouse || 0) + (q.sinks.dropin || 0);
+    return { n: t.pieces.length, sf: q.sf, edge: q.edge_lf, cutouts: sinks + (q.cooktops || 0), splash: q.splash_lf ? `${q.splash_lf} LF` : q.splash_sf ? `${q.splash_sf} SF` : '', slabs: q.slabs };
+  }
   function showerTotals(data) {
     const Q = window.ObShowers ? (data.showers || []).map((x) => window.ObShowers.quantities(x)) : [];
     const sum = (k) => Math.round(Q.reduce((a, q) => a + q[k], 0) * 10) / 10;
@@ -4318,10 +4329,11 @@
     });
     const vents = (data.vents || []).reduce((a, v) => a + (v.qty || 1), 0);
     const landings = (data.stairs || []).filter((s) => s.landing && s.landing.enabled).length;
-    return { stairs: (data.stairs || []).filter((s) => !s.starts_on_landing_of).length, flights: (data.stairs || []).length, treads, risers, nosings, landings, vents, showers: (data.showers || []).length };
+    const tops = data.tops && Array.isArray(data.tops.pieces) ? data.tops.pieces.length : 0;
+    return { stairs: (data.stairs || []).filter((s) => !s.starts_on_landing_of).length, flights: (data.stairs || []).length, treads, risers, nosings, landings, vents, showers: (data.showers || []).length, tops };
   }
   function countsText(c) {
-    return [c.showers ? `${c.showers} ${c.showers === 1 ? 'shower' : 'showers'}` : '', c.stairs ? `${c.stairs} ${c.stairs === 1 ? 'stair' : 'stairs'}` : '', c.flights && c.flights > (c.stairs || 0) ? `${c.flights} flights` : '', c.treads ? `${c.treads} treads` : '', c.risers ? `${c.risers} risers` : '', c.nosings ? `${c.nosings} ${c.nosings === 1 ? 'nosing' : 'nosings'}` : '', c.landings ? `${c.landings} ${c.landings === 1 ? 'landing' : 'landings'}` : '', c.vents ? `${c.vents} ${c.vents === 1 ? 'vent' : 'vents'}` : '', c.floor_text || ''].filter(Boolean).join(' · ') || 'Nothing measured yet';
+    return [c.tops ? `${c.tops} ${c.tops === 1 ? 'countertop' : 'countertops'}` : '', c.showers ? `${c.showers} ${c.showers === 1 ? 'shower' : 'showers'}` : '', c.stairs ? `${c.stairs} ${c.stairs === 1 ? 'stair' : 'stairs'}` : '', c.flights && c.flights > (c.stairs || 0) ? `${c.flights} flights` : '', c.treads ? `${c.treads} treads` : '', c.risers ? `${c.risers} risers` : '', c.nosings ? `${c.nosings} ${c.nosings === 1 ? 'nosing' : 'nosings'}` : '', c.landings ? `${c.landings} ${c.landings === 1 ? 'landing' : 'landings'}` : '', c.vents ? `${c.vents} ${c.vents === 1 ? 'vent' : 'vents'}` : '', c.floor_text || ''].filter(Boolean).join(' · ') || 'Nothing measured yet';
   }
   /** Asks before deleting a measurement (photos and plans go with it). */
   function confirmMeasDelete(m, done) {
@@ -5717,6 +5729,24 @@
     }).join('') : '';
     const c = measCounts(d);
     const floorSec = sec('floors', 'Floor Plan', ft ? `${fmtSf(ft)} · ${totals.length} type${totals.length === 1 ? '' : 's'}` : '', floors, 'No floors yet — upload the house plans in Floor Plan to measure every room.');
+    if (measuresTops()) {
+      const t = d.tops && Array.isArray(d.tops.pieces) ? d.tops : null;
+      const tt = topsTotals(d);
+      let body = '';
+      if (t && t.pieces.length && window.ObTops) {
+        const x = window.ObTops.normalize(t);
+        const q = window.ObTops.quantities(t);
+        const kind = { run: 'Wall run', island: 'Island', vanity: 'Vanity' };
+        const r = (k, main, sub, qty, u) => row(`<span class="pp-skind">${k}</span>`, main, sub, `${qty}<small>${u}</small>`);
+        body = `<div class="pp-sgroup"><div class="pp-sgroup-h">${esc([x.spec.material, x.spec.color].filter(Boolean).join(' '))}<small>${esc(`${x.spec.thickness} · Level ${x.spec.level} · ${tt.slabs} slab${tt.slabs === 1 ? '' : 's'} (estimate)`)}</small></div><ul class="pp-srows">
+          ${x.pieces.map((p, i) => r(esc(kind[p.kind] || 'Top'), esc(p.name || `${kind[p.kind] || 'Top'} ${i + 1}`), esc(`${p.length}″ × ${p.depth + p.overhang}″${p.sink !== 'none' ? ` · ${p.sink === 'dropin' ? 'drop-in' : p.sink} sink` : ''}${p.cooktop ? ' · cooktop' : ''}`), q.per[i].sf, 'SF')).join('')}
+          ${q.edge_lf ? r('Edge', 'Finished edge', '', q.edge_lf, 'LF') : ''}
+          ${q.splash_lf ? r('Splash', 'Backsplash 4″', '', q.splash_lf, 'LF') : q.splash_sf ? r('Splash', 'Full-height backsplash', '', q.splash_sf, 'SF') : ''}
+          ${r('Cutouts', 'Sinks · cooktops · holes', '', `${tt.cutouts - (q.cooktops || 0)} · ${q.cooktops || 0} · ${q.faucet_holes || 0}`, 'EA')}</ul></div>`;
+      }
+      return `${sec('countertops', 'Countertops', tt.n ? `${tt.n} piece${tt.n === 1 ? '' : 's'} · ${tt.sf.toLocaleString('en-US')} SF of stone` : '', body, 'No countertops measured.')}
+      ${floorSec}`;
+    }
     if (measuresShowers()) {
       const shs = d.showers || [];
       const sh = showerTotals(d);
@@ -5806,10 +5836,10 @@
     const photos = [];
     (d.stairs || []).forEach((st) => (st.photos || []).forEach((k) => photos.push({ k, label: st.name || 'Stair', tab: 'stairs' })));
     (d.vents || []).forEach((v) => (v.photos || []).forEach((k) => photos.push({ k, label: v.room ? `Vent · ${v.room}` : 'Vent', tab: 'vents' })));
-    const empty = !ft && !c.treads && !c.risers && !c.vents && !c.showers;
+    const empty = !ft && !c.treads && !c.risers && !c.vents && !c.showers && !c.tops;
     const status = m.status === 'used' ? ['Sent with the Work Order', 'It’s part of the job now.']
       : m.status === 'done' ? ['Complete — ready to send', 'Send it with a Work Order, or reopen it to change something.']
-      : empty ? ['Nothing measured yet', measuresShowers() ? 'Start with Showers or the Floor Plan — it all comes together here.' : 'Start with Floors, Stairs or Vents — it all comes together here.']
+      : empty ? ['Nothing measured yet', measuresTops() ? 'Start with Countertops or the Floor Plan — it all comes together here.' : measuresShowers() ? 'Start with Showers or the Floor Plan — it all comes together here.' : 'Start with Floors, Stairs or Vents — it all comes together here.']
       : ['In progress', 'Check what goes on the Work Order, then complete it.'];
     const quotePdf = plan && plan.quote_link_id && canDo('money.view') ? `/api/builder/measurements/${encodeURIComponent(m.id)}/quote-pdf?company=${encodeURIComponent(plan.quote_link_id)}` : '';
     return `<div class="pp-msum">
@@ -5823,7 +5853,9 @@
             ${locked || m.status === 'done' || empty ? '' : '<button type="button" class="pp-btn pp-btn--pri" data-sum-done>Complete</button>'}
           </div>
         </section>
-        <div class="pp-mkpis pp-mkpis--6">${measuresShowers()
+        <div class="pp-mkpis pp-mkpis--6">${measuresTops()
+          ? (() => { const tt = topsTotals(d); return `${tile(tt.n, 'Countertops', 'countertops')}${tile(tt.sf ? `${tt.sf.toLocaleString('en-US')} SF` : 0, 'Stone', 'countertops')}${tile(tt.edge ? `${tt.edge.toLocaleString('en-US')} LF` : 0, 'Finished edge', 'countertops')}${tile(tt.cutouts, 'Sink & cooktop', 'countertops')}${tile(tt.splash || 0, 'Backsplash', 'countertops')}${tile(ft ? fmtSf(ft) : 0, 'Floor Plan', 'floors')}`; })()
+          : measuresShowers()
           ? (() => { const sh = showerTotals(d); return `${tile(ft ? fmtSf(ft) : 0, 'Floor Plan', 'floors')}${tile(sh.n, 'Showers', 'showers')}${tile(sh.wall ? `${sh.wall.toLocaleString('en-US')} SF` : 0, 'Shower walls', 'showers')}${tile(sh.floor ? `${sh.floor.toLocaleString('en-US')} SF` : 0, 'Shower floors', 'showers')}${tile(sh.wp ? `${sh.wp.toLocaleString('en-US')} SF` : 0, 'Waterproofing', 'showers')}${tile(sh.niches, 'Niches', 'showers')}`; })()
           : `${tile(ft ? fmtSf(ft) : 0, 'Floor Plan', 'floors')}${tile(c.treads, 'Treads', 'stairs')}${tile(c.risers, 'Risers', 'stairs')}${tile(c.nosings, 'Nosings', 'stairs')}${tile(c.landings, 'Landings', 'stairs')}${tile(c.vents, 'Vents', 'vents')}`}</div>
         <div class="pp-msum-grid">
@@ -7139,6 +7171,7 @@
       ${locked ? `<div class="pp-match"><strong>This measurement was already sent with the Work Order</strong><span class="pp-muted" style="font-size:14px">${m.work_order_id ? `<a class="pp-link" href="#jobs/${encodeURIComponent(m.work_order_id)}">Open the job</a> · ` : ''}To measure again, start a new measurement for this address.</span></div>` : ''}
       <div class="pp-mtabs" role="tablist" aria-label="Measurement sections">
         ${TABS.map((k) => k === 'showers' ? tab('showers', 'Showers', c.showers || null)
+          : k === 'countertops' ? tab('countertops', 'Countertops', c.tops || null)
           : k === 'stairs' ? tab('stairs', 'Stairs', c.treads + c.risers ? `${c.treads}·${c.risers}` : null)
           : k === 'vents' ? tab('vents', 'Vents', c.vents || null)
           : k === 'floors' ? tab('floors', '<span><span class="pp-hide-phone">Floor </span>Plan</span>', ft ? (ft >= 1000 ? `${(Math.round(ft / 100) / 10).toLocaleString('en-US')}k sf` : `${Math.round(ft)} sf`) : null)
@@ -7148,6 +7181,7 @@
         ${m.tab === 'stairs'
           ? `<div class="pp-meas-layout pp-meas-layout--stairs"><div class="pp-meas-main">${stairsWorkbenchHtml(m)}${locked ? '' : `<div class="pp-stair-adds"><button type="button" class="pp-q-add pp-q-add--block" id="ppStairAdd">+ Stair</button>${state.builder && state.builder.ai_reader ? `<button type="button" class="pp-q-add pp-q-add--block pp-stair-photo-btn" id="ppStairPhotos">${icon('camera')}Stair from photos</button>` : ''}</div>`}</div></div>`
           : m.tab === 'showers' ? (window.ObShowers ? window.ObShowers.html(m) : '<div class="pp-empty">Showers could not load.</div>')
+          : m.tab === 'countertops' ? (window.ObTops ? window.ObTops.html(m) : '<div class="pp-empty">Countertops could not load. Reload the page.</div>')
           : m.tab === 'vents' ? ventsHtml(m) : m.tab === 'floors' ? floorsHtml(m) : measSummaryTabHtml(m)}
       </div>
       ${locked || !state.builder.ai_reader ? '' : voiceFabHtml()}`;
@@ -7285,6 +7319,7 @@
     const m = state.meas;
     const redraw = () => { const y = window.scrollY; paintMeasurement(); window.scrollTo(0, y); };
     if (m.tab === 'showers' && window.ObShowers) window.ObShowers.bind(view, m, { save: measSaveSoon, redraw });
+    if (m.tab === 'countertops' && window.ObTops) window.ObTops.bind(view, m, { save: measSaveSoon, redraw });
     m.vizSel = m.vizSel || {};
     m.vizMirror = m.vizMirror || {};
     m.stairMeasurementsExpanded = m.stairMeasurementsExpanded || {};

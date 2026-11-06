@@ -143,7 +143,8 @@ export const countertops: TradePack = {
       edge: ["Eased", "Bevel", "Half bullnose", "Ogee", "Mitered"],
     },
   },
-  measurement: { tabs: ["floors", "summary"] },
+  // ObraBuilder measurement: countertops (the countertop builder) and the floor plan.
+  measurement: { tabs: ["countertops", "floors", "summary"] },
   // Production pay by item: install crews are usually paid per piece of the job.
   payroll: {
     pieceItems: [

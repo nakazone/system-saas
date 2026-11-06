@@ -13,6 +13,7 @@ import type { ActiveMember } from "./accounts.js";
 import { BuilderError } from "./accounts.js";
 import { fmtSf, planSchema, planTotals, takeoffSettings, withWaste, type Plan } from "./takeoff.js";
 import { SHAPE_INFO, showerQuantities, showerSchema, showerSummaryLines } from "../trades/packs/tile/shower.js";
+import { normalizeTops, topName, topsQuantities, topsSummaryLines, type Tops } from "../trades/packs/countertops/tops.js";
 
 type MeasurementPdfDocument = InstanceType<typeof PDFDocument>;
 
@@ -99,6 +100,15 @@ export const measurementDataSchema = z.object({
   vents: z.array(ventSchema).max(80).optional().default([]),
   /** Showers (Tile shower builder, see trades/packs/tile/shower.ts). */
   showers: z.array(showerSchema).max(20).optional().default([]),
+  /** Countertops (countertop builder, see trades/packs/countertops/tops.ts): null until a piece is drawn. */
+  tops: z
+    .unknown()
+    .optional()
+    .transform((v): Tops | null => {
+      if (v == null) return null;
+      const t = normalizeTops(v);
+      return t.pieces.length ? t : null;
+    }),
   /** Floor plan takeoff (see takeoff.ts). */
   plan: planSchema.nullable().optional().default(null),
   /** Who took the measurements on site and when (names typed or picked from the team). */
@@ -113,7 +123,7 @@ export type Vent = z.infer<typeof ventSchema>;
 
 export function parseData(raw: unknown): MeasurementData {
   const parsed = measurementDataSchema.safeParse(raw ?? {});
-  if (!parsed.success) return { stairs: [], vents: [], showers: [], plan: null, measured: { names: [], on: "" } };
+  if (!parsed.success) return { stairs: [], vents: [], showers: [], tops: null, plan: null, measured: { names: [], on: "" } };
   const data = parsed.data;
   const byId = new Map(data.stairs.map((stair) => [stair.id, stair]));
   for (const stair of data.stairs) {
@@ -171,7 +181,7 @@ export function openLabel(open: string, ret: string): string {
   return `${OPEN_LABEL[open] || open} · ${RET_LABEL[ret] || ret}`;
 }
 
-export type SummaryLine = { kind: "tread" | "riser" | "nosing" | "landing" | "vent" | "floor" | "shower"; text: string; qty: number; uom: "EA" | "LF" | "SF" };
+export type SummaryLine = { kind: "tread" | "riser" | "nosing" | "landing" | "vent" | "floor" | "shower" | "top"; text: string; qty: number; uom: "EA" | "LF" | "SF" };
 
 function treadSteps(stair: Stair) {
   return stair.steps.filter((step) => step.kind !== "riser" && (step.tread_w || step.tread_d));
@@ -225,6 +235,7 @@ export function summarize(data: MeasurementData): SummaryLine[] {
   }
   for (const [k, n] of vents) out.push({ kind: "vent", qty: n, uom: "EA", text: k });
   for (const sh of data.showers) out.push(...showerSummaryLines(sh));
+  if (data.tops) out.push(...topsSummaryLines(data.tops));
   for (const t of planTotals(data.plan)) {
     if (!t.include) continue;
     const where = t.levels.map((l) => `${l.name} ${fmtSf(l.area_sf)}`).join(" · ");
@@ -255,7 +266,23 @@ export function counts(data: MeasurementData) {
   const shower_wall_sf = Math.round(showerQ.reduce((a, q) => a + q.wall_sf, 0) * 10) / 10;
   // A flight that starts on another flight's landing is part of that stair, not a stair of its own.
   const stairCount = data.stairs.filter((s) => !s.starts_on_landing_of).length;
-  return { stairs: stairCount, flights: data.stairs.length, treads, risers, nosings, landings, vents, showers, shower_wall_sf, floor_sf, floor_text, plan: Boolean(data.plan && data.plan.file) };
+  const topsQ = data.tops ? topsQuantities(data.tops) : null;
+  return {
+    stairs: stairCount,
+    flights: data.stairs.length,
+    treads,
+    risers,
+    nosings,
+    landings,
+    vents,
+    showers,
+    shower_wall_sf,
+    tops: data.tops ? data.tops.pieces.length : 0,
+    tops_sf: topsQ ? topsQ.sf : 0,
+    floor_sf,
+    floor_text,
+    plan: Boolean(data.plan && data.plan.file),
+  };
 }
 
 /** Text for the job notes, in the words a work order uses (e.g. "48" – double returns – 8 EA"). */
@@ -441,7 +468,9 @@ export async function completeMeasurement(member: ActiveMember, measurementId: s
   const row = await own(member, measurementId);
   if (row.status === "used") throw new BuilderError(409, "This measurement was already sent with a job.");
   const data = parseData(row.data);
-  if (done && !data.stairs.length && !data.vents.length && !data.showers.length && !planTotals(data.plan).some((t) => t.include)) throw new BuilderError(400, "Measure at least one stair, vent or floor.");
+  if (done && !data.stairs.length && !data.vents.length && !data.showers.length && !data.tops && !planTotals(data.plan).some((t) => t.include)) {
+    throw new BuilderError(400, "Nothing is measured yet. Measure at least one item, then complete.");
+  }
   await prisma.builderMeasurement.update({
     where: { id: row.id },
     data: done
@@ -977,6 +1006,7 @@ export async function measurementPdf(m: PdfInput): Promise<Buffer> {
   if (cnt.treads || cnt.risers) tiles.push({ label: "Stairs", big: `${cnt.treads} treads`, small: `${cnt.risers} risers · ${cnt.nosings} nosings` });
   if (cnt.vents) tiles.push({ label: "Vents", big: `${cnt.vents}`, small: "registers" });
   if (cnt.showers) tiles.push({ label: "Shower wall tile", big: sf(cnt.shower_wall_sf), small: `${cnt.showers} ${cnt.showers === 1 ? "shower" : "showers"}` });
+  if (cnt.tops) tiles.push({ label: "Countertops", big: sf(cnt.tops_sf), small: `${cnt.tops} ${cnt.tops === 1 ? "piece" : "pieces"}` });
   if (tiles.length) {
     const per = Math.min(4, Math.max(3, tiles.length)); const gap = 10; const tw = (W - gap * (per - 1)) / per; const th = 58;
     const top = doc.y;
@@ -1202,6 +1232,22 @@ export async function measurementPdf(m: PdfInput): Promise<Buffer> {
       ].map((r) => r.map((c) => ascii(c))),
     );
     if (sh.note) doc.font("Helvetica").fontSize(9).fillColor(C.muted).text(ascii(sh.note), L, doc.y + 4, { width: W });
+  }
+
+  /* ── countertops (countertop builder): one table for the job ── */
+  if (m.data.tops) {
+    const t = m.data.tops;
+    const q = topsQuantities(t);
+    section("Countertops", [t.spec.material, t.spec.color, t.spec.thickness, `level ${t.spec.level}`, `${q.slabs} slab${q.slabs === 1 ? "" : "s"} (estimate)`].filter(Boolean).join(" · "));
+    table(
+      [{ w: 300, label: "Piece" }, { w: 120, label: "Size", align: "right" }, { w: 112, label: "Quantity", align: "right" }],
+      [
+        ...t.pieces.map((p, i) => [topName(p, i), `${p.length}" × ${p.depth}"${p.overhang ? ` +${p.overhang}"` : ""}`, `${q.per[i]!.sf} SF`]),
+        ...topsSummaryLines(t)
+          .slice(t.pieces.length)
+          .map((l) => [l.text, "", `${l.qty} ${l.uom}`]),
+      ].map((r) => r.map((c) => ascii(c))),
+    );
   }
 
   /* ── footer on every page ── */

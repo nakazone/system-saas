@@ -146,7 +146,7 @@ export type TradePack = {
    * closing that phase marks the job's reserved slabs as used.
    */
   inventory?: { slabs?: boolean; usedAtPhase?: string };
-  measurement?: { tabs: readonly ("stairs" | "vents" | "showers" | "floors" | "summary")[] };
+  measurement?: { tabs: readonly ("stairs" | "vents" | "showers" | "countertops" | "floors" | "summary")[] };
   combinedPhaseKey: string;
   ai: {
     /** How the assistant describes the product's customers, e.g. "flooring installation companies". */

@@ -25,7 +25,7 @@
     'Tear-out': 'Retirar bancada antiga', Quantities: 'Quantidades', 'whole job': 'job todo', 'Edges': 'Bordas', Cutouts: 'Cutouts', Supports: 'Suportes', Seams: 'Emendas', Slabs: 'Slabs (estimativa)',
     'sinks, cooktop, holes': 'cubas, cooktop, furos', 'cabinet line': 'linha do armário', 'over 10″ needs support': 'acima de 10″ precisa de suporte',
     'No countertops yet': 'Nenhuma bancada medida', 'Add each run, island and vanity — square feet, edges, cutouts and backsplash come out on their own.': 'Adicione cada bancada, ilha e banheiro — pé², bordas, cutouts e rodabanca saem sozinhos.',
-    '+ Run': '+ Bancada', '+ Island': '+ Ilha', '+ Vanity': '+ Banheiro', 'this countertop?': 'esta bancada?', 'Tap again to remove': 'Toque de novo para remover', SF: 'pé²', LF: 'pé lin.', 'Kitchen run': 'Bancada da pia', 'Hall bath vanity': 'Banheiro social',
+    '+ Run': '+ Bancada', '+ Island': '+ Ilha', '+ Vanity': '+ Banheiro', 'this countertop?': 'esta bancada?', 'Tap again to remove': 'Toque de novo para remover', 'Kitchen island': 'Ilha da cozinha', SF: 'pé²', LF: 'pé lin.', 'Kitchen run': 'Bancada da pia', 'Hall bath vanity': 'Banheiro social',
     'Estimate before the template — the shop confirms seams and slabs.': 'Estimativa antes do template — a oficina confirma emendas e slabs.',
   };
   const ES = {
@@ -39,7 +39,7 @@
     'Tear-out': 'Quitar encimera vieja', Quantities: 'Cantidades', 'whole job': 'todo el trabajo', Edges: 'Bordes', Cutouts: 'Cortes', Supports: 'Soportes', Seams: 'Uniones', Slabs: 'Slabs (estimado)',
     'sinks, cooktop, holes': 'fregaderos, cooktop, agujeros', 'cabinet line': 'línea del gabinete', 'over 10″ needs support': 'más de 10″ necesita soporte',
     'No countertops yet': 'Ninguna encimera medida', 'Add each run, island and vanity — square feet, edges, cutouts and backsplash come out on their own.': 'Agregue cada encimera, isla y baño — pie², bordes, cortes y salpicadero salen solos.',
-    '+ Run': '+ Encimera', '+ Island': '+ Isla', '+ Vanity': '+ Baño', 'this countertop?': 'esta encimera?', 'Tap again to remove': 'Toque otra vez para quitar', SF: 'pie²', LF: 'pie lin.', 'Kitchen run': 'Encimera del fregadero', 'Hall bath vanity': 'Baño de visitas',
+    '+ Run': '+ Encimera', '+ Island': '+ Isla', '+ Vanity': '+ Baño', 'this countertop?': 'esta encimera?', 'Tap again to remove': 'Toque otra vez para quitar', 'Kitchen island': 'Isla de cocina', SF: 'pie²', LF: 'pie lin.', 'Kitchen run': 'Encimera del fregadero', 'Hall bath vanity': 'Baño de visitas',
     'Estimate before the template — the shop confirms seams and slabs.': 'Estimado antes del template — el taller confirma uniones y slabs.',
   };
   const DICT = { pt: PT, es: ES };
@@ -305,7 +305,7 @@
         </div>
         <div class="ps-col">
           <section class="ps-card"><h2>${esc(T('Countertop'))}<button type="button" class="ps-link" data-ct-del>${esc(T('Remove'))}</button></h2>
-            <label class="ps-name"><span>${esc(T('Name'))}</span><input type="text" maxlength="80" data-ct-field="name" value="${esc(p.name)}" placeholder="${esc(T(p.kind === 'vanity' ? 'Hall bath vanity' : 'Kitchen run'))}" /></label>
+            <label class="ps-name"><span>${esc(T('Name'))}</span><input type="text" maxlength="80" data-ct-field="name" value="${esc(p.name)}" placeholder="${esc(T(p.kind === 'vanity' ? 'Hall bath vanity' : p.kind === 'island' ? 'Kitchen island' : 'Kitchen run'))}" /></label>
             <div class="ps-seg" role="group" aria-label="${esc(T('Kind'))}">${Object.keys(KINDS).map((k) => `<button type="button" data-ct-kind="${k}" class="${k === p.kind ? 'is-on' : ''}" aria-pressed="${k === p.kind}">${esc(T(KINDS[k].label))}</button>`).join('')}</div>
             <div class="ps-dims">${numIn('length', T('Length'), p.length)}${numIn('depth', T('Depth'), p.depth)}${numIn('overhang', T('Bar overhang'), p.overhang)}</div>
             <div class="ct-hint">${supportHint(p, t.spec)}</div>
@@ -356,7 +356,7 @@
   }
 
   function ensureCss() {
-    [['ppShowersCss', '/partner-portal-showers.css?v=20261105-mg3'], ['ctTopsCss', '/countertop-builder.css?v=20261105-mg1']].forEach(([id, href]) => {
+    [['ppShowersCss', '/partner-portal-showers.css?v=20261105-pt1'], ['ctTopsCss', '/countertop-builder.css?v=20261105-mg1']].forEach(([id, href]) => {
       if (document.getElementById(id)) return;
       const l = document.createElement('link');
       l.id = id;

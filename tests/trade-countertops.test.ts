@@ -64,7 +64,7 @@ describe("Countertops pack", () => {
     expect(t.jobPhases.map((p: { key: string }) => p.key)).toEqual(["selection", "site_ready", "template", "layout_approval", "fabrication", "shop_qc", "install", "signoff"]);
     expect(t.takeoff.measuredKinds).toEqual([]);
     expect(t.quote.sections.map((s: { key: string }) => s.key)).toEqual(["supply", "tops", "edges", "cutouts", "backsplash", "prep", "add_on"]);
-    expect(t.measureTabs).toEqual(["floors", "summary"]);
+    expect(t.measureTabs).toEqual(["countertops", "floors", "summary"]);
   });
 
   it("work order prompt asks for the same JSON keys as the other packs (same reader)", () => {

@@ -132,3 +132,41 @@ export function topsQuantities(raw: unknown) {
     slabs: sf ? Math.ceil((sf * 1.2 + (t.spec.splash === "full" ? (splashLf * t.spec.full_h) / 12 : 0)) / SLAB_SF) : 0,
   };
 }
+
+const KIND_LABEL: Record<TopKind, string> = { run: "Wall run", island: "Island", vanity: "Vanity" };
+const EDGE_LABEL: Record<TopSpec["edge"], string> = { eased: "Eased", bevel: "Bevel / half bullnose", ogee: "Ogee / full bullnose", mitered: "Mitered" };
+const SINK_LABEL: Record<TopPiece["sink"], string> = { none: "", undermount: "undermount sink", farmhouse: "farmhouse sink", dropin: "drop-in sink" };
+
+/** "Wall run" / "Island" / "Vanity", or the name the person gave the piece. */
+export function topName(p: TopPiece, i: number): string {
+  return p.name || `${KIND_LABEL[p.kind]} ${i + 1}`;
+}
+
+/**
+ * Countertops in the words a work order uses (builder measurement summary, job notes):
+ * one line per piece in SF, then edges, backsplash, cutouts and the rest for the whole job.
+ */
+export function topsSummaryLines(raw: unknown): { kind: "top"; text: string; qty: number; uom: "SF" | "LF" | "EA" }[] {
+  const t = normalizeTops(raw);
+  if (!t.pieces.length) return [];
+  const q = topsQuantities(t);
+  const stone = [t.spec.material, t.spec.color, t.spec.thickness, `level ${t.spec.level}`].filter(Boolean).join(" · ");
+  const out: { kind: "top"; text: string; qty: number; uom: "SF" | "LF" | "EA" }[] = t.pieces.map((p, i) => {
+    const extras = [SINK_LABEL[p.sink], p.cooktop ? "cooktop" : "", p.overhang ? `${p.overhang}" overhang` : "", p.waterfall.left || p.waterfall.right ? "waterfall" : ""].filter(Boolean);
+    return { kind: "top", qty: q.per[i]!.sf, uom: "SF", text: `${topName(p, i)} · ${p.length}" × ${p.depth}"${extras.length ? ` · ${extras.join(" · ")}` : ""} · ${stone}` };
+  });
+  if (q.edge_lf) out.push({ kind: "top", qty: q.edge_lf, uom: "LF", text: `Edge · ${EDGE_LABEL[t.spec.edge]}` });
+  if (q.splash_lf) out.push({ kind: "top", qty: q.splash_lf, uom: "LF", text: 'Backsplash 4"' });
+  if (q.splash_sf) out.push({ kind: "top", qty: q.splash_sf, uom: "SF", text: `Full-height backsplash · ${t.spec.full_h}"` });
+  if (q.waterfalls) out.push({ kind: "top", qty: q.waterfalls, uom: "EA", text: "Waterfall side" });
+  const sinks = q.sinks.undermount + q.sinks.farmhouse + q.sinks.dropin;
+  if (sinks) out.push({ kind: "top", qty: sinks, uom: "EA", text: `Sink cutout${q.sinks.farmhouse ? ` (${q.sinks.farmhouse} farmhouse)` : ""}${q.sinks.dropin ? ` (${q.sinks.dropin} drop-in)` : ""}` });
+  if (q.cooktops) out.push({ kind: "top", qty: q.cooktops, uom: "EA", text: "Cooktop cutout" });
+  if (q.faucet_holes) out.push({ kind: "top", qty: q.faucet_holes, uom: "EA", text: "Faucet hole" });
+  if (q.outlets) out.push({ kind: "top", qty: q.outlets, uom: "EA", text: "Outlet cutout" });
+  if (q.supports) out.push({ kind: "top", qty: q.supports, uom: "EA", text: "Overhang support / corbel" });
+  if (q.seams) out.push({ kind: "top", qty: q.seams, uom: "EA", text: "Seam (estimate, the template decides)" });
+  if (t.spec.tearout) out.push({ kind: "top", qty: 1, uom: "EA", text: "Remove old countertops" });
+  out.push({ kind: "top", qty: q.slabs, uom: "EA", text: "Slabs (estimate +20%, the shop confirms)" });
+  return out;
+}

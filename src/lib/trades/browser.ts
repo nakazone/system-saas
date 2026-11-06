@@ -57,5 +57,5 @@ export function builderMeasureTabs(companyTrades: readonly unknown[]): string[] 
   if (!packs.some((p) => p.measurement)) return undefined;
   const wanted = new Set<string>();
   for (const p of packs) for (const t of p.measurement?.tabs ?? HARDWOOD_TABS) wanted.add(t);
-  return ["stairs", "vents", "showers", "floors", "summary"].filter((t) => wanted.has(t));
+  return ["stairs", "vents", "showers", "countertops", "floors", "summary"].filter((t) => wanted.has(t));
 }
