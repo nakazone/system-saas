@@ -88,9 +88,12 @@ function timeLabel(d: Date | null | undefined, tz: string): string | null {
   return new Intl.DateTimeFormat("pt-BR", { timeZone: tz, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d);
 }
 
-const WEEKDAYS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+const MONTHS_SHORT = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+/** e.g. "Qui, 05/Nov" */
 function dateLabel(workDate: Date): string {
-  return `${WEEKDAYS[workDate.getUTCDay()]}, ${workDate.getUTCDate()}/${String(workDate.getUTCMonth() + 1).padStart(2, "0")}`;
+  const day = String(workDate.getUTCDate()).padStart(2, "0");
+  return `${WEEKDAYS[workDate.getUTCDay()]}, ${day}/${MONTHS_SHORT[workDate.getUTCMonth()]}`;
 }
 
 function gpsFrom(body: Record<string, unknown>): Gps {

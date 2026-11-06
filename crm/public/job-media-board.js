@@ -74,6 +74,11 @@
   let canEditMedia = false;
   /** ObraCrew shell: calendar jobs only, ticket links, no office chrome. */
   let crewMode = false;
+  /** Crew week strip (same shape as Campo Agenda). */
+  let crewWeekStart = null;
+  let crewSelectedYmd = null;
+  let crewAgendaDays = [];
+  let crewRangeLabel = "";
 
   function jobOpenHref(id, hash) {
     if (crewMode) return `/campo/ticket.html?id=${encodeURIComponent(id)}`;
@@ -497,7 +502,29 @@
   function lastPhotoTime(j) {
     return j.last_photo ? new Date(j.last_photo.created_at).getTime() : 0;
   }
+  function jobAnchorIso(j) {
+    return (window.JobsInfo && window.JobsInfo.listAnchorIso ? window.JobsInfo.listAnchorIso(j) : null) || j.scheduled_start || j.sand_scheduled_start || null;
+  }
+  function jobYmd(j) {
+    const iso = jobAnchorIso(j);
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
   function cmpJobs(a, b) {
+    if (crewMode) {
+      if (mode === "done") {
+        const ta = new Date(a.updated_at || a.scheduled_end || jobAnchorIso(a) || 0).getTime();
+        const tb = new Date(b.updated_at || b.scheduled_end || jobAnchorIso(b) || 0).getTime();
+        return tb - ta;
+      }
+      // Em produção: próximas datas primeiro; sem data no fim.
+      const ta = jobAnchorIso(a) ? new Date(jobAnchorIso(a)).getTime() : Number.POSITIVE_INFINITY;
+      const tb = jobAnchorIso(b) ? new Date(jobAnchorIso(b)).getTime() : Number.POSITIVE_INFINITY;
+      if (ta !== tb) return ta - tb;
+      return listWho(a).localeCompare(listWho(b), "pt-BR", { sensitivity: "base" });
+    }
     if (listPref.sort === "name") return listWho(a).localeCompare(listWho(b), "pt-BR", { sensitivity: "base" });
     if (listPref.sort === "schedule") {
       const ta = a.scheduled_start ? new Date(a.scheduled_start).getTime() : Infinity;
@@ -508,8 +535,65 @@
   }
   /** Jobs in the current tab (Ativos / Concluídos) that match the search, before the quick filter. */
   function baseJobs() {
-    const hit = jobs.filter(jobHit);
+    let hit = jobs.filter(jobHit);
+    if (crewMode && crewSelectedYmd) {
+      hit = hit.filter((j) => jobYmd(j) === crewSelectedYmd);
+    }
     return mode === "done" ? hit.filter((j) => j.status === "completed") : hit.filter(isActive);
+  }
+
+  function renderCrewWeek() {
+    const host = $("camWeek");
+    const strip = $("camWeekStrip");
+    const label = $("camWeekLabel");
+    if (!host || !strip) return;
+    if (!crewMode) {
+      host.hidden = true;
+      return;
+    }
+    host.hidden = false;
+    if (label) {
+      label.textContent = crewRangeLabel ? `Esta semana · ${crewRangeLabel}` : "Esta semana";
+    }
+    strip.innerHTML = (crewAgendaDays || [])
+      .map((d) => {
+        const on = d.ymd === crewSelectedYmd;
+        const dots = (d.dots || [])
+          .map((t) => `<span class="cam-day-chip__dot${t === "orange" ? " cam-day-chip__dot--warn" : ""}"></span>`)
+          .join("");
+        return `<button type="button" class="cam-day-chip${on ? " is-active" : ""}" data-cam-ymd="${esc(d.ymd)}" role="tab" aria-selected="${on}">
+          <span class="cam-day-chip__name">${esc(d.label)}</span>
+          <span class="cam-day-chip__num">${esc(String(d.day_num))}</span>
+          <span class="cam-day-chip__dots">${dots}</span>
+        </button>`;
+      })
+      .join("");
+  }
+  async function loadCrewAgenda() {
+    if (!crewMode) return;
+    try {
+      const params = new URLSearchParams();
+      if (crewWeekStart) params.set("week", crewWeekStart);
+      if (crewSelectedYmd) params.set("day", crewSelectedYmd);
+      const r = await api(`/api/campo/agenda?${params}`);
+      const data = r.data || r;
+      crewWeekStart = data.week_start || crewWeekStart;
+      crewSelectedYmd = data.selected_day || crewSelectedYmd;
+      crewAgendaDays = data.days || [];
+      crewRangeLabel = data.range_label || crewRangeLabel;
+      renderCrewWeek();
+      renderList();
+    } catch (_) {
+      /* board list still works without the strip */
+    }
+  }
+  function shiftCrewWeek(delta) {
+    if (!crewWeekStart) return;
+    const d = new Date(crewWeekStart + "T12:00:00");
+    d.setDate(d.getDate() + delta * 7);
+    crewWeekStart = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    crewSelectedYmd = crewWeekStart;
+    void loadCrewAgenda();
   }
 
   function groups() {
@@ -583,8 +667,11 @@
       })
       .join("");
     $("camRows").removeAttribute("aria-busy");
-    const emptyCrew =
-      mode === "done" ? "Nenhum trabalho recente." : "Nenhum trabalho em produção.";
+    const emptyCrew = crewSelectedYmd
+      ? "Nenhuma obra neste dia."
+      : mode === "done"
+        ? "Nenhum trabalho recente."
+        : "Nenhum trabalho em produção.";
     $("camRows").innerHTML =
       html ||
       `<p class="cam-empty">${
@@ -2048,6 +2135,15 @@
         if (mode === "photos" && pane === "photos") renderFeed();
       }, 160);
     });
+    $("camWeekPrev")?.addEventListener("click", () => shiftCrewWeek(-1));
+    $("camWeekNext")?.addEventListener("click", () => shiftCrewWeek(1));
+    $("camWeekStrip")?.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-cam-ymd]");
+      if (!btn || !crewMode) return;
+      crewSelectedYmd = btn.getAttribute("data-cam-ymd");
+      renderCrewWeek();
+      renderList();
+    });
     $("camDetail").addEventListener("click", (e) => {
       if (e.target.closest("[data-cam-back]")) {
         e.preventDefault();
@@ -2265,11 +2361,15 @@
         listPref.sort = "schedule";
         listPref.group = "status";
         q = "";
-        if ($("camQ")) $("camQ").value = "";
+        if ($("camQ")) {
+          $("camQ").value = "";
+          $("camQ").placeholder = "Buscar obra ou endereço";
+        }
         if (mode === "photos") mode = "active";
         savePref();
         const modeHost = $("camMode");
         if (modeHost) modeHost.setAttribute("aria-label", "Em produção ou últimos trabalhos");
+        void loadCrewAgenda();
       }
       const add = $("camAddJob");
       if (add) add.hidden = !canManage;

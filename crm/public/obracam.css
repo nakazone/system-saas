@@ -522,11 +522,10 @@ html body.cam-selecting .oc-tabs.om-shell-tabs { display: none; }
 @keyframes cam-fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes cam-fade-out { from { opacity: 1; } to { opacity: 0; } }
 
-/* ObraCrew: ObraCam = job list + Em produção / Últimos trabalhos only */
+/* ObraCrew: ObraCam = search + week calendar + Em produção / Últimos trabalhos */
 body.om-field-nav.cam-app .cam-top,
 body.om-field-nav.cam-app .cam-add,
 body.om-field-nav.cam-app .cam-order,
-body.om-field-nav.cam-app .cam-search,
 body.om-field-nav.cam-app .cam-filters,
 body.om-field-nav.cam-app .cam-grp,
 body.om-field-nav.cam-app .dashboard-sidebar,
@@ -536,12 +535,117 @@ body.om-field-nav.cam-app #mobileOverlay {
 body.om-field-nav.cam-app .cam-list__top {
   padding: 0 0 10px;
   border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
+body.om-field-nav.cam-app .cam-search {
+  display: flex !important;
+  margin: 0;
+}
+body.om-field-nav.cam-app #cam#cam .cam-search input[type="search"] {
+  height: 44px;
+  font-size: 16px;
+  background: var(--cam-card, #fff);
+  box-shadow: 0 0 0 1px var(--cam-line, #e5e7eb);
+}
+body.om-field-nav.cam-app .cam-week {
+  display: block;
+}
+body.om-field-nav.cam-app .cam-week[hidden] {
+  display: none !important;
+}
+body.om-field-nav.cam-app .cam-week__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+body.om-field-nav.cam-app .cam-week__label {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--cam-ink2, #667085);
+  text-align: center;
+  flex: 1;
+  min-width: 0;
+}
+body.om-field-nav.cam-app .cam-week__btn {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--cam-sur, #efeae2);
+  color: var(--cam-ink, #221e1a);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+body.om-field-nav.cam-app .cam-week-strip {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+body.om-field-nav.cam-app .cam-week-strip::-webkit-scrollbar { display: none; }
+body.om-field-nav.cam-app .cam-day-chip {
+  flex: 0 0 auto;
+  width: 52px;
+  min-height: 72px;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid var(--cam-line, #e5e7eb);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 8px 4px 6px;
+  color: var(--cam-ink, #221e1a);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+body.om-field-nav.cam-app .cam-day-chip.is-active {
+  background: var(--cam-ink, #221e1a);
+  border-color: var(--cam-ink, #221e1a);
+  color: #fff;
+}
+body.om-field-nav.cam-app .cam-day-chip__name {
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--cam-ink2, #667085);
+}
+body.om-field-nav.cam-app .cam-day-chip.is-active .cam-day-chip__name { color: rgba(255, 255, 255, 0.72); }
+body.om-field-nav.cam-app .cam-day-chip__num {
+  font-size: 17px;
+  font-weight: 750;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+body.om-field-nav.cam-app .cam-day-chip__dots {
+  display: flex;
+  gap: 3px;
+  min-height: 6px;
+  margin-top: 2px;
+}
+body.om-field-nav.cam-app .cam-day-chip__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #536249;
+}
+body.om-field-nav.cam-app .cam-day-chip__dot--warn { background: #ea580c; }
+body.om-field-nav.cam-app .cam-day-chip.is-active .cam-day-chip__dot { background: #fdba74; }
 body.om-field-nav.cam-app .cam-seg {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px;
   width: 100%;
+  margin-top: 0;
   padding: 4px;
   border-radius: 14px;
   background: var(--cam-sur, #efeae2);

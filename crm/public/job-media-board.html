@@ -25,7 +25,7 @@
   <link rel="stylesheet" href="crm-job-modal.css?v=20261104-ux2" />
   <link rel="stylesheet" href="om-gestures.css?v=20261102-ptr1" />
   <link rel="stylesheet" href="jobs-mobile.css?v=20261105-crew3" />
-  <link rel="stylesheet" href="obracam.css?v=20261105-crewcam5" />
+  <link rel="stylesheet" href="obracam.css?v=20261105-crewcam6" />
   <link rel="stylesheet" href="cam-viewer.css?v=20261105-apps3" />
   <link rel="stylesheet" href="crm-list.css?v=20261105-soft2" />
 </head>
@@ -103,8 +103,20 @@
             <div class="cam-list__top ol-top">
               <label class="cam-search ol-search">
                 <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-                <input type="search" id="camQ" placeholder="Buscar job, endereço ou quem tirou" autocomplete="off" enterkeyhint="search" />
+                <input type="search" id="camQ" placeholder="Buscar obra ou endereço" autocomplete="off" enterkeyhint="search" />
               </label>
+              <div class="cam-week" id="camWeek" hidden>
+                <div class="cam-week__nav">
+                  <button type="button" class="cam-week__btn" id="camWeekPrev" aria-label="Semana anterior">
+                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                  <p class="cam-week__label" id="camWeekLabel">Esta semana</p>
+                  <button type="button" class="cam-week__btn" id="camWeekNext" aria-label="Próxima semana">
+                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 18l6-6-6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                </div>
+                <div class="cam-week-strip" id="camWeekStrip" role="tablist" aria-label="Dias da semana"></div>
+              </div>
               <div class="cam-seg ol-seg" id="camMode" role="group" aria-label="Mostrar">
                 <button type="button" data-mode="active" class="is-on">Ativos</button>
                 <button type="button" data-mode="done">Concluídos</button>
@@ -136,7 +148,7 @@
   <script src="om-gestures.js?v=20261102-ptr1"></script>
   <script src="/photo-exif.js?v=20261104-exif1"></script>
   <script src="cam-viewer.js?v=20261105-apps3"></script>
-  <script src="job-media-board.js?v=20261105-crewcam5"></script>
+  <script src="job-media-board.js?v=20261105-crewcam6"></script>
   <script src="crm-list.js?v=20261105-agd1"></script>
 </body>
 </html>

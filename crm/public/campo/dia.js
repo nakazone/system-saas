@@ -233,8 +233,19 @@
     return SECTOR[sector] || sector || "";
   }
 
+  /** Prefer server label; fallback local "Qui, 05/Nov". */
+  function helloDateText() {
+    const raw = String(S.today_label || "").trim();
+    if (raw && /\d{2}\/[A-Za-zÀ-ú]{3}/.test(raw)) return raw.charAt(0).toUpperCase() + raw.slice(1);
+    const d = new Date();
+    const wd = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][d.getDay()];
+    const mo = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][d.getMonth()];
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${wd}, ${day}/${mo}`;
+  }
+
   function helloMetaHtml() {
-    const date = String(S.today_label || "").trim();
+    const date = helloDateText();
     const sector = S.employee && S.employee.sector ? sectorShort(S.employee.sector) : "";
     if (!date && !sector) return "";
     return `<p class="dy-eyebrow">${date ? `<span class="dy-hello-date">${esc(date)}</span>` : ""}${
@@ -258,7 +269,6 @@
     const d = S.day;
     const inDay = d && d.status === "in_progress";
     const list = todayJobs();
-    const hasRoute = list.some((j) => j.address || j.delivery_pickup_address);
     const photoJob = inDay && list.length ? list[list.length - 1] : list[0];
     const items = [];
     if (inDay) {
@@ -276,9 +286,7 @@
         : `<a class="dy-qa" href="/job-media-board.html"><span class="dy-qa-ic">${qaIcon("cam")}</span><span><strong>Tirar foto</strong><small>Abrir ObraCam</small></span></a>`,
     );
     items.push(
-      hasRoute
-        ? `<button type="button" class="dy-qa" data-act="day-route" data-om-press><span class="dy-qa-ic">${qaIcon("pin")}</span><span><strong>Rota do dia</strong><small>${list.length} parada${list.length === 1 ? "" : "s"}</small></span></button>`
-        : `<a class="dy-qa" href="agenda.html"><span class="dy-qa-ic">${qaIcon("cal")}</span><span><strong>Agenda</strong><small>Semana na obra</small></span></a>`,
+      `<a class="dy-qa" href="agenda.html"><span class="dy-qa-ic">${qaIcon("cal")}</span><span><strong>Agenda</strong><small>Semana na obra</small></span></a>`,
     );
     if (!items.length) return "";
     return `<section class="dy-qa-grid dy-qa-grid--${Math.min(items.length, 3)}" aria-label="Ações rápidas">${items.join("")}</section>`;
@@ -350,20 +358,8 @@
     const pillCls = d.status;
     const enter = justSent;
     justSent = false;
-    const html = `<section class="dy-card" id="dyCard">${mateLine("thumbs", "Dia enviado. Bom trabalho!", d.status === "approved" ? "Já está na folha da semana." : "Descansa que o resto é com o escritório.")}<div class="dy-card__lbl"><span>Dia enviado</span><span class="dy-pill dy-pill--${pillCls}">${esc(d.status_label)}</span></div>
-      <div class="dy-time"><b>${esc(d.worked_label)}</b><span>${esc(d.clock_in_label)} – ${esc(d.clock_out_label || "")}</span></div>
-      <div class="dy-stats">
-        <div class="dy-stat dy-stat--ot"><small>Extra</small><b>${d.overtime_minutes ? esc(minLabel(d.overtime_minutes)) : "—"}</b></div>
-        <div class="dy-stat"><small>Jobs</small><b>${d.jobs.length}</b></div>
-        <div class="dy-stat"><small>Valor</small><b>${esc(money(d.amount))}</b></div>
-      </div>
-      ${
-        d.status === "pending" && d.flags.length
-          ? `<p class="dy-card__sub">O escritório vai conferir:</p><ul class="dy-flags">${d.flags.map((f) => `<li>${esc(f.label)}</li>`).join("")}</ul>`
-          : d.status === "approved"
-            ? `<p class="dy-card__sub">Já está na folha da semana.</p>`
-            : ""
-      }
+    const html = `<section class="dy-card" id="dyCard">${mateLine("thumbs", "Dia enviado. Bom trabalho!", "")}<div class="dy-card__lbl"><span>Dia enviado</span><span class="dy-pill dy-pill--${pillCls}">${esc(d.status_label)}</span></div>
+      <div class="dy-time"><b>${esc(d.clock_in_label)}</b><span>→ ${esc(d.clock_out_label || "")}</span></div>
       ${
         (d.expenses || []).length
           ? `<ul class="dy-flags" style="margin-top:10px">${d.expenses
@@ -781,8 +777,7 @@
           <div><small>Entrada</small><b>${esc(d.clock_in_label)}</b></div>
           <div><small>Saída</small><b>${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}</b></div>
           ${est.reimb ? `<div><small>Reembolso pedido</small><b>+${esc(money(est.reimb))}</b></div>` : ""}
-        </div>
-        ${est.reimb ? `<p class="dy-gps">${ICON.pin} O reembolso vai para o escritório conferir.</p>` : ""}</div>`;
+        </div></div>`;
     const blocked = missing.length > 0;
     const plural = (n, w) => `${n} ${w}${n > 1 ? "s" : ""}`;
     let note = "";
@@ -886,7 +881,7 @@
       closeSheet();
       justSent = true;
       render();
-      toast(S.day && S.day.status === "approved" ? "Dia enviado e aprovado. Bom descanso!" : "Dia enviado — o escritório vai conferir.", "success");
+      toast("Dia enviado. Bom descanso!", "success");
     } catch (e) {
       haptic("error");
       if (e.code === "PHOTOS_REQUIRED" && e.data && e.data.missing) {
