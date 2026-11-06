@@ -19,7 +19,7 @@
   <link rel="stylesheet" href="obramate-app.css?v=20261105-apps3" />
   <link rel="stylesheet" href="om-mobile-nav.css?v=20261105-hammer1" />
   <link rel="stylesheet" href="finance.css?v=20261104-ux3" />
-  <link rel="stylesheet" href="crm-list.css?v=20261105-soft2" />
+  <link rel="stylesheet" href="crm-list.css?v=20261106-list" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="om-device.js?v=20261013-badge1"></script>
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
@@ -75,7 +75,7 @@
     <main class="dashboard-main">
       <div class="fx" id="fx">
         <div class="fx-split ol-split" id="fxSplit">
-          <section class="fx-list ol-list" aria-label="Movimentos">
+          <section class="fx-list ol-list" data-ol-noindex="1" aria-label="Movimentos">
             <div class="fx-list__top ol-top">
               <div class="fx-title">
                 <h1>Fluxo de caixa</h1>
@@ -101,11 +101,17 @@
               </div>
               <div class="fx-phero" id="fxPhero"></div>
               <label class="fx-search ol-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input type="search" id="fxQ" placeholder="Buscar movimento" autocomplete="off" aria-label="Buscar movimento" /></label>
-              <div class="fx-seg ol-seg" id="fxSeg" role="group" aria-label="Filtrar">
-                <button type="button" data-f="all" class="is-on">Tudo <em></em></button>
-                <button type="button" data-f="in">Entradas <em></em></button>
-                <button type="button" data-f="out">Saídas <em></em></button>
-                <button type="button" data-f="draft">Revisar <em></em></button>
+              <div class="ol-tools">
+                <button type="button" class="ol-tool ol-tool--all" id="fxAll" data-ol-allbtn="1" aria-pressed="true" aria-label="Visualizar todos os movimentos">All</button>
+                <label class="ol-sel"><span aria-hidden="true">Movimento</span>
+                  <select id="fxSeg" aria-label="Movimento">
+                    <option value="all">Tudo</option>
+                    <option value="in">Entradas</option>
+                    <option value="out">Saídas</option>
+                    <option value="draft">Revisar</option>
+                  </select>
+                </label>
+                <button type="button" class="ol-tool ol-tool--fold" data-ol-foldall="1" aria-label="Recolher todos os grupos" title="Recolher todos os grupos"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 11 5-5 5 5M7 18l5-5 5 5"/></svg></button>
               </div>
             </div>
             <div class="fx-rows ol-rows" id="fxRows"><p class="fx-empty">Carregando…</p></div>
@@ -179,7 +185,7 @@
   <script src="crm-shared-nav.js?v=20261105-apps3"></script>
   <script src="crm-shell.js?v=20261105-shell9"></script>
   <script src="om-mobile-nav.js?v=20261105-hammer1"></script>
-  <script src="finance.js?v=20261104-ux3"></script>
-  <script src="crm-list.js?v=20261105-agd1"></script>
+  <script src="finance.js?v=20261106-list"></script>
+  <script src="crm-list.js?v=20261106-list"></script>
 </body>
 </html>

@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="invoices-module.css?v=20261104-ux2" />
   <link rel="stylesheet" href="invoices.css?v=20261104-ux3" />
   <link rel="stylesheet" href="om-gestures.css?v=20261102-ptr1" />
-  <link rel="stylesheet" href="crm-list.css?v=20261105-soft2" />
+  <link rel="stylesheet" href="crm-list.css?v=20261106-list" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
 </head>
@@ -90,10 +90,21 @@
           <button type="button" class="ix-period__all" id="ixPeriodAll" aria-pressed="false">Tudo</button>
         </div>
         <div class="ix-split ol-split" id="invSplit">
-          <section class="ix-list ol-list" aria-label="Faturas">
+          <section class="ix-list ol-list" data-ol-noindex="1" aria-label="Faturas">
             <div class="ix-list__top ol-top">
               <label class="ix-search ol-search"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input type="search" id="filterQ" placeholder="Buscar fatura, cliente ou job" autocomplete="off" aria-label="Buscar faturas" /></label>
-              <div class="ix-seg ol-seg ol-seg--dup" id="ixSeg" role="tablist" aria-label="Filtro rápido"></div>
+              <div class="ol-tools">
+                <button type="button" class="ol-tool ol-tool--all" id="ixAll" data-ol-allbtn="1" aria-pressed="true" aria-label="Visualizar todas as faturas">All</button>
+                <label class="ol-sel"><span aria-hidden="true">Status</span>
+                  <select id="ixSeg" aria-label="Status">
+                    <option value="all">Todos</option>
+                    <option value="receivable">A receber</option>
+                    <option value="overdue">Vencidos</option>
+                    <option value="paid">Pagos</option>
+                  </select>
+                </label>
+                <button type="button" class="ol-tool ol-tool--fold" data-ol-foldall="1" aria-label="Recolher todos os grupos" title="Recolher todos os grupos"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 11 5-5 5 5M7 18l5-5 5 5"/></svg></button>
+              </div>
               <p class="ix-count ol-count" id="ixCount"></p>
             </div>
             <div class="om-ptr" id="invPtr" aria-hidden="true">↓ Puxe para atualizar</div>
@@ -408,7 +419,7 @@
   <script src="om-gestures.js?v=20261102-ptr1"></script>
   <script src="crm-pdf-viewer.js?v=20261027-pdf1"></script>
   <script src="invoice-page.js?v=20261104-ux2"></script>
-  <script src="invoices-page.js?v=20261104-ux2"></script>
-  <script src="crm-list.js?v=20261105-agd1"></script>
+  <script src="invoices-page.js?v=20261106-list"></script>
+  <script src="crm-list.js?v=20261106-list"></script>
 </body>
 </html>

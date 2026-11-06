@@ -24,7 +24,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
   <link rel="stylesheet" href="customers-board.css?v=20261029-cli1" />
-  <link rel="stylesheet" href="crm-list.css?v=20261105-soft2" />
+  <link rel="stylesheet" href="crm-list.css?v=20261106-list" />
 </head>
 <body class="dashboard-app-body om-app sidebar-collapsed cx-app">
   <script src="/om-reload.js?v=20261105-cam1"></script>
@@ -93,10 +93,21 @@
         </header>
 
         <div class="cx-split ol-split" id="cxSplit">
-          <aside class="cx-list ol-list" id="cxListPane" aria-label="Lista de clientes">
+          <aside class="cx-list ol-list" id="cxListPane" data-ol-noindex="1" aria-label="Lista de clientes">
             <div class="cx-list__top ol-top">
               <label class="cx-search ol-search"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" id="cxSearch" placeholder="Buscar nome, telefone, e-mail ou endereço" autocomplete="off" aria-label="Buscar clientes" /></label>
-              <nav class="cx-chips ol-seg" id="cxChips" aria-label="Tipo de cliente"></nav>
+              <div class="ol-tools">
+                <button type="button" class="ol-tool ol-tool--all" id="cxAll" data-ol-allbtn="1" aria-pressed="true" aria-label="Visualizar todos os clientes">All</button>
+                <label class="ol-sel"><span aria-hidden="true">Tipo</span>
+                  <select id="cxChips" aria-label="Tipo de cliente">
+                    <option value="all">Todos</option>
+                    <option value="particular">Particular</option>
+                    <option value="builder">Builder</option>
+                    <option value="balance">Com saldo</option>
+                  </select>
+                </label>
+                <button type="button" class="ol-tool ol-tool--fold" data-ol-foldall="1" aria-label="Recolher todos os grupos" title="Recolher todos os grupos"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 11 5-5 5 5M7 18l5-5 5 5"/></svg></button>
+              </div>
             </div>
             <div class="om-ptr" id="cxPtr" aria-hidden="true">↓ Puxe para atualizar</div>
             <div class="cx-rows ol-rows" id="cxRows" role="list"><p class="cx-empty">Carregando…</p></div>
@@ -241,7 +252,7 @@
   <script src="crm-listbox-keys.js?v=20261103-addr1"></script>
   <script src="crm-job-modal.js?v=20261104-ux2"></script>
   <script src="lead-signals.js?v=20261015-leads4"></script>
-  <script src="customers-page.js?v=20261105-apps3"></script>
-  <script src="crm-list.js?v=20261105-agd1"></script>
+  <script src="customers-page.js?v=20261106-list"></script>
+  <script src="crm-list.js?v=20261106-list"></script>
 </body>
 </html>

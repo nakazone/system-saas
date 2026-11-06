@@ -199,9 +199,26 @@
       ["builder", "Builder", builderCount],
     ];
     if (showMoney) items.push(["balance", "Com saldo", summary ? summary.with_balance : 0]);
-    $("cxChips").innerHTML = items
-      .map(([k, l, n]) => `<button type="button" class="cx-chip${filter === k ? " is-on" : ""}" data-filter="${k}" aria-pressed="${filter === k}">${l}<em>${n}</em></button>`)
-      .join("");
+    const sel = $("cxChips");
+    if (!sel) return;
+    const want = items.map(([k]) => k).join(",");
+    const have = Array.from(sel.options).map((o) => o.value).join(",");
+    if (want !== have) {
+      sel.innerHTML = items.map(([k, l]) => `<option value="${k}">${l}</option>`).join("");
+    }
+    items.forEach(([k, l, n]) => {
+      const opt = Array.from(sel.options).find((o) => o.value === k);
+      if (opt) opt.textContent = n ? `${l} · ${n}` : l;
+    });
+    if (filter === "loja") filter = "builder";
+    if (!items.some(([k]) => k === filter)) filter = "all";
+    sel.value = filter;
+    window.OlPick?.paint(sel);
+    const all = $("cxAll");
+    if (all) {
+      all.classList.toggle("is-on", filter === "all");
+      all.setAttribute("aria-pressed", filter === "all" ? "true" : "false");
+    }
   }
 
   function rowHtml(c) {
@@ -1205,10 +1222,14 @@
 
   // ---------------------------------------------------------------- events
   function bind() {
-    $("cxChips").addEventListener("click", (e) => {
-      const b = e.target.closest("[data-filter]");
-      if (!b) return;
-      filter = b.getAttribute("data-filter");
+    $("cxChips").addEventListener("change", (e) => {
+      filter = e.target.value;
+      renderChips();
+      renderList();
+    });
+    $("cxListPane")?.addEventListener("ol-all", () => {
+      window.CrmList?.openAll($("cxListPane"));
+      filter = "all";
       renderChips();
       renderList();
     });

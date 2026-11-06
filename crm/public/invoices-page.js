@@ -217,11 +217,21 @@
   }
   function renderSeg() {
     const host = $('ixSeg');
-    if (!host) return;
-    host.innerHTML = TILES.map(([k, label]) => {
-      const n = all.filter((i) => inTab(i, k)).length;
-      return `<button type="button" role="tab" class="${tab === k ? 'is-on' : ''}" data-tab="${k}" aria-selected="${tab === k}">${label}${n ? `<em>${n}</em>` : ''}</button>`;
-    }).join('');
+    if (host && host.options) {
+      const labels = Object.fromEntries(TILES);
+      Array.from(host.options).forEach((opt) => {
+        const n = all.filter((i) => inTab(i, opt.value)).length;
+        const name = labels[opt.value] || opt.textContent;
+        opt.textContent = n ? `${name} · ${n}` : name;
+      });
+      host.value = tab;
+      window.OlPick?.paint(host);
+    }
+    const allBtn = $('ixAll');
+    if (allBtn) {
+      allBtn.classList.toggle('is-on', tab === 'all');
+      allBtn.setAttribute('aria-pressed', tab === 'all' ? 'true' : 'false');
+    }
   }
   function renderTiles() {
     const sum = (rows, f) => rows.reduce((a, i) => a + (Number(f(i)) || 0), 0);
@@ -671,7 +681,11 @@
       setTab(b.dataset.tab, false);
     };
     $('ixTiles').addEventListener('click', onTabClick);
-    $('ixSeg')?.addEventListener('click', onTabClick);
+    $('ixSeg')?.addEventListener('change', (e) => setTab(e.target.value, false));
+    document.querySelector('.ix-list')?.addEventListener('ol-all', () => {
+      window.CrmList?.openAll(document.querySelector('.ix-list'));
+      setTab('all', false);
+    });
     const refreshPeriod = () => {
       syncPeriodUrl();
       renderTiles();

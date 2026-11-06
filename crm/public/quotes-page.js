@@ -243,11 +243,23 @@
     host.style.setProperty('--qs-tiles', String(host.children.length));
   }
   function renderSeg() {
-    $('qsSeg').innerHTML = SEGS.map(([k, l]) => {
-      const on = !st.archived && st.seg === k;
-      const n = st.sum ? segCount(k) : '';
-      return `<button type="button" role="tab" aria-selected="${on}" class="${on ? 'is-on' : ''}" data-seg="${k}">${l}${n !== '' && (k === 'open' || k === 'all') ? ` <em>${n}</em>` : ''}</button>`;
-    }).join('');
+    const sel = $('qsSeg');
+    if (sel) {
+      const labels = Object.fromEntries(SEGS);
+      Array.from(sel.options).forEach((opt) => {
+        const n = st.sum ? segCount(opt.value) : '';
+        const name = labels[opt.value] || opt.value;
+        opt.textContent = n !== '' && (opt.value === 'open' || opt.value === 'all') ? `${name} · ${n}` : name;
+      });
+      sel.value = st.archived ? 'all' : st.seg;
+      window.OlPick?.paint(sel);
+    }
+    const all = $('qsAll');
+    if (all) {
+      const on = !st.archived && st.seg === 'all';
+      all.classList.toggle('is-on', on);
+      all.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
     renderTiles();
   }
   function sortByClient(rows) {
@@ -936,10 +948,10 @@
         select(first ? first.id : null);
       }
     }
-    $('qsSeg').addEventListener('click', (e) => {
-      const b = e.target.closest('[data-seg]');
-      if (!b) return;
-      applySeg(b.getAttribute('data-seg'));
+    $('qsSeg').addEventListener('change', (e) => applySeg(e.target.value));
+    document.querySelector('.qs-list')?.addEventListener('ol-all', () => {
+      window.CrmList?.openAll(document.querySelector('.qs-list'));
+      applySeg('all');
     });
     const tiles = $('qsTiles');
     if (tiles) {

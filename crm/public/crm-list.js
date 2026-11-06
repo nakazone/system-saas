@@ -137,9 +137,11 @@
         var hot = !forceClosed && HOT_RE.test(g.label);
         var auto = forceClosed || (!hot && (DONE_RE.test(g.label) || openSlots <= 0));
         if (q || forceOpen) collapsed = false;
+        else if (L.openAllOnce) collapsed = false;
         else if (saved !== null) collapsed = saved;
         else if (forceClosed) collapsed = true;
         else collapsed = multi && auto;
+        if (L.openAllOnce && h) folds[g.label] = false;
         if (!collapsed && !hot && !DONE_RE.test(g.label)) openSlots--;
         h.classList.add("ol-grp--fold");
         h.classList.toggle("is-folded", collapsed);
@@ -173,6 +175,10 @@
         last.after(b);
       }
     });
+    if (L.openAllOnce) {
+      L.openAllOnce = false;
+      store(L.key, folds);
+    }
     L.groups = groups;
     bar(L, q, multi, groups);
   }
@@ -405,14 +411,168 @@
     }
 
     lists.push(L);
+    enhanceTools(L.list);
     apply(L);
+  }
+
+  var pickDocBound = false;
+  function closePicks(except) {
+    document.querySelectorAll(".ol-pick__menu").forEach(function (menu) {
+      if (menu === except) return;
+      menu.hidden = true;
+      if (menu._pickBtn) menu._pickBtn.setAttribute("aria-expanded", "false");
+    });
+  }
+  function placePick(menu, btn) {
+    var r = btn.getBoundingClientRect();
+    var width = Math.max(r.width, 196);
+    var left = r.left;
+    if (left + width > window.innerWidth - 8) left = Math.max(8, window.innerWidth - 8 - width);
+    var space = window.innerHeight - r.bottom - 12;
+    menu.style.left = left + "px";
+    menu.style.top = (r.bottom + 6) + "px";
+    menu.style.width = width + "px";
+    menu.style.maxHeight = Math.max(180, Math.min(380, space)) + "px";
+  }
+  function paintPick(sel) {
+    var btn = sel._pickBtn;
+    var menu = sel._pickMenu;
+    if (!btn || !menu) return;
+    var opts = sel.options;
+    if (menu.childElementCount !== opts.length) buildPickMenu(sel);
+    var opt = opts[sel.selectedIndex];
+    var label = (sel.closest(".ol-sel") && sel.closest(".ol-sel").querySelector("span") || {}).textContent || sel.getAttribute("aria-label") || "";
+    var valueText = opt ? opt.textContent : "";
+    btn.querySelector(".ol-pick__k").textContent = label;
+    btn.querySelector(".ol-pick__v").textContent = valueText;
+    btn.setAttribute("aria-label", label + (valueText ? ", " + valueText : ""));
+    var neutral = !sel.value || sel.value === "all" || sel.value === "status" || sel.value === "active";
+    sel.closest(".ol-sel").classList.toggle("is-on", !neutral);
+    var current = sel.value;
+    Array.prototype.forEach.call(menu.querySelectorAll(".ol-pick__opt"), function (b, i) {
+      var src = opts[i];
+      if (src) b.querySelector("span").textContent = src.textContent;
+      var on = b.dataset.value === current;
+      b.classList.toggle("is-on", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+      b.querySelector("svg").hidden = !on;
+    });
+  }
+  function buildPickMenu(sel) {
+    var menu = sel._pickMenu;
+    menu.innerHTML = "";
+    Array.prototype.forEach.call(sel.options, function (opt) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "ol-pick__opt";
+      b.setAttribute("role", "option");
+      b.dataset.value = opt.value;
+      b.innerHTML = '<span></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5L20 7"/></svg>';
+      b.querySelector("span").textContent = opt.textContent;
+      b.addEventListener("click", function (e) {
+        e.stopPropagation();
+        sel.value = opt.value;
+        sel.dispatchEvent(new Event("change", { bubbles: true }));
+        paintPick(sel);
+        closePicks();
+        sel._pickBtn.focus();
+      });
+      menu.appendChild(b);
+    });
+  }
+  function openPick(sel) {
+    var menu = sel._pickMenu;
+    var btn = sel._pickBtn;
+    if (!menu || !btn) return;
+    closePicks(menu);
+    placePick(menu, btn);
+    menu.hidden = false;
+    btn.setAttribute("aria-expanded", "true");
+    var current = menu.querySelector(".ol-pick__opt.is-on") || menu.querySelector(".ol-pick__opt");
+    if (current) current.focus();
+  }
+  function bindPick(sel) {
+    var wrap = sel.closest(".ol-sel");
+    if (!wrap || sel._pickBtn) return;
+    sel.classList.add("ol-sel__native");
+    sel.tabIndex = -1;
+    sel.setAttribute("aria-hidden", "true");
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "ol-pick";
+    btn.setAttribute("aria-haspopup", "listbox");
+    btn.setAttribute("aria-expanded", "false");
+    btn.innerHTML = '<span class="ol-pick__k"></span><span class="ol-pick__v"></span><svg class="ol-pick__chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
+    var menu = document.createElement("div");
+    menu.className = "ol-pick__menu";
+    menu.hidden = true;
+    menu.setAttribute("role", "listbox");
+    menu.setAttribute("aria-label", sel.getAttribute("aria-label") || "Filtro");
+    menu._pickBtn = btn;
+    sel._pickBtn = btn;
+    sel._pickMenu = menu;
+    wrap.appendChild(btn);
+    document.body.appendChild(menu);
+    buildPickMenu(sel);
+    paintPick(sel);
+    btn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (btn.getAttribute("aria-expanded") === "true") closePicks();
+      else openPick(sel);
+    });
+    btn.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        openPick(sel);
+      }
+    });
+    menu.addEventListener("keydown", function (e) {
+      var opts = Array.prototype.slice.call(menu.querySelectorAll(".ol-pick__opt"));
+      var i = opts.indexOf(document.activeElement);
+      if (e.key === "Escape") { e.preventDefault(); closePicks(); btn.focus(); return; }
+      if (e.key === "ArrowDown") { e.preventDefault(); (opts[Math.min(opts.length - 1, i + 1)] || opts[0]).focus(); return; }
+      if (e.key === "ArrowUp") { e.preventDefault(); (opts[Math.max(0, i - 1)] || opts[0]).focus(); return; }
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        var cur = opts[i] || opts[0];
+        if (cur) cur.click();
+      }
+    });
+    sel.addEventListener("change", function () { paintPick(sel); });
+    if (!pickDocBound) {
+      pickDocBound = true;
+      document.addEventListener("click", function (e) {
+        if (e.target.closest(".ol-pick, .ol-pick__menu")) return;
+        closePicks();
+      });
+      window.addEventListener("resize", function () { closePicks(); });
+      document.addEventListener("scroll", function (e) {
+        var t = e.target;
+        if (t && t.closest && t.closest(".ol-pick__menu")) return;
+        closePicks();
+      }, true);
+    }
+  }
+  function enhanceTools(list) {
+    if (!list) return;
+    list.querySelectorAll(".ol-tools select").forEach(bindPick);
+  }
+  function openAll(list) {
+    var L = list && list.__ol;
+    if (L) L.openAllOnce = true;
   }
 
   function init() {
     document.querySelectorAll(".ol-list").forEach(mount);
   }
 
-  window.CrmList = { refresh: function () { lists.forEach(apply); }, init: init };
+  window.OlPick = { paint: paintPick };
+  window.CrmList = {
+    refresh: function () { lists.forEach(apply); },
+    init: init,
+    openAll: openAll,
+    paint: paintPick
+  };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
   else init();
 })();

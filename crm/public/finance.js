@@ -284,11 +284,21 @@
     const all = moves();
     const n = { all: all.length, in: 0, out: 0, draft: 0 };
     all.forEach((m) => n[m.dir]++);
-    document.querySelectorAll("#fxSeg [data-f]").forEach((b) => {
-      b.classList.toggle("is-on", b.dataset.f === S.filter);
-      const em = b.querySelector("em");
-      if (em) em.textContent = n[b.dataset.f] ? String(n[b.dataset.f]) : "";
-    });
+    const fxLabels = { all: "Tudo", in: "Entradas", out: "Saídas", draft: "Revisar" };
+    const fxSel = $("fxSeg");
+    if (fxSel && fxSel.options) {
+      Array.from(fxSel.options).forEach((opt) => {
+        const c = n[opt.value];
+        opt.textContent = c ? `${fxLabels[opt.value] || opt.value} · ${c}` : (fxLabels[opt.value] || opt.value);
+      });
+      fxSel.value = S.filter;
+      window.OlPick?.paint(fxSel);
+    }
+    const fxAll = $("fxAll");
+    if (fxAll) {
+      fxAll.classList.toggle("is-on", S.filter === "all");
+      fxAll.setAttribute("aria-pressed", S.filter === "all" ? "true" : "false");
+    }
     const s = S.summary || {};
     renderPhero(n.draft);
 
@@ -829,10 +839,13 @@
       load();
     });
     ["finFrom", "finTo"].forEach((id) => $(id).addEventListener("change", () => { if (S.range === "custom") load(); }));
-    $("fxSeg").addEventListener("click", (e) => {
-      const b = e.target.closest("[data-f]");
-      if (!b) return;
-      S.filter = b.dataset.f;
+    $("fxSeg").addEventListener("change", (e) => {
+      S.filter = e.target.value;
+      renderList();
+    });
+    document.querySelector(".fx-list")?.addEventListener("ol-all", () => {
+      window.CrmList?.openAll(document.querySelector(".fx-list"));
+      S.filter = "all";
       renderList();
     });
     let qT;
@@ -846,7 +859,7 @@
         e.preventDefault();
         S.filter = f.dataset.fxFilter;
         renderList();
-        $("fxSeg").scrollIntoView({ behavior: "smooth", block: "start" });
+        $("fxSeg")?.closest(".ol-tools")?.scrollIntoView({ behavior: "smooth", block: "start" });
         return;
       }
       const a = e.target.closest("a[data-id]");

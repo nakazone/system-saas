@@ -26,7 +26,7 @@
   <link rel="stylesheet" href="quote-paper.css?v=20261027-om1" />
   <link rel="stylesheet" href="quotes.css?v=20261104-ux3" />
   <link rel="stylesheet" href="crm-pdf-viewer.css?v=20261027-pdf1" />
-  <link rel="stylesheet" href="crm-list.css?v=20261105-soft2" />
+  <link rel="stylesheet" href="crm-list.css?v=20261106-list" />
 </head>
 <body class="dashboard-app-body om-app sidebar-collapsed quotes-app qs-body">
   <script src="/om-reload.js?v=20261105-cam1"></script>
@@ -89,13 +89,24 @@
         </div>
         <div class="qs-tiles" id="qsTiles" role="group" aria-label="Filtrar por status"></div>
         <div class="qs-split ol-split" id="qsSplit">
-          <aside class="qs-list ol-list" aria-label="Lista de quotes">
+          <aside class="qs-list ol-list" data-ol-noindex="1" aria-label="Lista de quotes">
             <div class="qs-list__top ol-top">
               <label class="qs-search ol-search">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
                 <input type="search" id="filterQ" placeholder="Buscar cliente, nº ou endereço" autocomplete="off" aria-label="Buscar quotes" />
               </label>
-              <div class="qs-seg ol-seg ol-seg--dup" id="qsSeg" role="tablist" aria-label="Filtro rápido"></div>
+              <div class="ol-tools">
+                <button type="button" class="ol-tool ol-tool--all" id="qsAll" data-ol-allbtn="1" aria-pressed="true" aria-label="Visualizar todos os quotes">All</button>
+                <label class="ol-sel"><span aria-hidden="true">Status</span>
+                  <select id="qsSeg" aria-label="Status">
+                    <option value="all">Todos</option>
+                    <option value="open">Abertos</option>
+                    <option value="approved">Aprovados</option>
+                    <option value="expired">Expirados</option>
+                  </select>
+                </label>
+                <button type="button" class="ol-tool ol-tool--fold" data-ol-foldall="1" aria-label="Recolher todos os grupos" title="Recolher todos os grupos"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 11 5-5 5 5M7 18l5-5 5 5"/></svg></button>
+              </div>
             </div>
             <div class="om-ptr" id="quotesPtr" aria-hidden="true">↓ Puxe para atualizar</div>
             <div class="qs-rows ol-rows" id="qsRows" role="list"><p class="qs-empty">Carregando…</p></div>
@@ -120,7 +131,7 @@
   <script src="lead-signals.js?v=20261015-leads4"></script>
   <script src="quote-paper.js?v=20261028-addon"></script>
   <script src="crm-pdf-viewer.js?v=20261027-pdf1"></script>
-  <script src="quotes-page.js?v=20261104-list1"></script>
-  <script src="crm-list.js?v=20261105-agd1"></script>
+  <script src="quotes-page.js?v=20261106-list"></script>
+  <script src="crm-list.js?v=20261106-list"></script>
 </body>
 </html>

@@ -296,11 +296,22 @@
     if (search) {
       search.placeholder = onJobs ? "Buscar jobs…" : "Buscar conversas…";
     }
-    document.querySelectorAll("[data-job-status]").forEach((btn) => {
-      const on = btn.getAttribute("data-job-status") === (state.jobStatus || "active");
-      btn.classList.toggle("is-active", on);
-      btn.setAttribute("aria-selected", on ? "true" : "false");
-    });
+    const listSel = $("chatListFilter");
+    if (listSel) {
+      listSel.value = state.filter || "all";
+      window.OlPick?.paint(listSel);
+    }
+    const jobSel = $("chatJobStatus");
+    if (jobSel) {
+      jobSel.value = state.jobStatus || "active";
+      window.OlPick?.paint(jobSel);
+    }
+    const all = $("chatAll");
+    if (all) {
+      const on = (state.filter || "all") === "all";
+      all.classList.toggle("is-on", on);
+      all.setAttribute("aria-pressed", on ? "true" : "false");
+    }
   }
 
   function filteredConversations() {
@@ -1477,15 +1488,17 @@
       if (id) openConversation(id).catch((err) => notify(err.message, "error"));
     });
 
-    document.querySelectorAll(".chat-list-tab").forEach((tab) => {
-      tab.addEventListener("click", () => {
-        document.querySelectorAll(".chat-list-tab").forEach((t) => t.classList.remove("is-active"));
-        tab.classList.add("is-active");
-        state.filter = tab.getAttribute("data-filter");
-        syncJobFilterUi();
-        if (state.filter === "job") scheduleJobsReload(true);
-        else renderList();
-      });
+    $("chatListFilter")?.addEventListener("change", (e) => {
+      state.filter = e.target.value || "all";
+      syncJobFilterUi();
+      if (state.filter === "job") scheduleJobsReload(true);
+      else renderList();
+    });
+    $("chatListPane")?.addEventListener("ol-all", () => {
+      window.CrmList?.openAll($("chatListPane"));
+      state.filter = "all";
+      syncJobFilterUi();
+      renderList();
     });
 
     $("chatListSearch").addEventListener("input", (e) => {
@@ -1494,10 +1507,8 @@
       else renderList();
     });
 
-    $("chatJobFilters")?.addEventListener("click", (e) => {
-      const btn = e.target.closest("[data-job-status]");
-      if (!btn) return;
-      const next = btn.getAttribute("data-job-status") === "completed" ? "completed" : "active";
+    $("chatJobStatus")?.addEventListener("change", (e) => {
+      const next = e.target.value === "completed" ? "completed" : "active";
       if (next === state.jobStatus) return;
       state.jobStatus = next;
       syncJobFilterUi();

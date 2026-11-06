@@ -20,7 +20,7 @@
   <link rel="stylesheet" href="obramate-app.css?v=20261105-apps3" />
   <link rel="stylesheet" href="om-mobile-nav.css?v=20261105-hammer1" />
   <link rel="stylesheet" href="chat.css?v=20261104-list2" />
-  <link rel="stylesheet" href="crm-list.css?v=20261105-soft2" />
+  <link rel="stylesheet" href="crm-list.css?v=20261106-list" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="om-device.js?v=20261013-badge1"></script>
   <script src="crm-field-gate.js?v=20261105-crewcam1"></script>
@@ -78,7 +78,7 @@
     <main class="dashboard-main chat-main">
       <div class="chat-shell" id="chatShell">
         <!-- Left: conversation list -->
-        <aside class="chat-list-pane ol-list ol-list--bare" id="chatListPane" aria-label="Conversas">
+        <aside class="chat-list-pane ol-list ol-list--bare" id="chatListPane" data-ol-noindex="1" aria-label="Conversas">
           <header class="chat-list-head" data-ol-top>
             <div class="chat-list-head__top">
               <h1 class="chat-list-title">ObraChat</h1>
@@ -100,16 +100,24 @@
               <svg class="chat-search__icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
               <input type="search" id="chatListSearch" placeholder="Buscar conversas…" autocomplete="off" />
             </label>
-            <div class="chat-list-tabs ol-seg" role="tablist">
-              <button type="button" class="chat-list-tab is-active" data-filter="all" role="tab">Todas</button>
-              <button type="button" class="chat-list-tab" data-filter="unread" role="tab">Não lidas</button>
-              <button type="button" class="chat-list-tab" data-filter="job" role="tab">Jobs</button>
-              <button type="button" class="chat-list-tab" data-filter="group" role="tab">Grupos</button>
-              <button type="button" class="chat-list-tab" data-filter="dm" role="tab">Diretas</button>
-            </div>
-            <div class="chat-job-filters ol-seg" id="chatJobFilters" hidden role="tablist" aria-label="Status dos jobs">
-              <button type="button" class="chat-job-seg is-active" data-job-status="active" role="tab" aria-selected="true">Andamento</button>
-              <button type="button" class="chat-job-seg" data-job-status="completed" role="tab" aria-selected="false">Finalizados</button>
+            <div class="ol-tools">
+              <button type="button" class="ol-tool ol-tool--all" id="chatAll" data-ol-allbtn="1" aria-pressed="true" aria-label="Visualizar todas as conversas">All</button>
+              <label class="ol-sel"><span aria-hidden="true">Lista</span>
+                <select id="chatListFilter" aria-label="Lista">
+                  <option value="all">Todas</option>
+                  <option value="unread">Não lidas</option>
+                  <option value="job">Jobs</option>
+                  <option value="group">Grupos</option>
+                  <option value="dm">Diretas</option>
+                </select>
+              </label>
+              <label class="ol-sel" id="chatJobFilters" hidden><span aria-hidden="true">Jobs</span>
+                <select id="chatJobStatus" aria-label="Status dos jobs">
+                  <option value="active">Andamento</option>
+                  <option value="completed">Finalizados</option>
+                </select>
+              </label>
+              <button type="button" class="ol-tool ol-tool--fold" data-ol-foldall="1" aria-label="Recolher todos os grupos" title="Recolher todos os grupos"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 11 5-5 5 5M7 18l5-5 5 5"/></svg></button>
             </div>
           </header>
           <div class="chat-list-scroll" id="chatListScroll">
@@ -261,7 +269,7 @@
   <script src="saas-branding.js?v=20261104-crew1"></script>
   <script src="om-mobile-nav.js?v=20261105-crewcam1"></script>
   <script src="chat-realtime.js?v=20260928-chat1"></script>
-  <script src="chat.js?v=20261104-ux2"></script>
-  <script src="crm-list.js?v=20261105-agd1"></script>
+  <script src="chat.js?v=20261106-list"></script>
+  <script src="crm-list.js?v=20261106-list"></script>
 </body>
 </html>
