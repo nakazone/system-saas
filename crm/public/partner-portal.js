@@ -23,8 +23,6 @@
     docFrom: 'all',
     docJob: '',
     docQuery: '',
-    calMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-    calDay: dateKey(new Date()),
     send: null,
     /** Builder account session (GET /api/builder/me); null for older company-created portal users. */
     builder: null,
@@ -1385,69 +1383,15 @@
 
   /* ─────────────────────────── calendar ─────────────────────────── */
 
+  /** The ObraMate calendar, read-only: it lives in partner-portal-calendar.js and shares agenda.css. */
   function renderCalendar() {
-    const month = state.calMonth;
-    const first = new Date(month.getFullYear(), month.getMonth(), 1);
-    const offset = first.getDay();
-    const start = new Date(first.getFullYear(), first.getMonth(), 1 - offset);
-    const today = dateKey(new Date());
-    const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const days = Array.from({ length: 42 }, (_, i) => {
-      const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
-      const key = dateKey(d);
-      const jobs = jobsInDay(key);
-      const cls = ['pp-cal-day', d.getMonth() !== month.getMonth() ? 'is-out' : '', key === today ? 'is-today' : '', key === state.calDay ? 'is-sel' : '', jobs.length ? 'has-ev' : ''].filter(Boolean).join(' ');
-      return `<button type="button" class="${cls}" data-day="${key}" aria-label="${esc(fmtDay(d, { weekday: 'long', month: 'long', day: 'numeric' }))}${jobs.length ? `, ${plural(jobs.length, 'job', 'jobs')}` : ''}" aria-pressed="${key === state.calDay}"><span class="pp-cal-num">${d.getDate()}</span>${jobs.slice(0, 2).map((j) => `<span class="pp-cal-ev">${esc(j.title || 'Job')}</span>`).join('')}${jobs.length > 2 ? `<span class="pp-cal-more">+${jobs.length - 2}</span>` : ''}</button>`;
-    }).join('');
-    const sel = jobsInDay(state.calDay).sort((a, b) => toDate(a.scheduledStart) - toDate(b.scheduledStart));
-    const selDate = new Date(`${state.calDay}T12:00:00`);
-    const monthLabel = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(month);
-    const phone = window.matchMedia('(max-width: 1023px)').matches;
-    const mode = state.calMode || (phone ? 'list' : 'month');
-    const seg = `<div class="pp-seg pp-cal-mode" role="group" aria-label="View"><button type="button" data-calmode="list" aria-pressed="${mode === 'list'}">List</button><button type="button" data-calmode="month" aria-pressed="${mode === 'month'}">Month</button></div>`;
-    const eyebrow = state.builder ? state.builder.account.name : providerName();
-    if (mode === 'list') {
-      // Agenda: the next 45 days that have jobs, grouped by day (phone friendly).
-      const base = startOfDay(new Date());
-      const groups = [];
-      for (let i = -1; i < 45; i++) {
-        const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
-        const jobs = jobsInDay(dateKey(d)).sort((a, b) => toDate(a.scheduledStart) - toDate(b.scheduledStart));
-        if (jobs.length) groups.push({ d, jobs, today: i === 0 });
-      }
-      view.innerHTML = `
-        <div class="pp-head"><div><p class="pp-eyebrow">${esc(eyebrow)}</p><h1>Calendar</h1></div><div class="pp-head-actions">${seg}</div></div>
-        <div class="pp-agenda">${groups.length ? groups.map((g) => `<section class="pp-agenda-day ${g.today ? 'is-today' : ''}">
-            <div class="pp-agenda-date"><b>${esc(fmtDay(g.d, { day: 'numeric' }))}</b><span>${esc(g.today ? 'Today' : fmtDay(g.d, { weekday: 'short' }))}</span><small>${esc(fmtDay(g.d, { month: 'short' }))}</small></div>
-            <div class="pp-card pp-agenda-jobs">${g.jobs.map((j) => `<button type="button" class="pp-row" data-job="${esc(j.id)}"><span class="pp-row-main">${coLine(j)}<span class="pp-row-top"><strong>${esc(j.title || 'Job')}</strong><span>${j.allDay ? 'All day' : esc(fmtTime(j.scheduledStart))}</span></span><span class="pp-row-sub">${esc(j.address || '')}</span><span class="pp-row-next">${jobChip(j)}</span></span></button>`).join('')}</div>
-          </section>`).join('') : `<div class="pp-card pp-empty">${mate('sleeping')}<strong>Nothing scheduled</strong>Jobs show up here when the company schedules them.</div>`}</div>`;
-      view.querySelectorAll('[data-calmode]').forEach((b) => b.addEventListener('click', () => { state.calMode = b.getAttribute('data-calmode'); renderCalendar(); }));
-      view.querySelectorAll('[data-job]').forEach((b) => b.addEventListener('click', () => { location.hash = `#jobs/${encodeURIComponent(b.getAttribute('data-job'))}`; }));
-      return;
-    }
-    view.innerHTML = `
-      <div class="pp-head"><div><p class="pp-eyebrow">${esc(eyebrow)}</p><h1>Calendar</h1></div><div class="pp-head-actions">${seg}</div></div>
-      <div class="pp-split">
-        <section class="pp-card pp-cal pp-main" aria-label="Month">
-          <div class="pp-cal-head"><strong>${esc(monthLabel)}</strong><div class="pp-cal-ctrl"><button type="button" class="pp-ibtn" data-month="prev" aria-label="Previous month">‹</button><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-month="today">Today</button><button type="button" class="pp-ibtn" data-month="next" aria-label="Next month">›</button></div></div>
-          <div class="pp-cal-grid">${weekdays.map((w) => `<div class="pp-cal-wd">${w}</div>`).join('')}${days}</div>
-        </section>
-        <aside class="pp-card pp-side" aria-label="Selected day" style="max-width:420px">
-          <div style="padding:16px 16px 4px"><p class="pp-eyebrow" style="text-transform:capitalize">${esc(fmtDay(selDate, { weekday: 'long' }))}</p><h2 style="margin:0;font-size:22px">${esc(fmtDay(selDate, { month: 'long', day: 'numeric' }))}</h2><p class="pp-muted" style="margin:4px 0 0;font-size:14px">${sel.length ? plural(sel.length, 'job', 'jobs') : 'No jobs this day'}</p></div>
-          ${sel.map((j) => `<button type="button" class="pp-row" data-job="${esc(j.id)}"><span class="pp-row-main">${coLine(j)}<span class="pp-row-top"><strong>${esc(j.title || 'Job')}</strong><span>${j.allDay ? 'All day' : esc(fmtTime(j.scheduledStart))}</span></span><span class="pp-row-sub">${esc(j.address || '')}</span><span class="pp-row-next">${jobChip(j)}</span></span></button>`).join('')}
-          <div style="padding:12px 16px 16px"><a class="pp-btn pp-btn--sec pp-btn--sm" href="#send">Send work</a></div>
-        </aside>
-      </div>`;
-    view.querySelectorAll('[data-month]').forEach((b) => b.addEventListener('click', () => {
-      const a = b.getAttribute('data-month');
-      if (a === 'prev') state.calMonth = new Date(month.getFullYear(), month.getMonth() - 1, 1);
-      if (a === 'next') state.calMonth = new Date(month.getFullYear(), month.getMonth() + 1, 1);
-      if (a === 'today') { state.calMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1); state.calDay = dateKey(new Date()); }
-      renderCalendar();
-    }));
-    view.querySelectorAll('[data-day]').forEach((b) => b.addEventListener('click', () => { state.calDay = b.getAttribute('data-day'); renderCalendar(); }));
-    view.querySelectorAll('[data-calmode]').forEach((b) => b.addEventListener('click', () => { state.calMode = b.getAttribute('data-calmode'); renderCalendar(); }));
-    view.querySelectorAll('[data-job]').forEach((b) => b.addEventListener('click', () => { location.hash = `#jobs/${encodeURIComponent(b.getAttribute('data-job'))}`; }));
+    const stages = ['Received', 'Scheduled', 'On site', 'Completed'];
+    window.PpCalendar.mount(view, {
+      jobs: state.builder ? state.all.jobs : state.jobs,
+      companies: state.builder ? activeCompanies().map((c) => ({ id: c.id, name: c.company_name })) : [],
+      stageOf: (job) => stages[jobStepIndex(job)],
+      toast: (text) => mateToast('sleeping', text, ''),
+    });
   }
 
   /* ─────────────────────────── send work ─────────────────────────── */
