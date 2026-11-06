@@ -319,6 +319,18 @@ campoDiaRouter.get("/api/campo/dia", requireCrmAuth, async (req: AuthedRequest, 
   }
 });
 
+/** The employee's crew (installation | sand_finish | null), so ObraCrew can show that crew's icon and Mate. */
+campoDiaRouter.get("/api/campo/setor", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    if (!guard(req, res)) return;
+    const emp = await withTenantTransaction(req.organizationId!, (tx) => ownEmployee(tx, req));
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ success: true, data: { sector: emp?.sector ?? null } });
+  } catch (error) {
+    fail(res, error, next);
+  }
+});
+
 const startBody = z.object({
   work_order_id: z.string().uuid().optional().nullable(),
   lat: z.number().optional().nullable(),

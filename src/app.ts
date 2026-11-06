@@ -198,6 +198,12 @@ export function createApp() {
     res.setHeader("Cache-Control", "no-cache");
     res.sendFile(path.resolve(process.cwd(), "crm/public/obracrew.webmanifest"));
   });
+  // ObraCrew for the sanding crew: same app, the sanding Mate as icon (campo-nav.js points the page here).
+  app.get("/obracrew-lixa.webmanifest", (_req, res) => {
+    res.type("application/manifest+json");
+    res.setHeader("Cache-Control", "no-cache");
+    res.sendFile(path.resolve(process.cwd(), "crm/public/obracrew-lixa.webmanifest"));
+  });
   // ObraQuote (the Field Quote visit as its own app) — its own installable PWA, scoped to /obraquote.
   app.get("/obraquote.webmanifest", (_req, res) => {
     res.type("application/manifest+json");
