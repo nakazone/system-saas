@@ -355,7 +355,6 @@ body.job-detail-app .jcm-nav { justify-content: space-between; }
 .jmx-sec__note { display: block; margin-top: 3px; font-weight: 500; color: #667085; }
 .jmx-sec__total { margin-top: 8px; padding-top: 8px; border-top: 1px solid #F1F3F5; }
 .jmx-link { display: inline-flex; align-items: center; justify-content: flex-end; min-width: 44px; min-height: 44px; margin: -8px 0; padding: 0; border: 0; background: none; font: inherit; font-size: 13.5px; font-weight: 600; color: #221E1A; text-decoration: underline; text-decoration-color: #D0D5DD; text-underline-offset: 3px; cursor: pointer; }
-.jd-billing .jb-stats, .jd-billing .jb-bar, .jd-billing .jb-actions { display: none; }
 body.job-detail-app #jobMobExtra { padding-bottom: 96px; }
 .jmx-facts .jh-lock svg { width: 12px; height: 12px; fill: none; stroke: #E7792C; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .jmx-alerts a { color: inherit; }

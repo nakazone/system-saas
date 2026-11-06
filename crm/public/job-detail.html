@@ -24,11 +24,13 @@
   <link rel="stylesheet" href="jobs-customers-mobile.css?v=20261013-jvis1" />
   <link rel="stylesheet" href="om-gestures.css?v=20261102-ptr1" />
   <link rel="stylesheet" href="job-comms.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="crm-job-billing.css?v=20261102-tabinv1" />
-  <link rel="stylesheet" href="job-detail.css?v=20261106-ov1" />
-  <link rel="stylesheet" href="job-header.css?v=20261106-mb2" />
+  <link rel="stylesheet" href="crm-job-billing.css?v=20261106-rail1" />
+  <link rel="stylesheet" href="job-detail.css?v=20261106-rail3" />
+  <link rel="stylesheet" href="job-header.css?v=20261106-sb1" />
+  <link rel="stylesheet" href="job-agenda-block.css?v=20261106-ag1" />
+  <link rel="stylesheet" href="job-cam-block.css?v=20261106-cam1" />
   <link rel="stylesheet" href="cam-viewer.css?v=20261105-apps3" />
-  <link rel="stylesheet" href="jobs-mobile.css?v=20261106-mbfix1" />
+  <link rel="stylesheet" href="jobs-mobile.css?v=20261106-rail4" />
   <link rel="stylesheet" href="job-builder-channel.css?v=20261030-builder1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="om-device.js?v=20261013-badge1"></script>
@@ -128,8 +130,9 @@
       <div class="job-detail-page crm-page jd" id="jobDetailRoot">
         <a class="jd-back" href="jobs.html">← Jobs</a>
 
+        <div class="jd-layout" id="jdLayout" data-tab="geral">
+        <div class="jd-main">
         <div id="jdHeader"></div>
-
         <nav class="jd-tabs" id="jdTabs" role="tablist" aria-label="Seções do job">
           <button type="button" role="tab" data-tab="geral" class="is-on" aria-selected="true">Visão geral</button>
           <button type="button" role="tab" data-tab="fotos" aria-selected="false">Fotos <em id="jdTabFotos"></em></button>
@@ -141,7 +144,7 @@
 
         <!-- Visão geral -->
         <section class="jd-panel" data-panel="geral" role="tabpanel">
-          <div class="jd-grid">
+          <div class="jd-grid jd-grid--one">
             <div class="jd-col">
               <div class="jd-card">
                 <div class="jd-ch"><h2>Serviços</h2><span class="jd-ch__n" id="jdSvcCount"></span><button type="button" class="jd-link" id="btnEditServices" data-crm-permission="work_orders.manage">Editar</button></div>
@@ -161,19 +164,13 @@
                 <div class="jd-actions" id="jdAfterActions"></div>
                 <div id="jdAfterBody"></div>
               </div>
-            </div>
-            <aside class="jd-col jd-side">
-              <div class="jd-card jd-billing" id="jobBillingCard" hidden>
-                <div class="jd-ch"><h2>Faturas</h2><a class="jd-link" id="jobBillingAll" href="invoices.html">Ver todas</a></div>
-                <div id="jobBillingBody"></div>
-              </div>
               <div class="jd-card" id="jobProposalCard" hidden>
                 <div class="jd-ch"><h2>Proposta ao cliente</h2>
                   <span class="jd-ch__end"><button type="button" class="jd-link" id="btnCreateProposal" data-crm-permission="work_orders.manage">Criar proposta</button><button type="button" class="jd-link" id="btnCreateProposalAi" data-crm-permission="work_orders.manage">Criar com IA</button></span>
                 </div>
                 <div id="jobProposalBody"></div>
               </div>
-            </aside>
+            </div>
           </div>
         </section>
 
@@ -227,6 +224,22 @@
             <div id="jobCommsBody"></div>
           </div>
         </section>
+        </div>
+        <aside class="jd-rail" id="jdRail" aria-label="Agenda, faturas e ObraCam do job">
+              <div class="jd-card" id="jobAgendaCard">
+                <div class="jd-ch"><h2>Agenda</h2></div>
+                <div id="jobAgendaBody"></div>
+              </div>
+              <div class="jd-card jd-billing" id="jobBillingCard" hidden>
+                <div class="jd-ch"><h2>Faturas</h2><a class="jd-link" id="jobBillingAll" href="invoices.html">Ver todas</a></div>
+                <div id="jobBillingBody"></div>
+              </div>
+              <div class="jd-card" id="jobCamCard">
+                <div class="jd-ch"><h2>ObraCam</h2><a class="jd-link" id="jobCamOpen" href="job-media-board.html">Abrir no ObraCam</a></div>
+                <div id="jobCamBody"></div>
+              </div>
+        </aside>
+        </div>
       </div>
     </main>
   </div>
@@ -242,15 +255,17 @@
   <script src="om-gestures.js?v=20261102-ptr1"></script>
   <script src="crm-listbox-keys.js?v=20261103-addr1"></script>
   <script src="crm-job-modal.js?v=20261104-ux2"></script>
-  <script src="crm-job-billing.js?v=20261104-ux2"></script>
+  <script src="crm-job-billing.js?v=20261106-rail1"></script>
   <script src="crm-confirm.js?v=20261105-apps3"></script>
   <script src="job-chat-comms.js?v=20261104-ux2"></script>
 <script src="jobs-info.js?v=20261105-crew-prod1"></script>
   <script src="cam-viewer.js?v=20261105-apps3"></script>
   <script src="job-builder-channel.js?v=20261030-ch1"></script>
   <script src="job-stain.js?v=20261030-stain1"></script>
-  <script src="job-header.js?v=20261106-mb1"></script>
-  <script src="job-detail.js?v=20261106-mb2"></script>
-  <script src="job-detail-mobile.js?v=20261106-mb2"></script>
+  <script src="job-agenda-block.js?v=20261106-ag2"></script>
+  <script src="job-cam-block.js?v=20261106-cam1"></script>
+  <script src="job-header.js?v=20261106-rail3"></script>
+  <script src="job-detail.js?v=20261106-rail1"></script>
+  <script src="job-detail-mobile.js?v=20261106-sb1"></script>
 </body>
 </html>

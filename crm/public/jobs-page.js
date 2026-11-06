@@ -25,7 +25,6 @@
   let detailWo = null;
   /** Bumped to ignore in-flight GET /work-orders/:id that would clobber a fresher status. */
   let detailFetchSeq = 0;
-  let billingCtl = null;
   let commsCtl = null;
   let mediaCache = null;
   let fieldCache = null;
@@ -188,7 +187,7 @@
       location.href = `job-detail.html?id=${encodeURIComponent(wo?.id || "")}&faturar=1`;
       return;
     }
-    window.JobBilling.openDialog({ jobId: wo.id, billing: wo.billing, jobStatus: wo.status });
+    window.JobBilling.openDialog({ jobId: wo.id, billing: wo.billing, jobStatus: wo.status, stay: true });
   }
   /** Botão principal do cartão — o mesmo do app: agendar, iniciar, concluir, faturar. */
   function cardActions(wo, undated, now) {
@@ -797,7 +796,6 @@
       } catch (_) {}
     }
     commsCtl = null;
-    billingCtl = null;
   }
 
   function hasPartnerPortal(wo) {
@@ -917,20 +915,55 @@
       : `<p class="jx-none">Nenhum serviço ainda.${canManage ? " Adicione pela Tabela de Valores." : ""}</p>`;
     const { code, text: notes } = window.JobHeader.noteParts(wo.notes);
     const invoicesHref = `invoices.html?q=${encodeURIComponent(wo.number != null ? `Job #${wo.number}` : wo.title || "")}`;
-    return `<div class="jx-cols">
-      <div>
+    return `<div class="jx-overview">
         <div class="jx-box"><h3>Serviços${canManage ? `<button type="button" class="jx-lnk" data-jx-act="services">Editar</button>` : ""}</h3>${svc}</div>
         ${
           notes
             ? `<div class="jx-box"><h3>Notas da obra${canManage ? `<button type="button" class="jx-lnk" data-jx-act="notes">Editar</button>` : ""}</h3><p class="jx-note">${J.esc(notes)}</p></div>`
             : `<div class="jx-box is-empty"><h3>Notas da obra<span class="jx-hint">${code ? "Só o código da caixa, que está no cabeçalho" : canManage ? "Acesso, portão, cuidados com a obra" : "Sem notas"}</span>${canManage ? `<button type="button" class="jx-lnk" data-jx-act="notes">${code ? "Editar" : "Adicionar"}</button>` : ""}</h3></div>`
         }
-      </div>
-      <div>
-        ${canBill ? `<div class="jx-box jx-billing"><h3>Faturas${(wo.invoices || []).length ? `<a class="jx-lnk" href="${J.esc(invoicesHref)}">Ver todas</a>` : ""}</h3><div id="jxBilling"></div></div>` : ""}
         ${partnerBox(wo)}
-      </div>
     </div>`;
+  }
+
+  /** Stays with the job on every tab; below the width that fits it, it shows under the overview. */
+  function railHtml(wo) {
+    const J = I();
+    const invoicesHref = `invoices.html?q=${encodeURIComponent(wo.number != null ? `Job #${wo.number}` : wo.title || "")}`;
+    return `<aside class="jx-rail" id="jxRail" data-job="${J.esc(wo.id)}" aria-label="Agenda, faturas e ObraCam do job">
+      <div class="jx-box" id="jxAgendaBox"><h3>Agenda</h3><div id="jxAgenda"></div></div>
+      ${canBill ? `<div class="jx-box jx-billing"><h3>Faturas<a class="jx-lnk" href="${J.esc(invoicesHref)}">Ver todas</a></h3><div id="jxBilling"></div></div>` : ""}
+      <div class="jx-box"><h3>ObraCam<a class="jx-lnk" href="job-media-board.html?id=${encodeURIComponent(wo.id)}">Abrir no ObraCam</a></h3><div id="jxCam"></div></div>
+    </aside>`;
+  }
+  let railCtl = null;
+  function mountRail(wo) {
+    railCtl = {
+      updatedAt: wo.updated_at,
+      agenda: window.JobAgendaBlock?.mount($("jxAgenda"), {
+        job: wo,
+        canManage,
+        canViewCalendar: sessionRole === "admin" || sessionPerms.includes("schedule.view"),
+      }),
+      billing: canBill && window.JobBilling ? window.JobBilling.mountCard($("jxBilling"), { jobId: wo.id, jobStatus: wo.status, canManage: canInvoice }) : null,
+    };
+    window.JobCamBlock?.mount($("jxCam"), {
+      job: wo,
+      canAdd: canManage,
+      canManage,
+      onViewAll: () => {
+        detailTab = "fotos";
+        renderDetail();
+      },
+    });
+  }
+  function syncRail(wo) {
+    if (!railCtl) return;
+    railCtl.billing?.setJobStatus(wo.status);
+    if (railCtl.updatedAt !== wo.updated_at) {
+      railCtl.updatedAt = wo.updated_at;
+      railCtl.agenda?.update(wo);
+    }
   }
 
   function panelFotos(wo) {
@@ -1093,13 +1126,6 @@
   }
 
   function mountLazyPanels(wo) {
-    if (detailTab === "geral" && canBill && window.JobBilling && $("jxBilling")) {
-      billingCtl = window.JobBilling.mountCard($("jxBilling"), {
-        jobId: wo.id,
-        jobStatus: wo.status,
-        canManage: canInvoice,
-      });
-    }
     if (detailTab === "stain" && window.JobStain && $("jxStain")) {
       window.JobStain.mount($("jxStain"), { jobId: wo.id, notify });
     }
@@ -1192,13 +1218,23 @@
                 ? `<div id="jxBuilder"></div>`
                 : panelGeral(wo);
 
+    // Changing tab must not reload or blink the rail: the same element goes back in place.
+    const kept = $("jxRail");
+    const keepRail = kept && kept.getAttribute("data-job") === String(wo.id);
+    if (keepRail) kept.remove();
+    else railCtl = null;
     host.innerHTML = `
       <a class="jx-back" href="#" data-jx-back>${SVG.back}Jobs</a>
+      <div class="jx-layout" data-tab="${J.esc(tab)}"><div class="jx-layout__main">
       <div id="jxHeader">${window.JobHeader.html(wo, headerCtx(wo))}</div>
       <nav class="jx-tabs" role="tablist">${tabs.map(
         ([k, label]) => `<button type="button" role="tab" class="${k === tab ? "is-on" : ""}" data-jx-tab="${k}" aria-selected="${k === tab}">${label}${k === "builder" ? ` <em id="jdTabBuilder"></em>` : ""}</button>`,
       ).join("")}</nav>
-      <div class="jx-panel" data-jx-panel="${tab}">${body}</div>`;
+      <div class="jx-panel" data-jx-panel="${tab}">${body}</div>
+      </div>${keepRail ? '<div id="jxRailSlot"></div>' : railHtml(wo)}</div>`;
+    if (keepRail) $("jxRailSlot").replaceWith(kept);
+    else mountRail(wo);
+    if (keepRail) syncRail(wo);
     if (hasPartnerPortal(wo) && (tab === "geral" || tab === "fotos")) ensurePartnerDocs(wo);
     mountLazyPanels(wo);
     ensureFieldSummary(wo);
@@ -1212,7 +1248,6 @@
       canInvoice,
       can: (perm) => sessionRole === "admin" || sessionPerms.includes(perm),
       field: fieldCache && String(fieldCache._jobId) === String(wo.id) ? fieldCache : null,
-      photos: mediaCache && String(mediaCache._jobId) === String(wo.id) ? mediaCache.length : 0,
     };
   }
   /** The header warns about field problems on every tab, so load them once per job. */
@@ -1785,6 +1820,15 @@
         notify(err.message || "Erro", "error");
       }
     });
+    // New photos: the Fotos tab loads fresh next time it opens.
+    window.addEventListener("jobcam:changed", () => {
+      mediaCache = null;
+    });
+    // Issued, paid or sent from the invoices block: list tiles and header follow. The open job stays open.
+    window.addEventListener("jobbilling:changed", () => {
+      if (selId && window.matchMedia("(min-width: 1025px)").matches) detailWo = null;
+      load().catch(() => {});
+    });
     const currentWo = () => (detailWo && String(detailWo.id) === String(selId) ? detailWo : all.find((w) => String(w.id) === String(selId)));
     window.JobHeader.bind($("jxDetail"), {
       act: async (name) => {
@@ -1796,9 +1840,16 @@
           else if (name === "services" || name === "schedule" || name === "team") await window.__crmJobModal.openEdit(id, { section: name });
           else if (name === "reopen") await setStatus(id, "draft", "Job reaberto com o valor atual do quote.");
           else if (name === "invoice") openFaturar(wo);
+          else if (name === "pay") await window.JobBilling.payNext(id);
+          else if (name === "agenda") {
+            if (getComputedStyle($("jxRail")).display === "none") {
+              detailTab = "geral";
+              renderDetail();
+            }
+            setTimeout(() => $("jxAgendaBox")?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 60);
+          }
           else if (name === "start") await setStatus(id, "in_progress", "Job iniciado.");
           else if (name === "complete") await finishCurrent(wo);
-          else if (name === "lixa") await window.__crmJobModal.openScheduleLixa(wo);
           else if (name === "delete") await deleteJob(id, wo.title || I().client(wo));
           else if (name === "chat") await window.JobChatComms.openJobChannel(id);
         } catch (err) {

@@ -308,8 +308,6 @@
 .jd-photo { border: 0; box-shadow: 0 0 0 1px var(--jd-line); }
 .jd-photo__gps { color: var(--jd-ink); }
 
-/* Totals live in the job header; the action too. This card is the invoice list. */
-.jd-billing .jb-stats, .jd-billing .jb-bar, .jd-billing .jb-actions { display: none; }
 
 /* Service tables fit their card; shared tablet rules give tables a wide minimum. */
 .jd .jd-table { min-width: 0; }
@@ -324,3 +322,35 @@
 #jdAfterBody { flex: 1 1 100%; }
 #jdAfterBody:empty { display: none; }
 #jdAfterBody .jd-after { margin-top: 4px; }
+
+/* Agenda, invoices and ObraCam stay in view on every tab. */
+.jd-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+.jd-main { min-width: 0; }
+.jd-grid--one { grid-template-columns: minmax(0, 1fr); }
+.jd-rail { position: sticky; top: 68px; display: grid; gap: 10px; align-content: start; max-height: calc(100vh - 68px - 96px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 1px; }
+.jd-rail .jd-card { padding: 12px 14px; border-radius: 16px; }
+.jd-rail .jd-ch { margin-bottom: 8px; }
+/* Tabs that used to have the whole width share it with the rail now. */
+@media (max-width: 1600px) {
+  .jd-main .jd-grid { grid-template-columns: minmax(0, 1fr); }
+  .jd-main .jd-side { position: static; }
+}
+@media (max-height: 860px) {
+  .jd-rail .ja-week { display: none; }
+}
+@media (max-width: 1100px) {
+  .jd-layout { grid-template-columns: minmax(0, 1fr); }
+  .jd-rail { position: static; max-height: none; overflow: visible; }
+  .jd-layout:not([data-tab="geral"]) .jd-rail { display: none; }
+  .jd-rail .ja-week { display: grid; }
+}
+
+/* The page already leaves room for the bottom bar; extra space let the rail scroll out of view. */
+#jobDetailRoot.jd { padding-bottom: 0; }
+
+/* With the rail beside it, the card keeps client, site and team; the dates live in the rail. */
+@media (min-width: 1101px) {
+  #jdHeader .jh-fact--when { display: none; }
+}
+#jdHeader .jh { margin-bottom: 0; }
+.jd-rail .jd-card { border-radius: 22px; }

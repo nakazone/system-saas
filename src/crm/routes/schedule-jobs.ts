@@ -5,7 +5,7 @@ import { prisma } from "../../lib/prisma.js";
 import { managerIdOrNull, managerName } from "../../lib/customers/managers.js";
 import type { AuthedRequest } from "../../middleware/auth.js";
 import { requireCrmAuth, requireCrmPermission, dec } from "../http.js";
-import { findScheduleConflicts } from "../../lib/schedule/conflicts.js";
+import { findJobConflicts, findScheduleConflicts, jobScheduleWindows } from "../../lib/schedule/conflicts.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { publicBaseUrl } from "../../lib/http/public-url.js";
 import { ensureTempShareToken } from "../../lib/work-orders/temp-share.js";
@@ -791,6 +791,117 @@ async function collectConflictHints(params: {
 }
 
 // ---------- Work orders ----------
+
+/** What else needs this job's people at the same time, to show before anyone has to save. */
+scheduleJobsRouter.get(
+  "/api/work-orders/:id/schedule-conflicts",
+  requireCrmAuth,
+  requireCrmPermission("work_orders.view"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const jobId = workOrderIdParam(req);
+      const ACTIVE = ["draft", "scheduled", "in_progress"];
+      const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const job = await tx.workOrder.findFirst({
+          where: { id: jobId },
+          select: {
+            id: true,
+            status: true,
+            scheduledStart: true,
+            scheduledEnd: true,
+            sandScheduledStart: true,
+            assignedUserId: true,
+            crewId: true,
+            assignedUser: { select: { name: true } },
+            crew: { select: { name: true } },
+          },
+        });
+        if (!job) return null;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        // A finished job, or one with nobody on it, has nothing left to clash with.
+        const stillAhead = jobScheduleWindows(job).some((w) => w.end.getTime() >= today.getTime());
+        if (!ACTIVE.includes(job.status) || !stillAhead || (!job.assignedUserId && !job.crewId)) return [];
+
+        const people = [
+          ...(job.assignedUserId ? [{ assignedUserId: job.assignedUserId }] : []),
+          ...(job.crewId ? [{ crewId: job.crewId }] : []),
+        ];
+        const [others, meetings] = await Promise.all([
+          tx.workOrder.findMany({
+            where: { id: { not: job.id }, status: { in: ACTIVE }, OR: people },
+            select: {
+              id: true,
+              number: true,
+              title: true,
+              sourceName: true,
+              scheduledStart: true,
+              scheduledEnd: true,
+              sandScheduledStart: true,
+              assignedUserId: true,
+              crewId: true,
+              customer: { select: { name: true } },
+            },
+          }),
+          job.assignedUserId
+            ? tx.meeting.findMany({
+                where: { status: { not: "canceled" }, assignedUserId: job.assignedUserId },
+                select: { id: true, title: true, scheduledStart: true, scheduledEnd: true, assignedUserId: true },
+              })
+            : Promise.resolve([]),
+        ]);
+        const who = (reason: string) => (reason === "crew_overlap" ? job.crew?.name : job.assignedUser?.name) || null;
+        const jobHits = findJobConflicts(job, others).map((hit) => {
+          const o = others.find((x) => x.id === hit.withId)!;
+          return {
+            kind: "job" as const,
+            id: o.id,
+            number: o.number,
+            title: o.title,
+            client: o.customer?.name || o.sourceName || null,
+            start: (o.scheduledStart || o.sandScheduledStart)!.toISOString(),
+            end: o.scheduledEnd?.toISOString() ?? null,
+            reason: hit.reason,
+            who: who(hit.reason),
+          };
+        });
+        const meetingHits = jobScheduleWindows(job).flatMap((w) =>
+          findScheduleConflicts(
+            { ...w, id: job.id, assignedUserId: job.assignedUserId },
+            meetings.map((m) => ({ id: m.id, start: m.scheduledStart, end: m.scheduledEnd, assignedUserId: m.assignedUserId })),
+          ),
+        );
+        const seenMeetings = new Set<string>();
+        const meetingRows = meetingHits.flatMap((hit) => {
+          if (seenMeetings.has(hit.withId)) return [];
+          seenMeetings.add(hit.withId);
+          const m = meetings.find((x) => x.id === hit.withId)!;
+          return [
+            {
+              kind: "meeting" as const,
+              id: m.id,
+              number: null,
+              title: m.title,
+              client: null,
+              start: m.scheduledStart.toISOString(),
+              end: m.scheduledEnd.toISOString(),
+              reason: hit.reason,
+              who: who(hit.reason),
+            },
+          ];
+        });
+        return [...jobHits, ...meetingRows].sort((a, b) => a.start.localeCompare(b.start));
+      });
+      if (data === null) {
+        res.status(404).json({ success: false, error: "Job não encontrado" });
+        return;
+      }
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 scheduleJobsRouter.get(
   "/api/work-orders",

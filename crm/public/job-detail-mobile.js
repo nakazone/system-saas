@@ -586,7 +586,24 @@
     const invoices = canBill && window.JobBilling
       ? `<section class="jcm-card jmx-sec jd-billing" id="jobMobBillingCard"><div class="jmx-sec__h"><h2>Faturas</h2></div><div id="jobMobBilling"></div></section>`
       : "";
-    $("jobMobExtra").innerHTML = notes + services + invoices;
+    const cam = window.JobCamBlock
+      ? `<section class="jcm-card jmx-sec"><div class="jmx-sec__h"><h2>ObraCam</h2><a class="jmx-link" href="job-media-board.html?id=${encodeURIComponent(wo.id)}">Abrir</a></div><div id="jobMobCam"></div></section>`
+      : "";
+    const agenda = window.JobAgendaBlock
+      ? `<section class="jcm-card jmx-sec" id="jobMobAgendaCard"><div class="jmx-sec__h"><h2>Agenda</h2></div><div id="jobMobAgenda"></div></section>`
+      : "";
+    $("jobMobExtra").innerHTML = notes + agenda + services + invoices + cam;
+    if (agenda) {
+      window.JobAgendaBlock.mount($("jobMobAgenda"), { job: wo, canManage, canViewCalendar: can("schedule.view") });
+    }
+    if (cam) {
+      const openTab = () => {
+        detTab = "fotos";
+        render();
+        document.querySelector("[data-jd-tab='fotos']")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      };
+      window.JobCamBlock.mount($("jobMobCam"), { job: wo, canAdd: canUpload(), canManage, onViewAll: openTab, onAdd: openTab });
+    }
     if (invoices) {
       window.JobBilling.mountCard($("jobMobBilling"), { jobId: wo.id, jobStatus: wo.status, canManage: canInvoice });
     }
@@ -614,32 +631,16 @@
       ),
     );
     const dated = wo.scheduled_start || wo.sand_scheduled_start;
-    const open = wo.status !== "completed" && wo.status !== "canceled";
     rows.push(
       row(
         "Agenda",
         `<b>${escapeHtml(dated ? J.dateRange(wo) : "Sem data")}</b>`,
         escapeHtml(H.whenSub(wo)),
-        canManage && open ? act("schedule", dated ? "Remarcar" : "Agendar") : "",
+        act("agenda", "Ver agenda"),
       ),
     );
     if (!isField || teamLabel(wo) !== "Sem equipe") {
       rows.push(row("Equipe", `<b>${escapeHtml(teamLabel(wo))}</b>`, "", canManage ? act("team", "Gerir") : ""));
-    }
-    const b = canBill ? wo.billing : null;
-    if (b) {
-      const m = H.moneySummary(b);
-      const primaryIsInvoice = H.primary(wo, headerCtx())?.act === "invoice";
-      const action = H.canEmit(wo, headerCtx()) && !primaryIsInvoice ? act("invoice", "Emitir Invoice") : (wo.invoices || []).length ? act("bills", "Faturas") : "";
-      rows.push(
-        row(
-          m.head.k,
-          `<b class="jmx-fact__money">${escapeHtml(moneyFmt(m.head.v))}</b>`,
-          escapeHtml(m.parts.join(" · ")),
-          action,
-          m.total > 0 ? `<i class="jh-bar" aria-hidden="true"><i class="p" style="width:${m.paidPct.toFixed(1)}%"></i><i class="o" style="width:${m.openPct.toFixed(1)}%"></i></i>` : "",
-        ),
-      );
     }
     $("jobMobFacts").innerHTML = rows.join("");
   }
@@ -680,8 +681,7 @@
     if (next) {
       cta.textContent = next.label;
       cta.className = "jcm-foot__btn jcm-foot__btn--primary";
-      cta.dataset.action = next.href ? "href" : next.act;
-      cta.dataset.href = next.href || "";
+      cta.dataset.action = next.act;
       // Late and never started: it may already be done.
       if (next.act === "start" && window.JobsInfo?.late?.(wo) && sec) {
         sec.hidden = false;
@@ -747,7 +747,7 @@
       return;
     }
     if (idx === 3 && canBill && window.JobBilling) {
-      window.JobBilling.openDialog({ jobId, billing: job.billing, jobStatus: job.status });
+      window.JobBilling.openDialog({ jobId, billing: job.billing, jobStatus: job.status, stay: true });
       return;
     }
     if (idx === 4) window.crmToast?.info?.("Registre o pagamento nas faturas do job.");
@@ -782,7 +782,6 @@
       act: async (name) => {
         try {
           if (name === "edit") await window.__crmJobModal.openEdit(jobId);
-          else if (name === "lixa") await window.__crmJobModal.openScheduleLixa(job);
           else if (name === "delete") await deleteMobJob();
         } catch (err) {
           window.crmToast?.error?.(err.message || "Erro");
@@ -799,12 +798,10 @@
       const b = e.target.closest("[data-mob-fact]");
       if (!b || !job) return;
       const name = b.getAttribute("data-mob-fact");
-      if (name === "invoice") {
-        window.JobBilling.openDialog({ jobId, billing: job.billing, jobStatus: job.status });
-      } else if (name === "bills") {
+      if (name === "agenda") {
         detTab = "geral";
         render();
-        setTimeout(() => $("jobMobBillingCard")?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
+        setTimeout(() => $("jobMobAgendaCard")?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
       } else {
         window.__crmJobModal.openEdit(jobId, { section: name }).catch((err) => window.crmToast?.error?.(err.message || "Erro"));
       }
@@ -862,8 +859,8 @@
             })();
           return;
         }
-        if (action === "href") {
-          location.href = $("jobMobCta").dataset.href;
+        if (action === "pay") {
+          await window.JobBilling.payNext(jobId);
           return;
         }
         if (action === "services") {
@@ -889,7 +886,7 @@
           return;
         }
         if (action === "invoice") {
-          window.JobBilling.openDialog({ jobId, billing: job.billing, jobStatus: job.status });
+          window.JobBilling.openDialog({ jobId, billing: job.billing, jobStatus: job.status, stay: true });
           return;
         }
         if (action === "start") {
@@ -963,6 +960,17 @@
       bind();
       render();
       loadFieldSummary();
+      // Issued, paid or sent from the invoices block: totals and the footer's next step follow.
+      window.addEventListener("jobbilling:changed", async (e) => {
+        if (String(e.detail?.jobId) !== String(jobId)) return;
+        try {
+          const fresh = await fetch(`/api/work-orders/${jobId}`, { credentials: "include" }).then((r) => r.json());
+          if (!fresh?.data) return;
+          job = fresh.data;
+          renderFacts(job);
+          restoreVisitCta();
+        } catch (_) {}
+      });
       if (window.__crmJobModal?.onSaved) {
         window.__crmJobModal.onSaved(async (data) => {
           if (data?.id && String(data.id) === String(jobId)) {

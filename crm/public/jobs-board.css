@@ -467,8 +467,6 @@
   .jx-row__l3 small { text-align: left; }
 }
 
-/* Totals live in the job header; the action too. This card is the invoice list. */
-.jx-billing .jb-stats, .jx-billing .jb-bar, .jx-billing .jb-actions { display: none; }
 
 .jx-detail .jx-tbl { min-width: 0; }
 
@@ -478,3 +476,23 @@
 /* Narrow list column: filters drop to their own line instead of being squeezed. */
 .jx-tools { flex-wrap: wrap; }
 .jx-tools .jx-sel { flex: 1 1 104px; }
+
+/* Agenda, invoices and ObraCam stay in view on every tab when the panel has the room. */
+.jx-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-items: start; }
+.jx-layout__main { min-width: 0; }
+.jx-rail { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.jx-rail .jx-box { margin-bottom: 0; padding: 12px 14px; border-radius: 22px; }
+.jx-rail .jx-box h3 { margin-bottom: 8px; }
+.jx-layout:not([data-tab="geral"]) .jx-rail { display: none; }
+@container jxd (min-width: 980px) {
+  .jx-layout { grid-template-columns: minmax(0, 1fr) 300px; }
+  .jx-layout:not([data-tab="geral"]) .jx-rail { display: grid; }
+  .jx-rail { position: sticky; top: 68px; max-height: calc(100vh - 68px - 96px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 1px; }
+  .jx-layout__main .jx-campo__grid { grid-template-columns: minmax(0, 1fr); }
+  /* With the rail beside it, the card keeps client, site and team; the dates live in the rail. */
+  #jxHeader .jh-fact--when { display: none; }
+}
+@media (max-height: 860px) {
+  .jx-rail .ja-week { display: none; }
+}
+#jxHeader .jh { margin-bottom: 12px; }
