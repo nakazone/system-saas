@@ -747,7 +747,9 @@
     const holder = cf.querySelector("[data-cat-picker]");
     holder.outerHTML = catChips("other");
     const t = parse(today);
-    $("fxNewSub").textContent = `Entra no fluxo de caixa de ${MONTHS[t.getMonth()]}`;
+    $("fxNewSub").textContent = S.costJob
+      ? `Custo do ${S.costJob.label}. Entra no fluxo de caixa de ${MONTHS[t.getMonth()]}`
+      : `Entra no fluxo de caixa de ${MONTHS[t.getMonth()]}`;
     setMode(mode || "scan");
     $("fxNewModal").hidden = false;
     document.body.classList.add("fx-modal-open");
@@ -803,12 +805,15 @@
       category: fd.get("category") || "other",
       notes: fd.get("notes") || null,
     };
+    const linkedJob = S.costJob;
+    if (linkedJob) payload.work_order_id = linkedJob.id;
     const file = form.querySelector('[name="receipt_file"]').files[0];
     try {
       if (file) payload.receipt_data_url = await fileToDataUrl(file);
       const j = await api("/api/finance/costs", { method: "POST", body: JSON.stringify(payload) });
       closeNew();
-      toast("Custo salvo", "success");
+      S.costJob = null;
+      toast(linkedJob ? `Custo salvo no ${linkedJob.label}` : "Custo salvo", "success");
       S.sel = j.data && j.data.id ? `cost:${j.data.id}` : "res";
       await load();
     } catch (err) {
@@ -917,7 +922,21 @@
       const mov = u.searchParams.get("mov");
       if (mov) { S.sel = mov; S.detailOpen = true; }
       if (location.hash === "#scan" || u.searchParams.get("new") === "scan") setTimeout(() => openNew("scan"), 300);
-      if (u.searchParams.get("new") === "cost") setTimeout(() => openNew("manual"), 300);
+      if (u.searchParams.get("new") === "cost") {
+        const jobId = u.searchParams.get("job");
+        const open = () => openNew("manual");
+        if (!jobId) setTimeout(open, 300);
+        else {
+          // Started from a job: show which one, and keep the cost linked to it.
+          api(`/api/work-orders/${encodeURIComponent(jobId)}`)
+            .then((j) => {
+              const w = j.data;
+              if (w) S.costJob = { id: w.id, label: w.number != null ? `Job #${w.number}` : "job" };
+            })
+            .catch(() => {})
+            .finally(open);
+        }
+      }
     } catch (e) { /* ignore */ }
     bind();
     api("/api/finance/ocr-status")

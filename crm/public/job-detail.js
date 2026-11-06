@@ -1,26 +1,20 @@
 /**
  * Job page (desktop + tablet). Phones use the job-detail-mobile.js overlay.
  *
- * Header (status, client, address, dates, main action) + progress steps, then tabs:
- * Visão geral · Serviços e faturas · Fotos · Campo · Conversa. Tab data loads on demand.
+ * Header comes from job-header.js (shared with the Jobs side panel), then tabs:
+ * Visão geral · Fotos · Campo · Stain · Conversa. Tab data loads on demand.
  */
 (function () {
-  const STATUS = {
-    draft: ["Rascunho", "draft"],
-    scheduled: ["Agendado", "scheduled"],
-    in_progress: ["Em campo", "progress"],
-    completed: ["Concluído", "done"],
-    canceled: ["Cancelado", "canceled"],
-  };
-  const SOURCE = { particular: "Particular", builder: "Builder", contractor: "Builder", loja: "Builder", internal: "Interno", other: "Outro" };
   const STAGE = { before: "Antes", during: "Durante", after: "Depois" };
-  const TABS = ["geral", "servicos", "fotos", "campo", "stain", "conversa", "builder"];
+  const TABS = ["geral", "fotos", "campo", "stain", "conversa", "builder"];
 
   let jobId = null;
   let job = null;
   let canManage = false;
   let canBill = false;
   let canInvoice = false;
+  let sessionPerms = [];
+  let sessionRole = "";
   let orgSlug = null;
   let billing = null; // { billing, data: invoices }
   let media = null;
@@ -53,9 +47,6 @@
   function money(n) {
     return (Number(n) || 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
   }
-  function money0(n) {
-    return (Number(n) || 0).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-  }
   async function api(url, opts) {
     const r = await fetch(url, {
       credentials: "include",
@@ -76,170 +67,64 @@
     return raw in map ? map[raw] : String(unit || "").replace(/_/g, " ");
   }
   const qty = (n) => (Number(n) || 0).toLocaleString("en-US", { maximumFractionDigits: 2 });
-  function fmtDay(d, opts) {
-    return d.toLocaleDateString("pt-BR", opts || { weekday: "short", day: "numeric", month: "short" }).replace(/\.$/, "");
-  }
-  function fmtTime(d) {
-    return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-  }
-  const WD = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-  const MO = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
-  /** "Qui 24 set" */
-  function shortDay(d) {
-    return `${WD[d.getDay()]} ${d.getDate()} ${MO[d.getMonth()]}`;
-  }
-  function whenText() {
-    if (!job.scheduled_start) return { main: "Sem data", sub: "Ainda não agendado" };
-    const s = new Date(job.scheduled_start);
-    const e = job.scheduled_end ? new Date(job.scheduled_end) : null;
-    if (job.all_day) return { main: shortDay(s), sub: e && s.toDateString() !== e.toDateString() ? `até ${shortDay(e)} · dia inteiro` : "Dia inteiro" };
-    if (!e) return { main: shortDay(s), sub: `${fmtTime(s)} · sem fim definido` };
-    const sameDay = s.toDateString() === e.toDateString();
-    const sameMonth = s.getMonth() === e.getMonth();
-    return {
-      main: sameDay ? shortDay(s) : `${WD[s.getDay()]} ${s.getDate()}${sameMonth ? "" : ` ${MO[s.getMonth()]}`} → ${shortDay(e)}`,
-      sub: `${fmtTime(s)} – ${fmtTime(e)}`,
-    };
-  }
-  function shortRange() {
-    if (!job.scheduled_start) return "Sem data";
-    const s = new Date(job.scheduled_start);
-    const e = job.scheduled_end ? new Date(job.scheduled_end) : null;
-    const dm = { day: "numeric", month: "short" };
-    if (!e || s.toDateString() === e.toDateString()) return fmtDay(s, dm);
-    if (s.getMonth() === e.getMonth()) return `${s.getDate()}–${fmtDay(e, dm)}`;
-    return `${fmtDay(s, dm)} – ${fmtDay(e, dm)}`;
-  }
   function clientName() {
     return job.customer?.name || job.builder?.company || job.builder?.name || job.source_name || "Sem cliente";
   }
-  function lockbox(notes) {
-    const fn = window.parseJobLockbox;
-    if (typeof fn === "function") return fn(notes);
-    const m = String(notes || "").match(/\/lockbox\s*[#:]?\s*([0-9A-Za-z-]{2,24})\b/i);
-    return m ? m[1] : null;
-  }
-  function mapsUrl() {
-    return job.address ? `https://maps.google.com/?q=${encodeURIComponent(job.address)}` : "";
-  }
-
-  function lateInfo() {
-    return window.JobsInfo && job ? window.JobsInfo.late(job) : null;
-  }
-  /** Aviso quando o job passou da data e ainda não foi concluído. */
-  function renderLate() {
-    const card = $("jdLateCard");
-    if (!card) return;
-    const lt = lateInfo();
-    card.hidden = !lt;
-    if (!lt) return;
-    const d = `${lt.days} dia${lt.days > 1 ? "s" : ""}`;
-    const title =
-      job.status === "in_progress" ? `Passou do término · ${d}` : `Não iniciado · ${d} após a data`;
-    // Ops live in the header primary CTA — here only quiet schedule links.
-    card.className = "jd-late-line";
-    card.innerHTML = `<span class="jd-late-line__dot" aria-hidden="true"></span><span>${esc(title)}</span>${
-      canManage
-        ? `<button type="button" class="jd-late-line__act" data-primary="schedule">Remarcar</button><a class="jd-late-line__act" href="${esc($("btnOpenSchedule").href)}">Agenda</a>`
-        : ""
-    }`;
-  }
-
   // ---------------------------------------------------------------- header
+  function headerCtx() {
+    return {
+      mode: "page",
+      canManage,
+      canBill,
+      canInvoice,
+      can: (perm) => sessionRole === "admin" || sessionPerms.includes(perm),
+      billing: billing?.billing || null,
+      invoices: billing?.data || null,
+      field,
+      photos: media?.length || 0,
+      partnerPortal: hasPartnerPortal(),
+    };
+  }
   function renderHeader() {
-    const [label, cls] = STATUS[job.status] || [job.status, "draft"];
-    const b = billing?.billing || job.billing;
-    const sectorLbl = job.sector === "installation" ? "Instalação" : job.sector === "sand_finish" ? "Lixa" : "";
-    $("jdChips").innerHTML = `
-      <span class="jd-pill jd-pill--${cls}">${esc(label)}</span>
-      ${lateInfo() ? `<span class="jd-pill jd-pill--late">${esc(lateInfo().short)}</span>` : ""}
-      ${sectorLbl ? `<span class="jd-pill">${esc(sectorLbl)}</span>` : ""}
-      ${
-        job.needs_delivery
-          ? `<span class="jd-pill jd-pill--delivery" title="${esc(
-              [job.delivery_pickup_address, job.delivery_notes].filter(Boolean).join(" · ") || "Retirar material da obra",
-            )}">Delivery</span>`
-          : ""
-      }
-      ${canBill && b && b.billing_status !== "no_value" && window.JobBilling ? window.JobBilling.chip(b) : ""}
-      ${job.number != null ? `<span class="jd-num">Job #${esc(job.number)}</span>` : ""}`;
-    $("jobDetailTitle").textContent = job.title || `Job para ${clientName()}`;
     document.title = `${job.title || clientName()} | ObraMate`;
-    const type = SOURCE[job.source_type] || "";
-    const parts = [
-      `<span><b>${esc(clientName())}</b>${type ? ` · ${esc(type)}` : ""}</span>`,
-      job.address
-        ? `<a href="${esc(mapsUrl())}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>${esc(job.address)}</a>`
-        : `<span class="jd-muted">Sem endereço</span>`,
-      `<span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>${esc(shortRange())}</span>`,
-    ];
-    if (job.related_work_order) {
-      parts.push(
-        `<a href="job-detail.html?id=${encodeURIComponent(job.related_work_order.id)}">Ligado a #${esc(
-          job.related_work_order.number != null ? job.related_work_order.number : "—",
-        )} · ${esc(job.related_work_order.title)}</a>`,
-      );
-    }
-    $("jdSub").innerHTML = parts.join("");
-    renderPrimary();
-    $("btnOpenSchedule").href = job.scheduled_start ? `schedule.html?focus=${encodeURIComponent(job.scheduled_start)}&event=${encodeURIComponent(job.id)}` : "schedule.html";
-    $("jdOpenCampo").href = `/campo/ticket.html?id=${encodeURIComponent(job.id)}`;
-    const call = $("jdCall");
-    const tel = job.customer?.phone ? String(job.customer.phone).replace(/[^\d+]/g, "") : "";
-    if (call) {
-      call.hidden = !tel;
-      if (tel) call.href = `tel:${tel}`;
-    }
-    const map = $("jdOpenMap");
-    map.hidden = !job.address;
-    if (job.address) map.href = mapsUrl();
-    const lixaBtn = $("btnScheduleLixa");
-    if (lixaBtn) lixaBtn.hidden = !(canManage && job.sector === "installation" && job.status !== "canceled");
+    $("jdHeader").innerHTML = window.JobHeader.html(job, headerCtx());
   }
-
-  /** One obvious next step, depending on where the job is. */
-  function primaryAction() {
-    if (job.status === "canceled") return null;
-    const undated = !job.scheduled_start && !(job.sector === "both" && job.sand_scheduled_start);
-    if (canManage) {
-      if (undated) return { label: "Schedule Job", act: "edit" };
-      if (!job.line_items?.length) return { label: "Adicionar serviços", act: "services" };
-      if (job.status === "draft" || job.status === "scheduled") return { label: "Iniciar job", act: "start" };
-      if (job.status === "in_progress") {
-        const nxt = window.JobsInfo?.nextFinish?.(job);
-        return { label: nxt ? nxt.label : "Concluir job", act: "complete" };
-      }
-    }
-    return null;
+  async function openInvoiceDialog() {
+    if (!window.JobBilling) return;
+    // Refresh first so the dialog offers the real balance.
+    try {
+      const j = await window.JobBilling.load(jobId);
+      billing = { billing: j.billing, data: j.data || [] };
+    } catch (_) {}
+    return window.JobBilling.openDialog({ jobId, billing: billing?.billing, jobStatus: job.status });
   }
-  function renderPrimary() {
-    const a = primaryAction();
-    const editBtn = $("btnEditJobAll");
-    if (editBtn) editBtn.hidden = a?.act === "edit";
-    const box = $("jdPrimary");
-    if (!a) {
-      box.innerHTML = "";
-      return;
-    }
-    box.innerHTML = a.href
-      ? `<a class="jd-btn jd-btn--pri" href="${esc(a.href)}">${esc(a.label)}</a>`
-      : `<button type="button" class="jd-btn jd-btn--pri" data-primary="${esc(a.act)}">${esc(a.label)}</button>`;
+  async function deleteJob() {
+    const okDel = await window.crmConfirm({
+      title: "Excluir este job?",
+      text: "Ele será cancelado e sairá da agenda.",
+      ok: "Excluir job",
+      danger: true,
+    });
+    if (!okDel) return;
+    await api(`/api/work-orders/${jobId}`, { method: "DELETE" });
+    notify("Job excluído.", "success");
+    location.href = "jobs.html";
   }
-  async function runPrimary(act) {
-    if (act === "invoice") {
-      // Same path as Serviços e Fatura: refresh billing then open JobBilling dialog.
-      if (!window.JobBilling) return;
-      try {
-        const j = await window.JobBilling.load(jobId);
-        billing = { billing: j.billing, data: j.data || [] };
-      } catch (_) {}
-      return window.JobBilling.openDialog({ jobId, billing: billing?.billing, jobStatus: job.status });
-    }
+  async function runHeaderAct(act) {
+    if (act === "invoice") return openInvoiceDialog();
     if (act === "edit") return openSection("all");
     if (act === "services") return openSection("services");
     if (act === "schedule") return openSection("schedule");
+    if (act === "team") return openSection("team");
     if (act === "start") return setStatus("in_progress", "Job iniciado.");
     if (act === "complete") return finishJob();
+    if (act === "reopen") return setStatus("draft", "Job reaberto.");
+    if (act === "delete") return deleteJob();
+    if (act === "chat") return window.JobChatComms.openJobChannel(jobId);
+    if (act === "lixa") {
+      if (!window.__crmJobModal) throw new Error("Editor de job indisponível.");
+      return window.__crmJobModal.openScheduleLixa(job);
+    }
   }
   async function setStatus(status, msg) {
     const j = await api(`/api/work-orders/${jobId}`, { method: "PUT", body: JSON.stringify({ status }) });
@@ -277,279 +162,31 @@
     if (idx === 4) notify("Registre o pagamento nas faturas do job.", "info");
   }
 
-  // ---------------------------------------------------------------- steps
-  function renderSteps() {
-    if (job.status === "canceled") {
-      $("jdSteps").innerHTML = `<li class="jd-step is-canceled"><i>×</i><span>Job cancelado</span></li>`;
-      return;
-    }
-    const b = billing?.billing;
-    const done = job.status === "completed";
-    const inField = job.status === "in_progress";
-    const steps = [
-      {
-        label: "Agendado",
-        sub: job.scheduled_start ? fmtDay(new Date(job.scheduled_start), { day: "numeric", month: "short" }) : "sem data",
-        // Only mark done once the job has left the scheduled stage (started or finished).
-        state: done || inField ? "ok" : "cur",
-      },
-      {
-        label: "Em campo",
-        sub: (() => {
-          const p = window.JobsInfo?.sectorProgress?.(job);
-          if (p?.both && inField) {
-            if (!p.installation) return "Instalação em aberto";
-            if (!p.sand) return "Instalação feita · falta a lixa";
-          }
-          return inField
-            ? field?.field_status_label || "em andamento"
-            : field?.hours?.total
-              ? `${qty(field.hours.total)} h registradas`
-              : "";
-        })(),
-        split: window.JobsInfo?.fieldHalves?.(job) || null,
-        state: done ? "ok" : inField ? "cur" : "",
-      },
-      { label: "Concluído", sub: "", state: done ? "ok" : "" },
-    ];
-    if (canBill && b) {
-      const fully = b.services_total > 0 && b.remaining_to_invoice <= 0.004;
-      steps.push({
-        label: "Faturado",
-        sub: b.invoiced_total > 0 ? money0(b.invoiced_total) : "",
-        state: fully ? "ok" : b.invoiced_total > 0 || done ? "cur" : "",
-      });
-      steps.push({
-        label: "Pago",
-        sub: b.billing_status === "paid" ? money0(b.paid_total) : b.open_balance > 0 ? `falta ${money0(b.open_balance)}` : "",
-        state: b.billing_status === "paid" ? "ok" : b.open_balance > 0 ? "cur" : "",
-      });
-    }
-    // Only the first unfinished step is "current".
-    let seen = false;
-    steps.forEach((s) => {
-      if (s.state === "cur") {
-        if (seen) s.state = "";
-        seen = true;
-      }
-    });
-    const J = window.JobsInfo;
-    $("jdSteps").innerHTML = steps
-      .map((s, i) => {
-        const st = J?.statusForStep?.(i);
-        const clickable = canManage && (st || (i === 3 && canBill));
-        const nxt = window.JobsInfo?.nextFinish?.(job);
-        const tip = st
-          ? i === 1 && nxt
-            ? nxt.label
-            : `Mover para ${s.label}`
-          : i === 3
-            ? "Faturar"
-            : i === 4
-              ? "Pagamento nas faturas"
-              : s.label;
-        const halves = s.split;
-        const bar = halves
-          ? `<span class="jd-field-split" aria-hidden="true"><b class="${s.state === "ok" ? "is-ok" : halves.inst === "d" ? "is-ok" : halves.inst === "n" ? "is-cur" : ""}"></b><b class="${s.state === "ok" ? "is-ok" : halves.sand === "d" ? "is-ok" : halves.sand === "n" ? "is-cur" : ""}"></b></span>`
-          : "";
-        return `<li class="jd-step${s.state ? ` is-${s.state}` : ""}${clickable ? " is-btn" : ""}"${
-          clickable ? ` role="button" tabindex="0" data-jd-step="${i}" title="${esc(tip)}" aria-label="${esc(tip)}"` : ""
-        }><i>${s.state === "ok" ? "✓" : i + 1}</i><span>${esc(s.label)}${s.sub ? `<small>${esc(s.sub)}</small>` : ""}${bar}</span></li>`;
-      })
-      .join("");
-  }
-
   // ---------------------------------------------------------------- overview
-  function renderFacts() {
-    const w = whenText();
-    const c = job.customer;
-    const phoneDisp = c?.phone
-      ? typeof window.sfFormatPhone === "function"
-        ? window.sfFormatPhone(c.phone) || c.phone
-        : c.phone
-      : "";
-    const contact = [phoneDisp ? `<a href="tel:${esc(String(c.phone).replace(/[^\d+]/g, ""))}">${esc(phoneDisp)}</a>` : "", c?.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : ""]
-      .filter(Boolean)
-      .join(" · ");
-    const members = (job.members || []).filter((m) => m.user_id !== job.assigned_user_id);
-    const temps = job.temp_workers || [];
-    const teamSub = [members.length ? `+ ${members.map((m) => String(m.name || "").split(" ")[0]).join(", ")}` : "", temps.length ? `${temps.length} temp.` : ""]
-      .filter(Boolean)
-      .join(" · ");
-    const n = (job.line_items || []).length;
-    const complete = window.JobsInfo?.completeLabel?.(job) || "";
-    $("jdFacts").innerHTML = `
-      <div><small>Cliente</small><b>${esc(clientName())}</b><span>${contact || esc(job.builder?.name || "Sem contato")}</span></div>
-      ${
-        job.status === "completed"
-          ? `<div class="jd-split"><div><small>Start</small><b>${esc(w.main)}</b><span>${esc(w.sub)}</span></div><div><small>Complete</small><b>${esc(complete || "Concluído")}</b></div></div>`
-          : `<div><small>Start</small><b>${esc(w.main)}</b><span>${esc([w.sub, complete ? `Complete: ${complete}` : ""].filter(Boolean).join(" · "))}</span></div>`
-      }
-      <div><small>Equipe</small><b>${esc(job.assigned_user?.name || "Sem responsável")}</b><span>${esc(teamSub || (job.assigned_user ? "Responsável" : ""))}</span></div>
-      <div><small>Preços</small><b>Tabela · ${esc(SOURCE[job.source_type] || "—")}</b><span>${n ? `${n} serviço${n > 1 ? "s" : ""} · ${money(job.services_total)}` : "Sem serviços"}</span></div>`;
-  }
-
-  function renderAttention() {
-    const card = $("jdAttentionCard");
-    const att = (job.campo_attention || "").trim();
-    const problem = (field?.problem_note || "").trim();
-    const delivery = Boolean(job.needs_delivery);
-    card.hidden = !att && !problem && !delivery;
-    if (card.hidden) return;
-    card.className = `jd-card jd-alert${problem ? " jd-alert--problem" : ""}`;
-    const delBits = [];
-    if (delivery) {
-      delBits.push(`<div class="jd-delivery"><b>Delivery</b>`);
-      if (job.delivery_pickup_address) {
-        delBits.push(
-          `<p><small>Retirada</small><a href="https://maps.google.com/?q=${encodeURIComponent(job.delivery_pickup_address)}" target="_blank" rel="noopener">${esc(job.delivery_pickup_address)}</a></p>`,
-        );
-      }
-      if (job.delivery_notes) delBits.push(`<p><small>Notas / PO</small>${esc(job.delivery_notes)}</p>`);
-      if (job.delivery_attachment?.url) {
-        delBits.push(
-          `<p><small>Arquivo</small><a href="${esc(job.delivery_attachment.url)}" target="_blank" rel="noopener">${esc(job.delivery_attachment.name || "Anexo")}</a></p>`,
-        );
-        if (canManage && hasPartnerPortal() && job.delivery_attachment.key) {
-          delBits.push(
-            `<button type="button" class="jd-mini" data-delivery-share data-on="${job.delivery_attachment.shared_with_partners ? "1" : "0"}" aria-pressed="${job.delivery_attachment.shared_with_partners ? "true" : "false"}">${job.delivery_attachment.shared_with_partners ? "Remover do portal do parceiro" : "Compartilhar com parceiro"}</button>`,
-          );
-        }
-      }
-      if (!job.delivery_pickup_address && !job.delivery_notes && !job.delivery_attachment?.url) {
-        delBits.push(`<p>Retirar material da obra</p>`);
-      }
-      delBits.push(`</div>`);
-    }
-    card.innerHTML = `${problem ? `<div><b>Problema relatado pelo campo</b><p>${esc(problem)}</p></div>` : ""}
-      ${att ? `<div><b>Atenção para o campo</b><p>${esc(att)}</p></div>` : ""}
-      ${delBits.join("")}
-      <button type="button" class="jd-link" data-goto="campo">Ver no Campo</button>`;
-  }
-
-  function servicesTable(full) {
+  function renderServices() {
     const lines = job.line_items || [];
-    if (!lines.length) {
-      return `<p class="jd-empty">Nenhum serviço ainda.${canManage ? " Adicione os serviços da Tabela de Valores — eles viram a fatura do job." : ""}</p>`;
-    }
-    return `<table class="jd-table">
-      <thead><tr><th>Serviço</th><th class="r">Qtd</th>${full ? '<th class="r">Preço</th>' : ""}<th class="r">Total</th></tr></thead>
+    $("jdSvcCount").textContent = lines.length || "";
+    $("jdServicesFull").innerHTML = lines.length
+      ? `<table class="jd-table">
+      <thead><tr><th>Serviço</th><th class="r">Qtd</th><th class="r">Preço</th><th class="r">Total</th></tr></thead>
       <tbody>${lines
         .map((l) => {
           const note = String(l.notes || "").trim();
-          return `<tr><td>${esc(l.service_name)}${note ? `<small class="jd-svc-note">${esc(note)}</small>` : ""}</td><td class="r">${esc(qty(l.quantity_sqft))} ${esc(unitLabel(l.unit))}</td>${
-            full ? `<td class="r jd-muted">${money(l.unit_price)}</td>` : ""
-          }<td class="r">${money(l.line_total)}</td></tr>`;
+          return `<tr><td>${esc(l.service_name)}${note ? `<small class="jd-svc-note">${esc(note)}</small>` : ""}</td><td class="r">${esc(qty(l.quantity_sqft))} ${esc(unitLabel(l.unit))}</td><td class="r jd-muted">${money(l.unit_price)}</td><td class="r">${money(l.line_total)}</td></tr>`;
         })
         .join("")}</tbody>
-      <tfoot><tr><td colspan="${full ? 3 : 2}">Total do job</td><td class="r">${money(job.services_total)}</td></tr></tfoot>
-    </table>`;
-  }
-
-  function renderServices() {
-    const n = (job.line_items || []).length;
-    $("jdSvcCount").textContent = n || "";
-    $("jdSvcCount2").textContent = n || "";
-    $("jobServicesBody").innerHTML = servicesTable(false);
-    $("jdServicesFull").innerHTML = servicesTable(true);
+      <tfoot><tr><td colspan="3">Total do job</td><td class="r">${money(job.services_total)}</td></tr></tfoot>
+    </table>`
+      : `<p class="jd-empty">Nenhum serviço ainda.${canManage ? " Adicione os serviços da Tabela de Valores: eles viram a fatura do job." : ""}</p>`;
   }
 
   function renderNotes() {
-    const raw = (job.notes || "").trim();
-    const code = lockbox(raw);
-    let text = raw.replace(/\/lockbox\s*[#:]?\s*[0-9A-Za-z-]{2,24}\b\s*[—–-]?\s*/i, "").trim();
-    if (code && text) text = text.charAt(0).toUpperCase() + text.slice(1);
-    const bodyHtml =
-      typeof window.sfFormatRichTextHtml === "function" ? window.sfFormatRichTextHtml(text) : esc(text);
-    $("jdNotesView").innerHTML = raw
-      ? `<div class="jd-note">${
-          code
-            ? `<span class="jd-lock" title="Código da caixa (lockbox)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>${esc(code)}</span>`
-            : ""
-        }${text ? `<p class="crm-rich-html">${bodyHtml}</p>` : ""}</div>`
-      : `<p class="jd-empty">Sem notas.${canManage ? " Use para acesso, código do portão, cuidados com a obra." : ""}</p>`;
+    const { code, text } = window.JobHeader.noteParts(job.notes);
+    const bodyHtml = typeof window.sfFormatRichTextHtml === "function" ? window.sfFormatRichTextHtml(text) : esc(text);
+    $("jdNotesView").innerHTML = text
+      ? `<div class="jd-note"><p class="crm-rich-html">${bodyHtml}</p></div>`
+      : `<p class="jd-empty">${code ? "Só o código da caixa, que já está no cabeçalho." : `Sem notas.${canManage ? " Use para acesso, código do portão, cuidados com a obra." : ""}`}</p>`;
     $("jobNotes").value = job.notes || "";
-  }
-
-  function renderTeam() {
-    const rows = [];
-    if (job.assigned_user) rows.push({ name: job.assigned_user.name, role: "Responsável", lead: true });
-    (job.members || []).filter((m) => m.user_id !== job.assigned_user_id).forEach((m) => rows.push({ name: m.name, role: "Equipe" }));
-    const temps = job.temp_workers || [];
-    $("jobTeamBody").innerHTML =
-      rows.length || temps.length
-        ? `<ul class="jd-people">${rows
-            .map((r) => `<li><span class="jd-av${r.lead ? " jd-av--lead" : ""}">${esc(initials(r.name))}</span><span><b>${esc(r.name)}</b><small>${esc(r.role)}</small></span></li>`)
-            .join("")}${temps
-            .map(
-              (t) => `<li><span class="jd-av jd-av--temp">${esc(initials(t.name))}</span><span><b>${esc(t.name)}</b><small>Temporário${t.phone ? ` · ${esc(t.phone)}` : ""}</small></span>
-              ${canManage ? `<span class="jd-people__act"><button type="button" class="jd-mini" data-temp="${esc(t.id)}" data-ch="whatsapp">WhatsApp</button><button type="button" class="jd-mini" data-temp="${esc(t.id)}" data-ch="copy">Link</button></span>` : ""}</li>`,
-            )
-            .join("")}</ul>`
-        : `<p class="jd-empty">Ninguém escalado.</p>`;
-  }
-
-  const INV_ST = { draft: "Rascunho", sent: "Enviada", viewed: "Vista", partially_paid: "Parcial", overdue: "Vencida", paid: "Paga", void: "Anulada" };
-  function renderMoney() {
-    const card = $("jdMoneyCard");
-    const b = billing?.billing;
-    card.hidden = !canBill || !b;
-    if (card.hidden) return;
-    const total = Number(b.services_total) || 0;
-    const invoiced = Number(b.invoiced_total) || 0;
-    const received = Number(b.paid_total) || 0;
-    const openBal = Number(b.open_balance) || 0;
-    const invoicedOk = invoiced > 0.004;
-    const receivedOk = received > 0.004 && openBal <= 0.004;
-    card.classList.toggle("is-paid", receivedOk);
-    const check = invoicedOk
-      ? `<svg class="jd-cash__check" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>`
-      : "";
-    const paidPct = total > 0 ? Math.min(100, (received / total) * 100) : 0;
-    const openPct = total > 0 ? Math.min(100 - paidPct, (openBal / total) * 100) : 0;
-    const headline =
-      b.billing_status === "paid"
-        ? { k: "Recebido", v: b.paid_total }
-        : b.open_balance > 0.004
-          ? { k: "A receber", v: b.open_balance }
-          : { k: "A faturar", v: b.remaining_to_invoice };
-    const invs = (billing.data || []).slice(-3).reverse();
-    $("jdMoney").innerHTML = `
-      ${receivedOk ? `<span class="jd-cash__stamp">Recebido</span>` : ""}
-      <div class="jd-big"><small>${headline.k}</small><strong>${money(headline.v)}</strong></div>
-      ${total > 0 ? `<div class="jd-bar"><i class="p" style="width:${paidPct.toFixed(1)}%"></i><i class="o" style="width:${openPct.toFixed(1)}%"></i></div>` : ""}
-      <dl class="jd-kv">
-        <div><dt class="jd-cash__row">Invoiced${check}</dt><dd>${money(invoiced)}</dd></div>
-        <div><dt><i class="jd-dot jd-dot--paid"></i>Recebido</dt><dd>${money(received)}</dd></div>
-        <div><dt><i class="jd-dot jd-dot--open"></i>Faturado em aberto</dt><dd>${money(openBal)}</dd></div>
-        <div><dt>A faturar</dt><dd>${money(b.remaining_to_invoice)}</dd></div>
-        <div class="jd-kv__total"><dt>Total do job</dt><dd>${money(total)}</dd></div>
-      </dl>
-      ${
-        invs.length
-          ? `<ul class="jd-invs">${invs
-              .map(
-                (i) => `<li><a href="invoices.html?id=${encodeURIComponent(i.id)}"><span><b>${esc(i.invoice_number || "Fatura")}</b><small>${esc(i.invoice_type_label || "")}</small></span>
-                <span class="jd-tag jd-tag--${esc(i.display_status)}">${esc(INV_ST[i.display_status] || i.display_status)}</span><span class="jd-invs__amt">${money0(i.amount)}</span></a></li>`,
-              )
-              .join("")}</ul>`
-          : ""
-      }
-      ${(() => {
-        const viewBtns = (billing.data || [])
-          .filter((i) => i && i.id && i.status !== "void" && i.display_status !== "void")
-          .map((i) => `<a class="jd-btn jd-btn--block" href="invoices.html?id=${encodeURIComponent(i.id)}">Ver invoice${i.invoice_number ? ` ${esc(i.invoice_number)}` : ""}</a>`)
-          .join("");
-        const canEmit = canInvoice && job.status !== "canceled" && b.remaining_to_invoice > 0.004 && b.billing_status !== "no_value";
-        const invoiceBtn = canEmit
-          ? `<button type="button" class="jd-btn jd-btn--pri jd-btn--block" data-primary="invoice">Emitir Invoice</button>`
-          : "";
-        const completeBtn =
-          canManage && job.status !== "completed" && job.status !== "canceled"
-            ? `<button type="button" class="jd-btn jd-btn--block" data-primary="complete">Marcar como concluído</button>`
-            : "";
-        return viewBtns || invoiceBtn || completeBtn ? `<div class="jd-money-acts">${viewBtns}${invoiceBtn}${completeBtn}</div>` : "";
-      })()}`;
   }
 
   // ---------------------------------------------------------------- after the job (review, caption, report, portfolio)
@@ -561,8 +198,7 @@
     $("jdAfterActions").innerHTML = `
       <button type="button" class="jd-btn${afterOpen === "review" ? " is-on" : ""}" data-after="review">Pedir review</button>
       <button type="button" class="jd-btn${afterOpen === "caption" ? " is-on" : ""}" data-after="caption">Antes/depois para redes</button>
-      <button type="button" class="jd-btn" data-goto="fotos" data-scroll="jobReportCard">Relatório com fotos</button>
-      ${orgSlug ? `<a class="jd-btn" href="/public/portfolio/${encodeURIComponent(orgSlug)}?embed=1" target="_blank" rel="noopener">Portfólio público</a>` : ""}`;
+      <button type="button" class="jd-btn" data-goto="fotos" data-scroll="jobReportCard">Relatório com fotos</button>`;
     const body = $("jdAfterBody");
     if (afterOpen === "review") {
       if (!reviewReq) {
@@ -612,14 +248,14 @@
     card.hidden = !canBill || !window.JobBilling;
     if (card.hidden) return;
     $("jobBillingAll").href = `invoices.html?q=${encodeURIComponent(job.number != null ? `Job #${job.number}` : job.title || "")}`;
-    $("jobBillingChip").innerHTML = window.JobBilling.chip(billing?.billing || job.billing);
     if (!billingCtl) {
       billingCtl = window.JobBilling.mountCard($("jobBillingBody"), {
         jobId,
         jobStatus: job.status,
         canManage: canInvoice,
-        onChange: (b) => {
-          $("jobBillingChip").innerHTML = window.JobBilling.chip(b);
+        // Invoice issued or paid from the card: the header follows, without touching the card again.
+        onChange: () => {
+          refreshBilling().then(renderHeader);
         },
       });
     } else {
@@ -891,6 +527,20 @@
     const checklistOn = field?.checklist_enabled !== false;
     $("jdTabCampo").textContent = checklistOn && c && c.customized ? `${c.done}/${c.total}` : "";
   }
+  /** Temporary workers get their ticket link here, next to the hours they log. */
+  function tempWorkersCard() {
+    const temps = job.temp_workers || [];
+    if (!temps.length) return "";
+    return `<div class="jd-card">
+      <div class="jd-ch"><h2>Temporários</h2><span class="jd-ch__n">${temps.length}</span></div>
+      <ul class="jd-people">${temps
+        .map(
+          (t) => `<li><span class="jd-av jd-av--temp">${esc(initials(t.name))}</span><span><b>${esc(t.name)}</b>${t.phone ? `<small>${esc(t.phone)}</small>` : ""}</span>
+          ${canManage ? `<span class="jd-people__act"><button type="button" class="jd-mini" data-temp="${esc(t.id)}" data-ch="whatsapp">WhatsApp</button><button type="button" class="jd-mini" data-temp="${esc(t.id)}" data-ch="copy">Link</button></span>` : ""}</li>`,
+        )
+        .join("")}</ul>
+    </div>`;
+  }
   function renderField() {
     const box = $("jdField");
     if (!field) {
@@ -901,10 +551,6 @@
     const checklistOn = field.checklist_enabled !== false;
     const h = field.hours;
     const att = job.campo_attention || "";
-    // The office can close a job without the crew stepping through Campo — show the real state.
-    const fs = job.status === "completed" ? "completed" : job.status === "canceled" ? "canceled" : field.field_status;
-    const fsLabel = fs === "completed" ? "Concluída" : fs === "canceled" ? "Cancelada" : field.field_status_label;
-    const fsCls = fs === "completed" ? "done" : fs === "canceled" ? "canceled" : fs === "scheduled" ? "scheduled" : "progress";
     const checklistCard = checklistOn
       ? `<div class="jd-card">
           <div class="jd-ch"><h2>Checklist</h2>${c.customized ? `<span class="jd-ch__n">${c.done}/${c.total}</span>` : ""}${
@@ -926,7 +572,6 @@
       : "";
     box.innerHTML = `<div class="jd-grid">
       <div class="jd-col">
-        ${field.problem_note ? `<div class="jd-card jd-alert jd-alert--problem"><div><b>Problema relatado</b><p>${esc(field.problem_note)}</p></div></div>` : ""}
         ${checklistCard}
         ${
           field.measurements.length
@@ -946,10 +591,6 @@
         }
       </div>
       <aside class="jd-col jd-side">
-        <div class="jd-card">
-          <div class="jd-ch"><h2>Status no campo</h2></div>
-          <p class="jd-fieldstat"><span class="jd-pill jd-pill--${fsCls}">${esc(fsLabel)}</span></p>
-        </div>
         <div class="jd-card">
           <div class="jd-ch"><h2>Horas no job</h2><span class="jd-ch__n">${h.total ? `${qty(h.total)} h` : ""}</span></div>
           ${
@@ -973,12 +614,14 @@
                 : '<p class="jd-empty">Nada destacado.</p>'
           }
         </div>
+        ${tempWorkersCard()}
       </aside>
     </div>`;
   }
 
   // ---------------------------------------------------------------- tabs
   function setTab(next, opts) {
+    // Old links to "Serviços e faturas" land on the overview, where that content now lives.
     tab = TABS.includes(next) ? next : "geral";
     document.querySelectorAll("#jdTabs [data-tab]").forEach((b) => {
       const on = b.getAttribute("data-tab") === tab;
@@ -993,7 +636,7 @@
         history.replaceState(null, "", `${location.pathname}${location.search}${tab === "geral" ? "" : `#${tab}`}`);
       } catch (_) {}
     }
-    if (tab === "servicos") {
+    if (tab === "geral") {
       renderBillingTab();
       if (proposals === null) loadProposals();
     }
@@ -1035,16 +678,10 @@
 
   function renderAll() {
     renderHeader();
-    renderLate();
-    renderSteps();
-    renderFacts();
-    renderAttention();
     renderServices();
     renderNotes();
-    renderTeam();
-    renderMoney();
     renderAfter();
-    if (tab === "servicos") renderBillingTab();
+    if (tab === "geral") renderBillingTab();
     if (tab === "campo" && field) renderField();
     if (!canManage) {
       document.querySelectorAll('#jobDetailRoot [data-crm-permission="work_orders.manage"]').forEach((el) => (el.style.display = "none"));
@@ -1078,13 +715,6 @@
     }
   }
 
-  function renderStatusMenu() {
-    const box = $("jdStatusList");
-    box.innerHTML = Object.entries(STATUS)
-      .map(([k, [l, cls]]) => `<button type="button" role="menuitemradio" aria-checked="${k === job.status}" data-set-status="${k}"><span class="jd-pill jd-pill--${cls}">${l}</span>${k === job.status ? " ✓" : ""}</button>`)
-      .join("");
-  }
-
   function bind() {
     const root = $("jobDetailRoot");
     $("jdTabs").addEventListener("click", (e) => {
@@ -1099,60 +729,17 @@
       document.querySelector(`#jdTabs [data-tab="${next}"]`)?.focus();
     });
 
-    const menu = $("jdMoreMenu");
-    const closeMenu = () => {
-      menu.hidden = true;
-      $("jdStatusList").hidden = true;
-      $("jdMoreBtn").setAttribute("aria-expanded", "false");
-    };
-    $("jdMoreBtn").addEventListener("click", (e) => {
-      e.stopPropagation();
-      const open = menu.hidden;
-      closeMenu();
-      menu.hidden = !open;
-      $("jdMoreBtn").setAttribute("aria-expanded", open ? "true" : "false");
-    });
-    menu.addEventListener("click", (e) => e.stopPropagation());
-    document.addEventListener("click", closeMenu);
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") closeMenu();
-    });
-    $("jdSteps")?.addEventListener("keydown", (e) => {
-      if (e.key !== "Enter" && e.key !== " ") return;
-      const stepEl = e.target.closest("[data-jd-step]");
-      if (!stepEl) return;
-      e.preventDefault();
-      applyStep(Number(stepEl.getAttribute("data-jd-step"))).catch((err) => notify(err.message || "Erro", "error"));
-    });
-    $("jdStatusMenu").addEventListener("click", () => {
-      renderStatusMenu();
-      $("jdStatusList").hidden = !$("jdStatusList").hidden;
-    });
-    $("jdStatusList").addEventListener("click", async (e) => {
-      const b = e.target.closest("[data-set-status]");
-      if (!b) return;
-      const k = b.getAttribute("data-set-status");
-      closeMenu();
-      if (k === job.status) return;
-      try {
-        await setStatus(k);
-      } catch (err) {
-        notify(err.message, "error");
-      }
+    window.JobHeader.bind($("jdHeader"), {
+      act: (name) => runHeaderAct(name).catch((err) => notify(err.message || "Erro", "error")),
+      step: (i) => applyStep(i).catch((err) => notify(err.message || "Erro", "error")),
+      status: (k) => {
+        if (k === job.status) return;
+        setStatus(k).catch((err) => notify(err.message, "error"));
+      },
     });
 
     root.addEventListener("click", async (e) => {
       const t = e.target;
-      const stepEl = t.closest("[data-jd-step]");
-      if (stepEl) {
-        e.preventDefault();
-        try {
-          await applyStep(Number(stepEl.getAttribute("data-jd-step")));
-        } catch (err) {
-          notify(err.message || "Erro", "error");
-        }
-        return;
-      }
       const go = t.closest("[data-goto]");
       if (go) {
         e.preventDefault();
@@ -1161,11 +748,6 @@
         const top = $("jdTabs").getBoundingClientRect().top + window.scrollY - 12;
         if (window.scrollY > top) window.scrollTo({ top, behavior: "smooth" });
         if (sc) setTimeout(() => $(sc)?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
-        return;
-      }
-      const prim = t.closest("[data-primary]");
-      if (prim) {
-        runPrimary(prim.getAttribute("data-primary")).catch((err) => notify(err.message, "error"));
         return;
       }
       const after = t.closest("[data-after]");
@@ -1278,7 +860,7 @@
             body: JSON.stringify({ shared_with_partners: next }),
           });
           job.delivery_attachment.shared_with_partners = next;
-          renderAttention();
+          renderHeader();
           notify(next ? "Arquivo compartilhado com o parceiro." : "Arquivo removido do portal do parceiro.", "success");
         } catch (err) {
           notify(err.message, "error");
@@ -1338,7 +920,7 @@
             body: JSON.stringify({ campo_attention: $("jdAttention").value.trim() || null }),
           });
           job = j.data;
-          renderAttention();
+          renderHeader();
           notify("Aviso salvo — a equipe vê em destaque no Campo.", "success");
         } catch (err) {
           notify(err.message, "error");
@@ -1346,32 +928,7 @@
       }
     });
 
-    $("btnEditJobAll").addEventListener("click", () => openSection("all"));
     $("btnEditServices").addEventListener("click", () => openSection("services"));
-    $("btnEditServices2").addEventListener("click", () => openSection("services"));
-    $("btnManageTeam").addEventListener("click", () => openSection("team"));
-    $("btnScheduleLixa")?.addEventListener("click", () => {
-      closeMenu();
-      if (!window.__crmJobModal) return notify("Editor de job indisponível.", "error");
-      window.__crmJobModal.openScheduleLixa(job).catch((e) => notify(e.message, "error"));
-    });
-    $("btnDeleteJob").addEventListener("click", async () => {
-      closeMenu();
-      const okDel = await window.crmConfirm({
-        title: "Excluir este job?",
-        text: "Ele será cancelado e sairá da agenda.",
-        ok: "Excluir job",
-        danger: true,
-      });
-      if (!okDel) return;
-      try {
-        await api(`/api/work-orders/${jobId}`, { method: "DELETE" });
-        notify("Job excluído.", "success");
-        location.href = "jobs.html";
-      } catch (e) {
-        notify(e.message, "error");
-      }
-    });
 
     const closeNotes = () => {
       $("jdNotesView").hidden = false;
@@ -1458,6 +1015,8 @@
       canBill = role === "admin" || perms.includes("invoices.view");
       canInvoice = role === "admin" || perms.includes("invoices.manage");
       orgSlug = s.organization?.slug || s.user?.organization?.slug || null;
+      sessionPerms = perms;
+      sessionRole = role;
       window.__crmPermissionKeys = perms;
       window.__crmUserRole = role;
       const sn = $("sidebarUserName");

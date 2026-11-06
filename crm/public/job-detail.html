@@ -25,7 +25,8 @@
   <link rel="stylesheet" href="om-gestures.css?v=20261102-ptr1" />
   <link rel="stylesheet" href="job-comms.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-job-billing.css?v=20261102-tabinv1" />
-  <link rel="stylesheet" href="job-detail.css?v=20261104-ux3" />
+  <link rel="stylesheet" href="job-detail.css?v=20261106-hd2" />
+  <link rel="stylesheet" href="job-header.css?v=20261106-hd2" />
   <link rel="stylesheet" href="cam-viewer.css?v=20261105-apps3" />
   <link rel="stylesheet" href="jobs-mobile.css?v=20261105-crew3" />
   <link rel="stylesheet" href="job-builder-channel.css?v=20261030-builder1" />
@@ -150,40 +151,10 @@
       <div class="job-detail-page crm-page jd" id="jobDetailRoot">
         <a class="jd-back" href="jobs.html">← Jobs</a>
 
-        <div class="jd-top">
-        <header class="jd-hd">
-          <div class="jd-hd__main">
-            <div class="jd-hd__chips" id="jdChips"></div>
-            <h1 class="jd-hd__title" id="jobDetailTitle">Job</h1>
-            <div class="jd-hd__sub" id="jdSub"></div>
-          </div>
-          <div class="jd-hd__act">
-            <a class="jd-btn jd-btn--icon" id="jdCall" href="#" hidden aria-label="Ligar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 16.9v3a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3.1 19.5 19.5 0 01-6-6A19.8 19.8 0 012.1 4.2 2 2 0 014.1 2h3a2 2 0 012 1.7c.1 1 .4 1.9.7 2.8a2 2 0 01-.5 2.1L8.1 9.9a16 16 0 006 6l1.3-1.3a2 2 0 012.1-.4c.9.3 1.8.6 2.8.7a2 2 0 011.7 2z"/></svg></a>
-            <button type="button" class="jd-btn" id="btnEditJobAll" data-crm-permission="work_orders.manage">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>Editar
-            </button>
-            <span id="jdPrimary"></span>
-            <div class="jd-menu">
-              <button type="button" class="jd-btn jd-btn--icon" id="jdMoreBtn" aria-haspopup="menu" aria-expanded="false" aria-label="Mais ações">⋯</button>
-              <div class="jd-menu__list" id="jdMoreMenu" role="menu" hidden>
-                <a role="menuitem" id="btnOpenSchedule" href="schedule.html">Ver na agenda</a>
-                <button type="button" role="menuitem" id="btnScheduleLixa" data-crm-permission="work_orders.manage" hidden>Agendar Lixa</button>
-                <a role="menuitem" id="jdOpenCampo" href="#">Abrir no Campo</a>
-                <a role="menuitem" id="jdOpenMap" href="#" target="_blank" rel="noopener">Abrir no mapa</a>
-                <button type="button" role="menuitem" id="jdStatusMenu" data-crm-permission="work_orders.manage">Mudar status…</button>
-                <div class="jd-menu__sub" id="jdStatusList" role="menu" hidden></div>
-                <button type="button" role="menuitem" class="is-danger" id="btnDeleteJob" data-crm-permission="work_orders.manage">Excluir job</button>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <ol class="jd-steps" id="jdSteps" aria-label="Andamento do job"></ol>
-        </div>
+        <div id="jdHeader"></div>
 
         <nav class="jd-tabs" id="jdTabs" role="tablist" aria-label="Seções do job">
           <button type="button" role="tab" data-tab="geral" class="is-on" aria-selected="true">Visão geral</button>
-          <button type="button" role="tab" data-tab="servicos" aria-selected="false">Serviços e faturas</button>
           <button type="button" role="tab" data-tab="fotos" aria-selected="false">Fotos <em id="jdTabFotos"></em></button>
           <button type="button" role="tab" data-tab="campo" aria-selected="false">Campo <em id="jdTabCampo"></em></button>
           <button type="button" role="tab" data-tab="stain" aria-selected="false">Stain <em id="jdTabStain"></em></button>
@@ -195,11 +166,9 @@
         <section class="jd-panel" data-panel="geral" role="tabpanel">
           <div class="jd-grid">
             <div class="jd-col">
-              <div class="jd-card jd-facts" id="jdFacts"></div>
-              <div class="jd-card" id="jdAttentionCard" hidden></div>
               <div class="jd-card">
                 <div class="jd-ch"><h2>Serviços</h2><span class="jd-ch__n" id="jdSvcCount"></span><button type="button" class="jd-link" id="btnEditServices" data-crm-permission="work_orders.manage">Editar</button></div>
-                <div id="jobServicesBody"></div>
+                <div id="jdServicesFull"></div>
               </div>
               <div class="jd-card">
                 <div class="jd-ch"><h2>Notas da obra</h2><button type="button" class="jd-link" id="jdNotesEdit" data-crm-permission="work_orders.manage">Editar</button></div>
@@ -217,38 +186,15 @@
               </div>
             </div>
             <aside class="jd-col jd-side">
-              <div class="jd-late-line" id="jdLateCard" hidden role="status"></div>
-              <div class="jd-card jd-card--cash" id="jdMoneyCard" hidden>
-                <div class="jd-ch"><h2>Cash</h2><button type="button" class="jd-link" data-goto="servicos">Faturas</button></div>
-                <div id="jdMoney"></div>
-              </div>
-              <div class="jd-card">
-                <div class="jd-ch"><h2>Equipe</h2><button type="button" class="jd-link" id="btnManageTeam" data-crm-permission="work_orders.manage">Gerir</button></div>
-                <div id="jobTeamBody"></div>
-              </div>
-            </aside>
-          </div>
-        </section>
-
-        <!-- Serviços e faturas -->
-        <section class="jd-panel" data-panel="servicos" role="tabpanel" hidden>
-          <div class="jd-grid jd-grid--split">
-            <div class="jd-col">
-              <div class="jd-card">
-                <div class="jd-ch"><h2>Serviços</h2><span class="jd-ch__n" id="jdSvcCount2"></span><button type="button" class="jd-link" id="btnEditServices2" data-crm-permission="work_orders.manage">Editar serviços</button></div>
-                <div id="jdServicesFull"></div>
+              <div class="jd-card jd-billing" id="jobBillingCard" hidden>
+                <div class="jd-ch"><h2>Faturas</h2><a class="jd-link" id="jobBillingAll" href="invoices.html">Ver todas</a></div>
+                <div id="jobBillingBody"></div>
               </div>
               <div class="jd-card" id="jobProposalCard" hidden>
                 <div class="jd-ch"><h2>Proposta ao cliente</h2>
                   <span class="jd-ch__end"><button type="button" class="jd-link" id="btnCreateProposal" data-crm-permission="work_orders.manage">Criar proposta</button><button type="button" class="jd-link" id="btnCreateProposalAi" data-crm-permission="work_orders.manage">Criar com IA</button></span>
                 </div>
                 <div id="jobProposalBody"></div>
-              </div>
-            </div>
-            <aside class="jd-col jd-side">
-              <div class="jd-card" id="jobBillingCard" hidden>
-                <div class="jd-ch"><h2>Faturamento</h2><span id="jobBillingChip"></span><a class="jd-link" id="jobBillingAll" href="invoices.html">Ver faturas</a></div>
-                <div id="jobBillingBody"></div>
               </div>
             </aside>
           </div>
@@ -259,7 +205,6 @@
           <div class="jd-card">
             <div class="jd-ch"><h2>Fotos</h2><span class="jd-ch__n" id="jdPhotoCount"></span>
               <span class="jd-ch__end">
-                <a class="jd-link" href="job-media-board.html">ObraCam</a>
                 <a class="jd-link" id="jobPortfolioLink" href="#" target="_blank" rel="noopener" hidden>Portfólio público</a>
               </span>
             </div>
@@ -327,7 +272,8 @@
   <script src="cam-viewer.js?v=20261105-apps3"></script>
   <script src="job-builder-channel.js?v=20261030-ch1"></script>
   <script src="job-stain.js?v=20261030-stain1"></script>
-  <script src="job-detail.js?v=20261104-ux2"></script>
+  <script src="job-header.js?v=20261106-hd2"></script>
+  <script src="job-detail.js?v=20261106-hd2"></script>
   <script src="job-detail-mobile.js?v=20261105-field1"></script>
 </body>
 </html>
