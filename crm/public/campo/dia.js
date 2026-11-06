@@ -275,29 +275,26 @@
     return paths[kind] || "";
   }
 
+  function agendaQuickSub() {
+    const list = S.jobs_today || [];
+    const n = list.length;
+    if (!n) return "Nada hoje";
+    if (n === 1) return clientName(list[0]);
+    const first = clientName(list[0]);
+    return first && first !== "Job" ? `${n} hoje · ${first}` : `${n} obras hoje`;
+  }
+
   function quickActionsHtml() {
     if (!S.linked) return "";
     const d = S.day;
     const inDay = d && d.status === "in_progress";
     const list = todayJobs();
     const photoJob = inDay && list.length ? list[list.length - 1] : list[0];
-    const items = [];
-    if (inDay) {
-      items.push(
-        `<button type="button" class="dy-qa" data-act="finish" data-om-press><span class="dy-qa-ic">${qaIcon("stop")}</span><span><strong>Finalizar o dia</strong><small>Enviar horas e fotos</small></span></button>`,
-      );
-    } else if (d) {
-      items.push(
-        `<a class="dy-qa" href="/job-media-board.html"><span class="dy-qa-ic">${qaIcon("camBoard")}</span><span><strong>ObraCam</strong><small>Fotos das obras</small></span></a>`,
-      );
-    }
-    items.push(
-      photoJob
-        ? `<button type="button" class="dy-qa" data-act="photo" data-job="${esc(photoJob.id)}" data-om-press><span class="dy-qa-ic">${qaIcon("cam")}</span><span><strong>Tirar foto</strong><small>${esc(clientName(photoJob))}</small></span></button>`
-        : `<a class="dy-qa" href="/job-media-board.html"><span class="dy-qa-ic">${qaIcon("cam")}</span><span><strong>Tirar foto</strong><small>Abrir ObraCam</small></span></a>`,
-    );
-    if (!items.length) return "";
-    return `<section class="dy-qa-grid dy-qa-grid--${Math.min(items.length, 3)}" aria-label="Ações rápidas">${items.join("")}</section>`;
+    const photo = photoJob
+      ? `<button type="button" class="dy-qa" data-act="photo" data-job="${esc(photoJob.id)}" data-om-press><span class="dy-qa-ic">${qaIcon("cam")}</span><span><strong>Tirar foto</strong><small>${esc(clientName(photoJob))}</small></span></button>`
+      : `<a class="dy-qa" href="/job-media-board.html"><span class="dy-qa-ic">${qaIcon("cam")}</span><span><strong>Tirar foto</strong><small>Abrir ObraCam</small></span></a>`;
+    const agenda = `<a class="dy-qa" href="agenda.html"><span class="dy-qa-ic">${qaIcon("cal")}</span><span><strong>Agenda</strong><small>${esc(agendaQuickSub())}</small></span></a>`;
+    return `<section class="dy-qa-grid" aria-label="Ações rápidas">${photo}${agenda}</section>`;
   }
 
   function attentionHtml() {

@@ -388,15 +388,13 @@ body.dy-lock { overflow: hidden; }
   grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
-.dy-qa-grid--1 { grid-template-columns: 1fr; }
-.dy-qa-grid--3 { grid-template-columns: 1fr 1fr; }
-.dy-qa-grid--3 > :last-child { grid-column: 1 / -1; }
 .dy-qa {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 10px;
   min-height: 112px;
+  min-width: 0;
   padding: 14px;
   border-radius: 18px;
   background: #fff;
@@ -412,8 +410,8 @@ body.dy-lock { overflow: hidden; }
 }
 .dy-qa:active { transform: scale(0.97); }
 .dy-qa-ic {
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   border-radius: 13px;
   background: var(--terra-soft);
   color: var(--terra-d);
@@ -421,6 +419,7 @@ body.dy-lock { overflow: hidden; }
   place-items: center;
   flex: none;
 }
+/* Tirar foto stays the primary quick action */
 .dy-qa-grid > :first-child .dy-qa-ic {
   background: var(--terra-d);
   color: #fff;
@@ -433,12 +432,15 @@ body.dy-lock { overflow: hidden; }
   letter-spacing: -0.015em;
 }
 .dy-qa small {
-  display: block;
+  display: -webkit-box;
   margin-top: 2px;
   font-size: 12px;
   font-weight: 600;
   color: var(--muted);
   line-height: 1.3;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .dy-tile {
@@ -678,6 +680,5 @@ body.dy-lock { overflow: hidden; }
 
 @media (min-width: 720px) {
   .dy-bento { max-width: 560px; margin: 0 auto; }
-  .dy-qa-grid { grid-template-columns: repeat(4, 1fr); }
   .dy-qa { min-height: 96px; }
 }
