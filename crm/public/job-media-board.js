@@ -152,22 +152,37 @@
     }
     return statusLabel(j.status);
   }
-  function isActive(j) {
+  function isDone(j) {
     const s = String(j.status || "");
-    return s === "scheduled" || s === "in_progress" || s === "draft" || s === "on_site" || s === "en_route";
+    return s === "completed" || s === "done" || s === "canceled";
+  }
+  function isActive(j) {
+    if (isDone(j)) return false;
+    const s = String(j.status || "");
+    return (
+      s === "scheduled" ||
+      s === "in_progress" ||
+      s === "draft" ||
+      s === "on_site" ||
+      s === "en_route" ||
+      !s
+    );
+  }
+
+  /** Normalize Agenda UI status ("done") + office raw_status into ObraCam status keys. */
+  function crewStatusFromAgenda(aj) {
+    const ui = String(aj.status || "");
+    const raw = String(aj.raw_status || "");
+    if (ui === "done" || ui === "completed" || raw === "completed" || raw === "canceled") return "completed";
+    if (ui === "in_progress" || ui === "on_site" || ui === "en_route") return "in_progress";
+    if (raw === "in_progress" || raw === "on_site" || raw === "en_route") return "in_progress";
+    if (ui === "scheduled" || raw === "scheduled" || raw === "draft") return "scheduled";
+    return raw || ui || "scheduled";
   }
 
   /** Map Agenda day jobs into ObraCam row shape; prefer board row when both exist. */
   function mergeAgendaJob(aj) {
     const board = jobs.find((x) => String(x.id) === String(aj.id));
-    const ui = String(aj.status || "");
-    const status =
-      aj.raw_status ||
-      (ui === "completed" || ui === "done"
-        ? "completed"
-        : ui === "in_progress" || ui === "on_site" || ui === "en_route"
-          ? "in_progress"
-          : "scheduled");
     const fromAgenda = {
       id: aj.id,
       number: aj.number,
@@ -175,7 +190,7 @@
       address: aj.address || "",
       scheduled_start: aj.scheduled_start,
       sand_scheduled_start: aj.sand_scheduled_start,
-      status,
+      status: crewStatusFromAgenda(aj),
       homeowner_name: aj.homeowner_name,
       client_name: aj.client,
       client: aj.client,
@@ -563,12 +578,12 @@
   }
   /** Jobs in the current tab (Ativos / Concluídos) that match the search, before the quick filter. */
   function baseJobs() {
-    // Crew day list = same appointments as Campo Agenda for the selected day.
-    let hit =
-      crewMode && crewSelectedYmd && Array.isArray(crewDayJobs)
-        ? crewDayJobs.map(mergeAgendaJob).filter(jobHit)
-        : jobs.filter(jobHit);
-    return mode === "done" ? hit.filter((j) => j.status === "completed") : hit.filter(isActive);
+    // Crew calendar day = same appointments as Campo Agenda (all jobs that day).
+    if (crewMode && crewSelectedYmd && Array.isArray(crewDayJobs)) {
+      return crewDayJobs.map(mergeAgendaJob).filter(jobHit);
+    }
+    const hit = jobs.filter(jobHit);
+    return mode === "done" ? hit.filter(isDone) : hit.filter(isActive);
   }
 
   function renderCrewWeek() {
@@ -663,8 +678,10 @@
   }
 
   function renderList() {
-    const active = jobs.filter(isActive);
-    const done = jobs.filter((j) => j.status === "completed");
+    const crewDay =
+      crewMode && crewSelectedYmd && Array.isArray(crewDayJobs) ? crewDayJobs.map(mergeAgendaJob) : null;
+    const active = crewDay ? crewDay.filter(isActive) : jobs.filter(isActive);
+    const done = crewDay ? crewDay.filter(isDone) : jobs.filter(isDone);
     if ($("camJobsN")) $("camJobsN").textContent = String(jobs.length);
     if ($("camPhotosN")) $("camPhotosN").textContent = String(feed.length);
     document.querySelectorAll("#camViews [data-view]").forEach((b) => {
@@ -679,9 +696,11 @@
       b.classList.toggle("is-on", m === listMode);
       b.setAttribute("aria-pressed", String(m === listMode));
       if (crewMode) {
+        // Calendar day shows every Agenda job; counts still split active vs done for context.
+        const dayN = crewDay ? crewDay.length : active.length + done.length;
         b.innerHTML =
           m === "active"
-            ? `Em produção<em>${active.length}</em>`
+            ? `Em produção<em>${crewDay ? dayN : active.length}</em>`
             : `Últimos trabalhos<em>${done.length}</em>`;
       } else {
         b.innerHTML = m === "active" ? `Ativos <em>${active.length}</em>` : `Concluídos <em>${done.length}</em>`;
