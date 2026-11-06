@@ -18,6 +18,12 @@ describe("obraQuoteHtml", () => {
     expect(out).toContain("/assets/obraquote/apple-touch-icon.png");
     expect(out).toContain("window.__OM_QUOTE_APP=true");
     expect(out).not.toContain("/old.png");
+    expect(out).toContain("/obraquote-app.css");
+    expect(out).toContain("/obraquote-app.js");
+  });
+
+  it("loads the app shell after the page scripts", () => {
+    expect(out.indexOf("field-quote.js")).toBeLessThan(out.indexOf("/obraquote-app.js"));
   });
 
   it("sets the app flag before the page scripts run", () => {

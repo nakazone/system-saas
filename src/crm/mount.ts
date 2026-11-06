@@ -195,12 +195,14 @@ export function obraQuoteHtml(html: string): string {
     '<link rel="manifest" href="/obraquote.webmanifest?v=1" />',
     '<meta name="apple-mobile-web-app-title" content="ObraQuote" />',
     '<meta name="apple-mobile-web-app-capable" content="yes" />',
+    '<link rel="stylesheet" href="/obraquote-app.css?v=20261106-home1" />',
     "<script>window.__OM_QUOTE_APP=true</script>",
   ].join("\n    ");
   return html
     .replace(/<title>[^<]*<\/title>/i, "<title>ObraQuote</title>")
     .replace(/<link rel="apple-touch-icon"[^>]*>/i, '<link rel="apple-touch-icon" href="/assets/obraquote/apple-touch-icon.png?v=1" />')
-    .replace(/<\/head>/i, `    ${head}\n</head>`);
+    .replace(/<\/head>/i, `    ${head}\n</head>`)
+    .replace(/<\/body>/i, '  <script src="/obraquote-app.js?v=20261106-home1"></script>\n</body>');
 }
 
 async function sendCrmHtml(req: Request, res: Response, filename: string) {
