@@ -8,8 +8,33 @@
   const MO = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
   const WD = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
+  /** Visible text only. An object must never become the words "[object Object]". */
+  function plainText(v) {
+    if (typeof v === "string") return v === "[object Object]" ? "" : v;
+    if (typeof v === "number" && Number.isFinite(v)) return String(v);
+    if (v && typeof v === "object") {
+      const keys = ["short", "label", "name", "text", "title", "company", "nickname", "message"];
+      for (let i = 0; i < keys.length; i += 1) {
+        const s = v[keys[i]];
+        if (typeof s === "string" && s && s !== "[object Object]") return s;
+      }
+    }
+    return "";
+  }
+  function firstText() {
+    for (let i = 0; i < arguments.length; i += 1) {
+      const s = plainText(arguments[i]).trim();
+      if (s) return s;
+    }
+    return "";
+  }
+  function hexColor(v) {
+    if (typeof v !== "string") return "";
+    const s = v.trim();
+    return /^#[0-9a-f]{6}$/i.test(s) ? s : "";
+  }
   function esc(s) {
-    return String(s == null ? "" : s)
+    return plainText(s)
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
@@ -31,37 +56,32 @@
 
   /** Real client/homeowner name — no nickname, no Client ID (Campo / Obra Crew). */
   function fieldClient(wo) {
-    const homeowner = String(wo.homeowner_name || wo.homeownerName || "").trim();
-    const lead = String(wo.lead_name || "").trim();
-    const customer = String(
-      (wo.customer && (wo.customer.name || wo.customer.company)) || wo.customer_name || "",
-    ).trim();
-    const builder = String(
-      wo.builder?.company ||
-        wo.builder?.name ||
-        [wo.builder?.firstName, wo.builder?.lastName].filter(Boolean).join(" ") ||
-        "",
-    ).trim();
-    const base = String(
-      homeowner || customer || builder || lead || wo.source_name || wo.client || "",
-    ).trim();
+    const homeowner = firstText(wo.homeowner_name, wo.homeownerName);
+    const lead = firstText(wo.lead_name);
+    const customer = firstText(wo.customer && wo.customer.name, wo.customer && wo.customer.company, wo.customer_name);
+    const builder = firstText(
+      wo.builder && wo.builder.company,
+      wo.builder && wo.builder.name,
+      [wo.builder && wo.builder.firstName, wo.builder && wo.builder.lastName].filter(Boolean).join(" "),
+    );
+    const base = firstText(homeowner, customer, builder, lead, wo.source_name, wo.client);
     return base || "Sem cliente";
   }
 
   /** Admin label: nickname when set, plus optional client code ("Name - ID"). */
   function client(wo) {
-    const lead = String(wo.lead_name || "").trim();
-    const ref = String(wo.client_ref || "").trim();
-    const nick = String(wo.builder?.nickname || wo.customer?.nickname || "").trim();
-    const base = String(
-      nick ||
-        (wo.customer && (wo.customer.name || wo.customer.company)) ||
-        wo.builder?.company ||
-        wo.builder?.name ||
-        lead ||
-        wo.source_name ||
-        "",
-    ).trim();
+    const lead = firstText(wo.lead_name);
+    const ref = firstText(wo.client_ref);
+    const nick = firstText(wo.builder && wo.builder.nickname, wo.customer && wo.customer.nickname);
+    const base = firstText(
+      nick,
+      wo.customer && wo.customer.name,
+      wo.customer && wo.customer.company,
+      wo.builder && wo.builder.company,
+      wo.builder && wo.builder.name,
+      lead,
+      wo.source_name,
+    );
     if (ref) {
       if (!base) return ref;
       if (base.toLowerCase().includes(ref.toLowerCase())) return base;
@@ -71,9 +91,12 @@
   }
 
   function builderName(wo) {
-    return String(
-      wo.builder?.nickname || wo.builder?.company || wo.builder?.name || wo.source_name || "",
-    ).trim();
+    return firstText(
+      wo.builder && wo.builder.nickname,
+      wo.builder && wo.builder.company,
+      wo.builder && wo.builder.name,
+      wo.source_name,
+    );
   }
 
   /** One line that identifies the job: builder, quote number, job number, address. */
@@ -480,10 +503,11 @@
     return new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime();
   }
   function calColors(wo) {
+    const installation = hexColor(wo && wo.cal_install) || "#221e1a";
     return {
-      installation: (wo && wo.cal_install) || "#221e1a",
-      sand: (wo && (wo.cal_sand || wo.cal_install)) || "#221e1a",
-      delivery: (wo && wo.cal_delivery) || "#0f766e",
+      installation,
+      sand: hexColor(wo && wo.cal_sand) || installation,
+      delivery: hexColor(wo && wo.cal_delivery) || "#0f766e",
     };
   }
   function inField(wo) {
@@ -540,7 +564,14 @@
       chips.push({ label: "Delivery", tone: "cal", mark: "dot", color: colors.delivery });
     }
     if (active) chips.push(active);
-    return chips;
+    return chips
+      .map((c) => ({
+        label: plainText(c && c.label).trim(),
+        tone: plainText(c && c.tone) || "wait",
+        mark: c && c.mark === "check" ? "check" : c && c.mark === "none" ? "none" : "dot",
+        color: hexColor(c && c.color) || null,
+      }))
+      .filter((c) => c.label && c.label !== "[object Object]");
   }
 
   /** Tom do selo na lista do CRM. hot = ação; act = em andamento; ok = fechado; off = cancelado. */
@@ -556,7 +587,7 @@
   }
 
   window.JobsInfo = {
-    esc, stageTone, crewStageTone, money, money0, client, fieldClient, builderName, findLine, searchText, displayName, isActive, late, step, STEP_NAMES, STATUS_BY_STEP, STATUS_STEP_MSG,
+    esc, plainText, firstText, hexColor, stageTone, crewStageTone, money, money0, client, fieldClient, builderName, findLine, searchText, displayName, isActive, late, step, STEP_NAMES, STATUS_BY_STEP, STATUS_STEP_MSG,
     statusForStep, atStatus, stageLabel, crewStageLabel, fieldPhaseLabel, isInFieldStage, camListChips, progHtml, sectorProgress, nextFinish, fieldHalves, bill, dateRange, listWhen, crewListWhen, listAnchorIso, listOnSandDay, awaitingSand, dayShort, completeLabel, compareNearest, startMs, isToday, initials, team,
   };
 })();

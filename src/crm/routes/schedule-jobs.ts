@@ -68,9 +68,11 @@ function normalizeWoSector(raw: unknown): string | null {
  * Strip those suffixes (and legacy :installation/:main) before Prisma UUID lookups.
  */
 function workOrderIdParam(req: AuthedRequest, name = "id"): string {
-  return String(param(req, name) || "")
-    .replace(/:(sand|delivery|installation|main)$/i, "")
-    .trim();
+  const raw = String(param(req, name) || "").trim();
+  // `${id}:delivery:${stopId}` and `${id}:sand` — Prisma needs the uuid only.
+  const uuid = raw.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+  if (uuid) return uuid[0];
+  return raw.replace(/:(sand|delivery|installation|main)(?::.*)?$/i, "").trim();
 }
 
 async function resolveRelatedWorkOrderId(

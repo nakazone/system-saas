@@ -110,7 +110,7 @@
       throw new Error("unauth");
     }
     if (!r.ok || j.success === false) {
-      const err = new Error(j.error || `HTTP ${r.status}`);
+      const err = new Error(errText(j.error) || errText(j.message) || `HTTP ${r.status}`);
       err.status = r.status;
       err.code = j.code || "";
       throw err;
@@ -137,8 +137,29 @@
     // a message already written in Portuguese (ours, or the server's) is kept; anything else gets the plain one
     return /[áéíóúâêôãõç]/i.test(raw) ? raw : `Não foi possível ${act} ${thing}. Tente de novo.`;
   }
+  function plain(v) {
+    if (window.JobsInfo?.plainText) return window.JobsInfo.plainText(v);
+    if (typeof v === "string") return v === "[object Object]" ? "" : v;
+    if (typeof v === "number" && Number.isFinite(v)) return String(v);
+    if (v && typeof v === "object") {
+      const s = v.short || v.label || v.name || v.text || v.title || v.company || v.message;
+      if (typeof s === "string" && s !== "[object Object]") return s;
+    }
+    return "";
+  }
+  function firstPlain() {
+    for (let i = 0; i < arguments.length; i += 1) {
+      const s = plain(arguments[i]).trim();
+      if (s) return s;
+    }
+    return "";
+  }
   function esc(s) {
-    return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    return plain(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+  function errText(v) {
+    const s = plain(v).trim();
+    return s && s !== "[object Object]" ? s : "";
   }
   function norm(s) {
     return String(s || "").trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
@@ -340,16 +361,22 @@
   /** Same identity line as Jobs; ObraCrew uses homeowner/client only (no nickname). */
   function listWho(j) {
     if (crewMode) {
-      const home = String(j.homeowner_name || j.client_name || j.client || "").trim();
+      const home = firstPlain(j.homeowner_name, j.client_name, j.client);
       if (home) return home;
       if (window.JobsInfo?.fieldClient) return window.JobsInfo.fieldClient(j) || "Sem cliente";
     }
     if (window.JobsInfo?.client) return window.JobsInfo.client(j);
-    const nick = String(j.builder?.nickname || j.customer?.nickname || "").trim();
-    const base = String(
-      nick || j.customer?.name || j.customer?.company || j.builder?.company || j.builder?.name || j.client_name || j.source_name || "",
-    ).trim();
-    const ref = String(j.client_ref || j.customer?.client_code || "").trim();
+    const nick = firstPlain(j.builder?.nickname, j.customer?.nickname);
+    const base = firstPlain(
+      nick,
+      j.customer?.name,
+      j.customer?.company,
+      j.builder?.company,
+      j.builder?.name,
+      j.client_name,
+      j.source_name,
+    );
+    const ref = firstPlain(j.client_ref, j.customer?.client_code);
     if (ref) {
       if (!base) return ref;
       if (base.toLowerCase().includes(ref.toLowerCase())) return base;
@@ -409,9 +436,12 @@
 
   const CHIP_CHECK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.2 8.2 6.4 11.4 12.8 4.6"/></svg>';
   function chipHtml(c) {
-    const style = c.color ? ` style="--cal:${esc(c.color)}"` : "";
+    const label = plain(c && c.label).trim();
+    if (!label || label === "[object Object]") return "";
+    const color = window.JobsInfo?.hexColor ? window.JobsInfo.hexColor(c.color) : /^#[0-9a-f]{6}$/i.test(String(c && c.color || "")) ? String(c.color).trim() : "";
+    const style = color ? ` style="--cal:${esc(color)}"` : "";
     const mark = c.mark === "check" ? CHIP_CHECK : c.mark === "none" ? "" : "<i></i>";
-    return `<span class="cam-svc is-${esc(c.tone || "wait")}${c.mark === "check" ? " is-check" : ""}"${style}>${mark}${esc(c.label)}</span>`;
+    return `<span class="cam-svc is-${esc(c.tone || "wait")}${c.mark === "check" ? " is-check" : ""}"${style} data-no-i18n>${mark}${esc(label)}</span>`;
   }
   /** Status chips for the Jobs list and the open job. Color comes from the calendar. */
   function statusChipsHtml(j) {
@@ -575,7 +605,7 @@
   let FILTERS = filtersForMode();
   /** The client a job is grouped under: the builder or customer, without the job reference. */
   function clientKey(j) {
-    return String(j.builder?.nickname || j.builder?.company || j.customer?.nickname || j.customer?.company || j.customer?.name || j.client_name || j.source_name || "").trim() || "Sem cliente";
+    return firstPlain(j.builder?.nickname, j.builder?.company, j.customer?.nickname, j.customer?.company, j.customer?.name, j.client_name, j.source_name) || "Sem cliente";
   }
   function lastPhotoTime(j) {
     return j.last_photo ? new Date(j.last_photo.created_at).getTime() : 0;

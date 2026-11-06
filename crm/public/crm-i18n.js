@@ -302,8 +302,10 @@
     if (!key) return raw;
     var out = translateCore(key, inDoc);
     var res = out == null ? key : out;
+    if (typeof res !== "string" || res.indexOf("[object Object]") >= 0) return raw;
     if (!inDoc && locale !== "pt" && (dateHint.test(res) || shortDate.test(res))) res = fixDates(res);
     if (!inDoc) res = applyTerms(res);
+    if (typeof res !== "string" || res.indexOf("[object Object]") >= 0) return raw;
     if (out == null && res === key) return raw;
     return lead + res + trail;
   }

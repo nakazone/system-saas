@@ -218,7 +218,10 @@
   }
 
   function jobIdOf(e) {
-    return String((e && e.id) || '').replace(/:(sand|delivery|installation|main)$/i, '');
+    const raw = String((e && e.id) || '').trim();
+    const uuid = raw.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+    if (uuid) return uuid[0];
+    return raw.replace(/:(sand|delivery|installation|main)(?::.*)?$/i, '');
   }
   const CAL_KINDS = [
     { id: 'jobs', label: 'Jobs' },

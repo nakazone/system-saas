@@ -1012,10 +1012,12 @@
   }
 
   async function boot() {
-    // Calendar may pass `${id}:sand` for sector=both Sand dates — strip before API calls.
-    jobId = String(new URLSearchParams(location.search).get("id") || "")
-      .replace(/:(sand|installation|main)$/i, "")
-      .trim();
+    // Calendar ids look like `${id}:sand` or `${id}:delivery:${stop}` — keep the uuid.
+    jobId = String(new URLSearchParams(location.search).get("id") || "").trim();
+    const jobUuid = jobId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+    jobId = jobUuid
+      ? jobUuid[0]
+      : jobId.replace(/:(sand|delivery|installation|main)(?::.*)?$/i, "").trim();
     if (!jobId) {
       location.href = "jobs.html";
       return;

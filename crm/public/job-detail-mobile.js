@@ -931,7 +931,7 @@
     if (!isMobile()) return;
     if (!$("jobMobRoot")) return;
     jobId = String(new URLSearchParams(location.search).get("id") || "")
-      .replace(/:(sand|installation|main)$/i, "")
+      .replace(/:(sand|delivery|installation|main)(?::.*)?$/i, "")
       .trim();
     if (!jobId) return;
     if ((location.hash || "") === "#fotos") detTab = "fotos";

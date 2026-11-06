@@ -89,6 +89,17 @@ describe("ObraCam service chips", () => {
     expect(chips[0].mark).toBe("dot");
   });
 
+  it("keeps a calendar object out of the status text", () => {
+    const chips = JobsInfo.camListChips({
+      status: "in_progress",
+      sector: "installation",
+      cal_install: { color: "#112233", name: "Jobs" },
+    });
+    expect(chips.map((c) => c.label)).toEqual(["Instalando"]);
+    expect(chips[0].color).toBe("#221e1a");
+    expect(JSON.stringify(chips)).not.toContain("[object Object]");
+  });
+
   it("closes the job as Concluído", () => {
     const chips = JobsInfo.camListChips({ status: "completed", sector: "both", ...colors });
     expect(chips).toEqual([{ label: "Concluído", tone: "ok", mark: "check", color: null }]);
