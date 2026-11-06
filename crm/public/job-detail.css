@@ -245,11 +245,8 @@
 .jd-btn--sm { height: 34px; padding: 0 12px; font-size: 12.5px; border-radius: 10px; }
 .jd-btn--icon { font-size: 18px; }
 .jd-btn--block { width: 100%; margin-top: 12px; }
-.jd-link {
-  font-weight: 600; font-size: 12.5px; color: var(--jd-ink); text-decoration: underline; text-decoration-color: var(--jd-terra);
-  text-decoration-thickness: 2px; text-underline-offset: 3px;
-}
-.jd-link:hover { color: var(--jd-ink); text-decoration-color: var(--jd-ink); }
+.jd-link { font-weight: 600; font-size: 12px; color: var(--jd-ink-2); text-decoration: underline; text-decoration-color: #D0D5DD; text-underline-offset: 3px; }
+.jd-link:hover { color: var(--jd-ink); text-decoration-color: var(--jd-terra); }
 .jd-mini:hover { border-color: #D0D5DD; }
 .jd-menu__list { border: 0; box-shadow: 0 0 0 1px var(--jd-line), 0 16px 40px rgba(16, 24, 40, .16); border-radius: 14px; }
 
@@ -313,3 +310,17 @@
 
 /* Totals live in the job header; the action too. This card is the invoice list. */
 .jd-billing .jb-stats, .jd-billing .jb-bar, .jd-billing .jb-actions { display: none; }
+
+/* Service tables fit their card; shared tablet rules give tables a wide minimum. */
+.jd .jd-table { min-width: 0; }
+
+/* Empty or short sections take one line, not a whole card. */
+.jd-ch__hint { min-width: 0; font-size: 12.5px; color: var(--jd-ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jd-ch__hint:empty { display: none; }
+.jd-card.is-empty .jd-ch { margin-bottom: 0; }
+#jdAfterCard:not([hidden]) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+#jdAfterCard .jd-ch { margin: 0; }
+#jdAfterActions { margin-left: auto; }
+#jdAfterBody { flex: 1 1 100%; }
+#jdAfterBody:empty { display: none; }
+#jdAfterBody .jd-after { margin-top: 4px; }

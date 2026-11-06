@@ -25,10 +25,10 @@
   <link rel="stylesheet" href="om-gestures.css?v=20261102-ptr1" />
   <link rel="stylesheet" href="job-comms.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="crm-job-billing.css?v=20261102-tabinv1" />
-  <link rel="stylesheet" href="job-detail.css?v=20261106-hd2" />
-  <link rel="stylesheet" href="job-header.css?v=20261106-hd2" />
+  <link rel="stylesheet" href="job-detail.css?v=20261106-ov1" />
+  <link rel="stylesheet" href="job-header.css?v=20261106-mb2" />
   <link rel="stylesheet" href="cam-viewer.css?v=20261105-apps3" />
-  <link rel="stylesheet" href="jobs-mobile.css?v=20261105-crew3" />
+  <link rel="stylesheet" href="jobs-mobile.css?v=20261106-mb2" />
   <link rel="stylesheet" href="job-builder-channel.css?v=20261030-builder1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="om-device.js?v=20261013-badge1"></script>
@@ -87,10 +87,7 @@
       <div class="jcm" id="jobMobRoot">
         <div class="jcm-nav">
           <a class="jcm-icon-btn" href="jobs.html" aria-label="Voltar"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></a>
-          <div class="jcm-role" role="group" aria-label="Modo">
-            <button type="button" class="jcm-role__btn is-active" data-jobs-role="office">Escritório</button>
-            <button type="button" class="jcm-role__btn" data-jobs-role="installer">Instalador</button>
-          </div>
+          <div class="jh-scope" id="jobMobMenu"></div>
         </div>
         <div class="jmx-chips">
           <span class="jcm-badge" id="jobMobStatus">—</span>
@@ -105,41 +102,21 @@
           <a id="jobMobCallQuick" href="#"><span><svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.8 19.8 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.8 19.8 0 012.12 4.18 2 2 0 014.11 2h3a2 2 0 012 1.72c.13.97.35 1.92.67 2.83a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.91.32 1.86.54 2.83.67A2 2 0 0122 16.92z"/></svg></span>Ligar</a>
           <a id="jobMobMapQuick" href="#" target="_blank" rel="noopener"><span><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></span>Mapa</a>
           <a id="jobMobPhotosQuick" href="#"><span><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg></span>Fotos</a>
-          <a id="jobMobNotesQuick" href="#"><span><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg></span>Nota</a>
+          <a id="jobMobChatQuick" href="#" hidden><span><svg viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 01-12.3 7.4L3 21l2.1-5.7A8.4 8.4 0 1121 11.5z"/></svg></span>ObraChat</a>
         </div>
 
-        <div id="jobMobMoneyWrap" hidden>
-          <p class="jmx-sech">Cash</p>
-          <div class="jmx-gl" id="jobMobMoney"></div>
-        </div>
-        <p class="jmx-sech">Obra</p>
-        <div class="jmx-gl">
-          <div class="jmx-li"><span>Endereço</span><b id="jobMobAddr">—</b></div>
-          <div class="jmx-li"><span>Start</span><b id="jobMobWhen">—</b></div>
-          <div class="jmx-li" id="jobMobCompleteRow" hidden><span>Complete</span><b id="jobMobComplete">—</b></div>
-          <div class="jmx-li"><span>Equipe</span><b id="jobMobTeam">—</b></div>
-          <button type="button" class="jmx-li jmx-li--btn" id="jobMobEditServices" hidden><span>Serviços</span><b id="jobMobSvcSum">Editar ›</b></button>
-        </div>
+        <div class="jh-scope jmx-alerts" id="jobMobAlerts" hidden></div>
+        <div class="jh-scope jmx-facts" id="jobMobFacts"></div>
 
         <div class="jcm-seg">
-          <button type="button" class="jcm-seg__btn is-active" data-jd-tab="visitas">Visitas</button>
-          <button type="button" class="jcm-seg__btn" data-jd-tab="checklist">Checklist</button>
+          <button type="button" class="jcm-seg__btn is-active" data-jd-tab="geral">Visão geral</button>
           <button type="button" class="jcm-seg__btn" data-jd-tab="fotos">Fotos</button>
+          <button type="button" class="jcm-seg__btn" data-jd-tab="checklist">Campo</button>
           <button type="button" class="jcm-seg__btn" data-jd-tab="stain">Stain</button>
-          <button type="button" class="jcm-seg__btn" data-jd-tab="comunicacoes">Comunicações</button>
-          <button type="button" class="jcm-seg__btn" data-jd-tab="servicos">Serviços</button>
-          <button type="button" class="jcm-seg__btn" data-jd-tab="financeiro">Financeiro</button>
+          <button type="button" class="jcm-seg__btn" data-jd-tab="comunicacoes">Conversa</button>
         </div>
 
-        <div class="jcm-card" id="jobMobVisitas">
-          <div class="jcm-timeline" id="jobMobTimeline"></div>
-        </div>
-        <div id="jobMobExtra" hidden></div>
-
-        <div class="jcm-notes" id="jobMobInstr" hidden>
-          <p class="jcm-notes__label">Instruções para a equipe</p>
-          <p class="jcm-notes__body" id="jobMobInstrBody"></p>
-        </div>
+        <div id="jobMobExtra"></div>
       </div>
 
       <div class="jcm-foot jmx-foot" id="jobMobFoot">
@@ -170,8 +147,8 @@
                 <div class="jd-ch"><h2>Serviços</h2><span class="jd-ch__n" id="jdSvcCount"></span><button type="button" class="jd-link" id="btnEditServices" data-crm-permission="work_orders.manage">Editar</button></div>
                 <div id="jdServicesFull"></div>
               </div>
-              <div class="jd-card">
-                <div class="jd-ch"><h2>Notas da obra</h2><button type="button" class="jd-link" id="jdNotesEdit" data-crm-permission="work_orders.manage">Editar</button></div>
+              <div class="jd-card" id="jdNotesCard">
+                <div class="jd-ch"><h2>Notas da obra</h2><span class="jd-ch__hint" id="jdNotesHint"></span><button type="button" class="jd-link" id="jdNotesEdit" data-crm-permission="work_orders.manage">Editar</button></div>
                 <div id="jdNotesView"></div>
                 <div id="jdNotesEditor" hidden>
                   <textarea class="jd-ta" id="jobNotes" maxlength="8000" placeholder="Ex.: /lockbox 4821 — caixa na porta da garagem"></textarea>
@@ -272,8 +249,8 @@
   <script src="cam-viewer.js?v=20261105-apps3"></script>
   <script src="job-builder-channel.js?v=20261030-ch1"></script>
   <script src="job-stain.js?v=20261030-stain1"></script>
-  <script src="job-header.js?v=20261106-hd2"></script>
-  <script src="job-detail.js?v=20261106-hd2"></script>
-  <script src="job-detail-mobile.js?v=20261105-field1"></script>
+  <script src="job-header.js?v=20261106-mb1"></script>
+  <script src="job-detail.js?v=20261106-mb2"></script>
+  <script src="job-detail-mobile.js?v=20261106-mb2"></script>
 </body>
 </html>

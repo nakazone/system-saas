@@ -2,7 +2,7 @@
  * Job header — the one place that answers "who, where, when, who's on it, how's the money"
  * and gives the next step. Shared by the Jobs side panel and the job page.
  *
- * window.JobHeader = { html(wo, ctx), bind(root, handlers), primary(wo, ctx), noteParts(notes) }
+ * window.JobHeader = { html, bind, primary, noteParts, alerts, menu, whenSub, moneySummary, canEmit }
  *
  * ctx: { mode: "panel" | "page", canManage, canBill, canInvoice, can(perm), billing, invoices, field, photos }
  * handlers: { act(name, el), step(index), status(status) }
@@ -104,6 +104,12 @@
       : p.href
         ? `<a class="jh-btn jh-btn--pri" href="${esc(p.href)}">${esc(p.label)}</a>`
         : `<button type="button" class="jh-btn jh-btn--pri" data-jh-act="${esc(p.act)}">${esc(p.label)}</button>`;
+    return `${edit}${main}${menu(wo, ctx)}`;
+  }
+
+  /** The ⋯ menu. `leading` lets a screen add its own items on top. */
+  function menu(wo, ctx, leading) {
+    const { esc } = J();
     const pageLink = ctx.mode === "panel" ? `<a role="menuitem" href="job-detail.html?id=${encodeURIComponent(wo.id)}">Abrir página do job</a>` : "";
     const lixa = ctx.canManage && wo.sector === "installation" && wo.status !== "canceled"
       ? `<button type="button" role="menuitem" data-jh-act="lixa">Agendar Lixa</button>`
@@ -117,13 +123,12 @@
     const del = ctx.canManage && wo.status !== "canceled"
       ? `<button type="button" role="menuitem" class="is-danger" data-jh-act="delete">Excluir job</button>`
       : "";
-    const more = pageLink || lixa || statusItems || del
+    return leading || pageLink || lixa || statusItems || del
       ? `<div class="jh-menu">
           <button type="button" class="jh-btn jh-btn--icon" data-jh-more aria-haspopup="menu" aria-expanded="false" aria-label="Mais ações">⋯</button>
-          <div class="jh-menu__list" data-jh-menu role="menu" hidden>${pageLink}${lixa}${statusItems}${del}</div>
+          <div class="jh-menu__list" data-jh-menu role="menu" hidden>${leading || ""}${pageLink}${lixa}${statusItems}${del}</div>
         </div>`
       : "";
-    return `${edit}${main}${more}`;
   }
 
   // ---------------------------------------------------------------- progress
@@ -280,24 +285,26 @@
     );
   }
 
+  /** Second line of the schedule: until when, or the hours. */
+  function whenSub(wo) {
+    if (undated(wo)) return "Ainda não agendado";
+    if (wo.status === "completed") return `Concluído: ${J().completeLabel?.(wo) || "—"}`;
+    const start = wo.scheduled_start ? new Date(wo.scheduled_start) : null;
+    const end = wo.scheduled_end ? new Date(wo.scheduled_end) : null;
+    const until = start && end && start.toDateString() !== end.toDateString()
+      ? `até ${["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][end.getDay()]} ${end.getDate()} ${["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"][end.getMonth()]}`
+      : "";
+    const t = (x) => x.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    const hours = !start || wo.all_day ? "Dia inteiro" : end && !until ? `${t(start)} – ${t(end)}` : t(start);
+    return [until, until && hours === "Dia inteiro" ? "" : hours].filter(Boolean).join(" · ");
+  }
+
   function whenFact(wo, ctx) {
     const { esc } = J();
     const none = undated(wo);
     const iso = wo.scheduled_start || wo.sand_scheduled_start;
     const href = iso ? `schedule.html?focus=${encodeURIComponent(iso)}&event=${encodeURIComponent(wo.id)}` : "schedule.html";
-    let sub = "Ainda não agendado";
-    if (!none) {
-      const start = wo.scheduled_start ? new Date(wo.scheduled_start) : null;
-      const end = wo.scheduled_end ? new Date(wo.scheduled_end) : null;
-      const until = start && end && start.toDateString() !== end.toDateString()
-        ? `até ${["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][end.getDay()]} ${end.getDate()} ${["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"][end.getMonth()]}`
-        : "";
-      const t = (x) => x.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-      const hours = !start || wo.all_day ? "Dia inteiro" : end && !until ? `${t(start)} – ${t(end)}` : t(start);
-      sub = wo.status === "completed"
-        ? `Concluído: ${J().completeLabel?.(wo) || "—"}`
-        : [until, until && hours === "Dia inteiro" ? "" : hours].filter(Boolean).join(" · ");
-    }
+    const sub = whenSub(wo);
     const act = ctx.canManage && wo.status !== "completed" && wo.status !== "canceled" ? factBtn("schedule", none ? "Agendar" : "Remarcar") : "";
     const main = can(ctx, "schedule.view") && !none
       ? `<a class="jh-fact__v jh-fact__v--2" href="${esc(href)}" title="Ver na agenda">${esc(J().dateRange(wo))}</a>`
@@ -318,17 +325,13 @@
     return fact(
       "Equipe",
       ctx.canManage ? factBtn("team", "Gerir") : "",
-      `<b class="jh-fact__v${first ? "" : " jh-mu"}">${esc(first || "Ninguém escalado")}</b>${sub ? `<span class="jh-fact__s">${esc(sub)}</span>` : ""}`,
+      `<b class="jh-fact__v jh-fact__v--2${first ? "" : " jh-mu"}">${esc(first || "Ninguém escalado")}</b>${sub ? `<span class="jh-fact__s">${esc(sub)}</span>` : ""}`,
     );
   }
 
-  function moneyFact(wo, ctx) {
-    const b = billingOf(wo, ctx);
-    const { esc, money0 } = J();
-    if (!b) {
-      if (ctx.canBill === false && (wo.services_total == null)) return "";
-      return ctx.canBill ? "" : fact("Total do job", "", `<b class="jh-fact__v">${esc(money0(wo.services_total))}</b>`);
-    }
+  /** What to say about the money now: what's left to receive or invoice, and the totals. */
+  function moneySummary(b) {
+    const { money0 } = J();
     const total = num(b.services_total);
     const paid = num(b.paid_total);
     const open = num(b.open_balance);
@@ -340,13 +343,23 @@
           : { k: "A faturar", v: num(b.remaining_to_invoice) };
     const paidPct = total > 0 ? Math.min(100, (paid / total) * 100) : 0;
     const openPct = total > 0 ? Math.min(100 - paidPct, (open / total) * 100) : 0;
+    return { head, total, paid, paidPct, openPct, parts: [`Total ${money0(total)}`, `Faturado ${money0(b.invoiced_total)}`, `Recebido ${money0(paid)}`] };
+  }
+
+  function moneyFact(wo, ctx) {
+    const b = billingOf(wo, ctx);
+    const { esc, money0 } = J();
+    if (!b) {
+      if (ctx.canBill === false && (wo.services_total == null)) return "";
+      return ctx.canBill ? "" : fact("Total do job", "", `<b class="jh-fact__v">${esc(money0(wo.services_total))}</b>`);
+    }
+    const { head, total, paid, paidPct, openPct, parts } = moneySummary(b);
     const invs = invoicesOf(wo, ctx);
     const isPrimary = primary(wo, ctx)?.act === "invoice";
     let act = "";
     if (canEmit(wo, ctx) && !isPrimary) act = factBtn("invoice", "Emitir Invoice");
     else if (invs.length === 1) act = `<a class="jh-link" href="invoices.html?id=${encodeURIComponent(invs[0].id)}">Ver invoice</a>`;
     else if (invs.length > 1) act = `<a class="jh-link" href="invoices.html?q=${encodeURIComponent(wo.number != null ? `Job #${wo.number}` : wo.title || "")}">Faturas (${invs.length})</a>`;
-    const parts = [`Total ${money0(total)}`, `Faturado ${money0(b.invoiced_total)}`, `Recebido ${money0(paid)}`];
     return fact(
       head.k,
       act,
@@ -394,20 +407,23 @@
     const who = J().client(wo);
     const head = who && who !== "Sem cliente" ? who : wo.title || "Job";
     const tag = ctx.mode === "page" ? "h1" : "h2";
+    const alertRows = alerts(wo, ctx);
     return `<header class="jh">
-      <div class="jh__top">
-        <div class="jh__id">
-          <div class="jh__chips">${chips(wo)}</div>
-          <${tag} class="jh__title">${J().esc(head)}</${tag}>
-          ${subtitle(wo, head)}
+      <div class="jh__band jh__head">
+        <div class="jh__top">
+          <div class="jh__id">
+            <div class="jh__chips">${chips(wo)}</div>
+            <${tag} class="jh__title">${J().esc(head)}</${tag}>
+            ${subtitle(wo, head)}
+          </div>
+          <div class="jh__acts">${actions(wo, ctx)}</div>
         </div>
-        <div class="jh__acts">${actions(wo, ctx)}</div>
+        ${statusLine(wo, ctx)}
       </div>
-      ${statusLine(wo, ctx)}
-      ${wo.status !== "canceled" ? steps(wo, ctx) : ""}
-      ${alerts(wo, ctx)}
-      <div class="jh-facts">${clientFact(wo, ctx)}${siteFact(wo)}${whenFact(wo, ctx)}${teamFact(wo, ctx)}${moneyFact(wo, ctx)}</div>
-      ${modules(wo, ctx)}
+      ${wo.status !== "canceled" ? `<div class="jh__band jh__progress">${steps(wo, ctx)}</div>` : ""}
+      ${alertRows ? `<div class="jh__band jh__notice">${alertRows}</div>` : ""}
+      <div class="jh__columns"><div class="jh-facts">${clientFact(wo, ctx)}${siteFact(wo)}${whenFact(wo, ctx)}${teamFact(wo, ctx)}${moneyFact(wo, ctx)}</div></div>
+      <div class="jh__band jh__foot">${modules(wo, ctx)}</div>
     </header>`;
   }
 
@@ -485,5 +501,5 @@
     });
   }
 
-  window.JobHeader = { html, bind, primary, noteParts };
+  window.JobHeader = { html, bind, primary, noteParts, alerts, menu, whenSub, moneySummary, canEmit };
 })();

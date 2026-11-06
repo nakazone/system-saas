@@ -152,7 +152,7 @@
     const nd = n("nodate");
     T.push(["nodate", "Sem data", nd.length, nd.length ? "marcar na agenda" : "tudo agendado", ""]);
     const sc = n("scheduled");
-    T.push(["scheduled", "Agendados", sc.length, sc.length ? J.money0(sum(sc, (w) => w.services_total)) : "—", ""]);
+    T.push(["scheduled", "Agendados", sc.length, sc.length ? J.money0(sum(sc, (w) => w.services_total)) : "", ""]);
     const fi = n("field");
     T.push(["field", "Em campo", fi.length, fi.length ? J.money0(sum(fi, (w) => w.services_total)) : "ninguém em campo", ""]);
     const la = n("late");
@@ -165,12 +165,12 @@
     }
     const dn = n("done");
     const paidN = all.filter((w) => isPaidJob(w)).length;
-    T.push(["done", "Concluídos", dn.length, paidN ? `${paidN} pago${paidN === 1 ? "" : "s"} oculto${paidN === 1 ? "" : "s"}` : "—", ""]);
+    T.push(["done", "Concluídos", dn.length, paidN ? `${paidN} pago${paidN === 1 ? "" : "s"} oculto${paidN === 1 ? "" : "s"}` : "", ""]);
     const host = $("jxTiles");
     host.style.setProperty("--jx-tiles", T.length);
     host.innerHTML = T.map(
       ([k, l, c, s, cls]) =>
-        `<button type="button" class="jx-tile${filter === k ? " is-on" : ""}" data-jx-filter="${k}" aria-pressed="${filter === k}"><span>${l}</span><b>${c}</b><small class="${cls}">${I().esc(s)}</small></button>`,
+        `<button type="button" class="jx-tile${filter === k && !statusFilter ? " is-on" : ""}" data-jx-filter="${k}" aria-pressed="${filter === k && !statusFilter}"><span>${l}</span><b>${c}</b><small class="${cls}">${I().esc(s)}</small></button>`,
     ).join("");
   }
 
@@ -408,7 +408,8 @@
     const next = weeks.flatMap((w) => w.rows);
     const order = [
       ["nodate", "Sem data", b.nodate, null],
-      ["field", "Em Campo", b.field, null],
+      // In the field now, plus what is due today or overdue.
+      ["field", "Agora", b.field, null],
       ["next", "Próximos jobs", next, weeks],
       ["done", "Concluídos", b.done, null],
       ["off", "Cancelados", b.off, null],
@@ -673,6 +674,13 @@
     setTimeout(finish, 520);
   }
   function showEveryJob() {
+    // Second click goes back to the week on the strip.
+    if (showAll) {
+      showAll = false;
+      revealWeek(stripWeek());
+      renderList();
+      return;
+    }
     showAll = true;
     weekFilter = null;
     dayFilter = null;
@@ -912,14 +920,14 @@
     return `<div class="jx-cols">
       <div>
         <div class="jx-box"><h3>Serviços${canManage ? `<button type="button" class="jx-lnk" data-jx-act="services">Editar</button>` : ""}</h3>${svc}</div>
-        <div class="jx-box"><h3>Notas da obra${canManage ? `<button type="button" class="jx-lnk" data-jx-act="notes">Editar</button>` : ""}</h3>${
+        ${
           notes
-            ? `<p class="jx-note">${J.esc(notes)}</p>`
-            : `<p class="jx-none">${code ? "Só o código da caixa, que já está no cabeçalho." : `Sem notas.${canManage ? " Use para acesso, portão, cuidados." : ""}`}</p>`
-        }</div>
+            ? `<div class="jx-box"><h3>Notas da obra${canManage ? `<button type="button" class="jx-lnk" data-jx-act="notes">Editar</button>` : ""}</h3><p class="jx-note">${J.esc(notes)}</p></div>`
+            : `<div class="jx-box is-empty"><h3>Notas da obra<span class="jx-hint">${code ? "Só o código da caixa, que está no cabeçalho" : canManage ? "Acesso, portão, cuidados com a obra" : "Sem notas"}</span>${canManage ? `<button type="button" class="jx-lnk" data-jx-act="notes">${code ? "Editar" : "Adicionar"}</button>` : ""}</h3></div>`
+        }
       </div>
       <div>
-        ${canBill ? `<div class="jx-box jx-billing"><h3>Faturas<a class="jx-lnk" href="${J.esc(invoicesHref)}">Ver todas</a></h3><div id="jxBilling"></div></div>` : ""}
+        ${canBill ? `<div class="jx-box jx-billing"><h3>Faturas${(wo.invoices || []).length ? `<a class="jx-lnk" href="${J.esc(invoicesHref)}">Ver todas</a>` : ""}</h3><div id="jxBilling"></div></div>` : ""}
         ${partnerBox(wo)}
       </div>
     </div>`;
@@ -1421,6 +1429,17 @@
     const wide = window.matchMedia("(min-width: 1025px)").matches;
     const pinned = selId && all.some((w) => String(w.id) === String(selId));
     const asked = new URLSearchParams(location.search).get("id");
+    if (wide && !selId && !asked) {
+      const first = firstJobToOpen(rows);
+      if (first) {
+        // Opened for the person, not chosen by them: don't pin it across filters or in the URL.
+        const keepFocus = focusId;
+        select(first.id, false);
+        focusId = keepFocus;
+        autoSelected = true;
+        return;
+      }
+    }
     if (wide && !pinned && !rows.some((w) => String(w.id) === String(selId)) && String(selId || "") !== String(asked || "")) {
       const first = $("jxRows").querySelector("[data-jx-id]");
       selId = first ? first.getAttribute("data-jx-id") : null;
@@ -1435,7 +1454,24 @@
     renderDetail();
   }
 
+  /** The job that matters most right now, in the list's own order; undated ones only after that. */
+  function firstJobToOpen(rows) {
+    const groups = new Map(dayGroups(rows || []).map(([key, , g]) => [key, g]));
+    for (const key of ["field", "next", "nodate", "done", "off"]) {
+      if (groups.get(key)?.length) return groups.get(key)[0];
+    }
+    return null;
+  }
+  /** A new filter or search shows its own first job instead of keeping the one opened automatically. */
+  function releaseAutoSelection() {
+    if (!autoSelected) return;
+    autoSelected = false;
+    selId = null;
+    detailWo = null;
+  }
+
   function select(id, push) {
+    autoSelected = false;
     const changed = String(selId || "") !== String(id || "");
     selId = id;
     if (id) focusId = id;
@@ -1470,6 +1506,7 @@
   /** Query the server already applied. Those rows are shown even if a tile or origin filter would hide them. */
   let fetchedQuery = "";
   let scrollSel = false;
+  let autoSelected = false;
   let missingSel = null;
   async function load() {
     const seq = ++loadSeq;
@@ -1481,8 +1518,11 @@
       if (qs.get("filter")) filter = qs.get("filter");
       if (qs.get("status") && $("jxStatus")) {
         const wanted = qs.get("status") === "Lixa" ? "Em campo" : qs.get("status");
+        // Statuses that became tiles keep their old links working.
+        const tile = { "Em campo": "field", Agendado: "scheduled", "Sem data": "nodate", "Concluído": "done" }[wanted];
         const known = [...$("jxStatus").options].some((o) => o.value === wanted);
-        if (known) statusFilter = wanted;
+        if (tile) filter = tile;
+        else if (known) statusFilter = wanted;
       }
       if ($("jxStatus") && statusFilter) {
         $("jxStatus").value = statusFilter;
@@ -1610,6 +1650,12 @@
       const t = e.target.closest("[data-jx-filter]");
       if (!t) return;
       filter = t.getAttribute("data-jx-filter");
+      releaseAutoSelection();
+      if (statusFilter && $("jxStatus")) {
+        $("jxStatus").value = "";
+        $("jxStatus").dispatchEvent(new Event("change"));
+        return;
+      }
       render();
     });
     $("jxRows").addEventListener("click", (e) => {
@@ -1640,6 +1686,7 @@
     $("jxQ").addEventListener("input", (e) => {
       clearTimeout(e.target._t);
       q = e.target.value.trim().toLowerCase();
+      releaseAutoSelection();
       render();
       e.target._t = setTimeout(() => {
         load().catch((err) => notify(err.message, "error"));
@@ -1647,6 +1694,7 @@
     });
     $("jxStatus")?.addEventListener("change", (e) => {
       statusFilter = e.target.value || "";
+      releaseAutoSelection();
       e.target.closest(".jx-sel")?.classList.toggle("is-on", !!statusFilter);
       const params = new URLSearchParams(location.search);
       if (statusFilter) params.set("status", statusFilter);
@@ -1657,6 +1705,7 @@
     });
     $("jxSource").addEventListener("change", (e) => {
       source = e.target.value === "contractor" ? "builder" : e.target.value;
+      releaseAutoSelection();
       if (e.target.value === "contractor") e.target.value = "builder";
       e.target.closest(".jx-sel").classList.toggle("is-on", !!source);
       const params = new URLSearchParams(location.search);

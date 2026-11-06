@@ -1,15 +1,18 @@
 /**
- * Job detail mobile overlay — visits, photos capture/upload, finance snippet.
+ * Job page on the phone: who, where, when, the money, and one action in the footer.
+ * Same reading as the desktop header (job-header.js), in one column.
  */
 (function () {
-  const ROLE_KEY = "om_jobs_role";
   let job = null;
   let canManage = false;
   let canBill = false;
   let canInvoice = false;
   let isField = false;
   let jobId = null;
-  let detTab = "visitas";
+  let detTab = "geral";
+  let field = null;
+  let sessionPerms = [];
+  let sessionRole = "";
   let mediaList = [];
   let mediaLoaded = false;
   let commsCtl = null;
@@ -68,25 +71,9 @@
     return parts.join(", ") || "Sem equipe";
   }
 
-  function fmtDay(iso) {
-    if (!iso) return "—";
-    const d = new Date(iso);
-    const months = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
-    return `${d.getDate()} ${months[d.getMonth()]}`;
-  }
-
-  function fmtTimeRange(start, end) {
-    if (!start) return "";
-    const s = new Date(start);
-    const pad = (n) => String(n).padStart(2, "0");
-    const a = `${pad(s.getHours())}:${pad(s.getMinutes())}`;
-    if (!end) return a;
-    const e = new Date(end);
-    return `${a} – ${pad(e.getHours())}:${pad(e.getMinutes())}`;
-  }
-
-  function isTodayIso(iso) {
-    return !!iso && new Date(iso).toDateString() === new Date().toDateString();
+  const can = (perm) => sessionRole === "admin" || sessionPerms.includes(perm);
+  function headerCtx() {
+    return { mode: "phone", canManage, canBill, canInvoice, can, field, billing: job?.billing || null, invoices: job?.invoices || null };
   }
 
   function moneyFmt(n) {
@@ -101,44 +88,6 @@
 
   function canUpload() {
     return canManage || isField;
-  }
-
-  function buildTimeline(wo) {
-    const title = wo.title || "Visita";
-    const start = wo.scheduled_start;
-    const end = wo.scheduled_end;
-    const steps = [];
-    if (wo.status === "completed") {
-      steps.push({ title, meta: fmtDay(end || start), state: "done" });
-    } else if (wo.status === "in_progress") {
-      steps.push({
-        title,
-        meta: `${fmtDay(start)}${start ? ` · ${fmtTimeRange(start, end)}${isTodayIso(start) ? " · hoje" : ""}` : ""}`,
-        state: "current",
-      });
-      steps.push({ title: "Vistoria final", meta: "A agendar", state: "upcoming" });
-    } else if (start) {
-      steps.push({
-        title,
-        meta: `${fmtDay(start)} · ${fmtTimeRange(start, end)}`,
-        state: "current",
-      });
-      steps.push({ title: "Vistoria final", meta: "A agendar", state: "upcoming" });
-    } else {
-      steps.push({ title: "Agendar visita", meta: "Sem data", state: "upcoming" });
-    }
-    (wo.line_items || []).slice(0, 3).forEach((it, i) => {
-      if (!it.service_name) return;
-      const unit = it.unit
-        ? String(it.unit).replace(/_/g, " ")
-        : "sq ft";
-      steps.push({
-        title: it.service_name,
-        meta: it.quantity_sqft ? `${it.quantity_sqft} ${unit}` : "",
-        state: wo.status === "completed" ? "done" : i === 0 && !start ? "current" : "upcoming",
-      });
-    });
-    return steps.slice(0, 5);
   }
 
   function compressImage(file, maxEdge, quality) {
@@ -444,8 +393,10 @@
       $("jobMobName").textContent = who && who !== "—" && who !== "Sem cliente" ? who : "Job";
       $("jobMobType").textContent = wo.address || "Sem endereço";
     } else {
-      $("jobMobName").textContent = wo.title || `Job para ${clientLabel(wo)}`;
-      $("jobMobType").textContent = [clientLabel(wo), J ? J.dateRange(wo) : fmtDay(wo.scheduled_start), sqftTotal(wo)].filter(Boolean).join(" · ");
+      const client = J ? J.client(wo) : clientLabel(wo);
+      const head = client && client !== "Sem cliente" ? client : wo.title || "Job";
+      $("jobMobName").textContent = head;
+      $("jobMobType").textContent = [wo.title !== head ? wo.title : "", sqftTotal(wo)].filter(Boolean).join(" · ");
     }
     const stepsEl = $("jobMobSteps");
     if (stepsEl && J) {
@@ -477,98 +428,20 @@
         })
         .join("");
     }
-    const when = $("jobMobWhen");
-    const completeRow = $("jobMobCompleteRow");
-    const completeEl = $("jobMobComplete");
-    if (when) {
-      when.textContent = wo.scheduled_start ? `${J ? J.dateRange(wo) : fmtDay(wo.scheduled_start)}` : "Sem data";
-    }
-    if (completeRow && completeEl) {
-      const done = wo.status === "completed";
-      completeRow.hidden = !done;
-      if (done) completeEl.textContent = J?.completeLabel?.(wo) || "Concluído";
-    }
-    const b = wo.billing;
-    const mw = $("jobMobMoneyWrap");
-    if (mw) {
-      mw.hidden = !(canBill && b);
-      mw.classList.toggle("jmx-cash", Boolean(canBill && b));
-      if (canBill && b) {
-        const invoiced = Number(b.invoiced_total) || 0;
-        const received = Number(b.paid_total) || 0;
-        const openBal = Number(b.open_balance) || 0;
-        const invoicedOk = invoiced > 0.004;
-        const receivedOk = received > 0.004 && openBal <= 0.004;
-        mw.classList.toggle("is-paid", receivedOk);
-        const check = invoicedOk
-          ? `<svg class="jmx-cash__check" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>`
-          : "";
-        const rows = [
-          ["Total", moneyFmt(b.services_total)],
-          [`Invoiced${check}`, moneyFmt(invoiced)],
-          ["Recebido", moneyFmt(received)],
-        ];
-        if (b.remaining_to_invoice > 0.004) rows.push(["A faturar", moneyFmt(b.remaining_to_invoice)]);
-        if (openBal > 0.004) rows.push(["A receber", moneyFmt(openBal)]);
-        const stamp = receivedOk ? `<span class="jmx-cash__stamp">Recebido</span>` : "";
-        const views = (Array.isArray(wo.invoices) ? wo.invoices : [])
-          .filter((inv) => inv && inv.id && inv.status !== "void")
-          .map(
-            (inv) =>
-              `<a class="jmx-li jmx-li--btn" href="invoices.html?id=${encodeURIComponent(inv.id)}"><span>Ver invoice${inv.invoice_number ? ` ${escapeHtml(inv.invoice_number)}` : ""}</span></a>`,
-          )
-          .join("");
-        const emit =
-          canInvoice && wo.status !== "canceled" && b.remaining_to_invoice > 0.004 && b.billing_status !== "no_value"
-            ? `<button type="button" class="jmx-li jmx-li--btn jmx-li--invoice" data-mob-invoice><span>Emitir Invoice</span></button>`
-            : "";
-        $("jobMobMoney").innerHTML =
-          stamp + rows.map(([k, v]) => `<div class="jmx-li"><span>${k}</span><b>${v}</b></div>`).join("") + views + emit;
-      }
-    }
-    const billQ = $("jobMobBillQuick");
-    if (billQ) billQ.hidden = true;
-    const svcSum = $("jobMobSvcSum");
-    if (svcSum) {
-      const n = (wo.line_items || []).length;
-      svcSum.textContent = `${n} serviço${n === 1 ? "" : "s"} · editar ›`;
-    }
+    renderFacts(wo);
+    renderAlerts(wo);
+    renderMenu(wo);
 
-    const addr = wo.address || "—";
-    const maps = wo.address ? `https://maps.google.com/?q=${encodeURIComponent(wo.address)}` : "#";
-    $("jobMobAddr").textContent = addr;
-    $("jobMobTeam").textContent = teamLabel(wo);
-    $("jobMobMapQuick").href = maps;
-    const phone = wo.customer?.phone || "";
-    $("jobMobCallQuick").href = phone ? `tel:${phone}` : "customers.html";
-    $("jobMobNotesQuick").href = `#`;
-    const svcBtn = $("jobMobEditServices");
-    if (svcBtn) {
-      svcBtn.hidden = !canManage;
-    }
-
-    const steps = buildTimeline(wo);
-    $("jobMobTimeline").innerHTML = steps
-      .map((st) => {
-        const cls = st.state === "done" ? "is-done" : st.state === "current" ? "is-current" : "";
-        return `<div class="jcm-tl ${cls}">
-          <div class="jcm-tl__rail"><span class="jcm-tl__dot"></span><span class="jcm-tl__line"></span></div>
-          <div>
-            <p class="jcm-tl__title">${escapeHtml(st.title)}</p>
-            <p class="jcm-tl__meta">${escapeHtml(st.meta || "")}</p>
-          </div>
-        </div>`;
-      })
-      .join("");
-
-    const notes = (wo.notes || "").trim();
-    $("jobMobInstr").hidden = !notes;
-    const lockCode = typeof window.parseJobLockbox === "function" ? window.parseJobLockbox(notes) : null;
-    let noteText = lockCode ? notes.replace(/\/lockbox\s*[#:]?\s*[0-9A-Za-z-]{2,24}\b\s*[—–-]?\s*/i, "").trim() : notes;
-    if (lockCode && noteText) noteText = noteText.charAt(0).toUpperCase() + noteText.slice(1);
-    $("jobMobInstrBody").innerHTML =
-      (lockCode && window.jobLockboxBadgeHtml ? `<span style="display:block;margin-bottom:6px">${window.jobLockboxBadgeHtml(notes)}</span>` : "") +
-      escapeHtml(noteText).replace(/\n/g, "<br>");
+    const maps = wo.address ? `https://maps.google.com/?q=${encodeURIComponent(wo.address)}` : "";
+    const mapQuick = $("jobMobMapQuick");
+    mapQuick.hidden = !maps;
+    if (maps) mapQuick.href = maps;
+    // On site the crew talks to whoever lives there; the office talks to its customer.
+    const phone = isField ? wo.homeowner_phone || wo.customer?.phone : wo.customer?.phone || wo.homeowner_phone;
+    const callQuick = $("jobMobCallQuick");
+    callQuick.hidden = !phone;
+    if (phone) callQuick.href = `tel:${String(phone).replace(/[^\d+]/g, "")}`;
+    $("jobMobChatQuick").hidden = !can("chat.use");
 
     const cta = $("jobMobCta");
     const foot = $("jobMobFoot");
@@ -578,12 +451,10 @@
       const key = btn.getAttribute("data-jd-tab");
       if (key === "checklist") {
         btn.hidden = !checklistEnabled;
-        if (!checklistEnabled && detTab === "checklist") detTab = "visitas";
+        if (!checklistEnabled && detTab === "checklist") detTab = "geral";
       }
       btn.classList.toggle("is-active", key === detTab);
     });
-    $("jobMobVisitas").hidden = detTab !== "visitas";
-    $("jobMobExtra").hidden = detTab === "visitas";
 
     if (detTab !== "comunicacoes" && commsCtl) {
       try {
@@ -614,7 +485,7 @@
       }
     } else if (detTab === "checklist") {
       if (!checklistEnabled) {
-        detTab = "visitas";
+        detTab = "geral";
         render();
         return;
       }
@@ -628,7 +499,7 @@
           if (!f) throw new Error(j?.error || "Erro");
           checklistEnabled = f.checklist_enabled !== false;
           if (!checklistEnabled) {
-            detTab = "visitas";
+            detTab = "geral";
             render();
             return;
           }
@@ -676,67 +547,123 @@
       } else {
         $("jobMobExtra").innerHTML = `<p class="jcm-empty">ObraChat indisponível.</p>`;
       }
-    } else if (detTab === "servicos") {
-      restoreVisitCta();
-      const items = Array.isArray(wo.line_items) ? wo.line_items : [];
-      const total = Number(wo.services_total) || 0;
-      const money = (n) =>
-        Number.isFinite(Number(n))
-          ? `$${Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-          : "—";
-      const list = items.length
-        ? `<div class="jcm-dl">${items
-            .map((li) => {
-              const qty = Number(li.quantity_sqft) || 0;
-              const price = Number(li.unit_price) || 0;
-              const lineTot = qty * price;
-              return `<div class="jcm-dl__row">
-                <span class="jcm-dl__k">${escapeHtml(li.service_name || "Serviço")}${qty ? ` · ${escapeHtml(String(qty))}${li.unit ? ` ${escapeHtml(li.unit)}` : ""}` : ""}${
-                  li.notes ? `<small style="display:block;margin-top:3px;font-weight:600;color:#8a8074">${escapeHtml(li.notes)}</small>` : ""
-                }</span>
-                <span class="jcm-dl__v">${escapeHtml(money(lineTot || price))}</span>
-              </div>`;
-            })
-            .join("")}
-            <div class="jcm-dl__row" style="margin-top:8px;padding-top:8px;border-top:1px solid #efe8dc">
-              <span class="jcm-dl__k"><strong>Total</strong></span>
-              <span class="jcm-dl__v"><strong>${escapeHtml(money(total))}</strong></span>
-            </div>
-          </div>`
-        : `<p class="jcm-empty" style="padding:0.5rem 0">Nenhum serviço neste job.</p>`;
-      const acts = canManage
-        ? `<div class="jcm-photo-actions" style="margin-top:12px">
-            <button type="button" class="jcm-foot__btn jcm-foot__btn--primary" data-job-mob-svc="edit">${items.length ? "Editar serviços" : "Adicionar serviços"}</button>
-            <button type="button" class="jcm-foot__btn jcm-foot__btn--ghost" data-job-mob-svc="add">+ Serviço</button>
-          </div>`
-        : "";
-      $("jobMobExtra").innerHTML = `<div class="jcm-card"><div class="jcm-ch" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 10px"><h2 style="margin:0;font-size:15px;font-weight:800">Serviços</h2><span style="color:#8a8074;font-weight:700;font-size:13px">${items.length}</span></div>${list}${acts}</div>`;
-    } else if (detTab === "financeiro") {
-      const total = Number(wo.services_total) || 0;
-      const svcActs = canManage
-        ? `<div class="jcm-photo-actions" style="margin:0 0 12px">
-            <button type="button" class="jcm-foot__btn jcm-foot__btn--ghost" data-job-mob-svc="edit">Editar serviços</button>
-            <button type="button" class="jcm-foot__btn jcm-foot__btn--ghost" data-job-mob-svc="add">+ Serviço</button>
-          </div>`
-        : "";
-      if (canBill && window.JobBilling) {
-        $("jobMobExtra").innerHTML = `${svcActs}<div class="jcm-card"><div id="jobMobBilling"></div></div>`;
-        window.JobBilling.mountCard($("jobMobBilling"), {
-          jobId: wo.id,
-          jobStatus: wo.status,
-          canManage: canInvoice,
-        });
-      } else {
-        $("jobMobExtra").innerHTML = `${svcActs}<div class="jcm-card"><div class="jcm-dl">
-          <div class="jcm-dl__row"><span class="jcm-dl__k">Serviços</span><span class="jcm-dl__v">${escapeHtml(
-            String(total ? `$${total.toFixed(2)}` : "—"),
-          )}</span></div>
-        </div></div>`;
-      }
-      restoreVisitCta();
     } else {
       restoreVisitCta();
+      renderOverview(wo);
     }
+  }
+
+  /** Notes first (what matters on site), then services, then invoices. Totals live in the facts above. */
+  function renderOverview(wo) {
+    const { code, text } = window.JobHeader.noteParts(wo.notes);
+    const edit = (act, label) => (canManage ? `<button type="button" class="jmx-link" data-mob-edit="${act}">${label}</button>` : "");
+    const notes = text
+      ? `<section class="jcm-card jmx-sec"><div class="jmx-sec__h"><h2>${isField ? "Instruções para a equipe" : "Notas da obra"}</h2>${edit("notes", "Editar")}</div><p class="jmx-sec__p">${escapeHtml(text).replace(/\n/g, "<br>")}</p></section>`
+      : canManage
+        ? `<section class="jcm-card jmx-sec jmx-sec--one"><div class="jmx-sec__h"><h2>Notas da obra</h2>${edit("notes", code ? "Editar" : "Adicionar")}</div></section>`
+        : "";
+    const items = Array.isArray(wo.line_items) ? wo.line_items : [];
+    const showMoney = !isField;
+    const list = items.length
+      ? `<div class="jcm-dl">${items
+          .map((li) => {
+            const qty = Number(li.quantity_sqft) || 0;
+            const unit = li.unit ? String(li.unit).replace(/_/g, " ") : "sq ft";
+            return `<div class="jcm-dl__row">
+              <span class="jcm-dl__k">${escapeHtml(li.service_name || "Serviço")}${qty ? ` · ${escapeHtml(String(qty))}${unit ? ` ${escapeHtml(unit)}` : ""}` : ""}${
+                li.notes ? `<small class="jmx-sec__note">${escapeHtml(li.notes)}</small>` : ""
+              }</span>
+              ${showMoney ? `<span class="jcm-dl__v">${escapeHtml(moneyFmt(li.line_total))}</span>` : ""}
+            </div>`;
+          })
+          .join("")}${
+          showMoney
+            ? `<div class="jcm-dl__row jmx-sec__total"><span class="jcm-dl__k"><strong>Total do job</strong></span><span class="jcm-dl__v"><strong>${escapeHtml(moneyFmt(wo.services_total))}</strong></span></div>`
+            : ""
+        }</div>`
+      : `<p class="jcm-empty">Nenhum serviço neste job.</p>`;
+    const services = `<section class="jcm-card jmx-sec"><div class="jmx-sec__h"><h2>Serviços</h2>${edit("services", items.length ? "Editar" : "Adicionar")}</div>${list}</section>`;
+    const invoices = canBill && window.JobBilling
+      ? `<section class="jcm-card jmx-sec jd-billing" id="jobMobBillingCard"><div class="jmx-sec__h"><h2>Faturas</h2></div><div id="jobMobBilling"></div></section>`
+      : "";
+    $("jobMobExtra").innerHTML = notes + services + invoices;
+    if (invoices) {
+      window.JobBilling.mountCard($("jobMobBilling"), { jobId: wo.id, jobStatus: wo.status, canManage: canInvoice });
+    }
+  }
+
+  /** One row per subject, each with its own action. */
+  function renderFacts(wo) {
+    const J = window.JobsInfo;
+    const H = window.JobHeader;
+    const rows = [];
+    const { code } = H.noteParts(wo.notes);
+    const lock = code
+      ? `<span class="jh-lock"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>${escapeHtml(code)}</span>`
+      : "";
+    const row = (label, value, sub, action, extra) =>
+      `<div class="jmx-fact"><div class="jmx-fact__m"><small>${label}</small>${value}${sub ? `<span>${sub}</span>` : ""}${extra || ""}</div>${action || ""}</div>`;
+    const act = (name, label) => `<button type="button" class="jmx-fact__a" data-mob-fact="${name}">${label}</button>`;
+    rows.push(
+      row(
+        "Obra",
+        `<b>${escapeHtml(wo.address || "Sem endereço")}</b>`,
+        "",
+        "",
+        lock,
+      ),
+    );
+    const dated = wo.scheduled_start || wo.sand_scheduled_start;
+    const open = wo.status !== "completed" && wo.status !== "canceled";
+    rows.push(
+      row(
+        "Agenda",
+        `<b>${escapeHtml(dated ? J.dateRange(wo) : "Sem data")}</b>`,
+        escapeHtml(H.whenSub(wo)),
+        canManage && open ? act("schedule", dated ? "Remarcar" : "Agendar") : "",
+      ),
+    );
+    if (!isField || teamLabel(wo) !== "Sem equipe") {
+      rows.push(row("Equipe", `<b>${escapeHtml(teamLabel(wo))}</b>`, "", canManage ? act("team", "Gerir") : ""));
+    }
+    const b = canBill ? wo.billing : null;
+    if (b) {
+      const m = H.moneySummary(b);
+      const primaryIsInvoice = H.primary(wo, headerCtx())?.act === "invoice";
+      const action = H.canEmit(wo, headerCtx()) && !primaryIsInvoice ? act("invoice", "Emitir Invoice") : (wo.invoices || []).length ? act("bills", "Faturas") : "";
+      rows.push(
+        row(
+          m.head.k,
+          `<b class="jmx-fact__money">${escapeHtml(moneyFmt(m.head.v))}</b>`,
+          escapeHtml(m.parts.join(" · ")),
+          action,
+          m.total > 0 ? `<i class="jh-bar" aria-hidden="true"><i class="p" style="width:${m.paidPct.toFixed(1)}%"></i><i class="o" style="width:${m.openPct.toFixed(1)}%"></i></i>` : "",
+        ),
+      );
+    }
+    $("jobMobFacts").innerHTML = rows.join("");
+  }
+
+  function renderAlerts(wo) {
+    const box = $("jobMobAlerts");
+    const html = window.JobHeader.alerts(wo, headerCtx());
+    box.hidden = !html;
+    box.innerHTML = html;
+  }
+
+  function renderMenu(wo) {
+    if (isField) {
+      $("jobMobMenu").innerHTML = "";
+      return;
+    }
+    const id = encodeURIComponent(wo.id);
+    const leading = [
+      canManage ? `<button type="button" role="menuitem" data-jh-act="edit">Editar job</button>` : "",
+      `<a role="menuitem" href="/campo/ticket.html?id=${id}">Abrir ticket da equipe</a>`,
+      wo.quote_id && can("quotes.view") ? `<a role="menuitem" href="quote-builder.html?id=${encodeURIComponent(wo.quote_id)}">Abrir orçamento${wo.quote_number ? ` ${escapeHtml(wo.quote_number)}` : ""}</a>` : "",
+      can("finance.manage") ? `<a role="menuitem" href="finance.html?new=cost&job=${id}">Lançar custo</a>` : "",
+    ].join("");
+    $("jobMobMenu").innerHTML = window.JobHeader.menu(wo, headerCtx(), leading);
   }
 
   function restoreVisitCta() {
@@ -748,27 +675,20 @@
       sec.hidden = true;
       sec.dataset.action = "";
     }
-    // Ops before billing so off-schedule jobs can still be started / marked done.
-    const undated = !wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start);
-    if (canManage && undated) {
-      cta.textContent = "Schedule Job";
+    // Same next step as the desktop header.
+    const next = window.JobHeader.primary(wo, headerCtx());
+    if (next) {
+      cta.textContent = next.label;
       cta.className = "jcm-foot__btn jcm-foot__btn--primary";
-      cta.dataset.action = "edit";
-    } else if (canManage && (wo.status === "draft" || wo.status === "scheduled")) {
-      cta.textContent = "Iniciar job";
-      cta.className = "jcm-foot__btn jcm-foot__btn--primary";
-      cta.dataset.action = "start";
-      if (sec) {
+      cta.dataset.action = next.href ? "href" : next.act;
+      cta.dataset.href = next.href || "";
+      // Late and never started: it may already be done.
+      if (next.act === "start" && window.JobsInfo?.late?.(wo) && sec) {
         sec.hidden = false;
         sec.textContent = "Já concluído";
         sec.className = "jcm-foot__btn jcm-foot__btn--ghost";
         sec.dataset.action = "complete";
       }
-    } else if (canManage && wo.status === "in_progress") {
-      const nxt = window.JobsInfo?.nextFinish?.(wo);
-      cta.textContent = nxt ? nxt.label : "Concluir job";
-      cta.className = "jcm-foot__btn jcm-foot__btn--primary";
-      cta.dataset.action = "complete";
     } else if (canManage && wo.status === "completed") {
       cta.textContent = "Editar";
       cta.className = "jcm-foot__btn jcm-foot__btn--ghost";
@@ -833,36 +753,77 @@
     if (idx === 4) window.crmToast?.info?.("Registre o pagamento nas faturas do job.");
   }
 
-  function openServicesModal() {
-    if (!canManage || !jobId || !window.__crmJobModal) return;
-    window.__crmJobModal
-      .openEdit(jobId, { section: "services" })
-      .catch((e) => window.crmToast?.error?.(e.message || "Erro"));
+  async function deleteMobJob() {
+    const ok = await window.crmConfirm({ title: "Excluir este job?", text: "Ele será cancelado e sairá da agenda.", ok: "Excluir job", danger: true });
+    if (!ok) return;
+    const r = await fetch(`/api/work-orders/${jobId}`, { method: "DELETE", credentials: "include" });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || j.success === false) throw new Error(j.error || "Não foi possível excluir o job.");
+    window.crmToast?.success?.("Job excluído.");
+    location.href = "jobs.html";
+  }
+
+  /** The header warns about field problems; loading them never holds up the screen. */
+  async function loadFieldSummary() {
+    try {
+      const r = await fetch(`/api/work-orders/${encodeURIComponent(jobId)}/field`, { credentials: "include" });
+      const j = await r.json();
+      if (j?.data) {
+        field = j.data;
+        checklistEnabled = field.checklist_enabled !== false;
+        renderAlerts(job);
+        document.querySelector('[data-jd-tab="checklist"]')?.toggleAttribute("hidden", !checklistEnabled);
+      }
+    } catch (_) {}
   }
 
   function bind() {
-    $("jobMobMoney")?.addEventListener("click", (e) => {
-      if (!e.target.closest("[data-mob-invoice]") || !job || !window.JobBilling) return;
-      window.JobBilling.openDialog({ jobId, billing: job.billing, jobStatus: job.status });
+    window.JobHeader.bind($("jobMobMenu"), {
+      act: async (name) => {
+        try {
+          if (name === "edit") await window.__crmJobModal.openEdit(jobId);
+          else if (name === "lixa") await window.__crmJobModal.openScheduleLixa(job);
+          else if (name === "delete") await deleteMobJob();
+        } catch (err) {
+          window.crmToast?.error?.(err.message || "Erro");
+        }
+      },
+      status: (k) => {
+        if (k === job.status) return;
+        setStatus(k)
+          .then(() => window.crmToast?.success?.("Status atualizado."))
+          .catch((err) => window.crmToast?.error?.(err.message || "Erro"));
+      },
+    });
+    $("jobMobFacts").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-mob-fact]");
+      if (!b || !job) return;
+      const name = b.getAttribute("data-mob-fact");
+      if (name === "invoice") {
+        window.JobBilling.openDialog({ jobId, billing: job.billing, jobStatus: job.status });
+      } else if (name === "bills") {
+        detTab = "geral";
+        render();
+        setTimeout(() => $("jobMobBillingCard")?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
+      } else {
+        window.__crmJobModal.openEdit(jobId, { section: name }).catch((err) => window.crmToast?.error?.(err.message || "Erro"));
+      }
+    });
+    $("jobMobChatQuick").addEventListener("click", (e) => {
+      e.preventDefault();
+      const link = e.currentTarget;
+      if (link.getAttribute("aria-busy") === "true") return;
+      link.setAttribute("aria-busy", "true");
+      window.JobChatComms.openJobChannel(jobId)
+        .catch((err) => window.crmToast?.error?.(err.message || "Não foi possível abrir o canal."))
+        .finally(() => link.removeAttribute("aria-busy"));
     });
     document.querySelectorAll("[data-jd-tab]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        detTab = btn.getAttribute("data-jd-tab") || "visitas";
+        detTab = btn.getAttribute("data-jd-tab") || "geral";
         render();
       });
     });
-    document.querySelectorAll("[data-jobs-role]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const role = btn.getAttribute("data-jobs-role") || "office";
-        try {
-          localStorage.setItem(ROLE_KEY, role);
-        } catch (_) {}
-        document.querySelectorAll("[data-jobs-role]").forEach((b) => {
-          b.classList.toggle("is-active", b.getAttribute("data-jobs-role") === role);
-        });
-      });
-    });
-    $("jobMobEditServices")?.addEventListener("click", () => openServicesModal());
     $("jobMobExtra")?.addEventListener("click", (e) => {
       const ph = e.target.closest("[data-mob-photo]");
       if (ph && window.CamViewer) {
@@ -885,9 +846,9 @@
         });
         return;
       }
-      const btn = e.target.closest("[data-job-mob-svc]");
-      if (!btn) return;
-      openServicesModal();
+      const edit = e.target.closest("[data-mob-edit]");
+      if (!edit) return;
+      window.__crmJobModal.openEdit(jobId, { section: edit.getAttribute("data-mob-edit") }).catch((err) => window.crmToast?.error?.(err.message || "Erro"));
     });
     async function runMobCta(action) {
       if (!action) return;
@@ -899,6 +860,14 @@
               render();
               setTimeout(() => $("jobMobCameraInput")?.click(), 50);
             })();
+          return;
+        }
+        if (action === "href") {
+          location.href = $("jobMobCta").dataset.href;
+          return;
+        }
+        if (action === "services") {
+          await window.__crmJobModal.openEdit(jobId, { section: "services" });
           return;
         }
         if (action === "campo") {
@@ -960,19 +929,6 @@
       render();
       document.querySelector("[data-jd-tab='fotos']")?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
-    $("jobMobBillQuick")?.addEventListener("click", () => {
-      detTab = "financeiro";
-      render();
-      document.querySelector("[data-jd-tab='financeiro']")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-    $("jobMobNotesQuick")?.addEventListener("click", (e) => {
-      e.preventDefault();
-      if (canManage && window.__crmJobModal) {
-        window.__crmJobModal.openEdit(jobId, { section: "notes" }).catch((err) => window.crmToast?.error?.(err.message || "Erro"));
-        return;
-      }
-      $("jobMobInstr")?.scrollIntoView({ behavior: "smooth" });
-    });
   }
 
   async function boot() {
@@ -987,16 +943,12 @@
     const foot = $("jobMobFoot");
     if (foot && foot.parentElement !== document.body) document.body.appendChild(foot);
     try {
-      const role = localStorage.getItem(ROLE_KEY) === "installer" ? "installer" : "office";
-      document.querySelectorAll("[data-jobs-role]").forEach((b) => {
-        b.classList.toggle("is-active", b.getAttribute("data-jobs-role") === role);
-      });
-    } catch (_) {}
-    try {
       const s = await fetch("/api/auth/session", { credentials: "include" }).then((r) => r.json());
       if (!s.authenticated) return;
       const roleName = String(s.user?.role || "").toLowerCase();
       const perms = s.user?.permissions || [];
+      sessionPerms = perms;
+      sessionRole = roleName;
       canManage = roleName === "admin" || perms.includes("work_orders.manage");
       canBill = roleName === "admin" || perms.includes("invoices.view");
       canInvoice = roleName === "admin" || perms.includes("invoices.manage");
@@ -1010,6 +962,7 @@
       job = j.data;
       bind();
       render();
+      loadFieldSummary();
       if (window.__crmJobModal?.onSaved) {
         window.__crmJobModal.onSaved(async (data) => {
           if (data?.id && String(data.id) === String(jobId)) {
