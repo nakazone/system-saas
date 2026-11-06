@@ -31,6 +31,7 @@ import {
   resolveDeliveryStops,
 } from "../../lib/work-orders/deliveries.js";
 import {
+  jobCalendarColors,
   parseScheduleSettings,
   resolveDeliveryCalendar,
   resolveDeliveryColor,
@@ -791,6 +792,34 @@ async function collectConflictHints(params: {
 }
 
 // ---------- Work orders ----------
+
+/** The Agenda's registered colors for this job's phases. Anyone who can see the job can see them. */
+scheduleJobsRouter.get(
+  "/api/work-orders/:id/calendar-colors",
+  requireCrmAuth,
+  requireCrmPermission("work_orders.view"),
+  async (req: AuthedRequest, res, next) => {
+    try {
+      const jobId = workOrderIdParam(req);
+      const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const job = await tx.workOrder.findFirst({ where: { id: jobId }, select: { sector: true } });
+        if (!job) return null;
+        const org = await tx.organization.findFirst({
+          where: { id: req.organizationId! },
+          select: { scheduleSettings: true },
+        });
+        return jobCalendarColors(parseScheduleSettings(org?.scheduleSettings), job.sector);
+      });
+      if (data === null) {
+        res.status(404).json({ success: false, error: "Job não encontrado" });
+        return;
+      }
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 /** What else needs this job's people at the same time, to show before anyone has to save. */
 scheduleJobsRouter.get(

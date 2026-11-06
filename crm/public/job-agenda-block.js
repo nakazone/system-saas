@@ -14,8 +14,8 @@
   const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
   const DAY = 86400000;
   const MAX_OTHERS = 3;
-  /** Used only until the Agenda's own colors arrive, or for people who can't open the Agenda. */
-  const FALLBACK = { main: "#221e1a", sand: "#8a7460", delivery: "#98a2b3" };
+  /** Neutral until the Agenda's colors arrive, so a phase never shows a color that isn't its own. */
+  const NO_COLOR = "#98a2b3";
 
   function esc(s) {
     return String(s == null ? "" : s)
@@ -78,12 +78,27 @@
     return items;
   }
 
-  /** Readable text on any calendar color, since each company picks its own. */
-  function inkOn(color) {
+  /** WCAG relative luminance of a #rrggbb color, or null when it can't be read. */
+  function luminance(color) {
     const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(String(color || ""));
-    if (!m) return "#fff";
-    const [r, g, b] = [m[1], m[2], m[3]].map((h) => parseInt(h, 16));
-    return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.62 ? "#221e1a" : "#fff";
+    if (!m) return null;
+    const [r, g, b] = [m[1], m[2], m[3]].map((h) => {
+      const c = parseInt(h, 16) / 255;
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+
+  /**
+   * The number stays readable on any color a company registers: picks whichever of black and
+   * white has the better contrast (always 4.5:1 or more), on the worse side of a two-color day.
+   */
+  function inkOn(shades) {
+    const lums = shades.map(luminance).filter((l) => l != null);
+    if (!lums.length) return "#000";
+    const onWhite = Math.min(...lums.map((l) => 1.05 / (l + 0.05)));
+    const onBlack = Math.min(...lums.map((l) => (l + 0.05) / 0.05));
+    return onBlack >= onWhite ? "#000" : "#fff";
   }
 
   function monthGrid(items, cursor, colors, opts) {
@@ -105,10 +120,10 @@
         continue;
       }
       const roles = [...new Set(hits.map((h) => h.role))];
-      const shades = roles.map((r) => colors[r] || FALLBACK[r]);
+      const shades = roles.map((r) => colors[r] || NO_COLOR);
       const paint = shades.length > 1 ? `linear-gradient(135deg, ${shades[0]} 50%, ${shades[1]} 50%)` : shades[0];
       const label = `${dayText(d)}: ${[...new Set(hits.map((h) => h.label))].join(" e ")}`;
-      const style = `background:${esc(paint)};color:${inkOn(shades[0])}`;
+      const style = `background:${esc(paint)};color:${inkOn(shades)}`;
       cells.push(
         `<li class="${cls}"${current}>${
           opts.canViewCalendar
@@ -133,7 +148,7 @@
     const open = job.status !== "completed" && job.status !== "canceled";
     return `<ul class="ja-key">${items
       .map((it) => {
-        const color = colors[it.role] || FALLBACK[it.role];
+        const color = colors[it.role] || NO_COLOR;
         const when = !it.from
           ? "Sem data"
           : it.role === "delivery"
@@ -205,20 +220,11 @@
       el.innerHTML = html(job, opts, state);
     };
 
-    /** Same source as the Agenda, so the colors always match, including each company's own. */
+    /** The colors registered in the Agenda settings. A failure keeps the last ones shown. */
     async function loadColors(mine) {
-      const dated = jobItems(job).filter((i) => i.from);
-      if (!dated.length || !opts.canViewCalendar) return;
-      const from = new Date(Math.min(...dated.map((i) => i.from.getTime())) - DAY);
-      const to = new Date(Math.max(...dated.map((i) => (i.to || i.from).getTime())) + DAY);
-      const r = await fetch(`/api/schedule/events?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`, { credentials: "include" });
+      const r = await fetch(`/api/work-orders/${encodeURIComponent(job.id)}/calendar-colors`, { credentials: "include" });
       const j = await r.json();
-      if (mine !== seq || !r.ok || !Array.isArray(j.data)) return;
-      const colors = {};
-      j.data.forEach((e) => {
-        if (String(e.meta?.id) === String(job.id) && e.meta?.date_role && e.color) colors[e.meta.date_role] = e.color;
-      });
-      state.colors = colors;
+      if (mine === seq && r.ok && j.data) state.colors = j.data;
     }
     async function loadOthers(mine) {
       if (!job.scheduled_start && !job.sand_scheduled_start) return;

@@ -366,3 +366,15 @@ export function serviceCalendarColors(
     delivery: resolveDeliveryColor(settings),
   };
 }
+
+/**
+ * Colors registered in Configurações › Agenda for each phase of a job.
+ * Crew colors don't apply: a job's phases read the same for everyone, whoever is on it.
+ */
+export function jobCalendarColors(
+  settings: ScheduleSettings,
+  sector?: string | null,
+): { main: string; sand: string; delivery: string } {
+  const { installation, sand, delivery } = serviceCalendarColors(settings, null, sector);
+  return { main: sector === "sand_finish" ? sand : installation, sand, delivery };
+}
