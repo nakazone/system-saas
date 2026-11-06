@@ -15,7 +15,7 @@ import {
   canUseCampo,
   clientLabel,
   FIELD_STATUSES,
-  isStartedBySchedule,
+  crewProductionLabel,
   mapJobCard,
   nextFieldStatus,
   parseChecklist,
@@ -261,9 +261,6 @@ function mapTicket(wo: Awaited<ReturnType<typeof assertMyJobTicket>>, phaseCtx: 
     wo.campoAttention ||
     (wo.notes && /aten[cç][aã]o/i.test(wo.notes) ? wo.notes : null);
 
-  const done = wo.status === "completed" || field === "completed";
-  const started = !done && isStartedBySchedule(wo.scheduledStart, wo.status, field);
-
   return {
     id: wo.id,
     number: wo.number,
@@ -283,7 +280,10 @@ function mapTicket(wo: Awaited<ReturnType<typeof assertMyJobTicket>>, phaseCtx: 
       : null,
     attention,
     field_status: field,
-    field_status_label: done ? "Concluída" : started ? "Em andamento" : "Agendada",
+    field_status_label: crewProductionLabel(wo),
+    sector: wo.sector ?? null,
+    installation_done_at: wo.installationDoneAt?.toISOString() ?? null,
+    sand_done_at: wo.sandDoneAt?.toISOString() ?? null,
     raw_status: wo.status,
     when_label: whenLabel,
     start: null,

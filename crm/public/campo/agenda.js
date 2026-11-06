@@ -19,25 +19,36 @@
 
   function statusLabel(status) {
     const map = {
-      on_site: "Em andamento",
-      scheduled: "Agendada",
-      en_route: "Em andamento",
-      done: "Concluída",
-      completed: "Concluída",
-      in_progress: "Em andamento",
+      scheduled: "Agendado",
+      done: "Concluído",
+      completed: "Concluído",
+      in_progress: "Installing",
+      canceled: "Cancelado",
     };
     return map[status] || status || "—";
   }
 
   function statusTone(j) {
-    const s = String(j.status || j.field_status || "");
+    const raw = String(j.raw_status || "");
+    const s = raw || String(j.status || j.field_status || "");
     if (s === "completed" || s === "done" || s === "canceled") return "ok";
-    if (s === "on_site" || s === "en_route" || s === "in_progress") return "act";
+    if (s === "in_progress") return "act";
     return "wait";
   }
 
   function statusText(j) {
-    return j.field_status_label || statusLabel(j.status);
+    if (j.field_status_label) return j.field_status_label;
+    if (window.JobsInfo?.crewStageLabel) {
+      return window.JobsInfo.crewStageLabel({
+        status: j.raw_status || (j.status === "done" ? "completed" : j.status),
+        sector: j.sector,
+        installation_done_at: j.installation_done_at,
+        sand_done_at: j.sand_done_at,
+        scheduled_start: j.scheduled_start,
+        sand_scheduled_start: j.sand_scheduled_start,
+      });
+    }
+    return statusLabel(j.raw_status || j.status);
   }
 
   function formatDayMeta(ymd) {

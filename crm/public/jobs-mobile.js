@@ -167,10 +167,13 @@
     let out;
     if (mobStatus) {
       out = matched.filter((wo) => {
-        const stage = window.JobsInfo?.stageLabel?.(wo);
+        const stage = isField
+          ? window.JobsInfo?.crewStageLabel?.(wo) || window.JobsInfo?.stageLabel?.(wo)
+          : window.JobsInfo?.stageLabel?.(wo);
         if (mobStatus === "Em campo") {
           return window.JobsInfo?.isInFieldStage?.(stage) || stage === "Em campo" || stage === "Lixa" || stage === "Installing" || stage === "Sanding";
         }
+        if (isField && mobStatus === "Concluído") return wo.status === "completed";
         return stage === mobStatus;
       });
     } else if (tab === "today") {
@@ -185,7 +188,9 @@
     out.sort((a, b) => (window.JobsInfo?.compareNearest ? window.JobsInfo.compareNearest(a, b) : 0));
     if (focusId) {
       const pinned = rows.find((wo) => String(wo.id) === String(focusId) && wo.status !== "canceled");
-      const pinnedStage = window.JobsInfo?.stageLabel?.(pinned);
+      const pinnedStage = isField
+        ? window.JobsInfo?.crewStageLabel?.(pinned) || window.JobsInfo?.stageLabel?.(pinned)
+        : window.JobsInfo?.stageLabel?.(pinned);
       const statusOk =
         mobStatus === "Em campo"
           ? window.JobsInfo?.isInFieldStage?.(pinnedStage) ||
@@ -193,7 +198,9 @@
             pinnedStage === "Lixa" ||
             pinnedStage === "Installing" ||
             pinnedStage === "Sanding"
-          : pinnedStage === mobStatus;
+          : isField && mobStatus === "Concluído"
+            ? pinned?.status === "completed"
+            : pinnedStage === mobStatus;
       const allowed = pinned && (mobStatus ? statusOk : !isPaidJob(pinned));
       if (allowed) out = [pinned, ...out.filter((wo) => String(wo.id) !== String(pinned.id))];
     }
@@ -299,9 +306,9 @@
   function renderFieldCard(wo) {
     const J = window.JobsInfo;
     const maps = wo.address ? `https://maps.google.com/?q=${encodeURIComponent(wo.address)}` : "";
-    const tone = J && J.stageTone ? J.stageTone(wo) : "wait";
-    const listed = J && J.listWhen ? J.listWhen(wo) : null;
-    const stText = listed?.status || statusPt(wo.status);
+    const tone = J && J.crewStageTone ? J.crewStageTone(wo) : J && J.stageTone ? J.stageTone(wo) : "wait";
+    const listed = J && J.crewListWhen ? J.crewListWhen(wo) : J && J.listWhen ? J.listWhen(wo) : null;
+    const stText = (J && J.crewStageLabel ? J.crewStageLabel(wo) : null) || listed?.status || statusPt(wo.status);
     const title = fieldCardTitle(wo);
     const time = fieldTimeText(wo);
     const campoHref = `/campo/ticket.html?id=${encodeURIComponent(wo.id)}`;

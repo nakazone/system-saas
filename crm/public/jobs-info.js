@@ -1,7 +1,7 @@
 /**
  * Jobs — leitura derivada de um job (atraso, etapa, cobrança). Usado pela lista,
  * pela página do job e pelo celular para falar a mesma língua.
- * window.JobsInfo = { late, step, progHtml, stageLabel, bill, money, money0, client, dateRange, esc }
+ * window.JobsInfo = { late, step, progHtml, stageLabel, crewStageLabel, bill, money, money0, client, dateRange, esc }
  */
 (function () {
   const DAY = 86400000;
@@ -249,6 +249,35 @@
     return wo.billing && wo.billing.billing_status === "paid" ? "Pago" : "Concluído";
   }
 
+  /**
+   * ObraCrew / Campo: production chronology only (Scheduled → In the Field → Completed).
+   * Never Faturado / Pago — billing does not change this label.
+   */
+  function crewStageLabel(wo) {
+    if (!wo) return "Agendado";
+    if (wo.status === "canceled") return "Cancelado";
+    if (wo.status === "completed") return "Concluído";
+    if (wo.status === "in_progress") {
+      let stage = fieldPhaseLabel(wo);
+      if (wo.sector === "both" && listOnSandDay(wo) && stage === "Installing") stage = "Sanding";
+      return stage;
+    }
+    return "Agendado";
+  }
+
+  function crewStageTone(wo) {
+    if (!wo) return "wait";
+    if (wo.status === "canceled") return "off";
+    if (wo.status === "completed") return "ok";
+    if (wo.status === "in_progress") return "act";
+    return "wait";
+  }
+
+  function crewListWhen(wo) {
+    const base = listWhen(wo);
+    return { date: base.date, status: crewStageLabel(wo) };
+  }
+
   function progHtml(wo) {
     const s = step(wo);
     if (s < 0) return `<span class="jx-prog jx-prog--x"></span>`;
@@ -427,7 +456,7 @@
   }
 
   window.JobsInfo = {
-    esc, stageTone, money, money0, client, fieldClient, builderName, findLine, searchText, displayName, isActive, late, step, STEP_NAMES, STATUS_BY_STEP, STATUS_STEP_MSG,
-    statusForStep, atStatus, stageLabel, fieldPhaseLabel, isInFieldStage, progHtml, sectorProgress, nextFinish, fieldHalves, bill, dateRange, listWhen, listAnchorIso, listOnSandDay, awaitingSand, dayShort, completeLabel, compareNearest, startMs, isToday, initials, team,
+    esc, stageTone, crewStageTone, money, money0, client, fieldClient, builderName, findLine, searchText, displayName, isActive, late, step, STEP_NAMES, STATUS_BY_STEP, STATUS_STEP_MSG,
+    statusForStep, atStatus, stageLabel, crewStageLabel, fieldPhaseLabel, isInFieldStage, progHtml, sectorProgress, nextFinish, fieldHalves, bill, dateRange, listWhen, crewListWhen, listAnchorIso, listOnSandDay, awaitingSand, dayShort, completeLabel, compareNearest, startMs, isToday, initials, team,
   };
 })();

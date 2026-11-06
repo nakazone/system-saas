@@ -119,6 +119,28 @@ export function fieldStatusLabel(status: string) {
   return map[status] || status;
 }
 
+/**
+ * ObraCrew production label from Jobs chronology only
+ * (Scheduled → In the Field → Completed). Never billing.
+ */
+export function crewProductionLabel(wo: {
+  status: string;
+  sector?: string | null;
+  installationDoneAt?: Date | string | null;
+  sandDoneAt?: Date | string | null;
+}) {
+  const office = String(wo.status || "").toLowerCase();
+  if (office === "canceled") return "Cancelado";
+  if (office === "completed") return "Concluído";
+  if (office === "in_progress") {
+    const sector = String(wo.sector || "").toLowerCase();
+    if (sector === "sand_finish") return "Sanding";
+    if (sector === "both" && wo.installationDoneAt && !wo.sandDoneAt) return "Sanding";
+    return "Installing";
+  }
+  return "Agendado";
+}
+
 /** Local calendar day YYYY-MM-DD (device/server local — list badges only). */
 function ymdLocal(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -266,6 +288,8 @@ export function mapJobCard(
     scheduledStart: Date | null;
     scheduledEnd: Date | null;
     sandScheduledStart?: Date | null;
+    installationDoneAt?: Date | null;
+    sandDoneAt?: Date | null;
     sourceName?: string | null;
     customer?: { name?: string | null; company?: string | null } | null;
     builder?: { company?: string | null; firstName?: string | null; lastName?: string | null } | null;
@@ -278,13 +302,17 @@ export function mapJobCard(
   const client = clientLabel(wo);
   const field = wo.fieldStatus || "scheduled";
   const at = fieldAgendaAt(wo, opts?.fieldSector ?? null) || wo.scheduledStart;
-  let status = uiStatusFromField(field, wo.status, at);
-  if (opts?.currentWoId === wo.id && field !== "completed" && wo.status !== "completed") {
+  // ObraCrew card status follows Jobs production only (not schedule-day heuristics / billing).
+  let status: string =
+    wo.status === "completed" || field === "completed"
+      ? "done"
+      : wo.status === "in_progress"
+        ? "in_progress"
+        : "scheduled";
+  if (opts?.currentWoId === wo.id && status !== "done") {
     status = "in_progress";
   }
   const sandView = opts?.fieldSector === "sand_finish" && (wo.sector === "both" || wo.sector === "sand_finish");
-  const done = field === "completed" || wo.status === "completed";
-  const started = !done && isStartedBySchedule(at, wo.status, field);
   return {
     id: wo.id,
     number: wo.number,
@@ -298,11 +326,13 @@ export function mapJobCard(
     scheduled_start: at?.toISOString() ?? null,
     scheduled_end: sandView ? null : wo.scheduledEnd?.toISOString() ?? null,
     sand_scheduled_start: wo.sandScheduledStart?.toISOString() ?? null,
+    installation_done_at: wo.installationDoneAt?.toISOString() ?? null,
+    sand_done_at: wo.sandDoneAt?.toISOString() ?? null,
     sector: wo.sector ?? null,
     phase: sandView ? "sand_finish" : wo.sector === "both" ? "installation" : wo.sector ?? null,
     status,
     field_status: field,
-    field_status_label: done ? "Concluída" : started ? "Em andamento" : "Agendada",
+    field_status_label: crewProductionLabel(wo),
     raw_status: wo.status,
     team: teamLabel(wo),
     crew_name: wo.crew?.name || null,

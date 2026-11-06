@@ -143,8 +143,10 @@
   function statusLabel(s) {
     return { draft: "Rascunho", scheduled: "Agendado", in_progress: "Em campo", completed: "Concluído", canceled: "Cancelado" }[s] || s || "—";
   }
-  /** Same stage language as the Jobs list (Rascunho / Sem data / Lixa / Faturado…). */
+  /** ObraCrew production label (Agendado / Installing|Sanding / Concluído) — never billing. */
   function jobStageLabel(j) {
+    if (crewMode && window.JobsInfo?.crewStageLabel) return window.JobsInfo.crewStageLabel(j);
+    if (crewMode && j.field_status_label) return j.field_status_label;
     if (window.JobsInfo?.stageLabel) return window.JobsInfo.stageLabel(j);
     if (window.JobsInfo?.listWhen) {
       const w = window.JobsInfo.listWhen(j);
@@ -169,14 +171,16 @@
     );
   }
 
-  /** Normalize Agenda UI status ("done") + office raw_status into ObraCam status keys. */
+  /** Prefer Jobs office raw_status; Agenda UI keys are secondary. */
   function crewStatusFromAgenda(aj) {
-    const ui = String(aj.status || "");
     const raw = String(aj.raw_status || "");
-    if (ui === "done" || ui === "completed" || raw === "completed" || raw === "canceled") return "completed";
-    if (ui === "in_progress" || ui === "on_site" || ui === "en_route") return "in_progress";
-    if (raw === "in_progress" || raw === "on_site" || raw === "en_route") return "in_progress";
-    if (ui === "scheduled" || raw === "scheduled" || raw === "draft") return "scheduled";
+    if (raw === "completed" || raw === "canceled") return raw;
+    if (raw === "in_progress") return "in_progress";
+    if (raw === "scheduled" || raw === "draft") return "scheduled";
+    const ui = String(aj.status || "");
+    if (ui === "done" || ui === "completed") return "completed";
+    if (ui === "in_progress") return "in_progress";
+    if (ui === "scheduled") return "scheduled";
     return raw || ui || "scheduled";
   }
 
@@ -190,6 +194,8 @@
       address: aj.address || "",
       scheduled_start: aj.scheduled_start,
       sand_scheduled_start: aj.sand_scheduled_start,
+      installation_done_at: aj.installation_done_at,
+      sand_done_at: aj.sand_done_at,
       status: crewStatusFromAgenda(aj),
       homeowner_name: aj.homeowner_name,
       client_name: aj.client,
@@ -395,9 +401,9 @@
     const head = who && who !== "Sem cliente" ? who : j.title || "Job";
     const href = `#cam-${encodeURIComponent(j.id)}`;
     const maps = j.address ? `https://maps.google.com/?q=${encodeURIComponent(j.address)}` : "";
-    const listed = J && J.listWhen ? J.listWhen(j) : null;
+    const listed = J && J.crewListWhen ? J.crewListWhen(j) : J && J.listWhen ? J.listWhen(j) : null;
     const stText = listed?.status || jobStageLabel(j);
-    const tone = J && J.stageTone ? J.stageTone(j) : "wait";
+    const tone = J && J.crewStageTone ? J.crewStageTone(j) : J && J.stageTone ? J.stageTone(j) : "wait";
     const time = timeText(j);
     const on = String(j.id) === String(selId) && mode !== "photos" ? " is-on" : "";
     const id = esc(j.id);
