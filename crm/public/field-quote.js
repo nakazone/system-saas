@@ -10,6 +10,8 @@
   // Inside the ObraQuote app (/obraquote) every screen stays on that address, so the iPhone keeps it in the app.
   const PAGE = window.__OM_QUOTE_APP ? '/obraquote' : 'field-quote.html';
   const LOGIN = window.__OM_QUOTE_APP ? '/login.html?app=obraquote' : '/login.html';
+  // the visit list: in the app it is the Visitas tab (Início is the app's Home)
+  const LIST = window.__OM_QUOTE_APP ? '/obraquote?tab=visitas' : 'field-quote.html';
   const $ = (s, r) => (r || document).querySelector(s);
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
   const esc = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -715,7 +717,7 @@
     const svcTxt = svcSummary(d);
     $('#fqView').innerHTML = `<div class="fq-panel">
       <div class="fq-panel__main">
-      <header class="fq-top"><a class="fq-back" href="${PAGE}" data-fq-leave>${IC.back()}Visitas</a><span class="fq-save" id="fqSave" role="status"></span></header>
+      <header class="fq-top"><a class="fq-back" href="${LIST}" data-fq-leave>${IC.back()}Visitas</a><span class="fq-save" id="fqSave" role="status"></span></header>
       <div class="fq-client">
         <div class="fq-client__txt">
           <h1 class="fq-h1" title="${esc(fq.client_name)}">${esc(fq.client_name)}</h1>
@@ -2341,7 +2343,7 @@
           await api('/api/field-quotes/' + encodeURIComponent(id), { method: 'DELETE' });
           try { localStorage.removeItem(LS(id)); } catch (_) {}
           S.dirty = false;
-          location.href = PAGE;
+          location.href = LIST;
         } catch (e) {
           toast(e.message, 'error');
         }
