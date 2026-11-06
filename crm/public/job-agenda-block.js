@@ -78,12 +78,27 @@
     return items;
   }
 
-  /** Readable text on any calendar color, since each company picks its own. */
-  function inkOn(color) {
+  /** WCAG relative luminance of a #rrggbb color, or null when it can't be read. */
+  function luminance(color) {
     const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(String(color || ""));
-    if (!m) return "#fff";
-    const [r, g, b] = [m[1], m[2], m[3]].map((h) => parseInt(h, 16));
-    return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.62 ? "#221e1a" : "#fff";
+    if (!m) return null;
+    const [r, g, b] = [m[1], m[2], m[3]].map((h) => {
+      const c = parseInt(h, 16) / 255;
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+
+  /**
+   * The number stays readable on any color a company registers: picks whichever of black and
+   * white has the better contrast (always 4.5:1 or more), on the worse side of a two-color day.
+   */
+  function inkOn(shades) {
+    const lums = shades.map(luminance).filter((l) => l != null);
+    if (!lums.length) return "#000";
+    const onWhite = Math.min(...lums.map((l) => 1.05 / (l + 0.05)));
+    const onBlack = Math.min(...lums.map((l) => (l + 0.05) / 0.05));
+    return onBlack >= onWhite ? "#000" : "#fff";
   }
 
   function monthGrid(items, cursor, colors, opts) {
@@ -108,7 +123,7 @@
       const shades = roles.map((r) => colors[r] || NO_COLOR);
       const paint = shades.length > 1 ? `linear-gradient(135deg, ${shades[0]} 50%, ${shades[1]} 50%)` : shades[0];
       const label = `${dayText(d)}: ${[...new Set(hits.map((h) => h.label))].join(" e ")}`;
-      const style = `background:${esc(paint)};color:${inkOn(shades[0])}`;
+      const style = `background:${esc(paint)};color:${inkOn(shades)}`;
       cells.push(
         `<li class="${cls}"${current}>${
           opts.canViewCalendar
