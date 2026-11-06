@@ -9,7 +9,7 @@ const PRECACHE = [
   // Generated from the Campo pages and the assets the server injects (see src/crm/mount.ts).
   "/offline.html",
   "/om-shell.css?v=20261106-crew-lang1",
-  "/om-shell.js?v=20261106-quote2",
+  "/om-shell.js?v=20261106-crewtop1",
   // what offline.html itself shows
   "/manifest.json?v=20260930-native2",
   "/assets/favicon-192.png?v=20260924-pwa",
@@ -23,7 +23,7 @@ const PRECACHE = [
   "/om-offline.js?v=20261105-apps3",
   "/campo/campo-data.js?v=20261105-crew-phases1",
   "/campo/campo-gate.js?v=20260925-campo3",
-  "/campo/campo-nav.js?v=20261106-crew-sector1",
+  "/campo/campo-nav.js?v=20261106-crewtop1",
   "/campo/agenda.js?v=20261105-crew-prod1",
   "/mate-panel.css?v=20261027-m2",
   "/mate-panel.js?v=20261106-quote2",

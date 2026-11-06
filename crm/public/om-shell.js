@@ -51,9 +51,19 @@
   }
 
   /** Inner HTML of the brand link, shared with pages that build their own header. */
+  /** ObraCrew shows the sanding Mate to the sanding crew (sector saved by campo-nav.js). */
+  function crewIcon() {
+    let sector = null;
+    try {
+      sector = localStorage.getItem("om_crew_sector");
+    } catch (_) {}
+    return sector === "sand_finish" ? "/assets/obracrew/lixa/icon-192.png?v=1" : APPS.obracrew.icon;
+  }
+
   function brandHtml(app) {
     const a = APPS[app] || APPS.obramate;
-    return `<img class="om-shell-mark" src="${esc(a.icon)}" alt="" width="36" height="36" /><span class="om-shell-name">${esc(a.name)}</span>`;
+    const src = app === "obracrew" ? crewIcon() : a.icon;
+    return `<img class="om-shell-mark" src="${esc(src)}" alt="" width="36" height="36" /><span class="om-shell-name">${esc(a.name)}</span>`;
   }
 
   function bindMenu(trigger, menu) {
