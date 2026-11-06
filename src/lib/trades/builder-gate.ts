@@ -165,3 +165,35 @@ export async function siteNotReady(
   }
   return { ok: true, cleared, charged };
 }
+
+export type JobPhaseSummary = {
+  /** The first open phase (pt-BR label for the CRM), or null when every phase is done. */
+  key: string | null;
+  label: string | null;
+  /** 1-based position of the open phase among the job's live phases. */
+  index: number;
+  total: number;
+  done: number;
+  /** The builder confirmed the site for the open phase (ready to schedule the visit). */
+  builder_ready: boolean;
+};
+
+/** One line for the jobs list: where the job is and whether the builder said the site is ready. */
+export function jobPhaseSummary(pack: TradePack, rows: readonly JobPhaseRow[]): JobPhaseSummary | null {
+  if (pack.phaseStorage !== "table" || !rows.length) return null;
+  const by = rowsByKey(rows);
+  const live = pack.phases.filter((d) => by.has(d.key) && by.get(d.key)!.status !== "skipped");
+  if (!live.length) return null;
+  const done = live.filter((d) => by.get(d.key)!.status === "done").length;
+  const i = live.findIndex((d) => by.get(d.key)!.status !== "done");
+  const cur = i >= 0 ? live[i]! : null;
+  const gate = builderGateView(pack, rows);
+  return {
+    key: cur?.key ?? null,
+    label: cur ? cur.label["pt-BR"] : null,
+    index: i >= 0 ? i + 1 : live.length,
+    total: live.length,
+    done,
+    builder_ready: Boolean(cur && gate && gate.phase === cur.key && gate.confirmed?.by_builder && !gate.phase_done),
+  };
+}

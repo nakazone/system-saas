@@ -12,6 +12,7 @@ import { ensureTempShareToken } from "../../lib/work-orders/temp-share.js";
 import { alignLinkedJobAndQuote, ensureQuoteDiscountOnJob, ensureQuoteDiscountsOnJobs, syncLinkedJobFromQuote, syncLinkedQuoteFromJob } from "../../lib/work-orders/from-quote.js";
 import { sectorFinishPatch } from "../../lib/work-orders/sector-finish.js";
 import { openJobPhases, openPhasesMessage } from "../../lib/trades/job-phases-db.js";
+import { jobPhaseSummary, type JobPhaseSummary } from "../../lib/trades/builder-gate.js";
 import { notifyJobTeamPush } from "../../lib/push/notify.js";
 import { param } from "../../lib/http/params.js";
 import { parseChecklist } from "../lib/campo-shared.js";
@@ -54,7 +55,7 @@ import {
   personCalendarTitle,
 } from "../../lib/schedule/lead-visit-ics.js";
 import { calendarNickFromBuilders, isBuilderParty, jobCalendarTitle, visitBlockEnd } from "../../lib/schedule/calendar-label.js";
-import { phaseKeys } from "../../lib/trades/index.js";
+import { phaseKeys, primaryPack } from "../../lib/trades/index.js";
 import { COMBINED_PHASE, PHASE_KEYS } from "../../lib/trades/phases.js";
 
 /** Job phases from the trade pack (hardwood: installation, sand_finish, both). */
@@ -795,6 +796,25 @@ async function collectConflictHints(params: {
 
 // ---------- Work orders ----------
 
+/** Open phase per job for the jobs list; empty for trades whose phases live on the job (Hardwood). */
+async function listPhaseSummaries(organizationId: string, ids: string[]): Promise<Map<string, JobPhaseSummary>> {
+  const out = new Map<string, JobPhaseSummary>();
+  if (!ids.length) return out;
+  const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { tradePacks: true } });
+  const pack = primaryPack(org?.tradePacks);
+  if (pack.phaseStorage !== "table") return out;
+  const rows = await withTenantTransaction(organizationId, (tx) =>
+    tx.jobPhase.findMany({ where: { workOrderId: { in: ids } }, select: { workOrderId: true, phaseKey: true, sortOrder: true, status: true, evidence: true } }),
+  );
+  const byJob = new Map<string, typeof rows>();
+  for (const r of rows) byJob.set(r.workOrderId, [...(byJob.get(r.workOrderId) || []), r]);
+  for (const [id, list] of byJob) {
+    const s = jobPhaseSummary(pack, list);
+    if (s) out.set(id, s);
+  }
+  return out;
+}
+
 scheduleJobsRouter.get(
   "/api/work-orders",
   requireCrmAuth,
@@ -1005,12 +1025,15 @@ scheduleJobsRouter.get(
         });
       }
       const leadNames = await leadNamesById(req.organizationId!, rows);
+      // Trades with per-job phases (Tile, Countertops): the open phase on each row of the list.
+      const phaseOf = await listPhaseSummaries(req.organizationId!, rows.map((row) => row.id));
       let data = rows.map((row) => ({
         ...presentWorkOrderForFieldSector(
           applyQuoteLead(mapWorkOrder(row), row.quotes?.[0]?.leadId ? leadNames.get(row.quotes[0].leadId) || null : null),
           fieldSector,
         ),
         from_portal: portalSet.has(row.id),
+        phase_now: phaseOf.get(row.id) ?? null,
       }));
       if (billingFilter) {
         data = data.filter((wo) => {

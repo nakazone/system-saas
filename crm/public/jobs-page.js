@@ -272,6 +272,7 @@
       <b class="ol-t" title="${J.esc(head)}">${J.esc(head)}</b>
       ${timeText(wo) ? `<span class="ol-v ol-time">${J.esc(timeText(wo))}</span>` : ""}
       ${addr}
+      ${J.phaseHtml ? J.phaseHtml(wo) : ""}
       ${J.progHtml(wo)}
     </a>
     <div class="jmx-card__r3 jx-foot" data-jx-id="${id}">${stText ? `<span class="ol-st is-${tone}" title="${J.esc(stText)}">${J.esc(stText)}</span>` : ""}${maps ? `<a class="jmx-b jmx-b--sq" href="${maps}" target="_blank" rel="noopener" aria-label="Abrir mapa" title="Abrir mapa">${SVG.pin}</a>` : ""}${actions}</div>

@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { readFileSync } from "node:fs";
-import { builderGateView, builderPhaseSteps, setBuilderGate } from "../src/lib/trades/builder-gate.js";
+import { builderGateView, builderPhaseSteps, jobPhaseSummary, setBuilderGate } from "../src/lib/trades/builder-gate.js";
 import { getPack } from "../src/lib/trades/index.js";
 import { closeJobPhase, ensureJobPhases, listJobPhases } from "../src/lib/trades/job-phases-db.js";
 import { createOrganizationWithAdmin } from "../src/modules/organizations/service.js";
@@ -48,6 +48,33 @@ describe("what the builder sees of the phases", () => {
     expect(tile.builderGate!.tripService).toBe("Return Trip – Site Not Ready");
     expect(tile.services.map((x) => x.name)).toContain(tile.builderGate!.tripService);
     expect(tops.services.map((x) => x.name)).toContain(tops.builderGate!.tripService);
+  });
+
+  it("tells the jobs list the open phase and whether the builder confirmed it", () => {
+    const ev = { ready_checklist: { at: "2026-11-06T15:00:00Z", by: "Dana · Acme", value: { source: "builder" } } };
+    const open = jobPhaseSummary(tops, tops.phases.map((p, i) => row(p.key, i, i === 0 ? "done" : "pending")));
+    expect(open).toMatchObject({ key: "site_ready", label: "Cozinha pronta para o template", index: 2, total: tops.phases.length, done: 1, builder_ready: false });
+    const ready = jobPhaseSummary(tops, tops.phases.map((p, i) => row(p.key, i, i === 0 ? "done" : "pending", p.key === "site_ready" ? ev : {})));
+    expect(ready!.builder_ready).toBe(true);
+    // confirmed early, while the slab is still being chosen: not yet the phase to schedule
+    const early = jobPhaseSummary(tops, tops.phases.map((p, i) => row(p.key, i, "pending", p.key === "site_ready" ? ev : {})));
+    expect(early).toMatchObject({ key: "selection", builder_ready: false });
+    const all = jobPhaseSummary(tops, tops.phases.map((p, i) => row(p.key, i, "done")));
+    expect(all).toMatchObject({ key: null, label: null, done: tops.phases.length });
+    // skipped phases (stone off on a Tile job) do not count
+    const t = jobPhaseSummary(tile, tile.phases.map((p, i) => row(p.key, i, p.variant ? "skipped" : "pending")));
+    expect(t!.total).toBe(tile.phases.filter((p) => !p.variant).length);
+    expect(jobPhaseSummary(getPack("hardwood"), [])).toBeNull();
+  });
+
+  it("shows the phase on each row of the jobs list", () => {
+    const route = readFileSync("src/crm/routes/schedule-jobs.ts", "utf8");
+    const info = readFileSync("crm/public/jobs-info.js", "utf8");
+    expect(route).toContain("phase_now: phaseOf.get(row.id) ?? null");
+    expect(info).toContain("function phaseHtml");
+    expect(info).toContain("Construtora confirmou");
+    expect(readFileSync("crm/public/jobs-page.js", "utf8")).toContain("J.phaseHtml(wo)");
+    expect(readFileSync("crm/public/jobs-mobile.js", "utf8")).toContain("J.phaseHtml(wo)");
   });
 
   it("has nothing to confirm for hardwood", () => {

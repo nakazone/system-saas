@@ -639,3 +639,12 @@ body.dashboard-app-body .jx-list .jmx-b--or:hover,
 .jx-list .jmx-b--or:hover { background: #E6E9EE !important; }
 body.dashboard-app-body .jx-list .jmx-b--or:active,
 .jx-list .jmx-b--or:active { background: #DDE1E6 !important; }
+
+/* Fase aberta do job (ofícios com fases por job). Ocupa a linha inteira, abaixo do endereço. */
+.ol-list .ol-row > .jx-phase, .jmx-card .ol-row > .jx-phase { grid-area: auto; grid-column: 1 / -1; margin-top: 2px; gap: 8px; }
+.jx-phase b { font-weight: 650; color: var(--ol-ink); font-variant-numeric: tabular-nums; margin-right: 2px; }
+.jx-phase__ok { flex: none; display: inline-flex; align-items: center; gap: 4px; font-style: normal; font-weight: 650; color: var(--ol-ok, #067647); white-space: nowrap; }
+.ol-list .jx-phase__ok svg, .jx-phase__ok svg { width: 13px; height: 13px; color: currentColor; stroke-width: 2.5; }
+/* Celular: a fase fica logo abaixo do endereço, antes do status, como no computador. */
+.jcm-job-swipe .jmx-card .ol-row:has(> .jx-phase) { grid-template-areas: "lead title value" "lead meta date" "lead phase phase" "lead foot foot"; }
+.jcm-job-swipe .jmx-card .ol-row > .jx-phase { grid-area: phase; }

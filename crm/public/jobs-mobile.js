@@ -263,6 +263,7 @@
           <b class="ol-t" title="${escapeHtml(title)}">${escapeHtml(title)}</b>
           ${date && !undated ? `<span class="ol-v">${escapeHtml(date)}</span>` : ""}
           ${wo.address ? `<span class="ol-m"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><span>${escapeHtml(wo.address)}</span></span>` : `<span class="ol-m"><span>Sem endereço</span></span>`}
+          ${J && J.phaseHtml ? J.phaseHtml(wo) : ""}
           <span class="ol-f">${stText ? `<span class="ol-st is-${tone}">${escapeHtml(stText)}</span>` : ""}${J ? J.progHtml(wo) : ""}</span>
         </a>
         <div class="jmx-card__r3">

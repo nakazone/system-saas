@@ -426,7 +426,21 @@
     return "wait";
   }
 
+  /**
+   * Ofícios com fases por job (Tile, Countertops): a fase aberta do job, e se a construtora já
+   * confirmou a obra pronta para essa fase (dá para agendar a visita). Vazio para Hardwood.
+   */
+  function phaseHtml(wo) {
+    const p = wo && wo.phase_now;
+    if (!p || !p.label || wo.status === "canceled" || wo.status === "completed") return "";
+    const ready = p.builder_ready
+      ? `<em class="jx-phase__ok"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>Construtora confirmou</em>`
+      : "";
+    return `<span class="ol-m jx-phase${p.builder_ready ? " is-ready" : ""}" title="Fase ${p.index} de ${p.total}: ${esc(p.label)}"><span><b>${p.index}/${p.total}</b> ${esc(p.label)}</span>${ready}</span>`;
+  }
+
   window.JobsInfo = {
+    phaseHtml,
     esc, stageTone, money, money0, client, fieldClient, builderName, findLine, searchText, displayName, isActive, late, step, STEP_NAMES, STATUS_BY_STEP, STATUS_STEP_MSG,
     statusForStep, atStatus, stageLabel, fieldPhaseLabel, isInFieldStage, progHtml, sectorProgress, nextFinish, fieldHalves, bill, dateRange, listWhen, listAnchorIso, listOnSandDay, awaitingSand, dayShort, completeLabel, compareNearest, startMs, isToday, initials, team,
   };
