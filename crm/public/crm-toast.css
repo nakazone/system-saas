@@ -126,3 +126,23 @@
 .crm-toast__close:hover {
   opacity: 1;
 }
+
+/* Menos movimento: o toast só esmaece (sem subir). Vence a regra global de om-theme.css. */
+@keyframes crmToastFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes crmToastFadeOut {
+  to { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html body .crm-toast {
+    animation: crmToastFadeIn 120ms ease both !important;
+  }
+  html body .crm-toast.is-leaving {
+    animation: crmToastFadeOut 120ms ease forwards !important;
+  }
+  html body .crm-toast__action:active {
+    transform: none;
+  }
+}

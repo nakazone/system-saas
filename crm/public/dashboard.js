@@ -24,6 +24,33 @@ let sfQuotesListCache = [];
 /** Slug → cor hex (lista de leads alinhada às colunas do Kanban) */
 let leadsPipelineSlugToColor = null;
 
+/**
+ * Avisos e confirmações no padrão ObraMate (crm-toast / crm-confirm), sem diálogos nativos.
+ * dashToast(msg, type)  type: "success" | "error" | "info" | "warning"
+ * dashConfirm({ title, text, ok, danger }) → Promise<boolean>
+ */
+function dashToast(msg, type) {
+    if (!msg) return;
+    if (window.crmToast && typeof window.crmToast.show === 'function') {
+        window.crmToast.show(msg, { type: type || 'info' });
+    } else if (typeof window.crmNotify === 'function') {
+        window.crmNotify(msg, type || 'info');
+    } else {
+        console.warn(msg);
+    }
+}
+
+function dashConfirm(opts) {
+    if (typeof window.crmConfirm === 'function') return window.crmConfirm(opts);
+    // crm-confirm.js é injetado em toda página; isto só roda se ele não carregou.
+    return Promise.resolve(window.confirm([opts.title, opts.text].filter(Boolean).join('\n\n')));
+}
+
+function dashPrompt(opts) {
+    if (typeof window.crmPrompt === 'function') return window.crmPrompt(opts);
+    return Promise.resolve(window.prompt([opts.title, opts.text].filter(Boolean).join('\n\n'), opts.value || ''));
+}
+
 function sanitizeLeadStageHexColor(c) {
     if (c == null || c === undefined) return '';
     const s = String(c).trim();
@@ -2195,13 +2222,20 @@ function viewLead(id) {
 }
 
 async function deleteLead(id) {
-    if (!id || !confirm('Excluir este lead permanentemente? Esta ação não pode ser desfeita.')) return;
+    if (!id) return;
+    const okDelete = await dashConfirm({
+        title: 'Excluir este lead?',
+        text: 'Ele sai do pipeline de vez. Esta ação não pode ser desfeita.',
+        ok: 'Excluir lead',
+        danger: true,
+    });
+    if (!okDelete) return;
     try {
         const r = await fetch(`/api/leads/${encodeURIComponent(id)}`, { method: 'DELETE', credentials: 'include' });
         const d = await r.json().catch(() => ({}));
         if (!r.ok || !d.success) {
             if (typeof crmNotify === 'function') crmNotify(d.error || 'Não foi possível excluir o lead.', 'error');
-            else alert(d.error || 'Não foi possível excluir o lead.');
+            else dashToast(d.error || 'Não foi possível excluir o lead.', 'error');
             return;
         }
         if (typeof crmNotify === 'function') crmNotify('Lead excluído.', 'success');
@@ -2210,7 +2244,7 @@ async function deleteLead(id) {
         else if (currentPageName === 'leads') loadLeads();
     } catch (e) {
         if (typeof crmNotify === 'function') crmNotify('Erro de rede ao excluir.', 'error');
-        else alert('Erro de rede ao excluir.');
+        else dashToast('Erro de rede ao excluir.', 'error');
     }
 }
 
@@ -3066,7 +3100,13 @@ async function submitClientForm(ev) {
 async function deleteCustomer(id, label) {
     if (!id) return;
     const name = label || 'este cliente';
-    if (!confirm(`Excluir ${name === 'este cliente' ? name : `o cliente “${name}”`}?\n\nEsta ação não pode ser desfeita.`)) return;
+    const okDelete = await dashConfirm({
+        title: `Excluir ${name === 'este cliente' ? name : `o cliente “${name}”`}?`,
+        text: 'Esta ação não pode ser desfeita.',
+        ok: 'Excluir cliente',
+        danger: true,
+    });
+    if (!okDelete) return;
     try {
         let res = await fetch(`/api/customers/${encodeURIComponent(id)}`, {
             method: 'DELETE',
@@ -3074,9 +3114,12 @@ async function deleteCustomer(id, label) {
         });
         let data = await res.json().catch(() => ({}));
         if (res.status === 409) {
-            const force = confirm(
-                `${data.error || 'Este cliente tem registos ligados.'}\n\nExcluir mesmo assim? Orçamentos/jobs ficarão sem cliente.`,
-            );
+            const force = await dashConfirm({
+                title: 'Excluir mesmo assim?',
+                text: `${data.error || 'Este cliente tem registros ligados.'}\n\nOrçamentos e jobs ficarão sem cliente.`,
+                ok: 'Excluir mesmo assim',
+                danger: true,
+            });
             if (!force) return;
             res = await fetch(`/api/customers/${encodeURIComponent(id)}?force=1`, {
                 method: 'DELETE',
@@ -3086,14 +3129,14 @@ async function deleteCustomer(id, label) {
         }
         if (!res.ok || data.success === false) {
             if (typeof crmNotify === 'function') crmNotify(data.error || 'Não foi possível excluir.', 'error');
-            else alert(data.error || 'Não foi possível excluir.');
+            else dashToast(data.error || 'Não foi possível excluir.', 'error');
             return;
         }
         if (typeof crmNotify === 'function') crmNotify('Cliente excluído.', 'success');
         loadCustomers();
     } catch (e) {
         if (typeof crmNotify === 'function') crmNotify(e.message || 'Erro de rede.', 'error');
-        else alert(e.message || 'Erro de rede.');
+        else dashToast(e.message || 'Erro de rede.', 'error');
     }
 }
 
@@ -3137,31 +3180,47 @@ async function showCustomerDuplicates() {
                 return `Grupo ${gi + 1} — ${reason}:\n${names}`;
             })
             .join('\n\n');
-        const pick = prompt(
-            `Encontrados ${groups.length} grupo(s) de possíveis duplicados.\n\n${lines}\n\nPara unificar: informe o número do grupo (1–${Math.min(groups.length, 12)}), ou cancele.`,
-        );
+        const pick = await dashPrompt({
+            title: `${groups.length} grupo(s) de possíveis duplicados`,
+            text: `${lines}\n\nPara unificar, informe o número do grupo (1–${Math.min(groups.length, 12)}).`,
+            label: 'Número do grupo',
+            type: 'number',
+            inputMode: 'numeric',
+            ok: 'Continuar',
+        });
         if (pick == null || !String(pick).trim()) return;
         const gi = parseInt(String(pick).trim(), 10) - 1;
         if (!Number.isFinite(gi) || gi < 0 || gi >= groups.length) {
-            alert('Grupo inválido.');
+            dashToast('Grupo inválido.', 'warning');
             return;
         }
         const group = groups[gi];
         const custs = group.customers || [];
         if (custs.length < 2) return;
-        const keepPick = prompt(
-            `Manter qual registo?\n${custs.map((c, i) => `${i + 1}. ${c.name || c.id}`).join('\n')}\n\nNúmero do registo a manter:`,
-            '1',
-        );
+        const keepPick = await dashPrompt({
+            title: 'Manter qual registro?',
+            text: custs.map((c, i) => `${i + 1}. ${c.name || c.id}`).join('\n'),
+            label: 'Número do registro a manter',
+            type: 'number',
+            inputMode: 'numeric',
+            value: '1',
+            ok: 'Continuar',
+        });
         if (keepPick == null) return;
         const ki = parseInt(String(keepPick).trim(), 10) - 1;
         if (!Number.isFinite(ki) || ki < 0 || ki >= custs.length) {
-            alert('Registo inválido.');
+            dashToast('Registo inválido.', 'warning');
             return;
         }
         const keep = custs[ki];
         const others = custs.filter((_, i) => i !== ki);
-        if (!confirm(`Unificar ${others.length} registo(s) em “${keep.name || keep.id}”? Os outros serão removidos.`)) return;
+        const okMerge = await dashConfirm({
+            title: `Unificar ${others.length} registro(s) em “${keep.name || keep.id}”?`,
+            text: 'Os outros registros serão removidos.',
+            ok: 'Unificar',
+            danger: true,
+        });
+        if (!okMerge) return;
         for (const other of others) {
             const mr = await fetch('/api/customers/merge', {
                 method: 'POST',
@@ -3172,7 +3231,7 @@ async function showCustomerDuplicates() {
             const md = await mr.json().catch(() => ({}));
             if (!mr.ok || md.success === false) {
                 if (typeof crmNotify === 'function') crmNotify(md.error || 'Falha ao unificar.', 'error');
-                else alert(md.error || 'Falha ao unificar.');
+                else dashToast(md.error || 'Falha ao unificar.', 'error');
                 loadCustomers();
                 return;
             }
@@ -3646,7 +3705,7 @@ function crmToastSafe(msg, opts) {
     if (window.crmToast && typeof window.crmToast.show === 'function') {
         window.crmToast.show(msg, opts || {});
     } else {
-        alert(msg);
+        console.warn(msg);
     }
 }
 
@@ -4192,9 +4251,13 @@ function viewQuote(id) {
 async function deleteQuote(id) {
     const qid = String(id || '').trim();
     if (!qid || qid === 'NaN' || qid === 'undefined') return;
-    if (!confirm('Excluir este orçamento permanentemente? As linhas e o registo serão removidos. Esta ação não pode ser desfeita.')) {
-        return;
-    }
+    const okDelete = await dashConfirm({
+        title: 'Excluir este orçamento?',
+        text: 'As linhas e o registro serão removidos. Esta ação não pode ser desfeita.',
+        ok: 'Excluir orçamento',
+        danger: true,
+    });
+    if (!okDelete) return;
     try {
         const r = await fetch(`/api/quotes/${encodeURIComponent(qid)}`, { method: 'DELETE', credentials: 'include' });
         const d = await r.json().catch(() => ({}));
@@ -4342,12 +4405,12 @@ function changePageProjects(delta) {
 
 function viewProject(id) {
     if (typeof crmNotify === 'function') crmNotify('Ver projeto #' + id + ' — em breve.', 'info');
-    else alert('View project ' + id + ' - Feature coming soon!');
+    else dashToast('Em breve.', 'info');
 }
 
 function showNewProjectModal() {
     if (typeof crmNotify === 'function') crmNotify('Novo projeto — em breve.', 'info');
-    else alert('New Project form - Coming soon!');
+    else dashToast('Em breve.', 'info');
 }
 
 // Visits/Schedule
@@ -4395,12 +4458,12 @@ function changePageVisits(delta) {
 
 function viewVisit(id) {
     if (typeof crmNotify === 'function') crmNotify('Ver visita #' + id + ' — em breve.', 'info');
-    else alert('View visit ' + id + ' - Feature coming soon!');
+    else dashToast('Em breve.', 'info');
 }
 
 function showNewVisitModal() {
     if (typeof crmNotify === 'function') crmNotify('Nova visita — em breve.', 'info');
-    else alert('New Visit form - Coming soon!');
+    else dashToast('Em breve.', 'info');
 }
 
 // Contracts/Financeiro
@@ -4449,12 +4512,12 @@ function changePageContracts(delta) {
 
 function viewContract(id) {
     if (typeof crmNotify === 'function') crmNotify('Ver contrato #' + id + ' — em breve.', 'info');
-    else alert('View contract ' + id + ' - Feature coming soon!');
+    else dashToast('Em breve.', 'info');
 }
 
 function showNewContractModal() {
     if (typeof crmNotify === 'function') crmNotify('Novo contrato — em breve.', 'info');
-    else alert('New Contract form - Coming soon!');
+    else dashToast('Em breve.', 'info');
 }
 
 // Activities
@@ -4501,12 +4564,12 @@ function changePageActivities(delta) {
 
 function viewActivity(id) {
     if (typeof crmNotify === 'function') crmNotify('Ver atividade #' + id + ' — em breve.', 'info');
-    else alert('View activity ' + id + ' - Feature coming soon!');
+    else dashToast('Em breve.', 'info');
 }
 
 function showNewActivityModal() {
     if (typeof crmNotify === 'function') crmNotify('Nova atividade — em breve.', 'info');
-    else alert('New Activity form - Coming soon!');
+    else dashToast('Em breve.', 'info');
 }
 
 // Users & permissões por módulo
@@ -4785,7 +4848,7 @@ async function openCrmUserModal(userId) {
         ]);
         if (!ur.success || !ur.data) {
             if (typeof crmNotify === 'function') crmNotify(ur.error || 'Erro ao carregar utilizador', 'error');
-            else alert(ur.error || 'Erro ao carregar utilizador');
+            else dashToast(ur.error || 'Erro ao carregar utilizador', 'error');
             return;
         }
         const d = ur.data;
@@ -4826,19 +4889,25 @@ async function openCrmUserModal(userId) {
 }
 
 async function deactivateCrmUser(id) {
-    if (!confirm('Desativar este utilizador? Não poderá iniciar sessão.')) return;
+    const okDeactivate = await dashConfirm({
+        title: 'Desativar este usuário?',
+        text: 'Ele não poderá mais iniciar sessão.',
+        ok: 'Desativar',
+        danger: true,
+    });
+    if (!okDeactivate) return;
     try {
         const res = await fetch(`/api/users/${id}`, { method: 'DELETE', credentials: 'include' });
         const j = await res.json();
         if (!res.ok) {
             if (typeof crmNotify === 'function') crmNotify(j.error || 'Falha ao desativar', 'error');
-            else alert(j.error || 'Falha ao desativar');
+            else dashToast(j.error || 'Falha ao desativar', 'error');
             return;
         }
         loadUsers();
     } catch (e) {
         if (typeof crmNotify === 'function') crmNotify(e.message || 'Erro de rede', 'error');
-        else alert(e.message || 'Erro de rede');
+        else dashToast(e.message || 'Erro de rede', 'error');
     }
 }
 

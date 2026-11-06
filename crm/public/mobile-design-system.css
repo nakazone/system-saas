@@ -1216,8 +1216,8 @@
     max-width: 100%;
     max-height: min(92dvh, 920px);
     border-radius: 20px 20px 0 0;
-    transform: translateY(110%);
-    transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+    transform: translateY(100%);
+    transition: transform var(--om-dur-sheet, 300ms) var(--om-ease-drawer, cubic-bezier(0.32, 0.72, 0, 1));
     padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   }
 

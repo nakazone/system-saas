@@ -17,12 +17,18 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="partner-portal-v2.css?v=20261104-demo4" />
+  <!-- Shared ObraMate tokens and sheet/dialog behaviour (builder sessions get this page without the server injection). -->
+  <link rel="stylesheet" href="/om-tokens.css?v=20261105-apps3" />
+  <link rel="stylesheet" href="/om-ui.css?v=20261105-apps3" />
+  <link rel="stylesheet" href="/om-shell.css?v=20261105-hammer1" />
+  <script src="/om-shell.js?v=20261105-hammer1"></script>
+  <link rel="stylesheet" href="partner-portal-v2.css?v=20261105-shell9" />
 </head>
 <body class="pp">
   <header class="pp-top">
-    <div class="pp-top-in">
-      <a class="pp-brand" href="#home" aria-label="ObraBuilder home">
+    <div class="pp-top-in om-shell-top">
+      <a class="pp-brand om-shell-brand" href="#home" aria-label="ObraBuilder home">
+        <img class="om-shell-mark pp-shell-brand" src="/assets/obrabuilder/icon-192.png?v=1" alt="" width="36" height="36" /><span class="om-shell-name pp-shell-brand">ObraBuilder</span>
         <span class="pp-mark" id="ppMark" aria-hidden="true">·</span>
         <span class="pp-brand-text"><strong id="ppProvider">ObraBuilder</strong><span id="ppBrandSub">Loading…</span></span>
       </a>
@@ -33,18 +39,18 @@
         <input id="ppSearch" type="search" autocomplete="off" placeholder="Search jobs, addresses, invoices…" />
         <span class="pp-kbd" aria-hidden="true">⌘K</span>
       </label>
-      <div class="pp-top-actions">
+      <div class="pp-top-actions om-shell-actions">
         <a class="pp-btn pp-btn--pri pp-send-top" href="#send">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Send work
         </a>
-        <a class="pp-ibtn pp-plus-mobile" href="#send" aria-label="Send work">
-          <svg viewBox="0 0 24 24" aria-hidden="true" style="width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round"><path d="M12 5v14M5 12h14"/></svg>
+        <a class="pp-ibtn pp-plus-mobile om-shell-btn" href="#send" aria-label="Send work">
+          <span data-om-icon="plus"></span>
         </a>
-        <a class="pp-ibtn pp-bell" id="ppBell" href="#notifications" aria-label="Notifications" hidden>
+        <a class="pp-ibtn pp-bell om-shell-btn" id="ppBell" href="#notifications" aria-label="Notifications" hidden>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9"/><path d="M10 20a2.2 2.2 0 0 0 4 0"/></svg>
           <span class="pp-bell-n" id="ppBellN" hidden></span>
         </a>
-        <button type="button" class="pp-uchip" id="ppChip" aria-haspopup="true" aria-expanded="false" aria-controls="ppMenu"><span class="pp-avatar" id="ppAvatar">··</span><span class="pp-uchip-txt"><span id="ppChipName"></span><span id="ppChipRole"></span></span></button>
+        <button type="button" class="pp-uchip" id="ppChip" aria-haspopup="true" aria-expanded="false" aria-controls="ppMenu"><span class="pp-avatar om-shell-avatar" id="ppAvatar">··</span><span class="pp-uchip-txt"><span id="ppChipName"></span><span id="ppChipRole"></span></span></button>
         <div class="pp-menu" id="ppMenu" hidden>
           <div class="pp-menu-head"><strong id="ppUserName"></strong><span id="ppUserEmail"></span></div>
           <div id="ppProviderTools" hidden>
@@ -59,29 +65,29 @@
     </div>
   </header>
 
-  <main class="pp-wrap" id="ppView" aria-live="polite">
+  <main class="pp-wrap" id="ppView">
     <div class="pp-empty"><strong>Loading ObraBuilder…</strong></div>
   </main>
+  <div class="pp-sr" id="ppStatus" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <nav class="pp-dock" id="ppDock" aria-label="Navigation" hidden>
     <div class="pp-dg"><a class="pp-di" href="#home" data-nav="inicio" title="Home"><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/></svg></span><span class="pp-dl">Home</span></a></div>
-    <div class="pp-dg"><a class="pp-di" href="#calendar" data-nav="calendario" title="Calendar"><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span><span class="pp-dl">Calendar</span></a></div>
-    <div class="pp-dg"><a class="pp-di" href="#jobs" data-nav="jobs" title="Jobs"><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></span><span class="pp-dl">Jobs</span></a><a class="pp-di" href="#measurements" data-nav="measurements" title="Measure" data-builder-only hidden><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17 17 3l4 4L7 21H3z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/></svg></span><span class="pp-dl">Measure</span></a></div>
-    <div class="pp-dg"><a class="pp-di" href="#send" data-nav="enviar" title="Send work"><span class="pp-count" data-count="pedidos" hidden></span><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></span><span class="pp-dl">Send work</span></a><a class="pp-di" href="#invoices" data-nav="invoices" title="Invoices"><span class="pp-count" data-count="invoices" hidden></span><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/></svg></span><span class="pp-dl">Invoices</span></a><a class="pp-di" href="#documents" data-nav="documentos" title="Docs"><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span><span class="pp-dl">Docs</span></a></div>
+    <div class="pp-dg"><a class="pp-di" href="#jobs" data-nav="jobs" title="Jobs"><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></span><span class="pp-dl">Jobs</span></a><a class="pp-di" href="#calendar" data-nav="calendario" title="Calendar"><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span><span class="pp-dl">Calendar</span></a><a class="pp-di" href="#measurements" data-nav="measurements" title="Measurements" data-builder-only hidden><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17 17 3l4 4L7 21H3z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/></svg></span><span class="pp-dl">Measurements</span></a></div>
+    <div class="pp-dg"><a class="pp-di" href="#invoices" data-nav="invoices" title="Invoices"><span class="pp-count" data-count="invoices" hidden></span><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/></svg></span><span class="pp-dl">Invoices</span></a><a class="pp-di" href="#send" data-nav="enviar" title="Requests"><span class="pp-count" data-count="pedidos" hidden></span><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></span><span class="pp-dl">Requests</span></a><a class="pp-di" href="#documents" data-nav="documentos" title="Docs"><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span><span class="pp-dl">Docs</span></a></div>
     <div class="pp-dg" data-builder-only hidden><a class="pp-di" href="#companies" data-nav="empresas" title="Companies" data-builder-only hidden><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V8l6-4v16M10 20V10h10v10M3 20h18"/><path d="M14 14h2M14 17h2"/></svg></span><span class="pp-dl">Companies</span></a><a class="pp-di" href="#team" data-nav="equipe" title="Team" data-builder-only hidden><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/></svg></span><span class="pp-dl">Team</span></a></div>
     <div class="pp-dg" data-builder-only hidden><a class="pp-di" href="#settings" data-nav="settings" title="Settings" data-builder-only hidden><span class="pp-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span class="pp-dl">Settings</span></a></div>
   </nav>
 
-  <nav class="pp-tabs" id="ppTabs" aria-label="Tabs" hidden>
-    <a class="pp-tab" href="#home" data-nav="inicio"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9H4z"/></svg>Home</a>
-    <a class="pp-tab" href="#jobs" data-nav="jobs"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16v12H4z"/><path d="M9 8V5h6v3"/></svg>Jobs</a>
-    <a class="pp-tab" href="#calendar" data-nav="calendario"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v14H4z"/><path d="M8 3v5M16 3v5M4 11h16"/></svg>Calendar</a>
-    <a class="pp-tab" href="#measurements" data-nav="measurements" data-builder-only hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17 17 3l4 4L7 21H3z"/><path d="M7 13l2 2M10 10l2 2M13 7l2 2"/></svg>Measure</a>
-    <a class="pp-tab" href="#invoices" data-nav="invoices"><span class="pp-count" data-count="invoices" hidden></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>Invoices</a>
-    <a class="pp-tab" href="#more" data-nav="mais"><span class="pp-count" data-count="pedidos" hidden></span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>More</a>
+  <nav class="pp-tabs om-shell-tabs has-search" id="ppTabs" aria-label="Tabs" hidden>
+    <a class="pp-tab om-shell-tab" href="#home" data-nav="inicio"><span data-om-icon="home"></span><span>Home</span></a>
+    <a class="pp-tab om-shell-tab" href="#jobs" data-nav="jobs"><span data-om-icon="jobs"></span><span>Jobs</span></a>
+    <a class="pp-tab om-shell-tab" href="#calendar" data-nav="calendario"><span data-om-icon="calendar"></span><span>Calendar</span></a>
+    <a class="pp-tab om-shell-tab" href="#measurements" data-nav="measurements" data-builder-only hidden><span data-om-icon="ruler"></span><span>Measure</span></a>
+    <a class="pp-tab om-shell-tab" href="#invoices" data-nav="invoices"><span class="pp-count" data-count="invoices" hidden></span><span data-om-icon="invoice"></span><span>Invoices</span></a>
+    <a class="pp-tab om-shell-tab" href="#more" data-nav="mais"><span class="pp-count" data-count="pedidos" hidden></span><span data-om-icon="more"></span><span>More</span></a>
   </nav>
-  <button type="button" class="pp-search-fab" id="ppSearchFab" aria-label="Search" hidden>
-    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+  <button type="button" class="pp-search-fab om-shell-search" id="ppSearchFab" aria-label="Search" hidden>
+    <span data-om-icon="search"></span>
   </button>
   <div class="pp-search-sheet" id="ppSearchSheet" hidden>
     <div style="display:flex;gap:10px;align-items:center">
@@ -97,10 +103,10 @@
 
   <input type="file" id="ppFileInput" accept="image/jpeg,image/png,image/webp,application/pdf" multiple hidden />
   <input type="file" id="ppCameraInput" accept="image/*" capture="environment" hidden />
-  <script src="crm-address-autocomplete.js?v=20261104-demo4" defer></script>
-  <script src="partner-portal-takeoff.js?v=20261105-ct9" defer></script>
-  <script src="partner-portal-3d.js?v=20261105-dock1" defer></script>
-  <script src="partner-portal-showers.js?v=20261105-ct9" defer></script>
-  <script src="partner-portal.js?v=20261105-ct9" defer></script>
+  <script src="crm-address-autocomplete.js?v=20261105-u1" defer></script>
+  <!-- partner-portal-takeoff.js and partner-portal-3d.js load on demand (Measurements, plans, 3D); see loadMeasureTools(). -->
+  <script src="/om-ui.js?v=20261105-apps3" defer></script>
+  <script src="partner-portal-showers.js?v=20261105-mg2" defer></script>
+  <script src="partner-portal.js?v=20261105-mg1" defer></script>
 </body>
 </html>

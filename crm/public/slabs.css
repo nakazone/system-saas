@@ -129,3 +129,10 @@ a.sl-btn { text-decoration: none; display: inline-block; }
 .sl-tag__row img { width: 72px; height: 72px; object-fit: cover; border-radius: 10px; flex: none; }
 .sl-tag__row p { margin: 0; font-size: 0.85rem; color: var(--sl-ink); }
 .sl-form .is-ai { border-color: var(--sl-or); background: var(--sl-ors); }
+
+/* Touch screens: every control at least 44 px tall (tablet in the yard, phone in the office). */
+@media (pointer: coarse) {
+  .sl-chip, .sl-btn, .sl-seg button, .sl-job, .sl-fit input, .sl-search input, .sl-form input, .sl-form select { min-height: 44px; }
+  .sl-link { min-height: 44px; padding: 0 4px; display: inline-flex; align-items: center; }
+  .sl-fit { padding-block: 0; }
+}

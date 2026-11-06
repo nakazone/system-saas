@@ -65,6 +65,18 @@
     return who && who !== "—" ? who : wo.title || "Job";
   }
 
+  /** Field lists: client name only — no Client ID, job #, or admin title. */
+  function fieldCardTitle(wo) {
+    const J = window.JobsInfo;
+    if (J && J.fieldClient) {
+      const who = J.fieldClient(wo);
+      if (who && who !== "Sem cliente") return who;
+    }
+    const who = clientLabel(wo);
+    if (who && who !== "—") return who.replace(/\s+-\s+[A-Za-z0-9_-]{2,12}$/, "").trim() || who;
+    return "Job";
+  }
+
   function statusPt(status) {
     const map = {
       draft: "Rascunho",
@@ -198,17 +210,23 @@
 
   function applyFieldChrome() {
     document.body.classList.add("jcm-field");
-    const back = document.querySelector(".jcm-nav .jcm-icon-btn");
-    if (back) {
-      back.setAttribute("href", "/campo/hoje.html");
-      back.setAttribute("aria-label", "Voltar ao Campo");
-    }
     const roleEl = document.querySelector(".jcm-role");
     if (roleEl) roleEl.hidden = true;
+    const nav = document.querySelector(".jcm-nav");
+    if (nav) nav.hidden = true;
     const add = $("jobsMobAdd");
     if (add) add.style.display = "none";
+    const partner = document.querySelector(".jcm-partner-requests");
+    if (partner) partner.hidden = true;
+    const statusWrap = $("jxStatusWrapMob");
+    if (statusWrap) statusWrap.hidden = true;
+    const sub = $("jobsMobSub");
+    if (sub) {
+      sub.hidden = true;
+      sub.textContent = "";
+    }
     const title = document.querySelector(".jcm-title");
-    if (title) title.textContent = "Meus jobs";
+    if (title) title.textContent = "Jobs";
   }
 
   function renderOfficeCard(wo) {
@@ -221,16 +239,16 @@
         ? `<button type="button" class="jmx-b jmx-b--or" data-job-action="complete" data-id="${escapeHtml(wo.id)}">${escapeHtml(nxt ? nxt.label : "Concluir")}</button>`
         : wo.status === "scheduled" || wo.status === "draft"
           ? canManage
-            ? !wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start)
+            ? !(J && J.listAnchorIso(wo))
               ? `<button type="button" class="jmx-b jmx-b--or" data-job-action="edit" data-id="${escapeHtml(wo.id)}">Schedule Job</button>`
               : `<button type="button" class="jmx-b jmx-b--or" data-job-action="start" data-id="${escapeHtml(wo.id)}">Iniciar</button><button type="button" class="jmx-b" data-job-action="complete" data-id="${escapeHtml(wo.id)}">Já concluído</button>`
-            : wo.scheduled_start
+            : J && J.listAnchorIso(wo)
               ? `<a class="jmx-b jmx-b--or" href="campo/ticket.html?id=${encodeURIComponent(wo.id)}">Campo</a>`
               : `<a class="jmx-b" href="${detailHref}">Ver job</a>`
           : `<a class="jmx-b" href="${detailHref}">Ver job</a>`;
     const listed = J && J.listWhen ? J.listWhen(wo) : null;
-    const undated = !wo.scheduled_start && !(wo.sector === "both" && wo.sand_scheduled_start);
-    const date = listed ? listed.date : undated ? "" : fmtDay(wo.scheduled_start);
+    const undated = !(J && J.listAnchorIso(wo));
+    const date = listed ? listed.date : undated ? "" : fmtDay((J && J.listAnchorIso(wo)) || wo.scheduled_start);
     const lt = J && J.late ? J.late(wo) : null;
     const stText = lt ? lt.short : listed && listed.status ? listed.status : undated ? "Sem data" : "";
     const tone = J && J.stageTone ? J.stageTone(wo) : "wait";
@@ -255,56 +273,61 @@
     </article>`;
   }
 
+  /** Same mini calendar as desktop Jobs: qua / 5 / nov (jobs-page dayBlock). */
+  function fieldDayBlock(wo) {
+    const J = window.JobsInfo;
+    const finished = wo.status === "completed" || wo.status === "canceled";
+    const iso = (J && J.listAnchorIso(wo)) || (finished ? wo.updated_at || wo.scheduled_end : null);
+    if (!iso) return `<span class="jx-day is-none" aria-hidden="true"><small>sem</small><b>—</b><small>data</small></span>`;
+    const d = new Date(iso);
+    const wd = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"][d.getDay()];
+    const mo = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"][d.getMonth()];
+    const today = isToday(iso);
+    const tone = !finished && (today || wo.status === "in_progress") ? " is-now" : finished ? " is-done" : "";
+    return `<span class="jx-day${tone}" aria-label="${today ? "Hoje" : `${wd} ${d.getDate()} ${mo}`}"><small>${today ? "hoje" : wd}</small><b>${d.getDate()}</b><small>${mo}</small></span>`;
+  }
+
+  function fieldTimeText(wo) {
+    const J = window.JobsInfo;
+    const iso = (J && J.listAnchorIso(wo)) || wo.scheduled_start;
+    if (!iso || wo.status === "completed" || wo.status === "canceled") return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime()) || (d.getHours() === 0 && d.getMinutes() === 0)) return "";
+    return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  }
+
   function renderFieldCard(wo) {
-    const maps = wo.address
-      ? `https://maps.google.com/?q=${encodeURIComponent(wo.address)}`
-      : "";
-    const crewColor = wo.crew?.color || "#e8792c";
-    const day = fmtDay(wo.scheduled_start);
-    const today = isToday(wo.scheduled_start);
-    const detailHref = `job-detail.html?id=${encodeURIComponent(wo.id)}`;
+    const J = window.JobsInfo;
+    const maps = wo.address ? `https://maps.google.com/?q=${encodeURIComponent(wo.address)}` : "";
+    const tone = J && J.stageTone ? J.stageTone(wo) : "wait";
+    const listed = J && J.listWhen ? J.listWhen(wo) : null;
+    const stText = listed?.status || statusPt(wo.status);
+    const title = fieldCardTitle(wo);
+    const time = fieldTimeText(wo);
     const campoHref = `/campo/ticket.html?id=${encodeURIComponent(wo.id)}`;
-    const openHref = isField ? campoHref : detailHref;
-    const ctaLabel =
-      wo.status === "in_progress"
-        ? "Continuar no campo"
-        : wo.status === "completed"
-          ? "Ver detalhes"
-          : "Abrir no campo";
-    return `<article class="om-swipe jcm-job-swipe" data-job-id="${escapeHtml(wo.id)}" style="--job-accent:${escapeHtml(crewColor)}">
+    const detailHref = `job-detail.html?id=${encodeURIComponent(wo.id)}`;
+    return `<article class="om-swipe jcm-job-swipe" data-job-id="${escapeHtml(wo.id)}">
       <div class="om-swipe__actions" aria-hidden="true">
-        <a class="om-swipe__act--edit" href="${openHref}">Abrir</a>
+        <a class="om-swipe__act--edit" href="${campoHref}">Abrir</a>
         <a class="om-swipe__act--open" href="${detailHref}">Detalhe</a>
       </div>
-      <div class="om-swipe__body jcm-job jcm-job--field">
-        <a class="jcm-job__body" href="${openHref}">
-          <div class="jcm-job__top">
-            <div class="jcm-job__when">
-              <span class="jcm-job__day${today ? " is-today" : ""}">${escapeHtml(today ? "Hoje" : day || "Sem data")}</span>
-              <span class="jcm-job__time">${escapeHtml(fmtTimeRange(wo.scheduled_start, wo.scheduled_end))}</span>
-            </div>
-            <span class="ol-st is-${window.JobsInfo?.stageTone ? window.JobsInfo.stageTone(wo) : "wait"}">${escapeHtml(statusPt(wo.status))}</span>
-          </div>
-          <p class="jcm-job__title">${escapeHtml(cardTitle(wo))}</p>
-          <p class="jcm-job__client">${escapeHtml(window.JobsInfo?.findLine ? window.JobsInfo.findLine(wo) : clientLabel(wo))}</p>
-          ${
-            wo.address
-              ? `<p class="jcm-job__addr"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg><span>${escapeHtml(wo.address)}</span></p>`
-              : ""
-          }
-          <div class="jcm-job__foot">
-            <span class="jcm-job__num">#${escapeHtml(wo.number != null ? wo.number : "—")}</span>
-            <span class="jcm-job__team"><span class="jcm-job__team-dot" style="background:${escapeHtml(crewColor)}"></span>${escapeHtml(teamLabel(wo))}</span>
+      <div class="om-swipe__body crew-job">
+        <a class="crew-job__main" href="${campoHref}">
+          ${fieldDayBlock(wo)}
+          <div class="crew-job__copy">
+            <b class="crew-job__title">${escapeHtml(title)}</b>
+            ${wo.address ? `<span class="crew-job__addr">${escapeHtml(wo.address)}</span>` : `<span class="crew-job__addr">Sem endereço</span>`}
+            <span class="crew-job__meta">
+              ${stText ? `<span class="ol-st is-${tone}">${escapeHtml(stText)}</span>` : ""}
+              ${time ? `<span class="crew-job__clock">${escapeHtml(time)}</span>` : ""}
+            </span>
           </div>
         </a>
-        <div class="jcm-job__actions">
-          ${
-            maps
-              ? `<a class="jcm-job__map" href="${maps}" target="_blank" rel="noopener" aria-label="Abrir mapa"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></a>`
-              : `<span class="jcm-job__map" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></span>`
-          }
-          <a class="jcm-job__cta jcm-job__cta--start" href="${openHref}">${ctaLabel}</a>
-        </div>
+        ${
+          maps
+            ? `<a class="crew-job__map" href="${maps}" target="_blank" rel="noopener" aria-label="Abrir mapa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></a>`
+            : `<span class="crew-job__map is-off" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></span>`
+        }
       </div>
     </article>`;
   }
@@ -312,13 +335,14 @@
   function render() {
     if (!isMobile() || !$("jobsMobile")) return;
     const base = roleFiltered(allJobs);
+    // Mesmos critérios de tabFiltered(): o número da aba é o que a lista mostra (job pago não conta).
     const todayN = base.filter(
-      (wo) => isToday(window.JobsInfo?.listAnchorIso?.(wo) || wo.scheduled_start) && wo.status !== "canceled" && wo.status !== "completed",
+      (wo) => isToday(window.JobsInfo?.listAnchorIso?.(wo) || wo.scheduled_start) && wo.status !== "canceled" && wo.status !== "completed" && !isPaidJob(wo),
     ).length;
-    const activeN = base.filter((wo) => isActive(wo) && wo.status !== "canceled").length;
+    const activeN = base.filter((wo) => isActive(wo) && wo.status !== "canceled" && !isPaidJob(wo)).length;
     const doneN = base.filter((wo) => wo.status === "completed" && !isPaidJob(wo)).length;
     const activeRows = base.filter((wo) => isActive(wo) && wo.status !== "canceled");
-    const billN = base.filter(toBill).length;
+    const billN = base.filter((wo) => toBill(wo) && !isPaidJob(wo)).length;
     if (!tabChosen && tab === "today" && todayN === 0 && activeN > 0) tab = "active";
     const J = window.JobsInfo;
     const lateN = J ? base.filter((wo) => J.late(wo)).length : 0;
@@ -326,11 +350,10 @@
     const sub = $("jobsMobSub");
     if (sub) {
       if (isField) {
-        sub.textContent =
-          todayN > 0
-            ? `${todayN} hoje · ${activeN} ativo${activeN === 1 ? "" : "s"}`
-            : `${activeN} job${activeN === 1 ? "" : "s"} ativo${activeN === 1 ? "" : "s"}`;
+        sub.hidden = true;
+        sub.textContent = "";
       } else {
+        sub.hidden = false;
         sub.textContent = `${activeN} ativo${activeN === 1 ? "" : "s"} · ${money(contractTotal(activeRows))} em contratos`;
       }
     }

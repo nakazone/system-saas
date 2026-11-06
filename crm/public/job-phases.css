@@ -112,3 +112,9 @@
 .jp-sl__st--available { background: #E8F5EC; color: #2F7D4F; }
 .jp-sl__st--scrapped { background: #F1F3F5; color: #667085; }
 .jp-sl .jp-rw__add { display: inline-block; margin-top: 10px; }
+
+/* Touch screens: links are tappable areas of 44 px (48 px on the crew's ticket) */
+@media (pointer: coarse) {
+  .jp-link { min-height: 44px; display: inline-flex; align-items: center; }
+  .jp--compact .jp-link { min-height: 48px; }
+}

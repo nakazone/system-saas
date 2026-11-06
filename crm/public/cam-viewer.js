@@ -12,7 +12,10 @@
  *                 onAnnotate(photo, doc|null) => Promise<{annotations}>,
  *                 people: [{id, name}], onTakenBy(photo, userId|null) => Promise<{taken_by_id, taken_by_name}>,
  *                 stickers: [{id, name, color, archived}], onStickers(photo, ids) => Promise<{sticker_ids}>, onManageStickers(),
+ *   from,         the tapped tile (element): the photo grows out of it on open (FLIP), and the thumbnail shows at once
  * })
+ * window.CamViewer.sharePhotos([{ url, name }]) shares files through the system sheet when the browser can
+ * (navigator.canShare({ files })); resolves "shared" | "cancelled" | "unsupported" | "failed".
  * photo = { id, url, thumb_url, stage, created_at, taken_at_device, taken_at_source, author, uploaded_by_name,
  *           taken_by_id, taken_by_name, device, camera_model, caption, annotations, address, lat, lng,
  *           location_source, distance_m, far_from_job, location_available, in_portfolio,
@@ -21,9 +24,11 @@
 (function () {
   const STAGE = { before: "Antes", during: "Durante", after: "Depois" };
   const STAGES = [["before", "Antes"], ["during", "Durante"], ["after", "Depois"], ["", "Geral"]];
-  const PHASE_LABEL = { delivery: "Delivery", scan: "Scan", installation: "Installation", sand_finish: "Sand & Finish", walkthrough: "Walk Through" };
-  /** Name of a phase: the trade's own (Tile, Countertops) when the photo carries them, else Hardwood's. */
-  const phaseLabel = (p, k) => (p && p.phase_labels && p.phase_labels[k]) || (p && k === p.phase && p.phase_label) || PHASE_LABEL[k] || k;
+  /** Display names only: the keys (delivery, scan…) are what the API stores and expects. */
+  const PHASE_LABEL = { delivery: "Entrega", scan: "Medição", installation: "Instalação", sand_finish: "Lixa e acabamento", walkthrough: "Vistoria final" };
+  /** Name of a phase: the trade's own (Tile, Countertops) when the job follows them, else Hardwood's above. */
+  const phaseLabel = (p, k) =>
+    (p && p.phase_mode === "phases" && ((p.phase_labels && p.phase_labels[k]) || (k === p.phase && p.phase_label))) || PHASE_LABEL[k] || (p && p.phase_labels && p.phase_labels[k]) || k;
   const WD = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
   const MO = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
   const COLORS = [
@@ -34,6 +39,16 @@
   const TOOLS = [["freehand", "Caneta"], ["arrow", "Seta"], ["rect", "Retângulo"], ["circle", "Círculo"], ["text", "Texto"]];
   const MAX_ZOOM = 5;
   const EASE = "cubic-bezier(.2, .8, .2, 1)";
+  /** Motion tokens from om-tokens.css, read once (WAAPI cannot take var()). */
+  const tok = (name, fb) => {
+    try {
+      return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fb;
+    } catch (_) {
+      return fb;
+    }
+  };
+  const EASE_OUT = () => tok("--om-ease-out", "cubic-bezier(0.23, 1, 0.32, 1)");
+  const EASE_DRAWER = () => tok("--om-ease-drawer", "cubic-bezier(0.32, 0.72, 0, 1)");
   const I = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
   const ICON = {
     x: I('<path d="M6 6l12 12M18 6L6 18"/>'),
@@ -58,7 +73,76 @@
     note: I('<path d="M5 4h14v12l-4 4H5z"/><path d="M15 20v-4h4"/>'),
     tag: I('<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/>'),
     info: I('<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5v.5"/>'),
+    share: I('<path d="M12 15V4M8 8l4-4 4 4"/><path d="M5 12v7a1 1 0 001 1h12a1 1 0 001-1v-7"/>'),
   };
+
+  // ------------------------------------------------------------------ share (system sheet)
+  let shareProbe = null;
+  /** True when this browser can hand image files to the system share sheet (iOS, Android, some desktops). */
+  function canShareFiles() {
+    if (shareProbe != null) return shareProbe;
+    try {
+      shareProbe = !!(navigator.share && navigator.canShare && navigator.canShare({ files: [new File([new Blob([""], { type: "image/jpeg" })], "x.jpg", { type: "image/jpeg" })] }));
+    } catch (_) {
+      shareProbe = false;
+    }
+    return shareProbe;
+  }
+  /** The photo as a JPEG file (converted through a canvas when the stored file is another format). */
+  async function photoFile(src, name) {
+    let blob;
+    if (src instanceof Blob) blob = src;
+    else {
+      const r = await fetch(src, { mode: "cors", credentials: "omit" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      blob = await r.blob();
+    }
+    if (!/jpe?g/i.test(blob.type || "")) {
+      const bmp = await createImageBitmap(blob);
+      const c = document.createElement("canvas");
+      c.width = bmp.width;
+      c.height = bmp.height;
+      c.getContext("2d").drawImage(bmp, 0, 0);
+      blob = await new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error("jpeg"))), "image/jpeg", 0.9));
+    }
+    return new File([blob], /\.jpe?g$/i.test(name) ? name : `${name}.jpg`, { type: "image/jpeg" });
+  }
+  /**
+   * Share photos as files. Fetching them can outlast the tap's permission to open the sheet (Safari), so when the
+   * browser refuses for that reason a toast offers "Compartilhar" again, with the files already in hand.
+   */
+  async function sharePhotos(items) {
+    if (!canShareFiles() || !items || !items.length) return "unsupported";
+    let files;
+    try {
+      files = await Promise.all(items.map((x) => photoFile(x.blob || x.url, x.name)));
+    } catch (_) {
+      return "failed";
+    }
+    const data = { files, title: files.length === 1 ? "Foto do ObraCam" : `${files.length} fotos do ObraCam` };
+    if (navigator.canShare && !navigator.canShare(data)) return "unsupported";
+    try {
+      await navigator.share(data);
+      return "shared";
+    } catch (err) {
+      if (err && err.name === "AbortError") return "cancelled";
+      if (err && err.name === "NotAllowedError" && window.crmToast && window.crmToast.show) {
+        window.crmToast.show(files.length === 1 ? "Foto pronta para compartilhar" : `${files.length} fotos prontas para compartilhar`, {
+          type: "info",
+          action: { label: "Compartilhar", onClick: () => navigator.share(data).catch(() => {}) },
+        });
+        return "shared";
+      }
+      return "failed";
+    }
+  }
+  /** Files are named by job and day: obracam-job-1234-2026-11-05.jpg (a counter when there are several). */
+  function photoName(p, n) {
+    const d = new Date(p.taken_at_device || p.created_at || Date.now());
+    const day = Number.isNaN(d.getTime()) ? "" : `-${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const job = (p.job && p.job.number) != null ? `-job-${p.job.number}` : p.job_number != null ? `-job-${p.job_number}` : "";
+    return `obracam${job}${day}${n ? `-${n}` : ""}.jpg`;
+  }
 
   let st = null;
   let root = null;
@@ -141,15 +225,24 @@
       stage: root.querySelector(".cv-stage"),
       box: root.querySelector(".cv-box"),
       pan: root.querySelector(".cv-pan"),
-      img: root.querySelector(".cv-img"),
+      img: root.querySelector(".cv-img--full"),
+      thumb: root.querySelector(".cv-img--thumb"),
     };
+  }
+  /** The image that gives the photo its size: the full one once it has loaded, the thumbnail before that. */
+  function sizedImg() {
+    const { img, thumb } = els();
+    if (img && img.naturalWidth && img.classList.contains("is-in")) return img;
+    if (thumb && thumb.naturalWidth) return thumb;
+    return img && img.naturalWidth ? img : null;
   }
 
   /** Fit the photo inside the box (never cropped, never upscaled past 2x), then centre it. */
   function layout() {
     if (!st) return;
-    const { box, pan, img } = els();
-    if (!box || !pan || !img || !img.naturalWidth) return;
+    const { box, pan } = els();
+    const img = sizedImg();
+    if (!box || !pan || !img) return;
     const bw = box.clientWidth, bh = box.clientHeight;
     const nw = img.naturalWidth, nh = img.naturalHeight;
     const fit = Math.min(bw / nw, bh / nh, 2);
@@ -241,10 +334,12 @@
     const strip =
       n > 1 && !editing
         ? `<div class="cv-strip" role="group" aria-label="Fotos">${st.photos
-            .map((q, i) => `<button type="button" class="${i === st.index ? "is-on" : ""}" data-cv-i="${i}" aria-label="Foto ${i + 1}" aria-current="${i === st.index}" style="background-image:url('${esc(q.thumb_url || q.url)}')"></button>`)
+            .map((q, i) => `<button type="button" class="${i === st.index ? "is-on" : ""}" data-cv-i="${i}" aria-label="Foto ${i + 1}" aria-current="${i === st.index}"><img src="${esc(q.thumb_url || q.url)}" alt="" loading="lazy" decoding="async" draggable="false" /></button>`)
             .join("")}</div>`
         : "";
     const hasInk = shapesOf(p).length > 0;
+    // The tile's thumbnail is already in the cache: it fills the screen at once, the full photo fades in over it.
+    const thumb = p.thumb_url && p.thumb_url !== p.url ? p.thumb_url : "";
     root.querySelector(".cv-stage").innerHTML = `
       <div class="cv-top">
         <button type="button" class="cv-round" data-cv="close" aria-label="Fechar">${ICON.x}</button>
@@ -254,6 +349,7 @@
           ${hasInk && !editing ? `<button type="button" class="cv-round${st.showInk ? " is-on" : ""}" data-cv="ink" aria-pressed="${st.showInk}" aria-label="${st.showInk ? "Esconder marcações" : "Mostrar marcações"}">${st.showInk ? ICON.eye : ICON.eyeOff}</button>` : ""}
           <span class="cv-phone-acts">
             ${editing ? "" : `<button type="button" class="cv-round${st.sheet ? " is-on" : ""}" data-cv="info" aria-pressed="${!!st.sheet}" aria-label="${st.sheet ? "Esconder dados da foto" : "Ver dados da foto"}">${ICON.info}</button>`}
+            ${canShareFiles() && !editing ? `<button type="button" class="cv-round" data-cv="share" aria-label="Compartilhar foto">${ICON.share}</button>` : ""}
             ${st.canPortfolio && p.id && !editing ? `<button type="button" class="cv-round${p.in_portfolio ? " is-on" : ""}" data-cv="port" aria-label="${p.in_portfolio ? "Tirar do portfólio" : "Pôr no portfólio"}">${ICON.star}</button>` : ""}
             ${st.canDelete && p.id && !editing ? `<button type="button" class="cv-round cv-round--danger" data-cv="del" aria-label="Apagar foto">${ICON.trash}</button>` : ""}
           </span>
@@ -261,25 +357,57 @@
       </div>
       <div class="cv-box${editing ? " is-editing" : ""}">
         <div class="cv-pan">
-          <img class="cv-img" src="${esc(p.url)}" alt="${esc(p.caption || `Foto ${stage}`)}" draggable="false" />
+          ${thumb ? `<img class="cv-img cv-img--thumb" src="${esc(thumb)}" alt="" aria-hidden="true" draggable="false" />` : ""}
+          <img class="cv-img cv-img--full${thumb ? "" : " is-in"}" src="${esc(p.url)}" alt="${esc(p.caption || `Foto ${PHASE_LABEL[p.phase] || stage}`)}" draggable="false" decoding="async" />
           <div class="cv-inkwrap"></div>
         </div>
         <div class="cv-load" aria-hidden="true"></div>
       </div>
       ${n > 1 && !editing ? `<button type="button" class="cv-nav cv-nav--prev" data-cv="prev" aria-label="Foto anterior">${ICON.prev}</button><button type="button" class="cv-nav cv-nav--next" data-cv="next" aria-label="Próxima foto">${ICON.next}</button>` : ""}
       ${editing ? toolbarHtml() : strip}`;
-    const img = root.querySelector(".cv-img");
-    const done = () => {
+    const { img, thumb: thumbEl } = els();
+    const shownAt = st.index;
+    const ready = () => {
+      if (!st || st.index !== shownAt) return;
       root.querySelector(".cv-load")?.remove();
-      layout();
+      if (!st.v || (st.z <= 1.01 && !g)) layout();
+      if (st.onLaid) {
+        const f = st.onLaid;
+        st.onLaid = null;
+        f();
+      }
     };
-    if (img.complete && img.naturalWidth) done();
+    const fullIn = () => {
+      if (!st || st.index !== shownAt) return;
+      img.classList.add("is-in");
+      ready();
+      preloadAround();
+    };
+    if (thumbEl) {
+      if (thumbEl.complete && thumbEl.naturalWidth) ready();
+      else thumbEl.addEventListener("load", ready, { once: true });
+    }
+    if (img.complete && img.naturalWidth) fullIn();
     else {
-      img.addEventListener("load", done, { once: true });
-      img.addEventListener("error", () => root.querySelector(".cv-load")?.classList.add("is-err"), { once: true });
+      img.addEventListener("load", fullIn, { once: true });
+      img.addEventListener("error", () => !thumbEl && root.querySelector(".cv-load")?.classList.add("is-err"), { once: true });
     }
     const on = root.querySelector(".cv-strip .is-on");
     if (on) on.scrollIntoView({ block: "nearest", inline: "center" });
+  }
+
+  /** Warm the next and previous full photos, so a swipe lands on a sharp one. */
+  function preloadAround() {
+    if (!st || st.photos.length < 2) return;
+    const n = st.photos.length;
+    st.pre = [st.photos[(st.index + 1) % n], st.photos[(st.index - 1 + n) % n]]
+      .filter((q) => q && q.url)
+      .map((q) => {
+        const im = new Image();
+        im.decoding = "async";
+        im.src = q.url;
+        return im;
+      });
   }
 
   function paintInk() {
@@ -378,6 +506,7 @@
         ${job.id ? `<a class="cv-btn cv-btn--pri" href="job-detail.html?id=${encodeURIComponent(job.id)}#fotos">Abrir job</a>` : ""}
         <div class="cv-row">
           ${st.canPortfolio && p.id ? `<button type="button" class="cv-btn cv-desk" data-cv="port" aria-pressed="${!!p.in_portfolio}">${ICON.star}${p.in_portfolio ? "No portfólio" : "Portfólio"}</button>` : ""}
+          ${canShareFiles() ? `<button type="button" class="cv-btn cv-desk" data-cv="share">${ICON.share}Compartilhar</button>` : ""}
           <button type="button" class="cv-btn" data-cv="download"${shapes.length ? ' title="Baixa a foto com as marcações" aria-label="Baixar com marcações"' : ""}>${ICON.dl}Baixar</button>
         </div>
         ${st.canDelete && p.id ? `<button type="button" class="cv-btn cv-btn--danger cv-desk" data-cv="del">${ICON.trash}Apagar foto</button>` : ""}
@@ -394,7 +523,7 @@
   }
 
   function focusHtml(p, canEdit) {
-    const title = st.focus === "note" ? "Nota" : "Stickers";
+    const title = st.focus === "note" ? "Nota" : "Etiquetas";
     const body =
       st.focus === "note"
         ? `<section class="cv-note"><textarea id="cvNote" rows="4" maxlength="500" data-crm-rich="off" data-for="${esc(p.id)}" aria-label="Nota da foto" placeholder="Ex.: rodapé solto perto da porta da cozinha">${esc(p.caption || "")}</textarea><span class="cv-note__st" role="status" aria-live="polite"></span></section>`
@@ -427,11 +556,11 @@
     return `<div class="cv-quick" role="group" aria-label="Editar foto">
       ${st.onAnnotate ? `<button type="button" data-cv="edit">${ICON.pen}<span>Marcar${shapes.length ? ` <em>${shapes.length}</em>` : ""}</span></button>` : ""}
       ${st.onNote ? `<button type="button" data-cv="q-note">${ICON.note}<span>Nota${p.caption ? " <em>•</em>" : ""}</span></button>` : ""}
-      ${st.onStickers ? `<button type="button" data-cv="q-stk">${ICON.tag}<span>Stickers${n ? ` <em>${n}</em>` : ""}</span></button>` : ""}
+      ${st.onStickers ? `<button type="button" data-cv="q-stk">${ICON.tag}<span>Etiquetas${n ? ` <em>${n}</em>` : ""}</span></button>` : ""}
     </div>`;
   }
 
-  /** Stickers (photo labels): toggle chips for people who edit, plain badges for everyone else. */
+  /** Etiquetas (stickers in the code and the API): toggle chips for people who edit, plain badges for everyone else. */
   function stickersHtml(p, canEdit) {
     const all = (st.stickers || []).filter((x) => !x.archived || (p.sticker_ids || []).includes(x.id));
     const on = new Set(p.sticker_ids || []);
@@ -442,8 +571,8 @@
       : all.filter((x) => on.has(x.id)).map((x) => `<span class="cv-stk is-on" style="--stk:${esc(x.color)}"><i aria-hidden="true"></i>${esc(x.name)}</span>`).join("");
     if (!editable && !chips) return "";
     return `<section class="cv-stks" id="cvStickers">
-      <div class="cv-stks__h"><span>${ICON.tag}Stickers</span>${editable && st.onManageStickers ? `<button type="button" class="cv-link" data-cv="stk-manage">Gerenciar</button>` : ""}</div>
-      <div class="cv-stks__list" data-no-i18n>${chips || '<span class="cv-mu">Nenhum sticker criado.</span>'}</div>
+      <div class="cv-stks__h"><span>${ICON.tag}Etiquetas</span>${editable && st.onManageStickers ? `<button type="button" class="cv-link" data-cv="stk-manage">Gerenciar</button>` : ""}</div>
+      <div class="cv-stks__list" data-no-i18n>${chips || '<span class="cv-mu">Nenhuma etiqueta criada.</span>'}</div>
     </section>`;
   }
 
@@ -455,6 +584,13 @@
   function onDown(e) {
     if (!st || e.button > 0) return;
     if (!e.target.closest(".cv-box")) return;
+    // a finger on the photo while it is still flying in: land it now, then the gesture starts from rest
+    if (st.openAnim) {
+      try {
+        st.openAnim.finish();
+      } catch (_) {}
+      st.openAnim = null;
+    }
     if (e.target.closest("input")) return;
     const box = els().box;
     box.setPointerCapture?.(e.pointerId);
@@ -587,7 +723,7 @@
     }
     if (kind === "dismiss") {
       if (dy > 120 || vy > 0.6) {
-        close();
+        close(false, { swipe: { vy } });
         return;
       }
       st.ty = 0;
@@ -800,35 +936,58 @@
     }
   }
 
+  /** The photo as it is seen: the original, or with the markup drawn on top at full resolution (a canvas). */
+  async function markedCanvas(p) {
+    const shapes = shapesOf(p);
+    const img = await loadImg(p.url);
+    const w = img.naturalWidth, h = img.naturalHeight;
+    const svg = inkSvg(shapes, w, h).replace('class="cv-ink"', `width="${w}" height="${h}"`);
+    const ink = await loadImg(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext("2d");
+    ctx.drawImage(img, 0, 0, w, h);
+    ctx.drawImage(ink, 0, 0, w, h);
+    return c;
+  }
+
   /** "Baixar marcada": the original photo with the markup drawn on top, at full resolution. */
   async function download() {
     const p = cur();
     const shapes = shapesOf(p);
-    const name = `obracam-${(p.job && p.job.number) || "foto"}-${p.id ? String(p.id).slice(0, 8) : Date.now()}`;
-    const save = (href, ext) => {
+    const name = photoName(p);
+    const save = (href) => {
       const a = document.createElement("a");
       a.href = href;
-      a.download = `${name}.${ext}`;
+      a.download = name;
       document.body.appendChild(a);
       a.click();
       a.remove();
     };
-    if (!shapes.length) return save(p.url, "jpg");
+    if (!shapes.length) return save(p.url);
     try {
-      const img = await loadImg(p.url);
-      const w = img.naturalWidth, h = img.naturalHeight;
-      const svg = inkSvg(shapes, w, h).replace('class="cv-ink"', `width="${w}" height="${h}"`);
-      const ink = await loadImg(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
-      const c = document.createElement("canvas");
-      c.width = w;
-      c.height = h;
-      const ctx = c.getContext("2d");
-      ctx.drawImage(img, 0, 0, w, h);
-      ctx.drawImage(ink, 0, 0, w, h);
-      save(c.toDataURL("image/jpeg", 0.9), "jpg");
+      save((await markedCanvas(p)).toDataURL("image/jpeg", 0.9));
     } catch (_) {
       window.crmToast?.error?.("Não deu para gerar a versão marcada; baixando a original.");
-      save(p.url, "jpg");
+      save(p.url);
+    }
+  }
+
+  /** "Compartilhar": the system share sheet (WhatsApp, Mensagens, Salvar imagem…); falls back to the download. */
+  async function share() {
+    const p = cur();
+    let blob = null;
+    if (shapesOf(p).length) {
+      try {
+        const c = await markedCanvas(p);
+        blob = await new Promise((res) => c.toBlob(res, "image/jpeg", 0.9));
+      } catch (_) {}
+    }
+    const r = await sharePhotos([{ url: p.url, blob, name: photoName(p) }]);
+    if (r === "unsupported" || r === "failed") {
+      if (r === "failed") window.crmToast?.info?.("Não deu para compartilhar; a foto vai ser baixada.");
+      download();
     }
   }
   function loadImg(src) {
@@ -895,7 +1054,7 @@
         if (res && Array.isArray(res.sticker_ids)) p.sticker_ids = res.sticker_ids;
       } catch (err) {
         p.sticker_ids = prev;
-        window.crmToast?.error?.(err.message || "Não foi possível mudar os stickers");
+        window.crmToast?.error?.(err.message || "Não foi possível mudar as etiquetas");
       }
       if (st) renderSide();
       root.querySelector(`[data-cv-stk="${CSS.escape(id)}"]`)?.focus();
@@ -988,6 +1147,7 @@
       paintInk();
       refreshTools();
     } else if (a === "download") download();
+    else if (a === "share") share();
     else if (a === "port" && st.onPortfolio) {
       try {
         const res = await st.onPortfolio(p, !p.in_portfolio);
@@ -1038,6 +1198,8 @@
 
   function onKey(e) {
     if (!st || root.hidden) return;
+    // a sheet over the viewer (etiquetas) already took this Escape
+    if (e.defaultPrevented) return;
     const typing = e.target.closest && e.target.closest("textarea, input, select");
     if (e.key === "Escape") {
       if (st.focus) return closeFocus();
@@ -1096,7 +1258,7 @@
     root.setAttribute("role", "dialog");
     root.setAttribute("aria-modal", "true");
     root.setAttribute("aria-labelledby", "cvTitle");
-    root.innerHTML = `<div class="cv-stage"></div><aside class="cv-side" aria-label="Dados da foto"></aside>`;
+    root.innerHTML = `<div class="cv-bg" aria-hidden="true"></div><div class="cv-stage"></div><aside class="cv-side" aria-label="Dados da foto"></aside>`;
     document.body.appendChild(root);
     root.addEventListener("click", onClick);
     root.addEventListener("pointerdown", onDown);
@@ -1224,25 +1386,139 @@
       v: null,
     };
     ensure();
+    // reopening while the last close is still fading: drop that fade and its "hide at the end"
+    closeTok += 1;
+    try {
+      root.getAnimations({ subtree: true }).forEach((x) => x.cancel());
+    } catch (_) {}
+    root.classList.remove("is-closing");
     root.style.removeProperty("--cv-fade");
     root.classList.toggle("is-peek", true);
     root.classList.remove("is-focus");
     root.hidden = false;
     document.body.classList.add("cv-open");
+    const from = opts.from && opts.from.getBoundingClientRect ? opts.from.getBoundingClientRect() : null;
+    const openedAt = performance.now();
+    // The photo grows out of the tile once its size is known (the thumbnail is usually cached, so that is now).
+    st.onLaid = () => enter(from && from.width ? from : null, performance.now() - openedAt < 250);
     render();
     root.querySelector('[data-cv="close"]')?.focus({ preventScroll: true });
+    // One history entry per open viewer, so Android back and the edge swipe close the photo instead of leaving the app.
+    if (!historyPushed) {
+      try {
+        history.pushState({ ...(history.state || {}), cvOpen: true }, "");
+        historyPushed = true;
+      } catch (_) {}
+    }
   }
-  function close() {
+
+  /**
+   * Open choreography. Lead: the photo travels from the tapped tile to its place (translate + scale, clipped to the
+   * tile's square at the start), 280ms on the drawer curve. Together with it: the backdrop and the chrome around the
+   * photo fade in, 200ms. Reduced motion: everything just fades, 150ms.
+   */
+  function enter(rect, inTime) {
+    if (!st || !root) return;
+    const { pan } = els();
+    const bg = root.querySelector(".cv-bg");
+    root.classList.add("is-opening");
+    clearTimeout(enter.t);
+    enter.t = setTimeout(() => root && root.classList.remove("is-opening"), 320);
+    try {
+      if (reduced()) {
+        root.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 150, easing: "ease-out" });
+        return;
+      }
+      bg?.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: EASE_OUT() });
+      if (!rect || !inTime || !pan || !st.v) {
+        pan?.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: EASE_OUT() });
+        return;
+      }
+      const v = st.v;
+      const br = els().box.getBoundingClientRect();
+      const px = br.left + v.ox, py = br.top + v.oy;
+      const sc = Math.max(rect.width / v.w, rect.height / v.h);
+      const tx = rect.left + rect.width / 2 - px - (sc * v.w) / 2;
+      const ty = rect.top + rect.height / 2 - py - (sc * v.h) / 2;
+      const ix = Math.max(0, (v.w - rect.width / sc) / 2);
+      const iy = Math.max(0, (v.h - rect.height / sc) / 2);
+      const endR = phone() ? 0 : 6;
+      st.openAnim = pan.animate(
+        [
+          { transform: `translate3d(${tx}px, ${ty}px, 0) scale(${sc})`, clipPath: `inset(${iy}px ${ix}px round ${12 / sc}px)` },
+          { transform: "translate3d(0px, 0px, 0) scale(1)", clipPath: `inset(0px 0px round ${endR}px)` },
+        ],
+        { duration: 280, easing: EASE_DRAWER() },
+      );
+      st.openAnim.onfinish = () => {
+        if (st) st.openAnim = null;
+      };
+    } catch (_) {}
+  }
+
+  let historyPushed = false;
+  let closeTok = 0;
+  window.addEventListener("popstate", (e) => {
+    if (!historyPushed) return;
+    // back from a sheet opened over the viewer lands on the viewer's own entry: the photo stays open
+    if (e.state && e.state.cvOpen) return;
+    historyPushed = false;
+    if (st) close(true);
+  });
+  /**
+   * Close. X, Esc and back: the viewer fades out, 160ms. Swipe-down: the photo keeps going the way the finger threw
+   * it while everything fades, 200ms ease-out, and only then the viewer hides (no vanishing mid-gesture).
+   */
+  function close(fromHistory, how) {
     if (!root || !st) return;
+    if (historyPushed && fromHistory !== true) {
+      historyPushed = false;
+      try {
+        history.back();
+      } catch (_) {}
+    }
     flushNote();
-    root.hidden = true;
-    root.style.removeProperty("--cv-fade");
+    const tok = ++closeTok;
+    const swipe = how && how.swipe;
+    const { pan } = els();
+    if (st.openAnim) {
+      try {
+        st.openAnim.cancel();
+      } catch (_) {}
+    }
+    const done = () => {
+      if (tok !== closeTok || !root) return;
+      root.hidden = true;
+      root.classList.remove("is-closing", "is-opening");
+      root.style.removeProperty("--cv-fade");
+      try {
+        root.getAnimations({ subtree: true }).forEach((x) => x.cancel());
+      } catch (_) {}
+    };
+    root.classList.add("is-closing");
+    let anim = null;
+    try {
+      if (swipe && pan && st.v && !reduced()) {
+        const extra = Math.max(st.v.bh * 0.45, (swipe.vy || 0) * 200);
+        pan.animate([{ transform: pan.style.transform || "none" }, { transform: `translate3d(${st.tx}px, ${st.ty + extra}px, 0) scale(${st.z})` }], { duration: 200, easing: EASE_OUT(), fill: "forwards" });
+        anim = root.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, easing: EASE_OUT(), fill: "forwards" });
+      } else {
+        anim = root.animate([{ opacity: 1 }, { opacity: 0 }], { duration: reduced() ? 150 : 160, easing: "ease-out", fill: "forwards" });
+      }
+    } catch (_) {
+      anim = null;
+    }
     document.body.classList.remove("cv-open");
     st = null;
     g = null;
     ptrs.clear();
     if (opener && document.contains(opener)) opener.focus({ preventScroll: true });
     opener = null;
+    // hide when the fade ends; the timer covers a tab whose animations are paused (background, throttled frames)
+    if (anim && anim.finished) {
+      anim.finished.then(done, done);
+      setTimeout(done, 260);
+    } else done();
   }
   function setPeople(list) {
     if (!st) return;
@@ -1287,5 +1563,5 @@
     };
   }
 
-  window.CamViewer = { open, close, setPeople, setStickers, jobEditing, inkSvg };
+  window.CamViewer = { open, close, setPeople, setStickers, jobEditing, inkSvg, sharePhotos, canShareFiles, photoName };
 })();

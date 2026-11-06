@@ -68,6 +68,7 @@
     pendSel: new Set(),
     emps: null,
     empSearch: "",
+    empInactiveOpen: false,
     q: "",
     quick: { empId: "", dates: new Set(), days: 1, ot: 0, reimb: "", disc: "", open: false, touched: false },
     quickSheet: false,
@@ -2255,15 +2256,17 @@
     const inactiveBlock =
       inactive.length === 0
         ? ""
-        : `<div class="fo-emps-block">
-        <div class="fo-emps-block__hd"><h2>Inativos</h2><span>${inactiveList.length}</span></div>
+        : `<details class="fo-emps-block fo-emps-block--fold" id="foEmpInactive"${st.empInactiveOpen ? " open" : ""}>
+        <summary class="fo-emps-block__hd fo-emps-block__sum"><h2>Inativos</h2><span>${inactiveList.length}</span></summary>
+        <div class="fo-emps-block__bd">
         ${
           inactiveList.length
             ? table(inactiveList)
             : `<div class="fo-empty" style="padding:14px">${q ? "Nenhum resultado nesta busca." : "Nenhum funcionário inativo."}</div>`
         }
-        <p class="fo-muted" style="font-size:12px;font-weight:600;margin:8px 2px 0">Inativos somem da semana, mas o login ligado a eles continua ocupado até você desvincular.</p>
-      </div>`;
+        <p class="fo-muted" style="font-size:12px;font-weight:600;margin:8px 14px 12px">Inativos somem da semana, mas o login ligado a eles continua ocupado até você desvincular.</p>
+        </div>
+      </details>`;
     const nInst = active.filter((e) => (e.sector || "installation") === "installation").length;
     const nLixa = active.filter((e) => e.sector === "sand_finish").length;
     $("foFuncionarios").innerHTML = `<div class="fo-tool">
@@ -2772,6 +2775,9 @@
     readHash();
     document.addEventListener("click", onClick);
     document.addEventListener("change", onChange);
+    document.addEventListener("toggle", (e) => {
+      if (e.target && e.target.id === "foEmpInactive") st.empInactiveOpen = e.target.open;
+    }, true);
     document.addEventListener("input", (e) => {
       const t = e.target;
       if (!t) return;

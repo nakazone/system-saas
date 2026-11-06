@@ -35,7 +35,7 @@
     '72″ above the drain (minimum tiled height)': '72″ acima do ralo (altura mínima revestida)', at: 'a',
     'drag to turn': 'arraste para girar', Close: 'Fechar', 'Loading 3D…': 'Carregando 3D…', 'Could not load the 3D viewer.': 'Não deu para abrir o 3D.',
     'Shower seen from above': 'Box visto de cima', 'Shower in 3D': 'Box em 3D', 'One less niche': 'Um nicho a menos', 'One more niche': 'Mais um nicho',
-    'Tile long side': 'Lado maior da peça', Pattern: 'Paginação', 'this shower?': 'este box?',
+    'Tile long side': 'Lado maior da peça', Pattern: 'Paginação', 'this shower?': 'este box?', 'Tap again to remove': 'Toque de novo para remover',
     SF: 'pé²', LF: 'pé lin.',
   };
   const ES = {
@@ -61,7 +61,7 @@
     '72″ above the drain (minimum tiled height)': '72″ sobre el desagüe (altura mínima enchapada)', at: 'a',
     'drag to turn': 'arrastre para girar', Close: 'Cerrar', 'Loading 3D…': 'Cargando 3D…', 'Could not load the 3D viewer.': 'No se pudo abrir el 3D.',
     'Shower seen from above': 'Ducha vista desde arriba', 'Shower in 3D': 'Ducha en 3D', 'One less niche': 'Un nicho menos', 'One more niche': 'Un nicho más',
-    'Tile long side': 'Lado largo de la pieza', Pattern: 'Patrón', 'this shower?': 'esta ducha?',
+    'Tile long side': 'Lado largo de la pieza', Pattern: 'Patrón', 'this shower?': 'esta ducha?', 'Tap again to remove': 'Toque otra vez para quitar',
     SF: 'pie²', LF: 'pie lin.',
   };
   const DICT = { pt: PT, es: ES };
@@ -89,7 +89,7 @@
     const l = document.createElement('link');
     l.id = CSS_ID;
     l.rel = 'stylesheet';
-    l.href = 'partner-portal-showers.css?v=20261105-ct9';
+    l.href = 'partner-portal-showers.css?v=20261105-mg3';
     document.head.appendChild(l);
   }
 
@@ -330,7 +330,14 @@
       }
       if (b.hasAttribute('data-sh-del')) {
         const s = normalize(cur());
-        if (!window.confirm(`${T('Remove')} ${s.name || T('this shower?').replace('?', '')}?`)) return;
+        // Two taps instead of a browser dialog: the first one arms the button for 4 s.
+        if (b.dataset.armed !== '1') {
+          b.dataset.armed = '1';
+          b.textContent = T('Tap again to remove');
+          b.setAttribute('aria-live', 'polite');
+          setTimeout(() => { if (b.isConnected) { b.dataset.armed = ''; b.textContent = T('Remove'); } }, 4000);
+          return;
+        }
         m.data.showers.splice(m.showerIdx, 1);
         m.showerIdx = Math.max(0, m.showerIdx - 1);
         ctx.save();

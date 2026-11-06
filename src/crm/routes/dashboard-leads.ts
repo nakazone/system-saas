@@ -295,19 +295,30 @@ dashboardLeadsRouter.get("/api/leads/quote-engagement-summary", requireCrmPermis
       const quotes = await tx.quote.findMany({
         where: { leadId: { not: null }, status: { not: "archived" } },
         orderBy: { createdAt: "desc" },
+        // The full payload JSON (line items, rooms…) is heavy; only two keys of it are needed, and
+        // only for the newest quote of each lead, so they are read separately below.
         select: {
+          id: true,
           leadId: true,
           quoteNumber: true,
           total: true,
           status: true,
           viewedAt: true,
           signedAt: true,
-          payload: true,
           createdAt: true,
           changeRequestNote: true,
         },
         take: 5000,
       });
+      const newest = new Map<string, string>();
+      for (const q of quotes) if (!newest.has(q.leadId as string)) newest.set(q.leadId as string, q.id);
+      const ids = [...newest.values()];
+      const sentRows = ids.length
+        ? await tx.$queryRaw<{ id: string; sent_at: string | null }[]>`
+            SELECT "id", COALESCE(NULLIF("payload"->>'email_sent_at', ''), NULLIF("payload"->>'sent_at', '')) AS sent_at
+            FROM "Quote" WHERE "id" = ANY(${ids}::uuid[])`
+        : [];
+      const sentById = new Map(sentRows.map((r) => [r.id, r.sent_at]));
       const out: Record<string, Record<string, unknown>> = {};
       for (const q of quotes) {
         const id = q.leadId as string;
@@ -315,8 +326,7 @@ dashboardLeadsRouter.get("/api/leads/quote-engagement-summary", requireCrmPermis
           out[id].quote_count = Number(out[id].quote_count) + 1;
           continue;
         }
-        const p = q.payload && typeof q.payload === "object" && !Array.isArray(q.payload) ? (q.payload as Record<string, unknown>) : {};
-        const sentAt = p.email_sent_at || p.sent_at || null;
+        const sentAt = sentById.get(q.id) || null;
         out[id] = {
           quote_count: 1,
           quote_number: q.quoteNumber,

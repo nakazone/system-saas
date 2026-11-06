@@ -19,11 +19,57 @@ import {
   assertMyJob,
   canUseCampo,
 } from "../lib/campo-shared.js";
+import { fieldJobDateWindowWhere, fieldPayrollSector, myFieldJobsWhere } from "../lib/field-sector.js";
 import { prisma } from "../../lib/prisma.js";
 import { recordActivity } from "../../lib/activity/record.js";
 import { jobBilling, jobBillingLabel } from "../../lib/invoices/job.js";
 
 export const jobFieldExtrasRouter = Router();
+
+const FIELD_ROLES = new Set(["installer", "crew_lead", "subcontractor"]);
+
+function isFieldRole(user: AuthedRequest["user"]) {
+  return FIELD_ROLES.has(String(user?.roleKey || "").toLowerCase());
+}
+
+/**
+ * ObraCrew ObraCam: only jobs that land on the worker's calendar
+ * (Folha sector / assigned + a scheduled day in a near window).
+ */
+async function fieldBoardScope(
+  tx: Parameters<Parameters<typeof withTenantTransaction>[1]>[0],
+  req: AuthedRequest,
+) {
+  if (!isFieldRole(req.user) || !req.user?.id) return {};
+  const sector = await fieldPayrollSector(tx, req.user.id, req.organizationId!);
+  const from = new Date();
+  from.setHours(0, 0, 0, 0);
+  from.setDate(from.getDate() - 45);
+  const to = new Date();
+  to.setHours(23, 59, 59, 999);
+  to.setDate(to.getDate() + 90);
+  return {
+    AND: [myFieldJobsWhere(req.user.id, sector), fieldJobDateWindowWhere(from, to, sector)],
+  };
+}
+
+/**
+ * Office with manage: any job. Field / view-only: must be on the job (same as Campo ticket).
+ */
+async function assertJobMediaAccess(
+  tx: Parameters<Parameters<typeof withTenantTransaction>[1]>[0],
+  req: AuthedRequest,
+  jobId: string,
+) {
+  const manage =
+    req.user?.roleKey === "admin" || (req.user?.permissions || []).includes("work_orders.manage");
+  if (manage && !isFieldRole(req.user)) {
+    const wo = await tx.workOrder.findFirst({ where: { id: jobId, status: { not: "canceled" } }, select: { id: true } });
+    if (!wo) throw Object.assign(new Error("Obra não encontrada"), { status: 404 });
+    return wo;
+  }
+  return assertMyJob(tx, req.user!.id, jobId);
+}
 
 function parseDataUrl(dataUrl: string): { contentType: string; body: Buffer } | null {
   const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
@@ -85,8 +131,9 @@ jobFieldExtrasRouter.get(
         const pack = await orgPack(tx, req.organizationId!);
         catalog = phaseCatalog(pack);
         catalogMode = pack.phaseStorage === "table" ? "phases" : "dates";
+        const scope = await fieldBoardScope(tx, req);
         const rows = await tx.workOrder.findMany({
-          where: { status: { in: ["draft", "scheduled", "in_progress", "completed"] } },
+          where: { status: { in: ["draft", "scheduled", "in_progress", "completed"] }, ...scope },
           select: {
             id: true,
             number: true,
@@ -107,6 +154,7 @@ jobFieldExtrasRouter.get(
             geoLng: true,
             sourceName: true,
             clientRef: true,
+            homeownerName: true,
             customer: { select: { name: true, company: true, nickname: true, clientCode: true } },
             builder: { select: { company: true, firstName: true, lastName: true, nickname: true } },
             lineItems: { select: { lineTotal: true, pricingItem: { select: { category: true } } } },
@@ -204,11 +252,13 @@ jobFieldExtrasRouter.get(
               address: wo.address,
               client_ref: (wo.clientRef && String(wo.clientRef).trim()) || clientCode || null,
               client_name:
+                wo.homeownerName ||
                 wo.customer?.name ||
                 wo.builder?.company ||
                 builderName ||
                 wo.sourceName ||
                 null,
+              homeowner_name: wo.homeownerName || null,
               customer: wo.customer
                 ? {
                     name: wo.customer.name,
@@ -245,11 +295,22 @@ jobFieldExtrasRouter.get(
 
       const feed = await withTenantTransaction(req.organizationId!, async (tx) => {
         const tz = await orgTimezone(tx, req.organizationId!);
+        const scope = await fieldBoardScope(tx, req);
+        const scopedIds = Object.keys(scope).length
+          ? (
+              await tx.workOrder.findMany({
+                where: { status: { not: "canceled" }, ...scope },
+                select: { id: true },
+                take: 200,
+              })
+            ).map((w) => w.id)
+          : null;
         const photos = await tx.jobMedia.findMany({
           where: {
             organizationId: req.organizationId!,
             deletedAt: null,
             type: "photo",
+            ...(scopedIds ? { workOrderId: { in: scopedIds } } : {}),
           },
           orderBy: [{ createdAt: "desc" }],
           take: 40,
@@ -291,12 +352,13 @@ jobFieldExtrasRouter.get(
 jobFieldExtrasRouter.delete(
   "/api/work-orders/:jobId/media/:mediaId",
   requireCrmAuth,
-  requireCrmPermission("work_orders.manage"),
+  requireCrmPermission("work_orders.view"),
   async (req: AuthedRequest, res, next) => {
     try {
       const jobId = String(req.params.jobId);
       const mediaId = String(req.params.mediaId);
       await withTenantTransaction(req.organizationId!, async (tx) => {
+        await assertJobMediaAccess(tx, req, jobId);
         const row = await tx.jobMedia.findFirst({
           where: { id: mediaId, workOrderId: jobId, deletedAt: null },
         });
@@ -450,7 +512,7 @@ const mediaEditBody = z
 jobFieldExtrasRouter.patch(
   "/api/work-orders/:jobId/media/:mediaId",
   requireCrmAuth,
-  requireCrmPermission("work_orders.manage"),
+  requireCrmPermission("work_orders.view"),
   async (req: AuthedRequest, res, next) => {
     try {
       const jobId = String(req.params.jobId);
@@ -462,6 +524,7 @@ jobFieldExtrasRouter.patch(
       }
       const d = body.data;
       const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+        await assertJobMediaAccess(tx, req, jobId);
         const row = await tx.jobMedia.findFirst({ where: { id: mediaId, workOrderId: jobId, deletedAt: null } });
         if (!row) throw Object.assign(new Error("Foto não encontrada"), { status: 404 });
         // The phase must be one of this company's job phases (Hardwood's, or the trade's own).
@@ -525,7 +588,7 @@ jobFieldExtrasRouter.patch(
 jobFieldExtrasRouter.patch(
   "/api/work-orders/:jobId/media/:mediaId/stage",
   requireCrmAuth,
-  requireCrmPermission("work_orders.manage"),
+  requireCrmPermission("work_orders.view"),
   async (req: AuthedRequest, res, next) => {
     try {
       const jobId = String(req.params.jobId);
@@ -536,6 +599,7 @@ jobFieldExtrasRouter.patch(
         return;
       }
       const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+        await assertJobMediaAccess(tx, req, jobId);
         const row = await tx.jobMedia.findFirst({
           where: { id: mediaId, workOrderId: jobId, deletedAt: null },
         });

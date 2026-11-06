@@ -7,6 +7,11 @@ import type { AuthedRequest } from "../../middleware/auth.js";
 import { withTenantTransaction } from "../../lib/tenant/prisma-tenant.js";
 import { requireCrmAuth } from "../http.js";
 import { buildFolhaPayload } from "./campo-folha.js";
+import {
+  fieldJobsOnDayWhere,
+  fieldPayrollSector,
+  myFieldJobsWhere,
+} from "../lib/field-sector.js";
 
 export const campoPontoRouter = Router();
 
@@ -70,11 +75,15 @@ function firstName(name: string) {
 }
 
 function clientLabel(wo: {
-  customer?: { name: string } | null;
+  homeownerName?: string | null;
+  customer?: { name?: string | null; company?: string | null } | null;
   builder?: { company?: string | null; firstName?: string | null; lastName?: string | null } | null;
   sourceName?: string | null;
 }) {
-  if (wo.customer?.name) return wo.customer.name;
+  const homeowner = String(wo.homeownerName || "").trim();
+  if (homeowner) return homeowner;
+  const customer = String(wo.customer?.name || wo.customer?.company || "").trim();
+  if (customer) return customer;
   if (wo.builder?.company) return wo.builder.company;
   if (wo.builder?.firstName) {
     return `${wo.builder.firstName}${wo.builder.lastName ? ` ${wo.builder.lastName}` : ""}`.trim();
@@ -118,7 +127,7 @@ function paidMsFromSegments(
 }
 
 const woInclude = {
-  customer: { select: { id: true, name: true } },
+  customer: { select: { id: true, name: true, company: true } },
   builder: { select: { id: true, firstName: true, lastName: true, company: true } },
   crew: { select: { id: true, name: true } },
   assignedUser: { select: { id: true, name: true } },
@@ -127,33 +136,17 @@ const woInclude = {
 
 async function findMyJobsToday(tx: Tx, userId: string, now = new Date()) {
   const { start, end } = dayBoundsLocal(now);
+  const sector = await fieldPayrollSector(tx, userId);
   return tx.workOrder.findMany({
     where: {
       status: { not: "canceled" },
-      AND: [
-        {
-          OR: [
-            { assignedUserId: userId },
-            { members: { some: { userId } } },
-            { crew: { members: { some: { userId } } } },
-          ],
-        },
-        {
-          OR: [
-            { scheduledStart: { gte: start, lt: end } },
-            {
-              status: "in_progress",
-              OR: [
-                { scheduledStart: null },
-                { scheduledStart: { lt: end } },
-              ],
-            },
-          ],
-        },
+      OR: [
+        fieldJobsOnDayWhere(start, end, userId, sector),
+        { AND: [myFieldJobsWhere(userId, sector), { status: "in_progress" }] },
       ],
     },
     include: woInclude,
-    orderBy: [{ scheduledStart: "asc" }, { createdAt: "asc" }],
+    orderBy: [{ scheduledStart: "asc" }, { sandScheduledStart: "asc" }, { createdAt: "asc" }],
     take: 50,
   });
 }

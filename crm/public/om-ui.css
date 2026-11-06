@@ -1,0 +1,62 @@
+/**
+ * ObraMate — movimento e comportamento base compartilhados (par de om-ui.js).
+ * Injetado em toda página pelo servidor. Usa os tokens de om-tokens.css.
+ *
+ * Classes que om-ui.js põe no elemento raiz de um sheet/diálogo:
+ *   .om-ui-open     enquanto está aberto
+ *   .om-ui-closing  durante a animação de saída (o elemento só some no fim dela)
+ * Cada app escolhe a animação com data-om-motion no painel:
+ *   data-om-motion="sheet"  sobe de baixo (celular)      300ms entrando, 240ms saindo
+ *   data-om-motion="pop"    aparece no lugar (desktop)   200ms entrando, 150ms saindo
+ *   data-om-motion="fade"   só opacidade                 150ms
+ */
+
+@keyframes om-sheet-in { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes om-sheet-out { from { transform: none; } to { transform: translateY(100%); } }
+@keyframes om-pop-in { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes om-pop-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: scale(0.98); } }
+@keyframes om-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes om-fade-out { from { opacity: 1; } to { opacity: 0; } }
+
+.om-ui-open [data-om-motion="sheet"] { animation: om-sheet-in var(--om-dur-sheet) var(--om-ease-drawer) both; }
+.om-ui-closing [data-om-motion="sheet"] { animation: om-sheet-out 240ms var(--om-ease-drawer) both; }
+.om-ui-open [data-om-motion="pop"] { animation: om-pop-in var(--om-dur-2) var(--om-ease-out) both; }
+.om-ui-closing [data-om-motion="pop"] { animation: om-pop-out var(--om-dur-1) var(--om-ease-out) both; }
+.om-ui-open [data-om-motion="fade"] { animation: om-fade-in var(--om-dur-1) var(--om-ease-out) both; }
+.om-ui-closing [data-om-motion="fade"] { animation: om-fade-out var(--om-dur-1) var(--om-ease-out) both; }
+/* fundo escurecido de qualquer sheet/diálogo */
+.om-ui-open [data-om-backdrop] { animation: om-fade-in var(--om-dur-2) ease both; }
+.om-ui-closing [data-om-backdrop] { animation: om-fade-out var(--om-dur-1) ease both; }
+/* enquanto o dedo arrasta a alça, o painel segue o dedo sem animação */
+[data-om-motion].om-ui-dragging { animation: none !important; transition: none !important; }
+[data-om-motion].om-ui-settling { transition: transform var(--om-dur-sheet) var(--om-ease-drawer); }
+
+/* Sheets: rolagem presa dentro do painel, altura que respeita a barra do Safari */
+[data-om-motion="sheet"] { overscroll-behavior: contain; max-height: 92dvh; }
+
+/* Feedback de toque padrão: qualquer elemento com data-om-press (ou .om-press) encolhe um pouco ao tocar */
+[data-om-press], .om-press { transition: transform 120ms var(--om-ease-out); touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+[data-om-press]:active, .om-press:active { transform: scale(0.97); }
+
+/* Botão ocupado (GPS, envio): o texto some, entra um spinner; o botão fica desabilitado em om-ui.js */
+.om-busy { position: relative; pointer-events: none; }
+.om-busy > * { opacity: 0; transition: opacity var(--om-dur-1) var(--om-ease-out); }
+.om-busy::after {
+  content: ""; position: absolute; inset: 0; margin: auto; width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid currentColor; border-right-color: transparent; animation: om-spin 0.8s linear infinite;
+}
+@keyframes om-spin { to { transform: rotate(360deg); } }
+
+/* Foco visível padrão para quem usa teclado */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible { outline: 2px solid var(--om-accent-strong); outline-offset: 2px; }
+
+/*
+ * Menos movimento: deslocamentos e escalas viram um fade curto (em vez de zerar tudo, que também
+ * apagava o feedback). A regra global de om-theme.css não alcança o que tem .om-motion-safe.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .om-ui-open [data-om-motion], .om-ui-open [data-om-backdrop] { animation: om-fade-in 150ms ease both !important; }
+  .om-ui-closing [data-om-motion], .om-ui-closing [data-om-backdrop] { animation: om-fade-out 120ms ease both !important; }
+  [data-om-press]:active, .om-press:active { transform: none; }
+  .om-busy::after { animation-duration: 1.6s; }
+}

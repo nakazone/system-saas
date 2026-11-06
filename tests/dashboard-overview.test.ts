@@ -13,6 +13,7 @@ import {
   buildJobsForecast,
   buildLeadSection,
   buildQuoteSection,
+  buildTodayEvents,
   loadDashboardOverview,
   rankAttention,
   viewerAccess,
@@ -525,5 +526,65 @@ describe("dashboard overview (database, tenant isolation, permissions)", () => {
     expect(ov.quotes_waiting).toBeNull();
     expect(ov.jobs_status).toBeNull();
     expect(ov.board).not.toBeNull();
+  });
+});
+
+describe("buildTodayEvents sand slots", () => {
+  it("emits install + sand rows when both fall on the same day", () => {
+    const dayStart = new Date("2026-09-29T06:00:00.000Z"); // Denver midnight-ish window
+    const dayEnd = new Date("2026-09-30T06:00:00.000Z");
+    const start = new Date("2026-09-29T15:00:00.000Z");
+    const wo: WorkOrderRow = {
+      id: "wo-1",
+      number: 1,
+      title: "Both day",
+      status: "scheduled",
+      fieldStatus: "scheduled",
+      scheduledStart: start,
+      scheduledEnd: start,
+      address: null,
+      customerName: null,
+      assigneeName: null,
+      crewName: null,
+      crewColor: null,
+      geoLat: null,
+      geoLng: null,
+      sector: "both",
+      installationStart: start,
+      sandScheduledStart: start,
+    };
+    const events = buildTodayEvents([], [wo], { start: dayStart, end: dayEnd });
+    expect(events.map((e) => e.id)).toEqual(["wo-1", "wo-1:sand"]);
+    expect(events.map((e) => e.phase)).toEqual(["installation", "sand_finish"]);
+  });
+
+  it("includes a sand-only day even without install overlap", () => {
+    const dayStart = new Date("2026-09-29T06:00:00.000Z");
+    const dayEnd = new Date("2026-09-30T06:00:00.000Z");
+    const install = new Date("2026-09-20T15:00:00.000Z");
+    const sand = new Date("2026-09-29T15:00:00.000Z");
+    const wo: WorkOrderRow = {
+      id: "wo-2",
+      number: 2,
+      title: "Sand today",
+      status: "scheduled",
+      fieldStatus: "scheduled",
+      scheduledStart: install,
+      scheduledEnd: install,
+      address: null,
+      customerName: null,
+      assigneeName: null,
+      crewName: null,
+      crewColor: null,
+      geoLat: null,
+      geoLng: null,
+      sector: "both",
+      installationStart: install,
+      sandScheduledStart: sand,
+      installationDoneAt: install,
+    };
+    const events = buildTodayEvents([], [wo], { start: dayStart, end: dayEnd });
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ id: "wo-2:sand", phase: "sand_finish" });
   });
 });

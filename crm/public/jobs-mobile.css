@@ -9,7 +9,10 @@ body.om-device-mobile.job-detail-app .jcm {
 }
 body.om-device-mobile.jobs-app .jcm-title { font-size: 28px; font-weight: 700; letter-spacing: -.035em; line-height: 1; }
 body.om-device-mobile.jobs-app .jcm-sub { display: none; }
-body.om-device-mobile.jobs-app.jcm-field .jcm-sub { display: block; font-size: 13px; color: #667085; margin-top: 4px; }
+body.jcm-field .jcm-partner-requests,
+body.jcm-field .jmx-filters,
+body.jcm-field .jcm-nav { display: none !important; }
+body.jcm-field .jcm-sub[hidden] { display: none !important; }
 .jcm-icon-btn { border: 0; box-shadow: 0 0 0 1px #E5E7EB; border-radius: 12px; }
 .jcm-icon-btn--accent { background: #E7792C; color: #fff; box-shadow: none; border-radius: 50%; }
 .jcm-role { background: #EEF0F3; border-radius: 11px; padding: 3px; }
@@ -51,7 +54,23 @@ body.om-device-mobile .jcm-seg.jmx-pills { background: none; padding: 0 16px; ma
 .jmx-pills .jcm-seg__btn[hidden] { display: none; }
 .jmx-pills .jcm-seg__btn em { font-style: normal; font-size: 11.5px; font-weight: 650; color: #98A2B3; }
 .jmx-pills .jcm-seg__btn.is-active { background: #221E1A; color: #fff; box-shadow: none; }
-.jmx-pills .jcm-seg__btn.is-active em { color: #98A2B3; }
+.jmx-pills .jcm-seg__btn.is-active em { color: rgba(255, 255, 255, .72); }
+
+/* Obra Crew: filtros em segmento cheio, sem dropdown */
+body.jcm-field .jcm-seg.jmx-pills {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px;
+  margin: 14px 0 6px; padding: 4px; background: #EEF0F3; border-radius: 14px;
+}
+body.jcm-field .jmx-pills .jcm-seg__btn {
+  flex: 1; justify-content: center; height: 40px; padding: 0 8px; border-radius: 11px;
+  background: transparent; box-shadow: none; color: #667085; font-size: 13px;
+}
+body.jcm-field .jmx-pills .jcm-seg__btn.is-active {
+  background: #fff; color: #221E1A; box-shadow: 0 1px 2px rgba(16, 24, 40, .08);
+}
+body.jcm-field .jmx-pills .jcm-seg__btn.is-active em { color: #98A2B3; }
+body.jcm-field .jmx-pills .jcm-seg__btn[hidden] { display: none; }
+body.jcm-field .jcm-search { margin-top: 10px; }
 
 /* cartão do job (escritório) */
 .jcm-job-swipe.is-nodate .jmx-card { background: #fff; box-shadow: 0 0 0 1px #E5E7EB; }
@@ -94,22 +113,108 @@ body.om-device-mobile.jobs-app .jcm-empty { padding: 28px 8px; text-align: cente
 body.om-device-mobile.jobs-app .jcm-portal { margin: 6px 2px 2px; font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: #B4561A; }
 body.om-device-mobile.jobs-app .jcm-portal-card { margin-bottom: 8px; }
 
-/* cartão do instalador (modo campo) — hairline, sem sombra pesada */
-.jcm-job {
-  border: 0 !important;
-  box-shadow: 0 0 0 1px #E5E7EB !important;
-  border-radius: 18px !important;
-  background: #fff !important;
+/* cartão Obra Crew — mini calendário (jx-day) | conteúdo | mapa */
+body.jcm-field .jcm-list { gap: 8px; margin-top: 12px; }
+.crew-job {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: stretch;
+  gap: 0;
+  background: #fff;
+  border: 1px solid #E5E7EB;
+  border-radius: 16px;
+  overflow: hidden;
 }
-body.jcm-field .jcm-job--field {
-  border: 1.5px solid #D0D5DD !important;
-  border-left: 4px solid var(--job-accent, #E7792C) !important;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, .04) !important;
+.crew-job__main {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  min-width: 0;
+  padding: 12px 4px 12px 12px;
+  color: #221E1A !important;
+  text-decoration: none !important;
+  -webkit-tap-highlight-color: transparent;
 }
-.jcm-job__cta--start { background: #E7792C !important; color: #fff !important; box-shadow: none !important; font-weight: 650 !important; }
-body.jcm-field .jcm-job__title { font-size: 1.05rem !important; font-weight: 650 !important; letter-spacing: -.02em; }
-body.jcm-field .jcm-job__time { font-weight: 700 !important; }
-.jcm-job__day.is-today { color: #B4561A !important; }
+.crew-job .jx-day {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  width: 46px; padding: 6px 0 5px; margin: 0;
+  border-radius: 11px; background: #F1F3F5; color: #221E1A;
+  line-height: 1; text-transform: uppercase;
+}
+.crew-job .jx-day b { font-size: 19px; font-weight: 750; letter-spacing: -.02em; margin: 3px 0 2px; font-variant-numeric: tabular-nums; }
+.crew-job .jx-day small { font-size: 10px; font-weight: 650; letter-spacing: .04em; color: #667085; }
+.crew-job .jx-day.is-now b { color: #C8641C; }
+.crew-job .jx-day.is-done { color: #667085; }
+.crew-job .jx-day.is-none b { font-size: 16px; color: #98A2B3; margin: 2px 0 3px; }
+.crew-job .jx-day.is-none small { text-transform: none; letter-spacing: 0; font-size: 9.5px; }
+.crew-job__copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-top: 2px;
+}
+.crew-job__title {
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.crew-job__sub,
+.crew-job__addr {
+  font-size: 12.5px;
+  font-weight: 550;
+  color: #667085;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.crew-job__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 5px;
+  min-width: 0;
+}
+.crew-job__clock {
+  font-size: 12px;
+  font-weight: 650;
+  color: #98A2B3;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.crew-job__map {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  align-self: stretch;
+  border: 0;
+  border-left: 1px solid #EEF0F3;
+  background: transparent;
+  color: #667085;
+  text-decoration: none !important;
+  -webkit-tap-highlight-color: transparent;
+}
+.crew-job__map:active { background: #F4F5F7; }
+.crew-job__map.is-off { opacity: 0.28; pointer-events: none; }
+.crew-job__map svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.85;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+@media (pointer: coarse) {
+  .crew-job__main { padding: 14px 4px 14px 14px; min-height: 72px; }
+  .crew-job__map { width: 52px; }
+}
 
 /* status (lista e página) */
 .jcm-badge { margin-top: 0; height: 22px; padding: 0 9px; font-size: 12px; font-weight: 650; background: #F1F3F5; color: #221E1A; }

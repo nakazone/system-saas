@@ -3,6 +3,7 @@
  */
 import { createHash } from "node:crypto";
 import type { AuthedRequest } from "../../middleware/auth.js";
+import { isPhase, type JobPhase } from "./phases.js";
 
 export const JOB_MEDIA_STAGES = ["before", "during", "after"] as const;
 export type JobMediaStage = (typeof JOB_MEDIA_STAGES)[number];
@@ -21,6 +22,7 @@ export type JobMediaRow = {
   address?: string | null;
   caption?: string | null;
   stage?: string | null;
+  phase?: string | null;
   annotationsJson?: unknown;
   isPublic: boolean;
   sharedWithPartners?: boolean;
@@ -144,6 +146,11 @@ export function parsePhotoUploadMeta(body: Record<string, unknown>) {
       ? (stageRaw as JobMediaStage)
       : null;
 
+  // Hardwood's phases, or a trade's own (Tile, Countertops): any well-formed key here; the routes check it
+  // against the job's phases (and the screens ignore a key the job doesn't have).
+  const rawPhase = typeof body.phase === "string" ? body.phase.trim() : "";
+  const phase: JobPhase | string | null = isPhase(rawPhase) ? rawPhase : /^[a-z][a-z0-9_]{1,39}$/.test(rawPhase) ? rawPhase : null;
+
   let takenAtDevice: Date | null = null;
   if (body.taken_at_device || body.takenAtDevice) {
     const d = new Date(String(body.taken_at_device || body.takenAtDevice));
@@ -161,6 +168,7 @@ export function parsePhotoUploadMeta(body: Record<string, unknown>) {
 
   return {
     stage,
+    phase,
     caption: body.caption != null ? String(body.caption).trim().slice(0, 500) || null : null,
     takenAtDevice,
     lat: lat != null && Number.isFinite(lat) ? lat : null,

@@ -19,9 +19,9 @@
 
   function statusLabel(status) {
     const map = {
-      on_site: "No local",
+      on_site: "Em andamento",
       scheduled: "Agendada",
-      en_route: "A caminho",
+      en_route: "Em andamento",
       done: "Concluída",
       in_progress: "Em andamento",
     };
@@ -29,8 +29,7 @@
   }
 
   function statusBadgeClass(status) {
-    if (status === "on_site") return "cm-badge--site";
-    if (status === "en_route" || status === "in_progress") return "cm-badge--progress";
+    if (status === "on_site" || status === "en_route" || status === "in_progress") return "cm-badge--progress";
     return "cm-badge--sched";
   }
 
@@ -91,8 +90,8 @@
 
     const jobs = data.jobs || [];
     const list = $("cmAgendaList");
-    const canRoute =
-      window.__crmDayRoute && jobs.some((j) => j.address || j.delivery_pickup_address);
+    // The route panel script loads on the first tap (campo-nav.js?v=20261105-mg1 → loadDayRoute).
+    const canRoute = jobs.some((j) => j.address || j.delivery_pickup_address);
     if (!jobs.length) {
       list.innerHTML =
         '<p class="cm-subtitle" style="margin:0.5rem 0">Nenhuma visita neste dia.</p>';
@@ -100,41 +99,45 @@
     }
     list.innerHTML =
       (canRoute
-        ? `<button type="button" class="cm-btn cm-btn--dark cm-btn--sm" id="cmDayRoute" style="width:100%;margin:0 0 0.75rem">Ver rota do dia</button>`
+        ? `<button type="button" class="cm-btn cm-btn--dark cm-btn--sm" id="cmDayRoute" data-om-press style="width:100%;margin:0 0 0.75rem">Ver rota do dia</button>`
         : "") +
       jobs
         .map((j) => {
           const st = statusLabel(j.status);
           const cls = statusBadgeClass(j.status);
+          const who = j.homeowner_name || (j.client && j.client !== "—" ? j.client : "") || "Job";
           return `
-        <a class="cm-job-card" href="ticket.html?id=${encodeURIComponent(j.id)}">
+        <a class="cm-job-card" data-om-press href="ticket.html?id=${encodeURIComponent(j.id)}">
           <div class="cm-job-card__top">
             <p class="cm-job-card__time">${escapeHtml(j.start || "—")}${j.end ? ` – ${escapeHtml(j.end)}` : ""}</p>
             <span class="cm-badge ${cls}">${st}</span>
           </div>
-          <p class="cm-job-card__title">${escapeHtml(j.title)}</p>
-          <p class="cm-job-card__sub">#${j.number ?? "—"} · ${escapeHtml(j.client)}${j.needs_delivery ? " · Delivery" : ""}${j.address ? ` · ${escapeHtml(j.address)}` : ""}</p>
-          ${
-            j.team
-              ? `<p class="cm-job-card__team">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
-            ${escapeHtml(j.team)}
-          </p>`
-              : ""
-          }
+          <p class="cm-job-card__title">${escapeHtml(who)}</p>
+          <p class="cm-job-card__sub">${escapeHtml(j.address || "Sem endereço")}</p>
         </a>`;
         })
         .join("");
-    $("cmDayRoute")?.addEventListener("click", () => {
-      window.__crmDayRoute.open({
-        title: "Rota do dia",
-        subtitle: $("cmDayHeading")?.textContent || "",
-        origin: window.__campoRouteStart || "",
-        stops: window.__crmDayRoute.stopsFromCampoJobs(jobs),
-        onSaveOrigin: (addr) => {
-          window.__campoRouteStart = addr || "";
-        },
-      });
+    $("cmDayRoute")?.addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      const UI = window.OmUI;
+      if (UI) UI.busy(btn, true);
+      try {
+        const route = window.__campoNav && window.__campoNav.loadDayRoute ? await window.__campoNav.loadDayRoute() : window.__crmDayRoute;
+        if (!route) throw new Error("Não deu para abrir a rota agora.");
+        route.open({
+          title: "Rota do dia",
+          subtitle: $("cmDayHeading")?.textContent || "",
+          origin: window.__campoRouteStart || "",
+          stops: route.stopsFromCampoJobs(jobs),
+          onSaveOrigin: (addr) => {
+            window.__campoRouteStart = addr || "";
+          },
+        });
+      } catch (err) {
+        if (window.crmToast) window.crmToast.error((err && err.message) || "Não deu para abrir a rota agora.");
+      } finally {
+        if (UI && btn.isConnected) UI.busy(btn, false);
+      }
     });
   }
 

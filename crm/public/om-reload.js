@@ -1,5 +1,5 @@
 /**
- * ObraMate — animação "Montagem" com o símbolo + nome da marca.
+ * ObraMate — animação "Montagem" com o símbolo + nome da marca (no ObraCam, o splash de abertura é o Mate tirando foto).
  *  - Abrir app / puxar-para-atualizar: sequência completa (peças + “ObraMate”)
  *  - Mudança de página: véu rápido (mais fluido)
  * Carregar logo depois de <body>: <script src="/om-reload.js?v=…"></script>
@@ -25,6 +25,10 @@
   const NAV_MIN_REDUCED_MS = 120;
   const NAV_SHOW_DELAY_MS = 0;
   const FADE_OUT_MS = 320;
+  /** ObraCam: splash de abertura com o Mate tirando foto (um ciclo do vídeo). */
+  const CAM_MIN_MS = 4100;
+  const CAM_MAX_MS = 6000;
+  const CAM_V = "20261105-cam1";
 
   const CSS = `
 .om-rl{display:block;overflow:visible}
@@ -40,6 +44,8 @@
 /* Real logo artwork (custom wordmark font) — not a CSS font approximation */
 .om-rl-splash .om-rl-wordmark-img{display:block;width:min(200px,72vw);height:auto;opacity:0;animation:omRlWordIn .5s ease ${FULL_WORD_AT_MS}ms both}
 .om-rl-splash--nav .om-rl-brand{display:none}
+.om-rl-cam{width:168px;height:168px;border-radius:22%;overflow:hidden;background:#221E1A;box-shadow:0 10px 30px rgba(34,30,26,.22)}
+.om-rl-cam video,.om-rl-cam img{display:block;width:100%;height:100%;object-fit:cover}
 .om-ptr--rl,.om-ptr--rl.om-ptr-visible,
 .sf-ptr-indicator.om-ptr--rl{display:none!important;height:0!important;max-height:0!important;opacity:0!important;pointer-events:none!important;margin:0!important;padding:0!important;overflow:hidden!important}
 @media (prefers-reduced-motion: reduce){
@@ -95,6 +101,27 @@
     return mark(size, { nav }) + brand;
   }
 
+  function isCamApp() {
+    return window.__OM_FOCUS_APP === true;
+  }
+
+  /** ObraCam: Mate leva a câmera ao olho, flash e a foto sai. Mesmo logo ObraMate embaixo. */
+  function camMarkup() {
+    const poster = `/assets/obracam/splash-poster.webp?v=${CAM_V}`;
+    const art = reduced()
+      ? `<img src="${poster}" alt="" width="168" height="168" decoding="async" />`
+      : `<video autoplay muted playsinline preload="auto" poster="${poster}" width="168" height="168" aria-hidden="true">` +
+        `<source src="/assets/obracam/splash.webm?v=${CAM_V}" type="video/webm" />` +
+        `<source src="/assets/obracam/splash.mp4?v=${CAM_V}" type="video/mp4" />` +
+        `</video>`;
+    return (
+      `<div class="om-rl-cam">${art}</div>` +
+      `<div class="om-rl-brand">` +
+      `<img class="om-rl-wordmark-img" src="/assets/obramate-wordmark.png?v=20261013-rl8" alt="ObraMate" width="200" height="33" decoding="async" />` +
+      `</div>`
+    );
+  }
+
   let layer = null;
   let layerShownAt = 0;
   let layerKind = "full";
@@ -102,6 +129,8 @@
   let showTimer = null;
   let navVeil = false;
   let hideAfterMin = null;
+  /** true enquanto o splash do ObraCam toca: só ele mesmo fecha (fim do vídeo, toque ou limite). */
+  let camHold = false;
 
   function minMsFor(kind) {
     if (kind === "nav") return reduced() ? NAV_MIN_REDUCED_MS : NAV_MIN_MS;
@@ -169,27 +198,51 @@
 
   /* ---------------- splash ao abrir (completo + nome) ---------------- */
   function splash() {
+    const cam = isCamApp();
+    const key = cam ? "om_cam_splash_seen" : "om_splash_seen";
     let seen = false;
     try {
-      seen = sessionStorage.getItem("om_splash_seen") === "1";
-      sessionStorage.setItem("om_splash_seen", "1");
+      seen = sessionStorage.getItem(key) === "1";
+      sessionStorage.setItem(key, "1");
     } catch (_) {
       seen = true;
     }
     if (seen || !touchUi() || !document.body) return;
 
     playEntry("full");
+    if (cam && layer) layer.innerHTML = camMarkup();
+    const minMs = cam ? (reduced() ? FULL_MIN_REDUCED_MS : CAM_MIN_MS) : minMsFor("full");
+    const maxMs = cam ? CAM_MAX_MS : 4200;
     const t0 = Date.now();
     let gone = false;
     const out = () => {
       if (gone) return;
       gone = true;
+      camHold = false;
       dismissLayer(true);
     };
-    const ready = () => setTimeout(out, Math.max(0, minMsFor("full") - (Date.now() - t0)));
+    const vid = cam && layer ? layer.querySelector("video") : null;
+    if (vid) {
+      camHold = true;
+      // Fecha quando o vídeo termina e a página já carregou (o que vier por último).
+      let pageOk = false;
+      let clipOk = false;
+      const both = () => pageOk && clipOk && out();
+      vid.addEventListener("ended", () => { clipOk = true; both(); }, { once: true });
+      vid.addEventListener("error", () => { clipOk = true; both(); }, { once: true });
+      const p = vid.play && vid.play();
+      if (p && p.catch) p.catch(() => { clipOk = true; both(); });
+      const pageReady = () => { pageOk = true; both(); };
+      if (document.readyState === "complete") pageReady();
+      else window.addEventListener("load", pageReady, { once: true });
+      setTimeout(out, maxMs);
+      if (layer) layer.addEventListener("click", out);
+      return;
+    }
+    const ready = () => setTimeout(out, Math.max(0, minMs - (Date.now() - t0)));
     if (document.readyState === "complete") ready();
     else window.addEventListener("load", ready, { once: true });
-    setTimeout(out, 4200);
+    setTimeout(out, maxMs);
     if (layer) layer.addEventListener("click", out);
   }
 
@@ -210,6 +263,7 @@
   }
 
   function hideLoading(force) {
+    if (camHold && !force) return;
     clearTimeout(showTimer);
     clearTimeout(failTimer);
     if (!layer || layer.classList.contains("is-out")) {

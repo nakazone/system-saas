@@ -75,7 +75,7 @@
     const l = document.createElement("link");
     l.id = CSS_ID;
     l.rel = "stylesheet";
-    l.href = "/job-phases.css?v=20261105-sl1";
+    l.href = "/job-phases.css?v=20261105-mg3";
     document.head.appendChild(l);
   }
 
@@ -325,6 +325,13 @@
       ${rw.items.length ? `<ul class="jp-rw__list">${items}</ul>` : ""}
       ${form}
     </div>`;
+  }
+
+  /** The app's confirm sheet (crm-confirm.js, loaded on the job page and the crew ticket). Without it nothing happens. */
+  function ask(opts) {
+    if (window.crmConfirm) return window.crmConfirm(opts);
+    window.crmToast?.error?.("Atualize a página e tente de novo.");
+    return Promise.resolve(false);
   }
 
   /**
@@ -637,7 +644,7 @@
       if (del) {
         if (!online()) return notify("Remover precisa de internet.", "error");
         const id = del.getAttribute("data-rw-del");
-        const ok = window.crmConfirm ? window.crmConfirm({ title: "Remover este registro?", text: "Use só para um registro feito por engano.", ok: "Remover" }) : Promise.resolve(window.confirm("Remover este registro?"));
+        const ok = ask({ title: "Remover este registro?", text: "Use só para um registro feito por engano.", ok: "Remover", danger: true });
         Promise.resolve(ok).then((yes) => {
           if (yes) run(async () => took(await api(`/api/work-orders/${encodeURIComponent(ctx.jobId)}/reworks/${encodeURIComponent(id)}`, { method: "DELETE" }), "Registro removido."));
         });
@@ -659,9 +666,7 @@
       const force = e.target.closest("[data-force]");
       if (force) {
         const phase = force.getAttribute("data-force");
-        const ok = window.crmConfirm
-          ? window.crmConfirm({ title: "Liberar a espera?", text: "A cura ainda não terminou. Conclua só se tiver certeza de que o material já curou.", ok: "Liberar e concluir" })
-          : Promise.resolve(window.confirm("A cura ainda não terminou. Liberar e concluir?"));
+        const ok = ask({ title: "Liberar a espera?", text: "A cura ainda não terminou. Conclua só se tiver certeza de que o material já curou.", ok: "Liberar e concluir" });
         Promise.resolve(ok).then((yes) => {
           if (yes) run(async () => say(await complete(phase, { force: true }), "Fase concluída."));
         });

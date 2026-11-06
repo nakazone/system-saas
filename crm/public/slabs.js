@@ -238,11 +238,27 @@
     };
   }
 
+  /** Lock a form's submit button while it saves: a double tap must not create two slabs. */
+  function lock(form, on, label) {
+    const b = form && form.querySelector('button[type="submit"]');
+    if (!b) return;
+    if (on) {
+      b.dataset.label = b.textContent;
+      b.textContent = label;
+    } else if (b.dataset.label) b.textContent = b.dataset.label;
+    b.disabled = on;
+    b.setAttribute("aria-busy", on ? "true" : "false");
+  }
+
   async function submitForm() {
+    const form = $("slForm");
+    if (st.saving) return;
     const body = readForm();
     if (!body.color) return toast("Escreva a cor ou o nome da pedra.", "error");
     if (!(body.length_in > 0) || !(body.width_in > 0)) return toast("Coloque o comprimento e a largura em polegadas.", "error");
     const id = st.open;
+    st.saving = true;
+    lock(form, true, id ? "Salvando…" : "Cadastrando…");
     try {
       const row = id ? await api(`/api/slabs/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) }) : await api("/api/slabs", { method: "POST", body: JSON.stringify(body) });
       // The tag photo the Mate read becomes the slab's photo.
@@ -255,7 +271,11 @@
       await load();
       showDetail(row.id);
     } catch (e) {
+      // The form stays as typed so nothing is lost.
+      lock(form, false);
       toast(e.message, "error");
+    } finally {
+      st.saving = false;
     }
   }
 
@@ -522,13 +542,19 @@
         const f = e.target;
         const body = { length_in: Number(f.elements.length_in.value), width_in: Number(f.elements.width_in.value), location: f.elements.location.value.trim() || null };
         if (!(body.length_in > 0) || !(body.width_in > 0)) return toast("Coloque as medidas da sobra.", "error");
+        if (st.saving) return;
+        st.saving = true;
+        lock(f, true, "Registrando…");
         try {
           const row = await api(`/api/slabs/${encodeURIComponent(st.open)}/remnant`, { method: "POST", body: JSON.stringify(body) });
           toast("Sobra registrada");
           await load();
           showDetail(row.id);
         } catch (err) {
+          lock(f, false);
           toast(err.message, "error");
+        } finally {
+          st.saving = false;
         }
       }
     });

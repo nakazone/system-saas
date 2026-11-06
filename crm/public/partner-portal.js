@@ -392,16 +392,27 @@
     return r.data;
   }
 
+  /** Sets a badge; when a visible number changes it bumps once (scale 1 → 1.15 → 1, 220ms). */
+  function setCount(el, n) {
+    const next = String(n);
+    const changed = !el.hidden && el.textContent !== next && Boolean(n);
+    el.textContent = next;
+    el.hidden = !n;
+    if (!changed) return;
+    el.classList.remove('is-bump');
+    void el.offsetWidth;
+    el.classList.add('is-bump');
+  }
   function updateCounts() {
     const due = state.invoices.filter((inv) => ['overdue', 'soon'].includes(invoiceState(inv).key)).length;
     const declined = state.requests.filter((r) => r.status === 'declined' && daysBetween(toDate(r.created_at) || new Date(), new Date()) <= 30).length;
-    document.querySelectorAll('[data-count="invoices"]').forEach((el) => { el.textContent = String(due); el.hidden = !due; });
+    document.querySelectorAll('[data-count="invoices"]').forEach((el) => setCount(el, due));
     document.querySelectorAll('[data-count="pedidos"]').forEach((el) => {
       // On the phone, Invoices can live inside More: its badge then carries the invoices due too.
       const tab = el.closest('.pp-tab');
       const invTab = document.querySelector('.pp-tab[data-nav="invoices"]');
       const n = declined + (tab && invTab && invTab.hidden ? due : 0);
-      el.textContent = String(n); el.hidden = !n;
+      setCount(el, n);
     });
   }
 
@@ -428,6 +439,49 @@
       else el.removeAttribute('aria-current');
     });
   }
+  /*
+   * The plan reader (58 KB) and the 3D builder (100 KB) are only needed by Measurements, the measurement on a
+   * job, the 3D presentation and "measure from plans": they load the first time one of those needs them.
+   * Never throws — the callers already fall back to the 2D drawings when window.ObPlan3D is missing.
+   */
+  const MEAS_TOOLS = [['ObTakeoff', 'partner-portal-takeoff.js?v=20261105-mg1'], ['ObPlan3D', 'partner-portal-3d.js?v=20261105-dock1']];
+  let measToolsP = null;
+  function ensureMeasureTools() {
+    if (window.ObTakeoff && window.ObPlan3D) return Promise.resolve(true);
+    if (!measToolsP) {
+      measToolsP = Promise.all(MEAS_TOOLS.map(([name, src]) => (window[name] ? null : new Promise((resolve, reject) => {
+        const sc = document.createElement('script');
+        sc.src = src;
+        sc.async = false; // keep the original order: plan reader, then 3D
+        sc.onload = resolve;
+        sc.onerror = () => { sc.remove(); reject(new Error(`${src} did not load`)); };
+        document.head.appendChild(sc);
+      })))).then(() => true, () => { measToolsP = null; return false; });
+    }
+    return measToolsP;
+  }
+  // Warm it up when the person is about to open Measurements.
+  document.addEventListener('pointerover', (e) => { if (e.target.closest && e.target.closest('a[href^="#measurements"]')) ensureMeasureTools(); }, { passive: true });
+  document.addEventListener('touchstart', (e) => { if (e.target.closest && e.target.closest('a[href^="#measurements"]')) ensureMeasureTools(); }, { passive: true });
+
+  /** Tells screen readers what changed (the page itself is not a live region: it would be read in full on every render). */
+  let announceT = 0;
+  function announce(text) {
+    const el = $('ppStatus');
+    if (!el || !text) return;
+    clearTimeout(announceT);
+    el.textContent = '';
+    announceT = setTimeout(() => { el.textContent = text; }, 80);
+  }
+  function announceScreen() {
+    if (view.querySelector('.pp-loadfail')) return;
+    const h = view.querySelector('h1');
+    if (!h) return;
+    const n = view.querySelector('.pp-head > .pp-muted, .pp-head .pp-muted:not(p)');
+    const count = n && /\d/.test(n.textContent) ? `, ${n.textContent.trim()}` : '';
+    announce(`${h.textContent.trim()} loaded${count}`);
+  }
+
   let renderToken = 0;
   let lastScreen = '';
   // The entry animation plays once; later redraws of the same screen stay still.
@@ -475,6 +529,8 @@
       if (state.builder && r.name === 'notifications') { await renderNotifications(token); updateCounts(); return; }
       if (state.builder && r.name === 'measurements') {
         if (!canDo('measure')) { view.innerHTML = '<div class="pp-card pp-empty"><strong>Your role can’t take measurements</strong>Ask your team admin.</div>'; return; }
+        await ensureMeasureTools();
+        if (token !== renderToken) return;
         await renderMeasurements(r.id, token); updateCounts(); return;
       }
       if (state.meas && state.meas.dirty) measSaveNow();
@@ -494,7 +550,7 @@
       const rb = view.querySelector('[data-retry]'); if (rb) rb.addEventListener('click', () => { lastScreen = ''; render(); });
     } finally {
       clearTimeout(slow);
-      if (token === renderToken) loadBar(false);
+      if (token === renderToken) { loadBar(false); if (fresh) announceScreen(); }
     }
     updateCounts();
   }
@@ -911,10 +967,15 @@
     view.querySelectorAll('[data-stage]').forEach((b) => b.addEventListener('click', () => { state.jobStage = b.getAttribute('data-stage'); render(); }));
     view.querySelectorAll('[data-job]').forEach((b) => b.addEventListener('click', () => { location.hash = `#jobs/${encodeURIComponent(b.getAttribute('data-job'))}`; }));
     const search = $('ppJobSearch');
+    let searchT = 0;
     search.addEventListener('input', () => {
-      state.q = search.value;
-      const pos = search.selectionStart;
-      render().then(() => { const s = $('ppJobSearch'); if (s) { s.focus(); s.setSelectionRange(pos, pos); } });
+      clearTimeout(searchT);
+      searchT = setTimeout(() => {
+        if (!search.isConnected) return;
+        state.q = search.value;
+        const pos = search.selectionStart;
+        render().then(() => { const s = $('ppJobSearch'); if (s) { s.focus(); s.setSelectionRange(pos, pos); } });
+      }, 200);
     });
     if (selectedId) {
       document.body.classList.add('pp-focus');
@@ -1091,7 +1152,7 @@
     const bubble = (m) => {
       const mine = m.side === 'builder';
       const files = (m.files || []).map((f) => /^image\//.test(f.content_type)
-        ? `<a class="tk-mimg" href="${esc(f.url)}" target="_blank" rel="noopener"><img src="${esc(f.url)}" alt="${esc(f.name)}" loading="lazy" /></a>`
+        ? `<a class="tk-mimg" href="${esc(f.url)}" target="_blank" rel="noopener"><img src="${esc(f.url)}" alt="${esc(f.name)}" loading="lazy" decoding="async" /></a>`
         : `<a class="tk-mfile" href="${esc(f.url)}" target="_blank" rel="noopener"><i>PDF</i><span>${esc(f.name)}</span></a>`).join('');
       return `<li class="tk-msg ${mine ? 'is-mine' : ''}"><div class="tk-bub">${m.body ? `<p>${esc(m.body)}</p>` : ''}${files ? `<div class="tk-mfiles">${files}</div>` : ''}</div><small>${mine ? '' : `<b>${esc(company)}</b> · ${esc(m.author)} · `}${esc(fmtWhen(m.created_at))}</small></li>`;
     };
@@ -1169,6 +1230,8 @@
     const m = await api(`/api/builder/measurements/match?address=${encodeURIComponent(job.address)}`).then((r) => r.data).catch(() => null);
     if (!m || !document.body.contains(slot)) return;
     const c = m.counts || {};
+    if (c.treads) await ensureMeasureTools(); // the stair still needs the 3D builder; "Present" loads it on tap
+    if (!document.body.contains(slot)) return;
     const showable = c.treads || c.vents || c.floor_sf;
     slot.outerHTML = `<section class="tk-sec tk-meas" id="tkMeas">
         <h3>Measurement <small>${esc([m.measured_by, m.measured_at ? fmtDay(m.measured_at) : ''].filter(Boolean).join(' · '))}</small></h3>
@@ -1266,11 +1329,16 @@
     view.querySelectorAll('[data-inv]').forEach((b) => b.addEventListener('click', () => { location.hash = `#invoices/${encodeURIComponent(b.getAttribute('data-inv'))}`; }));
     view.querySelectorAll('[data-back]').forEach((b) => b.addEventListener('click', () => { location.hash = b.getAttribute('data-back'); }));
     const search = $('ppInvSearch');
+    let searchT = 0;
     search.addEventListener('input', () => {
-      state.q = search.value;
-      $('ppSearch').value = state.q;
-      const pos = search.selectionStart;
-      render().then(() => { const s = $('ppInvSearch'); if (s) { s.focus(); s.setSelectionRange(pos, pos); } });
+      clearTimeout(searchT);
+      searchT = setTimeout(() => {
+        if (!search.isConnected) return;
+        state.q = search.value;
+        $('ppSearch').value = state.q;
+        const pos = search.selectionStart;
+        render().then(() => { const s = $('ppInvSearch'); if (s) { s.focus(); s.setSelectionRange(pos, pos); } });
+      }, 200);
     });
   }
 
@@ -1591,7 +1659,7 @@
       </div>` : `<p class="pp-eyebrow">${state.builder ? 'To ' : ''}${esc(providerName())}</p>`;
     view.innerHTML = `
       <div class="pp-head pp-send-head">
-        <div><h1>Send work</h1><p class="pp-muted pp-send-sub">A work order, a measurement or the plans — ${esc(providerName())} gets it as a job.</p></div>
+        <div><h1>Requests</h1><p class="pp-muted pp-send-sub">Send a work order, a measurement or the plans — ${esc(providerName())} gets it as a job.</p></div>
         <div class="pp-send-headr"><ol class="pp-steps" id="ppSteps" aria-label="Steps"></ol><span id="ppSendCancelBox"></span></div>
       </div>
       ${coCards}
@@ -1797,7 +1865,7 @@
     if (!s.files.length && !s.text.trim()) return '';
     const parts = s.files.map((f) => f.type === 'application/pdf'
       ? `<iframe src="${esc(f.url)}" title="${esc(f.name)}"></iframe>`
-      : `<img src="${esc(f.url)}" alt="${esc(f.name)}" />`).join('');
+      : `<img src="${esc(f.url)}" alt="${esc(f.name)}" loading="lazy" decoding="async" />`).join('');
     const text = s.text.trim() ? `<pre>${esc(s.text)}</pre>` : '';
     return `<section class="pp-card pp-original" aria-label="Original"><span class="pp-lbl">Original${s.files.length ? ` · ${esc(s.files.map((f) => f.name).join(', '))}` : ''}</span>${parts}${text}</section>`;
   }
@@ -2767,7 +2835,7 @@
     if (!state.loaded.documents) view.innerHTML = skeletonHtml('documentos');
     await loadDocuments();
     if (token !== renderToken) return;
-    const q = state.docQuery.trim().toLowerCase();
+    let q = state.docQuery.trim().toLowerCase();
     const typeOk = (d) => state.docFilter === 'all' || (state.docFilter === 'photo' ? ['photo', 'video'].includes(d.type) : state.docFilter === 'file' ? !['photo', 'video', 'report'].includes(d.type) : d.type === state.docFilter);
     const fromOk = (d) => !state.docFrom || state.docFrom === 'all' || (d.from || 'company') === state.docFrom;
     const textOk = (d) => !q || [d.title, d.summary, d.via, d._coName, d.job && d.job.title, d.job && d.job.number, d.job && d.job.address].filter(Boolean).join(' ').toLowerCase().includes(q);
@@ -2786,10 +2854,18 @@
     });
     const plist = Array.from(projects.values()).sort((x, y) => y.last.localeCompare(x.last));
     if (state.docJob && !projects.has(state.docJob)) state.docJob = '';
-    const list = state.documents.filter((d) => typeOk(d) && fromOk(d) && textOk(d) && (!state.docJob || docProjectKey(d) === state.docJob));
-    const groups = new Map();
-    list.forEach((d) => { const k = docProjectKey(d); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(d); });
-    const ordered = plist.filter((pr) => groups.has(pr.key));
+    let list = [];
+    let groups = new Map();
+    let ordered = [];
+    // Filters the documents already loaded (search does this on its own, without a fetch or a full redraw).
+    const filterDocs = () => {
+      q = state.docQuery.trim().toLowerCase();
+      list = state.documents.filter((d) => typeOk(d) && fromOk(d) && textOk(d) && (!state.docJob || docProjectKey(d) === state.docJob));
+      groups = new Map();
+      list.forEach((d) => { const k = docProjectKey(d); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(d); });
+      ordered = plist.filter((pr) => groups.has(pr.key));
+    };
+    filterDocs();
 
     const btn = (key, label) => `<button type="button" data-doc-filter="${key}" aria-pressed="${state.docFilter === key}">${label}</button>`;
     const fromNow = state.docFrom || 'all';
@@ -2836,9 +2912,19 @@
       </section>`;
     };
 
+    const docCount = () => `${plural(list.length, 'item', 'items')}${ordered.length ? ` · ${plural(ordered.length, 'project', 'projects')}` : ''}`;
+    const resultsHtml = () => {
+      state.docGallery = [];
+      return ordered.length ? `<div class="pp-dgroups">${ordered.map(groupHtml).join('')}</div>` : `<div class="pp-card pp-empty">${mate(state.documents.length ? 'head-curious' : 'tablet')}<strong>${state.documents.length ? 'Nothing found' : 'Nothing shared yet'}</strong>${state.documents.length ? 'Change the project, the search or the filters.' : 'Photos, reports and files from the company, and the files your team sent with jobs or in messages, appear here.'}</div>`;
+    };
+    const bindResults = () => {
+      const box = $('ppDocResults') || view;
+      box.querySelectorAll('[data-doc-more]').forEach((b) => b.addEventListener('click', () => { state.docOpen = state.docOpen || {}; state.docOpen[b.getAttribute('data-doc-more')] = true; render(); }));
+      box.querySelectorAll('[data-doc-view]').forEach((b) => b.addEventListener('click', () => openDocViewer(Number(b.getAttribute('data-doc-view')))));
+    };
     const projOpts = `<option value="">All projects (${plist.length})</option>${plist.map((pr) => `<option value="${esc(pr.key)}" ${state.docJob === pr.key ? 'selected' : ''}>${esc(projName(pr))}${extraAddr(pr) ? ` — ${esc(extraAddr(pr))}` : ''} (${pr.all})</option>`).join('')}`;
     view.innerHTML = `
-      <div class="pp-head"><div><p class="pp-eyebrow">${state.builder && multiCo() && !state.coFilter ? 'Your companies and your team' : `${esc(providerName())} and your team`}</p><h1>Photos & docs</h1></div><span class="pp-muted">${plural(list.length, 'item', 'items')}${ordered.length ? ` · ${plural(ordered.length, 'project', 'projects')}` : ''}</span></div>
+      <div class="pp-head"><div><p class="pp-eyebrow">${state.builder && multiCo() && !state.coFilter ? 'Your companies and your team' : `${esc(providerName())} and your team`}</p><h1>Photos & docs</h1></div><span class="pp-muted" id="ppDocCount">${docCount()}</span></div>
       <div class="pp-dtools">
         <div class="pp-dtools-row">
           <div class="pp-side-search"><label>${icon('search')}<span class="pp-sr">Search documents</span><input id="ppDocSearch" type="search" placeholder="Search name, job or address" value="${esc(state.docQuery)}" /></label></div>
@@ -2850,14 +2936,27 @@
           <div class="pp-filter" role="group" aria-label="Sent by">${fbtn('all', 'Everyone')}${fbtn('company', state.builder && multiCo() && !state.coFilter ? 'Companies' : esc(providerName()))}${fbtn('builder', state.builder ? 'Your team' : 'You')}</div>
         </div>
       </div>
-      ${ordered.length ? `<div class="pp-dgroups">${ordered.map(groupHtml).join('')}</div>` : `<div class="pp-card pp-empty">${mate(state.documents.length ? 'head-curious' : 'tablet')}<strong>${state.documents.length ? 'Nothing found' : 'Nothing shared yet'}</strong>${state.documents.length ? 'Change the project, the search or the filters.' : 'Photos, reports and files from the company, and the files your team sent with jobs or in messages, appear here.'}</div>`}`;
+      <div id="ppDocResults">${resultsHtml()}</div>`;
     view.querySelectorAll('[data-doc-filter]').forEach((b) => b.addEventListener('click', () => { state.docFilter = b.getAttribute('data-doc-filter'); render(); }));
     view.querySelectorAll('[data-doc-from]').forEach((b) => b.addEventListener('click', () => { state.docFrom = b.getAttribute('data-doc-from'); render(); }));
-    view.querySelectorAll('[data-doc-more]').forEach((b) => b.addEventListener('click', () => { state.docOpen = state.docOpen || {}; state.docOpen[b.getAttribute('data-doc-more')] = true; render(); }));
-    view.querySelectorAll('[data-doc-view]').forEach((b) => b.addEventListener('click', () => openDocViewer(Number(b.getAttribute('data-doc-view')))));
+    bindResults();
     $('ppDocJob').addEventListener('change', (e) => { state.docJob = e.target.value; window.scrollTo(0, 0); render(); });
     const s = $('ppDocSearch');
-    s.addEventListener('input', () => { state.docQuery = s.value; const pos = s.selectionStart; render().then(() => { const x = $('ppDocSearch'); if (x) { x.focus(); x.setSelectionRange(pos, pos); } }); });
+    let searchT = 0;
+    // 200ms after the last key: filter locally and redraw only the results (the field keeps focus and cursor).
+    s.addEventListener('input', () => {
+      clearTimeout(searchT);
+      searchT = setTimeout(() => {
+        if (!s.isConnected) return;
+        state.docQuery = s.value;
+        filterDocs();
+        const box = $('ppDocResults'); if (!box) return;
+        box.innerHTML = resultsHtml();
+        const n = $('ppDocCount'); if (n) n.textContent = docCount();
+        bindResults();
+        announce(q ? `${plural(list.length, 'result', 'results')}` : `${plural(list.length, 'item', 'items')}`);
+      }, 200);
+    });
   }
 
   /** Full-screen viewer for the photos on the page: arrows / swipe, download, open the job. */
@@ -2865,33 +2964,53 @@
     const items = state.docGallery || [];
     if (!items.length) return;
     let i = Math.max(0, Math.min(items.length - 1, start));
-    document.body.insertAdjacentHTML('beforeend', '<div class="pp-lb" id="ppLb" role="dialog" aria-modal="true" aria-label="Photo viewer"></div>');
+    const prev = $('ppLb'); if (prev) prev.remove();
+    document.body.insertAdjacentHTML('beforeend', '<div class="pp-lb" id="ppLb" role="dialog" aria-modal="true" aria-label="Photo viewer" data-om-motion="lb"></div>');
     const lb = $('ppLb');
     document.body.classList.add('pp-sheet-open');
-    const close = () => { lb.remove(); document.body.classList.remove('pp-sheet-open'); document.removeEventListener('keydown', onKey); };
-    const go = (d) => { i = (i + d + items.length) % items.length; paint(); };
+    let gone = false;
+    const cleanup = () => {
+      if (gone) return;
+      gone = true;
+      lb.removeAttribute('id');
+      document.body.classList.remove('pp-sheet-open');
+      document.removeEventListener('keydown', onKey);
+      setTimeout(() => lb.remove(), 200);
+    };
+    // OmUI: focus trap and return, Esc, Android back closes it, fade out before it goes.
+    const layer = window.OmUI ? window.OmUI.layer(lb, { onClose: cleanup, initialFocus: () => lb.querySelector('[data-lb-close]') }) : null;
+    const close = (opts) => { if (layer) layer.close(opts); else { cleanup(); lb.remove(); } };
+    const go = (d) => {
+      i = (i + d + items.length) % items.length;
+      const had = lb.contains(document.activeElement) ? document.activeElement.getAttribute('data-lb-go') : null;
+      paint();
+      // the buttons are redrawn: keep keyboard focus inside the viewer
+      if (had != null || (layer && layer.isOpen() && !lb.contains(document.activeElement))) { const f = lb.querySelector(had != null ? `[data-lb-go="${had}"]` : '[data-lb-close]') || lb.querySelector('[data-lb-close]'); if (f) f.focus({ preventScroll: true }); }
+    };
     function paint() {
       const d = items[i]; const j = d.job || {};
       const mine = (d.from || 'company') === 'builder';
       lb.innerHTML = `
         <div class="pp-lb-top"><span>${i + 1} / ${items.length}</span><div><a class="pp-lb-btn" href="${esc(dlUrl(d.file_url))}" aria-label="Download">${icon('download')}</a><button type="button" class="pp-lb-btn" data-lb-close aria-label="Close">×</button></div></div>
         <div class="pp-lb-stage">${items.length > 1 ? '<button type="button" class="pp-lb-nav is-prev" data-lb-go="-1" aria-label="Previous">‹</button>' : ''}
-          ${d.type === 'video' ? `<video src="${esc(d.file_url)}" controls playsinline></video>` : `<img src="${esc(thumbUrl(d.file_url, 1600))}" alt="${esc(d.title || 'Photo')}" />`}
+          ${d.type === 'video' ? `<video src="${esc(d.file_url)}" controls playsinline></video>` : `<img src="${esc(thumbUrl(d.file_url, 1600))}" alt="${esc(d.title || 'Photo')}" decoding="async" />`}
           ${items.length > 1 ? '<button type="button" class="pp-lb-nav is-next" data-lb-go="1" aria-label="Next">›</button>' : ''}</div>
-        <div class="pp-lb-cap"><span class="pp-doc-from ${mine ? 'is-mine' : ''}">${esc(mine ? (state.builder ? 'Your team' : 'You') : (d._coName || providerName()))}</span><strong>${esc(d.title || 'Photo')}</strong><small>${[j.title ? `${esc(j.title)}${j.number ? ` · #${esc(j.number)}` : ''}` : '', d.created_at ? esc(fmtDay(d.created_at)) : ''].filter(Boolean).join(' · ')}</small>${j.id ? `<a class="pp-link" href="#jobs/${encodeURIComponent(j.id)}" data-lb-close>Open job</a>` : ''}</div>`;
+        <div class="pp-lb-cap"><span class="pp-doc-from ${mine ? 'is-mine' : ''}">${esc(mine ? (state.builder ? 'Your team' : 'You') : (d._coName || providerName()))}</span><strong>${esc(d.title || 'Photo')}</strong><small>${[j.title ? `${esc(j.title)}${j.number ? ` · #${esc(j.number)}` : ''}` : '', d.created_at ? esc(fmtDay(d.created_at)) : ''].filter(Boolean).join(' · ')}</small>${j.id ? `<a class="pp-link" href="#jobs/${encodeURIComponent(j.id)}">Open job</a>` : ''}</div>`;
       lb.querySelectorAll('[data-lb-go]').forEach((b) => b.addEventListener('click', () => go(Number(b.getAttribute('data-lb-go')))));
-      lb.querySelectorAll('[data-lb-close]').forEach((b) => b.addEventListener('click', close));
+      lb.querySelectorAll('[data-lb-close]').forEach((b) => b.addEventListener('click', () => close()));
       const next = items[(i + 1) % items.length];
       if (next && next.type === 'photo') { const im = new Image(); im.src = thumbUrl(next.file_url, 1600); }
     }
-    function onKey(e) { if (e.key === 'Escape') close(); else if (e.key === 'ArrowRight') go(1); else if (e.key === 'ArrowLeft') go(-1); }
+    function onKey(e) { if (!layer && e.key === 'Escape') close(); else if (e.key === 'ArrowRight') go(1); else if (e.key === 'ArrowLeft') go(-1); }
     document.addEventListener('keydown', onKey);
     lb.addEventListener('click', (e) => { if (e.target === lb || e.target.classList.contains('pp-lb-stage')) close(); });
     let x0 = null;
     lb.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; }, { passive: true });
     lb.addEventListener('touchend', (e) => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1); x0 = null; });
-    window.addEventListener('hashchange', close, { once: true });
+    // "Open job" (or any navigation) closes it without stepping history back.
+    window.addEventListener('hashchange', () => close({ fromHistory: true }), { once: true });
     paint();
+    if (layer) layer.open();
   }
 
   /* ─────────────────────────── builder account: companies, team, job edits ─────────────────────────── */
@@ -2973,32 +3092,143 @@
 
   /* ─────────────────────────── sheet (bottom sheet on phones, dialog on desktop) ─────────────────────────── */
 
-  function closeSheet() {
-    const old = $('ppSheet');
-    if (old) old.remove();
-    document.body.classList.remove('pp-sheet-open');
+  /*
+   * One sheet at a time. Each sheet is its own element (callers watch it leave the DOM to know it was
+   * dismissed); OmUI.layer gives it focus trap, focus return, Esc, drag-to-close and the exit animation.
+   * The Android back button is handled here (one history entry for "a sheet is open", reused when one
+   * sheet replaces another) so chained sheets never race a pending history.back().
+   */
+  const sheetNav = { pushed: false, backPending: false, pushAfterPop: false, backTimer: 0 };
+  let sheetCur = null; // { root, layer }
+  const phoneSheet = () => window.matchMedia('(max-width: 1023px)').matches;
+  function sheetPush() {
+    clearTimeout(sheetNav.backTimer);
+    sheetNav.backTimer = 0;
+    if (sheetNav.pushed) return;
+    if (sheetNav.backPending) { sheetNav.pushAfterPop = true; return; }
+    try { history.pushState({ ...(history.state || {}), ppSheet: 1 }, ''); sheetNav.pushed = true; } catch (_) { /* no history: Esc and × still close */ }
+  }
+  function sheetPopEntry() {
+    // Deferred one task: a sheet that opens right after this one closes reuses the entry instead.
+    if (!sheetNav.pushed) return;
+    const href = location.href;
+    clearTimeout(sheetNav.backTimer);
+    sheetNav.backTimer = setTimeout(() => {
+      sheetNav.backTimer = 0;
+      if (!sheetNav.pushed || sheetCur) return;
+      sheetNav.pushed = false;
+      // The page moved on (a link inside the sheet): leave history alone, the extra entry is harmless.
+      if (location.href !== href) return;
+      sheetNav.backPending = true;
+      try { history.back(); } catch (_) { sheetNav.backPending = false; }
+    }, 0);
+  }
+  window.addEventListener('popstate', () => {
+    if (sheetNav.backPending) {
+      sheetNav.backPending = false;
+      if (sheetNav.pushAfterPop) { sheetNav.pushAfterPop = false; if (sheetCur) sheetPush(); }
+      return;
+    }
+    if (sheetNav.pushed) { sheetNav.pushed = false; if (sheetCur) closeSheet({ fromHistory: true }); }
+  });
+  function closeSheet(opts) {
+    const cur = sheetCur;
+    if (!cur) { const stray = $('ppSheet'); if (stray) stray.remove(); document.body.classList.remove('pp-sheet-open'); return; }
+    sheetCur = null;
+    cur.fromHistory = Boolean(opts && opts.fromHistory);
+    cur.root.removeAttribute('id');
+    const t = cur.root.querySelector('#ppSheetTitle'); if (t) t.removeAttribute('id');
+    if (cur.layer) cur.layer.close(); else cur.done();
   }
   /** Opens a sheet with a title and body HTML; returns its root so the caller binds events. */
   function openSheet(title, body, opts) {
-    closeSheet();
     const o = opts || {};
+    const replacing = Boolean(sheetCur);
+    closeSheet({ fromHistory: replacing });
+    const phone = phoneSheet();
     document.body.insertAdjacentHTML('beforeend', `<div class="pp-sheet" id="ppSheet" role="dialog" aria-modal="true" aria-labelledby="ppSheetTitle">
-      <div class="pp-sheet-card ${o.wide ? 'is-wide' : ''}">
+      <div class="pp-sheet-bg" data-om-backdrop data-sheet-close></div>
+      <div class="pp-sheet-card ${o.wide ? 'is-wide' : ''}" data-om-motion="${phone ? 'sheet' : 'pop'}">
         <div class="pp-sheet-grab" aria-hidden="true"></div>
-        <div class="pp-sheet-head"><h2 id="ppSheetTitle">${esc(title)}</h2><button type="button" class="pp-sheet-x" data-sheet-close aria-label="Close">×</button></div>
+        <div class="pp-sheet-head"><h2 id="ppSheetTitle" tabindex="-1">${esc(title)}</h2><button type="button" class="pp-sheet-x" data-sheet-close aria-label="Close">×</button></div>
         <div class="pp-sheet-body">${body}</div>
       </div>
     </div>`);
     document.body.classList.add('pp-sheet-open');
     const root = $('ppSheet');
-    root.addEventListener('click', (e) => { if (e.target === root || e.target.closest('[data-sheet-close]')) closeSheet(); });
+    const cur = { root, layer: null, fromHistory: false };
+    let removed = false;
+    cur.done = () => {
+      if (removed) return;
+      removed = true;
+      if (!sheetCur) document.body.classList.remove('pp-sheet-open');
+      if (!cur.fromHistory) sheetPopEntry();
+      // Remove once the exit animation has played (om-ui hides it at the end; 300ms covers both motions).
+      setTimeout(() => root.remove(), window.OmUI && window.OmUI.reducedMotion() ? 160 : 300);
+    };
+    root.addEventListener('click', (e) => { if (e.target.closest('[data-sheet-close]')) closeSheet(); });
     if (typeof window.sfBootCrmAddressAutocomplete === 'function') window.sfBootCrmAddressAutocomplete();
-    const first = root.querySelector('input:not([type=hidden]):not([disabled]), select, textarea');
-    if (first && !o.noFocus && window.matchMedia('(min-width: 1024px)').matches) first.focus();
+    const firstField = () => root.querySelector('.pp-sheet-body input:not([type=hidden]):not([disabled]), .pp-sheet-body select, .pp-sheet-body textarea');
+    // On a computer the first field gets the cursor; on a phone focus goes to the title (no keyboard pops up).
+    const initialFocus = () => (!o.noFocus && !phone && firstField()) || root.querySelector('.pp-sheet-head h2');
+    sheetCur = cur;
+    if (window.OmUI) {
+      cur.layer = window.OmUI.layer(root, { history: false, initialFocus, dragHandle: phone ? root.querySelector('.pp-sheet-grab') : null, onClose: () => { if (sheetCur === cur) { sheetCur = null; root.removeAttribute('id'); } cur.done(); } });
+      cur.layer.open();
+    } else {
+      const f = initialFocus(); if (f) f.focus();
+    }
+    sheetPush();
     return root;
   }
-  window.addEventListener('hashchange', closeSheet);
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !(e.target && e.target.hasAttribute && e.target.hasAttribute('data-om-address-autocomplete'))) closeSheet(); });
+  window.addEventListener('hashchange', () => closeSheet({ fromHistory: true }));
+  // Esc in an address field closes its suggestions, not the sheet around it (OmUI listens on document capture).
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !sheetCur || !(e.target && e.target.hasAttribute && e.target.hasAttribute('data-om-address-autocomplete'))) return;
+    const photon = e.target.parentNode && e.target.parentNode.querySelector('.crm-photon-ac:not([hidden])');
+    const pac = Array.from(document.querySelectorAll('.pac-container')).find((x) => x.dataset.sfPacDismissed !== '1' && x.querySelector('.pac-item') && x.offsetParent !== null);
+    if (!(photon && photon.children.length) && !pac) return;
+    e.stopPropagation();
+    e.preventDefault();
+    if (photon) photon.hidden = true;
+    if (pac) { pac.dataset.sfPacDismissed = '1'; pac.style.display = 'none'; }
+  }, true);
+  if (!window.OmUI) document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && sheetCur) closeSheet(); });
+
+  /* In-portal replacements for window.alert / confirm / prompt (same await-the-answer behavior). */
+  function ppDialog(o) {
+    return new Promise((resolve) => {
+      const host = document.createElement('div');
+      host.className = 'pp-dlg';
+      host.hidden = true;
+      host.setAttribute('role', o.input ? 'dialog' : 'alertdialog');
+      host.setAttribute('aria-labelledby', 'ppDlgTitle');
+      if (o.message) host.setAttribute('aria-describedby', 'ppDlgMsg');
+      host.innerHTML = `<div class="pp-sheet-bg" data-om-backdrop></div>
+        <form class="pp-dlg-card" data-om-motion="pop" novalidate>
+          <h2 id="ppDlgTitle">${esc(o.title || '')}</h2>
+          ${o.message ? `<p id="ppDlgMsg" class="pp-muted">${esc(o.message)}</p>` : ''}
+          ${o.input ? `<label class="pp-sr" for="ppDlgInput">${esc(o.title || 'Value')}</label><input id="ppDlgInput" class="pp-dlg-input" ${o.readOnly ? 'readonly' : ''} value="${esc(o.value || '')}" />` : ''}
+          <div class="pp-sheet-actions">${o.cancel === false ? '' : `<button type="button" class="pp-btn pp-btn--sec" data-dlg-cancel>${esc(o.cancel || 'Cancel')}</button>`}<button type="submit" class="pp-btn ${o.danger ? 'pp-btn--danger' : 'pp-btn--pri'}">${esc(o.ok || 'OK')}</button></div>
+        </form>`;
+      document.body.appendChild(host);
+      const input = host.querySelector('input');
+      let answer = o.input ? null : false;
+      const finish = () => { resolve(answer); setTimeout(() => host.remove(), 300); };
+      const layer = window.OmUI ? window.OmUI.layer(host, { history: false, onClose: finish, initialFocus: () => input || host.querySelector('[type=submit]') }) : null;
+      const close = () => { if (layer) layer.close(); else { host.remove(); resolve(answer); } };
+      host.querySelector('form').addEventListener('submit', (e) => { e.preventDefault(); answer = o.input ? input.value : true; close(); });
+      host.querySelector('.pp-sheet-bg').addEventListener('click', close);
+      const c = host.querySelector('[data-dlg-cancel]'); if (c) c.addEventListener('click', close);
+      if (layer) layer.open(); else { host.hidden = false; (input || host.querySelector('[type=submit]')).focus(); }
+      if (input) input.select();
+    });
+  }
+  const ppConfirm = (title, message, opts) => ppDialog({ title, message, ok: 'OK', ...(opts || {}) });
+  const ppPrompt = (title, value, opts) => ppDialog({ title, value, input: true, ...(opts || {}) });
+  /** Short message (replaces window.alert): the Mate toast, announced to screen readers. */
+  function ppNotice(text, ok) { mateToast(ok ? 'thumbs' : 'head-curious', ok ? text : 'Something went wrong', ok ? '' : text); }
+  void ppConfirm; // ready for confirmations (no window.confirm left in the portal)
 
   /* ─────────────────────────── companies ─────────────────────────── */
 
@@ -3144,7 +3374,7 @@
         <button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-copy="${esc(data.invite_url)}">Copy link</button>
       </div>`;
     out.querySelectorAll('[data-copy]').forEach((c) => c.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(c.getAttribute('data-copy')); c.textContent = 'Copied'; } catch (_) { window.prompt('Copy the link', c.getAttribute('data-copy')); }
+      try { await navigator.clipboard.writeText(c.getAttribute('data-copy')); c.textContent = 'Copied'; } catch (_) { await ppPrompt('Copy the link', c.getAttribute('data-copy'), { readOnly: true, ok: 'Done', cancel: false }); }
     }));
   }
 
@@ -3214,7 +3444,7 @@
       } catch (e) {
         b.disabled = false;
         b.textContent = 'Resend invite';
-        window.alert(e.message);
+        ppNotice(e.message);
       }
     }));
     view.querySelectorAll('[data-remove-co]').forEach((b) => b.addEventListener('click', async () => {
@@ -3226,7 +3456,7 @@
         location.hash = '#companies';
       } catch (e) {
         b.disabled = false;
-        window.alert(e.message);
+        ppNotice(e.message);
       }
     }));
     const priceSheet = (pr) => openPriceSheet(c, pr, () => render());
@@ -3237,8 +3467,8 @@
       if (!copy.value) return;
       try {
         const r = await postJson('/api/builder/prices/copy', { from: c.id, to: copy.value });
-        window.alert(r.data.copied ? `${plural(r.data.copied, 'price', 'prices')} copied.` : 'That company already has these prices.');
-      } catch (e) { window.alert(e.message); }
+        ppNotice(r.data.copied ? `${plural(r.data.copied, 'price', 'prices')} copied.` : 'That company already has these prices.', true);
+      } catch (e) { ppNotice(e.message); }
       copy.value = '';
     });
   }
@@ -3292,7 +3522,7 @@
     const del = root.querySelector('[data-pr-del]');
     if (del) del.addEventListener('click', async () => {
       if (del.dataset.armed !== '1') { del.dataset.armed = '1'; del.textContent = 'Tap again to delete'; return; }
-      try { await api(`/api/builder/prices/${encodeURIComponent(pr.id)}`, { method: 'DELETE' }); state.prices = null; closeSheet(); done(); } catch (ex) { window.alert(ex.message); }
+      try { await api(`/api/builder/prices/${encodeURIComponent(pr.id)}`, { method: 'DELETE' }); state.prices = null; closeSheet(); done(); } catch (ex) { ppNotice(ex.message); }
     });
   }
 
@@ -3425,7 +3655,7 @@
     const head = wide
       ? (title) => `<div class="pp-set2-title"><h2>${esc(title)}</h2></div>`
       : (title, back) => `<div class="pp-head"><div>${back ? `<a class="pp-back" href="#settings" style="display:inline-flex">${icon('back')}Settings</a>` : `<p class="pp-eyebrow">${esc(acc.name)}</p>`}<h1>${esc(title)}</h1></div></div>`;
-    const meCard = `<a class="pp-card pp-set-me" href="#settings/profile">${acc.logo_url ? `<img class="pp-set-logo" src="${esc(acc.logo_url)}" alt="" />` : `<span class="pp-avatar-sm pp-avatar-lg" aria-hidden="true">${esc(initials(me.name))}</span>`}<span><strong>${esc(me.name)}</strong><small>${esc([me.role_label, acc.name].join(' · '))}</small><small>${esc(me.email)}</small></span>${icon('chev')}</a>`;
+    const meCard = `<a class="pp-card pp-set-me" href="#settings/profile">${acc.logo_url ? `<img class="pp-set-logo" src="${esc(acc.logo_url)}" alt="" decoding="async" />` : `<span class="pp-avatar-sm pp-avatar-lg" aria-hidden="true">${esc(initials(me.name))}</span>`}<span><strong>${esc(me.name)}</strong><small>${esc([me.role_label, acc.name].join(' · '))}</small><small>${esc(me.email)}</small></span>${icon('chev')}</a>`;
     const rows = `<div class="pp-card pp-set-list">${sections.map((x) => `<a class="pp-set-row" href="${x.href || `#settings/${x.key}`}" ${sec && sec.key === x.key ? 'aria-current="page"' : ''}><span class="pp-set-ic">${icon(x.ic)}</span><span><strong>${esc(x.label)}</strong><small>${esc(x.sub)}</small></span>${icon('chev')}</a>`).join('')}</div>`;
     const out = `<button type="button" class="pp-set-out" id="ppSetLogout">${icon('back')}Sign out</button>`;
     if (wide) {
@@ -4151,7 +4381,7 @@
         const url = await window.ObPlan3D.stairThumb(slot.getAttribute('data-thumb-key'), (m.data && m.data.stairs) || [], 320, 240);
         if (!url || !document.body.contains(slot)) return;
         slot.classList.add('has-thumb');
-        slot.innerHTML = `<img src="${url}" alt="" width="160" height="120" />`;
+        slot.innerHTML = `<img src="${url}" alt="" width="160" height="120" decoding="async" />`;
       } catch (_) { /* keep the icon */ }
     });
   }
@@ -4163,9 +4393,9 @@
     const rows = r.data || [];
     state.homeMeas = rows;
     const f = state.measFilter || 'all';
-    const q = String(state.measQuery || '').trim().toLowerCase();
     const count = (k) => (k === 'all' ? rows.length : rows.filter((m) => m.status === k).length);
-    const list = rows.filter((m) => (f === 'all' || m.status === f) && (!q || String(m.address || '').toLowerCase().includes(q)));
+    const filtered = () => { const q = String(state.measQuery || '').trim().toLowerCase(); return rows.filter((m) => (f === 'all' || m.status === f) && (!q || String(m.address || '').toLowerCase().includes(q))); };
+    const list = filtered();
     const pills = (c) => [c.treads ? `<span><b>${c.treads}</b> treads</span>` : '', c.risers ? `<span><b>${c.risers}</b> risers</span>` : '', c.nosings ? `<span><b>${c.nosings}</b> nosings</span>` : '', c.vents ? `<span><b>${c.vents}</b> vents</span>` : '', c.floor_sf ? `<span><b>${Number(c.floor_sf).toLocaleString('en-US')}</b> sf floors</span>` : ''].filter(Boolean).join('') || '<span class="pp-muted">Nothing measured yet</span>';
     const card = (m) => `<div class="pp-mcard-wrap">${m.status === 'used' ? '' : `<button type="button" class="pp-mcard-del" data-meas-del="${esc(m.id)}" aria-label="Delete measurement at ${esc(m.address)}" title="Delete">${icon('trash')}</button>`}<a class="pp-card pp-mcard is-${esc(m.status)}" href="#measurements/${esc(m.id)}">
         <span class="pp-mcard-ic" aria-hidden="true" ${m.counts && m.counts.treads ? `data-stair-thumb="${esc(m.id)}" data-thumb-key="${esc(`${m.id}:${m.updated_at || ''}`)}"` : ''}>${icon('ruler')}</span>
@@ -4176,24 +4406,40 @@
         </span>
         ${m.status === 'draft' ? '<span class="pp-mcard-go">Continue</span>' : icon('chev')}
       </a></div>`;
+    const listHtml = (items) => (items.length ? items.map(card).join('') : `<div class="pp-card pp-empty">${mate('head-curious', 64)}<strong>No measurements match</strong>Change the search or the filter.</div>`);
     view.innerHTML = `
       <div class="pp-head"><div><p class="pp-eyebrow">${esc(state.builder.account.name)}</p><h1>Measurements</h1></div><div class="pp-head-actions"><button type="button" class="pp-btn pp-btn--sec" id="ppMeasPlanBtn">${icon('upload')}From plans</button><button type="button" class="pp-btn pp-btn--pri" id="ppMeasNewBtn">${icon('locate')}New measurement</button></div></div>
       ${rows.length ? `<div class="pp-mlist-bar">
         <label class="pp-search pp-mlist-search" for="ppMeasQ">${icon('search')}<span class="pp-sr">Search measurements</span><input id="ppMeasQ" type="search" placeholder="Search by address" value="${esc(state.measQuery || '')}" autocomplete="off" /></label>
         <div class="pp-filter pp-side-filter" role="group" aria-label="Status">${MEAS_FILTERS.map(([k, l]) => `<button type="button" data-mfilter="${k}" aria-pressed="${f === k}">${l} · ${count(k)}</button>`).join('')}</div>
       </div>
-      <div class="pp-mlist">${list.length ? list.map(card).join('') : `<div class="pp-card pp-empty">${mate('head-curious', 64)}<strong>No measurements match</strong>Change the search or the filter.</div>`}</div>`
+      <div class="pp-mlist" id="ppMeasList">${listHtml(list)}</div>`
       : `<div class="pp-card pp-empty pp-mempty">${mate('measure', 150)}<strong>Measure stairs and vents on site</strong>Stand at the house and tap <b>New measurement</b> — Mate finds the address. Each measurement goes with the Work Order for that house.<div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center"><button type="button" class="pp-btn pp-btn--pri" data-meas-new>${icon('locate')}New measurement</button><button type="button" class="pp-btn pp-btn--sec" data-meas-plan>${icon('upload')}From plans</button></div></div>`}`;
     paintStairThumbs(view);
     view.querySelectorAll('#ppMeasNewBtn, [data-meas-new]').forEach((b) => b.addEventListener('click', () => openNewMeasurement(false)));
     view.querySelectorAll('#ppMeasPlanBtn, [data-meas-plan]').forEach((b) => b.addEventListener('click', () => openPlanUpload()));
     view.querySelectorAll('[data-mfilter]').forEach((b) => b.addEventListener('click', () => { state.measFilter = b.getAttribute('data-mfilter'); render(); }));
-    view.querySelectorAll('[data-meas-del]').forEach((b) => b.addEventListener('click', () => {
+    const bindDel = (box) => box.querySelectorAll('[data-meas-del]').forEach((b) => b.addEventListener('click', () => {
       const m = rows.find((x) => x.id === b.getAttribute('data-meas-del'));
       if (m) confirmMeasDelete(m, () => { state.homeMeas = null; render(); });
     }));
+    bindDel(view);
     const qi = $('ppMeasQ');
-    if (qi) qi.addEventListener('input', () => { state.measQuery = qi.value; const pos = qi.selectionStart; render().then(() => { const x = $('ppMeasQ'); if (x) { x.focus(); x.setSelectionRange(pos, pos); } }); });
+    let qT = 0;
+    // 200ms after the last key: filter the list already loaded and redraw only the cards (the field is left alone).
+    if (qi) qi.addEventListener('input', () => {
+      clearTimeout(qT);
+      qT = setTimeout(() => {
+        const box = $('ppMeasList');
+        if (!box || !qi.isConnected) return;
+        state.measQuery = qi.value;
+        const items = filtered();
+        box.innerHTML = listHtml(items);
+        bindDel(box);
+        paintStairThumbs(box);
+        announce(plural(items.length, 'measurement', 'measurements'));
+      }, 200);
+    });
     if (id === 'new') { history.replaceState(null, '', '#measurements'); openNewMeasurement(window.matchMedia('(max-width: 1023px)').matches); }
   }
 
@@ -4312,7 +4558,7 @@
   }
   function photoStrip(m, list, path) {
     const locked = m.status === 'used';
-    return `<div class="pp-meas-photos">${(list || []).map((k, i) => `<span class="pp-meas-ph"><img src="/api/builder/measurements/${encodeURIComponent(m.id)}/photo?key=${encodeURIComponent(k)}" alt="Photo ${i + 1}" loading="lazy" />${locked ? '' : `<button type="button" data-ph-rm="${esc(path)}" data-ph-i="${i}" aria-label="Remove photo ${i + 1}">×</button>`}</span>`).join('')}${locked ? '' : `<label class="pp-meas-addph"><input type="file" accept="image/*" capture="environment" data-ph-add="${esc(path)}" hidden />${icon('camera')}<span>Photo</span></label>`}</div>`;
+    return `<div class="pp-meas-photos">${(list || []).map((k, i) => `<span class="pp-meas-ph"><img src="/api/builder/measurements/${encodeURIComponent(m.id)}/photo?key=${encodeURIComponent(k)}" alt="Photo ${i + 1}" loading="lazy" decoding="async" />${locked ? '' : `<button type="button" data-ph-rm="${esc(path)}" data-ph-i="${i}" aria-label="Remove photo ${i + 1}">×</button>`}</span>`).join('')}${locked ? '' : `<label class="pp-meas-addph"><input type="file" accept="image/*" capture="environment" data-ph-add="${esc(path)}" hidden />${icon('camera')}<span>Photo</span></label>`}</div>`;
   }
   function inch(path, value, label, locked, hint) {
     // The hint (width / depth / height) stays visible while the field is empty, so W and D are never swapped.
@@ -5395,7 +5641,7 @@
         await measSaveNow();
         reopen();
       } catch (e) {
-        window.alert(e.message || 'Could not upload the photo.');
+        ppNotice(e.message || 'Could not upload the photo.');
         if (label) label.classList.remove('is-busy');
       }
     }));
@@ -5585,7 +5831,7 @@
           <div class="pp-msum-side">
             ${measuredByHtml(m)}
             <section class="pp-card pp-block"><h3>General notes</h3><textarea class="pp-mnotes" data-head="notes" maxlength="2000" rows="4" placeholder="${measuresShowers() ? 'e.g. access through the garage, plumber sets the valve on Monday, client wants a linear drain' : 'e.g. access through the garage, concrete slab, client wants Jacobean on the treads'}" aria-label="General notes" ${locked ? 'disabled' : ''}>${esc(m.notes || '')}</textarea><small class="pp-muted pp-mnotes-hint">Goes on the PDF and the Work Order.</small></section>
-            ${photos.length ? `<section class="pp-card pp-block"><h3>Photos <small class="pp-muted">${photos.length}</small></h3><div class="pp-sphotos">${photos.slice(0, 12).map((p) => `<a href="/api/builder/measurements/${encodeURIComponent(m.id)}/photo?key=${encodeURIComponent(p.k)}" target="_blank" rel="noopener" title="${esc(p.label)}"><img src="/api/builder/measurements/${encodeURIComponent(m.id)}/photo?key=${encodeURIComponent(p.k)}" alt="${esc(p.label)}" loading="lazy" /><span>${esc(p.label)}</span></a>`).join('')}</div></section>` : ''}
+            ${photos.length ? `<section class="pp-card pp-block"><h3>Photos <small class="pp-muted">${photos.length}</small></h3><div class="pp-sphotos">${photos.slice(0, 12).map((p) => `<a href="/api/builder/measurements/${encodeURIComponent(m.id)}/photo?key=${encodeURIComponent(p.k)}" target="_blank" rel="noopener" title="${esc(p.label)}"><img src="/api/builder/measurements/${encodeURIComponent(m.id)}/photo?key=${encodeURIComponent(p.k)}" alt="${esc(p.label)}" loading="lazy" decoding="async" /><span>${esc(p.label)}</span></a>`).join('')}</div></section>` : ''}
             <section class="pp-card pp-block"><h3>Activity</h3>${measLogHtml(m)}</section>
             ${locked ? '' : '<div class="pp-msum-acts"><button type="button" class="pp-link pp-late" id="ppMeasDel">Delete measurement</button></div>'}
           </div>
@@ -5739,7 +5985,8 @@
     if (!box) box = planBusyBox();
     box.hidden = false;
     box.querySelector('span').textContent = text;
-    box.querySelector('i').style.width = `${Math.max(4, Math.min(100, pct || 0))}%`;
+    // transform, not width: the bar grows on the compositor (400ms ease-out in the CSS)
+    box.querySelector('i').style.transform = `scaleX(${Math.max(4, Math.min(100, pct || 0)) / 100})`;
   }
 
   /**
@@ -5760,6 +6007,7 @@
     try { return await readPlansNow(m, file, root, existing); } finally { planBusyEnd(); }
   }
   async function readPlansNow(m, file, root, existing) {
+    await ensureMeasureTools();
     if (!window.ObTakeoff) throw new Error('The plan reader did not load. Refresh the page and try again.');
     planProgress(root, 'Opening the plans…', 4);
     const upload = existing ? Promise.resolve(existing) : uploadPlanFile(m.id, file);
@@ -5992,7 +6240,7 @@
       $('ppPlanGo').disabled = false;
       if (file.size > 40 * 1048576) { formError('ppPlanErr', { message: 'The plans must be under 40 MB.' }); $('ppPlanGo').disabled = true; return; }
       try {
-        if (!$('ppPlanAddr').value.trim() && window.ObTakeoff && /pdf/.test(file.type)) {
+        if (!$('ppPlanAddr').value.trim() && /pdf/.test(file.type) && (await ensureMeasureTools()) && window.ObTakeoff) {
           const op = await window.ObTakeoff.open(file);
           const a = guessAddress(op);
           if (a && $('ppPlanAddr') && !$('ppPlanAddr').value.trim()) $('ppPlanAddr').value = a;
@@ -6219,7 +6467,7 @@
           <div class="pp-plan-level-acts">${locked ? '' : `<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-plv-scale="${li}">Fix scale</button>`}<label class="pp-switch"><input type="checkbox" data-plv-inc="${li}" ${lv.include ? 'checked' : ''} ${dis} /><span>${lv.include ? 'Counted' : 'Left out'}</span></label></div>
         </div>
         <div class="pp-plan-level-body">
-          <div class="pp-plan-sheet" data-plv-sheet="${li}">${lv.preview ? `<img src="/api/builder/measurements/${encodeURIComponent(m.id)}/plan-file?key=${encodeURIComponent(lv.preview)}" alt="${esc(lv.name)} plan" loading="lazy" /><canvas aria-hidden="true"></canvas>` : '<p class="pp-muted">No preview</p>'}</div>
+          <div class="pp-plan-sheet" data-plv-sheet="${li}">${lv.preview ? `<img src="/api/builder/measurements/${encodeURIComponent(m.id)}/plan-file?key=${encodeURIComponent(lv.preview)}" alt="${esc(lv.name)} plan" loading="lazy" decoding="async" /><canvas aria-hidden="true"></canvas>` : '<p class="pp-muted">No preview</p>'}</div>
           <div class="pp-plan-rooms" role="table" aria-label="Rooms on ${esc(lv.name)}">
             <div class="pp-plan-room pp-plan-room--head" role="row"><span role="columnheader">Room</span><span role="columnheader">Floor</span><span role="columnheader">Area</span><span role="columnheader">Vents</span><span role="columnheader"><span class="pp-sr">Count</span></span></div>
             ${lv.rooms.map((r, ri) => ({ r, ri, on: !r.exclude && (plan.materials.find((x) => x.key === r.material) || {}).include })).sort((a, b) => Number(b.on) - Number(a.on)).map(({ r, ri, on }) => `<div class="pp-plan-room ${on ? '' : 'is-off'}" role="row" data-proom-hover="${li}:${ri}">
@@ -6278,6 +6526,7 @@
   });
 
   async function openPresentation(m) {
+    await ensureMeasureTools();
     if (!window.ObPlan3D) return;
     const d = m.data; const plan = d.plan || { levels: [], materials: [] };
     const coId = (plan.quote_link_id) || (state.company && state.company.id) || '';
@@ -6458,6 +6707,7 @@
    * the cover, the house and the vents on the plan tall for their chapters, the stair, the vent kinds.
    */
   async function presentationShots(m) {
+    await ensureMeasureTools();
     const P3 = window.ObPlan3D; if (!P3) return {};
     const d = m.data || {}; const plan = d.plan || { levels: [], materials: [] };
     const levels = (plan.levels || []).filter((l) => l.include && l.grid && l.rooms && l.rooms.length);
@@ -6603,7 +6853,7 @@
     const paper = `<article class="pp-qp" style="--qp:${esc(primary)}" aria-label="Quote">
         <div class="pp-qp-bar"></div>
         <header class="pp-qp-head">
-          <div class="pp-qp-org">${prof.logo_url ? `<img src="${esc(prof.logo_url)}" alt="" />` : `<span class="pp-qp-mark">${esc(initials(co ? co.company_name : 'Q'))}</span>`}<div><strong>${esc(co ? co.company_name : 'Flooring company')}</strong><small>${esc([prof.phone || co && co.contact_phone, prof.email || co && co.contact_email].filter(Boolean).join(' · '))}</small></div></div>
+          <div class="pp-qp-org">${prof.logo_url ? `<img src="${esc(prof.logo_url)}" alt="" loading="lazy" decoding="async" />` : `<span class="pp-qp-mark">${esc(initials(co ? co.company_name : 'Q'))}</span>`}<div><strong>${esc(co ? co.company_name : 'Flooring company')}</strong><small>${esc([prof.phone || co && co.contact_phone, prof.email || co && co.contact_email].filter(Boolean).join(' · '))}</small></div></div>
           <div class="pp-qp-num"><small>QUOTE</small><b>${esc(num)}</b><span>Issued ${esc(fmtD(today))}</span><span>Valid until ${esc(fmtD(valid))}</span></div>
         </header>
         <div class="pp-qp-parties">
@@ -6636,6 +6886,7 @@
   }
 
   async function bindFloors() {
+    await ensureMeasureTools();
     const m = state.meas;
     const plan = m.data.plan;
     const save = () => measSaveSoon();
@@ -7346,7 +7597,7 @@
         await measSaveNow();
         redraw();
       } catch (e) {
-        window.alert(e.message || 'Could not upload the photo.');
+        ppNotice(e.message || 'Could not upload the photo.');
         if (label) label.classList.remove('is-busy');
       }
     }));
@@ -7368,7 +7619,7 @@
         mateToast('celebrate', 'Measurement complete', 'It goes with the Work Order for this address.');
       } catch (e) {
         done.disabled = false;
-        window.alert(e.message);
+        ppNotice(e.message);
       }
     });
     const reopen = $('ppMeasReopen');
@@ -7652,7 +7903,7 @@
         <div class="pp-field"><label for="ppSphText">Sizes and notes <span>(optional)</span></label><textarea id="ppSphText" rows="3" maxlength="1500" placeholder="e.g. 2 flights with a landing: 8 steps up to the landing, 9 to the top, 42 wide, 11 1/4 deep, risers 7 1/2, landing 42 x 42"></textarea></div>
         ${canMic ? `<button type="button" class="pp-btn pp-btn--sec pp-sph-mic" data-sph-mic>${icon('mic')}<span>Say the sizes</span></button>` : ''}
         <p class="pp-error" id="ppSphErr" role="alert" hidden></p>
-        <div class="pp-plan-progress" data-sph-wait hidden><span>Mate is looking at the stair…</span><b><i style="width:60%"></i></b></div>
+        <div class="pp-plan-progress" data-sph-wait hidden><span>Mate is looking at the stair…</span><b><i style="transform:scaleX(.6)"></i></b></div>
         <div class="pp-sheet-actions"><button type="button" class="pp-btn pp-btn--pri" data-sph-go disabled>Build the stair</button></div>
       </div>`, { noFocus: true });
     const paint = () => {
@@ -7751,12 +8002,13 @@
 
   /** Short Mate message that slides up above the tab bar and leaves by itself. */
   function mateToast(pose, title, text) {
-    const old = $('ppToast');
-    if (old) old.remove();
+    // The toast leaves the way it came (up, fading, 200ms), also when a newer one replaces it.
+    const out = (t) => { if (!t || t.classList.contains('is-out')) return; t.removeAttribute('id'); t.classList.add('is-out'); setTimeout(() => t.remove(), 220); };
+    out($('ppToast'));
     document.body.insertAdjacentHTML('beforeend', `<div class="pp-toast" id="ppToast" role="status">${mate(pose, 44)}<div><strong>${esc(title)}</strong>${text ? `<span>${esc(text)}</span>` : ''}</div></div>`);
     const el = $('ppToast');
-    el.addEventListener('click', () => { el.classList.add('is-out'); setTimeout(() => el.remove(), 200); });
-    setTimeout(() => { if (el.isConnected) { el.classList.add('is-out'); setTimeout(() => el.remove(), 220); } }, 3600);
+    el.addEventListener('click', () => out(el));
+    setTimeout(() => { if (el.isConnected) out(el); }, text && text.length > 60 ? 5200 : 3600);
   }
 
   /** What Mate may know: the same jobs, invoices and measurements this person sees in the app. */
@@ -7882,13 +8134,13 @@
     const done = steps.length - left.length;
     // One clear next step, the rest as small check chips (the long list pushed the page down).
     return `<section class="pp-card pp-setup2" style="grid-column: 1 / -1" aria-labelledby="ppSetupT">
-        <img class="pp-setup2-art" src="${mateSrc(next.pose)}" alt="" />
+        <img class="pp-setup2-art" src="${mateSrc(next.pose)}" alt="" decoding="async" loading="lazy" />
         <div class="pp-setup2-main">
           <div class="pp-setup2-top">
             <h2 id="ppSetupT">Get set up <span>${done} of ${steps.length} done</span></h2>
             <button type="button" class="pp-link" data-setup-hide>Hide</button>
           </div>
-          <div class="pp-setup2-meter" role="progressbar" aria-valuemin="0" aria-valuemax="${steps.length}" aria-valuenow="${done}" aria-label="Setup progress"><i style="width:${Math.round((done / steps.length) * 100)}%"></i></div>
+          <div class="pp-setup2-meter" role="progressbar" aria-valuemin="0" aria-valuemax="${steps.length}" aria-valuenow="${done}" aria-label="Setup progress"><i style="transform:scaleX(${(done / steps.length).toFixed(3)})"></i></div>
           <a class="pp-setup2-next" href="${next.href}"><span><small>Next</small><strong>${esc(next.label)}</strong><em>${esc(next.sub)}</em></span><b>Start ${icon('chev')}</b></a>
           <ul class="pp-setup2-chips">${steps.map((st) => `<li class="${st.done ? 'is-done' : st === next ? 'is-next' : ''}"><a href="${st.href}">${st.done ? '✓ ' : ''}${esc(st.label.replace(/^(Connect your|Send your|Save your|Invite your|Install the app on your) /, (m) => ({ 'Connect your ': 'Connect ', 'Send your ': 'Send ', 'Save your ': 'Save ', 'Invite your ': 'Invite ', 'Install the app on your ': 'App on ' })[m] || m))}</a></li>`).join('')}</ul>
         </div>
@@ -7909,7 +8161,7 @@
       <div class="pp-head"><div>${b ? `<p class="pp-eyebrow">${esc(b.account.name)}</p>` : ''}<h1>More</h1></div></div>
       <div class="pp-set-hub pp-more">
         ${group('Work', `
-          ${row('#send', 'send', 'Send work', waiting ? `${waiting} waiting for the company` : 'PDF, photo or text', declined ? `<span class="pp-badge">${declined}</span>` : '')}
+          ${row('#send', 'send', 'Requests', waiting ? `${waiting} waiting for the company` : 'PDF, photo or text', declined ? `<span class="pp-badge">${declined}</span>` : '')}
           ${row('#calendar', 'cal', 'Calendar', 'Every job by day')}
           ${b && canDo('money.view') ? row('#invoices', 'doc', 'Invoices', state.invoices && state.invoices.length ? `${state.invoices.filter((inv) => invoiceState(inv).key !== 'paid').length} open` : 'What you owe and what is paid') : ''}
           ${row('#documents', 'camera', 'Photos & docs', 'Shared by the company')}`)}
@@ -7930,12 +8182,20 @@
 
   /* ─────────────────────────── shell ─────────────────────────── */
 
+  let menuLayer = null;
   function openMenu(open) {
     const menu = $('ppMenu');
-    menu.hidden = !open;
+    if (!menuLayer && window.OmUI) {
+      menu.setAttribute('data-om-motion', 'menu');
+      menu.setAttribute('aria-label', 'Account');
+      menuLayer = window.OmUI.layer(menu, { history: false, onClose: () => $('ppChip').setAttribute('aria-expanded', 'false') });
+    }
     $('ppChip').setAttribute('aria-expanded', open ? 'true' : 'false');
     if (open) window.scrollTo({ top: 0 });
+    if (menuLayer) { if (open) menuLayer.open(); else menuLayer.close(); return; }
+    menu.hidden = !open;
   }
+  const menuIsOpen = () => (menuLayer ? menuLayer.isOpen() : !$('ppMenu').hidden);
   async function logout() {
     try { await api(state.builder ? '/api/builder/logout' : '/api/partner-auth/logout', { method: 'POST' }); } catch (_) { /* sign out locally anyway */ }
     location.replace('partner-login.html');
@@ -8080,8 +8340,8 @@
   }
 
   function bindShell() {
-    $('ppChip').addEventListener('click', (e) => { e.stopPropagation(); openMenu($('ppMenu').hidden); });
-    document.addEventListener('click', (e) => { if (!$('ppMenu').hidden && !e.target.closest('#ppMenu')) openMenu(false); });
+    $('ppChip').addEventListener('click', (e) => { e.stopPropagation(); openMenu(!menuIsOpen()); });
+    document.addEventListener('click', (e) => { if (menuIsOpen() && !e.target.closest('#ppMenu')) openMenu(false); });
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') { openMenu(false); $('ppSearchSheet').hidden = true; }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openPalette(''); }
@@ -8101,7 +8361,7 @@
       } catch (err) {
         btn.disabled = false;
         btn.textContent = 'Switch company';
-        window.alert(err.message || 'Could not switch company.');
+        ppNotice(err.message || 'Could not switch company.');
       }
     });
     // The top search opens the palette (it never moves you to another page while you type).

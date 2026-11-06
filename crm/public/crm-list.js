@@ -127,9 +127,14 @@
       var collapsed = false;
       if (h) {
         var saved = Object.prototype.hasOwnProperty.call(folds, g.label) ? folds[g.label] : null;
-        var hot = HOT_RE.test(g.label);
-        var auto = !hot && (DONE_RE.test(g.label) || openSlots <= 0);
-        collapsed = !q && multi && (saved !== null ? saved : auto);
+        var forceClosed = h.getAttribute("data-ol-closed") === "1";
+        var forceOpen = h.getAttribute("data-ol-open") === "1";
+        var hot = !forceClosed && HOT_RE.test(g.label);
+        var auto = forceClosed || (!hot && (DONE_RE.test(g.label) || openSlots <= 0));
+        if (q || forceOpen) collapsed = false;
+        else if (saved !== null) collapsed = saved;
+        else if (forceClosed) collapsed = true;
+        else collapsed = multi && auto;
         if (!collapsed && !hot && !DONE_RE.test(g.label)) openSlots--;
         h.classList.add("ol-grp--fold");
         h.classList.toggle("is-folded", collapsed);
@@ -187,8 +192,10 @@
     if (multi && !q) {
       var idx = [];
       var byShort = {};
+      var onlyBar = groups.some(function (g) { return g.head && g.head.getAttribute("data-ol-bar") === "1"; });
       groups.forEach(function (g, gi) {
         if (!g.head) return;
+        if (onlyBar && g.head.getAttribute("data-ol-bar") !== "1") return;
         var short = g.label.split(" · ")[0];
         var n = parseInt((g.head.querySelector("em") || {}).textContent, 10);
         if (isNaN(n)) n = g.items.length;
@@ -223,6 +230,7 @@
   }
 
   function toggle(L, h) {
+    if (h.getAttribute("data-ol-open") === "1") return;
     var folds = store(L.key);
     var label = h.dataset.olLabel;
     folds[label] = !h.classList.contains("is-folded");

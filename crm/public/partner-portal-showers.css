@@ -79,3 +79,8 @@
 }
 /* the portal's own button rules set the text color; keep white text on dark/orange buttons */
 .ps .ps-btn--dark, .ps .ps-btn--pri, .ps-card h2 .ps-btn--dark { color: #fff; }
+
+/* Touch screens: "Remover" and the other text links are 44 px tall */
+@media (pointer: coarse) {
+  .ps-link { min-height: 44px; display: inline-flex; align-items: center; padding: 0 4px; }
+}

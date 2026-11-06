@@ -26,18 +26,26 @@ import { tradeInject } from "../lib/trades/browser.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const BRANDING_INJECT = [
+  // Shared tokens and base behaviour for every app (sheets, busy buttons, press feedback, focus ring).
+  '<link rel="stylesheet" href="/om-tokens.css?v=20261105-apps3" />',
+  '<link rel="stylesheet" href="/om-ui.css?v=20261105-apps3" />',
+  '<script src="/om-ui.js?v=20261105-apps3" defer></script>',
+  // The same top and bottom bars in every app. Not deferred: the apps' own scripts build their bars with it.
+  '<link rel="stylesheet" href="/om-shell.css?v=20261105-hammer1" />',
+  '<script src="/om-shell.js?v=20261105-hammer1"></script>',
   '<link rel="stylesheet" href="/api/branding.css" data-saas-branding-css />',
   // App-wide neutral theme (desktop dock, iPhone tab bar, Geist). Loaded last so it wins the cascade.
   '<link rel="preconnect" href="https://fonts.googleapis.com" />',
+  '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />',
   '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" />',
-  '<link rel="stylesheet" href="/om-theme.css?v=20261105-dockall" data-om-theme />',
+  '<link rel="stylesheet" href="/om-theme.css?v=20261105-shell9" data-om-theme />',
   '<script src="/saas-branding.js?v=20261104-crew1" defer data-saas-branding-js></script>',
   // Shared feedback on every page: toasts (with "Desfazer"), confirm/prompt dialogs and
   // loading skeletons. Each script guards against a second copy loaded by the page itself.
-  '<link rel="stylesheet" href="/crm-toast.css?v=20261104-ux2" />',
-  '<link rel="stylesheet" href="/crm-confirm.css?v=20261104-ux2" />',
+  '<link rel="stylesheet" href="/crm-toast.css?v=20261105-apps3" />',
+  '<link rel="stylesheet" href="/crm-confirm.css?v=20261105-apps3" />',
   '<script src="/crm-toast.js?v=20261104-ux2" defer></script>',
-  '<script src="/crm-confirm.js?v=20261104-ux2" defer></script>',
+  '<script src="/crm-confirm.js?v=20261105-apps3" defer></script>',
   '<script src="/crm-skeleton.js?v=20261104-ux2" defer></script>',
 ].join("\n    ");
 
@@ -156,7 +164,7 @@ export function obraCamHtml(html: string): string {
     '<meta name="apple-mobile-web-app-title" content="ObraCam" />',
     '<meta name="apple-mobile-web-app-capable" content="yes" />',
     '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&display=swap" />',
-    '<link rel="stylesheet" href="/obracam-app.css?v=20261105-stk1" />',
+    '<link rel="stylesheet" href="/obracam-app.css?v=20261105-shell9" />',
     "<script>window.__OM_FOCUS_APP=true</script>",
   ].join("\n    ");
   return html
@@ -164,7 +172,7 @@ export function obraCamHtml(html: string): string {
     .replace(/<meta name="theme-color"[^>]*>/i, '<meta name="theme-color" content="#F7F8FA" />')
     .replace(/<link rel="apple-touch-icon"[^>]*>/i, '<link rel="apple-touch-icon" href="/assets/obracam/apple-touch-icon.png?v=1" />')
     .replace(/<\/head>/i, `    ${head}\n</head>`)
-    .replace(/<\/body>/i, '  <script src="/obracam-app.js?v=20261105-stk1"></script>\n</body>');
+    .replace(/<\/body>/i, '  <script src="/obracam-app.js?v=20261105-shell9"></script>\n</body>');
 }
 
 async function sendCrmHtml(req: Request, res: Response, filename: string) {

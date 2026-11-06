@@ -1,22 +1,26 @@
 /**
  * ObraCam (Opção B): lista de jobs ao lado (quem precisa de foto primeiro) e as fotos do job escolhido
- * em Antes / Durante / Depois com o mapa de onde foram tiradas. "Todas as fotos" mostra as recentes por dia.
- * Foto abre no visualizador (cam-viewer.js).
+ * por fase com o mapa de onde foram tiradas. "Fotos recentes" mostra as dos últimos dias, por dia.
+ * Foto abre no visualizador (cam-viewer.js?v=20261105-mg1).
  */
 (function () {
+  // /obracam on a computer: the page is already on its way to the normal ObraCam (inline check at the top of <body>)
+  if (window.__OM_CAM_LEAVING) return;
   const $ = (id) => document.getElementById(id);
   const STAGE = { before: "Antes", during: "Durante", after: "Depois" };
   /**
-   * Job phases in the order work happens. Hardwood's by default; companies whose trade has its own job phases
-   * (Tile, Countertops) get theirs from the server (meta.phase_catalog). The server works each photo's phase out.
+   * Job phases in the order work happens; the server works each photo's phase out. The keys are what the
+   * API stores; the second item is only the name on screen. Hardwood's by default; companies whose trade
+   * has its own job phases (Tile, Countertops) get theirs from the server (meta.phase_catalog).
    */
-  let PHASES = [["delivery", "Delivery"], ["scan", "Scan"], ["installation", "Installation"], ["sand_finish", "Sand & Finish"], ["walkthrough", "Walk Through"]];
+  let PHASES = [["delivery", "Entrega"], ["scan", "Medição"], ["installation", "Instalação"], ["sand_finish", "Lixa e acabamento"], ["walkthrough", "Vistoria final"]];
   let PHASE = Object.fromEntries(PHASES);
   /** true when phases follow the job's own phase list instead of its dates */
   let byPhases = false;
   function usePhaseCatalog(cat, mode) {
     if (mode) byPhases = mode === "phases";
-    if (!Array.isArray(cat) || !cat.length) return;
+    // Hardwood keeps the names above; only a trade's own phases replace them.
+    if (!byPhases || !Array.isArray(cat) || !cat.length) return;
     PHASES = cat.filter((x) => Array.isArray(x) && x[0]).map(([k, l]) => [String(k), String(l || k)]);
     PHASE = Object.fromEntries(PHASES);
   }
@@ -26,7 +30,8 @@
   const jobPhaseList = (j) => (j && ((metaCache[j.id] && metaCache[j.id].phases) || j.phases)) || PHASES.map(([k]) => k);
   const WDL = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
   const MO = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
-  const FEED_DAYS = 7;
+  /** "Fotos recentes" asks the board for this many days of photos across all jobs. */
+  const FEED_DAYS = 3;
   const GEO_CACHE_KEY = "om_jmb_geocode_v1";
   const SVG = {
     cam: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg>',
@@ -40,6 +45,7 @@
     sel: '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M8.5 12.2l2.4 2.4 4.6-5"/></svg>',
     dl: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
     trash: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>',
+    share: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 15V4M8 8l4-4 4 4"/><path d="M5 12v7a1 1 0 001 1h12a1 1 0 001-1v-7"/></svg>',
     layers: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg>',
     x: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
     archive: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10h14V9M10 13h4"/></svg>',
@@ -48,6 +54,8 @@
 
   let jobs = [];
   let feed = [];
+  /** The board (jobs + recent photos) has arrived at least once. */
+  let loaded = false;
   let mode = "active";
   let q = "";
   let selId = null;
@@ -74,6 +82,15 @@
   /** Each job and the feed show either the photos or "Local" (the map); the map loads only when asked for. */
   let pane = "photos";
   let canManage = false;
+  /** Field crew can edit/upload photos on their jobs without office manage. */
+  let canEditMedia = false;
+  /** ObraCrew shell: calendar jobs only, ticket links, no office chrome. */
+  let crewMode = false;
+
+  function jobOpenHref(id, hash) {
+    if (crewMode) return `/campo/ticket.html?id=${encodeURIComponent(id)}`;
+    return `job-detail.html?id=${encodeURIComponent(id)}${hash || ""}`;
+  }
   const mediaCache = {};
   const metaCache = {};
   let map = null;
@@ -94,8 +111,33 @@
       location.href = "/login.html";
       throw new Error("unauth");
     }
-    if (!r.ok || j.success === false) throw new Error(j.error || `HTTP ${r.status}`);
+    if (!r.ok || j.success === false) {
+      const err = new Error(j.error || `HTTP ${r.status}`);
+      err.status = r.status;
+      err.code = j.code || "";
+      throw err;
+    }
     return j;
+  }
+
+  /** What went wrong, said in Portuguese for the person holding the phone (never "HTTP 500"). */
+  function friendlyError(err, what, verb) {
+    const e = err || {};
+    const raw = String(e.message || "");
+    const thing = what || "a foto";
+    const act = verb || "enviar";
+    if (e.name === "TypeError" || /failed to fetch|network|load failed/i.test(raw) || (typeof navigator !== "undefined" && navigator.onLine === false))
+      return "Sem conexão com a internet. Confira o sinal e tente de novo.";
+    if (/heic|heif/i.test(raw)) return "Esta foto está em HEIC. Use JPG ou PNG (no iPhone: Ajustes > Câmera > Formatos > Mais compatível).";
+    if (/too large|413/i.test(raw) || e.status === 413) return "A foto é grande demais (máximo 12 MB).";
+    if (/ler esta imagem/i.test(raw)) return raw;
+    if (e.code === "LIMIT_REACHED") return "O limite de fotos do mês do seu plano acabou. Fale com o administrador da empresa.";
+    if (e.status === 403) return `Você não tem permissão para ${act} ${thing} neste job.`;
+    if (e.status === 404) return "Este job não existe mais ou foi cancelado.";
+    if (e.status === 400) return `O servidor recusou ${thing}. Tente outra foto, em JPG ou PNG.`;
+    if (e.status >= 500 || /^HTTP \d/.test(raw)) return "O servidor não respondeu agora. Tente de novo em instantes.";
+    // a message already written in Portuguese (ours, or the server's) is kept; anything else gets the plain one
+    return /[áéíóúâêôãõç]/i.test(raw) ? raw : `Não foi possível ${act} ${thing}. Tente de novo.`;
   }
   function esc(s) {
     return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -168,6 +210,62 @@
   function isWide() {
     return window.matchMedia("(min-width: 1025px)").matches;
   }
+  const coarse = () => window.matchMedia("(pointer: coarse)").matches;
+  const canShare = () => !!(window.CamViewer && window.CamViewer.canShareFiles && window.CamViewer.canShareFiles());
+
+  /**
+   * ObraCam sheets (upload, etiquetas, ações em lote) on OmUI.layer: Esc, focus kept inside and given back, Android
+   * back closes, and the exit animates before the sheet hides. Markup: root.cam-up > .cam-up__bg[data-om-backdrop] +
+   * .cam-up__card (the animated panel: "sheet" from the bottom on phones, "pop" centred on wider screens).
+   * om-ui.js loads deferred, so the layer is made on first open; without it the sheet still opens and closes.
+   */
+  function camSheet(root, opts) {
+    const o = opts || {};
+    let layer = null;
+    const make = () => {
+      if (!layer && window.OmUI && window.OmUI.layer) layer = window.OmUI.layer(root, { history: true, onClose: o.onClose, initialFocus: o.initialFocus });
+      return layer;
+    };
+    root.addEventListener("click", (e) => {
+      if (e.target.closest("[data-om-backdrop]")) api.close();
+    });
+    root.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !layer) {
+        e.preventDefault();
+        api.close();
+      }
+    });
+    const api = {
+      open() {
+        const card = root.querySelector(".cam-up__card");
+        if (card) card.setAttribute("data-om-motion", window.matchMedia("(min-width: 761px)").matches ? "pop" : "sheet");
+        if (make()) return layer.open();
+        root.hidden = false;
+        const t = typeof o.initialFocus === "function" ? o.initialFocus() : o.initialFocus;
+        (t || root.querySelector("button"))?.focus({ preventScroll: true });
+      },
+      close() {
+        if (layer) return layer.close();
+        if (root.hidden) return;
+        root.hidden = true;
+        if (typeof o.onClose === "function") o.onClose();
+      },
+      isOpen: () => (layer ? layer.isOpen() : !root.hidden),
+    };
+    return api;
+  }
+  /** The shell every ObraCam sheet shares; the body is what gets repainted, so the card's entrance never replays. */
+  function sheetShell(cls, labelId) {
+    const el = document.createElement("div");
+    el.className = `cam-up${cls ? ` ${cls}` : ""}`;
+    el.hidden = true;
+    el.setAttribute("role", "dialog");
+    el.setAttribute("aria-modal", "true");
+    if (labelId) el.setAttribute("aria-labelledby", labelId);
+    el.innerHTML = `<div class="cam-up__bg" data-om-backdrop aria-hidden="true"></div><div class="cam-up__card"><div class="cam-up__body"></div></div>`;
+    document.body.appendChild(el);
+    return el;
+  }
 
   // ---------------------------------------------------------------- lista
   function jobHit(j) {
@@ -180,8 +278,9 @@
     ).includes(q);
   }
 
-  /** Same identity line as Jobs: Nickname/Builder - Client ID. */
+  /** Same identity line as Jobs; ObraCrew uses homeowner/client only (no nickname). */
   function listWho(j) {
+    if (crewMode && window.JobsInfo?.fieldClient) return window.JobsInfo.fieldClient(j) || "Sem cliente";
     if (window.JobsInfo?.client) return window.JobsInfo.client(j);
     const nick = String(j.builder?.nickname || j.customer?.nickname || "").trim();
     const base = String(
@@ -222,6 +321,21 @@
     return `<span class="ol-lead jx-day${tone}" aria-label="${today ? "Hoje" : `${wd} ${d.getDate()} ${mo}`}"><small>${today ? "hoje" : wd}</small><b>${d.getDate()}</b><small>${mo}</small></span>`;
   }
 
+  /** ObraCrew Jobs card day block (jobs-mobile fieldDayBlock). */
+  function crewDayBlock(j) {
+    const J = window.JobsInfo;
+    const finished = j.status === "completed" || j.status === "canceled";
+    const iso = (J && J.listAnchorIso ? J.listAnchorIso(j) : null) || (finished ? j.updated_at || j.scheduled_end : null);
+    if (!iso) return `<span class="jx-day is-none" aria-hidden="true"><small>sem</small><b>—</b><small>data</small></span>`;
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return `<span class="jx-day is-none" aria-hidden="true"><small>sem</small><b>—</b><small>data</small></span>`;
+    const wd = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"][d.getDay()];
+    const mo = MO[d.getMonth()];
+    const today = sod(d).getTime() === sod(new Date()).getTime();
+    const tone = !finished && (today || j.status === "in_progress") ? " is-now" : finished ? " is-done" : "";
+    return `<span class="jx-day${tone}" aria-label="${today ? "Hoje" : `${wd} ${d.getDate()} ${mo}`}"><small>${today ? "hoje" : wd}</small><b>${d.getDate()}</b><small>${mo}</small></span>`;
+  }
+
   function timeText(j) {
     const J = window.JobsInfo;
     const iso = J && J.listAnchorIso ? J.listAnchorIso(j) : j.scheduled_start;
@@ -231,13 +345,49 @@
     return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   }
 
+  /** ObraCrew Jobs card: day · client · address · status/hora · mapa. */
+  function crewRowHtml(j) {
+    const J = window.JobsInfo;
+    const who = listWho(j);
+    const head = who && who !== "Sem cliente" ? who : j.title || "Job";
+    const href = `#cam-${encodeURIComponent(j.id)}`;
+    const maps = j.address ? `https://maps.google.com/?q=${encodeURIComponent(j.address)}` : "";
+    const listed = J && J.listWhen ? J.listWhen(j) : null;
+    const stText = listed?.status || jobStageLabel(j);
+    const tone = J && J.stageTone ? J.stageTone(j) : "wait";
+    const time = timeText(j);
+    const on = String(j.id) === String(selId) && mode !== "photos" ? " is-on" : "";
+    const id = esc(j.id);
+    const mapPin =
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>';
+    return `<div class="crew-job cam-crew-job${on}">
+      <a class="crew-job__main cam-row" href="${href}" data-cam-id="${id}">
+        ${crewDayBlock(j)}
+        <div class="crew-job__copy">
+          <b class="crew-job__title">${esc(head)}</b>
+          ${j.address ? `<span class="crew-job__addr">${esc(j.address)}</span>` : `<span class="crew-job__addr">Sem endereço</span>`}
+          <span class="crew-job__meta">
+            ${stText ? `<span class="ol-st is-${tone}">${esc(stText)}</span>` : ""}
+            ${time ? `<span class="crew-job__clock">${esc(time)}</span>` : ""}
+          </span>
+        </div>
+      </a>
+      ${
+        maps
+          ? `<a class="crew-job__map" href="${maps}" target="_blank" rel="noopener" aria-label="Abrir mapa">${mapPin}</a>`
+          : `<span class="crew-job__map is-off" aria-hidden="true">${mapPin}</span>`
+      }
+    </div>`;
+  }
+
   /** Same card anatomy as Jobs: day · client · address · progress · status + map + CTA. */
   function rowHtml(j) {
+    if (crewMode) return crewRowHtml(j);
     const n = j.photo_count != null ? j.photo_count : (j.photos || []).length;
     const who = listWho(j);
     const head = who && who !== "Sem cliente" ? who : j.title || "Job";
-    const href = `job-detail.html?id=${encodeURIComponent(j.id)}#fotos`;
-    const openHref = `jobs.html?id=${encodeURIComponent(j.id)}`;
+    const href = jobOpenHref(j.id, "#fotos");
+    const openHref = jobOpenHref(j.id);
     const addr = j.address
       ? `<span class="ol-m jx-row__addr" title="${esc(j.address)}">${SVG.pin}<span>${esc(j.address)}</span></span>`
       : `<span class="ol-m"><span>Sem endereço</span></span>`;
@@ -340,14 +490,18 @@
   function isToday(iso) {
     return !!iso && new Date(iso).toDateString() === new Date().toDateString();
   }
-  /** Quick filters: what the office checks every morning. */
-  const FILTERS = [
-    ["all", "Todos", () => true],
-    ["need", "Precisa de foto", (j) => needsPhoto(j)],
-    ["today", "Hoje", (j) => isToday(j.scheduled_start) || isToday(j.sand_scheduled_start)],
-    ["nogps", "Sem GPS", (j) => (j.photos || []).some((p) => !hasGps(p))],
-    ["far", "Longe", (j) => (j.photos || []).some((p) => p.far_from_job)],
-  ];
+  /** Quick filters (office). Crew uses only Em produção / Últimos trabalhos via #camMode. */
+  function filtersForMode() {
+    if (crewMode) return [["all", "Todos", () => true]];
+    return [
+      ["all", "Todos", () => true],
+      ["need", "Precisa de foto", (j) => needsPhoto(j)],
+      ["today", "Hoje", (j) => isToday(j.scheduled_start) || isToday(j.sand_scheduled_start)],
+      ["nogps", "Sem GPS", (j) => (j.photos || []).some((p) => !hasGps(p))],
+      ["far", "Longe", (j) => (j.photos || []).some((p) => p.far_from_job)],
+    ];
+  }
+  let FILTERS = filtersForMode();
   /** The client a job is grouped under: the builder or customer, without the job reference. */
   function clientKey(j) {
     return String(j.builder?.nickname || j.builder?.company || j.customer?.nickname || j.customer?.company || j.customer?.name || j.client_name || j.source_name || "").trim() || "Sem cliente";
@@ -373,6 +527,8 @@
   function groups() {
     const f = FILTERS.find(([k]) => k === listPref.filter) || FILTERS[0];
     const rows = baseJobs().filter(f[2]).sort(cmpJobs);
+    // ObraCrew: one flat list — no office buckets.
+    if (crewMode) return [["", rows]];
     if (listPref.group === "client") {
       const by = new Map();
       rows.forEach((j) => {
@@ -407,28 +563,53 @@
   function renderList() {
     const active = jobs.filter(isActive);
     const done = jobs.filter((j) => j.status === "completed");
-    $("camJobsN").textContent = String(jobs.length);
-    $("camPhotosN").textContent = String(feed.length);
+    if ($("camJobsN")) $("camJobsN").textContent = String(jobs.length);
+    if ($("camPhotosN")) $("camPhotosN").textContent = String(feed.length);
     document.querySelectorAll("#camViews [data-view]").forEach((b) => {
       const on = (b.getAttribute("data-view") === "photos") === (mode === "photos");
       b.classList.toggle("is-on", on);
       b.setAttribute("aria-pressed", String(on));
     });
-    renderFilters();
+    if (!crewMode) renderFilters();
     document.querySelectorAll("#camMode [data-mode]").forEach((b) => {
       const m = b.getAttribute("data-mode");
       const listMode = mode === "photos" ? "active" : mode;
       b.classList.toggle("is-on", m === listMode);
       b.setAttribute("aria-pressed", String(m === listMode));
-      b.innerHTML = m === "active" ? `Ativos <em>${active.length}</em>` : `Concluídos <em>${done.length}</em>`;
+      if (crewMode) {
+        b.innerHTML =
+          m === "active"
+            ? `Em produção<em>${active.length}</em>`
+            : `Últimos trabalhos<em>${done.length}</em>`;
+      } else {
+        b.innerHTML = m === "active" ? `Ativos <em>${active.length}</em>` : `Concluídos <em>${done.length}</em>`;
+      }
     });
+    // before the board arrives the skeleton stays (the session can answer first and would paint "Nenhum job")
+    if (!loaded) return;
     const html = groups()
       .filter(([, rows]) => rows.length)
-      .map(([label, rows]) => `<p class="cam-grp ol-grp"><span>${label}</span><em>${rows.length}</em></p>${rows.map(rowHtml).join("")}`)
+      .map(([label, rows]) => {
+        const head = label ? `<p class="cam-grp ol-grp"><span>${esc(label)}</span><em>${rows.length}</em></p>` : "";
+        return head + rows.map(rowHtml).join("");
+      })
       .join("");
+    $("camRows").removeAttribute("aria-busy");
+    const emptyCrew =
+      mode === "done" ? "Nenhum trabalho recente." : "Nenhum trabalho em produção.";
     $("camRows").innerHTML =
       html ||
-      `<p class="cam-empty">${listPref.filter !== "all" ? `Nenhum job em “${esc((FILTERS.find(([k]) => k === listPref.filter) || [])[1] || "")}”. <button type="button" class="cam-link" data-filter="all">Ver todos</button>` : q ? "Nenhum job com essa busca." : mode === "done" ? "Nenhum job concluído." : "Nenhum job ativo."}</p>`;
+      `<p class="cam-empty">${
+        listPref.filter !== "all" && !crewMode
+          ? `Nenhum job em “${esc((FILTERS.find(([k]) => k === listPref.filter) || [])[1] || "")}”. <button type="button" class="cam-link" data-filter="all">Ver todos</button>`
+          : q
+            ? "Nenhum job com essa busca."
+            : crewMode
+              ? emptyCrew
+              : mode === "done"
+                ? "Nenhum job concluído."
+                : "Nenhum job ativo."
+      }</p>`;
     if (window.OmGestures) window.OmGestures.bindSwipeRow?.($("camRows"));
   }
 
@@ -494,23 +675,24 @@
     return patch;
   }
 
-  function openViewer(list, index) {
+  function openViewer(list, index, from) {
     if (!window.CamViewer || !list.length) return;
     if (canManage && !people) loadPeople().then((pp) => window.CamViewer.setPeople?.(pp));
     window.CamViewer.open({
-      canEdit: canManage,
+      canEdit: canEditMedia,
       people,
       onNote: (photo, text) => editPhoto(photo, { caption: text }),
       onAnnotate: (photo, doc) => editPhoto(photo, { annotations: doc }),
-      onTakenBy: (photo, id) => editPhoto(photo, { taken_by_id: id }),
+      onTakenBy: canManage ? (photo, id) => editPhoto(photo, { taken_by_id: id }) : null,
       stickers,
-      onStickers: canManage ? (photo, ids) => editPhoto(photo, { sticker_ids: ids }) : null,
+      onStickers: canEditMedia ? (photo, ids) => editPhoto(photo, { sticker_ids: ids }) : null,
       onManageStickers: canManage ? () => openStickerManager() : null,
       photos: list,
       index,
+      from: from || null,
       canPortfolio: canManage,
-      canDelete: canManage,
-      onPhase: canManage ? (photo, next) => editPhoto(photo, { phase: next }) : null,
+      canDelete: canEditMedia,
+      onPhase: canEditMedia ? (photo, next) => editPhoto(photo, { phase: next }) : null,
       onPortfolio: async (photo, next) => {
         await api(`/api/work-orders/${encodeURIComponent(photo.job.id)}/media/${encodeURIComponent(photo.id)}/portfolio`, { method: "PATCH", body: JSON.stringify({ in_portfolio: next }) });
         [feed, ...Object.values(mediaCache), ...jobs.map((x) => x.photos || [])].forEach((arr) =>
@@ -535,7 +717,7 @@
   function feedJobName(p) {
     const j = jobs.find((x) => String(x.id) === String(p.job_id));
     const who = j ? listWho(j) : "";
-    return (who && who !== "Sem cliente" ? who : p.job_title) || (p.job_number != null ? `Job #${p.job_number}` : "Job");
+    return (who && who !== "Sem cliente" ? who : p.job_title) || (p.job_number != null ? `Job ${p.job_number}` : "Job");
   }
 
   /** Small icons on a tile when the photo carries a note or markup. */
@@ -552,12 +734,20 @@
     return `<span class="cam-ph__stk" data-no-i18n>${shown}${list.length > 2 ? `<span class="is-more">+${list.length - 2}</span>` : ""}</span>`;
   }
 
+  /** "Instalação, ter 4 nov": what a photo is, for its alt text and its button label. */
+  function photoAlt(p) {
+    const d = new Date(takenAt(p));
+    const when = Number.isNaN(d.getTime()) ? "" : `, ${["dom", "seg", "ter", "qua", "qui", "sex", "sáb"][d.getDay()]} ${d.getDate()} ${MO[d.getMonth()]}`;
+    return `${PHASE[p.phase] || STAGE[p.stage] || "Foto"}${when}`;
+  }
+
   function photoTile(p, i, opts) {
     const st = phaseName(p);
     const tags = (p.sticker_ids || []).map(stickerById).filter(Boolean).map((x) => x.name);
-    const what = `${st}${tags.length ? ` · ${tags.join(", ")}` : ""}${opts && opts.job ? ` · ${feedJobName(p)}` : ""}`;
+    const what = `${photoAlt(p)}${tags.length ? ` · ${tags.join(", ")}` : ""}${opts && opts.job ? ` · ${feedJobName(p)}` : ""}`;
     const pick = selecting && picked.has(String(p.id));
-    return `<button type="button" class="cam-ph${opts && opts.job ? " cam-ph--job" : ""}${pick ? " is-pick" : ""}" data-ph-i="${i}" data-ph-id="${esc(p.id)}"${selecting ? ` aria-pressed="${pick}"` : ""} aria-label="${selecting ? "Selecionar" : "Ver"} foto: ${esc(what)}" style="background-image:url('${esc(p.thumb_url || p.url)}')">
+    return `<button type="button" class="cam-ph${opts && opts.job ? " cam-ph--job" : ""}${pick ? " is-pick" : ""}" data-ph-i="${i}" data-ph-id="${esc(p.id)}"${selecting ? ` aria-pressed="${pick}"` : ""} aria-label="${selecting ? "Selecionar" : "Ver"} foto: ${esc(what)}">
+      <img class="cam-ph__img" src="${esc(p.thumb_url || p.url)}" alt="${esc(photoAlt(p))}" loading="lazy" decoding="async" draggable="false" />
       ${selecting ? `<span class="cam-ph__ck" aria-hidden="true">${SVG.check}</span>` : ""}
       ${opts && opts.stage ? `<span class="cam-ph__st" data-no-i18n>${esc(st)}${marks(p)}</span>` : marks(p) ? `<span class="cam-ph__st cam-ph__st--ic">${marks(p)}</span>` : ""}
       ${tileStickers(p)}
@@ -592,27 +782,31 @@
     const addr = j.address
       ? `<a class="cam-dloc" href="${esc(mapsHref(j.address))}" target="_blank" rel="noopener" title="${esc(j.address)} · abrir no mapa">${SVG.pin}<span>${esc(j.address)}</span></a>`
       : `<span class="cam-dloc cam-dloc--none">${SVG.pin}<span>Sem endereço</span></span>`;
+    const open = jobOpenHref(j.id);
+    const openLbl = crewMode ? "Ticket" : "Abrir job";
     return `<a class="cam-back" href="#" data-cam-back>${SVG.back}ObraCam</a>
       <div class="cam-dh">
         <div class="cam-dh__t">
-          <h2><a href="job-detail.html?id=${encodeURIComponent(j.id)}" title="${esc(name)}">${esc(name)}</a></h2>
-          ${sub ? `<p class="cam-dsub" title="${esc(sub)}">${esc(sub)}</p>` : ""}
+          <h2><a href="${open}" title="${esc(name)}">${esc(name)}</a></h2>
+          ${sub && !crewMode ? `<p class="cam-dsub" title="${esc(sub)}">${esc(sub)}</p>` : ""}
           <div class="cam-dmeta">
             <span class="cam-pill${st ? ` cam-pill--${st}` : ""}">${esc(stage)}</span>
             <span class="cam-pill${needsPhoto(j) ? " cam-pill--hot" : ""}">${esc(lastTxt)}</span>
-            ${facts.map((x) => `<span class="cam-dfact">${x}</span>`).join("")}
+            ${crewMode ? "" : facts.map((x) => `<span class="cam-dfact">${x}</span>`).join("")}
             ${addr}
           </div>
         </div>
         <div class="cam-dh__acts">
-          <button type="button" class="cam-btn" data-cam-upload="${esc(j.id)}">${SVG.cam}Adicionar fotos</button>
-          <a class="cam-btn cam-btn--pri" href="job-detail.html?id=${encodeURIComponent(j.id)}">Abrir job</a>
+          <button type="button" class="cam-btn" data-cam-upload="${esc(j.id)}">${SVG.cam}${crewMode ? "Tirar foto" : "Adicionar fotos"}</button>
+          <a class="cam-btn cam-btn--pri" href="${open}">${openLbl}</a>
         </div>
       </div>`;
   }
 
   function pbarHtml(j) {
-    return `<div class="cam-pbar" id="camPbar"><a class="cam-btn" href="job-detail.html?id=${encodeURIComponent(j.id)}">Abrir job</a><button type="button" class="cam-btn cam-btn--pri" data-cam-upload="${esc(j.id)}">${SVG.cam}Tirar foto</button></div>`;
+    const open = jobOpenHref(j.id);
+    const openLbl = crewMode ? "Ticket" : "Abrir job";
+    return `<div class="cam-pbar" id="camPbar"><a class="cam-btn" href="${open}">${openLbl}</a><button type="button" class="cam-btn cam-btn--pri" data-cam-upload="${esc(j.id)}">${SVG.cam}Tirar foto</button></div>`;
   }
   function movePbar() {
     document.querySelectorAll("body > .cam-pbar").forEach((x) => x.remove());
@@ -630,11 +824,7 @@
       return;
     }
     if (!mediaCache[j.id]) {
-      host.innerHTML =
-        headHtml(j, null) +
-        (window.crmSkeleton
-          ? `<div class="cam-box" aria-busy="true">${window.crmSkeleton.cards(3)}</div>`
-          : `<div class="cam-box"><p class="cam-empty">Carregando fotos…</p></div>`);
+      host.innerHTML = headHtml(j, null) + `<div class="cam-box cam-box--photos" aria-busy="true">${skelGrid(j.photo_count || 9)}</div>`;
       try {
         const m = await api(`/api/work-orders/${encodeURIComponent(j.id)}/media`);
         mediaCache[j.id] = (m.data || []).filter((p) => (p.type || "photo") === "photo" && p.url);
@@ -653,7 +843,9 @@
     shown = list.map((p) => toViewer(j, p));
     let body;
     if (!list.length) {
-      body = `<div class="cam-box cam-none"><span class="cam-none__ic">${SVG.cam}</span><b>Nenhuma foto ainda</b><p>A equipe tira as fotos pelo Campo (ticket do job). Você também pode adicionar aqui.</p><button type="button" class="cam-btn" data-cam-upload="${esc(j.id)}">Adicionar fotos</button></div>`;
+      body = crewMode
+        ? `<div class="cam-box cam-none"><span class="cam-none__ic">${SVG.cam}</span><b>Nenhuma foto ainda</b><p>Tire a primeira foto desta obra.</p><button type="button" class="cam-btn" data-cam-upload="${esc(j.id)}">Tirar foto</button></div>`
+        : `<div class="cam-box cam-none"><span class="cam-none__ic">${SVG.cam}</span><b>Nenhuma foto ainda</b><p>A equipe tira as fotos pelo Campo (ticket do job). Você também pode adicionar aqui.</p><button type="button" class="cam-btn" data-cam-upload="${esc(j.id)}">Adicionar fotos</button></div>`;
     } else {
       // One grid for every width, filtered by stage: Antes, Durante and Depois always show (zero is information); Geral only when it has photos.
       // Phase chips in work order: the job's own phases always show (zero is information), others only with photos.
@@ -685,10 +877,11 @@
     host.innerHTML = headHtml(j, list) + body + (isPhone() ? pbarHtml(j) : "");
     movePbar();
     renderSelBar();
+    if (pane === "photos") selectHintOnce(onScreen.length);
     if (list.length && pane === "map") renderJobMap(j, list).catch(() => {});
   }
 
-  /** "Todas": one section per job phase, in work order (Hardwood: Delivery → Walk Through; other trades: their own phases), each split by day. */
+  /** "Todas": one section per job phase, in work order (Hardwood: Entrega → Vistoria final; other trades: their own phases), each split by day. */
   function phaseSectionsHtml(items) {
     const keys = PHASES.map(([k]) => k).concat("none");
     return keys
@@ -716,14 +909,19 @@
       d.items.push([p, i]);
       d.jobs.add(p.job_id);
     });
+    // Long grids: each day block skips layout and paint while off screen; the height guess keeps the scrollbar steady.
+    const long = items.length > 48;
+    const cols = isPhone() ? 3 : Math.max(2, Math.floor(((($("camDetail") || {}).clientWidth || 900) - 36) / 148));
+    const rowH = isPhone() ? Math.round(window.innerWidth / 3) : 150;
     return days
       .map((d) => {
         const ids = d.items.map(([p]) => String(p.id));
         const all = ids.every((id) => picked.has(id));
         const n = d.items.length;
         const meta = `${n} foto${n === 1 ? "" : "s"}${opts.jobs ? ` · ${d.jobs.size} job${d.jobs.size === 1 ? "" : "s"}` : ""}`;
-        return `<div class="cam-day"><span>${esc(d.label)}</span><em>${meta}</em>${selecting ? `<button type="button" class="cam-link" data-sel-day="${esc(ids.join(","))}" data-all="${all ? 1 : 0}">${all ? "Desmarcar dia" : "Selecionar dia"}</button>` : ""}</div>
-          <div class="${gridCls}">${d.items.map(([p, i]) => photoTile(p, i, opts.tile)).join("")}</div>`;
+        const cv = long ? ` is-cv" style="contain-intrinsic-size: auto ${Math.ceil(n / cols) * rowH + 44}px` : "";
+        return `<div class="cam-dayg${cv}"><div class="cam-day"><span>${esc(d.label)}</span><em>${meta}</em>${selecting ? `<button type="button" class="cam-link" data-sel-day="${esc(ids.join(","))}" data-all="${all ? 1 : 0}">${all ? "Desmarcar dia" : "Selecionar dia"}</button>` : ""}</div>
+          <div class="${gridCls}">${d.items.map(([p, i]) => photoTile(p, i, opts.tile)).join("")}</div></div>`;
       })
       .join("");
   }
@@ -736,29 +934,52 @@
       .filter((x) => counts[x.id])
       .map((x) => `<button type="button" class="cam-chip cam-chip--stk${stickerFilter === x.id ? " is-on" : ""}" data-no-i18n data-sticker="${esc(x.id)}" aria-pressed="${stickerFilter === x.id}" style="--stk:${esc(x.color)}"><i aria-hidden="true"></i>${esc(x.name)} <em>${counts[x.id]}</em></button>`)
       .join("");
-    const manage = canManage ? `<button type="button" class="cam-chip cam-chip--ghost" data-stk-manage>${SVG.tag}Stickers</button>` : "";
+    const manage = canManage ? `<button type="button" class="cam-chip cam-chip--ghost" data-stk-manage>${SVG.tag}Etiquetas</button>` : "";
     return chips || manage ? `<span class="cam-chips__sep" aria-hidden="true"></span>${chips}${manage}` : "";
   }
 
   // ---------------------------------------------------------------- multi-select
   function selectChipHtml() {
     if (selecting || !onScreen.length) return "";
-    return `<button type="button" class="cam-chip cam-chip--ghost" data-sel-start>${SVG.sel}Selecionar</button>`;
+    return `<button type="button" class="cam-chip cam-chip--sel" data-sel-start>${SVG.sel}Selecionar</button>`;
+  }
+  const SEL_HINT_KEY = "om_cam_selhint_v1";
+  /** Holding a photo is invisible on a touch screen: say it once, the first time a grid with photos shows. */
+  function selectHintOnce(n) {
+    if (selecting || n < 2 || !coarse()) return;
+    try {
+      if (localStorage.getItem(SEL_HINT_KEY)) return;
+      localStorage.setItem(SEL_HINT_KEY, "1");
+    } catch (_) {
+      return;
+    }
+    setTimeout(() => window.crmToast?.info?.("Toque e segure uma foto para selecionar várias"), 600);
   }
   function startSelecting(firstId) {
     selecting = true;
     picked.clear();
     if (firstId) picked.add(String(firstId));
+    try {
+      localStorage.setItem(SEL_HINT_KEY, "1");
+    } catch (_) {}
     document.body.classList.add("cam-selecting");
     renderRight();
+  }
+  /** The bar drops back below the screen edge (180ms) before it goes; a new selection gets a fresh bar meanwhile. */
+  function dropSelBar() {
+    const bar = $("camSelBar");
+    if (!bar) return;
+    bar.removeAttribute("id");
+    bar.classList.add("is-leaving");
+    setTimeout(() => bar.remove(), 200);
   }
   function stopSelecting() {
     if (!selecting) return;
     selecting = false;
     picked.clear();
     document.body.classList.remove("cam-selecting");
-    $("camSelBar")?.remove();
-    $("camSelSheet")?.remove();
+    dropSelBar();
+    closeSelSheet();
     renderRight();
   }
   function pickedPhotos() {
@@ -800,28 +1021,47 @@
     const n = picked.size;
     const all = onScreen.length && onScreen.every((p) => picked.has(String(p.id)));
     const dis = n ? "" : " disabled";
+    // Phones that can share get "Compartilhar" (its sheet also saves to Fotos) in place of "Baixar"; computers keep both.
+    const share = canShare();
+    const dl = !share || !coarse();
     bar.innerHTML = `<button type="button" class="cam-selbar__x" data-sel-stop aria-label="Sair da seleção">${SVG.x}</button>
       <span class="cam-selbar__n" role="status" aria-live="polite"><b>${n}</b> ${n === 1 ? "foto" : "fotos"}</span>
       <button type="button" class="cam-link" data-sel-all="${all ? 0 : 1}">${all ? "Desmarcar todas" : "Todas"}</button>
       <span class="cam-selbar__acts">
-        ${canManage ? `<button type="button" data-sel-act="stage"${dis}>${SVG.layers}<span>Fase</span></button><button type="button" data-sel-act="stickers"${dis}>${SVG.tag}<span>Stickers</span></button>` : ""}
-        <button type="button" data-sel-act="download"${dis}>${SVG.dl}<span>Baixar</span></button>
-        ${canManage ? `<button type="button" class="is-danger" data-sel-act="delete"${dis}>${SVG.trash}<span>Apagar</span></button>` : ""}
+        ${canEditMedia ? `<button type="button" data-sel-act="stage"${dis}>${SVG.layers}<span>Fase</span></button>` : ""}${canManage ? `<button type="button" data-sel-act="stickers"${dis}>${SVG.tag}<span>Etiquetas</span></button>` : ""}
+        ${share ? `<button type="button" class="is-share" data-sel-act="share"${dis}>${SVG.share}<span>Compartilhar</span></button>` : ""}
+        ${dl ? `<button type="button" data-sel-act="download"${dis}>${SVG.dl}<span>Baixar</span></button>` : ""}
+        ${canEditMedia ? `<button type="button" class="is-danger" data-sel-act="delete"${dis}>${SVG.trash}<span>Apagar</span></button>` : ""}
       </span>`;
   }
 
-  /** Small sheet for a batch choice (stage, stickers), above the selection bar. */
+  /** Small sheet for a batch choice (fase, etiquetas), above the selection bar. Same shell and motion as the others. */
+  let selSheetApi = null;
+  function closeSelSheet() {
+    if (selSheetApi) selSheetApi.close();
+  }
   function selSheet(title, inner) {
-    $("camSelSheet")?.remove();
-    const el = document.createElement("div");
+    const old = $("camSelSheet");
+    if (old) {
+      old.removeAttribute("id");
+      selSheetApi?.close();
+      setTimeout(() => old.remove(), 400);
+    }
+    const el = sheetShell("cam-selsheet", "camSelT");
     el.id = "camSelSheet";
-    el.className = "cam-up cam-selsheet";
-    el.innerHTML = `<div class="cam-up__card" role="dialog" aria-modal="true" aria-labelledby="camSelT"><h2 id="camSelT">${title}</h2>${inner}<div class="cam-up__status" role="status"></div><button type="button" class="cam-up__cancel" data-selsheet-close>Fechar</button></div>`;
-    document.body.appendChild(el);
-    el.addEventListener("click", (e) => {
-      if (e.target === el || e.target.closest("[data-selsheet-close]")) el.remove();
+    el.querySelector(".cam-up__body").innerHTML = `<h2 id="camSelT">${title}</h2>${inner}<div class="cam-up__status" role="status"></div><button type="button" class="cam-up__cancel" data-selsheet-close>Fechar</button>`;
+    const api = camSheet(el, {
+      onClose: () => {
+        if (selSheetApi === api) selSheetApi = null;
+        setTimeout(() => el.remove(), 400);
+      },
     });
-    el.querySelector("button")?.focus({ preventScroll: true });
+    selSheetApi = api;
+    el.addEventListener("click", (e) => {
+      if (e.target.closest("[data-selsheet-close]")) api.close();
+    });
+    api.open();
+    el.close = () => api.close();
     return el;
   }
   /** Run one request per photo, in order, with progress in the sheet or bar; returns how many worked. */
@@ -833,8 +1073,9 @@
         await fn(p);
         ok += 1;
       } catch (err) {
-        if (statusEl) statusEl.textContent = err.message || "Falha";
-        window.crmToast?.error?.(`${ok} de ${list.length} feitas. ${err.message || ""}`.trim());
+        const msg = friendlyError(err, "esta foto", "mudar");
+        if (statusEl) statusEl.textContent = msg;
+        window.crmToast?.error?.(`${ok} de ${list.length} feitas. ${msg}`);
         break;
       }
     }
@@ -861,7 +1102,7 @@
         const r = await api(`/api/work-orders/${encodeURIComponent(p.job_id)}/media/${encodeURIComponent(p.id)}`, { method: "PATCH", body: JSON.stringify({ phase }) });
         patchCaches(p.id, { phase: r.data ? r.data.phase : phase, phase_label: r.data ? r.data.phase_label : PHASE[phase] || null, phase_source: r.data ? r.data.phase_source : phase ? "manual" : null });
       }, el.querySelector(".cam-up__status"));
-      el.remove();
+      el.close();
       window.crmToast?.success?.(`${ok} foto${ok === 1 ? "" : "s"} em ${PHASE[phase] || "fase automática"}`);
       renderRight();
     });
@@ -878,9 +1119,9 @@
           return `<button type="button" class="cam-up__stk${state === "all" ? " is-on" : ""}${state === "some" ? " is-some" : ""}" data-bulk-stk="${esc(x.id)}" aria-pressed="${state === "all" ? "true" : state === "some" ? "mixed" : "false"}" style="--stk:${esc(x.color)}"><i aria-hidden="true"></i>${esc(x.name)}${state === "some" ? ` <em>${n}/${list.length}</em>` : ""}</button>`;
         })
         .join("");
-      return `<p>Toque para pôr em todas as fotos; toque de novo para tirar de todas.</p><div class="cam-up__stks" data-no-i18n>${chips || "Nenhum sticker criado."}</div>`;
+      return `<p>Toque para pôr em todas as fotos; toque de novo para tirar de todas.</p><div class="cam-up__stks" data-no-i18n>${chips || "Nenhuma etiqueta criada."}</div>`;
     };
-    const el = selSheet(`Stickers em ${list.length} foto${list.length === 1 ? "" : "s"}`, `<div data-bulk-body>${paint()}</div>`);
+    const el = selSheet(`Etiquetas em ${list.length} foto${list.length === 1 ? "" : "s"}`, `<div data-bulk-body>${paint()}</div>`);
     el.addEventListener("click", async (e) => {
       const b = e.target.closest("[data-bulk-stk]");
       if (!b) return;
@@ -895,24 +1136,52 @@
         const r = await api(`/api/work-orders/${encodeURIComponent(p.job_id)}/media/${encodeURIComponent(p.id)}`, { method: "PATCH", body: JSON.stringify({ sticker_ids: next }) });
         patchCaches(p.id, { sticker_ids: (r.data && r.data.sticker_ids) || next });
       }, status);
-      status.textContent = remove ? "Sticker tirado das fotos" : "Sticker posto nas fotos";
+      status.textContent = remove ? "Etiqueta tirada das fotos" : "Etiqueta posta nas fotos";
       el.querySelector("[data-bulk-body]").innerHTML = paint();
       renderRight();
     });
   }
-  /** One file per photo; the browser may ask once to allow several downloads. */
+  /** File name for a picked photo: job number + the day it was taken (obracam-job-1234-2026-11-05-2.jpg). */
+  function pickedName(p, n, total) {
+    const number = p.job_number != null ? p.job_number : (jobs.find((j) => String(j.id) === String(p.job_id)) || {}).number;
+    const ref = { ...p, job: { number } };
+    if (window.CamViewer && window.CamViewer.photoName) return window.CamViewer.photoName(ref, total > 1 ? n + 1 : 0);
+    return `obracam-${number || "foto"}${total > 1 ? `-${n + 1}` : ""}.jpg`;
+  }
+  /** One file per photo; the browser may ask once to allow several downloads. Phones often take only the first. */
   async function downloadPicked() {
     const list = pickedPhotos();
+    if (list.length > 1) {
+      window.crmToast?.info?.(
+        coarse()
+          ? `Baixando ${list.length} fotos, uma por vez. No celular o navegador pode salvar só a primeira; para todas, baixe pelo computador.`
+          : `Baixando ${list.length} fotos, uma por vez. Se o navegador perguntar, permita vários downloads.`,
+      );
+    }
     for (const [n, p] of list.entries()) {
       const a = document.createElement("a");
       a.href = p.url;
-      a.download = `obracam-${p.job_number || (jobs.find((j) => String(j.id) === String(p.job_id)) || {}).number || "foto"}-${n + 1}.jpg`;
+      a.download = pickedName(p, n, list.length);
       document.body.appendChild(a);
       a.click();
       a.remove();
       await new Promise((r) => setTimeout(r, 350));
     }
-    window.crmToast?.success?.(`${list.length} foto${list.length === 1 ? "" : "s"} baixada${list.length === 1 ? "" : "s"}`);
+    if (!coarse()) window.crmToast?.success?.(`${list.length} foto${list.length === 1 ? "" : "s"} baixada${list.length === 1 ? "" : "s"}`);
+  }
+  /** "Compartilhar": the picked photos as JPEG files in the system sheet (WhatsApp, Mensagens, Salvar imagens…). */
+  async function sharePicked(btn) {
+    const list = pickedPhotos();
+    if (!list.length) return;
+    window.OmUI?.busy?.(btn, true);
+    let r = "unsupported";
+    try {
+      r = window.CamViewer && window.CamViewer.sharePhotos ? await window.CamViewer.sharePhotos(list.map((p, n) => ({ url: p.url, name: pickedName(p, n, list.length) }))) : "unsupported";
+    } finally {
+      window.OmUI?.busy?.(btn, false);
+    }
+    if (r === "failed") window.crmToast?.info?.("Não deu para compartilhar agora; as fotos vão ser baixadas.");
+    if (r === "unsupported" || r === "failed") downloadPicked();
   }
   async function deletePicked() {
     const list = pickedPhotos();
@@ -954,6 +1223,7 @@
     if (k === "stage") openStageSheet();
     else if (k === "stickers") openStickersSheet();
     else if (k === "download") downloadPicked();
+    else if (k === "share") sharePicked(act);
     else if (k === "delete") deletePicked();
   }
 
@@ -969,16 +1239,20 @@
     return `<div class="cam-map cam-map--big" id="camMap"></div><p class="cam-meta" id="camMapNote"></p>`;
   }
 
-  // ---------------------------------------------------------------- todas as fotos
+  // ---------------------------------------------------------------- fotos recentes (últimos dias, todos os jobs)
+  function feedSub() {
+    return `Últimos ${FEED_DAYS} dias · ${feed.length} foto${feed.length === 1 ? "" : "s"} de todos os jobs`;
+  }
   function renderFeed() {
     const host = $("camDetail");
     // The shell (title, search, map) is built once; typing or picking a stage only repaints the photos, so the search keeps focus and the map is not redrawn.
     if (!host.querySelector("#camFeedBody")) {
-      host.innerHTML = `<div class="cam-dh cam-dh--feed"><div class="cam-dh__t"><h2>Todas as fotos</h2><p class="cam-dsub">${feed.length} mais recentes de todos os jobs</p></div>
+      host.innerHTML = `<div class="cam-dh cam-dh--feed"><div class="cam-dh__t"><h2>Fotos recentes</h2><p class="cam-dsub" id="camFeedSub">${feedSub()}</p></div>
           <label class="cam-search cam-search--feed"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input type="search" id="camFeedQ" placeholder="Buscar job, etapa ou quem tirou" autocomplete="off" enterkeyhint="search" value="${esc($("camQ").value)}" /></label></div>
         <div class="cam-box cam-box--feed" id="camFeedBody"></div>`;
       movePbar();
     }
+    if ($("camFeedSub")) $("camFeedSub").textContent = feedSub();
     const hit = feed.filter((p) => {
       if (stageFilter !== "all" && phaseOf(p) !== stageFilter) return false;
       if (noteFilter && !p.caption) return false;
@@ -996,12 +1270,15 @@
       .filter(([k]) => k === "all" || counts[k])
       .map(([k, l]) => chipHtml(k, l, counts[k]))
       .join("");
-    const grid = hit.length
+    const grid = !loaded
+      ? skelGrid(12)
+      : hit.length
       ? daysHtml(hit.map((p, i) => [p, i]), "cam-feedg", { jobs: true, tile: { stage: true, job: true } })
-      : `<p class="cam-empty">${q || stageFilter !== "all" || stickerFilter || noteFilter ? "Nenhuma foto com esse filtro." : "Ainda sem fotos."}</p>`;
+      : `<p class="cam-empty">${q || stageFilter !== "all" || stickerFilter || noteFilter ? "Nenhuma foto com esse filtro." : `Nenhuma foto nos últimos ${FEED_DAYS} dias.`}</p>`;
     $("camFeedBody").innerHTML = `<div class="cam-chips cam-chips--bar cam-chips--stick">${paneSwitchHtml("Mapa", 0)}${pane === "photos" ? selectChipHtml() + chips + noteChipHtml(feed) + stickerChipsHtml(feed) : ""}</div>${pane === "map" ? mapPaneHtml() : grid}`;
     renderSelBar();
     if (pane === "map") renderAllMap().catch(() => {});
+    else if (loaded) selectHintOnce(hit.length);
   }
 
   // ---------------------------------------------------------------- mapa
@@ -1022,15 +1299,49 @@
     return pt;
   }
 
-  function newMap() {
-    const el = $("camMap");
+  /** Leaflet is only for the map: its CSS and JS load the first time a map opens, not with the page. */
+  const LEAFLET = "https://unpkg.com/leaflet@1.9.4/dist/leaflet";
+  let leafletP = null;
+  function loadLeaflet() {
+    if (typeof L !== "undefined") return Promise.resolve();
+    if (leafletP) return leafletP;
+    leafletP = new Promise((resolve, reject) => {
+      const css = document.createElement("link");
+      css.rel = "stylesheet";
+      css.href = `${LEAFLET}.css`;
+      document.head.appendChild(css);
+      const js = document.createElement("script");
+      js.src = `${LEAFLET}.js`;
+      js.async = true;
+      js.onload = () => resolve();
+      js.onerror = () => {
+        leafletP = null;
+        js.remove();
+        reject(new Error("leaflet"));
+      };
+      document.head.appendChild(js);
+    });
+    return leafletP;
+  }
+
+  async function newMap(gen) {
     if (map) {
       try {
         map.remove();
       } catch (_) {}
       map = null;
     }
+    if (!$("camMap")) return null;
+    const note0 = $("camMapNote");
+    if (typeof L === "undefined" && note0) note0.textContent = "Carregando o mapa…";
+    try {
+      await loadLeaflet();
+    } catch (_) {}
+    // the person may have left the map (or opened another) while Leaflet was loading
+    if (gen !== mapGen) return null;
+    const el = $("camMap");
     if (!el) return null;
+    if (note0 && note0.isConnected) note0.textContent = "";
     if (typeof L === "undefined") {
       el.classList.add("is-off");
       const note = $("camMapNote");
@@ -1057,7 +1368,7 @@
 
   async function renderJobMap(j, list) {
     const gen = ++mapGen;
-    if (!newMap()) return;
+    if (!(await newMap(gen))) return;
     const pts = [];
     list.forEach((p, i) => {
       if (!hasGps(p)) return;
@@ -1079,7 +1390,7 @@
 
   async function renderAllMap() {
     const gen = ++mapGen;
-    if (!newMap()) return;
+    if (!(await newMap(gen))) return;
     const pts = [];
     let placed = 0;
     for (const j of jobs.filter((x) => isActive(x) || (x.photos || []).length)) {
@@ -1112,7 +1423,7 @@
       selecting = false;
       picked.clear();
       document.body.classList.remove("cam-selecting");
-      $("camSelBar")?.remove();
+      dropSelBar();
     }
     selId = id;
     stageFilter = "all";
@@ -1146,6 +1457,7 @@
 
   /** Jobs | Fotos: the two top-level views. Fotos is every recent photo across jobs; Jobs is the triage list with one job open. */
   function setView(view) {
+    if (crewMode && view === "photos") return;
     if (view === "photos") {
       if (mode === "photos") return;
       mode = "photos";
@@ -1171,11 +1483,37 @@
     } catch (_) {}
   }
 
+  // ---------------------------------------------------------------- loading and failure, shaped like the content
+  function skelRows(n) {
+    let out = "";
+    for (let i = 0; i < n; i += 1)
+      out += `<div class="cam-skel-row"><i class="cam-skel cam-skel--day"></i><span><i class="cam-skel cam-skel--line" style="width:${[62, 48, 70, 55][i % 4]}%"></i><i class="cam-skel cam-skel--sm" style="width:${[38, 44, 30, 41][i % 4]}%"></i></span></div>`;
+    return `<div class="cam-skel-rows" aria-hidden="true">${out}</div><span class="cam-sr" role="status">Carregando jobs</span>`;
+  }
+  function skelGrid(n) {
+    const k = Math.max(6, Math.min(n || 9, 15));
+    return `<i class="cam-skel cam-skel-h" aria-hidden="true"></i><div class="cam-skel-grid" aria-hidden="true">${'<i class="cam-skel"></i>'.repeat(k)}</div><span class="cam-sr" role="status">Carregando fotos</span>`;
+  }
+  function loadErrorHtml(err) {
+    const off = (typeof navigator !== "undefined" && navigator.onLine === false) || (err && err.name === "TypeError");
+    return `<div class="cam-err" role="alert"><b>${off ? "Sem conexão" : "Não deu para carregar o ObraCam"}</b><p>${off ? "Confira a internet do aparelho e tente de novo." : "O servidor não respondeu agora. Tente de novo em instantes."}</p><button type="button" data-cam-retry>Tentar de novo</button></div>`;
+  }
+  function boot() {
+    $("camRows").innerHTML = skelRows(5);
+    if (mode === "photos") renderFeed();
+    return load().catch((e) => {
+      if (e && e.message === "unauth") return;
+      $("camRows").innerHTML = loadErrorHtml(e);
+      $("camDetail").innerHTML = mode === "photos" ? loadErrorHtml(e) : "";
+    });
+  }
+
   async function load() {
-    const j = await api("/api/job-media/board?days=3");
+    const j = await api(`/api/job-media/board?days=${FEED_DAYS}`);
     usePhaseCatalog(j.meta?.phase_catalog, j.meta?.phase_mode);
     jobs = j.data?.jobs || [];
     feed = j.data?.feed || [];
+    loaded = true;
     const id = new URLSearchParams(location.search).get("id");
     const pre = id && jobs.find((x) => String(x.id) === id);
     if (pre) {
@@ -1184,31 +1522,31 @@
       return;
     }
     renderList();
-    if (isWide()) {
+    if (mode === "photos") renderRight();
+    else if (isWide()) {
       selId = firstVisibleId();
       renderList();
       renderRight();
     }
   }
 
-  // ---------------------------------------------------------------- upload with stage
-  const UPLOAD_STAGES = [
-    { id: "before", label: "Antes" },
-    { id: "during", label: "Durante" },
-    { id: "after", label: "Depois" },
-    { id: "", label: "Geral" },
-  ];
+  // ---------------------------------------------------------------- upload (one sheet, one send path)
   let uploadTarget = null;
-  let uploadStage = "during";
   let uploadSheet = null;
+  let uploadLayer = null;
   let uploadCamera = null;
   let uploadLibrary = null;
+  /** What the sheet shows: idle (choose), progress ("2 de 5"), error (message + "Tentar de novo"). */
+  let uploadState = { kind: "idle" };
+  /** Files still to send after a failure, so "Tentar de novo" picks up where it stopped. */
+  let uploadRetry = null;
 
   function ensureUploadUi() {
     if (uploadSheet) return;
-    uploadSheet = document.createElement("div");
-    uploadSheet.className = "cam-up";
-    uploadSheet.hidden = true;
+    uploadSheet = sheetShell("cam-up--send", "camUpTitle");
+    uploadLayer = camSheet(uploadSheet, {
+      initialFocus: () => uploadSheet.querySelector("[data-cam-up-camera]") || uploadSheet.querySelector("[data-cam-up-retry]") || uploadSheet.querySelector(".cam-up__cancel"),
+    });
     uploadCamera = document.createElement("input");
     uploadCamera.type = "file";
     uploadCamera.accept = "image/*";
@@ -1219,7 +1557,7 @@
     uploadLibrary.accept = "image/*";
     uploadLibrary.multiple = true;
     uploadLibrary.hidden = true;
-    document.body.append(uploadSheet, uploadCamera, uploadLibrary);
+    document.body.append(uploadCamera, uploadLibrary);
     uploadCamera.addEventListener("change", () => {
       void sendUpload(uploadCamera.files);
       uploadCamera.value = "";
@@ -1228,28 +1566,16 @@
       void sendUpload(uploadLibrary.files);
       uploadLibrary.value = "";
     });
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && !uploadSheet.hidden) closeUploadSheet();
-    });
     uploadSheet.addEventListener("change", (e) => {
       if (e.target.id === "camUpWho") uploadTakenBy = e.target.value;
     });
     uploadSheet.addEventListener("click", (e) => {
-      if (e.target === uploadSheet) {
-        closeUploadSheet();
-        return;
-      }
-      const t = e.target.closest("[data-cam-up-stage],[data-cam-up-camera],[data-cam-up-library],[data-cam-up-close],[data-cam-up-stk]");
+      const t = e.target.closest("[data-cam-up-camera],[data-cam-up-library],[data-cam-up-close],[data-cam-up-stk],[data-cam-up-retry]");
       if (!t) return;
       if (t.hasAttribute("data-cam-up-stk")) {
         const id = t.getAttribute("data-cam-up-stk");
         uploadStickers = uploadStickers.includes(id) ? uploadStickers.filter((x) => x !== id) : uploadStickers.concat(id);
-        paintUploadSheet("", false);
-        return;
-      }
-      if (t.hasAttribute("data-cam-up-stage")) {
-        uploadStage = t.getAttribute("data-cam-up-stage") || "";
-        paintUploadSheet("", false);
+        paintUploadSheet();
         return;
       }
       if (t.hasAttribute("data-cam-up-camera")) {
@@ -1260,6 +1586,16 @@
         uploadFrom = "library";
         return uploadLibrary.click();
       }
+      if (t.hasAttribute("data-cam-up-retry")) {
+        const again = uploadRetry;
+        uploadRetry = null;
+        if (again && again.length) void sendUpload(again);
+        else {
+          uploadState = { kind: "idle" };
+          paintUploadSheet();
+        }
+        return;
+      }
       if (t.hasAttribute("data-cam-up-close")) closeUploadSheet();
     });
   }
@@ -1269,8 +1605,6 @@
     cam: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z"/><circle cx="12" cy="13.5" r="3.5"/></svg>',
     lib: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/></svg>',
   };
-  let uploadBusy = false;
-  let uploadReturnFocus = null;
   let uploadFrom = "library";
   let uploadTakenBy = "";
   let uploadStickers = [];
@@ -1285,18 +1619,31 @@
       .catch(() => (people = []));
   }
 
-  function paintUploadSheet(status, busy, isErr) {
+  function progressHtml(i, n) {
+    return `<div class="cam-up__prog" role="status" aria-live="polite"><b data-up-n>Enviando ${i + 1} de ${n}…</b><div class="cam-up__bar" aria-hidden="true"><i style="--p:${(i / n).toFixed(3)}"></i></div></div>`;
+  }
+  /** Progress moves in place (text + bar), so the bar glides from file to file instead of being repainted. */
+  function showProgress(i, n) {
+    uploadState = { kind: "progress", i, n };
+    const b = uploadSheet && uploadSheet.querySelector("[data-up-n]");
+    if (!b) return paintUploadSheet();
+    b.textContent = `Enviando ${i + 1} de ${n}…`;
+    uploadSheet.querySelector(".cam-up__bar i")?.style.setProperty("--p", (i / n).toFixed(3));
+  }
+
+  function paintUploadSheet() {
     ensureUploadUi();
-    uploadBusy = !!busy;
-    const keep = document.activeElement && uploadSheet.contains(document.activeElement) ? [...uploadSheet.querySelectorAll("button")].indexOf(document.activeElement) : -1;
+    const body = uploadSheet.querySelector(".cam-up__body");
+    const stt = uploadState || { kind: "idle" };
+    const busy = stt.kind === "progress";
+    const keep = document.activeElement && body.contains(document.activeElement) ? [...body.querySelectorAll("button")].indexOf(document.activeElement) : -1;
     const dis = busy ? " disabled" : "";
-    uploadSheet.innerHTML = `<div class="cam-up__card" role="dialog" aria-modal="true" aria-labelledby="camUpTitle">
-      <h2 id="camUpTitle">Enviar fotos</h2>
+    const active = stickers.filter((x) => !x.archived);
+    body.innerHTML = `<h2 id="camUpTitle">Enviar fotos</h2>
       <p>${esc(uploadTarget ? uploadTarget.label : "")}</p>
-      <div class="cam-up__auto">${UP_ICON.check}<span><b>A fase é automática.</b> Delivery, Scan, Installation, Sand &amp; Finish ou Walk Through, pela data de cada foto e as datas do job. Dá para corrigir depois.</span></div>
-      ${stickers.some((x) => !x.archived)
-        ? `<p class="cam-up__lbl">Stickers <span>opcional</span></p><div class="cam-up__stks" role="group" aria-label="Stickers" data-no-i18n>${stickers
-            .filter((x) => !x.archived)
+      <div class="cam-up__auto">${UP_ICON.check}<span><b>A fase é automática.</b> Entrega, Medição, Instalação, Lixa e acabamento ou Vistoria final, pela data de cada foto e as datas do job. Dá para corrigir depois.</span></div>
+      ${active.length
+        ? `<p class="cam-up__lbl">Etiquetas <span>opcional</span></p><div class="cam-up__stks" role="group" aria-label="Etiquetas" data-no-i18n>${active
             .map((x) => `<button type="button" class="cam-up__stk${uploadStickers.includes(x.id) ? " is-on" : ""}" data-cam-up-stk="${esc(x.id)}" aria-pressed="${uploadStickers.includes(x.id)}" style="--stk:${esc(x.color)}"${dis}><i aria-hidden="true"></i>${esc(x.name)}</button>`)
             .join("")}</div>`
         : ""}
@@ -1305,42 +1652,46 @@
             .map((u) => `<option value="${esc(u.id)}"${u.id === (uploadTakenBy || meId) ? " selected" : ""}>${esc(u.name || "—")}${u.id === meId ? " (você)" : ""}</option>`)
             .join("")}</select></label>`
         : ""}
-      <div class="cam-up__go">
-        <button type="button" data-cam-up-camera${dis}>${UP_ICON.cam}Câmera</button>
-        <button type="button" class="is-sec" data-cam-up-library${dis}>${UP_ICON.lib}Galeria</button>
-      </div>
-      <div class="cam-up__status${isErr ? " is-err" : ""}" role="status">${esc(status || "")}</div>
-      <button type="button" class="cam-up__cancel" data-cam-up-close${dis}>Cancelar</button>
-    </div>`;
-    if (keep >= 0) uploadSheet.querySelectorAll("button")[keep]?.focus();
+      ${busy
+        ? progressHtml(stt.i, stt.n)
+        : stt.kind === "error"
+          ? `<div class="cam-up__err" role="alert"><b>${esc(stt.title)}</b>${esc(stt.message)}</div>
+             <button type="button" class="cam-up__retry" data-cam-up-retry>Tentar de novo</button>`
+          : `<div class="cam-up__go">
+               <button type="button" data-cam-up-camera>${UP_ICON.cam}Câmera</button>
+               <button type="button" class="is-sec" data-cam-up-library>${UP_ICON.lib}Galeria</button>
+             </div>`}
+      <button type="button" class="cam-up__cancel" data-cam-up-close>${busy ? "Fechar (o envio continua)" : "Cancelar"}</button>`;
+    if (keep >= 0) body.querySelectorAll("button")[keep]?.focus();
   }
 
   function closeUploadSheet() {
-    if (!uploadSheet || uploadSheet.hidden || uploadBusy) return;
-    uploadSheet.hidden = true;
-    if (uploadReturnFocus && document.contains(uploadReturnFocus)) uploadReturnFocus.focus();
-    uploadReturnFocus = null;
+    if (uploadLayer) uploadLayer.close();
   }
 
   function openUploadSheet(jobId) {
     const j = jobs.find((x) => String(x.id) === String(jobId));
     if (!j) return;
+    ensureUploadUi();
     const who = listWho(j);
+    const same = uploadTarget && String(uploadTarget.id) === String(j.id);
     uploadTarget = { id: j.id, label: who && who !== "Sem cliente" ? who : j.title || "Job" };
-    uploadStage = "during";
-    uploadTakenBy = "";
-    uploadStickers = [];
-    uploadReturnFocus = document.activeElement;
-    paintUploadSheet("", false);
-    uploadSheet.hidden = false;
-    uploadSheet.querySelector("[data-cam-up-camera]")?.focus({ preventScroll: true });
-    if (!people) loadPeople().then(() => !uploadSheet.hidden && !uploadBusy && paintUploadSheet("", false));
+    // an upload still running (or stopped with an error) for this job keeps its state; anything else starts clean
+    if (!(same && (uploadState.kind === "progress" || uploadState.kind === "error"))) {
+      uploadState = { kind: "idle" };
+      uploadRetry = null;
+      uploadTakenBy = "";
+      uploadStickers = [];
+    }
+    paintUploadSheet();
+    uploadLayer.open();
+    if (!people) loadPeople().then(() => uploadLayer.isOpen() && uploadState.kind !== "progress" && paintUploadSheet());
   }
 
   // ---------------------------------------------------------------- sticker manager
   const STICKER_COLORS = ["#B4561A", "#1D6FB8", "#2F7D4F", "#7A4BC2", "#B42318", "#8A6A00", "#0F766E", "#475467"];
   let stkSheet = null;
-  let stkReturnFocus = null;
+  let stkLayer = null;
   let stkNewColor = STICKER_COLORS[1];
   let stkStatus = "";
 
@@ -1348,34 +1699,25 @@
   function openStickerManager() {
     if (!canManage) return;
     if (!stkSheet) {
-      stkSheet = document.createElement("div");
-      stkSheet.className = "cam-up cam-stkm";
-      stkSheet.hidden = true;
-      document.body.appendChild(stkSheet);
+      stkSheet = sheetShell("cam-stkm", "camStkTitle");
+      stkSheet.querySelector(".cam-up__card").classList.add("cam-stkm__card");
+      stkLayer = camSheet(stkSheet, { initialFocus: () => stkSheet.querySelector("#camStkNew") });
       stkSheet.addEventListener("click", onStickerSheetClick);
       stkSheet.addEventListener("change", onStickerSheetChange);
       stkSheet.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") {
-          e.stopPropagation();
-          closeStickerManager();
-        }
         if (e.key === "Enter" && e.target.id === "camStkNew") {
           e.preventDefault();
           createSticker();
         }
       });
     }
-    stkReturnFocus = document.activeElement;
     stkStatus = "";
     stkColorFor = null;
     paintStickerManager();
-    stkSheet.hidden = false;
-    stkSheet.querySelector("#camStkNew")?.focus({ preventScroll: true });
+    stkLayer.open();
   }
   function closeStickerManager() {
-    if (!stkSheet || stkSheet.hidden) return;
-    stkSheet.hidden = true;
-    if (stkReturnFocus && document.contains(stkReturnFocus)) stkReturnFocus.focus();
+    if (stkLayer) stkLayer.close();
   }
   /** Which row shows its colour choices ("new" for the new-sticker row), and whether archived ones are open. */
   let stkColorFor = null;
@@ -1390,26 +1732,25 @@
     const keepNew = stkSheet.querySelector("#camStkNew")?.value || "";
     const row = (x) => `<li class="cam-stkm__row${x.archived ? " is-arch" : ""}${stkColorFor === x.id ? " is-open" : ""}">
         <button type="button" class="cam-stkm__dot" data-stk-pick="${esc(x.id)}" aria-expanded="${stkColorFor === x.id}" aria-label="Cor de ${esc(x.name)}" style="--stk:${esc(x.color)}"${x.archived ? " disabled" : ""}></button>
-        <input type="text" class="cam-stkm__name" value="${esc(x.name)}" maxlength="32" aria-label="Nome do sticker" data-stk-name="${esc(x.id)}"${x.archived ? " disabled" : ""} />
+        <input type="text" class="cam-stkm__name" value="${esc(x.name)}" maxlength="32" aria-label="Nome da etiqueta" data-stk-name="${esc(x.id)}"${x.archived ? " disabled" : ""} />
         ${x.system ? `<span class="cam-stkm__tag" title="Aplicado sozinho nas fotos de samples">automático</span>` : ""}
         <button type="button" class="cam-stkm__arch" data-stk-arch="${esc(x.id)}" data-arch="${x.archived ? "0" : "1"}" aria-label="${x.archived ? "Restaurar" : "Arquivar"} ${esc(x.name)}" title="${x.archived ? "Restaurar" : "Arquivar"}">${x.archived ? SVG.restore : SVG.archive}</button>
         ${stkColorFor === x.id ? `<div class="cam-stkm__sws" role="group" aria-label="Cor de ${esc(x.name)}">${swatches(x.color, `data-stk-color-for="${esc(x.id)}" data-stk-color`)}</div>` : ""}
       </li>`;
-    stkSheet.innerHTML = `<div class="cam-up__card cam-stkm__card" role="dialog" aria-modal="true" aria-labelledby="camStkTitle">
-      <div class="cam-stkm__head"><h2 id="camStkTitle">Stickers</h2><button type="button" class="cam-stkm__x" data-stk-close aria-label="Fechar">${SVG.x}</button></div>
+    stkSheet.querySelector(".cam-up__body").innerHTML = `
+      <div class="cam-stkm__head"><h2 id="camStkTitle">Etiquetas</h2><button type="button" class="cam-stkm__x" data-stk-close aria-label="Fechar">${SVG.x}</button></div>
       <p class="cam-stkm__lead">Etiquetas para organizar as fotos. Uma foto pode ter várias.</p>
       <div class="cam-stkm__new${stkColorFor === "new" ? " is-open" : ""}">
-        <button type="button" class="cam-stkm__dot" data-stk-pick="new" aria-expanded="${stkColorFor === "new"}" aria-label="Cor do novo sticker" style="--stk:${stkNewColor}"></button>
-        <input type="text" id="camStkNew" maxlength="32" placeholder="Novo sticker, ex.: Medição" aria-label="Nome do novo sticker" value="${esc(keepNew)}" />
+        <button type="button" class="cam-stkm__dot" data-stk-pick="new" aria-expanded="${stkColorFor === "new"}" aria-label="Cor da nova etiqueta" style="--stk:${stkNewColor}"></button>
+        <input type="text" id="camStkNew" maxlength="32" placeholder="Nova etiqueta, ex.: Rodapé" aria-label="Nome da nova etiqueta" value="${esc(keepNew)}" />
         <button type="button" class="cam-stkm__add" data-stk-create>Criar</button>
-        ${stkColorFor === "new" ? `<div class="cam-stkm__sws" role="group" aria-label="Cor do novo sticker">${swatches(stkNewColor, "data-stk-newcolor")}</div>` : ""}
+        ${stkColorFor === "new" ? `<div class="cam-stkm__sws" role="group" aria-label="Cor da nova etiqueta">${swatches(stkNewColor, "data-stk-newcolor")}</div>` : ""}
       </div>
       <div class="cam-up__status${/não|erro|já existe|escreva/i.test(stkStatus) ? " is-err" : ""}" role="status">${esc(stkStatus)}</div>
-      <ul class="cam-stkm__list" data-no-i18n>${active.map(row).join("") || '<li class="cam-empty">Nenhum sticker ainda. Crie o primeiro acima.</li>'}</ul>
+      <ul class="cam-stkm__list" data-no-i18n>${active.map(row).join("") || '<li class="cam-empty">Nenhuma etiqueta ainda. Crie a primeira acima.</li>'}</ul>
       ${archived.length
-        ? `<button type="button" class="cam-stkm__more" data-stk-archived aria-expanded="${stkShowArchived}">${stkShowArchived ? "Esconder" : "Ver"} arquivados <em>${archived.length}</em></button>${stkShowArchived ? `<ul class="cam-stkm__list" data-no-i18n>${archived.map(row).join("")}</ul>` : ""}`
-        : ""}
-    </div>`;
+        ? `<button type="button" class="cam-stkm__more" data-stk-archived aria-expanded="${stkShowArchived}">${stkShowArchived ? "Esconder" : "Ver"} arquivadas <em>${archived.length}</em></button>${stkShowArchived ? `<ul class="cam-stkm__list" data-no-i18n>${archived.map(row).join("")}</ul>` : ""}`
+        : ""}`;
   }
   async function saveSticker(id, changes, msg) {
     try {
@@ -1425,7 +1766,7 @@
     const input = stkSheet.querySelector("#camStkNew");
     const name = (input?.value || "").trim();
     if (!name) {
-      stkStatus = "Escreva um nome para o sticker.";
+      stkStatus = "Escreva um nome para a etiqueta.";
       paintStickerManager();
       stkSheet.querySelector("#camStkNew")?.focus();
       return;
@@ -1433,7 +1774,7 @@
     try {
       const r = await api("/api/job-media/stickers", { method: "POST", body: JSON.stringify({ name, color: stkNewColor }) });
       stickers = stickers.concat(r.data);
-      stkStatus = `“${r.data.name}” criado`;
+      stkStatus = `“${r.data.name}” criada`;
       if (input) input.value = "";
     } catch (e) {
       stkStatus = e.message || "Não foi possível criar";
@@ -1447,7 +1788,7 @@
     renderRight();
   }
   function onStickerSheetClick(e) {
-    if (e.target === stkSheet || e.target.closest("[data-stk-close]")) return closeStickerManager();
+    if (e.target.closest("[data-stk-close]")) return closeStickerManager();
     const pick = e.target.closest("[data-stk-pick]");
     if (pick) {
       const id = pick.getAttribute("data-stk-pick");
@@ -1478,7 +1819,7 @@
     if (ar) {
       const archive = ar.getAttribute("data-arch") === "1";
       const x = stickerById(ar.getAttribute("data-stk-arch"));
-      saveSticker(x.id, { archived: archive }, archive ? `“${x.name}” arquivado. As fotos que já têm continuam com ele.` : `“${x.name}” restaurado`);
+      saveSticker(x.id, { archived: archive }, archive ? `“${x.name}” arquivada. As fotos que já têm continuam com ela.` : `“${x.name}” restaurada`);
     }
   }
   function onStickerSheetChange(e) {
@@ -1493,6 +1834,7 @@
     saveSticker(id, { name }, "Nome atualizado");
   }
 
+  /** JPEG, longest side 1600px: what every ObraCam upload sends (the board and the ObraCam app alike). */
   function compressUpload(file) {
     return new Promise((resolve, reject) => {
       const url = URL.createObjectURL(file);
@@ -1532,46 +1874,111 @@
     });
   }
 
-  async function sendUpload(files) {
+  /**
+   * The one upload path (window.__camApp.uploadPhotos): EXIF date/GPS/camera read before compression, JPEG
+   * compression, device GPS only when the photo has none, then one POST per file, in order.
+   * Resolves { sent: [rows], error, remaining: [files not sent] }; it stops at the first failure.
+   */
+  async function uploadPhotos(jobId, files, opts) {
+    const o = opts || {};
     const list = Array.from(files || []);
-    if (!list.length || !uploadTarget) return;
-    let sent = 0;
-    const live = uploadFrom === "camera";
-    const takenBy = uploadTakenBy && uploadTakenBy !== meId ? uploadTakenBy : null;
+    const sent = [];
     let devicePos;
     const deviceGps = () => (devicePos !== undefined ? Promise.resolve(devicePos) : uploadGps().then((p) => (devicePos = p)));
-    try {
-      for (const file of list) {
-        paintUploadSheet(`Enviando ${sent + 1} de ${list.length}…`, true);
-        // Date, GPS and camera from the photo itself (EXIF), read before compression drops them.
+    for (let i = 0; i < list.length; i += 1) {
+      const file = list[i];
+      if (typeof o.onProgress === "function") o.onProgress(i, list.length);
+      try {
         const shot = window.PhotoExif
-          ? await window.PhotoExif.uploadMeta(file, { live, deviceGps })
+          ? await window.PhotoExif.uploadMeta(file, { live: !!o.live, deviceGps })
           : { taken_at_device: new Date().toISOString(), taken_at_source: "upload" };
         const body = {
           data_url: await compressUpload(file),
           stage: null,
           ...shot,
-          taken_by_id: takenBy,
-          sticker_ids: uploadStickers.slice(),
-          client_upload_id: window.crypto?.randomUUID ? crypto.randomUUID() : `cam-${Date.now()}-${sent}`,
+          taken_by_id: o.takenBy || null,
+          sticker_ids: (o.stickerIds || []).slice(),
+          client_upload_id: file.__camUploadId || (file.__camUploadId = window.crypto?.randomUUID ? crypto.randomUUID() : `cam-${Date.now()}-${i}`),
           device_label: window.__OM_FOCUS_APP ? "ObraCam app" : "ObraCam",
           is_public: false,
         };
-        await api(`/api/work-orders/${encodeURIComponent(uploadTarget.id)}/media`, { method: "POST", body: JSON.stringify(body) });
-        sent += 1;
+        const r = await api(`/api/work-orders/${encodeURIComponent(jobId)}/media`, { method: "POST", body: JSON.stringify(body) });
+        sent.push(r.data || null);
+      } catch (error) {
+        return { sent, error, remaining: list.slice(i) };
       }
-      uploadBusy = false;
-      closeUploadSheet();
-      window.crmToast?.success?.(sent === 1 ? "Foto enviada" : `${sent} fotos enviadas`);
-      delete mediaCache[uploadTarget.id];
+    }
+    if (typeof o.onProgress === "function") o.onProgress(list.length, list.length);
+    return { sent, error: null, remaining: [] };
+  }
+
+  /** New photos go into the open job, its card and the recent feed without reloading the whole board. */
+  async function insertUploaded(jobId, rows) {
+    const id = String(jobId);
+    const ids = new Set(rows.filter(Boolean).map((r) => String(r.id)));
+    try {
+      const m = await api(`/api/work-orders/${encodeURIComponent(jobId)}/media`);
+      mediaCache[jobId] = (m.data || []).filter((p) => (p.type || "photo") === "photo" && p.url);
+      metaCache[jobId] = m.meta || {};
+    } catch (_) {
+      // could not read the job back: the old way, a full refresh
+      delete mediaCache[jobId];
       await load();
-      select(uploadTarget.id, false);
-    } catch (e) {
-      paintUploadSheet(`${sent ? `${sent} enviada${sent === 1 ? "" : "s"}. ` : ""}${e.message || "Falha ao enviar. Tente de novo."}`, false, true);
-      if (sent) {
-        delete mediaCache[uploadTarget.id];
-        load().then(() => select(uploadTarget.id, false)).catch(() => {});
-      }
+      if (mode !== "photos") select(jobId, false);
+      return;
+    }
+    const j = jobs.find((x) => String(x.id) === id);
+    const fresh = mediaCache[jobId].filter((p) => ids.has(String(p.id))).sort(byTaken);
+    if (j) {
+      j.photo_count = mediaCache[jobId].length;
+      j.photos = fresh.concat((j.photos || []).filter((x) => !ids.has(String(x.id))));
+      const newest = mediaCache[jobId].slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+      if (newest) j.last_photo = newest;
+      j.stale = false;
+    }
+    feed = fresh.map((p) => ({ ...p, job_id: j ? j.id : jobId, job_number: j ? j.number : null, job_title: j ? j.title : "" })).concat(feed.filter((x) => !ids.has(String(x.id))));
+    renderList();
+    if (mode === "photos") renderFeed();
+    else if (String(selId) === id) renderJob();
+    else select(jobId, false);
+  }
+
+  async function sendUpload(files) {
+    const list = Array.from(files || []);
+    if (!list.length || !uploadTarget) return;
+    const target = uploadTarget;
+    const takenBy = uploadTakenBy && uploadTakenBy !== meId ? uploadTakenBy : null;
+    uploadRetry = null;
+    uploadState = { kind: "progress", i: 0, n: list.length };
+    paintUploadSheet();
+    const res = await uploadPhotos(target.id, list, {
+      live: uploadFrom === "camera",
+      takenBy,
+      stickerIds: uploadStickers,
+      onProgress: (i, n) => {
+        if (uploadTarget === target && i < n) showProgress(i, n);
+      },
+    });
+    const ok = res.sent.length;
+    if (ok) insertUploaded(target.id, res.sent).catch(() => {});
+    if (!res.error) {
+      uploadState = { kind: "idle" };
+      closeUploadSheet();
+      window.OmUI?.haptic?.("success");
+      window.crmToast?.success?.(ok === 1 ? "Foto enviada" : `${ok} fotos enviadas`);
+      return;
+    }
+    uploadRetry = res.remaining;
+    const left = res.remaining.length;
+    uploadState = {
+      kind: "error",
+      title: ok ? `${ok} de ${list.length} enviada${ok === 1 ? "" : "s"}. ${left === 1 ? "Falta 1." : `Faltam ${left}.`}` : left === 1 ? "A foto não foi enviada." : `As ${left} fotos não foram enviadas.`,
+      message: friendlyError(res.error, "a foto"),
+    };
+    window.OmUI?.haptic?.("error");
+    if (uploadTarget === target) {
+      if (uploadLayer.isOpen()) paintUploadSheet();
+      else window.crmToast?.show?.(`${uploadState.title} ${uploadState.message}`, { type: "error", action: { label: "Tentar de novo", onClick: () => openUploadSheet(target.id) } });
     }
   }
 
@@ -1600,6 +2007,10 @@
       }
     };
     $("cam").addEventListener("click", (e) => {
+      if (e.target.closest("[data-cam-retry]")) {
+        boot();
+        return;
+      }
       const f = e.target.closest("[data-filter]");
       if (!f) return;
       listPref.filter = f.getAttribute("data-filter");
@@ -1686,7 +2097,7 @@
           selecting = false;
           picked.clear();
           document.body.classList.remove("cam-selecting");
-          $("camSelBar")?.remove();
+          dropSelBar();
         }
         pane = pn.getAttribute("data-pane");
         renderRight();
@@ -1722,7 +2133,7 @@
         return;
       }
       if (ph && selecting) return togglePick(ph.getAttribute("data-ph-id"));
-      if (ph) openViewer(shown, Number(ph.getAttribute("data-ph-i")) || 0);
+      if (ph) openViewer(shown, Number(ph.getAttribute("data-ph-i")) || 0, ph);
     });
     // Touch: holding a photo for half a second starts selecting with that photo picked.
     let pressTimer = null;
@@ -1752,7 +2163,7 @@
       if (e.target.closest("#camSelBar")) onSelBarClick(e);
     });
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && selecting && !document.querySelector(".cv:not([hidden]), #camSelSheet, .cam-up:not([hidden])")) stopSelecting();
+      if (e.key === "Escape" && selecting && !e.defaultPrevented && !document.querySelector(".cv:not([hidden]), .cam-up:not([hidden])")) stopSelecting();
     });
     document.addEventListener("click", (e) => {
       const up = e.target.closest(".cam-pbar [data-cam-upload]");
@@ -1827,12 +2238,15 @@
   }
 
   bind();
-  // The ObraCam app (obracam-app.js) refreshes the job after sending photos.
+  // The ObraCam app (obracam-app.js?v=20261105-apps3) refreshes the job after sending photos.
   window.__camApp = {
     mode: () => mode,
     manageStickers: () => openStickerManager(),
     setView,
     openUpload: openUploadSheet,
+    /** Shared upload path for the ObraCam app: (jobId, files, { live, takenBy, stickerIds, onProgress }) → { sent, error, remaining }. */
+    uploadPhotos,
+    friendlyError,
     reload(id) {
       if (id) delete mediaCache[id];
       return load().then(() => {
@@ -1848,13 +2262,36 @@
     .then((r) => r.json())
     .then((s) => {
       const perms = s?.user?.permissions || [];
-      canManage = s?.user?.role === "admin" || perms.includes("work_orders.manage");
+      const role = String(s?.user?.role || "").toLowerCase();
+      const field =
+        (window.__crmFieldGate && window.__crmFieldGate.isFieldRole(role)) ||
+        role === "installer" ||
+        role === "crew_lead" ||
+        role === "subcontractor";
+      crewMode = field;
+      // Office-only: create/delete jobs, stickers admin, portfolio. Field never gets these.
+      canManage = !field && (role === "admin" || perms.includes("work_orders.manage"));
+      canEditMedia = canManage || field || perms.includes("work_orders.view");
       meId = s?.user?.id || "";
+      if (crewMode) {
+        document.body.classList.add("cam-crew", "om-field-nav");
+        FILTERS = filtersForMode();
+        listPref.filter = "all";
+        listPref.sort = "schedule";
+        listPref.group = "status";
+        q = "";
+        if ($("camQ")) $("camQ").value = "";
+        if (mode === "photos") mode = "active";
+        savePref();
+        const modeHost = $("camMode");
+        if (modeHost) modeHost.setAttribute("aria-label", "Em produção ou últimos trabalhos");
+      }
       const add = $("camAddJob");
       if (add) add.hidden = !canManage;
       // Session arrives after the first paint — rebuild rows so swipe-delete appears.
       renderList();
-      if (window.__crmJobModal?.onSaved) {
+      if (selId) renderJob();
+      if (!crewMode && window.__crmJobModal?.onSaved) {
         window.__crmJobModal.onSaved((data, meta) => {
           if (data && meta?.created) openNewJobTicket(data);
           else if (data) load().then(() => select(data.id, true)).catch(() => {});
@@ -1868,8 +2305,5 @@
     if (mode === "photos") renderFeed();
     else if (selId) renderJob();
   });
-  load().catch((e) => {
-    $("camRows").innerHTML = `<p class="cam-empty">${esc(e.message || "Falha ao carregar")}</p>`;
-    $("camDetail").innerHTML = "";
-  });
+  boot();
 })();

@@ -2,7 +2,7 @@
  * Campo · Meu dia — the employee's work day (mobile first).
  *
  * GET  /api/campo/dia                 today's state, jobs, week, payments
- * POST /api/campo/dia/start           begin the day (time + GPS + first job)
+ * POST /api/campo/dia/start           begin the day (time; job optional; GPS stored silently)
  * POST /api/campo/dia/jobs            add / switch to another job
  * DELETE /api/campo/dia/jobs/:woId    remove a job added by mistake
  * POST /api/campo/dia/finish          finish (jobs + sqft + note + GPS + recibos) — photos of today required
@@ -330,7 +330,21 @@ const startBody = z.object({
   lng: z.number().optional().nullable(),
   accuracy: z.number().optional().nullable(),
   device_at: z.string().optional().nullable(),
+  /** Sent when the start was saved offline and is being replayed after the signal came back. */
+  offline_queued: z.boolean().optional().nullable(),
 });
+
+/** An offline clock-in keeps the time the worker tapped, within a sane window (no future, at most 18h old). */
+const OFFLINE_START_MAX_AGE_MS = 18 * 60 * 60 * 1000;
+export function offlineStartAt(body: Record<string, unknown>, serverNow: Date): Date | null {
+  if (body.offline_queued !== true) return null;
+  const d = deviceAt(body);
+  if (!d) return null;
+  const t = d.getTime();
+  const n = serverNow.getTime();
+  if (t > n + 2 * 60 * 1000 || n - t > OFFLINE_START_MAX_AGE_MS) return null;
+  return t > n ? serverNow : d;
+}
 
 async function accessibleJob(tx: PayrollTx, id: string) {
   const wo = await tx.workOrder.findFirst({ where: { id, status: { not: "canceled" } }, select: { id: true } });
@@ -349,14 +363,14 @@ campoDiaRouter.post("/api/campo/dia/start", requireCrmAuth, async (req: AuthedRe
     const tz = await orgTz(req.organizationId!);
     const userId = req.user!.id;
     const gps = gpsFrom(req.body || {});
-    const now = new Date();
-    // Pick the job first (outside the write) so we can geocode it before measuring distance.
+    const replayedAt = offlineStartAt(req.body || {}, new Date());
+    const now = replayedAt ?? new Date();
+    // Job is optional — clock-in alone is enough. If a job is sent, geocode it for silent GPS distance.
     const pre = await withTenantTransaction(req.organizationId!, async (tx) => {
       const emp = await ownEmployee(tx, req);
       if (!emp) throw httpErr(409, "Seu usuário não está ligado à folha. Fale com o escritório.", "NOT_LINKED");
-      if (b.data.work_order_id) return (await accessibleJob(tx, b.data.work_order_id)).id;
-      const agenda = await jobsForDay(tx, userId, workDateFor(now, tz), tz);
-      return agenda[0]?.id ?? null;
+      if (!b.data.work_order_id) return null;
+      return (await accessibleJob(tx, b.data.work_order_id)).id;
     });
     if (pre) await ensureJobGeo(req.organizationId!, pre);
 
@@ -365,6 +379,8 @@ campoDiaRouter.post("/api/campo/dia/start", requireCrmAuth, async (req: AuthedRe
       await autoCloseStaleDays(tx, userId, tz, now);
       const today = workDateFor(now, tz);
       const exists = await tx.campoShift.findFirst({ where: { userId, workDate: today } });
+      // A replayed offline start must not block the queue: the day is already there, so return it.
+      if (exists && replayedAt) return loadState(tx, req, tz, new Date());
       if (exists) {
         throw httpErr(409, exists.reviewStatus === "in_progress" ? "Seu dia já começou." : "O dia de hoje já foi finalizado.", "DAY_EXISTS");
       }
@@ -396,7 +412,7 @@ campoDiaRouter.post("/api/campo/dia/start", requireCrmAuth, async (req: AuthedRe
           data: { organizationId: req.organizationId!, shiftId: shift.id, activityKind: "on_site", workOrderId: pre, startedAt: now },
         });
       }
-      return loadState(tx, req, tz, now);
+      return loadState(tx, req, tz, replayedAt ? new Date() : now);
     });
     res.status(201).json({ success: true, data });
   } catch (error) {
@@ -491,7 +507,7 @@ const finishBody = z.object({
   expenses: z.array(expenseItem).max(8).optional(),
 });
 
-/** Blocking rules shared by finish and manual: a job, photos of the day per job, sqft for production. */
+/** Finish/manual rules: job is optional. Photos and production sq ft only apply when jobs are listed. */
 async function assertFinishable(
   tx: PayrollTx,
   emp: NonNullable<Awaited<ReturnType<typeof ownEmployee>>>,
@@ -501,7 +517,7 @@ async function assertFinishable(
   jobs: { workOrderId: string; sqft: number; pieces?: Record<string, number> | null }[],
   pieceItems: readonly PieceItem[] = [],
 ) {
-  if (!jobs.length) throw httpErr(422, "Informe em qual job você trabalhou.", "JOB_REQUIRED");
+  if (!jobs.length) return;
   for (const j of jobs) await accessibleJob(tx, j.workOrderId);
   if (emp.payType === "production" && pieceItems.length) {
     // Production by item (Tile): at least one item counted on some job.

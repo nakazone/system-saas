@@ -193,8 +193,8 @@
             <div>${escapeHtml(end)}</div>
           </div>
           <div>
-            <p class="func-job__title">${escapeHtml(j.title)}</p>
-            <p class="func-job__sub">#${j.number ?? "—"} · ${escapeHtml(j.client)}</p>
+            <p class="func-job__title">${escapeHtml(j.client || j.title || "Job")}</p>
+            <p class="func-job__sub">${escapeHtml(j.address || "Sem endereço")}</p>
           </div>
           <span class="func-badge ${cls}">${escapeHtml(badge)}</span>
         </a>`;

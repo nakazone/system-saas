@@ -9,29 +9,39 @@
   <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
   <link rel="icon" href="/favicon.ico?v=20260924-pwa" sizes="any" />
   <link rel="apple-touch-icon" href="/assets/favicon-180.png?v=20260924-pwa" />
-  <link rel="stylesheet" href="styles.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="design-system.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="mobile-design-system.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="crm-shared-nav.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="crm-toast.css?v=20261104-ux2" />
-  <link rel="stylesheet" href="crm-shell.css?v=20261019-logout2" />
+  <link rel="stylesheet" href="styles.css?v=20261105-apps3" />
+  <link rel="stylesheet" href="design-system.css?v=20261105-u1" />
+  <link rel="stylesheet" href="mobile-design-system.css?v=20261105-apps3" />
+  <link rel="stylesheet" href="crm-shared-nav.css?v=20261105-u1" />
+  <link rel="stylesheet" href="crm-toast.css?v=20261105-apps3" />
+  <link rel="stylesheet" href="crm-shell.css?v=20261105-apps3" />
   <link rel="stylesheet" href="crm-module-panel.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="obramate-app.css?v=20261019-logout2" />
-  <link rel="stylesheet" href="om-mobile-nav.css?v=20261008-modulos1" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="obramate-app.css?v=20261105-apps3" />
+  <link rel="stylesheet" href="om-mobile-nav.css?v=20261105-mg1" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="om-device.js?v=20261013-badge1"></script>
-  <script src="crm-field-gate.js?v=20261104-ux3"></script>
+  <script src="crm-field-gate.js?v=20261105-mg1"></script>
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
   <link rel="stylesheet" href="crm-job-modal.css?v=20261104-ux2" />
   <link rel="stylesheet" href="om-gestures.css?v=20261102-ptr1" />
-  <link rel="stylesheet" href="jobs-mobile.css?v=20261104-ux3" />
-  <link rel="stylesheet" href="obracam.css?v=20261105-camlist1" />
-  <link rel="stylesheet" href="cam-viewer.css?v=20261105-ph1" />
-  <link rel="stylesheet" href="crm-list.css?v=20261104-ux2" />
+  <link rel="stylesheet" href="jobs-mobile.css?v=20261105-crew3" />
+  <link rel="stylesheet" href="obracam.css?v=20261105-crewcam5" />
+  <link rel="stylesheet" href="cam-viewer.css?v=20261105-apps3" />
+  <link rel="stylesheet" href="crm-list.css?v=20261105-mg1" />
 </head>
 <body class="dashboard-app-body om-app sidebar-collapsed cam-app">
-  <script src="/om-reload.js?v=20261013-rl8"></script>
+  <script>
+    // ObraCam app (/obracam) opened on a computer or tablet: leave for the normal ObraCam before any of the page loads.
+    (function () {
+      if (!window.__OM_FOCUS_APP) return;
+      var d = window.__omDevice;
+      var phone = d && d.isMobile ? d.isMobile() : window.matchMedia("(max-width: 760px)").matches;
+      if (phone) return;
+      window.__OM_CAM_LEAVING = true;
+      location.replace("/job-media-board.html" + location.search);
+    })();
+  </script>
+  <script src="/om-reload.js?v=20261105-cam1"></script>
   <script>
     (function () {
       try {
@@ -105,7 +115,7 @@
                 <label>Ordenar <select id="camSort"><option value="recent">última foto</option><option value="schedule">data agendada</option><option value="name">nome</option></select></label>
               </div>
             </div>
-            <div class="cam-rows ol-rows" id="camRows"><p class="cam-empty">Carregando…</p></div>
+            <div class="cam-rows ol-rows" id="camRows" aria-busy="true"><div class="cam-skel-rows" aria-hidden="true"><div class="cam-skel-row"><i class="cam-skel cam-skel--day"></i><span><i class="cam-skel cam-skel--line" style="width:62%"></i><i class="cam-skel cam-skel--sm" style="width:38%"></i></span></div><div class="cam-skel-row"><i class="cam-skel cam-skel--day"></i><span><i class="cam-skel cam-skel--line" style="width:48%"></i><i class="cam-skel cam-skel--sm" style="width:44%"></i></span></div><div class="cam-skel-row"><i class="cam-skel cam-skel--day"></i><span><i class="cam-skel cam-skel--line" style="width:70%"></i><i class="cam-skel cam-skel--sm" style="width:30%"></i></span></div></div><span class="cam-sr" role="status">Carregando jobs</span></div>
           </section>
           <section class="cam-detail" id="camDetail" aria-live="polite"></section>
         </div>
@@ -113,21 +123,20 @@
     </main>
   </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="crm-toast.js"></script>
+  <script src="crm-toast.js?v=20261104-ux2"></script>
   <script src="crm-i18n.js?v=20261104-ux1"></script>
-  <script src="saas-branding.js"></script>
-  <script src="crm-shared-nav.js?v=20261105-sl1"></script>
-  <script src="crm-shell.js?v=20261104-ux2"></script>
-  <script src="om-mobile-nav.js?v=20261105-camswipe1"></script>
-  <script src="crm-address-autocomplete.js?v=20261103-addr1"></script>
+  <script src="saas-branding.js?v=20261104-crew1"></script>
+  <script src="crm-shared-nav.js?v=20261105-mg1"></script>
+  <script src="crm-shell.js?v=20261105-shell9"></script>
+  <script src="om-mobile-nav.js?v=20261105-mg1"></script>
+  <script src="crm-address-autocomplete.js?v=20261105-u1"></script>
   <script src="crm-listbox-keys.js?v=20261103-addr1"></script>
-  <script src="crm-job-modal.js?v=20261105-ct9"></script>
-  <script src="jobs-info.js?v=20261105-inst1"></script>
+  <script src="crm-job-modal.js?v=20261105-mg1"></script>
+  <script src="jobs-info.js?v=20261105-field2"></script>
   <script src="om-gestures.js?v=20261102-ptr1"></script>
   <script src="/photo-exif.js?v=20261104-exif1"></script>
-  <script src="cam-viewer.js?v=20261105-cp1"></script>
-  <script src="job-media-board.js?v=20261105-cp1"></script>
-  <script src="crm-list.js?v=20261105-agd1"></script>
+  <script src="cam-viewer.js?v=20261105-mg1"></script>
+  <script src="job-media-board.js?v=20261105-mg1"></script>
+  <script src="crm-list.js?v=20261105-mg1"></script>
 </body>
 </html>

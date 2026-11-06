@@ -2,14 +2,28 @@
  * Campo · Ticket — status, checklist, job media (photo proof)
  */
 (function () {
-  const VER = "20261102-fases2";
+  const VER = "20261105-mg1";
   const $ = (id) => document.getElementById(id);
-  const STAGE_LABEL = { before: "Antes", during: "Durante", after: "Depois" };
+  const PHASE_LABEL = {
+    delivery: "Delivery",
+    scan: "Scan",
+    installation: "Installation",
+    sand_finish: "Sand & Finish",
+    walkthrough: "Walk Through",
+  };
+  const PHASE_KEYS = Object.keys(PHASE_LABEL);
+  /** Names of this job's phases: a trade's own (Tile, Countertops) when the job follows them, else Hardwood's. */
+  function phaseLabels() {
+    return (ticket && ticket.phase_mode === "phases" && ticket.phase_labels) || PHASE_LABEL;
+  }
 
   let jobId = null;
   let ticket = null;
   let tab = "details";
-  let photoStage = "";
+  /** Phase for the next capture: "" = auto, else a phase key. */
+  let photoPhase = "";
+  /** Gallery filter: "all" or a phase key. */
+  let phaseFilter = "all";
   let pendingCount = 0;
   /** Photos being prepared/sent right now: { key, previewUrl }. Shown as tiles so the crew sees the shot instantly. */
   const uploadsInFlight = [];
@@ -23,6 +37,8 @@
   let inspectStartedAt = null;
   let inspectMarks = [];
   let lightboxIndex = -1;
+  /** Item just ticked by this tap: its check plays the 160ms pop once on the next render. */
+  let justChecked = null;
 
   function escapeHtml(s) {
     return String(s || "")
@@ -42,31 +58,62 @@
     return appleMapsUrl(address);
   }
 
+  // Bottom sheets (#cmMapsLayer, #cmProblemLayer, #cmAnnotLayer): OmUI.layer gives Esc, focus trap and
+  // return, Android back, the exit animation and drag-to-close by the grab. Without OmUI: plain show/hide.
+  const layers = {};
+  function sheetLayer(name) {
+    const root = $(`cm${name}Layer`);
+    if (!root) return null;
+    if (!layers[name] && window.OmUI) {
+      layers[name] = window.OmUI.layer(root, {
+        onClose: () => onLayerClosed(name),
+        dragHandle: root.querySelector(".cm-sheet__grab"),
+        initialFocus: () => root.querySelector(".cm-sheet__close"),
+      });
+    }
+    return layers[name] || null;
+  }
+  function showLayer(name) {
+    document.body.classList.add("cm-sheet-open");
+    const l = sheetLayer(name);
+    if (l) l.open();
+    else if ($(`cm${name}Layer`)) $(`cm${name}Layer`).hidden = false;
+  }
+  function hideLayer(name) {
+    const l = sheetLayer(name);
+    if (l && l.isOpen()) return l.close();
+    if ($(`cm${name}Layer`)) $(`cm${name}Layer`).hidden = true;
+    onLayerClosed(name);
+  }
+  function onLayerClosed(name) {
+    if (!Object.keys(layers).some((k) => layers[k].isOpen())) document.body.classList.remove("cm-sheet-open");
+    if (name === "Annot") {
+      annotMediaId = null;
+      annotDrawing = null;
+    }
+  }
+
   function openMapsChooser(address) {
     const addr = String(address || "").trim();
     if (!addr) return;
     $("cmMapsAddr").textContent = addr;
     $("cmMapsApple").href = appleMapsUrl(addr);
     $("cmMapsGoogle").href = googleMapsUrl(addr);
-    $("cmMapsBackdrop").hidden = false;
-    $("cmMapsSheet").hidden = false;
-    document.body.classList.add("cm-sheet-open");
+    showLayer("Maps");
   }
   function closeMapsChooser() {
-    $("cmMapsBackdrop").hidden = true;
-    $("cmMapsSheet").hidden = true;
-    document.body.classList.remove("cm-sheet-open");
+    hideLayer("Maps");
   }
 
   async function api(path, opts) {
     if (window.OmOffline && typeof window.OmOffline.api === "function") {
       const json = await window.OmOffline.api(path, {
         credentials: "same-origin",
-        ...(opts || {}),
         allowQueue: true,
+        ...(opts || {}),
       });
       if (json && json.queued) {
-        toast(json.message || "Guardado offline — envia ao reconectar.", "success");
+        toast(json.message || "Salvo sem sinal — enviamos quando a conexão voltar.", "success");
       }
       return json;
     }
@@ -118,48 +165,14 @@
     });
   }
 
-  function compressImage(file, maxEdge, quality) {
-    return new Promise((resolve, reject) => {
-      const url = URL.createObjectURL(file);
-      const img = new Image();
-      img.onload = () => {
-        try {
-          let { width, height } = img;
-          const edge = Math.max(width, height);
-          const scale = edge > maxEdge ? maxEdge / edge : 1;
-          width = Math.round(width * scale);
-          height = Math.round(height * scale);
-          const canvas = document.createElement("canvas");
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext("2d");
-          if (!ctx) {
-            reject(new Error("Canvas unavailable"));
-            return;
-          }
-          ctx.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL("image/jpeg", quality);
-          URL.revokeObjectURL(url);
-          resolve(dataUrl);
-        } catch (e) {
-          URL.revokeObjectURL(url);
-          reject(e);
-        }
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        reject(new Error("Falha ao processar imagem"));
-      };
-      img.src = url;
-    });
-  }
-
   async function fileToUploadDataUrl(file) {
     if (!file.type || !file.type.startsWith("image/")) {
       throw new Error("Selecione uma imagem");
     }
     try {
-      return await compressImage(file, 1600, 0.72);
+      // One compression for every Campo screen (campo-photo.js?v=20261105-apps3): 1600px max side, JPEG 0.74.
+      if (!window.CampoPhoto) throw new Error("no compressor");
+      return await window.CampoPhoto.compress(file);
     } catch (_) {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -241,15 +254,12 @@
 
   function renderHero() {
     const t = ticket;
-    $("cmTicketTitle").textContent = `Ticket #${t.number ?? "—"}`;
+    const who = t.homeowner_name || (t.client && t.client !== "—" ? t.client : "") || "Job";
+    $("cmTicketTitle").textContent = who;
     $("cmTicketWhen").textContent = t.when_label || "—";
     $("cmTicketBadge").textContent = t.field_status_label || "—";
-    $("cmTicketJob").textContent = t.title || "—";
-    const sqft =
-      t.sqft_total > 0
-        ? ` · ${Number(t.sqft_total).toLocaleString("en-US")} sq ft`
-        : "";
-    $("cmTicketSub").textContent = `${t.client || "—"}${sqft}`;
+    $("cmTicketJob").textContent = who;
+    $("cmTicketSub").textContent = t.address || "Sem endereço";
     $("cmTicketAddr").textContent = t.address || "Sem endereço";
     const nav = $("cmTicketNav");
     if (t.address) {
@@ -262,26 +272,12 @@
       delete nav.dataset.address;
     }
 
-    $("cmStepper").innerHTML = (t.stepper || [])
-      .map(
-        (s) => `
-      <div class="cm-stepper__item${s.active ? " is-active" : ""}${s.done && !s.active ? " is-done" : ""}">
-        <span class="cm-stepper__bar"></span>
-        <span class="cm-stepper__label">${escapeHtml(s.label)}</span>
-      </div>`,
-      )
-      .join("");
-
     const cta = $("cmTicketCta");
     const wrap = $("cmTicketCtaWrap");
-    if (t.cta_label) {
-      wrap.hidden = false;
-      cta.textContent = t.cta_label;
-      cta.disabled = false;
-    } else {
-      wrap.hidden = false;
-      cta.textContent = "Visita concluída";
-      cta.disabled = true;
+    if (wrap) wrap.hidden = false;
+    if (cta) {
+      cta.textContent = "Tirar Foto";
+      cta.disabled = t.job_media_enabled === false;
     }
   }
 
@@ -393,8 +389,8 @@
           .filter(Boolean)
           .join(" · ");
         return `
-      <div class="cm-check-item${item.done ? " is-done" : ""}" data-check-wrap="${escapeHtml(item.id)}">
-        <button type="button" class="cm-check-item__main" data-check-id="${escapeHtml(item.id)}" style="display:flex;gap:0.65rem;align-items:flex-start;width:100%;border:0;background:transparent;padding:0;text-align:left;cursor:pointer">
+      <div class="cm-check-item${item.done ? " is-done" : ""}${item.done && item.id === justChecked ? " is-just-done" : ""}" data-check-wrap="${escapeHtml(item.id)}">
+        <button type="button" class="cm-check-item__main" data-check-id="${escapeHtml(item.id)}" data-om-press aria-pressed="${item.done ? "true" : "false"}" style="display:flex;gap:0.65rem;align-items:flex-start;width:100%;border:0;background:transparent;padding:0;text-align:left;cursor:pointer">
           <span class="cm-check-item__box" aria-hidden="true">${item.done ? "✓" : ""}</span>
           <span class="cm-check-item__text">
             ${escapeHtml(item.text)}
@@ -409,6 +405,7 @@
       </div>`;
       })
       .join("");
+    justChecked = null;
   }
 
   function updatePendingUi(rows) {
@@ -452,16 +449,27 @@
     return (ticket?.photos || []).filter((p) => p && (p.url || p.thumb_url));
   }
 
+  function photoPhaseOf(p) {
+    return p && phaseLabels()[p.phase] ? p.phase : "";
+  }
+
   function photoMetaLabel(p) {
-    const stage = p.stage && STAGE_LABEL[p.stage] ? STAGE_LABEL[p.stage] : "";
+    const phase = photoPhaseOf(p) ? phaseLabels()[photoPhaseOf(p)] : "";
     const cap = (p.caption || "").trim();
-    return [cap, stage].filter(Boolean).join(" · ") || "Foto da obra";
+    return [cap, phase].filter(Boolean).join(" · ") || "Foto da obra";
+  }
+
+  function filteredPhotos() {
+    const all = photoList();
+    if (phaseFilter === "all") return all;
+    return all.filter((p) => photoPhaseOf(p) === phaseFilter);
   }
 
   function renderPhotos() {
     const t = ticket;
-    const photos = photoList();
-    const total = photos.length + pendingCount + uploadsInFlight.length;
+    const all = photoList();
+    const photos = filteredPhotos();
+    const total = all.length + pendingCount + uploadsInFlight.length;
     $("cmTabPhotos").textContent = `Fotos · ${total}`;
     const grid = $("cmPhotosGrid");
     renderReportCard();
@@ -483,24 +491,28 @@
       .join("");
     if (!photos.length && !inFlightHtml) {
       grid.innerHTML =
-        '<p class="cm-subtitle" style="margin:0.5rem 0">Nenhuma foto ainda.</p>';
+        phaseFilter !== "all" && all.length
+          ? '<p class="cm-subtitle" style="margin:0.5rem 0">Nenhuma foto nesta fase.</p>'
+          : '<p class="cm-subtitle" style="margin:0.5rem 0">Nenhuma foto ainda.</p>';
       return;
     }
-    grid.innerHTML = inFlightHtml + photos
-      .map((p, idx) => {
-        const stage = p.stage && STAGE_LABEL[p.stage] ? STAGE_LABEL[p.stage] : "";
-        const gps = p.location_available ? " · GPS" : "";
-        const pub = p.is_public ? " · público" : "";
-        const meta = photoMetaLabel(p);
-        const src = p.thumb_url || p.url || "";
-        return `
+    grid.innerHTML =
+      inFlightHtml +
+      photos
+        .map((p, idx) => {
+          const phase = photoPhaseOf(p) ? phaseLabels()[photoPhaseOf(p)] : "";
+          const gps = p.location_available ? " · GPS" : "";
+          const pub = p.is_public ? " · público" : "";
+          const meta = photoMetaLabel(p);
+          const src = p.thumb_url || p.url || "";
+          return `
       <button type="button" class="cm-photo" data-media-id="${escapeHtml(p.id || "")}" data-photo-idx="${idx}" ${p.legacy ? "data-legacy=1" : ""}>
-        ${stage ? `<span class="cm-photo__badge">${escapeHtml(stage)}</span>` : ""}
+        ${phase ? `<span class="cm-photo__badge">${escapeHtml(phase)}</span>` : ""}
         <img src="${escapeHtml(src)}" alt="${escapeHtml(meta)}" loading="lazy" onerror="this.classList.add('is-broken');this.parentElement&&this.parentElement.classList.add('is-broken')" />
         <span class="cm-photo__meta">${escapeHtml(meta)}${gps}${pub}</span>
       </button>`;
-      })
-      .join("");
+        })
+        .join("");
   }
 
   function renderAll() {
@@ -544,26 +556,47 @@
 
   function apply(data) {
     ticket = data;
+    renderPhaseChips();
     renderAll();
+  }
+
+  /**
+   * Photo phase chips: the job's own phases when it follows a trade's (Tile, Countertops); the
+   * Hardwood chips in the page otherwise. Rebuilt only when the list changes.
+   */
+  let chipsKey = "";
+  function renderPhaseChips() {
+    const host = $("cmPhaseFilters");
+    if (!host || !ticket || ticket.phase_mode !== "phases" || !Array.isArray(ticket.phases)) return;
+    const labels = phaseLabels();
+    const keys = ticket.phases.filter((k) => labels[k]);
+    const key = keys.join(",");
+    if (key === chipsKey) return;
+    chipsKey = key;
+    if (phaseFilter !== "all" && !keys.includes(phaseFilter)) {
+      phaseFilter = "all";
+      photoPhase = "";
+    }
+    host.classList.add("cm-chip-row--scroll");
+    host.innerHTML = [["all", "Todas"], ...keys.map((k) => [k, labels[k]])]
+      .map(([k, l]) => `<button type="button" class="cm-chip${phaseFilter === k ? " is-selected" : ""}" data-photo-phase="${escapeHtml(k)}" aria-pressed="${phaseFilter === k}">${escapeHtml(l)}</button>`)
+      .join("");
   }
 
   function openProblem() {
     $("cmProblemNote").value = ticket?.problem_note || "";
-    $("cmProblemBackdrop").hidden = false;
-    $("cmProblemSheet").hidden = false;
-    document.body.classList.add("cm-sheet-open");
+    showLayer("Problem");
   }
 
   function closeProblem() {
-    $("cmProblemBackdrop").hidden = true;
-    $("cmProblemSheet").hidden = true;
-    document.body.classList.remove("cm-sheet-open");
+    hideLayer("Problem");
   }
 
   async function postPhotoPayload(row) {
     const body = {
       data_url: row.dataUrl,
       stage: row.stage || null,
+      phase: row.phase || null,
       caption: row.caption || null,
       taken_at_device: row.takenAtDevice,
       taken_at_source: row.takenAtSource || null,
@@ -579,6 +612,8 @@
     };
     const json = await api(`/api/campo/jobs/${jobId}/photos`, {
       method: "POST",
+      // Already in the media queue: a dropped connection must fail here, not move to the generic queue.
+      allowQueue: false,
       body: JSON.stringify(body),
     });
     return json.data;
@@ -660,7 +695,8 @@
     const payload = {
       jobId,
       dataUrl,
-      stage: photoStage || null,
+      stage: null,
+      phase: photoPhase || null,
       caption,
       takenAtDevice: shot ? shot.taken_at_device : new Date().toISOString(),
       takenAtSource: shot ? shot.taken_at_source : null,
@@ -711,7 +747,7 @@
 
   function voiceCaptionOnDevice() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) return Promise.reject(new Error("Speech recognition not supported on this browser"));
+    if (!SR) return Promise.reject(new Error("Reconhecimento de voz não disponível neste navegador"));
     return new Promise((resolve, reject) => {
       const rec = new SR();
       rec.lang = "en-US";
@@ -736,7 +772,7 @@
   }
 
   function currentLightboxPhoto() {
-    const photos = photoList();
+    const photos = filteredPhotos();
     if (lightboxIndex < 0 || lightboxIndex >= photos.length) return null;
     return photos[lightboxIndex];
   }
@@ -745,7 +781,7 @@
     const photo = currentLightboxPhoto();
     const box = $("cmLightbox");
     if (!box || !photo) return;
-    const photos = photoList();
+    const photos = filteredPhotos();
     const src = photo.url || photo.thumb_url || "";
     const img = $("cmLightboxImg");
     if (img) {
@@ -759,8 +795,8 @@
     if (count) count.textContent = `${lightboxIndex + 1} / ${photos.length}`;
     const cap = $("cmLightboxCap");
     if (cap) {
-      const stage = photo.stage && STAGE_LABEL[photo.stage] ? STAGE_LABEL[photo.stage] : "";
-      const bits = [photo.caption || "", stage, photo.is_public ? "público" : ""]
+      const phase = photoPhaseOf(photo) ? phaseLabels()[photoPhaseOf(photo)] : "";
+      const bits = [photo.caption || "", phase, photo.is_public ? "público" : ""]
         .map((s) => String(s || "").trim())
         .filter(Boolean);
       cap.textContent = bits.join(" · ") || "Foto da obra";
@@ -774,7 +810,7 @@
   }
 
   function openLightbox(index) {
-    const photos = photoList();
+    const photos = filteredPhotos();
     if (!photos.length) return;
     lightboxIndex = Math.max(0, Math.min(index, photos.length - 1));
     const box = $("cmLightbox");
@@ -797,10 +833,29 @@
   }
 
   function stepLightbox(delta) {
-    const photos = photoList();
+    const photos = filteredPhotos();
     if (photos.length < 2 || lightboxIndex < 0) return;
     lightboxIndex = (lightboxIndex + delta + photos.length) % photos.length;
     renderLightbox();
+  }
+
+  async function pickPhotoPhase(current) {
+    const phases = (ticket && ticket.phases && ticket.phases.length ? ticket.phases : PHASE_KEYS).filter(
+      (k) => phaseLabels()[k],
+    );
+    const choices = ["(Automática)", ...phases.map((k) => phaseLabels()[k])];
+    const labels = [null, ...phases];
+    const picked = await window.crmPrompt({
+      title: "Fase da foto",
+      type: "select",
+      options: choices.map((label, i) => ({ value: String(i), label })),
+      value: String(Math.max(0, labels.indexOf(current || null))),
+      ok: "Salvar fase",
+    });
+    if (picked == null) return undefined;
+    const idx = Number(picked);
+    if (!Number.isFinite(idx) || idx < 0 || idx >= labels.length) return undefined;
+    return labels[idx];
   }
 
   async function runPhotoAction(action) {
@@ -813,8 +868,19 @@
         openAnnotator(photo);
         return;
       }
+      if (action === "fase") {
+        const next = await pickPhotoPhase(photo.phase_source === "manual" ? photo.phase : null);
+        if (next === undefined) return;
+        const json = await api(`/api/campo/jobs/${jobId}/media/${mediaId}`, {
+          method: "PATCH",
+          body: JSON.stringify({ phase: next }),
+        });
+        apply(json.data);
+        toast(next ? `Fase: ${phaseLabels()[next] || next}` : "Fase automática", "success");
+        return;
+      }
       if (action === "ocr") {
-        toast("A ler etiqueta…", "success");
+        toast("Lendo etiqueta…", "success");
         const json = await api(`/api/campo/jobs/${jobId}/media/${mediaId}/ocr`, {
           method: "POST",
           body: JSON.stringify({}),
@@ -901,7 +967,7 @@
     const btn = $("cmPhotoReportBtn");
     if (btn) btn.disabled = true;
     try {
-      toast("A gerar relatório…", "success");
+      toast("Gerando relatório…", "success");
       const json = await api(`/api/campo/jobs/${jobId}/reports/generate`, {
         method: "POST",
         body: JSON.stringify({ template_key: "site_visit" }),
@@ -930,7 +996,7 @@
       ? Math.floor((Date.now() - inspectStartedAt) / 1000)
       : 0;
     el.hidden = false;
-    el.textContent = `A gravar vistoria · ${secs}s · ${inspectMarks.length} marca(s) · toque no botão para parar`;
+    el.textContent = `Gravando vistoria · ${secs}s · ${inspectMarks.length} marca(s) · toque no botão para parar`;
     btn.textContent = "Parar vistoria";
   }
 
@@ -940,7 +1006,7 @@
       return;
     }
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
-      toast("Gravação de áudio não suportada neste browser");
+      toast("Gravação de áudio não disponível neste navegador");
       return;
     }
     try {
@@ -961,7 +1027,7 @@
       };
       inspectRec.start(1000);
       updateInspectUi();
-      toast("Vistoria a gravar — tire fotos para marcar no áudio", "success");
+      toast("Gravando vistoria — tire fotos para marcar no áudio", "success");
       const tick = setInterval(() => {
         if (!inspectRec) {
           clearInterval(tick);
@@ -981,7 +1047,7 @@
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result || ""));
-      reader.onerror = () => reject(new Error("Falha a ler áudio"));
+      reader.onerror = () => reject(new Error("Falha ao ler o áudio"));
       reader.readAsDataURL(blob);
     });
   }
@@ -1015,12 +1081,12 @@
     updateInspectUi();
 
     if (!blob || blob.size < 200) {
-      toast("Áudio demasiado curto");
+      toast("Áudio muito curto");
       return;
     }
 
     try {
-      toast("A enviar vistoria…", "success");
+      toast("Enviando vistoria…", "success");
       const dataUrl = await blobToDataUrl(blob);
       const ended = Date.now();
       await api(`/api/campo/jobs/${jobId}/inspections`, {
@@ -1035,12 +1101,12 @@
       });
       toast(
         marks.length
-          ? `Vistoria guardada (${marks.length} marca${marks.length === 1 ? "" : "s"})`
-          : "Vistoria guardada",
+          ? `Vistoria salva (${marks.length} marca${marks.length === 1 ? "" : "s"})`
+          : "Vistoria salva",
         "success",
       );
     } catch (err) {
-      toast(err.message || "Falha ao guardar vistoria");
+      toast(err.message || "Falha ao salvar a vistoria");
     }
   }
 
@@ -1077,7 +1143,7 @@
           source: "manual",
         }),
       });
-      toast("Medição guardada", "success");
+      toast("Medição salva", "success");
     } catch (err) {
       toast(err.message || "Medições desativadas ou falha");
     }
@@ -1161,18 +1227,12 @@
     });
     $("cmAnnotImg").onload = () => redrawAnnotations();
     $("cmAnnotImg").src = photo.url;
-    $("cmAnnotBackdrop").hidden = false;
-    $("cmAnnotSheet").hidden = false;
-    document.body.classList.add("cm-sheet-open");
+    showLayer("Annot");
     setTimeout(redrawAnnotations, 50);
   }
 
   function closeAnnotator() {
-    $("cmAnnotBackdrop").hidden = true;
-    $("cmAnnotSheet").hidden = true;
-    document.body.classList.remove("cm-sheet-open");
-    annotMediaId = null;
-    annotDrawing = null;
+    hideLayer("Annot");
   }
 
   function pointerNorm(e, canvas) {
@@ -1213,9 +1273,9 @@
         });
         apply(json.data);
         closeAnnotator();
-        toast("Anotações guardadas", "success");
+        toast("Anotações salvas", "success");
       } catch (err) {
-        toast(err.message || "Falha ao guardar");
+        toast(err.message || "Falha ao salvar");
       }
     });
 
@@ -1460,38 +1520,29 @@
       btn.addEventListener("click", () => showTab(btn.getAttribute("data-tab")));
     });
 
-    document.querySelectorAll("[data-photo-stage]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        photoStage = btn.getAttribute("data-photo-stage") || "";
-        document.querySelectorAll("[data-photo-stage]").forEach((b) => {
-          b.classList.toggle("is-selected", b === btn);
-        });
+    // One listener on the row: the chips can be rebuilt with the job's own phases.
+    $("cmPhaseFilters")?.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-photo-phase]");
+      if (!btn) return;
+      const next = btn.getAttribute("data-photo-phase") || "all";
+      phaseFilter = next;
+      // Selecting a phase also tags the next capture; "Todas" leaves phase automatic.
+      photoPhase = next === "all" ? "" : next;
+      document.querySelectorAll("#cmPhaseFilters [data-photo-phase]").forEach((b) => {
+        b.classList.toggle("is-selected", b === btn);
+        b.setAttribute("aria-pressed", String(b === btn));
       });
+      renderPhotos();
     });
 
-    $("cmTicketCta")?.addEventListener("click", async () => {
-      if (!ticket?.next_status) return;
-      try {
-        const json = await api(`/api/campo/jobs/${jobId}/field-status`, {
-          method: "POST",
-          body: JSON.stringify({ advance: true }),
-        });
-        if (json && json.queued) {
-          if (ticket?.next_status) {
-            ticket.field_status = ticket.next_status;
-            ticket.next_status = null;
-            apply(ticket);
-          }
-          return;
-        }
-        apply(json.data);
-        // Visit done but the job still has phases open (Tile): it stays in progress.
-        if (hasPhases() && json.data && json.data.field_status === "scheduled" && json.data.raw_status !== "completed") {
-          toast("Visita concluída. O job segue aberto até a última fase.");
-        }
-      } catch (err) {
-        toast(err.message || "Falha ao atualizar status");
+    $("cmTicketCta")?.addEventListener("click", () => {
+      if (ticket?.job_media_enabled === false) {
+        toast("Fotos desativadas para esta organização");
+        return;
       }
+      if (window.OmUI) window.OmUI.haptic("tap");
+      showTab("photos");
+      $("cmPhotoInput")?.click();
     });
 
     $("cmCheckList")?.addEventListener("click", async (e) => {
@@ -1528,6 +1579,7 @@
       const item = (ticket.checklist || []).find((c) => c.id === id);
       if (!item) return;
       try {
+        if (!item.done) justChecked = id;
         const json = await api(`/api/campo/jobs/${jobId}/checklist`, {
           method: "PATCH",
           body: JSON.stringify({ item_id: id, done: !item.done }),

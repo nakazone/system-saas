@@ -54,13 +54,14 @@
   const FIELD_ROLES = new Set(["installer", "crew_lead", "subcontractor"]);
   const CAMPO_HOME = "/campo/hoje.html";
   const DESKTOP_HOME = "/funcionario.html";
-  const VER = "20260928-chat1";
+  const VER = "20261105-crewcam1";
 
   const DESKTOP_ALLOW = new Set([
     "funcionario.html",
     "schedule.html",
     "jobs.html",
     "job-detail.html",
+    "job-media-board.html",
     "chat.html",
     "ajustes.html",
     "configuracoes.html",
@@ -74,6 +75,7 @@
     "schedule.html",
     "jobs.html",
     "job-detail.html",
+    "job-media-board.html",
     "chat.html",
     "ajustes.html",
     "configuracoes.html",

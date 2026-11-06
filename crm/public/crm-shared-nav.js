@@ -1,5 +1,6 @@
 /**
- * Menu CRM padrão (Início · Calendar · Leads/Clientes · Quotes/Jobs/Invoices · …) em páginas standalone.
+ * Menu CRM padrão (Início · Agenda · Leads/Clientes · Orçamentos/Jobs/Faturas · …) em páginas standalone.
+ * Também é a fonte única do menu: window.OmNav (ver NAV_ITEMS abaixo).
  * Respeita permissões via GET /api/auth/session.
  */
 (function () {
@@ -73,6 +74,199 @@
     return r === 'installer' || r === 'crew_lead' || r === 'subcontractor';
   }
 
+  /*
+   * ============ Fonte única do menu do CRM ============
+   * Sidebar/doca (este arquivo), barra de abas + menu "Criar" do celular (om-mobile-nav.js?v=20261105-mg1) e a
+   * tela "Mais" (mais.html) leem esta lista por window.OmNav. Mude rótulo, ordem ou URL aqui.
+   *
+   *   href       destino no desktop/tablet
+   *   phoneHref  destino no celular, quando a página é outra (ex.: no celular /dashboard é a
+   *              lista de Leads e o Início fica em home.html — ver pipeline-lab.js)
+   *   label      rótulo curto (doca, abas). Texto-fonte PT-BR; crm-i18n.js traduz para EN/ES.
+   *   longLabel  rótulo da tela Mais e do aria-label, quando o curto é abreviado
+   *   sub        linha de apoio na tela Mais
+   */
+  const NAV_ITEMS = {
+    home: { href: '/dashboard', phoneHref: '/home.html', label: 'Início', perm: null, page: '', iconKey: 'dashboard' },
+    schedule: { href: 'schedule.html', label: 'Agenda', perm: 'schedule.view', page: '', iconKey: 'schedule' },
+    leads: { href: 'leads.html', phoneHref: '/dashboard', label: 'Leads', perm: 'leads.view', page: 'leads', iconKey: 'leads' },
+    customers: {
+      href: 'customers.html',
+      label: 'Clientes',
+      sub: 'Base de clientes',
+      perm: 'customers.view',
+      page: 'customers',
+      iconKey: 'customers',
+    },
+    referrals: {
+      href: 'referrals.html',
+      label: 'Indicações',
+      perm: 'customers.view',
+      page: '',
+      iconKey: 'referrals',
+      feature: 'referrals',
+    },
+    quotes: {
+      href: 'quotes.html',
+      label: 'Orçamentos',
+      sub: 'Propostas e aprovações',
+      perm: 'quotes.view',
+      page: 'quotes',
+      iconKey: 'quotes',
+    },
+    mate: { href: 'mate-ai.html', label: 'Mate AI', sub: 'Monte um orçamento conversando', perm: 'quotes.create', page: '', iconKey: 'mate' },
+    jobs: { href: 'jobs.html', label: 'Jobs', sub: 'Ordens de serviço', perm: 'work_orders.view', page: '', iconKey: 'jobs' },
+    // Only for trades with a slab yard (Countertops): the item's `feature` hides it elsewhere.
+    slabs: {
+      href: 'slabs.html',
+      label: 'Slabs',
+      longLabel: 'Slabs e sobras',
+      sub: 'Pátio de pedra e reservas por job',
+      perm: 'work_orders.view',
+      page: '',
+      iconKey: 'slabs',
+      feature: 'slabs',
+    },
+    invoices: {
+      href: 'invoices.html',
+      label: 'Faturas',
+      sub: 'Cobranças e pagamentos',
+      perm: 'invoices.view',
+      page: 'invoices',
+      iconKey: 'invoices',
+    },
+    cam: {
+      href: 'job-media-board.html',
+      label: 'ObraCam',
+      sub: 'Mapa, feed e prova fotográfica',
+      perm: 'work_orders.view',
+      page: '',
+      iconKey: 'camera',
+    },
+    chat: {
+      href: 'chat.html',
+      label: 'ObraChat',
+      sub: 'Conversas internas da equipe',
+      perm: 'chat.use',
+      page: '',
+      iconKey: 'chat',
+      badge: 'chat',
+    },
+    payroll: {
+      href: 'folha.html',
+      label: 'Folha',
+      longLabel: 'Folha de pagamento',
+      sub: 'Equipe e recibos',
+      perm: 'payroll.view',
+      permAny: ['payroll.view'],
+      // Na tela Mais quem só tem payroll.self também vê: folha.html leva às próprias horas.
+      morePermAny: ['payroll.view', 'payroll.self'],
+      page: '',
+      iconKey: 'payroll',
+    },
+    finance: {
+      href: 'finance.html',
+      label: 'Fluxo de caixa',
+      sub: 'Caixa e fluxo',
+      perm: 'finance.view',
+      page: '',
+      iconKey: 'finance',
+    },
+    pricing: {
+      href: 'builder-pricing-admin.html',
+      label: 'Tabela',
+      longLabel: 'Tabela de Valor',
+      sub: 'Preços e serviços',
+      perm: 'builders.view',
+      permAny: ['builders.view', 'quotes.edit'],
+      page: '',
+      iconKey: 'pricing',
+    },
+    reports: {
+      href: 'relatorios.html',
+      label: 'Relatórios',
+      sub: 'Painel de vendas, jobs, caixa e folha',
+      perm: 'reports.view',
+      page: '',
+      iconKey: 'reports',
+    },
+    settings: {
+      href: 'configuracoes.html',
+      label: 'Configurações',
+      sub: 'Empresa e preferências',
+      perm: null,
+      page: '',
+      iconKey: 'settings',
+    },
+    more: { href: 'mais.html', label: 'Mais', perm: null, page: '', iconKey: 'dashboard' },
+  };
+
+  /** Sidebar (desktop) e doca: cada grupo vira um bloco separado por uma barra. */
+  const SIDEBAR_GROUPS = [
+    ['home'],
+    ['schedule'],
+    ['leads', 'customers', 'referrals'],
+    ['quotes', 'mate', 'jobs', 'slabs', 'invoices'],
+    ['cam', 'chat'],
+    ['payroll', 'finance', 'pricing'],
+    ['reports'],
+    ['settings'],
+  ];
+
+  /** Celular: abas fixas embaixo (o resto fica em "Mais"). gated = esconde sem a permissão. */
+  const PHONE_TABS = [
+    { key: 'home' },
+    { key: 'leads' },
+    { key: 'schedule' },
+    { key: 'jobs', gated: true },
+    { key: 'more' },
+  ];
+
+  /** Tela "Mais" do celular: seções e a ordem dos cartões. */
+  const MORE_SECTIONS = [
+    { label: 'Visão geral', keys: ['reports'] },
+    { label: 'Vendas', keys: ['quotes', 'mate', 'invoices', 'customers'] },
+    { label: 'Operação', keys: ['jobs', 'slabs', 'chat', 'cam'] },
+    { label: 'Financeiro', keys: ['payroll', 'finance', 'pricing'] },
+  ];
+
+  /** Menu "Criar" (botão + no celular). Mesmos nomes da doca do desktop (crm-shell.js?v=20261105-apps3). */
+  const CREATE_ACTIONS = [
+    { key: 'lead', label: 'Novo lead', sub: 'Adicionar ao pipeline', action: 'new-lead', icon: 'lead' },
+    { key: 'schedule', label: 'Agendar', sub: 'Visita, job ou compromisso', href: 'schedule.html?new=1', icon: 'agendaAdd' },
+    { key: 'quote', label: 'Novo orçamento', sub: 'Proposta para o cliente', href: 'quote-builder.html', icon: 'quote', group: 2 },
+    { key: 'invoice', label: 'Nova fatura', sub: 'Nova cobrança', href: 'invoices.html?new=1', icon: 'invoice', group: 2 },
+  ];
+
+  /** Destino de um item para este aparelho (phoneHref no celular, quando existe). */
+  function navHref(key) {
+    const item = NAV_ITEMS[key];
+    if (!item) return '';
+    if (item.phoneHref && isMobileDevice()) return item.phoneHref;
+    return item.href;
+  }
+
+  function navItem(key) {
+    const item = NAV_ITEMS[key];
+    if (!item) return null;
+    const out = Object.assign({ key }, item);
+    // Início: no celular é home.html; o resto do menu da sidebar usa o href do desktop.
+    if (key === 'home') out.href = navHref('home');
+    if (item.longLabel && !item.ariaLabel) out.ariaLabel = item.longLabel;
+    return out;
+  }
+
+  window.OmNav = {
+    VER: '20261105-nav1',
+    items: NAV_ITEMS,
+    sidebar: SIDEBAR_GROUPS,
+    tabs: PHONE_TABS,
+    more: MORE_SECTIONS,
+    create: CREATE_ACTIONS,
+    href: navHref,
+    item: navItem,
+  };
+
   function getFieldSidebarGroups() {
     return [
       {
@@ -82,7 +276,7 @@
       {
         label: 'Campo',
         items: [
-          { href: 'schedule.html', label: 'Calendar', perm: 'schedule.view', page: '', iconKey: 'schedule' },
+          { href: 'schedule.html', label: 'Agenda', perm: 'schedule.view', page: '', iconKey: 'schedule' },
           { href: 'jobs.html', label: 'Jobs', perm: 'work_orders.view', page: '', iconKey: 'jobs' },
           { href: 'slabs.html', label: 'Slabs', ariaLabel: 'Slabs e sobras', perm: 'work_orders.view', page: '', iconKey: 'slabs', feature: 'slabs' },
           { href: 'chat.html', label: 'ObraChat', perm: 'chat.use', page: '', iconKey: 'chat', badge: 'chat' },
@@ -102,119 +296,7 @@
   function getSidebarGroups(role) {
     if (isFieldRole(role)) return getFieldSidebarGroups();
     // Groups with label:null → visual bar between clusters (dock + sidebar).
-    return [
-      {
-        label: null,
-        items: [
-          { href: '/dashboard', label: 'Início', perm: null, page: '', iconKey: 'dashboard' },
-        ],
-      },
-      {
-        label: null,
-        items: [{ href: 'schedule.html', label: 'Calendar', perm: 'schedule.view', page: '', iconKey: 'schedule' }],
-      },
-      {
-        label: null,
-        items: [
-          { href: 'leads.html', label: 'Leads', perm: 'leads.view', page: 'leads', iconKey: 'leads' },
-          {
-            href: 'customers.html',
-            label: 'Clientes',
-            perm: 'customers.view',
-            page: 'customers',
-            iconKey: 'customers',
-          },
-          {
-            href: 'referrals.html',
-            label: 'Indicações',
-            perm: 'customers.view',
-            page: '',
-            iconKey: 'referrals',
-            feature: 'referrals',
-          },
-        ],
-      },
-      {
-        label: null,
-        items: [
-          { href: 'quotes.html', label: 'Quotes', perm: 'quotes.view', page: 'quotes', iconKey: 'quotes' },
-          { href: 'mate-ai.html', label: 'Mate AI', perm: 'quotes.create', page: '', iconKey: 'mate' },
-          { href: 'jobs.html', label: 'Jobs', perm: 'work_orders.view', page: '', iconKey: 'jobs' },
-          { href: 'slabs.html', label: 'Slabs', ariaLabel: 'Slabs e sobras', perm: 'work_orders.view', page: '', iconKey: 'slabs', feature: 'slabs' },
-          { href: 'invoices.html', label: 'Invoices', perm: 'invoices.view', page: 'invoices', iconKey: 'invoices' },
-        ],
-      },
-      {
-        label: null,
-        items: [
-          {
-            href: 'job-media-board.html',
-            label: 'ObraCam',
-            perm: 'work_orders.view',
-            page: '',
-            iconKey: 'camera',
-          },
-          { href: 'chat.html', label: 'ObraChat', perm: 'chat.use', page: '', iconKey: 'chat', badge: 'chat' },
-        ],
-      },
-      {
-        label: null,
-        items: [
-          {
-            href: 'folha.html',
-            label: 'Folha',
-            ariaLabel: 'Folha de Pagamento',
-            perm: 'payroll.view',
-            permAny: ['payroll.view'],
-            page: '',
-            iconKey: 'payroll',
-          },
-          {
-            href: 'finance.html',
-            label: 'Fluxo',
-            ariaLabel: 'Fluxo de Caixa',
-            perm: 'finance.view',
-            page: '',
-            iconKey: 'finance',
-          },
-          {
-            href: 'builder-pricing-admin.html',
-            label: 'Tabela',
-            ariaLabel: 'Tabela de Valor',
-            perm: 'builders.view',
-            permAny: ['builders.view', 'quotes.edit'],
-            page: '',
-            iconKey: 'pricing',
-          },
-        ],
-      },
-      {
-        label: null,
-        items: [
-          {
-            href: 'relatorios.html',
-            label: 'Relatórios',
-            ariaLabel: 'Relatórios',
-            perm: 'reports.view',
-            page: '',
-            iconKey: 'reports',
-          },
-        ],
-      },
-      {
-        label: null,
-        items: [
-          {
-            href: 'configuracoes.html',
-            label: 'Config',
-            ariaLabel: 'Configurações',
-            perm: null,
-            page: '',
-            iconKey: 'settings',
-          },
-        ],
-      },
-    ];
+    return SIDEBAR_GROUPS.map((keys) => ({ label: null, items: keys.map(navItem).filter(Boolean) }));
   }
 
   function getMainNav(role) {
@@ -235,7 +317,7 @@
   const NAV_CACHE_HTML = 'crm_shared_nav_html_v2';
   const NAV_CACHE_META = 'crm_shared_nav_meta_v2';
   // Bump when sidebar groups/items change so role+perm cache does not hide new links.
-  const NAV_STRUCTURE_VERSION = '20261105-sl1';
+  const NAV_STRUCTURE_VERSION = '20261105-nav1-sl1';
 
   function itemFromAnchor(a) {
     const hrefAttr = a.getAttribute('href') || '';
@@ -732,7 +814,13 @@
     window.__crmUpdateChatBadge = updateChatBadge;
     updateChatBadge();
     if (chatBadgeTimer) clearInterval(chatBadgeTimer);
-    chatBadgeTimer = setInterval(updateChatBadge, 45000);
+    // A hidden tab skips the poll and catches up when it is shown again.
+    chatBadgeTimer = setInterval(function () {
+      if (document.visibilityState !== 'hidden') updateChatBadge();
+    }, 45000);
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') updateChatBadge();
+    });
   }
 
   if (document.readyState === 'loading') {

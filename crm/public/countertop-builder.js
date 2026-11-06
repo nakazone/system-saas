@@ -25,7 +25,7 @@
     'Tear-out': 'Retirar bancada antiga', Quantities: 'Quantidades', 'whole job': 'job todo', 'Edges': 'Bordas', Cutouts: 'Cutouts', Supports: 'Suportes', Seams: 'Emendas', Slabs: 'Slabs (estimativa)',
     'sinks, cooktop, holes': 'cubas, cooktop, furos', 'cabinet line': 'linha do armário', 'over 10″ needs support': 'acima de 10″ precisa de suporte',
     'No countertops yet': 'Nenhuma bancada medida', 'Add each run, island and vanity — square feet, edges, cutouts and backsplash come out on their own.': 'Adicione cada bancada, ilha e banheiro — pé², bordas, cutouts e rodabanca saem sozinhos.',
-    '+ Run': '+ Bancada', '+ Island': '+ Ilha', '+ Vanity': '+ Banheiro', 'this countertop?': 'esta bancada?', SF: 'pé²', LF: 'pé lin.', 'Kitchen run': 'Bancada da pia', 'Hall bath vanity': 'Banheiro social',
+    '+ Run': '+ Bancada', '+ Island': '+ Ilha', '+ Vanity': '+ Banheiro', 'this countertop?': 'esta bancada?', 'Tap again to remove': 'Toque de novo para remover', SF: 'pé²', LF: 'pé lin.', 'Kitchen run': 'Bancada da pia', 'Hall bath vanity': 'Banheiro social',
     'Estimate before the template — the shop confirms seams and slabs.': 'Estimativa antes do template — a oficina confirma emendas e slabs.',
   };
   const ES = {
@@ -39,7 +39,7 @@
     'Tear-out': 'Quitar encimera vieja', Quantities: 'Cantidades', 'whole job': 'todo el trabajo', Edges: 'Bordes', Cutouts: 'Cortes', Supports: 'Soportes', Seams: 'Uniones', Slabs: 'Slabs (estimado)',
     'sinks, cooktop, holes': 'fregaderos, cooktop, agujeros', 'cabinet line': 'línea del gabinete', 'over 10″ needs support': 'más de 10″ necesita soporte',
     'No countertops yet': 'Ninguna encimera medida', 'Add each run, island and vanity — square feet, edges, cutouts and backsplash come out on their own.': 'Agregue cada encimera, isla y baño — pie², bordes, cortes y salpicadero salen solos.',
-    '+ Run': '+ Encimera', '+ Island': '+ Isla', '+ Vanity': '+ Baño', 'this countertop?': 'esta encimera?', SF: 'pie²', LF: 'pie lin.', 'Kitchen run': 'Encimera del fregadero', 'Hall bath vanity': 'Baño de visitas',
+    '+ Run': '+ Encimera', '+ Island': '+ Isla', '+ Vanity': '+ Baño', 'this countertop?': 'esta encimera?', 'Tap again to remove': 'Toque otra vez para quitar', SF: 'pie²', LF: 'pie lin.', 'Kitchen run': 'Encimera del fregadero', 'Hall bath vanity': 'Baño de visitas',
     'Estimate before the template — the shop confirms seams and slabs.': 'Estimado antes del template — el taller confirma uniones y slabs.',
   };
   const DICT = { pt: PT, es: ES };
@@ -356,7 +356,7 @@
   }
 
   function ensureCss() {
-    [['ppShowersCss', '/partner-portal-showers.css?v=20261105-ct9'], ['ctTopsCss', '/countertop-builder.css?v=20261105-ct9']].forEach(([id, href]) => {
+    [['ppShowersCss', '/partner-portal-showers.css?v=20261105-mg3'], ['ctTopsCss', '/countertop-builder.css?v=20261105-mg1']].forEach(([id, href]) => {
       if (document.getElementById(id)) return;
       const l = document.createElement('link');
       l.id = id;
@@ -402,7 +402,14 @@
       const p = cur();
       if (!p) return;
       if (el.hasAttribute('data-ct-del')) {
-        if (!window.confirm(`${T('Remove')} ${p.name || T('this countertop?').replace('?', '')}?`)) return;
+        // Two taps instead of a browser dialog: the first one arms the button for 4 s.
+        if (el.dataset.armed !== '1') {
+          el.dataset.armed = '1';
+          el.textContent = T('Tap again to remove');
+          el.setAttribute('aria-live', 'polite');
+          setTimeout(() => { if (el.isConnected) { el.dataset.armed = ''; el.textContent = T('Remove'); } }, 4000);
+          return;
+        }
         tops.pieces.splice(m.idx, 1);
         m.idx = Math.max(0, m.idx - 1);
         return done(true);

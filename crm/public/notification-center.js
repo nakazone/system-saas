@@ -511,10 +511,13 @@
     updateBellBadge();
     pullServerNotifications();
     pullOfficePendingActions();
+    // Push messages refresh at once; the timer is only a fallback, and a hidden tab skips it
+    // (it catches up on visibilitychange below).
     if (!pollTimer) pollTimer = setInterval(function () {
+      if (document.visibilityState === 'hidden') return;
       pullServerNotifications();
       pullOfficePendingActions();
-    }, 20000);
+    }, 60000);
     document.addEventListener('visibilitychange', function () {
       if (document.visibilityState === 'visible') {
         pullServerNotifications();

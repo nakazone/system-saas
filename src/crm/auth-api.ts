@@ -92,6 +92,13 @@ crmAuthRouter.get("/api/auth/session", async (req: AuthedRequest, res) => {
       req.session.workspaceSlug = user.organization.slug;
     }
 
+    const payroll = await prisma.payrollEmployee.findFirst({
+      where: { organizationId, userId: user.id, status: "active" },
+      select: { sector: true },
+    });
+    const folhaSector =
+      payroll?.sector === "sand_finish" ? "sand_finish" : payroll ? "installation" : null;
+
     const referralSettings = user.organization?.referralSettings;
     const referralEnabled =
       referralSettings != null &&
@@ -118,6 +125,7 @@ crmAuthRouter.get("/api/auth/session", async (req: AuthedRequest, res) => {
         must_change_password: user.mustChangePassword,
         route_start_address: user.routeStartAddress || null,
         permissions,
+        folha_sector: folhaSector,
       },
     });
   } catch (error) {

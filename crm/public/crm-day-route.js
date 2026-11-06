@@ -118,7 +118,7 @@
       const pickup = (j.delivery_pickup_address || "").trim();
       const jobAddr = (j.address || "").trim();
       const time = j.start_label || j.start || "";
-      const title = j.title || "Obra";
+      const title = j.client || j.title || "Obra";
       if (j.needs_delivery && pickup) {
         out.push({
           id: j.id + ":delivery",

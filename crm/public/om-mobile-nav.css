@@ -48,13 +48,7 @@ body.om-device-mobile.om-has-apptop .om-app-top {
   right: 0;
   z-index: 58;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.65rem;
-  min-height: calc(var(--om-apptop-h) + env(safe-area-inset-top, 0px));
-  padding: calc(0.45rem + env(safe-area-inset-top, 0px)) 0.85rem 0.45rem;
-  background: var(--plab-bg, #F7F8FA);
-  box-sizing: border-box;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  /* A aparência (altura, fundo, espaçamento) é a de todos os apps: om-shell.css */
 }
 
 body.om-device-mobile.om-has-apptop .mobile-app-header {
@@ -73,6 +67,7 @@ body.om-device-mobile.om-has-apptop.pay-app .dashboard-main,
 body.om-device-mobile.om-has-apptop.sched-body .dashboard-main.sched-main,
 body.om-device-mobile.om-has-apptop.jobs-app .dashboard-main,
 body.om-device-mobile.om-has-apptop.job-detail-app .dashboard-main,
+body.om-device-mobile.om-has-apptop.cam-app .dashboard-main,
 body.om-device-mobile.om-has-apptop.cli-app .dashboard-main,
 body.om-device-mobile.om-has-apptop.quotes-app .dashboard-main,
 body.om-device-mobile.om-has-apptop.inv-app .dashboard-main {

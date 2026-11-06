@@ -125,6 +125,8 @@ describe.skipIf(!privileged)("Field Quote — medição no local vira orçamento
     expect(q.status).toBe(201);
     const quoteId = q.json.data.id;
     const linked = await call("POST", `/api/field-quotes/${fq.id}/link-quote`, { quote_id: quoteId, lead_id: leadId });
+    const listed = await call("GET", "/api/field-quotes");
+    expect(listed.json.data.find((r: { id: string }) => r.id === fq.id).quote_status).toBeTruthy();
     expect(linked.status).toBe(200);
     expect(linked.json.data).toMatchObject({ status: "quoted", quote_id: quoteId });
 

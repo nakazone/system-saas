@@ -2,17 +2,17 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#f3f1ee" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#F7F8FA" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>Ticket | Campo</title>
   <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="campo.css?v=20261105-ct9" />
-  <link rel="stylesheet" href="stain.css?v=20261030-stain1" />
-  <link rel="stylesheet" href="/crm-toast.css?v=20261104-ux2" />
+  <link rel="stylesheet" href="campo.css?v=20261105-mg4" />
+  <link rel="stylesheet" href="stain.css?v=20261105-shell9" />
+  <link rel="stylesheet" href="/crm-toast.css?v=20261105-apps3" />
   <script src="/om-device.js?v=20261013-badge1"></script>
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
   <link rel="manifest" href="/obracrew.webmanifest?v=1" />
@@ -49,7 +49,6 @@
           <small>Abrir no mapa</small>
         </span>
       </button>
-      <div class="cm-stepper" id="cmStepper" aria-label="Status da visita"></div>
     </section>
 
     <div class="cm-ticket-tabs" role="tablist">
@@ -114,20 +113,18 @@
     <div class="cm-ticket-panel" id="cmPanelPhotos" data-panel="photos" hidden>
       <div class="cm-photos-head">
         <h3>Fotos da obra</h3>
-        <label class="cm-btn cm-btn--dark cm-btn--sm" style="width:auto;min-height:40px;padding:0.45rem 0.9rem">
-          Capturar
-          <input type="file" id="cmPhotoInput" accept="image/*" capture="environment" hidden />
-        </label>
       </div>
+      <input type="file" id="cmPhotoInput" accept="image/*" capture="environment" hidden />
       <div class="cm-photos-pending" id="cmPhotosPending" role="status" hidden>
         <span id="cmPhotosPendingText"></span>
         <button type="button" class="cm-photos-pending__btn" id="cmPhotosPendingSend">Enviar agora</button>
       </div>
-      <div class="cm-photo-stage cm-chip-row" role="group" aria-label="Etapa da foto">
-        <button type="button" class="cm-chip is-selected" data-photo-stage="">Geral</button>
-        <button type="button" class="cm-chip" data-photo-stage="before">Antes</button>
-        <button type="button" class="cm-chip" data-photo-stage="during">Durante</button>
-        <button type="button" class="cm-chip" data-photo-stage="after">Depois</button>
+      <div class="cm-photo-stage cm-chip-row" id="cmPhaseFilters" role="group" aria-label="Fase da obra">
+        <button type="button" class="cm-chip is-selected" data-photo-phase="all">Todas</button>
+        <button type="button" class="cm-chip" data-photo-phase="delivery">Delivery</button>
+        <button type="button" class="cm-chip" data-photo-phase="scan">Scan</button>
+        <button type="button" class="cm-chip" data-photo-phase="installation">Installation</button>
+        <button type="button" class="cm-chip" data-photo-phase="sand_finish">Sand &amp; Finish</button>
       </div>
       <label class="cm-photo-caption-label" for="cmPhotoCaption">Legenda (opcional)</label>
       <input type="text" id="cmPhotoCaption" class="cm-input" maxlength="500" placeholder="Ex.: piso instalado, parede oeste" autocomplete="off" />
@@ -155,12 +152,13 @@
     </div>
 
     <div class="cm-ticket-cta" id="cmTicketCtaWrap">
-      <button type="button" class="cm-btn cm-btn--accent" id="cmTicketCta">Estou a caminho</button>
+      <button type="button" class="cm-btn cm-btn--accent" id="cmTicketCta" data-om-press>Tirar Foto</button>
     </div>
   </main>
 
-  <button type="button" class="cm-sheet-backdrop" id="cmMapsBackdrop" hidden aria-label="Fechar"></button>
-  <div class="cm-sheet" id="cmMapsSheet" role="dialog" aria-modal="true" aria-labelledby="cmMapsTitle" hidden>
+  <div class="cm-layer" id="cmMapsLayer" role="dialog" aria-modal="true" aria-labelledby="cmMapsTitle" hidden>
+  <div class="cm-sheet-backdrop" id="cmMapsBackdrop" data-om-backdrop aria-hidden="true"></div>
+  <div class="cm-sheet" id="cmMapsSheet" data-om-motion="sheet">
     <div class="cm-sheet__grab" aria-hidden="true"></div>
     <div class="cm-sheet__head">
       <div>
@@ -176,13 +174,15 @@
       <a class="cm-btn cm-btn--line" id="cmMapsGoogle" href="#" target="_blank" rel="noopener">Google Maps</a>
     </div>
   </div>
+  </div>
 
-  <button type="button" class="cm-sheet-backdrop" id="cmProblemBackdrop" hidden aria-label="Fechar"></button>
-  <div class="cm-sheet" id="cmProblemSheet" role="dialog" aria-modal="true" hidden>
+  <div class="cm-layer" id="cmProblemLayer" role="dialog" aria-modal="true" aria-labelledby="cmProblemTitle" hidden>
+  <div class="cm-sheet-backdrop" id="cmProblemBackdrop" data-om-backdrop aria-hidden="true"></div>
+  <div class="cm-sheet" id="cmProblemSheet" data-om-motion="sheet">
     <div class="cm-sheet__grab" aria-hidden="true"></div>
     <div class="cm-sheet__head">
       <div>
-        <h2 class="cm-sheet__title">Reportar problema</h2>
+        <h2 class="cm-sheet__title" id="cmProblemTitle">Reportar problema</h2>
         <p class="cm-sheet__sub">O escritório recebe este aviso</p>
       </div>
       <button type="button" class="cm-sheet__close" id="cmProblemClose" aria-label="Fechar">
@@ -193,15 +193,17 @@
       <span>Descrição</span>
       <textarea id="cmProblemNote" rows="4" placeholder="Ex.: cliente não está em casa, material incompleto…"></textarea>
     </label>
-    <button type="button" class="cm-btn cm-btn--accent" id="cmProblemSubmit" style="margin-top:0.85rem">Enviar</button>
+    <button type="button" class="cm-btn cm-btn--accent" id="cmProblemSubmit" data-om-press style="margin-top:0.85rem">Enviar</button>
+  </div>
   </div>
 
-  <button type="button" class="cm-sheet-backdrop" id="cmAnnotBackdrop" hidden aria-label="Fechar"></button>
-  <div class="cm-sheet cm-sheet--tall" id="cmAnnotSheet" role="dialog" aria-modal="true" hidden>
+  <div class="cm-layer" id="cmAnnotLayer" role="dialog" aria-modal="true" aria-labelledby="cmAnnotTitle" hidden>
+  <div class="cm-sheet-backdrop" id="cmAnnotBackdrop" data-om-backdrop aria-hidden="true"></div>
+  <div class="cm-sheet cm-sheet--tall" id="cmAnnotSheet" data-om-motion="sheet">
     <div class="cm-sheet__grab" aria-hidden="true"></div>
     <div class="cm-sheet__head">
       <div>
-        <h2 class="cm-sheet__title">Anotar foto</h2>
+        <h2 class="cm-sheet__title" id="cmAnnotTitle">Anotar foto</h2>
         <p class="cm-sheet__sub">Seta, círculo, texto ou desenho — não altera o original</p>
       </div>
       <button type="button" class="cm-sheet__close" id="cmAnnotClose" aria-label="Fechar">
@@ -219,7 +221,8 @@
       <img id="cmAnnotImg" alt="" />
       <canvas id="cmAnnotCanvas"></canvas>
     </div>
-    <button type="button" class="cm-btn cm-btn--accent" id="cmAnnotSave" style="margin-top:0.85rem">Guardar anotações</button>
+    <button type="button" class="cm-btn cm-btn--accent" id="cmAnnotSave" data-om-press style="margin-top:0.85rem">Salvar anotações</button>
+  </div>
   </div>
 
   <div class="cm-lightbox" id="cmLightbox" role="dialog" aria-modal="true" aria-label="Foto da obra" hidden>
@@ -236,7 +239,8 @@
     </div>
     <p class="cm-lightbox__cap" id="cmLightboxCap"></p>
     <div class="cm-lightbox__actions" id="cmLightboxActions" hidden>
-      <button type="button" class="cm-chip" data-lb-action="anotar">Anotar</button>
+      <button type="button" class="cm-chip" data-lb-action="anotar">Editar</button>
+      <button type="button" class="cm-chip" data-lb-action="fase">Fase</button>
       <button type="button" class="cm-chip" data-lb-action="legenda">Legenda</button>
       <button type="button" class="cm-chip" data-lb-action="voz">Voz</button>
       <button type="button" class="cm-chip" data-lb-action="ocr">OCR</button>
@@ -247,12 +251,14 @@
   </div>
 
   <script src="/crm-toast.js?v=20261104-ux2"></script>
-  <script src="/om-offline.js?v=20261105-ct9"></script>
-  <script src="campo-nav.js?v=20261013-off1"></script>
+  <script src="/om-offline.js?v=20261105-mg1"></script>
+  <script src="campo-nav.js?v=20261105-mg1"></script>
   <script src="/photo-exif.js?v=20261104-exif1"></script>
+  <script src="campo-photo.js?v=20261105-apps3"></script>
   <script src="campo-media-queue.js?v=20261104-exif1"></script>
-  <script src="/job-phases.js?v=20261105-rv1"></script>
-  <script src="ticket.js?v=20261105-ct9"></script>
+  <script src="/crm-confirm.js?v=20261105-apps3"></script>
+  <script src="/job-phases.js?v=20261105-mg2"></script>
+  <script src="ticket.js?v=20261105-mg4"></script>
   <link rel="stylesheet" href="/mate-panel.css?v=20261027-m2" />
   <script src="/mate-panel.js?v=20261104-ux2"></script>
 </body>

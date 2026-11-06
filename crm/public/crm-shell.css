@@ -628,13 +628,13 @@ body.dashboard-app-body .dashboard-main.crm-main--flush {
   body.dashboard-app-body .dashboard-sidebar {
     top: var(--crm-topbar-height);
     height: calc(100vh - var(--crm-topbar-height));
-    transition: width 0.2s ease, transform 0.3s ease;
+    /* recolher/expandir é instantâneo: animar a largura mexia no layout da página inteira */
+    transition: transform 0.3s var(--om-ease-drawer, cubic-bezier(0.32, 0.72, 0, 1));
   }
 
   body.dashboard-app-body .dashboard-main {
     margin-top: var(--crm-topbar-height);
     min-height: calc(100vh - var(--crm-topbar-height));
-    transition: margin-left 0.2s ease;
   }
 
   /* Icon-rail chrome: never animate width/margin on load or navigate */
@@ -928,3 +928,14 @@ html.om-soft-nav-enter .dashboard-main {
   }
 }
 
+
+/* Foco pelo teclado na barra do topo: anel laranja AA no lugar do contorno que as regras
+   acima tiram (o fundo mais claro sozinho quase não se via). */
+html body :is(.crm-topbar__back-btn, .crm-topbar__refresh-btn, .crm-topbar__create-btn, .crm-topbar__icon-btn, .crm-topbar__search):focus-visible {
+  outline: 2px solid var(--om-accent-strong, #b4561a);
+  outline-offset: 2px;
+}
+html body :is(.crm-create-menu__item, .crm-account-menu__item):focus-visible {
+  outline: 2px solid var(--om-accent-strong, #b4561a);
+  outline-offset: -2px;
+}

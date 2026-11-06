@@ -14,7 +14,7 @@
   const QPE_CSS = "quote-services-popup.css?v=20261102-svc2";
   const QPE_JS = "quote-services-popup.js?v=20261102-qfix";
   const PAPER_CSS = "quote-paper.css?v=20261027-om1";
-  const PAPER_JS = "quote-paper.js?v=20261105-ct9";
+  const PAPER_JS = "quote-paper.js?v=20261105-mg1";
   let prevQBBridge = null;
   let qpeAssetsPromise = null;
   const SECTIONS = ["details", "schedule", "services", "team", "notes", "campo"];

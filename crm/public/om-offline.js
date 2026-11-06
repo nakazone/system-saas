@@ -8,7 +8,7 @@
   "use strict";
   if (global.OmOffline) return;
 
-  const VER = "20261103-off2";
+  const VER = "20261105-off3";
   const DB_NAME = "om_offline_v1";
   const DB_VER = 1;
   const STORE_CACHE = "snapshots";
@@ -101,6 +101,8 @@
       return true;
     }
     if (/\/api\/work-orders\/[^/]+$/.test(key) && m === "PUT") return true;
+    // Clock-in: the body carries the tap time (device_at) and offline_queued, so a late replay keeps it.
+    if (key === "/api/campo/dia/start" && m === "POST") return true;
     return false;
   }
 
@@ -317,10 +319,12 @@
             body: row.body,
           });
           if (res.status === 401) break;
-          if (row.dropOn4xx && res.status >= 400 && res.status < 500 && ![408, 429].includes(res.status)) {
+          // A 4xx will never succeed on replay; keeping it would block every item queued after it.
+          // Say so: a change the person made must not disappear silently.
+          if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {
             const j = await res.json().catch(() => ({}));
             await removeMutation(row.id);
-            const msg = `Não deu para enviar "${row.label}": ${j.error || `erro ${res.status}`}`;
+            const msg = `Não deu para enviar "${row.label || "uma alteração"}": ${j.error || `erro ${res.status}`}`;
             try {
               if (typeof global.crmToast?.error === "function") global.crmToast.error(msg);
               global.dispatchEvent(new CustomEvent("om-offline-dropped", { detail: { url: row.url, label: row.label, error: j.error || null, status: res.status } }));
@@ -357,6 +361,10 @@
                 address: item.address,
                 device_label: item.deviceLabel,
                 is_public: item.isPublic,
+                taken_at_source: item.takenAtSource || null,
+                location_source: item.locationSource || null,
+                camera_model: item.cameraModel || null,
+                client_upload_id: item.id,
               }),
             });
             const json = await res.json().catch(() => ({}));
@@ -474,6 +482,7 @@ body.om-offline .cm-tabbar{padding-bottom:env(safe-area-inset-bottom,0)}
     queue: enqueueMutation,
     list: listMutations,
     pendingCount,
+    listMutations,
     isOnline,
     onChange,
     mountBanner,

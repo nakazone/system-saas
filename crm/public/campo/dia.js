@@ -1,5 +1,5 @@
 /**
- * Campo · Meu dia — começar o dia, jobs, fotos do dia, finalizar com nota.
+ * ObraCrew · Hoje — dashboard no padrão do ObraBuilder (mobile), com ponto e fotos.
  * API: /api/campo/dia (see src/crm/routes/campo-dia.ts). Photos go through the offline queue.
  */
 (function () {
@@ -7,11 +7,11 @@
   let S = null; // server state
   let routeStart = "";
   let busy = false;
-  let tick = null;
   let sheet = null; // { kind, ... }
   let camJob = null;
   const Q = window.__campoMediaQueue || null;
   let queued = {}; // jobId → count waiting to upload
+  let justSent = false; // "Dia enviado" mascot entrance plays once, after this phone sends the day
 
   // ------------------------------------------------------------ utils
   function esc(s) {
@@ -31,12 +31,35 @@
     if (!h) return `${r} min`;
     return r ? `${h}h${String(r).padStart(2, "0")}` : `${h}h`;
   }
-  function toast(msg) {
+  /**
+   * kind: "success" | "error" | undefined (neutro). sticky: fica até o próximo toast (ex.: enquanto pega o GPS).
+   * Entra com transição (opacity + translateY 8px, 200ms) e sai em 150ms; reduced-motion só faz fade (dia.css?v=20261105-mg1).
+   */
+  function toast(msg, kind, opts) {
     const t = $("dyToast");
+    clearTimeout(toast._t);
+    clearTimeout(toast._h);
+    const wasHidden = t.hidden;
+    t.className = `dy-toast${kind ? ` dy-toast--${kind}` : ""}`;
+    t.setAttribute("role", kind === "error" ? "alert" : "status");
     t.textContent = msg;
     t.hidden = false;
-    clearTimeout(toast._t);
-    toast._t = setTimeout(() => (t.hidden = true), 3200);
+    if (wasHidden) void t.offsetWidth; // start the enter transition from the hidden state
+    t.classList.add("is-in");
+    if (opts && opts.sticky) return;
+    toast._t = setTimeout(() => {
+      t.classList.remove("is-in");
+      toast._h = setTimeout(() => (t.hidden = true), 160);
+    }, kind === "error" ? 5000 : 3200);
+  }
+  const ui = () => window.OmUI || null;
+  function haptic(kind) {
+    if (ui()) ui().haptic(kind);
+  }
+  function setBusy(btn, on) {
+    if (!btn || !btn.isConnected) return;
+    if (ui()) ui().busy(btn, on);
+    else btn.disabled = !!on;
   }
   async function api(url, opts) {
     if (window.OmOffline && typeof window.OmOffline.api === "function") {
@@ -70,13 +93,70 @@
   const TRADE = window.__OM_TRADE && Array.isArray(window.__OM_TRADE.phases) ? window.__OM_TRADE : null;
   const SECTOR = TRADE
     ? Object.fromEntries(TRADE.phases.map((p) => [p.key, (p.label && p.label["pt-BR"]) || p.key]))
-    : { installation: "Instalação", sand_finish: "Lixa" };
+    : { installation: "Installation", sand_finish: "Sand & Finish" };
   const ICON = {
     cam: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h1.6l1.4-2h7l1.4 2h1.6A2.5 2.5 0 0 1 21 8.5v9A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5z"/><circle cx="12" cy="13" r="3.6"/></svg>',
     pin: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.1-7-11.5A7 7 0 0 1 19 9.5C19 14.9 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>',
     play: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg>',
     stop: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2.5"/></svg>',
   };
+
+  // ------------------------------------------------------------ offline clock-in
+  const PENDING_START_KEY = "om-campo-pending-start";
+  function savePendingStart(p) {
+    try {
+      localStorage.setItem(PENDING_START_KEY, JSON.stringify(p));
+    } catch (_) {}
+  }
+  function readPendingStart() {
+    try {
+      const p = JSON.parse(localStorage.getItem(PENDING_START_KEY) || "null");
+      return p && p.at ? p : null;
+    } catch (_) {
+      return null;
+    }
+  }
+  function clearPendingStart() {
+    try {
+      localStorage.removeItem(PENDING_START_KEY);
+    } catch (_) {}
+  }
+  function hhmm(iso) {
+    const d = new Date(iso);
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  }
+  /** Shows a started day built from the queued clock-in, until the server has it. */
+  function applyPendingStart() {
+    const p = readPendingStart();
+    if (!p || !S || !S.linked) return false;
+    if (S.day || (p.today && S.today_label && p.today !== S.today_label)) {
+      clearPendingStart();
+      return false;
+    }
+    const job = (S.jobs_today || []).find((j) => j.id === p.jobId) || (p.jobId ? null : (S.jobs_today || [])[0]);
+    S.day = {
+      status: "in_progress",
+      pending_sync: true,
+      clock_in: p.at,
+      clock_in_label: hhmm(p.at),
+      expected_end_label: S.employee && S.employee.schedule ? S.employee.schedule.end_time : "",
+      overtime_minutes: 0,
+      jobs: job ? [job] : [],
+      sqft: 0,
+      amount: 0,
+      flags: [],
+    };
+    return true;
+  }
+  /** Online again with fresh data and nothing left in the queue: the pending start is settled (or was dropped). */
+  async function settlePendingStart() {
+    if (!readPendingStart() || !S || S.__offline || navigator.onLine === false) return;
+    if (S.day) return clearPendingStart();
+    try {
+      const rows = window.OmOffline && window.OmOffline.listMutations ? await window.OmOffline.listMutations() : [];
+      if (!rows.some((r) => r.url === "/api/campo/dia/start")) clearPendingStart();
+    } catch (_) {}
+  }
 
   // ------------------------------------------------------------ load
   async function load() {
@@ -88,6 +168,8 @@
         /* ignore */
       }
       S = await api("/api/campo/dia");
+      await settlePendingStart();
+      applyPendingStart();
       await refreshQueue();
       render();
       // Warm ticket caches for today's jobs so Campo works offline on site.
@@ -107,9 +189,8 @@
         openManual(null);
       }
     } catch (e) {
-      $("dyCard").className = "dy-card";
-      $("dyCard").innerHTML = `<div class="dy-card__lbl">Meu dia</div><h2>Não foi possível carregar</h2><p class="dy-card__sub">${esc(e.message)}</p>
-        <div style="margin-top:14px"><button class="dy-btn dy-btn--white dy-btn--full" data-act="reload">Tentar de novo</button></div>`;
+      $("dyDash").innerHTML = `<section class="dy-card"><div class="dy-card__lbl">Meu dia</div><h2>Não foi possível carregar</h2><p class="dy-card__sub">${esc(e.message)}</p>
+        <div style="margin-top:14px"><button class="dy-btn dy-btn--white dy-btn--full" data-act="reload">Tentar de novo</button></div></section>`;
     } finally {
       $("dyRoot").setAttribute("aria-busy", "false");
     }
@@ -123,95 +204,159 @@
     } catch (_) {}
   }
 
-  // ------------------------------------------------------------ render
-  function render() {
-    const emp = S.employee;
-    const first = emp ? emp.name.split(/\s+/)[0] : "";
-    const h = new Date().getHours();
-    $("dyHello").textContent = `${h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite"}${first ? `, ${first}` : ""}`;
-    // Trades whose phases live per job (Tile) have no payroll sectors.
-    const noSector = Boolean(window.__OM_TRADE && window.__OM_TRADE.phaseStorage === "table");
-    $("dyDate").textContent = `${S.today_label}${emp && emp.sector && !noSector ? ` · ${SECTOR[emp.sector] || emp.sector}` : ""}`;
-    $("dyAv").textContent = emp ? initials(emp.name) : "·";
-    renderReturned();
-    renderCard();
-    renderJobs();
-    renderPay();
-    clearInterval(tick);
-    if (S.day && S.day.status === "in_progress") tick = setInterval(renderCard, 30000);
+  // ------------------------------------------------------------ render (ObraBuilder-style dashboard, adapted for ObraCrew)
+  function clientName(j) {
+    if (!j) return "Job";
+    const homeowner = String(j.homeowner_name || "").trim();
+    if (homeowner) return homeowner;
+    const client = String(j.client || "").trim();
+    if (client && client !== "—") return client;
+    return "Job";
   }
-
-  function renderReturned() {
-    $("dyReturned").innerHTML = (S.returned || [])
-      .map(
-        (d) => `<div class="dy-ret"><div><b>Dia ${esc(d.date_label)} voltou para ajuste</b><p>${esc(d.review_note || "O escritório pediu para conferir este dia.")}</p></div>
-        <button class="dy-btn dy-btn--sm dy-btn--ink" data-act="fix" data-id="${esc(d.id)}">Ajustar</button></div>`,
-      )
-      .join("");
-  }
-
+  /** Field-facing label: client only (no job # / admin title). */
   function jobLine(j) {
-    return `${j.number != null ? `#${j.number} · ` : ""}${j.title}`;
+    return clientName(j);
   }
 
-  // The Mate (fox) greets before the day starts and thanks at the end. Plain <img>: no dependency on the panel.
   const MATE_V = "20261027-m2";
   function mateLine(pose, title, text) {
     return `<div class="dy-mate"><img class="dy-mate__art" src="/assets/img/mascot/mate-${pose}.webp?v=${MATE_V}" alt="" height="64" decoding="async"><div><b>${esc(title)}</b>${text ? `<span>${esc(text)}</span>` : ""}</div></div>`;
   }
 
-  function renderCard() {
-    const box = $("dyCard");
-    box.className = "dy-card";
+  function todayJobs() {
+    const d = S.day;
+    if (d && d.status === "in_progress") return d.jobs || [];
+    if (d) return d.jobs || [];
+    return S.jobs_today || [];
+  }
+
+  /** Compact sector chip — shorter than full SECTOR labels. */
+  function sectorShort(sector) {
+    if (sector === "installation") return "Instalação";
+    if (sector === "sand_finish") return "Lixa";
+    return SECTOR[sector] || sector || "";
+  }
+
+  function helloMetaHtml() {
+    const date = String(S.today_label || "").trim();
+    // Trades whose phases live per job (Tile, Countertops) have no payroll sectors.
+    const noSector = Boolean(window.__OM_TRADE && window.__OM_TRADE.phaseStorage === "table");
+    const sector = S.employee && S.employee.sector && !noSector ? sectorShort(S.employee.sector) : "";
+    if (!date && !sector) return "";
+    return `<p class="dy-eyebrow">${date ? `<span class="dy-hello-date">${esc(date)}</span>` : ""}${
+      sector ? `<span class="dy-hello-sector">${esc(sector)}</span>` : ""
+    }</p>`;
+  }
+
+  function qaIcon(kind) {
+    const paths = {
+      stop: ICON.stop,
+      cam: ICON.cam,
+      pin: ICON.pin,
+      cal: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
+      camBoard: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h1.6l1.4-2h7l1.4 2h1.6A2.5 2.5 0 0 1 21 8.5v9A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5z"/><circle cx="12" cy="13" r="3.6"/></svg>',
+    };
+    return paths[kind] || "";
+  }
+
+  function quickActionsHtml() {
+    if (!S.linked) return "";
+    const d = S.day;
+    const inDay = d && d.status === "in_progress";
+    const list = todayJobs();
+    const hasRoute = list.some((j) => j.address || j.delivery_pickup_address);
+    const photoJob = inDay && list.length ? list[list.length - 1] : list[0];
+    const items = [];
+    if (inDay) {
+      items.push(
+        `<button type="button" class="dy-qa" data-act="finish" data-om-press><span class="dy-qa-ic">${qaIcon("stop")}</span><span><strong>Finalizar o dia</strong><small>Enviar horas e fotos</small></span></button>`,
+      );
+    } else if (d) {
+      items.push(
+        `<a class="dy-qa" href="/job-media-board.html"><span class="dy-qa-ic">${qaIcon("camBoard")}</span><span><strong>ObraCam</strong><small>Fotos das obras</small></span></a>`,
+      );
+    }
+    items.push(
+      photoJob
+        ? `<button type="button" class="dy-qa" data-act="photo" data-job="${esc(photoJob.id)}" data-om-press><span class="dy-qa-ic">${qaIcon("cam")}</span><span><strong>Tirar foto</strong><small>${esc(clientName(photoJob))}</small></span></button>`
+        : `<a class="dy-qa" href="/job-media-board.html"><span class="dy-qa-ic">${qaIcon("cam")}</span><span><strong>Tirar foto</strong><small>Abrir ObraCam</small></span></a>`,
+    );
+    items.push(
+      hasRoute
+        ? `<button type="button" class="dy-qa" data-act="day-route" data-om-press><span class="dy-qa-ic">${qaIcon("pin")}</span><span><strong>Rota do dia</strong><small>${list.length} parada${list.length === 1 ? "" : "s"}</small></span></button>`
+        : `<a class="dy-qa" href="agenda.html"><span class="dy-qa-ic">${qaIcon("cal")}</span><span><strong>Agenda</strong><small>Semana na obra</small></span></a>`,
+    );
+    if (!items.length) return "";
+    return `<section class="dy-qa-grid dy-qa-grid--${Math.min(items.length, 3)}" aria-label="Ações rápidas">${items.join("")}</section>`;
+  }
+
+  function attentionHtml() {
+    const items = [];
+    (S.returned || []).forEach((d) => {
+      items.push(`<div class="dy-att"><div class="dy-att-main"><strong>Dia ${esc(d.date_label)} voltou</strong><span>${esc(d.review_note || "O escritório pediu para conferir este dia.")}</span></div><button type="button" class="dy-btn dy-btn--sm dy-btn--ink" data-act="fix" data-id="${esc(d.id)}">Ajustar</button></div>`);
+    });
+    const inDay = S.day && S.day.status === "in_progress";
+    if (inDay) {
+      (S.day.jobs || [])
+        .filter((j) => !(j.photos_today || 0) && !(queued[j.id] || 0))
+        .forEach((j) => {
+          items.push(`<div class="dy-att"><div class="dy-att-main"><strong>Falta foto · ${esc(clientName(j))}</strong><span>${esc(j.address || "Sem endereço")}</span></div><button type="button" class="dy-btn dy-btn--sm dy-btn--terra" data-act="photo" data-job="${esc(j.id)}">${ICON.cam} Foto</button></div>`);
+        });
+    }
+    if (!items.length) return "";
+    return `<section class="dy-tile dy-foryou" aria-labelledby="dyAtt"><h2 id="dyAtt">Precisa de você <span class="dy-badge">${items.length}</span></h2>${items.slice(0, 4).join("")}</section>`;
+  }
+
+  function tilesHtml() {
+    if (!S.linked) return "";
+    const todayN = (S.jobs_today || []).length;
+    const dayN = S.day && S.day.jobs ? S.day.jobs.length : todayN;
+    const pay = (S.payments || [])[0];
+    const payBits = pay
+      ? `<div class="dy-lbl">${esc(pay.label.replace(/^Semana /, "Semana "))}</div>
+         <div class="dy-big dy-big--sm">${esc(money(pay.status === "paid" && pay.paid_amount != null ? pay.paid_amount : pay.amount))}</div>
+         <div class="dy-sub">${esc(pay.status_label)}</div>
+         <a class="dy-tile-link" href="horas.html">Minhas horas →</a>`
+      : `<div class="dy-lbl">Horas</div>
+         <div class="dy-big dy-big--sm">—</div>
+         <div class="dy-sub">Semana e pagamentos</div>
+         <a class="dy-tile-link" href="horas.html">Abrir horas →</a>`;
+    return `<div class="dy-tiles">
+      <a class="dy-tile dy-tile--orange" href="/job-media-board.html" aria-label="Em produção">
+        <div class="dy-lbl">Em produção</div>
+        <div class="dy-big">${dayN}</div>
+        <div class="dy-sub">${todayN ? `${todayN} na agenda hoje` : "Fotos e obras ativas"}</div>
+        <span class="dy-tile-link">Abrir ObraCam →</span>
+      </a>
+      <section class="dy-tile dy-tile--dark" aria-label="Horas e pagamentos">${payBits}</section>
+    </div>`;
+  }
+
+  function cardHtml() {
     if (!S.linked) {
-      box.innerHTML = `<div class="dy-card__lbl">Meu dia</div><h2>Seu acesso ainda não está ligado à folha</h2>
-        <p class="dy-card__sub">Peça ao escritório para ligar seu usuário ao seu cadastro de funcionário. Depois disso você começa e finaliza o dia por aqui.</p>`;
-      return;
+      return `<section class="dy-card" id="dyCard"><div class="dy-card__lbl">Meu dia</div><h2>Seu acesso ainda não está ligado à folha</h2>
+        <p class="dy-card__sub">Peça ao escritório para ligar seu usuário ao seu cadastro de funcionário. Depois disso você começa e finaliza o dia por aqui.</p></section>`;
     }
     const emp = S.employee;
     const d = S.day;
-    const endLbl = emp.schedule.end_time;
     if (!d) {
       const j = S.jobs_today[0];
-      box.innerHTML = `${mateLine("wave", "Bora começar?", "Quando chegar, toque em Começar o dia. Precisa de algo? É só me chamar.")}<div class="dy-card__lbl"><span>Seu dia</span><span>Fim padrão ${esc(endLbl)}</span></div>
-        <h2>${j ? esc(jobLine(j)) : "Nenhum job na agenda hoje"}</h2>
-        <p class="dy-card__sub">${j ? `${j.start_label ? `${esc(j.start_label)} · ` : ""}${esc(j.client || "")}${j.address ? ` · ${esc(j.address)}` : ""}` : "Você pode começar e escolher o job."}</p>
-        <div style="margin-top:16px"><button class="dy-btn dy-btn--terra dy-btn--full" data-act="start">${ICON.play} Começar o dia</button></div>
-        <p class="dy-card__hint">Registra a hora e sua localização. Depois das ${esc(endLbl)} conta hora extra.<br><button type="button" data-act="manual">Esqueci de bater o ponto</button></p>`;
-      return;
+      return `<section class="dy-card" id="dyCard">${mateLine("wave", "Bora começar?", "Quando chegar, toque em Começar o dia.")}<div class="dy-card__lbl"><span>Seu dia</span></div>
+        <h2>${j ? esc(clientName(j)) : "Pronto para o ponto"}</h2>
+        <p class="dy-card__sub">${j ? esc(j.address || "Sem endereço") : "Não precisa escolher obra — só registrar o início."}</p>
+        <div style="margin-top:16px"><button type="button" class="dy-btn dy-btn--terra dy-btn--full" data-act="start" data-om-press>${ICON.play} Começar o dia</button></div>
+        <p class="dy-card__hint"><button type="button" data-act="manual">Esqueci de bater o ponto</button></p></section>`;
     }
     if (d.status === "in_progress") {
-      // live numbers from the server snapshot + time passed since load
-      const since = new Date(d.clock_in).getTime();
-      const elapsed = Math.max(0, Math.round((Date.now() - since) / 60000));
-      const endAt = d.expected_end_label;
-      const here = d.jobs[d.jobs.length - 1];
-      const startH = new Date(d.clock_in);
-      const pctBase = (() => {
-        // fraction of the normal day done (start → expected end)
-        const [eh, em] = String(endAt || "17:00").split(":").map(Number);
-        const end = new Date(startH);
-        end.setHours(eh, em, 0, 0);
-        const total = Math.max(60, (end - startH) / 60000);
-        return Math.min(1, elapsed / total);
-      })();
-      const otNow = Math.max(d.overtime_minutes, 0);
-      box.innerHTML = `<div class="dy-card__lbl"><span>Dia em andamento</span><span class="dy-pill dy-pill--in_progress">desde ${esc(d.clock_in_label)}</span></div>
-        <div class="dy-time"><b>${esc(minLabel(elapsed))}</b><span>trabalhando</span></div>
-        <div class="dy-bar" aria-hidden="true"><i style="width:${(pctBase * 100).toFixed(1)}%"></i></div>
-        <div class="dy-bar__lbl"><span>${esc(d.clock_in_label)}</span><span>${esc(endAt || endLbl)}</span></div>
-        <div class="dy-stats">
-          <div class="dy-stat dy-stat--ot"><small>Extra</small><b>${otNow ? esc(minLabel(otNow)) : "—"}</b></div>
-          <div class="dy-stat"><small>Jobs</small><b>${d.jobs.length}</b></div>
-          <div class="dy-stat"><small>${emp.pay_type === "production" ? "Produção" : "Hoje"}</small><b>${emp.pay_type === "production" ? `${d.sqft || 0} sq ft` : esc(money(d.amount))}</b></div>
-        </div>
-        ${here ? `<div class="dy-now"><span class="dy-now__dot" aria-hidden="true"></span><div><small>Onde você está</small><b>${esc(jobLine(here))}</b></div></div>` : ""}
-        <div style="margin-top:14px"><button class="dy-btn dy-btn--terra dy-btn--full" data-act="finish">${ICON.stop} Finalizar o dia</button></div>`;
-      return;
+      return `<section class="dy-card" id="dyCard"><div class="dy-card__lbl"><span>Dia em andamento</span>${d.pending_sync ? `<span class="dy-pill dy-pill--in_progress">aguardando sinal</span>` : ""}</div>
+        <div class="dy-time"><b>${esc(d.clock_in_label)}</b><span>início</span></div>
+        <p class="dy-card__sub" style="margin-top:10px">Horário registrado. Quando terminar, finalize o dia.</p>
+        <div style="margin-top:14px"><button type="button" class="dy-btn dy-btn--terra dy-btn--full" data-act="finish" data-om-press>${ICON.stop} Finalizar o dia</button></div></section>`;
     }
-    // finished
     const pillCls = d.status;
-    box.innerHTML = `${mateLine("thumbs", "Dia enviado. Bom trabalho!", d.status === "approved" ? "Já está na folha da semana." : "Descansa que o resto é com o escritório.")}<div class="dy-card__lbl"><span>Dia enviado</span><span class="dy-pill dy-pill--${pillCls}">${esc(d.status_label)}</span></div>
+    const enter = justSent;
+    justSent = false;
+    const html = `<section class="dy-card" id="dyCard">${mateLine("thumbs", "Dia enviado. Bom trabalho!", d.status === "approved" ? "Já está na folha da semana." : "Descansa que o resto é com o escritório.")}<div class="dy-card__lbl"><span>Dia enviado</span><span class="dy-pill dy-pill--${pillCls}">${esc(d.status_label)}</span></div>
       <div class="dy-time"><b>${esc(d.worked_label)}</b><span>${esc(d.clock_in_label)} – ${esc(d.clock_out_label || "")}</span></div>
       <div class="dy-stats">
         <div class="dy-stat dy-stat--ot"><small>Extra</small><b>${d.overtime_minutes ? esc(minLabel(d.overtime_minutes)) : "—"}</b></div>
@@ -232,101 +377,93 @@
               .join("")}</ul>`
           : ""
       }
-      ${d.note ? `<p class="dy-card__hint" style="text-align:left">Nota: ${esc(d.note)}</p>` : ""}`;
+      ${d.note ? `<p class="dy-card__hint" style="text-align:left">Nota: ${esc(d.note)}</p>` : ""}</section>`;
+    return { html, enter };
   }
 
-  function photoTag(j) {
-    const n = j.photos_today || 0;
-    const q = queued[j.id] || 0;
-    if (q) return `<span class="dy-job__ph">${q} na fila</span>`;
-    if (n) return `<span class="dy-job__ph dy-job__ph--ok">${n} foto${n > 1 ? "s" : ""} hoje</span>`;
-    return `<span class="dy-job__ph dy-job__ph--miss">Falta foto</span>`;
-  }
-
-  function renderJobs() {
-    const box = $("dyJobs");
-    if (!S.linked) {
-      box.innerHTML = "";
+  function renderCard() {
+    const box = $("dyCard");
+    if (!box || !S) return;
+    const out = cardHtml();
+    if (typeof out === "string") {
+      box.outerHTML = out;
       return;
     }
-    const d = S.day;
-    const inDay = d && d.status === "in_progress";
-    const list = inDay ? d.jobs : d ? d.jobs : S.jobs_today;
-    const here = inDay ? d.jobs[d.jobs.length - 1] : null;
-    const title = inDay ? "Jobs do seu dia" : d ? "Jobs do dia" : "Agenda de hoje";
-    box.className = "dy-sec";
-    box.innerHTML = `<div class="dy-sec__hd"><h3>${title}</h3><span class="dy-sec__acts">${
-      window.__crmDayRoute && (list || []).some((j) => j.address || j.delivery_pickup_address)
-        ? `<button type="button" class="dy-link" data-act="day-route">Ver rota</button>`
-        : ""
-    }${inDay ? `<button type="button" data-act="addjob">+ Outro job</button>` : `<a href="agenda.html">Semana</a>`}</span></div>
-      ${
-        list.length
-          ? list
-              .map(
-                (j) => `<div class="dy-job${here && here.id === j.id ? " dy-job--here" : ""}">
-            <div class="dy-job__top">
-              <span class="dy-job__time">${esc(j.arrived_label || j.start_label || (j.continuing ? "Cont." : "—"))}</span>
-              <div class="dy-job__main"><b>${esc(jobLine(j))}</b><small>${esc([j.client, j.needs_delivery ? "Delivery" : null, j.address].filter(Boolean).join(" · "))}</small></div>
-              ${inDay ? photoTag(j) : ""}
-            </div>
-            <div class="dy-job__act">
-              ${inDay ? `<button class="dy-btn dy-btn--sm dy-btn--ink" data-act="photo" data-job="${esc(j.id)}">${ICON.cam} Foto</button>` : ""}
-              ${inDay && here && here.id !== j.id ? `<button class="dy-btn dy-btn--sm dy-btn--line" data-act="goto" data-job="${esc(j.id)}">Estou aqui</button>` : ""}
-              <a class="dy-btn dy-btn--sm dy-btn--line" href="ticket.html?id=${encodeURIComponent(j.id)}">Ticket</a>
-              ${j.maps_url && !inDay ? `<a class="dy-btn dy-btn--sm dy-btn--line" href="${esc(j.maps_url)}" target="_blank" rel="noopener">${ICON.pin} Mapa</a>` : ""}
-            </div>
-          </div>`,
-              )
-              .join("")
-          : `<div class="dy-empty">${inDay ? "Nenhum job no seu dia ainda." : "Sem jobs na agenda de hoje."}</div>`
-      }`;
+    box.outerHTML = out.html;
+    if (out.enter) $("dyCard")?.querySelector(".dy-mate")?.classList.add("dy-mate--enter");
   }
 
-  function renderPay() {
-    const box = $("dyPay");
-    if (!S.linked || !S.payments.length) {
-      box.innerHTML = "";
-      return;
+  function render() {
+    if (!S) return;
+    const emp = S.employee;
+    const first = emp ? emp.name.split(/\s+/)[0] : "";
+    const h = new Date().getHours();
+    const hello = `${h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite"}${first ? `, ${first}` : ""}`;
+    const card = cardHtml();
+    const cardBlock = typeof card === "string" ? card : card.html;
+    $("dyDash").innerHTML = `
+      <header class="dy-hello">
+        <div class="dy-hello-txt">
+          ${helloMetaHtml()}
+          <h1>${esc(hello)}</h1>
+        </div>
+        <img class="dy-hello-mate" src="/assets/img/mascot/mate-helmet.webp?v=1" alt="" width="120" height="156" decoding="async" />
+      </header>
+      ${attentionHtml()}
+      ${quickActionsHtml()}
+      ${cardBlock}
+      ${tilesHtml()}
+    `;
+    if (typeof card !== "string" && card.enter) {
+      $("dyCard")?.querySelector(".dy-mate")?.classList.add("dy-mate--enter");
     }
-    box.className = "dy-sec";
-    box.innerHTML = `<div class="dy-sec__hd"><h3>Pagamentos</h3><a href="horas.html">Minhas horas</a></div>
-      <div class="dy-pay">${S.payments
-        .slice(0, 4)
-        .map(
-          (p) => `<div class="dy-pay__row"><div><b>${esc(p.label.replace(/^Semana /, "Semana "))}</b>
-          <small>${p.status === "paid" ? `Pago em ${esc(p.paid_on.split("-").reverse().slice(0, 2).join("/"))}${p.method_label ? ` · ${esc(p.method_label)}` : ""}` : p.status === "due" ? "Semana fechada" : "Semana em andamento"}</small></div>
-          <div class="dy-pay__amt"><b>${esc(money(p.status === "paid" && p.paid_amount != null ? p.paid_amount : p.amount))}</b><br><span class="dy-tag dy-tag--${p.status}">${esc(p.status_label)}</span></div></div>`,
-        )
-        .join("")}</div>`;
   }
 
   // ------------------------------------------------------------ actions
-  async function startDay() {
-    if (busy) return;
-    const jobs = S.jobs_today;
-    if (jobs.length > 1) return openPickJob("start");
-    if (!jobs.length) return openPickJob("start");
-    await doStart(jobs[0].id);
+  async function startDay(btn) {
+    // Clock-in alone — no job pick. GPS (if available) is stored silently for payroll.
+    await doStart(null, btn);
   }
 
-  async function doStart(jobId) {
+  async function doStart(jobId, btn) {
+    if (busy) return;
     busy = true;
-    toast("Pegando sua localização…");
+    haptic("tap");
+    setBusy(btn, true);
     const g = await gps();
     try {
-      S = await api("/api/campo/dia/start", {
+      const deviceAtIso = new Date().toISOString();
+      const out = await api("/api/campo/dia/start", {
         method: "POST",
-        body: JSON.stringify({ work_order_id: jobId || null, lat: g?.lat, lng: g?.lng, accuracy: g?.accuracy, device_at: new Date().toISOString() }),
+        body: JSON.stringify({
+          work_order_id: jobId || null,
+          lat: g?.lat,
+          lng: g?.lng,
+          accuracy: g?.accuracy,
+          device_at: deviceAtIso,
+          offline_queued: navigator.onLine === false,
+        }),
       });
+      if (out && out.queued) {
+        // No signal: the start waits in the offline queue with the tap time; show the day as started.
+        savePendingStart({ at: deviceAtIso, jobId: jobId || null, today: S.today_label });
+        applyPendingStart();
+        closeSheet();
+        render();
+        toast("Dia começou. Sem sinal: o horário fica salvo e é enviado quando a conexão voltar.");
+        return;
+      }
+      S = out;
+      clearPendingStart();
       closeSheet();
       render();
-      const d = S.day;
-      const far = d?.gps_in?.distance_m;
-      toast(!g ? "Dia começou — sem localização (ative o GPS)." : far != null && far > 500 ? `Dia começou — você está a ${(far / 1000).toFixed(1)} km do job.` : "Bom trabalho! Dia começou.");
+      haptic("success");
+      toast("Bom trabalho! Dia começou.", "success");
     } catch (e) {
-      toast(e.message);
+      haptic("error");
+      toast(e.message, "error");
     } finally {
+      setBusy(btn, false);
       busy = false;
     }
   }
@@ -338,9 +475,9 @@
       S = await api("/api/campo/dia/jobs", { method: "POST", body: JSON.stringify({ work_order_id: jobId }) });
       closeSheet();
       render();
-      toast("Job atualizado.");
+      toast("Job atualizado.", "success");
     } catch (e) {
-      toast(e.message);
+      toast(e.message, "error");
     } finally {
       busy = false;
     }
@@ -353,25 +490,10 @@
     $("dyCam").click();
   }
 
+  /** One compression for every Campo screen (campo-photo.js?v=20261105-apps3): 1600px max side, JPEG 0.74. */
   function compress(file) {
-    return new Promise((resolve, reject) => {
-      const url = URL.createObjectURL(file);
-      const img = new Image();
-      img.onload = () => {
-        const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
-        const c = document.createElement("canvas");
-        c.width = Math.round(img.naturalWidth * k);
-        c.height = Math.round(img.naturalHeight * k);
-        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-        URL.revokeObjectURL(url);
-        resolve(c.toDataURL("image/jpeg", 0.74));
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        reject(new Error("Não deu para ler a foto"));
-      };
-      img.src = url;
-    });
+    if (!window.CampoPhoto) return Promise.reject(new Error("Não deu para ler a foto"));
+    return window.CampoPhoto.compress(file);
   }
 
   async function onPhoto(file) {
@@ -389,7 +511,7 @@
           renderFinish();
         }
       } catch (e) {
-        toast(e.message || "Falha na foto");
+        toast(e.message || "Falha na foto", "error");
       }
       return;
     }
@@ -409,13 +531,15 @@
         bumpPhoto(jobId);
       }
     } catch (e) {
-      toast(e.message || "Falha na foto");
+      toast(e.message || "Falha na foto", "error");
     }
   }
 
   function postPhoto(row) {
     return api(`/api/campo/jobs/${encodeURIComponent(row.jobId)}/photos`, {
       method: "POST",
+      // The photo already waits in the media queue; never let it move to the generic queue and count as sent.
+      allowQueue: false,
       body: JSON.stringify({
         data_url: row.dataUrl,
         stage: row.stage,
@@ -441,7 +565,7 @@
 
   let flushing = false;
   async function flushPhotos() {
-    if (!Q || flushing) return;
+    if (!Q || flushing || navigator.onLine === false) return;
     flushing = true;
     try {
       const res = await Q.flush(null, async (row) => {
@@ -454,11 +578,27 @@
       await refreshQueue();
       rerenderAll();
       $("dyNet").hidden = !bad;
-      if (ok) toast(ok === 1 ? "Foto enviada." : `${ok} fotos enviadas.`);
+      if (ok) toast(ok === 1 ? "Foto enviada." : `${ok} fotos enviadas.`, "success");
     } catch (_) {
     } finally {
       flushing = false;
     }
+  }
+
+  /** "Tentar enviar fotos agora" in the finish sheet. */
+  async function flushNow(btn) {
+    if (navigator.onLine === false) {
+      toast("Sem sinal agora. As fotos sobem sozinhas quando a conexão voltar.", "error");
+      return;
+    }
+    setBusy(btn, true);
+    try {
+      await flushPhotos();
+    } finally {
+      setBusy(btn, false);
+    }
+    const left = Object.values(queued).reduce((s, n) => s + n, 0);
+    if (left) toast(`Ainda faltam ${left} foto${left > 1 ? "s" : ""}. Tentamos de novo sozinhos quando o sinal melhorar.`, "error");
   }
 
   function rerenderAll() {
@@ -467,26 +607,44 @@
   }
 
   // ------------------------------------------------------------ sheets
+  // One sheet (#dyLayer) for every flow. OmUI.layer gives Esc, focus trap/return, Android back,
+  // the exit animation and drag-to-close by the grab handle. Without OmUI it just shows/hides.
+  let layer = null;
+  function sheetLayer() {
+    if (!layer && ui()) {
+      layer = ui().layer($("dyLayer"), {
+        onClose: onSheetClosed,
+        dragHandle: $("dySheet").querySelector(".dy-sheet__grab"),
+        initialFocus: () => $("dySheet").querySelector(".dy-sheet__hd .dy-x"),
+      });
+    }
+    return layer;
+  }
+  function onSheetClosed() {
+    sheet = null;
+    document.body.classList.remove("dy-lock");
+  }
   function openSheet(kind, title, extra) {
     sheet = { kind, ...(extra || {}) };
     $("dySheetTitle").textContent = title;
-    $("dySheet").hidden = false;
-    $("dyBackdrop").hidden = false;
     document.body.classList.add("dy-lock");
+    const l = sheetLayer();
+    if (l) l.open();
+    else $("dyLayer").hidden = false;
   }
   function closeSheet() {
-    sheet = null;
-    $("dySheet").hidden = true;
-    $("dyBackdrop").hidden = true;
-    document.body.classList.remove("dy-lock");
+    const l = sheetLayer();
+    if (l && l.isOpen()) return l.close();
+    $("dyLayer").hidden = true;
+    onSheetClosed();
   }
 
   function jobPickHtml(list, selected, multi) {
     return `<div class="dy-pick">${list
       .map((j) => {
         const on = selected.includes(j.id);
-        return `<button type="button" class="${on ? "is-on" : ""}" data-act="${multi ? "toggle" : "pick"}" data-job="${esc(j.id)}">
-          <span class="dy-pick__ck">${on ? "✓" : ""}</span><div><b>${esc(jobLine(j))}</b><small>${esc([j.start_label, j.client, j.address].filter(Boolean).join(" · "))}</small></div></button>`;
+        return `<button type="button" class="${on ? "is-on" : ""}" data-act="${multi ? "toggle" : "pick"}" data-job="${esc(j.id)}" data-om-press>
+          <span class="dy-pick__ck">${on ? "✓" : ""}</span><div><b>${esc(jobLine(j))}</b><small>${esc([j.start_label, j.address].filter(Boolean).join(" · ") || "Sem endereço")}</small></div></button>`;
       })
       .join("")}</div>`;
   }
@@ -505,7 +663,7 @@
       <p class="dy-step__t" style="margin-top:14px">Outro job</p>
       <input class="dy-in" id="dyQ" placeholder="Buscar por número, cliente ou endereço" value="${esc(sheet.q)}" autocomplete="off" />
       <div style="margin-top:8px">${res ? (res.length ? jobPickHtml(res.filter((j) => !inDay.has(j.id)), [], false) : '<p class="dy-empty">Nada encontrado.</p>') : ""}</div>`;
-    $("dySheetFt").innerHTML = sheet.mode === "start" ? `<button class="dy-btn dy-btn--line dy-btn--full" data-act="start-nojob">Começar sem job</button>` : "";
+    $("dySheetFt").innerHTML = sheet.mode === "start" ? `<button type="button" class="dy-btn dy-btn--line dy-btn--full" data-act="start-nojob" data-om-press>Começar sem job</button>` : "";
   }
   let searchT = null;
   function searchJobs(q) {
@@ -586,7 +744,8 @@
   function piecesSummaryHtml(est) {
     if (!est.lines.length) return `<div class="dy-pline dy-pline--empty">Nada contado ainda.</div>`;
     const units = S.piece_units || {};
-    return est.lines.map((l) => `<div class="dy-pline"><span>${esc(l.label)}</span><span>${esc(l.qty)} ${esc(units[l.unit] || l.unit)}</span><b>${esc(money(l.amount))}</b></div>`).join("");
+    // Quantities only: the crew's day screen does not show pay (the office sees it in Folha).
+    return est.lines.map((l) => `<div class="dy-pline dy-pline--qty"><span>${esc(l.label)}</span><span>${esc(l.qty)} ${esc(units[l.unit] || l.unit)}</span></div>`).join("");
   }
 
   // finish
@@ -595,8 +754,8 @@
     sheet = null;
     openSheet("finish", "Finalizar o dia", {
       note: "",
-      sqft: Object.fromEntries(d.jobs.map((j) => [j.id, j.sqft || ""])),
-      pieces: piecesOf(d.jobs),
+      sqft: Object.fromEntries((d.jobs || []).map((j) => [j.id, j.sqft || ""])),
+      pieces: piecesOf(d.jobs || []),
       expenses: [],
       err: "",
     });
@@ -623,38 +782,45 @@
   function renderFinish() {
     const d = S.day;
     const emp = S.employee;
-    const missing = d.jobs.filter((j) => emp.require_photos && !(j.photos_today || 0));
-    const waiting = d.jobs.reduce((s, j) => s + (queued[j.id] || 0), 0);
+    const jobs = d.jobs || [];
+    // Photos only block when the day lists jobs and require_photos is on.
+    const missing = jobs.filter((j) => emp.require_photos && !(j.photos_today || 0));
+    const missingQueued = missing.filter((j) => queued[j.id]);
+    const missingNone = missing.filter((j) => !queued[j.id]);
+    const waiting = jobs.reduce((s, j) => s + (queued[j.id] || 0), 0);
     const est = finishEstimate();
     const now = new Date();
     const expenses = sheet.expenses || [];
-    $("dySheetBody").innerHTML = `
-      <div class="dy-step"><p class="dy-step__t">1 · Onde você trabalhou</p>
-        ${d.jobs
+    const jobsStep = jobs.length
+      ? `<div class="dy-step"><p class="dy-step__t">Obras do dia <small>opcional</small></p>
+        ${jobs
           .map((j) => {
             const n = j.photos_today || 0;
             const q = queued[j.id] || 0;
             const miss = emp.require_photos && !n;
             return `<div class="dy-fjob${miss ? " dy-fjob--miss" : ""}">
-              <div class="dy-fjob__top"><div><b>${esc(jobLine(j))}</b><small>${esc(j.address || j.client || "")}</small></div>
+              <div class="dy-fjob__top"><div><b>${esc(jobLine(j))}</b><small>${esc(j.address || "Sem endereço")}</small></div>
                 <span class="dy-fjob__ph">${q ? `${q} na fila` : n ? `✓ ${n} foto${n > 1 ? "s" : ""}` : "Falta foto"}</span></div>
               <div class="dy-fjob__row">
                 <button class="dy-btn dy-btn--sm ${miss ? "dy-btn--terra" : "dy-btn--line"}" data-act="photo" data-job="${esc(j.id)}">${ICON.cam} ${n ? "Mais foto" : "Tirar foto"}</button>
                 ${
                   emp.pay_type === "production" && !byItem()
                     ? `<label>sq ft <input class="dy-in dy-in--sqft" inputmode="decimal" data-sqft="${esc(j.id)}" value="${esc(sheet.sqft[j.id])}" placeholder="0" /></label>`
-                    : d.jobs.length > 1
+                    : jobs.length > 1
                       ? `<button class="dy-btn dy-btn--sm dy-btn--line" data-act="rmjob" data-job="${esc(j.id)}">Não fui</button>`
                       : ""
                 }
               </div>${byItem() ? `<p class="dy-pieces__t">O que você fez neste job <small>toque para adicionar</small></p>${piecesHtml(j.id, sheet.pieces)}` : ""}</div>`;
           })
           .join("")}
-        <button class="dy-btn dy-btn--sm dy-btn--line dy-btn--full" data-act="addjob">+ Trabalhei em outro job</button>
-      </div>
-      <div class="dy-step"><p class="dy-step__t">2 · Nota do dia</p>
+        <button class="dy-btn dy-btn--sm dy-btn--line dy-btn--full" data-act="addjob">+ Outra obra</button>
+      </div>`
+      : "";
+    $("dySheetBody").innerHTML = `
+      ${jobsStep}
+      <div class="dy-step"><p class="dy-step__t">Nota do dia <small>opcional</small></p>
         <textarea class="dy-in dy-ta" id="dyNote" maxlength="1000" placeholder="Como foi o dia? O que ficou faltando, material, problemas…">${esc(sheet.note)}</textarea></div>
-      <div class="dy-step"><p class="dy-step__t">3 · Reembolso <small>opcional</small></p>
+      <div class="dy-step"><p class="dy-step__t">Reembolso <small>opcional</small></p>
         <p class="dy-card__hint" style="text-align:left;margin:0 0 10px">Gasolina, material ou ferramenta? Tire foto do recibo e informe o valor.</p>
         ${
           expenses.length
@@ -663,7 +829,7 @@
                   (e, i) => `<li>
                   ${e.receipt_url ? `<a href="${esc(e.receipt_url)}" target="_blank" rel="noopener"><img src="${esc(e.receipt_url)}" alt="" /></a>` : "<span class='dy-exp__ph'>Sem foto</span>"}
                   <div><b>${esc(money(e.amount))}</b><small>${esc(e.description || "Reembolso")}</small></div>
-                  <button type="button" class="dy-x" data-act="rm-exp" data-i="${i}" aria-label="Remover">×</button>
+                  <button type="button" class="dy-x" data-act="rm-exp" data-i="${i}" aria-label="Remover reembolso">×</button>
                 </li>`,
                 )
                 .join("")}</ul>`
@@ -680,21 +846,27 @@
           ${sheet._expErr ? `<p class="dy-err">${esc(sheet._expErr)}</p>` : ""}
         </div>
       </div>
-      <div class="dy-step"><p class="dy-step__t">4 · Resumo</p>
+      <div class="dy-step"><p class="dy-step__t">Resumo</p>
         <div class="dy-sum">
           <div><small>Entrada</small><b>${esc(d.clock_in_label)}</b></div>
           <div><small>Saída</small><b>${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}</b></div>
-          <div><small>Horas${d.lunch_minutes ? ` (−${d.lunch_minutes} almoço)` : ""}</small><b>${esc(minLabel(est.worked))}</b></div>
-          <div class="ot"><small>Extra (depois das ${esc(d.expected_end_label || emp.schedule.end_time)})</small><b>${est.ot ? esc(minLabel(est.ot)) : "—"}</b></div>
           ${est.reimb ? `<div><small>Reembolso pedido</small><b>+${esc(money(est.reimb))}</b></div>` : ""}
           ${est.items ? `<div class="dy-plines" id="dyPLines">${piecesSummaryHtml(est.items)}</div>` : ""}
-          <div class="big"><small>${est.items ? "Produção do dia" : emp.pay_type === "production" ? `${est.sqft || 0} sq ft` : "Estimativa do dia"}</small><b>${esc(money(est.amount))}</b></div>
         </div>
-        <p class="dy-gps">${ICON.pin} Ao enviar registramos a hora e sua localização.${est.reimb ? " O reembolso vai para o escritório conferir." : ""}</p></div>`;
-    const blocked = missing.length > 0 || waiting > 0;
-    $("dySheetFt").innerHTML = `${blocked ? `<p>${waiting ? `Enviando ${waiting} foto${waiting > 1 ? "s" : ""}… espere o sinal.` : `Falta foto em ${missing.length} job${missing.length > 1 ? "s" : ""}.`}</p>` : ""}
-      <button class="dy-btn dy-btn--terra dy-btn--full" data-act="send" ${blocked ? "disabled" : ""}>${ICON.stop} Enviar o dia</button>
-      ${sheet.err ? `<p class="dy-err">${esc(sheet.err)}</p>` : ""}`;
+        ${est.reimb ? `<p class="dy-gps">${ICON.pin} O reembolso vai para o escritório conferir.</p>` : ""}</div>`;
+    const blocked = missing.length > 0;
+    const plural = (n, w) => `${n} ${w}${n > 1 ? "s" : ""}`;
+    let note = "";
+    if (missingNone.length) note = `Falta foto em ${plural(missingNone.length, "job")}.`;
+    else if (missingQueued.length)
+      note = `A foto de ${plural(missingQueued.length, "job")} ainda está subindo. O dia só pode ser enviado quando chegar pelo menos 1 foto de cada job.`;
+    else if (waiting) note = `${plural(waiting, "foto")} ${waiting > 1 ? "continuam" : "continua"} subindo em segundo plano. Pode enviar o dia.`;
+    $("dySheetFt").innerHTML = `${note ? `<p>${esc(note)}</p>` : ""}
+      ${missingQueued.length && !missingNone.length ? `<button type="button" class="dy-btn dy-btn--line dy-btn--full dy-btn--retry" data-act="flush-now" data-om-press>Tentar enviar fotos agora</button>` : ""}
+      <button type="button" class="dy-btn dy-btn--terra dy-btn--full" data-act="send" data-om-press ${blocked ? "disabled" : ""}>${ICON.stop} Enviar o dia</button>
+      ${sheet.err ? `<p class="dy-err" role="alert">${esc(sheet.err)}</p>` : ""}`;
+    // A re-render while sending (photo queue, sqft input) must keep the busy state.
+    if (sheet._sending) setBusy($("dySheetFt").querySelector('[data-act="send"]'), true);
   }
   function fileToDataUrl(file) {
     return new Promise((resolve, reject) => {
@@ -752,17 +924,17 @@
     input.value = "";
     input.click();
   }
-  async function sendFinish() {
-    if (busy) return;
+  async function sendFinish(btn) {
+    if (busy || !sheet) return;
     busy = true;
-    const btn = document.querySelector('[data-act="send"]');
-    if (btn) {
-      btn.disabled = true;
-      btn.textContent = "Enviando…";
-    }
+    sheet._sending = true;
+    sheet.err = "";
+    haptic("tap");
+    setBusy(btn, true);
     const g = await gps();
     try {
-      const jobs = S.day.jobs.map((j) => ({ work_order_id: j.id, sqft: Number(sheet.sqft[j.id]) || 0, ...(byItem() ? { pieces: piecesPayload(sheet.pieces, j.id) } : {}) }));
+      // GPS is captured silently for payroll — never shown to the crew.
+      const jobs = (S.day.jobs || []).map((j) => ({ work_order_id: j.id, sqft: Number(sheet.sqft[j.id]) || 0, ...(byItem() ? { pieces: piecesPayload(sheet.pieces, j.id) } : {}) }));
       const expenses = (sheet.expenses || []).map((e) => ({
         amount: e.amount,
         description: e.description,
@@ -775,26 +947,32 @@
           jobs,
           note: sheet.note || null,
           expenses,
-          lat: g?.lat,
-          lng: g?.lng,
-          accuracy: g?.accuracy,
+          lat: g?.lat ?? null,
+          lng: g?.lng ?? null,
+          accuracy: g?.accuracy ?? null,
           device_at: new Date().toISOString(),
         }),
       });
+      haptic("success");
       closeSheet();
+      justSent = true;
       render();
-      toast(S.day && S.day.status === "approved" ? "Dia enviado e aprovado. Bom descanso!" : "Dia enviado — o escritório vai conferir.");
+      toast(S.day && S.day.status === "approved" ? "Dia enviado e aprovado. Bom descanso!" : "Dia enviado — o escritório vai conferir.", "success");
     } catch (e) {
+      haptic("error");
       if (e.code === "PHOTOS_REQUIRED" && e.data && e.data.missing) {
         S.day.jobs.forEach((j) => {
           if (e.data.missing.includes(j.id)) j.photos_today = 0;
         });
       }
       if (sheet) {
+        sheet._sending = false;
         sheet.err = e.message;
         renderFinish();
       }
     } finally {
+      if (sheet) sheet._sending = false;
+      setBusy(btn, false);
       busy = false;
     }
   }
@@ -858,12 +1036,13 @@
       </div>
       <div class="dy-step"><p class="dy-step__t">Nota</p><textarea class="dy-in dy-ta" id="dyMNote" maxlength="1000" placeholder="Por que lançou manualmente? Como foi o dia?">${esc(m.note)}</textarea></div>
       <p class="dy-gps">As fotos desse dia precisam estar no job. Lançamentos manuais passam pela aprovação do escritório.</p>`;
-    $("dySheetFt").innerHTML = `<button class="dy-btn dy-btn--terra dy-btn--full" data-act="send-manual">${m.day ? "Reenviar dia" : "Enviar dia"}</button>${m.err ? `<p class="dy-err">${esc(m.err)}</p>` : ""}`;
+    $("dySheetFt").innerHTML = `<button type="button" class="dy-btn dy-btn--terra dy-btn--full" data-act="send-manual" data-om-press>${m.day ? "Reenviar dia" : "Enviar dia"}</button>${m.err ? `<p class="dy-err">${esc(m.err)}</p>` : ""}`;
   }
-  async function sendManual() {
+  async function sendManual(btn) {
     if (busy) return;
     const m = sheet;
     busy = true;
+    setBusy(btn, true);
     try {
       S = await api("/api/campo/dia/manual", {
         method: "POST",
@@ -876,13 +1055,16 @@
           note: m.note || null,
         }),
       });
+      haptic("success");
       closeSheet();
       render();
-      toast("Dia enviado para aprovação.");
+      toast("Dia enviado para aprovação.", "success");
     } catch (e) {
+      haptic("error");
       m.err = e.code === "PHOTOS_REQUIRED" ? "Falta foto desse dia em algum job. Tire/envie a foto pelo ticket do job." : e.message;
-      renderManual();
+      if (sheet === m) renderManual();
     } finally {
+      setBusy(btn, false);
       busy = false;
     }
   }
@@ -897,35 +1079,24 @@
       case "reload":
         return load();
       case "start":
-        return startDay();
+        return startDay(b);
       case "start-nojob":
-        return doStart(null);
+        return doStart(null, b);
       case "pick":
-        if (sheet && sheet.mode === "start") return doStart(job);
+        if (sheet && sheet.mode === "start") return doStart(job, b);
         return gotoJob(job);
       case "goto":
         return gotoJob(job);
       case "addjob":
         return openPickJob("add");
-      case "day-route": {
-        if (!window.__crmDayRoute) return;
-        const d = S.day;
-        const inDay = d && d.status === "in_progress";
-        const list = inDay ? d.jobs : d ? d.jobs : S.jobs_today;
-        const stops = window.__crmDayRoute.stopsFromCampoJobs(list || []);
-        window.__crmDayRoute.open({
-          title: "Rota do dia",
-          subtitle: $("dyDate")?.textContent || "",
-          origin: routeStart || "",
-          stops,
-          onSaveOrigin: (addr) => {
-            routeStart = addr || "";
-          },
-        });
-        return;
-      }
+      case "day-route":
+        return openDayRoute(b);
       case "finish":
+        haptic("tap");
+        if (S && S.day && S.day.pending_sync) return toast("O início do dia ainda está esperando sinal. Finalize quando a conexão voltar.");
         return openFinish();
+      case "flush-now":
+        return flushNow(b);
       case "photo":
         return takePhoto(job);
       case "piece-add": {
@@ -947,9 +1118,9 @@
             render();
             if (sheet && sheet.kind === "finish") renderFinish();
           })
-          .catch((err) => toast(err.message));
+          .catch((err) => toast(err.message, "error"));
       case "send":
-        return sendFinish();
+        return sendFinish(b);
       case "exp-photo":
         return pickExpensePhoto();
       case "exp-add":
@@ -982,12 +1153,37 @@
         return renderManual();
       }
       case "send-manual":
-        return sendManual();
+        return sendManual(b);
       case "close":
         return closeSheet();
     }
   });
   $("dyBackdrop").addEventListener("click", closeSheet);
+
+  /** The route panel (and the address autocomplete it uses) is loaded on first use, not on every page view. */
+  async function openDayRoute(btn) {
+    setBusy(btn, true);
+    try {
+      const route = window.__campoNav && window.__campoNav.loadDayRoute ? await window.__campoNav.loadDayRoute() : window.__crmDayRoute;
+      if (!route) throw new Error("Não deu para abrir a rota agora.");
+      const d = S.day;
+      const inDay = d && d.status === "in_progress";
+      const list = inDay ? d.jobs : d ? d.jobs : S.jobs_today;
+      route.open({
+        title: "Rota do dia",
+        subtitle: S.today_label || "",
+        origin: routeStart || "",
+        stops: route.stopsFromCampoJobs(list || []),
+        onSaveOrigin: (addr) => {
+          routeStart = addr || "";
+        },
+      });
+    } catch (e) {
+      toast(e.message || "Não deu para abrir a rota agora.", "error");
+    } finally {
+      setBusy(btn, false);
+    }
+  }
   document.addEventListener("input", (e) => {
     const t = e.target;
     if (!sheet) return;
@@ -1024,10 +1220,12 @@
   window.addEventListener("online", () => {
     $("dyNet").hidden = true;
     flushPhotos();
+    // Give the offline queue a moment to replay the clock-in, then show the server's day.
+    if (readPendingStart()) setTimeout(() => !sheet && load(), 2500);
   });
   window.addEventListener("offline", () => ($("dyNet").hidden = false));
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible" && !sheet) load();
+    if (document.visibilityState === "visible" && !sheet && !busy) load();
   });
 
   load();
