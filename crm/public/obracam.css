@@ -539,10 +539,10 @@ body.om-field-nav.cam-app .cam-list__top {
   flex-direction: column;
   gap: 10px;
 }
-body.om-field-nav.cam-app .cam-search {
-  display: flex !important;
-  margin: 0;
-}
+/* Crew order: week → Em produção/Últimos → busca (Agenda top, search under filters) */
+body.om-field-nav.cam-app .cam-week { order: 1; }
+body.om-field-nav.cam-app .cam-seg { order: 2; }
+body.om-field-nav.cam-app .cam-search { order: 3; display: flex !important; margin: 0; }
 body.om-field-nav.cam-app #cam#cam .cam-search input[type="search"] {
   height: 44px;
   font-size: 16px;
@@ -551,32 +551,46 @@ body.om-field-nav.cam-app #cam#cam .cam-search input[type="search"] {
 }
 body.om-field-nav.cam-app .cam-week {
   display: block;
+  margin: 0 0 2px;
 }
 body.om-field-nav.cam-app .cam-week[hidden] {
   display: none !important;
 }
-body.om-field-nav.cam-app .cam-week__nav {
+/* Same top layout as Campo Agenda: title + week label | prev/next, then day strip */
+body.om-field-nav.cam-app .cam-week__head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+body.om-field-nav.cam-app .cam-week__title {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--cam-ink, #221e1a);
 }
 body.om-field-nav.cam-app .cam-week__label {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 700;
+  margin: 4px 0 0;
+  font-size: 14px;
+  font-weight: 500;
   color: var(--cam-ink2, #667085);
-  text-align: center;
-  flex: 1;
-  min-width: 0;
+  text-align: left;
+}
+body.om-field-nav.cam-app .cam-week-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
 }
 body.om-field-nav.cam-app .cam-week__btn {
-  width: 40px;
-  height: 40px;
-  border: 0;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--cam-line, #e5e7eb);
   border-radius: 12px;
-  background: var(--cam-sur, #efeae2);
+  background: var(--cam-card, #fff);
   color: var(--cam-ink, #221e1a);
   display: grid;
   place-items: center;

@@ -726,6 +726,39 @@ button {
   font-weight: 700;
 }
 
+/* Agenda list: same ObraCam crew-job cards */
+.cm-agenda-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cm-agenda-list .ol-st {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+  background: #eef0f3;
+  color: #221e1a;
+}
+.cm-agenda-list .ol-st::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.9;
+}
+.cm-agenda-list .ol-st.is-act::before { background: #e7792c; opacity: 1; }
+.cm-agenda-list .ol-st.is-wait { color: #667085; }
+.cm-agenda-list .ol-st.is-ok { background: #edf1e8; color: #4a5a3f; }
+
 .cm-job-card {
   display: block;
   width: 100%;

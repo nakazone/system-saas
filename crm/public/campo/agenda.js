@@ -23,20 +23,84 @@
       scheduled: "Agendada",
       en_route: "Em andamento",
       done: "Concluída",
+      completed: "Concluída",
       in_progress: "Em andamento",
     };
     return map[status] || status || "—";
   }
 
-  function statusBadgeClass(status) {
-    if (status === "on_site" || status === "en_route" || status === "in_progress") return "cm-badge--progress";
-    return "cm-badge--sched";
+  function statusTone(j) {
+    const s = String(j.status || j.field_status || "");
+    if (s === "completed" || s === "done" || s === "canceled") return "ok";
+    if (s === "on_site" || s === "en_route" || s === "in_progress") return "act";
+    return "wait";
+  }
+
+  function statusText(j) {
+    return j.field_status_label || statusLabel(j.status);
   }
 
   function formatDayMeta(ymd) {
     const d = new Date(ymd + "T12:00:00");
     if (M && M.formatDayMeta) return M.formatDayMeta(d);
     return d.toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "short" });
+  }
+
+  const MO = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+
+  function todayYmdLocal() {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  }
+
+  /** Same ObraCam / ObraCrew Jobs card: day · client · address · status/hora · mapa. */
+  function crewCardHtml(j) {
+    const who = j.homeowner_name || (j.client && j.client !== "—" ? j.client : "") || j.title || "Job";
+    const iso = j.scheduled_start || null;
+    const finished =
+      j.status === "completed" || j.status === "done" || j.status === "canceled" || j.field_status === "completed";
+    const isTodayChip = Boolean(selectedYmd && selectedYmd === todayYmdLocal());
+    let dayHtml = `<span class="jx-day is-none" aria-hidden="true"><small>sem</small><b>—</b><small>data</small></span>`;
+    let time = "";
+    if (iso) {
+      const d = new Date(iso);
+      if (!Number.isNaN(d.getTime())) {
+        const wd = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"][d.getDay()];
+        const tone =
+          !finished && (isTodayChip || j.status === "in_progress" || j.status === "on_site")
+            ? " is-now"
+            : finished
+              ? " is-done"
+              : "";
+        dayHtml = `<span class="jx-day${tone}" aria-label="${isTodayChip ? "Hoje" : `${wd} ${d.getDate()} ${MO[d.getMonth()]}`}"><small>${isTodayChip ? "hoje" : wd}</small><b>${d.getDate()}</b><small>${MO[d.getMonth()]}</small></span>`;
+        if (!finished && !(d.getHours() === 0 && d.getMinutes() === 0)) {
+          time = d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+        }
+      }
+    }
+    const maps = j.address ? `https://maps.google.com/?q=${encodeURIComponent(j.address)}` : "";
+    const st = statusText(j);
+    const tone = statusTone(j);
+    const mapPin =
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>';
+    return `<div class="crew-job">
+      <a class="crew-job__main" data-om-press href="ticket.html?id=${encodeURIComponent(j.id)}">
+        ${dayHtml}
+        <div class="crew-job__copy">
+          <b class="crew-job__title">${escapeHtml(who)}</b>
+          <span class="crew-job__addr">${escapeHtml(j.address || "Sem endereço")}</span>
+          <span class="crew-job__meta">
+            ${st ? `<span class="ol-st is-${tone}">${escapeHtml(st)}</span>` : ""}
+            ${time ? `<span class="crew-job__clock">${escapeHtml(time)}</span>` : ""}
+          </span>
+        </div>
+      </a>
+      ${
+        maps
+          ? `<a class="crew-job__map" href="${escapeHtml(maps)}" target="_blank" rel="noopener" aria-label="Abrir mapa">${mapPin}</a>`
+          : `<span class="crew-job__map is-off" aria-hidden="true">${mapPin}</span>`
+      }
+    </div>`;
   }
 
   async function api(path) {
@@ -99,24 +163,9 @@
     }
     list.innerHTML =
       (canRoute
-        ? `<button type="button" class="cm-btn cm-btn--dark cm-btn--sm" id="cmDayRoute" data-om-press style="width:100%;margin:0 0 0.75rem">Ver rota do dia</button>`
+        ? `<button type="button" class="cm-btn cm-btn--dark cm-btn--sm" id="cmDayRoute" data-om-press style="width:100%">Ver rota do dia</button>`
         : "") +
-      jobs
-        .map((j) => {
-          const st = statusLabel(j.status);
-          const cls = statusBadgeClass(j.status);
-          const who = j.homeowner_name || (j.client && j.client !== "—" ? j.client : "") || "Job";
-          return `
-        <a class="cm-job-card" data-om-press href="ticket.html?id=${encodeURIComponent(j.id)}">
-          <div class="cm-job-card__top">
-            <p class="cm-job-card__time">${escapeHtml(j.start || "—")}${j.end ? ` – ${escapeHtml(j.end)}` : ""}</p>
-            <span class="cm-badge ${cls}">${st}</span>
-          </div>
-          <p class="cm-job-card__title">${escapeHtml(who)}</p>
-          <p class="cm-job-card__sub">${escapeHtml(j.address || "Sem endereço")}</p>
-        </a>`;
-        })
-        .join("");
+      jobs.map(crewCardHtml).join("");
     $("cmDayRoute")?.addEventListener("click", async (e) => {
       const btn = e.currentTarget;
       const UI = window.OmUI;

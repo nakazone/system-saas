@@ -79,6 +79,8 @@
   let crewSelectedYmd = null;
   let crewAgendaDays = [];
   let crewRangeLabel = "";
+  /** Job ids for the selected day from /api/campo/agenda — same source as Agenda. */
+  let crewDayJobIds = null;
 
   function jobOpenHref(id, hash) {
     if (crewMode) return `/campo/ticket.html?id=${encodeURIComponent(id)}`;
@@ -505,13 +507,6 @@
   function jobAnchorIso(j) {
     return (window.JobsInfo && window.JobsInfo.listAnchorIso ? window.JobsInfo.listAnchorIso(j) : null) || j.scheduled_start || j.sand_scheduled_start || null;
   }
-  function jobYmd(j) {
-    const iso = jobAnchorIso(j);
-    if (!iso) return "";
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return "";
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  }
   function cmpJobs(a, b) {
     if (crewMode) {
       if (mode === "done") {
@@ -536,8 +531,9 @@
   /** Jobs in the current tab (Ativos / Concluídos) that match the search, before the quick filter. */
   function baseJobs() {
     let hit = jobs.filter(jobHit);
-    if (crewMode && crewSelectedYmd) {
-      hit = hit.filter((j) => jobYmd(j) === crewSelectedYmd);
+    // Crew day filter: ids from /api/campo/agenda (same bucketing as Agenda), never phone-local dates.
+    if (crewMode && crewSelectedYmd && crewDayJobIds) {
+      hit = hit.filter((j) => crewDayJobIds.has(String(j.id)));
     }
     return mode === "done" ? hit.filter((j) => j.status === "completed") : hit.filter(isActive);
   }
@@ -581,6 +577,11 @@
       crewSelectedYmd = data.selected_day || crewSelectedYmd;
       crewAgendaDays = data.days || [];
       crewRangeLabel = data.range_label || crewRangeLabel;
+      crewDayJobIds = new Set(
+        (data.jobs || [])
+          .map((j) => String(j.id || j.work_order_id || ""))
+          .filter(Boolean),
+      );
       renderCrewWeek();
       renderList();
     } catch (_) {
@@ -2140,9 +2141,11 @@
     $("camWeekStrip")?.addEventListener("click", (e) => {
       const btn = e.target.closest("[data-cam-ymd]");
       if (!btn || !crewMode) return;
-      crewSelectedYmd = btn.getAttribute("data-cam-ymd");
+      const ymd = btn.getAttribute("data-cam-ymd");
+      if (!ymd || ymd === crewSelectedYmd) return;
+      crewSelectedYmd = ymd;
       renderCrewWeek();
-      renderList();
+      void loadCrewAgenda();
     });
     $("camDetail").addEventListener("click", (e) => {
       if (e.target.closest("[data-cam-back]")) {
