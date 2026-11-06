@@ -4298,6 +4298,11 @@
     return out;
   }
   /** Tile companies measure showers instead of stairs and vents (tabs come from the trade). */
+  /** Tabs this builder's measurement shows (from its companies' trades); hardwood when none say. */
+  function measTabs() {
+    const t = window.__OM_TRADE && Array.isArray(window.__OM_TRADE.measureTabs) && window.__OM_TRADE.measureTabs.length ? window.__OM_TRADE.measureTabs : null;
+    return t || ['stairs', 'vents', 'floors', 'summary'];
+  }
   function measuresShowers() {
     return Boolean(window.__OM_TRADE && Array.isArray(window.__OM_TRADE.measureTabs) && window.__OM_TRADE.measureTabs.includes('showers'));
   }
@@ -5729,6 +5734,7 @@
     }).join('') : '';
     const c = measCounts(d);
     const floorSec = sec('floors', 'Floor Plan', ft ? `${fmtSf(ft)} · ${totals.length} type${totals.length === 1 ? '' : 's'}` : '', floors, 'No floors yet — upload the house plans in Floor Plan to measure every room.');
+    let topsSec = ''; let showerSec = '';
     if (measuresTops()) {
       const t = d.tops && Array.isArray(d.tops.pieces) ? d.tops : null;
       const tt = topsTotals(d);
@@ -5744,8 +5750,7 @@
           ${q.splash_lf ? r('Splash', 'Backsplash 4″', '', q.splash_lf, 'LF') : q.splash_sf ? r('Splash', 'Full-height backsplash', '', q.splash_sf, 'SF') : ''}
           ${r('Cutouts', 'Sinks · cooktops · holes', '', `${tt.cutouts - (q.cooktops || 0)} · ${q.cooktops || 0} · ${q.faucet_holes || 0}`, 'EA')}</ul></div>`;
       }
-      return `${sec('countertops', 'Countertops', tt.n ? `${tt.n} piece${tt.n === 1 ? '' : 's'} · ${tt.sf.toLocaleString('en-US')} SF of stone` : '', body, 'No countertops measured.')}
-      ${floorSec}`;
+      topsSec = sec('countertops', 'Countertops', tt.n ? `${tt.n} piece${tt.n === 1 ? '' : 's'} · ${tt.sf.toLocaleString('en-US')} SF of stone` : '', body, 'No countertops measured.');
     }
     if (measuresShowers()) {
       const shs = d.showers || [];
@@ -5762,10 +5767,11 @@
           ${q.curb_lf ? r('Curb', 'Curb', '', q.curb_lf, 'LF') : ''}
           ${r('Items', 'Pan · niche · bench', '', `${q.pan} · ${q.niches} · ${q.bench}`, 'EA')}</ul></div>`;
       }).join('') : '';
-      return `${sec('showers', 'Showers', sh.n ? `${sh.n} shower${sh.n === 1 ? '' : 's'} · ${sh.wall.toLocaleString('en-US')} SF of wall tile` : '', body, 'No showers measured.')}
-      ${floorSec}`;
+      showerSec = sec('showers', 'Showers', sh.n ? `${sh.n} shower${sh.n === 1 ? '' : 's'} · ${sh.wall.toLocaleString('en-US')} SF of wall tile` : '', body, 'No showers measured.');
     }
-    return `${floorSec}
+    // A builder can work with several trades: each measured trade gets its section.
+    if (!measTabs().includes('stairs')) return `${topsSec}${showerSec}${floorSec}`;
+    return `${topsSec}${showerSec}${floorSec}
       ${sec('stairs', 'Stairs', c.stairs ? `${c.stairs} stair${c.stairs === 1 ? '' : 's'} · ${c.treads} treads · ${c.risers} risers${c.nosings ? ` · ${c.nosings} nosings` : ''}` : '', stairs, 'No stairs measured.')}
       ${sec('vents', 'Vents', c.vents ? `${c.vents} vent${c.vents === 1 ? '' : 's'}${vg.filter((g) => g.key).length ? ` in ${vg.filter((g) => g.key).length} room${vg.filter((g) => g.key).length === 1 ? '' : 's'}` : ''}` : '', ventBody, 'No vents measured.')}`;
   }
