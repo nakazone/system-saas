@@ -233,15 +233,16 @@
     return SECTOR[sector] || sector || "";
   }
 
-  /** Prefer server label; fallback local "Qui, 05/Nov". */
+  /** Same shape as ObraBuilder hello: "Quinta-feira, 5 de Novembro". */
   function helloDateText() {
-    const raw = String(S.today_label || "").trim();
-    if (raw && /\d{2}\/[A-Za-zÀ-ú]{3}/.test(raw)) return raw.charAt(0).toUpperCase() + raw.slice(1);
     const d = new Date();
-    const wd = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][d.getDay()];
-    const mo = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][d.getMonth()];
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${wd}, ${day}/${mo}`;
+    const cap = (s) => {
+      const t = String(s || "").trim();
+      return t ? t.charAt(0).toUpperCase() + t.slice(1) : "";
+    };
+    const wd = cap(d.toLocaleDateString("pt-BR", { weekday: "long" }));
+    const mo = cap(d.toLocaleDateString("pt-BR", { month: "long" }));
+    return `${wd}, ${d.getDate()} de ${mo}`;
   }
 
   function helloMetaHtml() {
@@ -284,9 +285,6 @@
       photoJob
         ? `<button type="button" class="dy-qa" data-act="photo" data-job="${esc(photoJob.id)}" data-om-press><span class="dy-qa-ic">${qaIcon("cam")}</span><span><strong>Tirar foto</strong><small>${esc(clientName(photoJob))}</small></span></button>`
         : `<a class="dy-qa" href="/job-media-board.html"><span class="dy-qa-ic">${qaIcon("cam")}</span><span><strong>Tirar foto</strong><small>Abrir ObraCam</small></span></a>`,
-    );
-    items.push(
-      `<a class="dy-qa" href="agenda.html"><span class="dy-qa-ic">${qaIcon("cal")}</span><span><strong>Agenda</strong><small>Semana na obra</small></span></a>`,
     );
     if (!items.length) return "";
     return `<section class="dy-qa-grid dy-qa-grid--${Math.min(items.length, 3)}" aria-label="Ações rápidas">${items.join("")}</section>`;
@@ -397,7 +395,7 @@
           ${helloMetaHtml()}
           <h1>${esc(hello)}</h1>
         </div>
-        <img class="dy-hello-mate" src="/assets/img/mascot/mate-helmet.webp?v=1" alt="" width="120" height="156" decoding="async" />
+        <img class="dy-hello-mate" src="/assets/img/mascot/mate-helmet.webp?v=1" alt="" width="169" height="220" decoding="async" fetchpriority="high" />
       </header>
       ${attentionHtml()}
       ${quickActionsHtml()}

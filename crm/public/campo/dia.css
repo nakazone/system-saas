@@ -306,17 +306,29 @@ body.dy-lock { overflow: hidden; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  min-height: 118px;
-  padding: 18px 18px 16px;
-  border-radius: 22px;
+  gap: 6px;
+  min-height: 128px;
+  margin-top: 40px;
+  padding: 16px;
+  border-radius: 20px;
   background: linear-gradient(120deg, #FFF6EE 0%, #FCE7D5 55%, #F8D4B4 100%);
   border: 1px solid #F3DCC6;
-  overflow: hidden;
+  overflow: visible;
+}
+.dy-hello::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 46%;
+  border-radius: 0 20px 20px 0;
+  background: radial-gradient(120% 90% at 85% 100%, rgba(231, 121, 44, 0.28), transparent 60%);
+  pointer-events: none;
 }
 .dy-hello-txt { position: relative; z-index: 1; min-width: 0; flex: 1; }
 .dy-eyebrow {
-  margin: 0 0 8px;
+  margin: 0 0 4px;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -324,9 +336,10 @@ body.dy-lock { overflow: hidden; }
 }
 .dy-hello-date {
   font-size: 13px;
-  font-weight: 700;
-  color: var(--ink-2);
+  font-weight: 500;
+  color: var(--muted);
   letter-spacing: 0.01em;
+  text-transform: none;
 }
 .dy-hello-sector {
   display: inline-flex;
@@ -341,7 +354,7 @@ body.dy-lock { overflow: hidden; }
 }
 .dy-hello h1 {
   margin: 0;
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 800;
   letter-spacing: -0.03em;
   line-height: 1.15;
@@ -351,10 +364,22 @@ body.dy-lock { overflow: hidden; }
   position: relative;
   z-index: 1;
   flex: none;
+  align-self: flex-end;
   width: auto;
-  height: 112px;
-  margin: -8px -6px -18px 0;
+  height: 150px;
+  margin: -54px -6px -16px 0;
   pointer-events: none;
+  filter: drop-shadow(0 4px 6px rgba(120, 60, 20, 0.16));
+  transform-origin: 60% 100%;
+  animation: dyMateHi 900ms cubic-bezier(0.2, 0.8, 0.2, 1) 150ms both;
+}
+@keyframes dyMateHi {
+  0% { transform: translateY(18px) scale(0.94); opacity: 0; }
+  60% { transform: translateY(-4px) rotate(1.5deg); opacity: 1; }
+  100% { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dy-hello-mate { animation: none; }
 }
 
 .dy-qa-grid {
