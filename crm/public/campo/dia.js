@@ -7,7 +7,6 @@
   let S = null; // server state
   let routeStart = "";
   let busy = false;
-  let tick = null;
   let sheet = null; // { kind, ... }
   let camJob = null;
   const Q = window.__campoMediaQueue || null;
@@ -334,39 +333,18 @@
     }
     const emp = S.employee;
     const d = S.day;
-    const endLbl = emp.schedule.end_time;
     if (!d) {
       const j = S.jobs_today[0];
       return `<section class="dy-card" id="dyCard">${mateLine("wave", "Bora começar?", "Quando chegar, toque em Começar o dia.")}<div class="dy-card__lbl"><span>Seu dia</span></div>
-        <h2>${j ? esc(clientName(j)) : "Nenhum job na agenda hoje"}</h2>
-        <p class="dy-card__sub">${j ? esc(j.address || "Sem endereço") : "Você pode começar e escolher o job."}</p>
+        <h2>${j ? esc(clientName(j)) : "Pronto para o ponto"}</h2>
+        <p class="dy-card__sub">${j ? esc(j.address || "Sem endereço") : "Não precisa escolher obra — só registrar o início."}</p>
         <div style="margin-top:16px"><button type="button" class="dy-btn dy-btn--terra dy-btn--full" data-act="start" data-om-press>${ICON.play} Começar o dia</button></div>
         <p class="dy-card__hint"><button type="button" data-act="manual">Esqueci de bater o ponto</button></p></section>`;
     }
     if (d.status === "in_progress") {
-      const since = new Date(d.clock_in).getTime();
-      const elapsed = Math.max(0, Math.round((Date.now() - since) / 60000));
-      const endAt = d.expected_end_label;
-      const here = d.jobs[d.jobs.length - 1];
-      const startH = new Date(d.clock_in);
-      const pctBase = (() => {
-        const [eh, em] = String(endAt || "17:00").split(":").map(Number);
-        const end = new Date(startH);
-        end.setHours(eh, em, 0, 0);
-        const total = Math.max(60, (end - startH) / 60000);
-        return Math.min(1, elapsed / total);
-      })();
-      const otNow = Math.max(d.overtime_minutes, 0);
-      return `<section class="dy-card" id="dyCard"><div class="dy-card__lbl"><span>Dia em andamento</span><span class="dy-pill dy-pill--in_progress">desde ${esc(d.clock_in_label)}${d.pending_sync ? " · aguardando sinal" : ""}</span></div>
-        <div class="dy-time"><b>${esc(minLabel(elapsed))}</b><span>trabalhando</span></div>
-        <div class="dy-bar" aria-hidden="true"><i style="width:${(pctBase * 100).toFixed(1)}%"></i></div>
-        <div class="dy-bar__lbl"><span>${esc(d.clock_in_label)}</span><span>${esc(endAt || endLbl)}</span></div>
-        <div class="dy-stats">
-          <div class="dy-stat dy-stat--ot"><small>Extra</small><b>${otNow ? esc(minLabel(otNow)) : "—"}</b></div>
-          <div class="dy-stat"><small>Jobs</small><b>${d.jobs.length}</b></div>
-          <div class="dy-stat"><small>${emp.pay_type === "production" ? "Produção" : "Hoje"}</small><b>${emp.pay_type === "production" ? `${d.sqft || 0} sq ft` : esc(money(d.amount))}</b></div>
-        </div>
-        ${here ? `<div class="dy-here"><span class="dy-here__dot" aria-hidden="true"></span><div><small>Onde você está</small><b>${esc(clientName(here))}</b>${here.address ? `<span>${esc(here.address)}</span>` : ""}</div></div>` : ""}
+      return `<section class="dy-card" id="dyCard"><div class="dy-card__lbl"><span>Dia em andamento</span>${d.pending_sync ? `<span class="dy-pill dy-pill--in_progress">aguardando sinal</span>` : ""}</div>
+        <div class="dy-time"><b>${esc(d.clock_in_label)}</b><span>início</span></div>
+        <p class="dy-card__sub" style="margin-top:10px">Horário registrado. Quando terminar, finalize o dia.</p>
         <div style="margin-top:14px"><button type="button" class="dy-btn dy-btn--terra dy-btn--full" data-act="finish" data-om-press>${ICON.stop} Finalizar o dia</button></div></section>`;
     }
     const pillCls = d.status;
@@ -433,16 +411,12 @@
     if (typeof card !== "string" && card.enter) {
       $("dyCard")?.querySelector(".dy-mate")?.classList.add("dy-mate--enter");
     }
-    clearInterval(tick);
-    if (S.day && S.day.status === "in_progress") tick = setInterval(renderCard, 30000);
   }
 
   // ------------------------------------------------------------ actions
   async function startDay(btn) {
-    if (busy) return;
-    const jobs = S.jobs_today;
-    if (jobs.length !== 1) return openPickJob("start");
-    await doStart(jobs[0].id, btn);
+    // Clock-in alone — no job pick. GPS (if available) is stored silently for payroll.
+    await doStart(null, btn);
   }
 
   async function doStart(jobId, btn) {
@@ -450,8 +424,6 @@
     busy = true;
     haptic("tap");
     setBusy(btn, true);
-    // The GPS can take up to 9 s: the button stays busy and this message stays until the answer.
-    toast("Pegando sua localização…", null, { sticky: true });
     const g = await gps();
     try {
       const deviceAtIso = new Date().toISOString();
@@ -479,13 +451,8 @@
       clearPendingStart();
       closeSheet();
       render();
-      const d = S.day;
-      const far = d?.gps_in?.distance_m;
       haptic("success");
-      toast(
-        !g ? "Dia começou — sem localização (ative o GPS)." : far != null && far > 500 ? `Dia começou — você está a ${(far / 1000).toFixed(1)} km do job.` : "Bom trabalho! Dia começou.",
-        !g || (far != null && far > 500) ? null : "success",
-      );
+      toast("Bom trabalho! Dia começou.", "success");
     } catch (e) {
       haptic("error");
       toast(e.message, "error");
@@ -719,7 +686,7 @@
     sheet = null;
     openSheet("finish", "Finalizar o dia", {
       note: "",
-      sqft: Object.fromEntries(d.jobs.map((j) => [j.id, j.sqft || ""])),
+      sqft: Object.fromEntries((d.jobs || []).map((j) => [j.id, j.sqft || ""])),
       expenses: [],
       err: "",
     });
@@ -745,18 +712,18 @@
   function renderFinish() {
     const d = S.day;
     const emp = S.employee;
-    // The server only counts photos that already arrived (require_photos): a job whose only photo is
-    // still in the queue blocks; extra photos still uploading do not — they keep syncing after the send.
-    const missing = d.jobs.filter((j) => emp.require_photos && !(j.photos_today || 0));
+    const jobs = d.jobs || [];
+    // Photos only block when the day lists jobs and require_photos is on.
+    const missing = jobs.filter((j) => emp.require_photos && !(j.photos_today || 0));
     const missingQueued = missing.filter((j) => queued[j.id]);
     const missingNone = missing.filter((j) => !queued[j.id]);
-    const waiting = d.jobs.reduce((s, j) => s + (queued[j.id] || 0), 0);
+    const waiting = jobs.reduce((s, j) => s + (queued[j.id] || 0), 0);
     const est = finishEstimate();
     const now = new Date();
     const expenses = sheet.expenses || [];
-    $("dySheetBody").innerHTML = `
-      <div class="dy-step"><p class="dy-step__t">1 · Onde você trabalhou</p>
-        ${d.jobs
+    const jobsStep = jobs.length
+      ? `<div class="dy-step"><p class="dy-step__t">Obras do dia <small>opcional</small></p>
+        ${jobs
           .map((j) => {
             const n = j.photos_today || 0;
             const q = queued[j.id] || 0;
@@ -769,18 +736,21 @@
                 ${
                   emp.pay_type === "production"
                     ? `<label>sq ft <input class="dy-in dy-in--sqft" inputmode="decimal" data-sqft="${esc(j.id)}" value="${esc(sheet.sqft[j.id])}" placeholder="0" /></label>`
-                    : d.jobs.length > 1
+                    : jobs.length > 1
                       ? `<button class="dy-btn dy-btn--sm dy-btn--line" data-act="rmjob" data-job="${esc(j.id)}">Não fui</button>`
                       : ""
                 }
               </div></div>`;
           })
           .join("")}
-        <button class="dy-btn dy-btn--sm dy-btn--line dy-btn--full" data-act="addjob">+ Trabalhei em outro job</button>
-      </div>
-      <div class="dy-step"><p class="dy-step__t">2 · Nota do dia</p>
+        <button class="dy-btn dy-btn--sm dy-btn--line dy-btn--full" data-act="addjob">+ Outra obra</button>
+      </div>`
+      : "";
+    $("dySheetBody").innerHTML = `
+      ${jobsStep}
+      <div class="dy-step"><p class="dy-step__t">Nota do dia <small>opcional</small></p>
         <textarea class="dy-in dy-ta" id="dyNote" maxlength="1000" placeholder="Como foi o dia? O que ficou faltando, material, problemas…">${esc(sheet.note)}</textarea></div>
-      <div class="dy-step"><p class="dy-step__t">3 · Reembolso <small>opcional</small></p>
+      <div class="dy-step"><p class="dy-step__t">Reembolso <small>opcional</small></p>
         <p class="dy-card__hint" style="text-align:left;margin:0 0 10px">Gasolina, material ou ferramenta? Tire foto do recibo e informe o valor.</p>
         ${
           expenses.length
@@ -806,14 +776,11 @@
           ${sheet._expErr ? `<p class="dy-err">${esc(sheet._expErr)}</p>` : ""}
         </div>
       </div>
-      <div class="dy-step"><p class="dy-step__t">4 · Resumo</p>
+      <div class="dy-step"><p class="dy-step__t">Resumo</p>
         <div class="dy-sum">
           <div><small>Entrada</small><b>${esc(d.clock_in_label)}</b></div>
           <div><small>Saída</small><b>${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}</b></div>
-          <div><small>Horas${d.lunch_minutes ? ` (−${d.lunch_minutes} almoço)` : ""}</small><b>${esc(minLabel(est.worked))}</b></div>
-          <div class="ot"><small>Extra (depois das ${esc(d.expected_end_label || emp.schedule.end_time)})</small><b>${est.ot ? esc(minLabel(est.ot)) : "—"}</b></div>
           ${est.reimb ? `<div><small>Reembolso pedido</small><b>+${esc(money(est.reimb))}</b></div>` : ""}
-          <div class="big"><small>${emp.pay_type === "production" ? `${est.sqft || 0} sq ft` : "Estimativa do dia"}</small><b>${esc(money(est.amount))}</b></div>
         </div>
         ${est.reimb ? `<p class="dy-gps">${ICON.pin} O reembolso vai para o escritório conferir.</p>` : ""}</div>`;
     const blocked = missing.length > 0;
@@ -895,7 +862,8 @@
     setBusy(btn, true);
     const g = await gps();
     try {
-      const jobs = S.day.jobs.map((j) => ({ work_order_id: j.id, sqft: Number(sheet.sqft[j.id]) || 0 }));
+      // GPS is captured silently for payroll — never shown to the crew.
+      const jobs = (S.day.jobs || []).map((j) => ({ work_order_id: j.id, sqft: Number(sheet.sqft[j.id]) || 0 }));
       const expenses = (sheet.expenses || []).map((e) => ({
         amount: e.amount,
         description: e.description,
@@ -908,9 +876,9 @@
           jobs,
           note: sheet.note || null,
           expenses,
-          lat: g?.lat,
-          lng: g?.lng,
-          accuracy: g?.accuracy,
+          lat: g?.lat ?? null,
+          lng: g?.lng ?? null,
+          accuracy: g?.accuracy ?? null,
           device_at: new Date().toISOString(),
         }),
       });

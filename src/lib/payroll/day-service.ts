@@ -268,8 +268,10 @@ export async function closeDay(
   const existingJobs = await tx.campoShiftJob.findMany({ where: { shiftId }, orderBy: { sortOrder: "asc" } });
   const wanted = input.jobs.length ? input.jobs : existingJobs.map((j) => ({ workOrderId: j.workOrderId, sqft: num(j.sqft) }));
   const keep = new Set(wanted.map((j) => j.workOrderId));
-  await tx.campoShiftJob.deleteMany({ where: { shiftId, workOrderId: { notIn: [...keep] } } });
-  const photos = await photoCounts(tx, ctx.userId, [...keep], shift.workDate, tz);
+  // Empty notIn is unsafe in SQL — clear all jobs when the day has none listed.
+  if (!keep.size) await tx.campoShiftJob.deleteMany({ where: { shiftId } });
+  else await tx.campoShiftJob.deleteMany({ where: { shiftId, workOrderId: { notIn: [...keep] } } });
+  const photos = keep.size ? await photoCounts(tx, ctx.userId, [...keep], shift.workDate, tz) : new Map<string, number>();
   let order = 0;
   for (const j of wanted) {
     const prev = existingJobs.find((e) => e.workOrderId === j.workOrderId);

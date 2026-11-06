@@ -2,7 +2,7 @@
  * Campo · Meu dia — the employee's work day (mobile first).
  *
  * GET  /api/campo/dia                 today's state, jobs, week, payments
- * POST /api/campo/dia/start           begin the day (time + GPS + first job)
+ * POST /api/campo/dia/start           begin the day (time; job optional; GPS stored silently)
  * POST /api/campo/dia/jobs            add / switch to another job
  * DELETE /api/campo/dia/jobs/:woId    remove a job added by mistake
  * POST /api/campo/dia/finish          finish (jobs + sqft + note + GPS + recibos) — photos of today required
@@ -357,13 +357,12 @@ campoDiaRouter.post("/api/campo/dia/start", requireCrmAuth, async (req: AuthedRe
     const gps = gpsFrom(req.body || {});
     const replayedAt = offlineStartAt(req.body || {}, new Date());
     const now = replayedAt ?? new Date();
-    // Pick the job first (outside the write) so we can geocode it before measuring distance.
+    // Job is optional — clock-in alone is enough. If a job is sent, geocode it for silent GPS distance.
     const pre = await withTenantTransaction(req.organizationId!, async (tx) => {
       const emp = await ownEmployee(tx, req);
       if (!emp) throw httpErr(409, "Seu usuário não está ligado à folha. Fale com o escritório.", "NOT_LINKED");
-      if (b.data.work_order_id) return (await accessibleJob(tx, b.data.work_order_id)).id;
-      const agenda = await jobsForDay(tx, userId, workDateFor(now, tz), tz);
-      return agenda[0]?.id ?? null;
+      if (!b.data.work_order_id) return null;
+      return (await accessibleJob(tx, b.data.work_order_id)).id;
     });
     if (pre) await ensureJobGeo(req.organizationId!, pre);
 
@@ -493,7 +492,7 @@ const finishBody = z.object({
   expenses: z.array(expenseItem).max(8).optional(),
 });
 
-/** Blocking rules shared by finish and manual: a job, photos of the day per job, sqft for production. */
+/** Finish/manual rules: job is optional. Photos and production sq ft only apply when jobs are listed. */
 async function assertFinishable(
   tx: PayrollTx,
   emp: NonNullable<Awaited<ReturnType<typeof ownEmployee>>>,
@@ -502,7 +501,7 @@ async function assertFinishable(
   tz: string,
   jobs: { workOrderId: string; sqft: number }[],
 ) {
-  if (!jobs.length) throw httpErr(422, "Informe em qual job você trabalhou.", "JOB_REQUIRED");
+  if (!jobs.length) return;
   for (const j of jobs) await accessibleJob(tx, j.workOrderId);
   if (emp.payType === "production" && !jobs.some((j) => j.sqft > 0)) {
     throw httpErr(422, "Informe quantos sq ft você fez hoje.", "SQFT_REQUIRED");
