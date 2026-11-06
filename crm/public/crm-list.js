@@ -34,6 +34,11 @@
 
   function labelOf(h) { return textNoCount(h); }
 
+  function barName(g) {
+    var named = g.head && g.head.getAttribute("data-ol-short");
+    return named || g.label.split(" · ")[0];
+  }
+
   function textNoCount(el) {
     var c = el.cloneNode(true);
     c.querySelectorAll("em, .visually-hidden, svg").forEach(function (n) { n.remove(); });
@@ -196,7 +201,7 @@
       groups.forEach(function (g, gi) {
         if (!g.head) return;
         if (onlyBar && g.head.getAttribute("data-ol-bar") !== "1") return;
-        var short = g.label.split(" · ")[0];
+        var short = barName(g);
         var n = parseInt((g.head.querySelector("em") || {}).textContent, 10);
         if (isNaN(n)) n = g.items.length;
         if (byShort[short]) { byShort[short].n += n; return; }
@@ -204,10 +209,14 @@
         idx.push(byShort[short]);
       });
       var foldLabel = anyOpen ? "Recolher todos os grupos" : "Abrir todos os grupos";
-      html += '<div class="ol-idx"><nav class="ol-idx__list" aria-label="Ir para o grupo">' +
+      var allBtn = "";
+      if (L.list && L.list.getAttribute("data-ol-all") === "1") {
+        allBtn = '<button type="button" class="ol-idx__b' + (L.allOn ? " is-here" : "") + '" data-ol-allbtn="1" aria-label="Visualizar todos os jobs">All</button>';
+      }
+      html += '<div class="ol-idx"><nav class="ol-idx__list" aria-label="Ir para o grupo">' + allBtn +
         idx.map(function (x) {
           return '<button type="button" class="ol-idx__b' + (x.hot ? " is-hot" : "") + (x.folded ? " is-folded" : "") +
-            (L.spy === x.short ? " is-here" : "") + '" data-ol-go="' + x.gi + '" data-ol-short="' + esc(x.short) + '">' +
+            (!L.allOn && L.spy === x.short ? " is-here" : "") + '" data-ol-go="' + x.gi + '" data-ol-short="' + esc(x.short) + '">' +
             esc(x.short) + "<em>" + x.n + "</em></button>";
         }).join("") +
         '</nav><button type="button" class="ol-idx__fold" data-ol-foldall="' + (anyOpen ? "1" : "0") + '" aria-label="' + foldLabel +
@@ -260,7 +269,7 @@
     } else {
       target.scrollIntoView({ block: "start", behavior: smooth ? "smooth" : "auto" });
     }
-    L.spy = g.label.split(" · ")[0];
+    L.spy = barName(g);
     // o grupo tocado fica marcado mesmo que a lista não role até ele (fim da lista)
     L.spyLock = Date.now() + 1200;
     markSpy(L);
@@ -278,7 +287,7 @@
       if (el.getBoundingClientRect().top <= edge) cur = g;
     });
     if (!cur) cur = L.groups.filter(function (g) { return g.head; })[0];
-    var short = cur ? cur.label.split(" · ")[0] : "";
+    var short = cur ? barName(cur) : "";
     if (short === L.spy) return;
     L.spy = short;
     markSpy(L);
@@ -350,6 +359,10 @@
         if (k === "all") L.filters.slice().reverse().forEach(function (f) { f.clear(); });
         else if (L.filters[+k]) L.filters[+k].clear();
         setTimeout(function () { apply(L); }, 0);
+        return;
+      }
+      if (e.target.closest("[data-ol-allbtn]")) {
+        L.list.dispatchEvent(new CustomEvent("ol-all", { bubbles: true }));
         return;
       }
       var go = e.target.closest("[data-ol-go]");
