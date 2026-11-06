@@ -78,27 +78,14 @@
     return items;
   }
 
-  /** WCAG relative luminance of a #rrggbb color, or null when it can't be read. */
-  function luminance(color) {
-    const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(String(color || ""));
-    if (!m) return null;
-    const [r, g, b] = [m[1], m[2], m[3]].map((h) => {
-      const c = parseInt(h, 16) / 255;
-      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-    });
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  }
-
   /**
-   * The number stays readable on any color a company registers: picks whichever of black and
-   * white has the better contrast (always 4.5:1 or more), on the worse side of a two-color day.
+   * A light tint of the registered color, so the number always reads, and the color at full
+   * strength in a bar along the bottom, so the day still matches the Agenda and the legend.
    */
-  function inkOn(shades) {
-    const lums = shades.map(luminance).filter((l) => l != null);
-    if (!lums.length) return "#000";
-    const onWhite = Math.min(...lums.map((l) => 1.05 / (l + 0.05)));
-    const onBlack = Math.min(...lums.map((l) => (l + 0.05) / 0.05));
-    return onBlack >= onWhite ? "#000" : "#fff";
+  function dayPaint(shades) {
+    const [one, two = one] = shades;
+    const bar = `linear-gradient(90deg, ${one} 50%, ${two} 50%) bottom / 100% 4px no-repeat`;
+    return `background:${bar}, linear-gradient(90deg, ${one}2e 50%, ${two}2e 50%)`;
   }
 
   function monthGrid(items, cursor, colors, opts) {
@@ -121,9 +108,8 @@
       }
       const roles = [...new Set(hits.map((h) => h.role))];
       const shades = roles.map((r) => colors[r] || NO_COLOR);
-      const paint = shades.length > 1 ? `linear-gradient(135deg, ${shades[0]} 50%, ${shades[1]} 50%)` : shades[0];
       const label = `${dayText(d)}: ${[...new Set(hits.map((h) => h.label))].join(" e ")}`;
-      const style = `background:${esc(paint)};color:${inkOn(shades)}`;
+      const style = esc(dayPaint(shades));
       cells.push(
         `<li class="${cls}"${current}>${
           opts.canViewCalendar

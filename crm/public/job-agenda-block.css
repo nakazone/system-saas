@@ -14,8 +14,8 @@
 .ja-cell { min-width: 0; }
 .ja-cell > span, .ja-cell > a { display: grid; place-items: center; aspect-ratio: 1; max-height: 36px; width: 100%; border-radius: 8px; font-size: 12.5px; font-weight: 500; font-variant-numeric: tabular-nums; color: #475467; text-decoration: none !important; }
 .ja-cell.is-out > span { color: #D0D5DD; }
-.ja-cell.is-on > span, .ja-cell.is-on > a { font-weight: 700; }
-.ja-cell > a:hover { filter: brightness(1.12); }
+.ja-cell.is-on > span, .ja-cell.is-on > a { font-weight: 700; color: #221E1A; }
+.ja-cell > a:hover { filter: brightness(.94); }
 .ja-cell > a:focus-visible { outline: 2px solid #E7792C; outline-offset: 1px; }
 /* Today reads with or without a job on it. */
 .ja-cell.is-today > span, .ja-cell.is-today > a { box-shadow: inset 0 0 0 2px #E7792C; }
