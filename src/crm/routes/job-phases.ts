@@ -104,7 +104,7 @@ async function phasesState(tx: TenantPrisma, req: AuthedRequest, jobId: string) 
   return {
     // The step the builder confirms in ObraBuilder, and the "site not ready" report on it.
     builder_gate: gate
-      ? { phase: gate.phase, requirement: gate.requirement, builder_job: builderJob, can_charge: perms(req).manage && Boolean(gate.tripService), trip_service: gate.tripService ?? null }
+      ? { phase: gate.phase, requirement: gate.requirement, builder_job: builderJob, can_charge: perms(req).manage && Boolean(gate.tripService), trip_service: gate.tripService ?? null, visit: gate.visit }
       : null,
     slabs,
     // Pieces made again (Countertops remakes); the cost only for the office.
@@ -516,7 +516,7 @@ jobPhasesRouter.post("/api/work-orders/:id/phases/site-not-ready", requireCrmAut
     const g = out.pack.builderGate!;
     if (out.builderJob) {
       const who = out.r.cleared?.by ? ` It was confirmed ready by ${out.r.cleared.by}.` : "";
-      const fee = out.r.charged ? ` A charge for \u201c${out.r.charged.name}\u201d was added to the job.` : "";
+      const fee = out.r.charged && out.r.charged.amount > 0 ? ` A charge for \u201c${out.r.charged.name}\u201d was added to the job.` : "";
       const note = body.data.note ? ` Notes: ${body.data.note}${/[.!?]$/.test(body.data.note) ? "" : "."}` : "";
       await postMessage({
         organizationId: req.organizationId!, workOrderId: jobId, side: "company",
@@ -525,7 +525,7 @@ jobPhasesRouter.post("/api/work-orders/:id/phases/site-not-ready", requireCrmAut
         files: [],
       }).catch(() => undefined);
     }
-    res.json({ success: true, data: out.data, charged: out.r.charged });
+    res.json({ success: true, data: { ...out.data, charged: out.r.charged }, charged: out.r.charged });
   } catch (error) {
     fail(res, next, error);
   }

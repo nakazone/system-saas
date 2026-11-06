@@ -44,6 +44,12 @@ describe("what the builder sees of the phases", () => {
     expect(g!.question).toMatch(/Plumbing roughed in/);
   });
 
+  it("charges a lost tile trip from the Tile catalog's own service", () => {
+    expect(tile.builderGate!.tripService).toBe("Return Trip – Site Not Ready");
+    expect(tile.services.map((x) => x.name)).toContain(tile.builderGate!.tripService);
+    expect(tops.services.map((x) => x.name)).toContain(tops.builderGate!.tripService);
+  });
+
   it("has nothing to confirm for hardwood", () => {
     expect(builderGateView(getPack("hardwood"), [])).toBeNull();
     expect(builderPhaseSteps(getPack("hardwood"), [])).toEqual([]);
@@ -169,11 +175,21 @@ describe.skipIf(!privileged)("the site was not ready for the visit", () => {
     expect(lines).toBe(1);
   });
 
+  it("adds the trip with no price when the service is not priced yet", async () => {
+    const { siteNotReady } = await import("../src/lib/trades/builder-gate.js");
+    await withTenantTransaction(org, (tx) => tx.pricingItem.updateMany({ where: { name: "Return Trip – Site Not Ready" }, data: { price: 0, priceBuilder: 0 } }));
+    const r = await withTenantTransaction(org, (tx) => siteNotReady(tx, tops, org, job, { charge: true }));
+    expect(r).toMatchObject({ ok: true, charged: { name: "Return Trip – Site Not Ready", amount: 0 } });
+  });
+
   it("is wired into the phases page", () => {
     const js = readFileSync("crm/public/job-phases.js", "utf8");
     const route = readFileSync("src/crm/routes/job-phases.ts", "utf8");
     expect(js).toContain("data-not-ready");
     expect(route).toContain('"/api/work-orders/:id/phases/site-not-ready"');
     expect(route).toContain("charge: manage");
+    // an unpriced trip goes on the job for the office to price; the builder is not told of a $0 charge
+    expect(route).toContain("out.r.charged.amount > 0");
+    expect(js).toContain("sem preço");
   });
 });

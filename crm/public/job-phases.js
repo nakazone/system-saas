@@ -575,7 +575,7 @@
             bg.can_charge ? `\u201c${bg.trip_service}\u201d entra no job com o preço da Tabela de Valores.` : bg.trip_service ? "O escritório decide se cobra a viagem perdida." : "",
           ].filter(Boolean).join(" "),
           label: "O que faltava?",
-          placeholder: "Ex.: cabinets da ilha sem nivelar, pia não chegou",
+          placeholder: bg.visit === "tile" ? "Ex.: registro do chuveiro fora da altura, parede sem placa" : "Ex.: cabinets da ilha sem nivelar, pia não chegou",
           type: "textarea",
           ok: "Registrar",
           cancel: "Voltar",
@@ -583,7 +583,8 @@
           if (note === null || note === undefined) return;
           run(async () => {
             const r = await api(`${base}/site-not-ready`, { method: "POST", body: JSON.stringify({ note: String(note || "").trim() }) });
-            took(r, bg.builder_job ? "Registrado. A construtora foi avisada." : "Registrado.");
+            const unpriced = r && r.charged && !(Number(r.charged.amount) > 0);
+            took(r, (bg.builder_job ? "Registrado. A construtora foi avisada." : "Registrado.") + (unpriced ? " A viagem perdida entrou no job sem preço: defina o valor no job." : ""));
           });
         });
         return;

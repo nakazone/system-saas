@@ -56,6 +56,7 @@ export const TILE_SERVICES: PackService[] = [
   svc(450, "Heated Floor System Installation", "custom", "sq ft", "Mat or cable; ohm readings before and after tile. Electrician separate."),
   svc(460, "Grout Sealing", "custom", "sq ft"),
   svc(470, "Minimum Charge", "custom", "fixed", "Small jobs and repairs."),
+  svc(480, "Return Trip – Site Not Ready", "custom", "unit", "Crew trip lost because the site was not ready for tile."),
   // Supply
   svc(900, "Supply: Tile", "supply", "sq ft"),
   svc(910, "Supply: Setting Materials (Mortar, Grout, Membrane)", "supply", "fixed"),

@@ -128,6 +128,7 @@ export const tile: TradePack = {
     question: "Plumbing roughed in and inspected, shower valve and drain at height, blocking in for grab bars and niches, walls boarded.",
     done: "Site ready for tile",
     visit: "tile",
+    tripService: "Return Trip – Site Not Ready",
   },
   combinedPhaseKey: "all",
   phaseStorage: "table",
