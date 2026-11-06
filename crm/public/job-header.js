@@ -2,7 +2,7 @@
  * Job header — the one place that answers "who, where, when, who's on it, how's the money"
  * and gives the next step. Shared by the Jobs side panel and the job page.
  *
- * window.JobHeader = { html, bind, primary, noteParts, alerts, menu, whenSub }
+ * window.JobHeader = { html, bind, primary, noteParts, alerts, menu, whenSub, deliveryText }
  *
  * ctx: { mode: "panel" | "page", canManage, canBill, canInvoice, can(perm), billing, invoices, field, photos }
  * handlers: { act(name, el), step(index), status(status) }
@@ -20,7 +20,6 @@
     chat: '<path d="M21 11.5a8.4 8.4 0 01-12.3 7.4L3 21l2.1-5.7A8.4 8.4 0 1121 11.5z"/>',
     ticket: '<path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 01-2 2H6a2 2 0 01-2-2V5a2 2 0 012-2h9"/>',
     quote: '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>',
-    cost: '<path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>',
   };
   const svg = (k) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICON[k]}</svg>`;
 
@@ -216,6 +215,18 @@
     return `<p class="jh-line" role="status"><span class="jh-line__dot" aria-hidden="true"></span><span>${esc(text)}</span>${acts}</p>`;
   }
 
+  /** "Sáb 7 nov, 09:00". A delivery saved without a time keeps midnight, which says nothing. */
+  function deliveryWhen(stop) {
+    const d = stop?.scheduled_start ? new Date(stop.scheduled_start) : null;
+    if (!d || Number.isNaN(d.getTime())) return "";
+    const day = `${["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][d.getDay()]} ${d.getDate()} ${["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"][d.getMonth()]}`;
+    if (d.getHours() === 0 && d.getMinutes() === 0) return day;
+    return `${day}, ${d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+  }
+  function deliveryText(stop) {
+    return [deliveryWhen(stop), stop?.location_name || stop?.pickup_address].filter(Boolean).join(" · ");
+  }
+
   /** Field problem, attention and delivery stay in view on every tab. */
   function alerts(wo, ctx) {
     const { esc } = J();
@@ -226,15 +237,21 @@
     if (att) rows.push(`<li><b>Atenção para o campo</b><span>${esc(att)}</span></li>`);
     if (wo.needs_delivery) {
       const f = wo.delivery_attachment;
-      const pickup = wo.delivery_pickup_address
-        ? `<a href="https://maps.google.com/?q=${encodeURIComponent(wo.delivery_pickup_address)}" target="_blank" rel="noopener">${esc(wo.delivery_pickup_address)}</a>`
-        : "Retirar material da obra";
+      const stops = (wo.deliveries || []).length ? wo.deliveries : [{ pickup_address: wo.delivery_pickup_address, notes: wo.delivery_notes }];
       const share = ctx.canManage && ctx.mode === "page" && ctx.partnerPortal && f?.key
         ? `<button type="button" class="jh-line__act" data-delivery-share data-on="${f.shared_with_partners ? "1" : "0"}" aria-pressed="${f.shared_with_partners ? "true" : "false"}">${f.shared_with_partners ? "Remover do portal do parceiro" : "Compartilhar com parceiro"}</button>`
         : "";
-      rows.push(`<li><b>Entrega</b><span>${pickup}${wo.delivery_notes ? ` · ${esc(wo.delivery_notes)}` : ""}${
-        f?.url ? ` · <a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.name || "Anexo")}</a>` : ""
-      }${share ? ` ${share}` : ""}</span></li>`);
+      stops.forEach((stop, i) => {
+        const where = stop.location_name || stop.pickup_address;
+        const place = !where
+          ? "Retirar material da obra"
+          : stop.pickup_address
+            ? `<a href="https://maps.google.com/?q=${encodeURIComponent(stop.pickup_address)}" target="_blank" rel="noopener">${esc(where)}</a>`
+            : esc(where);
+        const when = deliveryWhen(stop);
+        const file = i === 0 && f?.url ? ` · <a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.name || "Anexo")}</a>` : "";
+        rows.push(`<li><b>${stops.length > 1 ? `Entrega ${i + 1}` : "Entrega"}</b><span>${when ? `<strong>${esc(when)}</strong> · ` : ""}${place}${stop.notes ? ` · ${esc(stop.notes)}` : ""}${file}${i === 0 && share ? ` ${share}` : ""}</span></li>`);
+      });
     }
     return rows.length ? `<ul class="jh-alerts">${rows.join("")}</ul>` : "";
   }
@@ -336,9 +353,6 @@
     items.push(`<a class="jh-mod" href="/campo/ticket.html?id=${id}" target="_blank" rel="noopener">${svg("ticket")}<span>Ticket da equipe</span></a>`);
     if (wo.quote_id && can(ctx, "quotes.view")) {
       items.push(`<a class="jh-mod" href="quote-builder.html?id=${encodeURIComponent(wo.quote_id)}">${svg("quote")}<span>Orçamento${wo.quote_number ? ` ${esc(wo.quote_number)}` : ""}</span></a>`);
-    }
-    if (can(ctx, "finance.manage")) {
-      items.push(`<a class="jh-mod" href="finance.html?new=cost&job=${id}">${svg("cost")}<span>Lançar custo</span></a>`);
     }
     return `<nav class="jh-mods" aria-label="Este job em outros módulos">${items.join("")}</nav>`;
   }
@@ -452,5 +466,5 @@
     });
   }
 
-  window.JobHeader = { html, bind, primary, noteParts, alerts, menu, whenSub };
+  window.JobHeader = { html, bind, primary, noteParts, alerts, menu, whenSub, deliveryText };
 })();

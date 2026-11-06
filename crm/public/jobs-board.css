@@ -484,7 +484,7 @@
 .jx-rail .jx-box { margin-bottom: 0; padding: 12px 14px; border-radius: 22px; }
 .jx-rail .jx-box h3 { margin-bottom: 8px; }
 .jx-layout:not([data-tab="geral"]) .jx-rail { display: none; }
-@container jxd (min-width: 980px) {
+@container jxd (min-width: 920px) {
   .jx-layout { grid-template-columns: minmax(0, 1fr) 300px; }
   .jx-layout:not([data-tab="geral"]) .jx-rail { display: grid; }
   .jx-rail { position: sticky; top: 68px; max-height: calc(100vh - 68px - 96px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 1px; }
@@ -492,7 +492,15 @@
   /* With the rail beside it, the card keeps client, site and team; the dates live in the rail. */
   #jxHeader .jh-fact--when { display: none; }
 }
-@media (max-height: 860px) {
-  .jx-rail .ja-week { display: none; }
+/* Tablet with the list beside the job: no room for a column, so the rail opens the overview. */
+@container jxd (min-width: 640px) and (max-width: 919.98px) {
+  .jx-layout { gap: 0; }
+  .jx-layout__main { display: contents; }
+  .jx-layout__main > * { min-width: 0; }
+  #jxHeader { order: 1; }
+  .jx-tabs { order: 2; }
+  .jx-rail { order: 3; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto 1fr; align-items: start; margin-top: 12px; }
+  .jx-panel { order: 4; }
+  #jxAgendaBox { grid-row: span 2; }
 }
 #jxHeader .jh { margin-bottom: 12px; }

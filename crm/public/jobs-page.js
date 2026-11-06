@@ -922,7 +922,6 @@
             ? `<div class="jx-box"><h3>Notas da obra${canManage ? `<button type="button" class="jx-lnk" data-jx-act="notes">Editar</button>` : ""}</h3><p class="jx-note">${J.esc(notes)}</p></div>`
             : `<div class="jx-box is-empty"><h3>Notas da obra<span class="jx-hint">${code ? "Só o código da caixa, que está no cabeçalho" : canManage ? "Acesso, portão, cuidados com a obra" : "Sem notas"}</span>${canManage ? `<button type="button" class="jx-lnk" data-jx-act="notes">${code ? "Editar" : "Adicionar"}</button>` : ""}</h3></div>`
         }
-        ${partnerBox(wo)}
     </div>`;
   }
 
@@ -968,7 +967,7 @@
 
   function panelFotos(wo) {
     const n = mediaCache ? mediaCache.length : null;
-    return `${partnerBox(wo)}<div class="jx-box">
+    return `<div class="jx-box">
       <h3>Fotos${n != null ? `<span class="jx-ch__n">${n}</span>` : ""}</h3>
       <div id="jxPhotos">${n == null ? `<p class="jx-none">A carregar fotos…</p>` : ""}</div>
     </div>`;
@@ -1215,7 +1214,7 @@
             : tab === "conversa"
               ? panelConversa()
               : tab === "builder"
-                ? `<div id="jxBuilder"></div>`
+                ? `${partnerBox(wo)}<div id="jxBuilder"></div>`
                 : panelGeral(wo);
 
     // Changing tab must not reload or blink the rail: the same element goes back in place.
@@ -1235,7 +1234,7 @@
     if (keepRail) $("jxRailSlot").replaceWith(kept);
     else mountRail(wo);
     if (keepRail) syncRail(wo);
-    if (hasPartnerPortal(wo) && (tab === "geral" || tab === "fotos")) ensurePartnerDocs(wo);
+    if (hasPartnerPortal(wo) && tab === "builder") ensurePartnerDocs(wo);
     mountLazyPanels(wo);
     ensureFieldSummary(wo);
   }

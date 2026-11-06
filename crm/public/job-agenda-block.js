@@ -1,5 +1,6 @@
 /**
- * Calendar inside a job: when it happens, where it stands today, and who else needs the same people.
+ * Calendar inside a job: the month with this job's days in the same colors as the Agenda,
+ * where it stands today, and what else the same people have on those dates.
  * Shared by the Jobs side panel, the job page and the phone screen.
  *
  * window.JobAgendaBlock = { mount(el, opts) }
@@ -10,8 +11,11 @@
 
   const WD = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
   const MO = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+  const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
   const DAY = 86400000;
-  const MAX_CONFLICTS = 3;
+  const MAX_OTHERS = 3;
+  /** Used only until the Agenda's own colors arrive, or for people who can't open the Agenda. */
+  const FALLBACK = { main: "#221e1a", sand: "#8a7460", delivery: "#98a2b3" };
 
   function esc(s) {
     return String(s == null ? "" : s)
@@ -24,6 +28,7 @@
   const dayText = (d) => `${WD[d.getDay()]} ${d.getDate()} ${MO[d.getMonth()]}`;
   const dayDiff = (a, b) => Math.round((sod(a).getTime() - sod(b).getTime()) / DAY);
   const days = (n) => `${n} dia${n === 1 ? "" : "s"}`;
+  const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
   function periodText(start, end) {
     if (!end || sod(start).getTime() === sod(end).getTime()) return dayText(start);
@@ -44,88 +49,149 @@
     return `Dia ${dayDiff(today, start) + 1} de ${total}`;
   }
 
-  /** The week the job starts in; marked days are the ones it takes, in every phase. */
-  function weekStrip(ranges) {
-    const start = ranges[0].from;
-    const first = new Date(start.getFullYear(), start.getMonth(), start.getDate() - start.getDay());
+  /** Everything this job has on the calendar, one entry per kind of work. */
+  function jobItems(job) {
+    const items = [];
+    const date = (iso) => {
+      const d = iso ? new Date(iso) : null;
+      return d && !Number.isNaN(d.getTime()) ? d : null;
+    };
+    const start = date(job.scheduled_start);
+    const end = date(job.scheduled_end);
+    if (start || job.sector === "both") {
+      items.push({ role: "main", label: job.sector === "sand_finish" ? "Lixa" : "Instalação", from: start, to: end });
+    }
+    if (job.sector === "both") {
+      items.push({ role: "sand", label: "Lixa", from: date(job.sand_scheduled_start), to: null });
+    }
+    (job.deliveries || []).forEach((d, i, all) => {
+      const at = date(d.scheduled_start);
+      if (!at) return;
+      items.push({
+        role: "delivery",
+        label: all.length > 1 ? `Entrega ${i + 1}` : "Entrega",
+        from: at,
+        to: null,
+        detail: window.JobHeader?.deliveryText?.(d) || "",
+      });
+    });
+    return items;
+  }
+
+  /** Readable text on any calendar color, since each company picks its own. */
+  function inkOn(color) {
+    const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(String(color || ""));
+    if (!m) return "#fff";
+    const [r, g, b] = [m[1], m[2], m[3]].map((h) => parseInt(h, 16));
+    return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.62 ? "#221e1a" : "#fff";
+  }
+
+  function monthGrid(items, cursor, colors, opts) {
+    const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+    const gridStart = new Date(first.getFullYear(), first.getMonth(), 1 - first.getDay());
+    const weeks = Math.ceil((first.getDay() + new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate()) / 7);
     const today = sod(new Date()).getTime();
-    const spans = ranges.map((r) => [sod(r.from).getTime(), sod(r.to || r.from).getTime()]);
+    const dated = items.filter((i) => i.from);
     const cells = [];
-    for (let i = 0; i < 7; i += 1) {
-      const d = new Date(first.getFullYear(), first.getMonth(), first.getDate() + i);
+    for (let i = 0; i < weeks * 7; i += 1) {
+      const d = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i);
       const t = d.getTime();
-      const on = spans.some(([from, to]) => t >= from && t <= to);
+      const hits = dated.filter((it) => t >= sod(it.from).getTime() && t <= sod(it.to || it.from).getTime());
+      const inMonth = d.getMonth() === cursor.getMonth();
+      const cls = `ja-cell${inMonth ? "" : " is-out"}${t === today ? " is-today" : ""}${hits.length ? " is-on" : ""}`;
+      const current = t === today ? ' aria-current="date"' : "";
+      if (!hits.length) {
+        cells.push(`<li class="${cls}"${current}><span>${d.getDate()}</span></li>`);
+        continue;
+      }
+      const roles = [...new Set(hits.map((h) => h.role))];
+      const shades = roles.map((r) => colors[r] || FALLBACK[r]);
+      const paint = shades.length > 1 ? `linear-gradient(135deg, ${shades[0]} 50%, ${shades[1]} 50%)` : shades[0];
+      const label = `${dayText(d)}: ${[...new Set(hits.map((h) => h.label))].join(" e ")}`;
+      const style = `background:${esc(paint)};color:${inkOn(shades[0])}`;
       cells.push(
-        `<li class="ja-day${on ? " is-on" : ""}${t === today ? " is-today" : ""}"${t === today ? ' aria-current="date"' : ""}><small>${WD[d.getDay()][0]}</small><b>${d.getDate()}</b></li>`,
+        `<li class="${cls}"${current}>${
+          opts.canViewCalendar
+            ? `<a href="schedule.html?date=${ymd(d)}&view=day" style="${style}" title="${esc(label)}" aria-label="${esc(`${label}. Abrir no calendário`)}">${d.getDate()}</a>`
+            : `<span style="${style}" title="${esc(label)}" aria-label="${esc(label)}">${d.getDate()}</span>`
+        }</li>`,
       );
     }
-    const week = new Date(first.getFullYear(), first.getMonth(), first.getDate() + 6).getTime();
-    const later = spans.reduce((n, [from, to]) => n + (to > week ? Math.round((to - Math.max(from, week + DAY)) / DAY) + 1 : 0), 0);
-    return `<ol class="ja-week" aria-label="Dias do job nesta semana">${cells.join("")}</ol>${later ? `<p class="ja-sub">e mais ${days(later)} depois desta semana</p>` : ""}`;
+    return `<div class="ja-month">
+      <div class="ja-month__h">
+        <button type="button" class="ja-nav" data-ja-month="-1" aria-label="Mês anterior">‹</button>
+        <b aria-live="polite">${MONTHS[cursor.getMonth()]} ${cursor.getFullYear()}</b>
+        <button type="button" class="ja-nav" data-ja-month="1" aria-label="Próximo mês">›</button>
+      </div>
+      <ol class="ja-wd" aria-hidden="true">${WD.map((w) => `<li>${w[0]}</li>`).join("")}</ol>
+      <ol class="ja-grid" aria-label="Dias do job em ${MONTHS[cursor.getMonth()]}">${cells.join("")}</ol>
+    </div>`;
   }
 
-  function calendarHref(job, iso) {
-    return iso ? `schedule.html?focus=${encodeURIComponent(iso)}&event=${encodeURIComponent(job.id)}` : "schedule.html";
+  /** The key to the colors, and the dates in words: color is never the only signal. */
+  function legend(job, items, colors) {
+    const open = job.status !== "completed" && job.status !== "canceled";
+    return `<ul class="ja-key">${items
+      .map((it) => {
+        const color = colors[it.role] || FALLBACK[it.role];
+        const when = !it.from
+          ? "Sem data"
+          : it.role === "delivery"
+            ? it.detail || dayText(it.from)
+            : periodText(it.from, it.to);
+        const note = it.from && open && it.role !== "delivery" ? progressText(job, it.from, it.to) : "";
+        return `<li><i style="background:${it.from ? esc(color) : "transparent"}" class="${it.from ? "" : "is-empty"}" aria-hidden="true"></i><span><small>${esc(it.label)}</small><b>${esc(when)}</b>${note ? `<em>${esc(note)}</em>` : ""}</span></li>`;
+      })
+      .join("")}</ul>`;
   }
 
-  function conflictHtml(list) {
+  function othersHtml(list) {
     if (!list.length) return "";
-    const rows = list.slice(0, MAX_CONFLICTS).map((c) => {
-      const s = new Date(c.start);
-      const when = periodText(s, c.end ? new Date(c.end) : null);
+    const rows = list.slice(0, MAX_OTHERS).map((c) => {
+      const when = periodText(new Date(c.start), c.end ? new Date(c.end) : null);
       const name = c.kind === "job" ? `${c.number != null ? `Job #${c.number}` : "Outro job"}${c.client ? ` · ${c.client}` : ""}` : `Reunião: ${c.title}`;
       const label = `${esc(name)}, ${esc(when)}`;
       return `<li>${c.kind === "job" ? `<a href="job-detail.html?id=${encodeURIComponent(c.id)}">${label}</a>` : label}</li>`;
     });
-    const extra = list.length - MAX_CONFLICTS;
-    return `<div class="ja-conflict" role="status">
-      <p><b>Conflito de agenda:</b> ${esc(list[0].who || "A equipe")} também está em</p>
+    const extra = list.length - MAX_OTHERS;
+    return `<div class="ja-others" role="status">
+      <p><b>Também nessa data:</b> ${esc(list[0].who || "A equipe")} tem</p>
       <ul>${rows.join("")}${extra > 0 ? `<li>e mais ${extra}</li>` : ""}</ul>
     </div>`;
   }
 
-  function deliveriesHtml(job) {
-    const stops = (job.deliveries || []).filter((d) => d && d.scheduled_start);
-    if (!stops.length) return "";
-    return `<ul class="ja-rows">${stops
-      .map((d) => `<li><span>Entrega</span><b>${esc(dayText(new Date(d.scheduled_start)))}</b>${d.pickup_address || d.location_name ? `<small>${esc(d.location_name || d.pickup_address)}</small>` : ""}</li>`)
-      .join("")}</ul>`;
+  function firstMonth(items) {
+    const dated = items.filter((i) => i.from).sort((a, b) => a.from - b.from);
+    const now = new Date();
+    // A job running now opens on this month; otherwise on the next thing it has, or its first date.
+    const running = dated.find((i) => sod(now) >= sod(i.from) && sod(now) <= sod(i.to || i.from));
+    const next = dated.find((i) => sod(i.from) >= sod(now));
+    const at = running ? now : next ? next.from : dated[0]?.from || now;
+    return new Date(at.getFullYear(), at.getMonth(), 1);
   }
 
-  function html(job, opts, conflicts) {
-    const start = job.scheduled_start ? new Date(job.scheduled_start) : null;
-    const end = job.scheduled_end ? new Date(job.scheduled_end) : null;
-    const sand = job.sand_scheduled_start ? new Date(job.sand_scheduled_start) : null;
+  function html(job, opts, state) {
     const open = job.status !== "completed" && job.status !== "canceled";
-    const both = job.sector === "both";
-    const anchor = start || sand;
+    const items = jobItems(job);
+    const anyDate = items.some((i) => i.from);
     const parts = [];
-
-    if (!anchor) {
+    if (!anyDate && !items.length) {
       parts.push(`<p class="ja-main ja-mu">Sem data</p><p class="ja-sub">${open ? "Este job ainda não está no calendário." : "Ficou sem data no calendário."}</p>`);
-    } else if (both) {
-      parts.push(`<ul class="ja-rows">
-        <li><span>Instalação</span><b>${start ? esc(periodText(start, end)) : "Sem data"}</b>${start && open ? `<small>${esc(progressText(job, start, end))}</small>` : ""}</li>
-        <li><span>Lixa</span><b>${sand ? esc(dayText(sand)) : "Sem data"}</b>${sand && open ? `<small>${esc(progressText(job, sand, null))}</small>` : ""}</li>
-      </ul>`);
-    } else {
-      const note = start ? progressText(job, start, end) : "";
-      parts.push(`<p class="ja-main">${esc(periodText(anchor, end))}</p>${note ? `<p class="ja-sub">${esc(note)}</p>` : ""}`);
     }
-    if (anchor) {
-      const ranges = [...(start ? [{ from: start, to: end }] : []), ...(sand ? [{ from: sand, to: null }] : [])];
-      parts.push(weekStrip(ranges));
-    }
-    if (open) parts.push(conflictHtml(conflicts || []));
-    parts.push(deliveriesHtml(job));
+    parts.push(monthGrid(items, state.cursor, state.colors, opts));
+    if (items.length) parts.push(legend(job, items, state.colors));
+    if (open) parts.push(othersHtml(state.others));
 
     const acts = [];
     if (opts.canManage && open) {
-      acts.push(`<button type="button" class="ja-act${anchor ? "" : " ja-act--main"}" data-ja-act="schedule">${anchor ? "Remarcar" : "Agendar"}</button>`);
+      acts.push(`<button type="button" class="ja-act${anyDate ? "" : " ja-act--main"}" data-ja-act="schedule">${anyDate ? "Remarcar" : "Agendar"}</button>`);
+      if (state.others.length) acts.push(`<button type="button" class="ja-act" data-ja-act="team">Trocar equipe</button>`);
       if (job.sector === "installation") acts.push(`<button type="button" class="ja-act" data-ja-act="sand">Agendar lixa</button>`);
     }
     if (opts.canViewCalendar && job.status !== "canceled") {
-      acts.push(`<a class="ja-act" href="${esc(calendarHref(job, anchor ? anchor.toISOString() : ""))}">Ver no calendário</a>`);
+      const first = items.filter((i) => i.from).sort((a, b) => a.from - b.from)[0];
+      const href = first ? `schedule.html?focus=${encodeURIComponent(first.from.toISOString())}&event=${encodeURIComponent(job.id)}` : "schedule.html";
+      acts.push(`<a class="ja-act" href="${esc(href)}">Ver no calendário</a>`);
     }
     if (acts.length) parts.push(`<div class="ja-acts">${acts.join("")}</div>`);
     return parts.join("");
@@ -133,27 +199,51 @@
 
   function mount(el, opts) {
     let job = opts.job;
-    let conflicts = [];
+    const state = { cursor: firstMonth(jobItems(job)), colors: {}, others: [] };
     let seq = 0;
     const paint = () => {
-      el.innerHTML = html(job, opts, conflicts);
+      el.innerHTML = html(job, opts, state);
     };
-    /** Conflicts arrive after the dates, so the block never waits on them. */
-    async function loadConflicts() {
-      const mine = ++seq;
-      conflicts = [];
-      if (!job.scheduled_start && !job.sand_scheduled_start) return;
-      try {
-        const r = await fetch(`/api/work-orders/${encodeURIComponent(job.id)}/schedule-conflicts`, { credentials: "include" });
-        const j = await r.json();
-        if (mine !== seq || !r.ok || !Array.isArray(j.data)) return;
-        conflicts = j.data;
-        if (el.isConnected) paint();
-      } catch (_) {
-        // Not knowing about a conflict must not get in the way of the dates.
-      }
+
+    /** Same source as the Agenda, so the colors always match, including each company's own. */
+    async function loadColors(mine) {
+      const dated = jobItems(job).filter((i) => i.from);
+      if (!dated.length || !opts.canViewCalendar) return;
+      const from = new Date(Math.min(...dated.map((i) => i.from.getTime())) - DAY);
+      const to = new Date(Math.max(...dated.map((i) => (i.to || i.from).getTime())) + DAY);
+      const r = await fetch(`/api/schedule/events?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`, { credentials: "include" });
+      const j = await r.json();
+      if (mine !== seq || !r.ok || !Array.isArray(j.data)) return;
+      const colors = {};
+      j.data.forEach((e) => {
+        if (String(e.meta?.id) === String(job.id) && e.meta?.date_role && e.color) colors[e.meta.date_role] = e.color;
+      });
+      state.colors = colors;
     }
+    async function loadOthers(mine) {
+      if (!job.scheduled_start && !job.sand_scheduled_start) return;
+      const r = await fetch(`/api/work-orders/${encodeURIComponent(job.id)}/schedule-conflicts`, { credentials: "include" });
+      const j = await r.json();
+      if (mine === seq && r.ok && Array.isArray(j.data)) state.others = j.data;
+    }
+    /** Dates show right away; colors and other jobs fill in, and a failure never hides the dates. */
+    function refresh() {
+      const mine = ++seq;
+      state.others = [];
+      Promise.allSettled([loadColors(mine), loadOthers(mine)]).then(() => {
+        if (mine === seq && el.isConnected) paint();
+      });
+    }
+
     el.addEventListener("click", (e) => {
+      const nav = e.target.closest("[data-ja-month]");
+      if (nav) {
+        const step = Number(nav.getAttribute("data-ja-month"));
+        state.cursor = new Date(state.cursor.getFullYear(), state.cursor.getMonth() + step, 1);
+        paint();
+        el.querySelector(`[data-ja-month="${step}"]`)?.focus();
+        return;
+      }
       const btn = e.target.closest("[data-ja-act]");
       if (!btn) return;
       const modal = window.__crmJobModal;
@@ -162,16 +252,18 @@
         if (typeof window.crmNotify === "function") window.crmNotify(msg, "error");
         else window.crmToast?.error?.(msg);
       };
-      if (btn.getAttribute("data-ja-act") === "sand") modal.openScheduleLixa(job).catch(fail);
-      else modal.openEdit(job.id, { section: "schedule" }).catch(fail);
+      const act = btn.getAttribute("data-ja-act");
+      if (act === "sand") modal.openScheduleLixa(job).catch(fail);
+      else modal.openEdit(job.id, { section: act }).catch(fail);
     });
     paint();
-    loadConflicts();
+    refresh();
     return {
       update(next) {
         job = next;
+        state.cursor = firstMonth(jobItems(job));
         paint();
-        loadConflicts();
+        refresh();
       },
     };
   }

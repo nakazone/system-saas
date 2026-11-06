@@ -662,7 +662,6 @@
       canManage ? `<button type="button" role="menuitem" data-jh-act="edit">Editar job</button>` : "",
       `<a role="menuitem" href="/campo/ticket.html?id=${id}">Abrir ticket da equipe</a>`,
       wo.quote_id && can("quotes.view") ? `<a role="menuitem" href="quote-builder.html?id=${encodeURIComponent(wo.quote_id)}">Abrir orçamento${wo.quote_number ? ` ${escapeHtml(wo.quote_number)}` : ""}</a>` : "",
-      can("finance.manage") ? `<a role="menuitem" href="finance.html?new=cost&job=${id}">Lançar custo</a>` : "",
     ].join("");
     $("jobMobMenu").innerHTML = window.JobHeader.menu(wo, headerCtx(), leading);
   }
