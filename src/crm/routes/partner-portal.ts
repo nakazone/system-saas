@@ -27,6 +27,9 @@ import { publishAppNotification } from "../../lib/notifications/publish.js";
 import { applyBuilderJobEdit, jobEditSchema, JobEditError } from "../../lib/builders/job-edit.js";
 import { findMeasurementForAddress, markMeasurementUsed, measurementPack } from "../../lib/builders/measurements.js";
 import { pickupForWorkOrder } from "../../lib/builders/pickups.js";
+import { builderGateView, builderPhaseSteps, setBuilderGate } from "../../lib/trades/builder-gate.js";
+import { primaryPack } from "../../lib/trades/index.js";
+import { ensureJobPhases } from "../../lib/trades/job-phases-db.js";
 import { findJobMatch, intakeItemsSchema, isIntakeReaderConfigured, readWorkOrder, type IntakeFile } from "../../lib/partner-intake/extract.js";
 import { parsePartnerPortalSettings } from "../../lib/settings/partner-portal.js";
 import { decodeMessageFiles, imageThumbnail, listMessages, messageFiles, postMessage, sendMessageFile, serializeMessage, thumbWidthOf } from "../../lib/jobs/partner-messages.js";
@@ -1083,8 +1086,12 @@ partnerPortalRouter.get("/api/partner-portal/jobs/:id", requirePartnerAuth, asyn
       if (!job) return null;
       const organization = await tx.organization.findFirst({
         where: { id: user.organizationId },
-        select: { timezone: true, featureFlags: true, name: true, contactPhone: true },
+        select: { timezone: true, featureFlags: true, name: true, contactPhone: true, tradePacks: true },
       });
+      const pack = primaryPack(organization?.tradePacks);
+      // Phases open on first sight (as in the CRM), so a job the builder sent shows its progress.
+      if (pack.phaseStorage === "table") await ensureJobPhases(tx, user.organizationId, job.id, pack);
+      const phaseRows = pack.phaseStorage === "table" ? await tx.jobPhase.findMany({ where: { workOrderId: job.id }, orderBy: { sortOrder: "asc" } }) : [];
       const invoiceScopes = await partnerInvoiceScopes(tx, user);
       const [media, reports, invoices, requests] = await Promise.all([
         tx.jobMedia.findMany({
@@ -1134,6 +1141,13 @@ partnerPortalRouter.get("/api/partner-portal/jobs/:id", requirePartnerAuth, asyn
           can_edit: partnerCan(req, "jobs.edit") && !["completed", "needs_invoicing", "canceled"].includes(job.status),
         },
         permissions: permissionsFor(req.portalRole || "legacy"),
+        // Where the job is (trades with phases) and the step the builder confirms on site.
+        progress: builderPhaseSteps(pack, phaseRows),
+        gate: (() => {
+          const g = builderGateView(pack, phaseRows);
+          if (!g) return null;
+          return { ...g, can_confirm: Boolean(req.builderMember) && canConfirmGate(req) && !["completed", "needs_invoicing", "canceled"].includes(job.status) };
+        })(),
         // Work information from the job ticket, with the job value (no costs or crew names).
         ticket: (() => {
           const notes = stripLockbox(job.notes);
@@ -1225,6 +1239,63 @@ partnerPortalRouter.get("/api/partner-portal/jobs/:id", requirePartnerAuth, asyn
     }
     const messages = (await listMessages(user.organizationId, data.job.id)).map((m) => serializeMessage(m, (mid, i) => bcUrl(req, `/api/partner-portal/jobs/${encodeURIComponent(data.job.id)}/messages/${encodeURIComponent(mid)}/files/${i}`)));
     res.json({ success: true, data: { ...data, messages } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/** Field people (superintendents) and the office confirm the site is ready. */
+function canConfirmGate(req: PartnerRequest): boolean {
+  return partnerCan(req, "measure") || partnerCan(req, "jobs.edit");
+}
+
+/** The builder confirms (or takes back) that the site is ready for the next step (Countertops: template). */
+partnerPortalRouter.post("/api/partner-portal/jobs/:id/gate", requirePartnerAuth, async (req: PartnerRequest, res, next) => {
+  try {
+    const user = req.partnerUser!;
+    if (!partnerDocsReady(user, res)) return;
+    if (!req.builderMember || !canConfirmGate(req)) {
+      res.status(403).json({ success: false, error: "Your role can't confirm this. Ask your admin." });
+      return;
+    }
+    const parsed = z.object({ ready: z.boolean() }).safeParse(req.body || {});
+    if (!parsed.success) {
+      res.status(400).json({ success: false, error: "Choose ready or not ready." });
+      return;
+    }
+    const member = req.builderMember;
+    const out = await withTenantTransaction(user.organizationId, async (tx) => {
+      const job = await tx.workOrder.findFirst({
+        where: { id: String(req.params.id), organizationId: user.organizationId, ...partnerJobScope(user), status: { notIn: ["canceled", "completed", "needs_invoicing"] } },
+        select: { id: true },
+      });
+      if (!job) return null;
+      const org = await tx.organization.findFirst({ where: { id: user.organizationId }, select: { tradePacks: true } });
+      const pack = primaryPack(org?.tradePacks);
+      if (pack.phaseStorage === "table") await ensureJobPhases(tx, user.organizationId, job.id, pack);
+      const result = await setBuilderGate(tx, pack, job.id, parsed.data.ready, { name: member.name, company: member.account.name });
+      return { job, pack, result };
+    });
+    if (!out) {
+      res.status(404).json({ success: false, error: "Job not found." });
+      return;
+    }
+    const r = out.result;
+    if (!r.ok) {
+      const msg = { no_gate: "This job has no step to confirm.", phase_done: "The company already closed this step.", not_yours: "The company recorded this step; only they can change it." }[r.error];
+      res.status(409).json({ success: false, error: msg });
+      return;
+    }
+    // The company hears it in the job's channel (with its usual notification).
+    if (r.changed) {
+      const g = r.view;
+      const body = parsed.data.ready
+        ? `${g.done_label}: ${g.question} Confirmed by ${member.name}.`
+        : `${g.done_label} — taken back by ${member.name}. Hold the visit until we confirm again.`;
+      await postMessage({ organizationId: user.organizationId, workOrderId: out.job.id, side: "builder", authorName: member.name || "Builder", partnerUserId: user.id, body, files: [] }).catch(() => undefined);
+    }
+    const g = r.view;
+    res.json({ success: true, data: { ...g, can_confirm: true } });
   } catch (error) {
     next(error);
   }

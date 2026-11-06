@@ -147,6 +147,12 @@ export type TradePack = {
    */
   inventory?: { slabs?: boolean; usedAtPhase?: string };
   measurement?: { tabs: readonly ("stairs" | "vents" | "showers" | "countertops" | "floors" | "summary")[] };
+  /**
+   * A step the builder confirms in ObraBuilder before the crew goes out (Countertops: kitchen
+   * ready for template). The confirmation is recorded as the evidence `requirement` of `phase`,
+   * so the company closes that phase without a wasted trip. English: the builder portal.
+   */
+  builderGate?: { phase: string; requirement: string; title: string; question: string; done: string };
   combinedPhaseKey: string;
   ai: {
     /** How the assistant describes the product's customers, e.g. "flooring installation companies". */

@@ -987,6 +987,33 @@
     }
   }
 
+  /** Trades with phases: the step the builder confirms on site (kitchen ready…) and where the job is. */
+  function jobProgressHtml(data) {
+    const g = data.gate;
+    const steps = data.progress || [];
+    if (!g && !steps.length) return '';
+    const done = steps.filter((p) => p.status === 'done').length;
+    let gate = '';
+    if (g && !g.phase_done) {
+      if (g.confirmed) {
+        const when = g.confirmed.at ? fmtDayEn(g.confirmed.at, { month: 'short', day: 'numeric' }) : '';
+        gate = `<div class="tk-gate tk-gate--ok" role="status"><span class="tk-box" aria-hidden="true">${ICON.check}</span><div><b>${esc(g.done_label)}</b><small>Confirmed${g.confirmed.by ? ` by ${esc(g.confirmed.by)}` : ''}${when ? ` · ${esc(when)}` : ''}. ${esc(providerName())} has been told.</small>
+          ${g.can_undo && g.can_confirm ? '<button type="button" class="pp-link tk-gate-undo" data-gate="0">Not ready after all</button>' : ''}</div></div>`;
+      } else {
+        gate = `<div class="tk-gate tk-gate--ask"><div><b>${esc(g.title)}?</b><p>${esc(g.question)}</p>
+          ${g.can_confirm
+            ? `<button type="button" class="pp-btn pp-btn--pri tk-gate-btn" data-gate="1">${icon('check')}Confirm: ${esc(g.done_label.toLowerCase())}</button><small>${esc(providerName())} gets a message and schedules the visit. No wasted trip.</small>`
+            : '<small>Your superintendent or office confirms this from the site.</small>'}
+          <p class="pp-error" id="tkGateErr" role="alert" hidden></p></div></div>`;
+      }
+    }
+    return `<section class="tk-sec" id="tkProgress" aria-labelledby="tkProgT">
+        <h3 id="tkProgT">Progress${steps.length ? ` <small>${done} of ${steps.length}</small>` : ''}</h3>
+        ${gate}
+        ${steps.length ? `<ol class="tk-list tk-ck tk-prog">${steps.map((p) => `<li class="${p.status === 'done' ? 'on' : ''} is-${p.status}"><span class="tk-box" aria-hidden="true">${p.status === 'done' ? ICON.check : ''}</span><span>${esc(p.label)}${p.status === 'current' ? ' <em>Next up</em>' : ''}<span class="pp-sr">${p.status === 'done' ? ' — done' : ''}</span></span></li>`).join('')}</ol>` : ''}
+      </section>`;
+  }
+
   function jobNextStep(job, invoices) {
     const i = jobStepIndex(job);
     const start = toDate(job.scheduled_start);
@@ -1075,6 +1102,8 @@
       </section>
 
       <div id="tkMeas" hidden></div>
+
+      ${jobProgressHtml(data)}
 
       ${jobMessagesHtml(data)}
 
@@ -1247,6 +1276,30 @@
     });
   }
 
+  function bindJobDetailGate(data) {
+    const sec0 = $('tkProgress');
+    if (!sec0) return;
+    sec0.querySelectorAll('[data-gate]').forEach((b) => b.addEventListener('click', async () => {
+      if (b.disabled) return;
+      const ready = b.getAttribute('data-gate') === '1';
+      const label = b.innerHTML;
+      b.disabled = true; b.setAttribute('aria-busy', 'true');
+      if (ready) b.textContent = 'Confirming…';
+      const err = $('tkGateErr'); if (err) err.hidden = true;
+      try {
+        const r = await postJson(`/api/partner-portal/jobs/${encodeURIComponent(data.job.id)}/gate`, { ready }, state.ctx ? state.ctx.id : undefined);
+        data.gate = r.data;
+        const sec = $('tkProgress');
+        if (sec) sec.outerHTML = jobProgressHtml(data);
+        bindJobDetailGate(data);
+        mateToast(ready ? 'head-happy' : 'head-curious', ready ? 'Confirmed' : 'Taken back', ready ? `${providerName()} got a message.` : `${providerName()} was told to hold the visit.`);
+        loadJob(data.job.id, true).catch(() => {});
+      } catch (ex) {
+        b.disabled = false; b.removeAttribute('aria-busy'); b.innerHTML = label;
+        if (err) { err.textContent = ex.message || 'Could not save. Try again.'; err.hidden = false; } else mateToast('head-curious', 'Could not save', ex.message || '');
+      }
+    }));
+  }
   function bindJobDetail(data) {
     if (!data || data.error) return;
     bindJobMessages(data);
@@ -1260,6 +1313,7 @@
       setTimeout(() => document.body.classList.remove('pp-printing'), 500);
     }));
     view.querySelectorAll('[data-edit-job]').forEach((b) => b.addEventListener('click', () => openJobEditor(data)));
+    bindJobDetailGate(data);
     view.querySelectorAll('[data-tk-go]').forEach((b) => b.addEventListener('click', () => { const el = document.getElementById(b.getAttribute('data-tk-go')); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); else b.disabled = true; }));
     view.querySelectorAll('[data-clamp]').forEach((el) => {
       const toggle = (e) => { if (e && e.target.closest('a')) return; el.classList.toggle('is-open'); const b = el.querySelector('[data-clamp-btn]'); if (b) b.textContent = el.classList.contains('is-open') ? 'Show less' : 'Show all'; };

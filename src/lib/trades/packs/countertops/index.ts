@@ -144,6 +144,13 @@ export const countertops: TradePack = {
     },
   },
   // ObraBuilder measurement: countertops (the countertop builder) and the floor plan.
+  builderGate: {
+    phase: "site_ready",
+    requirement: "ready_checklist",
+    title: "Ready for template",
+    question: "Cabinets set and level (1/8\" in 10 ft), sink, faucet and cooktop on site, cabinets empty.",
+    done: "Kitchen ready for template",
+  },
   measurement: { tabs: ["countertops", "floors", "summary"] },
   // Production pay by item: install crews are usually paid per piece of the job.
   payroll: {

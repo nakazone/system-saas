@@ -3313,3 +3313,17 @@ html body .pp-tabs.om-shell-tabs, html body .pp-search-fab.om-shell-search { dis
     .pp-stair-measurements[open]::details-content, .pp-stair-secondary[open]::details-content { block-size: auto; }
   }
 }
+
+/* Job progress (trades with phases) and the step the builder confirms on site */
+.tk-gate { display: flex; gap: 12px; align-items: flex-start; padding: 14px; border-radius: 12px; margin: 0 0 12px; }
+.tk-gate b { display: block; font-size: 15.5px; }
+.tk-gate p { margin: 4px 0 10px; font-size: 14.5px; color: #3B3631; }
+.tk-gate small { display: block; margin-top: 6px; font-size: 13px; color: var(--pp-muted); }
+.tk-gate--ask { background: var(--pp-orange-soft); border-left: 4px solid var(--pp-orange); }
+.tk-gate--ok { background: var(--pp-surface); }
+.tk-gate--ok .tk-box { background: var(--pp-ink); border-color: var(--pp-ink); color: #FFFFFF; }
+.tk-gate-btn { min-height: 48px; }
+.tk-gate-undo { margin-top: 6px; min-height: 44px; display: inline-flex; align-items: center; }
+.tk-prog li.is-current > span:last-child { font-weight: 700; }
+.tk-prog li em { font-style: normal; font-size: 12px; font-weight: 700; margin-left: 6px; padding: 2px 8px; border-radius: 99px; background: var(--pp-ink); color: #FFFFFF; }
+.tk-prog li.on > span:last-child { text-decoration: none; }
