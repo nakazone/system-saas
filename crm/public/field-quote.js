@@ -7,6 +7,9 @@
   'use strict';
 
   const C = window.FQ_CATALOG;
+  // Inside the ObraQuote app (/obraquote) every screen stays on that address, so the iPhone keeps it in the app.
+  const PAGE = window.__OM_QUOTE_APP ? '/obraquote' : 'field-quote.html';
+  const LOGIN = window.__OM_QUOTE_APP ? '/login.html?app=obraquote' : '/login.html';
   const $ = (s, r) => (r || document).querySelector(s);
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
   const esc = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -32,7 +35,7 @@
     }
     const r = await fetch(url, o);
     if (r.status === 401) {
-      location.href = '/login.html';
+      location.href = LOGIN;
       throw new Error('Sessão expirada');
     }
     const j = await r.json().catch(() => ({}));
@@ -492,10 +495,10 @@
   const LIST_SKELETON = '<div class="fq-skel" aria-hidden="true"><i></i><i></i><i></i></div>';
   const norm = (v) => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   async function renderList() {
-    document.title = 'Field Quote | ObraMate';
+    document.title = window.__OM_QUOTE_APP ? 'ObraQuote' : 'Field Quote | ObraMate';
     const v = $('#fqView');
     v.innerHTML = `<div class="fq-list">
-      <header class="fq-head"><h1 class="fq-h1">Field Quote</h1>
+      <header class="fq-head"><h1 class="fq-h1">${window.__OM_QUOTE_APP ? 'Visitas' : 'Field Quote'}</h1>
         <button type="button" class="fq-btn fq-btn--pri" data-fq-new>${IC.plus()}Nova visita</button></header>
       <section id="fqToday"></section>
       <section id="fqDrafts" aria-busy="true">${LIST_SKELETON}</section>
@@ -530,9 +533,9 @@
       const lead = (e.meta && e.meta.lead) || {};
       const open = byLead.get(lead.id);
       const cls = big ? ' fq-btn--pri fq-btn--grow' : ' fq-btn--sm';
-      if (open) return `<a class="fq-btn${cls}" href="field-quote.html?id=${esc(open.id)}">Continuar</a>`;
+      if (open) return `<a class="fq-btn${cls}" href="${PAGE}?id=${esc(open.id)}">Continuar</a>`;
       if (byMeeting.has(e.id)) return '';
-      return `<a class="fq-btn${cls}${big ? '' : ' fq-btn--pri'}" href="field-quote.html?meeting_id=${esc(e.id)}">${big ? 'Começar visita' : 'Começar'}</a>`;
+      return `<a class="fq-btn${cls}${big ? '' : ' fq-btn--pri'}" href="${PAGE}?meeting_id=${esc(e.id)}">${big ? 'Começar visita' : 'Começar'}</a>`;
     };
     const when = (st) => `${st.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
     const dayTxt = (st) => (st.toDateString() === new Date().toDateString() ? 'hoje' : 'amanhã');
@@ -577,7 +580,7 @@
           ? `<small>${esc(`${r.rooms_count} cômodo${r.rooms_count > 1 ? 's' : ''} · ${fmtN(r.total_sqft)} pé² · ${relTime(r.updated_at)}`)}</small>`
           : `<small class="fq-warn">sem medidas · ${esc(relTime(r.updated_at))}</small>`;
       const pill = r.quote_status ? `<span class="fq-pill${['approved', 'converted'].includes(r.quote_status) ? ' fq-pill--ink' : ''}">${esc(quoteStatusPt(r.quote_status))}</span>` : '';
-      const link = `<a class="fq-row fq-row--link" href="field-quote.html?id=${esc(r.id)}"><div class="fq-row__main"><b>${esc(r.client_name)}</b>${sub}</div><div class="fq-row__end">${pill}${r.total ? `<b>${esc(money(r.total))}</b>` : ''}${IC.chev()}</div></a>`;
+      const link = `<a class="fq-row fq-row--link" href="${PAGE}?id=${esc(r.id)}"><div class="fq-row__main"><b>${esc(r.client_name)}</b>${sub}</div><div class="fq-row__end">${pill}${r.total ? `<b>${esc(money(r.total))}</b>` : ''}${IC.chev()}</div></a>`;
       return empty ? `<div class="fq-rowwrap">${link}<button type="button" class="fq-icbtn" data-fq-draft-del="${esc(r.id)}" aria-label="Excluir rascunho de ${esc(r.client_name)}">${IC.trash()}</button></div>` : link;
     };
     const drafts = rows.filter((r) => r.status !== 'quoted');
@@ -647,7 +650,7 @@
     const ct = $('[data-fq-ct].is-on');
     try {
       const j = await api('/api/field-quotes', { method: 'POST', body: { client_name: name, client_phone: v('client_phone').trim() || undefined, address: v('address').trim() || undefined, customer_type: ct ? ct.dataset.fqCt : undefined } });
-      location.href = 'field-quote.html?id=' + encodeURIComponent(j.data.id);
+      location.href = PAGE + '?id=' + encodeURIComponent(j.data.id);
     } catch (e) {
       toast(e.message, 'error');
       if (btn) { btn.disabled = false; btn.textContent = 'Começar'; }
@@ -700,7 +703,7 @@
   function renderPanel() {
     const fq = S.fq;
     const d = S.d;
-    document.title = fq.client_name + ' · Field Quote';
+    document.title = fq.client_name + (window.__OM_QUOTE_APP ? ' · ObraQuote' : ' · Field Quote');
     const t = totals(d);
     const ct = C.CUSTOMER_TYPES.find((x) => x.id === fq.customer_type) || C.CUSTOMER_TYPES[0];
     const quoted = fq.quote_id && fq.quote;
@@ -712,7 +715,7 @@
     const svcTxt = svcSummary(d);
     $('#fqView').innerHTML = `<div class="fq-panel">
       <div class="fq-panel__main">
-      <header class="fq-top"><a class="fq-back" href="field-quote.html" data-fq-leave>${IC.back()}Visitas</a><span class="fq-save" id="fqSave" role="status"></span></header>
+      <header class="fq-top"><a class="fq-back" href="${PAGE}" data-fq-leave>${IC.back()}Visitas</a><span class="fq-save" id="fqSave" role="status"></span></header>
       <div class="fq-client">
         <div class="fq-client__txt">
           <h1 class="fq-h1" title="${esc(fq.client_name)}">${esc(fq.client_name)}</h1>
@@ -1755,7 +1758,7 @@
           body: JSON.stringify({ text: cleanText, voice_id: S.ai.speechVoiceId }),
         });
         if (response.status === 401) {
-          location.href = '/login.html';
+          location.href = LOGIN;
           throw new Error('Sessão expirada');
         }
         if (!response.ok) {
@@ -2338,7 +2341,7 @@
           await api('/api/field-quotes/' + encodeURIComponent(id), { method: 'DELETE' });
           try { localStorage.removeItem(LS(id)); } catch (_) {}
           S.dirty = false;
-          location.href = 'field-quote.html';
+          location.href = PAGE;
         } catch (e) {
           toast(e.message, 'error');
         }
@@ -2920,7 +2923,7 @@
     try {
       const sess = await fetch('/api/auth/session', { credentials: 'include' }).then((r) => r.json());
       if (!sess || !sess.authenticated) {
-        location.href = '/login.html';
+        location.href = LOGIN;
         return;
       }
     } catch (_) {
@@ -2962,7 +2965,7 @@
             builder_id: builderId || undefined,
           },
         });
-        history.replaceState(null, '', 'field-quote.html?id=' + encodeURIComponent(j.data.id));
+        history.replaceState(null, '', PAGE + '?id=' + encodeURIComponent(j.data.id));
         return loadPanel(j.data.id, j.data);
       } catch (e) {
         $('#fqLoading').textContent = e.message;
