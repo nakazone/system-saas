@@ -65,8 +65,7 @@ export const invoiceDetailInclude = {
       builder: { select: { company: true, firstName: true, lastName: true, email: true, phone: true } },
       // The builder's own PO / work order # (ObraBuilder): their AP matches invoices by it.
       partnerRequests: {
-        where: { externalRef: { not: null } },
-        select: { externalRef: true },
+        select: { externalRef: true, intake: true },
         orderBy: { createdAt: "asc" as const },
         take: 5,
       },
@@ -102,6 +101,18 @@ export function poNumberOf(inv: Pick<InvoiceDetail, "workOrder">): string | null
   return uniq.length ? uniq.join(", ").slice(0, 80) : null;
 }
 
+/** The builder's lot and community for the job ("12 · Sunset Ridge"), from the latest request that has them. */
+export function lotOf(inv: Pick<InvoiceDetail, "workOrder">): string | null {
+  const reqs = [...(inv.workOrder?.partnerRequests || [])].reverse();
+  for (const r of reqs) {
+    const i = r.intake && typeof r.intake === "object" ? (r.intake as { lot?: unknown; community?: unknown }) : {};
+    const lot = String(i.lot ?? "").replace(/^(lot|lote)\s*#?\s*/i, "").replace(/^#/, "").trim();
+    const community = String(i.community ?? "").trim();
+    if (lot || community) return [lot, community].filter(Boolean).join(" · ").slice(0, 120);
+  }
+  return null;
+}
+
 /**
  * Project line on documents: property address label for quotes, or job title + address.
  * Quote "Nota / referência" (payload.job_name → quote.title) must NOT appear here —
@@ -110,7 +121,12 @@ export function poNumberOf(inv: Pick<InvoiceDetail, "workOrder">): string | null
 export function projectNameOf(inv: Pick<InvoiceDetail, "quote" | "workOrder">): string | null {
   if (inv.quote) return inv.quote.property?.label || null;
   if (inv.workOrder) {
-    return [inv.workOrder.title, inv.workOrder.address].filter(Boolean).join(" · ") || null;
+    const title = String(inv.workOrder.title || "").trim();
+    const address = String(inv.workOrder.address || "").trim();
+    // Builder jobs are titled "Countertops · 12 Elm St": do not print the address twice.
+    const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    if (address && title && norm(title).includes(norm(address))) return title;
+    return [title, address].filter(Boolean).join(" · ") || null;
   }
   return null;
 }
@@ -306,6 +322,7 @@ export function invoicePdfInput(inv: InvoiceDetail, org: OrgRow, _publicUrl?: st
     quoteNumber: quoteNumberOf(inv.quote),
     jobNumber: jobNumberOf(inv.workOrder),
     poNumber: poNumberOf(inv),
+    lot: lotOf(inv),
     projectName: projectNameOf(inv),
     issueDate: inv.issuedAt || inv.createdAt,
     dueDate: inv.dueDate,

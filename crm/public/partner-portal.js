@@ -2848,7 +2848,7 @@
         external_ref: f.external_ref.trim().slice(0, 60),
         target_job_id: update ? s.match.id : '',
         files: s.files.map((x) => ({ name: x.name, data_url: x.dataUrl })),
-        intake: { source: s.ai ? 'ai' : 'manual', fields_checked: s.check, ...(s.model ? { model: s.model.slice(0, 80) } : {}), items: itemsPayload(s), labor_total: s.laborTotal, pickup: (f.pickup || '').trim().slice(0, 200), ...(s.measurement && s.useMeasurement ? { measurement_id: s.measurement.id } : {}) },
+        intake: { source: s.ai ? 'ai' : 'manual', fields_checked: s.check, ...(s.model ? { model: s.model.slice(0, 80) } : {}), items: itemsPayload(s), labor_total: s.laborTotal, pickup: (f.pickup || '').trim().slice(0, 200), community: (f.community || '').trim().slice(0, 120), lot: (f.lot || '').trim().slice(0, 20), ...(s.measurement && s.useMeasurement ? { measurement_id: s.measurement.id } : {}) },
       }, state.builder ? sendCo().id : undefined);
       s.files.forEach((x) => x.url && URL.revokeObjectURL(x.url));
       s.sent = { update: Boolean(update), jobId: sent.data && sent.data.job_id, direct: Boolean(sent.data && sent.data.status === 'accepted') };

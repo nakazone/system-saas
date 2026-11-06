@@ -781,6 +781,9 @@ partnerPortalRouter.post("/api/partner-portal/requests", requirePartnerAuth, req
         items: intakeItemsSchema.optional(),
         labor_total: z.number().min(0).max(100_000_000).nullable().optional(),
         pickup: z.string().trim().max(200).optional(),
+        // Builder's community and lot, kept apart from the notes so the invoice can carry them.
+        community: z.string().trim().max(120).optional(),
+        lot: z.string().trim().max(20).optional(),
         measurement_id: z.string().uuid().optional(),
       }).optional(),
     }).safeParse(req.body || {});

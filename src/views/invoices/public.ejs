@@ -124,6 +124,7 @@
           <% if (quoteNumber) { %><dt>Quote #</dt><dd><%= quoteNumber %></dd><% } %>
           <% if (typeof jobNumber !== 'undefined' && jobNumber) { %><dt>Job</dt><dd><%= jobNumber %></dd><% } %>
           <% if (typeof poNumber !== 'undefined' && poNumber) { %><dt>PO / WO #</dt><dd><%= poNumber %></dd><% } %>
+          <% if (typeof lot !== 'undefined' && lot) { %><dt>Lot</dt><dd><%= lot %></dd><% } %>
           <% if (typeof projectName !== 'undefined' && projectName) { %><dt>Project</dt><dd><%= projectName %></dd><% } %>
         </dl>
       </div>
