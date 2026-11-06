@@ -140,7 +140,21 @@ describe.skipIf(!privileged)("folha — painel do admin (HTTP)", () => {
     // Pay everyone left → week closes.
     const rest = await call(admin, "POST", "/api/folha/pagamentos", { period_id: w.period.id, employee_ids: [lucas.id, pedro.id], paid_on: "2026-09-12", method: "cash" });
     expect(rest.json.data.period_closed).toBe(true);
-    // Void Lucas → Finance line voided, week open again.
+    // Reopen the week without undoing payments. Paid people stay locked.
+    const reopened = await call(admin, "POST", `/api/folha/semana/${w.period.id}/reabrir`, {});
+    expect(reopened.status, JSON.stringify(reopened.json)).toBe(200);
+    expect(reopened.json.data).toMatchObject({ id: w.period.id, status: "open" });
+    const still = await withTenantTransaction(orgId, async (tx) => ({
+      period: await tx.payrollPeriod.findFirstOrThrow({ where: { id: w.period.id } }),
+      paid: await tx.payrollPayment.count({ where: { periodId: w.period.id, status: "paid" } }),
+    }));
+    expect(still.period.status).toBe("open");
+    expect(still.paid).toBe(4);
+    expect((await call(admin, "PUT", `/api/folha/semana/${w.period.id}/ajustes/${rafa.id}`, { reimbursement: 0, discount: 0 })).status).toBe(409);
+    expect((await call(await login(emails.inst), "POST", `/api/folha/semana/${w.period.id}/reabrir`, {})).status).toBe(403);
+    expect((await call(admin, "POST", "/api/folha/semana/00000000-0000-4000-8000-000000000000/reabrir", {})).status).toBe(404);
+    expect((await call(admin, "POST", `/api/folha/semana/${w.period.id}/reabrir`, {})).json.data.status).toBe("open");
+    // Void Lucas → Finance line voided, week stays open.
     const lucasPay = await withTenantTransaction(orgId, (tx) => tx.payrollPayment.findFirstOrThrow({ where: { employeeId: lucas.id, status: "paid" } }));
     expect((await call(admin, "POST", `/api/folha/pagamentos/${lucasPay.id}/estornar`, {})).status).toBe(200);
     const after = await withTenantTransaction(orgId, async (tx) => ({

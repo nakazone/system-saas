@@ -13,7 +13,8 @@
  * POST /api/folha/dias/lote                         lança vários dias de uma vez (mesmo horário)
  * PUT  /api/folha/semana/:periodId/ajustes/:empId   reembolso / desconto
  * POST /api/folha/pagamentos                        paga um ou vários funcionários → Financeiro
- * POST /api/folha/pagamentos/:id/estornar           estorna (anula no Financeiro)
+ * POST /api/folha/pagamentos/:id/estornar           estorna (anula no Financeiro e reabre o ciclo)
+ * POST /api/folha/semana/:periodId/reabrir         reabre o ciclo fechado; pagamentos já feitos continuam
  * POST /api/folha/conferencia                       envia relatório (e-mail + PDF) ao funcionário antes do pagamento
  * POST /api/folha/conferencia/link                  gera link público do ticket (/f/<token>?w=)
  * GET  /api/folha/conferencia.pdf?week=&employee_id=  PDF da conferência (visual ticket ObraMate)
@@ -1489,6 +1490,21 @@ folhaAdminRouter.post("/api/folha/pagamentos/:id/estornar", requireCrmAuth, requ
       await tx.payrollPeriod.update({ where: { id: p.periodId }, data: { status: "open" } });
     });
     res.json({ success: true });
+  } catch (error) {
+    fail(res, error, next);
+  }
+});
+
+/** Reopen a closed cycle so the office can approve or adjust again. Payments already posted stay posted. */
+folhaAdminRouter.post("/api/folha/semana/:periodId/reabrir", requireCrmAuth, requireCrmPermission("payroll.manage"), async (req: AuthedRequest, res, next) => {
+  try {
+    const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+      const period = await tx.payrollPeriod.findFirst({ where: { id: String(req.params.periodId) } });
+      if (!period) throw httpErr(404, "Semana não encontrada");
+      if (period.status !== "open") await tx.payrollPeriod.update({ where: { id: period.id }, data: { status: "open" } });
+      return { id: period.id, label: period.label, status: "open" };
+    });
+    res.json({ success: true, data });
   } catch (error) {
     fail(res, error, next);
   }
