@@ -995,7 +995,8 @@
     let bar = $("camCrewActs");
     if (!crewMode) {
       if (bar) bar.remove();
-      document.body.classList.remove("cam-crew-acts");
+      // Body flag must not reuse .cam-crew-acts — that class is display:none on the bar host.
+      document.body.classList.remove("cam-has-crew-acts", "cam-crew-acts");
       return;
     }
     if (!bar) {
@@ -1009,7 +1010,8 @@
     bar.innerHTML = crewActionButtonsHtml(j && j.id);
     const detailOpen = document.body.classList.contains("cam-detail-open");
     bar.hidden = detailOpen;
-    document.body.classList.toggle("cam-crew-acts", !detailOpen);
+    document.body.classList.remove("cam-crew-acts");
+    document.body.classList.toggle("cam-has-crew-acts", !detailOpen);
   }
 
   function movePbar() {

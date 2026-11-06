@@ -720,7 +720,7 @@ body.om-field-nav.cam-app .cam-empty {
   }
   body.om-field-nav.cam-app.cam-detail-open .cam,
   body.om-field-nav.cam-app.cam-selecting .cam,
-  body.om-field-nav.cam-app.cam-crew-acts .cam {
+  body.om-field-nav.cam-app.cam-has-crew-acts .cam {
     padding-bottom: calc(7.5rem + env(safe-area-inset-bottom, 0px));
   }
   body.om-field-nav.cam-app.cam-detail-open .om-tabbar.om-tabbar--field {
@@ -728,12 +728,13 @@ body.om-field-nav.cam-app .cam-empty {
   }
 }
 
-/* ObraCrew ObraCam: Tirar foto + Scanner Recibo — below tabbar z-index so tabs stay tappable */
+/* ObraCrew ObraCam: Tirar foto + Scanner Recibo — below tabbar z-index so tabs stay tappable.
+   Body uses cam-has-crew-acts (not cam-crew-acts) so this display:none never hides <body>. */
 .cam-crew-acts {
   display: none;
 }
 @media (max-width: 900px) {
-  body.cam-crew.cam-crew-acts .cam-crew-acts {
+  body.cam-crew.cam-has-crew-acts .cam-crew-acts {
     display: flex;
     gap: 8px;
     position: fixed;
