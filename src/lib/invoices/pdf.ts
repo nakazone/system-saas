@@ -75,6 +75,8 @@ export type InvoicePdfInput = {
   quoteNumber?: string | null;
   /** Job reference ("#12") for invoices issued straight from a job. */
   jobNumber?: string | null;
+  /** The builder's PO / work order # (their AP matches the invoice by it). */
+  poNumber?: string | null;
   projectName?: string | null;
   issueDate?: Date | null;
   dueDate?: Date | null;
@@ -313,6 +315,7 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Buffer> {
   ];
   if (input.quoteNumber) meta.push(["Quote #", input.quoteNumber]);
   if (input.jobNumber) meta.push(["Job", input.jobNumber]);
+  if (input.poNumber) meta.push(["PO / WO #", input.poNumber]);
   if (input.projectName) meta.push(["Project", input.projectName]);
   let my = y;
   for (const [k, v] of meta) {

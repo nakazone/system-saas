@@ -63,6 +63,13 @@ export const invoiceDetailInclude = {
       scheduledStart: true,
       builderId: true,
       builder: { select: { company: true, firstName: true, lastName: true, email: true, phone: true } },
+      // The builder's own PO / work order # (ObraBuilder): their AP matches invoices by it.
+      partnerRequests: {
+        where: { externalRef: { not: null } },
+        select: { externalRef: true },
+        orderBy: { createdAt: "asc" as const },
+        take: 5,
+      },
       lineItems: {
         select: { serviceName: true, notes: true, quantitySqft: true, unitPrice: true, lineTotal: true },
         orderBy: [{ sortOrder: "asc" as const }, { createdAt: "asc" as const }],
@@ -86,6 +93,13 @@ export function quoteNumberOf(q: { quoteNumber: string | null; number: number } 
 export function jobNumberOf(wo: { number: number | null } | null | undefined): string | null {
   if (!wo) return null;
   return wo.number != null ? `#${wo.number}` : null;
+}
+
+/** The builder's PO / work order numbers for the job, as they sent them ("PO-118, WO-22"). */
+export function poNumberOf(inv: Pick<InvoiceDetail, "workOrder">): string | null {
+  const refs = (inv.workOrder?.partnerRequests || []).map((r) => String(r.externalRef || "").trim()).filter(Boolean);
+  const uniq = [...new Set(refs)];
+  return uniq.length ? uniq.join(", ").slice(0, 80) : null;
 }
 
 /**
@@ -291,6 +305,7 @@ export function invoicePdfInput(inv: InvoiceDetail, org: OrgRow, _publicUrl?: st
     kindLabel: invoiceKindLabel(inv.invoiceType),
     quoteNumber: quoteNumberOf(inv.quote),
     jobNumber: jobNumberOf(inv.workOrder),
+    poNumber: poNumberOf(inv),
     projectName: projectNameOf(inv),
     issueDate: inv.issuedAt || inv.createdAt,
     dueDate: inv.dueDate,

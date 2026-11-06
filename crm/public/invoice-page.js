@@ -365,6 +365,7 @@
             <dt>Emissão</dt><dd>${esc(fdate(inv.issued_at || inv.created_at))}</dd>
             <dt>Vencimento</dt><dd>${esc(fdate(inv.due_date))}</dd>
             ${inv.quote ? `<dt>Orçamento</dt><dd>${esc(inv.quote.number || '')}</dd>` : ''}
+            ${inv.po_number ? `<dt>PO / WO #</dt><dd>${esc(inv.po_number)}</dd>` : ''}
           </dl>
         </div>
       </div>
