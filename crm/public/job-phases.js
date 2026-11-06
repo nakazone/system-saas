@@ -584,7 +584,7 @@
           run(async () => {
             const r = await api(`${base}/site-not-ready`, { method: "POST", body: JSON.stringify({ note: String(note || "").trim() }) });
             const unpriced = r && r.charged && !(Number(r.charged.amount) > 0);
-            took(r, (bg.builder_job ? "Registrado. A construtora foi avisada." : "Registrado.") + (unpriced ? " A viagem perdida entrou no job sem preço: defina o valor no job." : ""));
+            took(r, (bg.builder_job ? "Registrado. A construtora foi avisada." : "Registrado.") + (unpriced ? " A viagem perdida entrou no job sem preço: defina o valor no job e na Tabela de Valores." : ""));
           });
         });
         return;

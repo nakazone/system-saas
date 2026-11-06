@@ -182,6 +182,23 @@ describe.skipIf(!privileged)("the site was not ready for the visit", () => {
     expect(r).toMatchObject({ ok: true, charged: { name: "Return Trip – Site Not Ready", amount: 0 } });
   });
 
+  it("adds the trip service to the catalog of a company that never had it, and respects one turned off", async () => {
+    const { siteNotReady } = await import("../src/lib/trades/builder-gate.js");
+    await withTenantTransaction(org, (tx) => tx.pricingItem.deleteMany({ where: { name: "Return Trip – Site Not Ready" } }));
+    const r = await withTenantTransaction(org, (tx) => siteNotReady(tx, tops, org, job, { charge: true }));
+    expect(r).toMatchObject({ ok: true, charged: { name: "Return Trip – Site Not Ready", amount: 0 } });
+    const items = await withTenantTransaction(org, (tx) => tx.pricingItem.findMany({ where: { name: "Return Trip – Site Not Ready" } }));
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ category: "custom", unit: "unit" });
+    const linked = await withTenantTransaction(org, (tx) => tx.workOrderLineItem.count({ where: { workOrderId: job, pricingItemId: items[0]!.id } }));
+    expect(linked).toBeGreaterThan(0);
+    await withTenantTransaction(org, (tx) => tx.pricingItem.update({ where: { id: items[0]!.id }, data: { active: false } }));
+    const off = await withTenantTransaction(org, (tx) => siteNotReady(tx, tops, org, job, { charge: true }));
+    expect(off).toMatchObject({ ok: true, charged: null });
+    const again = await withTenantTransaction(org, (tx) => tx.pricingItem.count({ where: { name: "Return Trip – Site Not Ready" } }));
+    expect(again).toBe(1);
+  });
+
   it("is wired into the phases page", () => {
     const js = readFileSync("crm/public/job-phases.js", "utf8");
     const route = readFileSync("src/crm/routes/job-phases.ts", "utf8");

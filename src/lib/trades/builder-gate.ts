@@ -134,15 +134,26 @@ export async function siteNotReady(
   }
   let charged: { name: string; amount: number } | null = null;
   if (opts.charge && g.tripService) {
-    const item = await tx.pricingItem.findFirst({ where: { organizationId, active: true, name: { equals: g.tripService, mode: "insensitive" } }, select: { id: true, name: true, price: true, priceBuilder: true } });
-    const amount = item ? Number(item.priceBuilder) || Number(item.price) || 0 : 0;
+    let item = await tx.pricingItem.findFirst({ where: { organizationId, name: { equals: g.tripService, mode: "insensitive" } }, orderBy: { active: "desc" }, select: { id: true, name: true, price: true, priceBuilder: true, active: true } });
+    // The office turned the service off in the Tabela de Valores: no trip charge.
+    if (item && !item.active) return { ok: true, cleared, charged: null };
+    if (!item) {
+      // A company set up before the trade had this service: add it unpriced, once, so the office
+      // sets the value in the Tabela de Valores instead of on every job.
+      const def = pack.services.find((x) => x.name.toLowerCase() === g.tripService!.toLowerCase());
+      item = await tx.pricingItem.create({
+        data: { organizationId, name: g.tripService, category: def?.category ?? "custom", unit: def?.unit ?? "unit", description: def?.description || null, notes: def?.description || null, price: 0, priceBuilder: 0, sortOrder: def?.sortOrder ?? 0 },
+        select: { id: true, name: true, price: true, priceBuilder: true, active: true },
+      });
+    }
+    const amount = Number(item.priceBuilder) || Number(item.price) || 0;
     const last = await tx.workOrderLineItem.findFirst({ where: { workOrderId }, orderBy: { sortOrder: "desc" }, select: { sortOrder: true } });
     await tx.workOrderLineItem.create({
       data: {
         organizationId,
         workOrderId,
-        pricingItemId: item?.id ?? null,
-        serviceName: item?.name ?? g.tripService,
+        pricingItemId: item.id,
+        serviceName: item.name,
         notes: `Site not ready for ${g.visit} · ${new Date().toISOString().slice(0, 10)}`,
         quantitySqft: 1,
         unitPrice: amount,
@@ -150,7 +161,7 @@ export async function siteNotReady(
         sortOrder: (last?.sortOrder ?? 0) + 1,
       },
     });
-    charged = { name: item?.name ?? g.tripService, amount };
+    charged = { name: item.name, amount };
   }
   return { ok: true, cleared, charged };
 }
