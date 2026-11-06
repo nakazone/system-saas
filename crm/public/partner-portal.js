@@ -2503,10 +2503,10 @@
         })()}
         ${s.measReply ? `<div class="pp-wz-mate">${mate('head-talking', 40)}<div><p>${esc(s.measReply)}</p>${(s.measObs || []).length ? `<ul>${s.measObs.map((o) => `<li>${esc(o)}</li>`).join('')}</ul>` : ''}</div></div>` : ''}
         <div class="pp-wz-grid">
-          <div class="pp-wz-viz">${s.measData ? `${wzTurnHtml(s)}${measDrawingHtml(s.measData) || '<p class="pp-muted pp-viz-empty">No stairs in this measurement.</p>'}` : '<p class="pp-muted pp-viz-empty">Loading the drawing…</p>'}</div>
+          <div class="pp-wz-viz">${s.measData ? `${wzTurnHtml(s)}${measDrawingHtml(s.measData) || `<p class="pp-muted pp-viz-empty">${s.measData.tops && (s.measData.tops.pieces || []).length ? 'Each countertop is drawn to scale in the measurement PDF.' : (s.measData.showers || []).length ? 'Each shower is drawn to scale in the measurement PDF.' : 'No stairs in this measurement.'}</p>`}` : '<p class="pp-muted pp-viz-empty">Loading the drawing…</p>'}</div>
           <div class="pp-wz-side">
             ${lines.length ? `<ul class="pp-meas-sum pp-meas-sum--compact">${lines.map((l) => `<li><span>${esc(l.text)}</span><em>${esc(l.qty)} ${esc(l.uom)}</em></li>`).join('')}${(m.summary || []).length > lines.length ? `<li class="pp-muted">+ ${(m.summary || []).length - lines.length} more</li>` : ''}</ul>` : ''}
-            <label class="pp-meas-use"><input type="checkbox" id="ppUseMeas" ${s.useMeasurement ? 'checked' : ''} ${m.status === 'used' ? 'disabled' : ''} /> <span>Send it with the job — PDF, 3D drawing, photos and the sizes on each line</span></label>
+            <label class="pp-meas-use"><input type="checkbox" id="ppUseMeas" ${s.useMeasurement ? 'checked' : ''} ${m.status === 'used' ? 'disabled' : ''} /> <span>Send it with the job — ${s.measData && !(s.measData.stairs || []).length && !(s.measData.plan && (s.measData.plan.levels || []).length) ? 'PDF' : 'PDF, 3D drawing, photos'} and the sizes on each line</span></label>
             ${canMeasure && det.stairs.length && m.status !== 'used' ? `<details class="pp-wz-redo"><summary>Rebuild from the order with photos</summary>${photoPicker}<button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-wz-build>${icon('camera')}Rebuild with Mate</button></details>` : ''}
           </div>
         </div>
@@ -6208,12 +6208,13 @@
     f.community = m.community || '';
     f.lot = m.lot || '';
     const kinds = [...new Set(totals.map((t) => (t.kind === 'hardwood' ? 'Hardwood' : t.kind === 'lvp' ? 'LVP' : t.label)))];
-    const parts = [...kinds, c.treads ? 'stairs' : '', c.vents ? 'vents' : ''].filter(Boolean);
+    const parts = [...kinds, c.treads ? 'stairs' : '', c.vents ? 'vents' : '', c.showers ? 'showers' : '', c.tops ? 'countertops' : ''].filter(Boolean);
     f.service_type = (parts.length ? `Install – ${parts.join(', ')}` : 'Flooring').slice(0, 100);
     const what = kinds.length ? `${kinds.join(' + ')} floors` : parts.length ? parts.join(' & ') : 'Work';
     f.title = `${what.charAt(0).toUpperCase()}${what.slice(1)} · ${m.address}`.slice(0, 160);
     if (totals.length) f.square_feet = String(Math.round(totals.reduce((a, t) => a + t.area, 0)));
-    f.material = totals.map((t) => `${t.label}${specText(t) ? `: ${specText(t)}` : ''}`).join('; ').slice(0, 120);
+    const stone = c.tops && m.data.tops.spec ? [m.data.tops.spec.material, m.data.tops.spec.color, m.data.tops.spec.thickness].filter(Boolean).join(' ') : '';
+    f.material = [...totals.map((t) => `${t.label}${specText(t) ? `: ${specText(t)}` : ''}`), stone ? `Countertops: ${stone}` : ''].filter(Boolean).join('; ').slice(0, 120);
     f.notes = [m.notes || '', totals.length ? `Floors measured from the plans: ${totals.map((t) => `${t.label} ${fmtSf(t.area)} (order ${fmtSf(orderQty(t).sf)} with ${orderQty(t).waste}% waste)`).join('; ')}.` : ''].filter(Boolean).join('\n').slice(0, 4000);
     s.fields = f;
     // floor lines with the company's agreed prices
@@ -6234,13 +6235,16 @@
     // priced from the agreed price list when there is a match.
     presentQuote({ ...m, data: { ...m.data, plan: null } }, prices).forEach((l) => s.items.push({
       area: l.name.includes(' · ') ? l.name.split(' · ').slice(1).join(' · ') : '', description: l.name.split(' · ')[0], detail: l.spec || '',
-      quantity: l.qty, uom: l.uom === 'steps' ? 'STEP' : 'EA', rate: l.rate, total: null,
+      quantity: l.qty, uom: ({ steps: 'STEP', 'sq ft': 'SF', LF: 'LF' })[l.uom] || 'EA', rate: l.rate, total: null,
       // Without a service of the company's price list, the line is for this job only (no new services in their list).
       pricing_item_id: l.pricing_item_id || null, service_name: l.service_name || l.name.split(' · ')[0], create_service: Boolean(l.pricing_item_id), remove: false, from_meas: true,
     }));
     s.measurement = {
       id: m.id, address: m.address, status: m.status, counts: { ...c, floor_text: totals.map((t) => `${t.label} ${fmtSf(t.area)}`).join(' · ') },
-      summary: measSummary(m.data).map((l) => ({ text: `${l.kind} · ${l.text}`, qty: Number(l.qty).toLocaleString('en-US'), uom: l.uom || 'EA' })),
+      summary: [
+        ...measSummary(m.data).map((l) => ({ text: `${l.kind} · ${l.text}`, qty: Number(l.qty).toLocaleString('en-US'), uom: l.uom || 'EA' })),
+        ...presentQuote({ ...m, data: { ...m.data, plan: null, stairs: [], vents: [] } }, []).map((l) => ({ text: `${l.name}${l.spec ? ` · ${l.spec}` : ''}`, qty: Number(l.qty).toLocaleString('en-US'), uom: l.uom === 'sq ft' ? 'SF' : l.uom })),
+      ],
       measured_by: m.completed_by || m.updated_by || m.created_by, measured_at: m.completed_at || m.updated_at,
     };
     s.useMeasurement = m.status !== 'used';
@@ -6548,6 +6552,14 @@
     sum.filter((x) => x.kind === 'Vent').forEach((x) => {
       out.push({ sec: 'Vents', name: 'Wood vent', spec: x.text, qty: x.qty, uom: 'EA', ...priced(byKind('vent')) });
     });
+    // Showers and countertops: the same lines the company's Field Quote makes, priced from the agreed list.
+    const UNIT = { sq_ft: 'sq ft', linear_ft: 'LF', each: 'EA' };
+    if (window.ObShowers && (d.showers || []).length) {
+      window.ObShowers.quoteLines(d.showers).forEach((l) => out.push({ sec: 'Showers', name: l.name, spec: l.description, qty: l.quantity, uom: UNIT[l.unit] || 'EA', ...priced(window.ObShowers.matchPrice(l.item, prices)) }));
+    }
+    if (window.ObTops && d.tops && (d.tops.pieces || []).length) {
+      window.ObTops.quoteLines(d.tops).forEach((l) => out.push({ sec: 'Countertops', name: l.name, spec: l.description, qty: l.quantity, uom: UNIT[l.unit] || 'EA', ...priced(window.ObTops.matchPrice(l.item, prices)) }));
+    }
     return out;
   }
 
@@ -6625,7 +6637,7 @@
     };
     const num = (n) => Math.round(n).toLocaleString('en-US');
     const quoteHtml = () => {
-      const secs = ['Floors', 'Stairs', 'Vents'].map((s) => [s, lines.filter((l) => l.sec === s)]).filter(([, ls]) => ls.length);
+      const secs = ['Floors', 'Stairs', 'Vents', 'Showers', 'Countertops'].map((s) => [s, lines.filter((l) => l.sec === s)]).filter(([, ls]) => ls.length);
       const total = lines.reduce((a, l) => a + (l.rate != null ? l.rate * l.qty : 0), 0);
       const missing = lines.filter((l) => l.rate == null).length;
       return `<div class="obp-q-head"><small>Work order &amp; quote</small><h3>${esc(m.address)}</h3>

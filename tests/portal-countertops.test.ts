@@ -61,6 +61,17 @@ describe("countertops in the ObraBuilder measurement", () => {
 });
 
 describe("the portal uses the same countertop quantities as the server", () => {
+  it("prices countertop lines from the builder's agreed list", () => {
+    const win: Record<string, any> = {};
+    new Function("window", "document", readFileSync("crm/public/countertop-builder.js", "utf8"))(win, {});
+    const lines = win.ObTops.quoteLines({ ...tops, spec: { ...tops.spec, level: 2 } });
+    const agreed = [{ name: "Countertop – Level 2 (fabricate & install)", price: 70 }, { name: "Countertop – Level 3 (fabricate & install)", price: 85 }, { name: "Undermount Sink Cutout", price: 250 }];
+    const top = lines.find((l: any) => l.item === "ct_top_l2");
+    expect(win.ObTops.matchPrice(top.item, agreed).price).toBe(70);
+    expect(win.ObTops.matchPrice("ct_sink_undermount", agreed).price).toBe(250);
+    expect(win.ObTops.matchPrice("ct_cooktop", agreed)).toBeNull();
+  });
+
   it("runs countertop-builder.js on the same tops", () => {
     const win: Record<string, any> = {};
     new Function("window", "document", readFileSync("crm/public/countertop-builder.js", "utf8"))(win, {});
@@ -77,5 +88,9 @@ describe("the portal uses the same countertop quantities as the server", () => {
     expect(js).toContain("window.ObTops.html(m)");
     expect(js).toContain("window.ObTops.bind(view, m");
     expect(html).toMatch(/countertop-builder\.js\?v=/);
+    // "Send work order" from a measurement turns showers and countertops into quote lines
+    expect(js).toContain("window.ObTops.quoteLines(d.tops)");
+    expect(js).toContain("window.ObTops.matchPrice(l.item, prices)");
+    expect(js).toContain("window.ObShowers.quoteLines(d.showers)");
   });
 });
