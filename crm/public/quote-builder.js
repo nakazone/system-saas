@@ -6578,6 +6578,7 @@
         service_type: it.item_type === 'product' ? null : normalizeServiceType(it.service_type),
         catalog_customer_notes: it.catalog_customer_notes || null,
         service_catalog_id: normalizeCatalogId(it.service_catalog_id),
+        pricing_item_id: it.pricing_item_id != null ? String(it.pricing_item_id) : null,
         product_id: it.product_id != null ? String(it.product_id) : null,
         cost_price: it.cost_price != null ? Number(it.cost_price) : null,
         markup_percentage: it.markup_percentage != null ? Number(it.markup_percentage) : null,

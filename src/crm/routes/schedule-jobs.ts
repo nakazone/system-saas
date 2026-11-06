@@ -1680,11 +1680,19 @@ scheduleJobsRouter.put(
         return updated;
       });
       await syncWorkOrderMembers(req.organizationId!, row.id, d.member_user_ids);
+      const priorLines =
+        d.line_items !== undefined
+          ? await prisma.workOrderLineItem.findMany({
+              where: { workOrderId: row.id },
+              orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+              select: { pricingItemId: true, serviceName: true, notes: true },
+            })
+          : undefined;
       await syncWorkOrderLineItems(req.organizationId!, row.id, d.line_items);
       await withTenantTransaction(req.organizationId!, async (tx) => {
         await ensureJobChatChannel(tx, req.organizationId!, row.id);
         if (d.line_items !== undefined) {
-          await syncLinkedQuoteFromJob(tx, { organizationId: req.organizationId!, workOrderId: row.id });
+          await syncLinkedQuoteFromJob(tx, { organizationId: req.organizationId!, workOrderId: row.id, priorLines });
           await ensureQuoteDiscountOnJob(tx, req.organizationId!, row.id);
         }
       });

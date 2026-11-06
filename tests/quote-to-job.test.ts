@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { createOrganizationWithAdmin } from "../src/modules/organizations/service.js";
 import { withTenantTransaction } from "../src/lib/tenant/prisma-tenant.js";
 import { DEFAULT_PERMISSIONS } from "../src/lib/tenant/defaults.js";
-import { ensureWorkOrderOnApprove } from "../src/lib/work-orders/from-quote.js";
+import { ensureWorkOrderOnApprove, syncLinkedJobFromQuote, syncLinkedQuoteFromJob } from "../src/lib/work-orders/from-quote.js";
 
 const prisma = new PrismaClient();
 
@@ -99,6 +99,65 @@ describe("quote approve → job", () => {
       expect(wo.status).toBe("draft");
       expect(wo.lineItems.length).toBe(1);
       expect(Number(wo.lineItems[0]?.quantitySqft)).toBe(500);
+      expect(wo.lineItems[0]?.serviceName).toBe("Hardwood");
+      expect(wo.lineItems[0]?.notes).toBe("Install hardwood");
+    });
+  });
+
+  it("copies a job name and description onto the quote, and keeps the quote text when the job description is cleared", async () => {
+    await withTenantTransaction(orgId, async (tx) => {
+      const quote = await tx.quote.findFirstOrThrow({ where: { id: quoteId }, include: { lineItems: true } });
+      const line = quote.lineItems[0];
+      expect(line).toBeTruthy();
+      await tx.quoteLineItem.update({
+        where: { id: line!.id },
+        data: { name: "Hardwood", description: "Hardwood\nSand and finish the floor" },
+      });
+      await syncLinkedJobFromQuote(tx, { organizationId: orgId, quoteId });
+      const job = await tx.workOrder.findFirstOrThrow({
+        where: { id: quote.workOrderId! },
+        include: { lineItems: true },
+      });
+      const jobLine = job.lineItems.find((row) => row.notes !== "quote-discount");
+      expect(jobLine?.serviceName).toBe("Hardwood");
+      expect(jobLine?.notes).toBe("Sand and finish the floor");
+
+      await tx.workOrderLineItem.update({
+        where: { id: jobLine!.id },
+        data: { serviceName: "Red oak", notes: "Two coats" },
+      });
+      await syncLinkedQuoteFromJob(tx, { organizationId: orgId, workOrderId: job.id });
+      const updated = await tx.quoteLineItem.findFirstOrThrow({ where: { quoteId, name: "Red oak" } });
+      expect(updated.description).toBe("Red oak\nTwo coats");
+      const meta =
+        updated.meta && typeof updated.meta === "object" && !Array.isArray(updated.meta)
+          ? (updated.meta as Record<string, unknown>)
+          : {};
+      expect(meta.notes == null || meta.notes === "").toBe(true);
+
+      await tx.workOrderLineItem.update({
+        where: { id: jobLine!.id },
+        data: { notes: null },
+      });
+      await syncLinkedQuoteFromJob(tx, {
+        organizationId: orgId,
+        workOrderId: job.id,
+        priorLines: [{ pricingItemId: jobLine!.pricingItemId, serviceName: "Red oak", notes: "Two coats" }],
+      });
+      const cleared = await tx.quoteLineItem.findFirstOrThrow({ where: { quoteId, name: "Red oak" } });
+      expect(cleared.description).toBe("Red oak");
+
+      await tx.quoteLineItem.update({
+        where: { id: cleared.id },
+        data: { description: "Red oak\nKeep this" },
+      });
+      await syncLinkedQuoteFromJob(tx, {
+        organizationId: orgId,
+        workOrderId: job.id,
+        priorLines: [{ pricingItemId: jobLine!.pricingItemId, serviceName: "Red oak", notes: null }],
+      });
+      const kept = await tx.quoteLineItem.findFirstOrThrow({ where: { quoteId, name: "Red oak" } });
+      expect(kept.description).toBe("Red oak\nKeep this");
     });
   });
 });

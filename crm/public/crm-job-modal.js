@@ -610,7 +610,8 @@
 
   let rateSavePending = null;
   let descSavePending = null;
-  let pendingDescOffer = null;
+  /** Name and description prompts wait until the price dialog closes, then run one at a time. */
+  let pendingDescOffers = [];
   let priceEditCtx = null;
   /** Ignore the tap that opened the dialog. On a tablet that same touch hits the backdrop and closes it. */
   let rateBackdropIgnoreUntil = 0;
@@ -629,15 +630,44 @@
     return String(item.notes || item.description || item.default_description || "").trim();
   }
 
+  /** Name and description saved only for this customer, keyed by the price-table service. */
+  function customNotesForPricing(item) {
+    const customer = pricingCustomer();
+    if (!customer || !item || !customer.custom_pricing_notes || typeof customer.custom_pricing_notes !== "object") {
+      return null;
+    }
+    const raw = customer.custom_pricing_notes[String(item.id)];
+    if (raw == null) return null;
+    if (typeof raw === "string") return { notes: raw.trim() || null, name: null };
+    if (typeof raw === "object") {
+      return {
+        notes: raw.notes != null ? String(raw.notes).trim() || null : null,
+        name: raw.name != null ? String(raw.name).trim() || null : null,
+      };
+    }
+    return null;
+  }
+  function clientNameForPricing(item) {
+    const custom = customNotesForPricing(item);
+    if (custom && custom.name) return custom.name;
+    return String((item && item.name) || "").trim();
+  }
+  function clientDescriptionForPricing(item) {
+    const custom = customNotesForPricing(item);
+    if (custom && custom.notes) return custom.notes;
+    return catalogDescriptionForItem(item);
+  }
+
   function closeSaveRateModal() {
     const root = $("jmSaveRateModal");
     if (root) root.classList.add("hidden");
     rateSavePending = null;
-    if (pendingDescOffer) {
-      const next = pendingDescOffer;
-      pendingDescOffer = null;
-      setTimeout(() => maybeOfferDescPersist(next), 40);
-    }
+    flushPendingDescOffers();
+  }
+
+  function flushPendingDescOffers() {
+    const next = pendingDescOffers.shift();
+    if (next) setTimeout(() => void maybeOfferDescPersist(next), 40);
   }
 
   function openSaveRateModal(payload) {
@@ -805,6 +835,7 @@
     const root = $("jmSaveDescModal");
     if (root) root.classList.add("hidden");
     descSavePending = null;
+    flushPendingDescOffers();
   }
 
   function openSaveDescModal(payload) {
@@ -817,6 +848,9 @@
     const newEl = $("jmSaveDescNew");
     const titleEl = $("jmSaveDescTitle");
     const field = payload.field === "name" ? "name" : "description";
+    const customer = payload.customer || null;
+    const customerName = customer && (customer.name || customer.company) ? String(customer.name || customer.company) : "";
+    const noCustomer = !customer || customer.id == null;
     if (titleEl) titleEl.textContent = field === "name" ? "Gravar novo nome?" : "Gravar nova descrição?";
     if (nameEl) nameEl.textContent = payload.serviceName || "Serviço";
     if (oldEl) {
@@ -827,38 +861,72 @@
       const newTxt = payload.newDesc || (field === "name" ? "(vazio)" : "(vazia)");
       newEl.textContent = newTxt.length > 160 ? `${newTxt.slice(0, 157)}…` : newTxt;
     }
+    const clientBtn = $("jmSaveDescClient");
+    if (clientBtn) {
+      clientBtn.disabled = noCustomer;
+      clientBtn.classList.toggle("is-disabled", noCustomer);
+      clientBtn.textContent = noCustomer
+        ? "Só para este cliente"
+        : `Só para ${customerName || "este cliente"}`;
+    }
+    const jobOnlyBtn = $("jmSaveDescJobOnly");
+    if (jobOnlyBtn) jobOnlyBtn.textContent = payload.quoteNumber ? "Neste job e no quote" : "Só neste job";
+    const quoteNote = $("jmSaveDescQuoteNote");
+    if (quoteNote) {
+      quoteNote.classList.toggle("hidden", !payload.quoteNumber);
+      quoteNote.textContent = payload.quoteNumber
+        ? `O quote ${payload.quoteNumber} fica com este mesmo ${field === "name" ? "nome" : "texto"}.`
+        : "";
+    }
+    const clientHint = $("jmSaveDescClientHint");
+    if (clientHint) clientHint.classList.toggle("hidden", !noCustomer);
     root.classList.remove("hidden");
   }
 
-  function maybeOfferDescPersist(opts) {
+  async function maybeOfferDescPersist(opts) {
     const o = opts || {};
     const rateOpen = $("jmSaveRateModal") && !$("jmSaveRateModal").classList.contains("hidden");
-    if (rateOpen) {
-      pendingDescOffer = o;
+    const descOpen = $("jmSaveDescModal") && !$("jmSaveDescModal").classList.contains("hidden");
+    if (rateOpen || descOpen) {
+      pendingDescOffers.push(o);
       return;
     }
-    const descOpen = $("jmSaveDescModal") && !$("jmSaveDescModal").classList.contains("hidden");
-    if (descOpen) return;
     ensureDescModal();
     const pricingItemId = o.pricingItemId || null;
-    if (!pricingItemId) return;
+    if (!pricingItemId) {
+      flushPendingDescOffers();
+      return;
+    }
     const field = o.field === "name" ? "name" : "description";
     const item = pricing.find((p) => String(p.id) === String(pricingItemId)) || o.row || null;
+    const customer = (await ensurePricingCustomer()) || pricingCustomer();
+    if (
+      ($("jmSaveRateModal") && !$("jmSaveRateModal").classList.contains("hidden")) ||
+      ($("jmSaveDescModal") && !$("jmSaveDescModal").classList.contains("hidden"))
+    ) {
+      pendingDescOffers.push(o);
+      return;
+    }
     const tableDesc =
       o.tableDesc != null
         ? String(o.tableDesc)
         : field === "name"
-          ? String((item && item.name) || "").trim()
-          : descBodyWithoutTitle((item && item.name) || o.serviceName || "", catalogDescriptionForItem(item));
+          ? clientNameForPricing(item)
+          : descBodyWithoutTitle(clientNameForPricing(item) || o.serviceName || "", clientDescriptionForPricing(item));
     const newDesc = o.newDesc != null ? String(o.newDesc) : "";
-    if (normalizeDescText(newDesc) === normalizeDescText(tableDesc)) return;
+    if (normalizeDescText(newDesc) === normalizeDescText(tableDesc)) {
+      flushPendingDescOffers();
+      return;
+    }
     openSaveDescModal({
       itemIdx: o.itemIdx,
-      serviceName: o.serviceName || (item && item.name) || "Serviço",
+      serviceName: o.serviceName || clientNameForPricing(item) || "Serviço",
       newDesc,
       tableDesc,
       pricingItemId: String(pricingItemId),
       field,
+      customer,
+      quoteNumber: (st && st.quoteNumber) || null,
     });
   }
 
@@ -913,6 +981,56 @@
       renderServices();
     } catch (e) {
       notify(e.message || "Erro ao atualizar a Tabela de Valores.", "error");
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function persistDescForCustomerOnly() {
+    const p = descSavePending;
+    let customer = p && p.customer && p.customer.id != null ? p.customer : null;
+    if (!customer) {
+      customer = await ensurePricingCustomer();
+      if (customer && p) p.customer = customer;
+    }
+    if (!p || !p.pricingItemId || !customer || customer.id == null) {
+      notify("Selecione um cliente ou builder neste job para gravar na tabela deste cliente.", "error");
+      return;
+    }
+    const cid = String(customer.id);
+    const field = p.field === "name" ? "name" : "description";
+    const prev =
+      customer.custom_pricing_notes && typeof customer.custom_pricing_notes === "object"
+        ? { ...customer.custom_pricing_notes }
+        : {};
+    const pid = String(p.pricingItemId);
+    const cur = prev[pid];
+    const base =
+      cur && typeof cur === "object"
+        ? { notes: cur.notes != null ? String(cur.notes) : null, name: cur.name != null ? String(cur.name) : null }
+        : typeof cur === "string"
+          ? { notes: cur, name: null }
+          : { notes: null, name: null };
+    if (field === "name") base.name = p.newDesc || null;
+    else base.notes = p.newDesc || null;
+    if (!base.notes && !base.name) delete prev[pid];
+    else prev[pid] = base;
+    const btn = $("jmSaveDescClient");
+    if (btn) btn.disabled = true;
+    try {
+      const j = await api(`/api/customers/${encodeURIComponent(cid)}`, {
+        method: "PUT",
+        body: JSON.stringify({ custom_pricing_notes: prev }),
+      });
+      const updated = j.data || j;
+      rememberCustomer(
+        updated && updated.id ? updated : { ...customer, custom_pricing_notes: prev },
+      );
+      notify(field === "name" ? "Nome gravado só para este cliente." : "Descrição gravada só para este cliente.", "success");
+      closeSaveDescModal();
+      renderServices();
+    } catch (e) {
+      notify(e.message || "Erro ao gravar no cliente.", "error");
     } finally {
       if (btn) btn.disabled = false;
     }
@@ -1067,9 +1185,12 @@
       <div><span>Na tabela</span><strong id="jmSaveDescOld">—</strong></div>
       <div><span>Neste job</span><strong id="jmSaveDescNew">—</strong></div>
     </div>
+    <p id="jmSaveDescQuoteNote" class="jm-rate__hint hidden">O quote ligado fica com este mesmo texto.</p>
+    <p id="jmSaveDescClientHint" class="jm-rate__hint hidden">Para gravar no cadastro, selecione um cliente ou builder neste job.</p>
     <div class="jm-rate__acts">
+      <button type="button" id="jmSaveDescClient" class="jm-btn jm-btn--dark">Só para este cliente</button>
       <button type="button" id="jmSaveDescTable" class="jm-btn jm-btn--pri">Atualizar Tabela de Valores</button>
-      <button type="button" id="jmSaveDescJobOnly" class="jm-btn">Só neste job</button>
+      <button type="button" id="jmSaveDescJobOnly" class="jm-btn">Neste job e no quote</button>
       <button type="button" id="jmSaveDescCancel" class="jm-btn jm-btn--ghost">Cancelar</button>
     </div>
   </div>
@@ -1079,6 +1200,7 @@
     }
     if (descModalBound) return;
     descModalBound = true;
+    $("jmSaveDescClient")?.addEventListener("click", () => void persistDescForCustomerOnly());
     $("jmSaveDescTable")?.addEventListener("click", () => void persistDescToPricingTable());
     $("jmSaveDescJobOnly")?.addEventListener("click", () => closeSaveDescModal());
     $("jmSaveDescCancel")?.addEventListener("click", () => closeSaveDescModal());
@@ -1385,12 +1507,19 @@
     const needle = catalogSearchNorm(q);
     if (!needle) return 0;
     const name = catalogSearchNorm(p.name);
-    if (!name) return -1;
-    if (name === needle) return 300;
-    if (name.startsWith(needle + " ") || name.startsWith(needle)) return 200;
-    if (name.includes(needle)) return 100;
+    const clientName = catalogSearchNorm(clientNameForPricing(p));
+    const labeled = clientName && clientName !== name ? clientName : "";
+    if (!name && !labeled) return -1;
+    if (name === needle || labeled === needle) return 300;
+    if (
+      (name && (name.startsWith(needle + " ") || name.startsWith(needle))) ||
+      (labeled && (labeled.startsWith(needle + " ") || labeled.startsWith(needle)))
+    ) {
+      return 200;
+    }
+    if ((name && name.includes(needle)) || (labeled && labeled.includes(needle))) return 100;
     const toks = needle.split(" ").filter(Boolean);
-    if (toks.length > 1 && toks.every((t) => name.includes(t))) return 70;
+    if (toks.length > 1 && toks.every((t) => (name && name.includes(t)) || (labeled && labeled.includes(t)))) return 70;
     const notes = catalogSearchNorm(p.notes || p.default_description || "");
     if (notes) {
       if (notes.includes(needle)) return 40;
@@ -1579,8 +1708,8 @@
       },
       rateFor: (row) => priceFor(row),
       descFor: (row, name) =>
-        descBodyWithoutTitle(name || (row && row.name) || "", catalogDescriptionForItem(row)),
-      nameFor: (row) => String((row && row.name) || "").trim(),
+        descBodyWithoutTitle(name || clientNameForPricing(row), clientDescriptionForPricing(row)),
+      nameFor: (row) => clientNameForPricing(row),
       catalogIds: (row) => ({ service_catalog_id: null, pricing_item_id: row ? row.id : null }),
       pricingLabel: () => pricingLabel(),
       normalizeServiceType,
@@ -1703,7 +1832,8 @@
               ? matches
                   .map((item) => {
                     const rate = priceFor(item);
-                    return `<button type="button" class="jm-svc-dd__opt" role="option" tabindex="-1" data-act="panel-pick" data-id="${esc(item.id)}"><b>${esc(item.name)}</b><small>${rate > 0 ? `${money(rate)}/${esc(unitLabel(item.unit))}` : esc(unitLabel(item.unit))}</small></button>`;
+                    const label = clientNameForPricing(item) || item.name;
+                    return `<button type="button" class="jm-svc-dd__opt" role="option" tabindex="-1" data-act="panel-pick" data-id="${esc(item.id)}"><b>${esc(label)}</b><small>${rate > 0 ? `${money(rate)}/${esc(unitLabel(item.unit))}` : esc(unitLabel(item.unit))}</small></button>`;
                   })
                   .join("")
               : `<p class="jm-svc-dd__empty">${pricing.length ? "Nenhum serviço com esse nome." : "Tabela de Valores vazia."}</p>`
@@ -3371,7 +3501,7 @@
             const item = l.pricingId ? pricing.find((p) => p.id === l.pricingId) : null;
             return {
               pricing_item_id: l.pricingId || null,
-              service_name: (item?.name || l.name || "Serviço").trim(),
+              service_name: (String(l.name || "").trim() || item?.name || "Serviço").trim(),
               quantity_sqft: Number(l.qty) || 0,
               unit_price: Number(l.price) || 0,
               notes: String(l.note || "").trim() || null,
@@ -3812,16 +3942,29 @@
         renderServices();
         refreshNumbers();
         scheduleQuotePriceSync();
+        const priced = pricingItemForLine(row);
         const descOffer = {
           itemIdx: savedIdx,
           pricingItemId: row.pricingId,
           serviceName: row.name,
           newDesc: row.note || "",
-          tableDesc: descBodyWithoutTitle(row.name, catalogDescriptionForItem(pricingItemForLine(row))),
+          field: "description",
+          tableDesc: descBodyWithoutTitle(clientNameForPricing(priced) || row.name, clientDescriptionForPricing(priced)),
         };
+        const nameOffer = row.pricingId
+          ? {
+              itemIdx: savedIdx,
+              pricingItemId: row.pricingId,
+              serviceName: row.name,
+              newDesc: row.name,
+              field: "name",
+              tableDesc: clientNameForPricing(priced),
+            }
+          : null;
         void (async () => {
           await maybeOfferRatePersist(savedIdx);
-          maybeOfferDescPersist(descOffer);
+          if (nameOffer) await maybeOfferDescPersist(nameOffer);
+          await maybeOfferDescPersist(descOffer);
         })();
         break;
       }
@@ -3832,10 +3975,11 @@
         st.svcPanel.manual = false;
         st.svcPanel.pricingId = item.id;
         st.svcPanel.unit = item.unit || null;
-        st.svcPanel.name = item.name;
-        st.svcPanel.query = item.name;
+        const pickedName = clientNameForPricing(item) || item.name;
+        st.svcPanel.name = pickedName;
+        st.svcPanel.query = pickedName;
         st.svcPanel.price = priceFor(item);
-        st.svcPanel.note = descBodyWithoutTitle(item.name, catalogDescriptionForItem(item));
+        st.svcPanel.note = descBodyWithoutTitle(pickedName, clientDescriptionForPricing(item));
         st.svcPanel.open = false;
         renderServices();
         setTimeout(() => $("jmSvc")?.querySelector('[data-f="panel-qty"]')?.focus(), 20);

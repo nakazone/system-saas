@@ -3,6 +3,7 @@
  * Idempotent: re-approving / re-saving approved quotes returns the existing job.
  */
 import { copyFieldQuoteToJob } from "../field-quote/job.js";
+import { parseJobExtraNote } from "../invoices/job.js";
 import { discountLineLabel, readQuoteDiscount, type DiscountKind } from "../quotes/discount.js";
 import { calculateQuoteTotals } from "../quotes/totals.js";
 import { normalizeQuoteStatus } from "../quotes/transitions.js";
@@ -255,6 +256,39 @@ function jobIdentityFromQuote(quote: QuoteForJob, personName: string) {
   };
 }
 
+/** Drop a leading line that only repeats the service name. The editor shows the rest. */
+function descriptionBody(name: string, stored: string | null | undefined): string {
+  const n = String(name || "").trim().toLowerCase();
+  const lines = String(stored || "").split("\n");
+  while (lines.length && n && lines[0]!.trim().toLowerCase() === n) lines.shift();
+  return lines.join("\n").trim();
+}
+
+/** Quote PDF reads the first description line as the service name. */
+function storedDescription(name: string, body: string): string {
+  const n = String(name || "").trim();
+  const b = String(body || "").trim();
+  if (n && b) return `${n}\n${b}`.slice(0, 2000);
+  return (n || b || "Item").slice(0, 2000);
+}
+
+function lineMeta(meta: unknown): Record<string, unknown> {
+  return meta && typeof meta === "object" && !Array.isArray(meta) ? { ...(meta as Record<string, unknown>) } : {};
+}
+
+function pricingIdFromMeta(meta: Record<string, unknown>): string | null {
+  const raw = meta.pricing_item_id ?? meta.pricingItemId ?? null;
+  return raw && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(raw))
+    ? String(raw)
+    : null;
+}
+
+function takeLinked<T>(unused: T[], match: (row: T) => boolean): T | undefined {
+  const index = unused.findIndex(match);
+  if (index < 0) return undefined;
+  return unused.splice(index, 1)[0];
+}
+
 function quoteJobLineData(organizationId: string, quote: QuoteForJob) {
   const selectedLines = quote.lineItems.filter((li) => !li.isOptional || li.isSelected);
   const discount = readQuoteDiscount(quote);
@@ -262,22 +296,24 @@ function quoteJobLineData(organizationId: string, quote: QuoteForJob) {
     const qty = Number(li.quantity) || 0;
     const unitPrice = Number(li.unitPrice) || 0;
     const amount = Number(li.amount) || qty * unitPrice;
-    const meta =
-      li.meta && typeof li.meta === "object" && !Array.isArray(li.meta)
-        ? (li.meta as Record<string, unknown>)
-        : {};
-    const pricingRaw = meta.pricing_item_id ?? meta.pricingItemId ?? null;
-    const pricingItemId =
-      pricingRaw &&
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(pricingRaw))
-        ? String(pricingRaw)
-        : null;
-    const noteRaw = meta.notes != null ? String(meta.notes).trim() : "";
+    const meta = lineMeta(li.meta);
+    const pricingItemId = pricingIdFromMeta(meta);
+    const serviceName = (
+      String(li.name || "").trim() ||
+      String(li.description || "Serviço").split("\n")[0] ||
+      "Serviço"
+    ).slice(0, 200);
+    const metaNote = meta.notes != null ? String(meta.notes).trim() : "";
+    // The job has one description field. The customer-facing quote text fills it.
+    // A separate quote note is used only when the description itself is empty.
+    const noteText = parseJobExtraNote(metaNote)
+      ? metaNote
+      : descriptionBody(serviceName, li.description) || metaNote;
     return {
       organizationId,
       pricingItemId,
-      serviceName: String(li.name || li.description || "Serviço").slice(0, 200),
-      notes: noteRaw ? noteRaw.slice(0, 2000) : (null as string | null),
+      serviceName,
+      notes: noteText ? noteText.slice(0, 2000) : (null as string | null),
       quantitySqft: new Prisma.Decimal(qty),
       unitPrice: new Prisma.Decimal(unitPrice),
       lineTotal: new Prisma.Decimal(amount),
@@ -533,20 +569,27 @@ function discountFromJobLine(li: { serviceName: string; lineTotal: unknown }): {
   return null;
 }
 
-function takeMatch<T>(buckets: Map<string, T[]>, serviceName: string): T | undefined {
-  const key = serviceName.trim().toLowerCase();
-  const queue = buckets.get(key);
-  if (!queue?.length) return undefined;
-  return queue.shift();
+type PriorJobLine = { pricingItemId: string | null; serviceName: string; notes: string | null };
+
+/**
+ * Empty notes clear the quote description only when that job line used to have one.
+ * A line that was always blank must not wipe the quote on an unrelated save.
+ */
+function descriptionFromJobNotes(notes: string, quoteBody: string, prior: PriorJobLine | undefined, knowPrior: boolean): string {
+  if (parseJobExtraNote(notes)) return notes;
+  if (notes) return notes;
+  const priorNotes = String(prior?.notes || "").trim();
+  if (knowPrior && priorNotes && !parseJobExtraNote(priorNotes)) return "";
+  return quoteBody;
 }
 
 /**
  * Job services are the contract. After they change, the linked quote must show the same
- * lines and total — invoices and the quote screen would otherwise keep the old price.
+ * name, description, and price — invoices and the quote screen would otherwise keep the old text.
  */
 export async function syncLinkedQuoteFromJob(
   tx: TenantPrisma,
-  params: { organizationId: string; workOrderId: string },
+  params: { organizationId: string; workOrderId: string; priorLines?: PriorJobLine[] },
 ): Promise<void> {
   const quote = await tx.quote.findFirst({
     where: { workOrderId: params.workOrderId },
@@ -563,19 +606,51 @@ export async function syncLinkedQuoteFromJob(
   const discountLine = jobLines.find((li) => isJobDiscountLine(li));
   const discount = discountLine ? discountFromJobLine(discountLine) : null;
   const quoteDiscount = readQuoteDiscount(quote);
-  const sig = (name: string, qty: number, price: number, notes: string) =>
-    `${name.trim().toLowerCase()}|${Math.round(qty * 1000)}|${Math.round(price * 100)}|${notes.trim()}`;
-  const jobSig = services
-    .map((li) => sig(li.serviceName, Number(li.quantitySqft) || 0, Number(li.unitPrice) || 0, li.notes || ""))
+  const unusedQuotes = [...quote.lineItems];
+  const unusedPrior = [...(params.priorLines || [])];
+  const knowPrior = params.priorLines != null;
+  const pairs = services.map((li) => {
+    const nameKey = li.serviceName.trim().toLowerCase();
+    const prev =
+      (li.pricingItemId
+        ? takeLinked(unusedQuotes, (row) => pricingIdFromMeta(lineMeta(row.meta)) === li.pricingItemId)
+        : undefined) ||
+      takeLinked(unusedQuotes, (row) => String(row.name || row.description || "").trim().toLowerCase() === nameKey);
+    const prior =
+      (li.pricingItemId
+        ? takeLinked(unusedPrior, (row) => row.pricingItemId === li.pricingItemId)
+        : undefined) ||
+      takeLinked(unusedPrior, (row) => row.serviceName.trim().toLowerCase() === nameKey);
+    return { li, prev, prior };
+  });
+  const sig = (name: string, qty: number, price: number, text: string) =>
+    `${name.trim().toLowerCase()}|${Math.round(qty * 1000)}|${Math.round(price * 100)}|${text.trim()}`;
+  const jobSig = pairs
+    .map(({ li, prev, prior }) => {
+      const notes = String(li.notes || "").trim();
+      const prevBody = prev ? descriptionBody(String(prev.name || ""), prev.description) : "";
+      return sig(
+        li.serviceName,
+        Number(li.quantitySqft) || 0,
+        Number(li.unitPrice) || 0,
+        descriptionFromJobNotes(notes, prevBody, prior, knowPrior),
+      );
+    })
     .join("\n");
-  const quoteSig = quote.lineItems
-    .map((li) => {
-      const meta =
-        li.meta && typeof li.meta === "object" && !Array.isArray(li.meta)
-          ? (li.meta as Record<string, unknown>)
-          : {};
-      const notes = meta.notes != null ? String(meta.notes) : "";
-      return sig(String(li.name || li.description || ""), Number(li.quantity) || 0, Number(li.unitPrice) || 0, notes);
+  const quoteSig = pairs
+    .map(({ li, prev }) => {
+      const notes = String(li.notes || "").trim();
+      if (parseJobExtraNote(notes)) {
+        const stored = prev ? String(lineMeta(prev.meta).notes || "").trim() : "";
+        return sig(
+          String(prev?.name || li.serviceName),
+          Number(prev?.quantity) || 0,
+          Number(prev?.unitPrice) || 0,
+          parseJobExtraNote(stored) ? stored : "",
+        );
+      }
+      const body = prev ? descriptionBody(String(prev.name || ""), prev.description) : "";
+      return sig(String(prev?.name || ""), Number(prev?.quantity) || 0, Number(prev?.unitPrice) || 0, body);
     })
     .join("\n");
   const sameDiscount =
@@ -583,44 +658,49 @@ export async function syncLinkedQuoteFromJob(
     Math.round((discount?.value ?? 0) * 100) === Math.round((quoteDiscount.amount > 0 ? quoteDiscount.value : 0) * 100);
   if (jobSig === quoteSig && sameDiscount) return;
 
-  const byName = new Map<string, (typeof quote.lineItems)[number][]>();
-  for (const li of quote.lineItems) {
-    const key = String(li.name || li.description || "").trim().toLowerCase();
-    const queue = byName.get(key) || [];
-    queue.push(li);
-    byName.set(key, queue);
-  }
   const payload = payloadOf(quote.payload);
-  const prevItems = (Array.isArray(payload.items) ? payload.items : Array.isArray(payload.line_items) ? payload.line_items : [])
-    .filter((x): x is Record<string, unknown> => !!x && typeof x === "object" && !Array.isArray(x));
-  const payloadByName = new Map<string, Record<string, unknown>[]>();
-  for (const item of prevItems) {
-    const key = String(item.name || item.description || "").trim().toLowerCase();
-    const queue = payloadByName.get(key) || [];
-    queue.push(item);
-    payloadByName.set(key, queue);
-  }
+  const unusedPayload = (
+    Array.isArray(payload.items) ? payload.items : Array.isArray(payload.line_items) ? payload.line_items : []
+  ).filter((x): x is Record<string, unknown> => !!x && typeof x === "object" && !Array.isArray(x));
 
   const nextPayloadItems: Record<string, unknown>[] = [];
-  const rows = services.map((li, idx) => {
-    const prev = takeMatch(byName, li.serviceName);
-    const prevItem = takeMatch(payloadByName, li.serviceName) || {};
-    const meta =
-      prev?.meta && typeof prev.meta === "object" && !Array.isArray(prev.meta)
-        ? { ...(prev.meta as Record<string, unknown>) }
-        : {};
+  const rows = pairs.map(({ li, prev, prior }, idx) => {
+    const nameKey = li.serviceName.trim().toLowerCase();
+    const prevItem =
+      (li.pricingItemId
+        ? takeLinked(unusedPayload, (item) => String(item.pricing_item_id || "") === li.pricingItemId)
+        : undefined) ||
+      takeLinked(
+        unusedPayload,
+        (item) => String(item.name || item.description || "").trim().toLowerCase() === nameKey,
+      ) ||
+      {};
+    const meta = lineMeta(prev?.meta);
     if (li.pricingItemId) meta.pricing_item_id = li.pricingItemId;
-    const note = li.notes && li.notes !== QUOTE_DISCOUNT_NOTE ? li.notes : "";
-    if (note) meta.notes = note;
-    else delete meta.notes;
+    const notes = String(li.notes || "").trim();
+    const extra = parseJobExtraNote(notes);
+    const prevBody = prev ? descriptionBody(String(prev.name || ""), prev.description) : "";
+    const fromJob = descriptionFromJobNotes(notes, prevBody, prior, knowPrior);
+    const descBody = extra ? prevBody : fromJob;
+    const prevNote = meta.notes != null ? String(meta.notes).trim() : "";
+    if (extra) {
+      if (notes) meta.notes = notes;
+      else delete meta.notes;
+    } else if (!prevNote || prevNote === notes || prevNote === descBody) {
+      delete meta.notes;
+    }
+    if (!extra && descBody) meta.catalog_customer_notes = descBody;
+    else if (!extra) delete meta.catalog_customer_notes;
     const qty = Number(li.quantitySqft) || 0;
     const unitPrice = Number(li.unitPrice) || 0;
     const amount = Math.round((Number(li.lineTotal) || qty * unitPrice) * 100) / 100;
     const name = li.serviceName.slice(0, 200);
+    const description = extra ? (prev?.description || name).slice(0, 2000) : storedDescription(name, descBody);
+    const keptNote = meta.notes != null ? String(meta.notes) : "";
     nextPayloadItems.push({
       ...prevItem,
       name,
-      description: prev?.description || name,
+      description: extra ? prev?.description || name : descBody,
       quantity: qty,
       unit: prev?.unit || prevItem.unit || "sqft",
       unit_price: unitPrice,
@@ -628,13 +708,14 @@ export async function syncLinkedQuoteFromJob(
       sell_price: unitPrice,
       amount,
       pricing_item_id: li.pricingItemId,
-      notes: note || null,
+      catalog_customer_notes: !extra && descBody ? descBody : null,
+      notes: keptNote || null,
     });
     return {
       organizationId: params.organizationId,
       quoteId: quote.id,
       name,
-      description: (prev?.description || name).slice(0, 2000),
+      description,
       quantity: new Prisma.Decimal(qty),
       unit: prev?.unit || "sqft",
       unitCost: prev?.unitCost ?? new Prisma.Decimal(0),
