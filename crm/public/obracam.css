@@ -64,6 +64,8 @@
   display: flex; flex-direction: column; background: var(--cam-card); border-radius: 22px; box-shadow: 0 0 0 1px var(--cam-line); overflow: hidden;
 }
 .cam-list__top { padding: 16px 14px 12px; border-bottom: 1px solid var(--cam-line); }
+body:not(.cam-crew) #camMode { display: none; }
+body.cam-crew #camTools { display: none; }
 /* top bar: the page title and the two views (Jobs | Fotos) sit above the split, so Fotos is a place, not a list filter */
 .cam-top { display: flex; align-items: center; gap: 14px; margin: 0 0 14px; }
 .cam-top h1 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -.035em; line-height: 1; }
@@ -537,10 +539,14 @@ body.om-field-nav.cam-app .dashboard-main {
   padding-left: 1rem !important;
   padding-right: 1rem !important;
 }
+/* Content gap under shell top matches Campo (--crew-pad-top / 0.85rem), not a second 0.35rem. */
+body.om-device-mobile.om-has-apptop.om-field-nav.cam-app .dashboard-main {
+  padding-top: calc(var(--om-apptop-h, 56px) + env(safe-area-inset-top, 0px) + 0.85rem) !important;
+}
 body.om-field-nav.cam-app .cam {
   max-width: 480px;
   margin: 0 auto;
-  padding-top: 0.35rem;
+  padding-top: 0;
 }
 body.om-field-nav.cam-app .cam-list__top {
   padding: 0 0 10px;
@@ -707,14 +713,74 @@ body.om-field-nav.cam-app .cam-empty {
 }
 @media (max-width: 900px) {
   body.om-field-nav.cam-app.om-has-tabbar .cam-pbar,
-  body.om-field-nav.cam-app.om-has-tabbar .cam-selbar {
+  body.om-field-nav.cam-app.om-has-tabbar .cam-selbar,
+  body.om-field-nav.cam-app.om-has-tabbar .cam-crew-acts {
     bottom: calc(4.35rem + env(safe-area-inset-bottom, 0px));
   }
   body.om-field-nav.cam-app.cam-detail-open .cam,
-  body.om-field-nav.cam-app.cam-selecting .cam {
+  body.om-field-nav.cam-app.cam-selecting .cam,
+  body.om-field-nav.cam-app.cam-crew-acts .cam {
     padding-bottom: calc(6.25rem + env(safe-area-inset-bottom, 0px));
   }
   body.om-field-nav.cam-app.cam-detail-open .om-tabbar.om-tabbar--field {
     display: flex !important;
   }
+}
+
+/* ObraCrew ObraCam: Tirar foto + Scanner Recibo */
+.cam-crew-acts {
+  display: none;
+}
+@media (max-width: 900px) {
+  body.cam-crew.cam-crew-acts .cam-crew-acts {
+    display: flex;
+    gap: 8px;
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    z-index: 60;
+    padding: 8px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.94);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 0 0 1px var(--cam-line), 0 14px 30px -14px rgba(16, 24, 40, 0.35);
+  }
+  .cam-crew-acts .cam-btn,
+  .cam-pbar--crew .cam-btn {
+    flex: 1;
+    min-height: 48px;
+    height: auto;
+    padding: 10px 8px;
+    font-size: 14px;
+    font-weight: 700;
+    gap: 6px;
+    flex-direction: column;
+  }
+  .cam-crew-acts .cam-btn span,
+  .cam-pbar--crew .cam-btn span {
+    line-height: 1.15;
+  }
+  .cam-crew-acts .cam-btn--pri,
+  .cam-pbar--crew .cam-btn--pri {
+    flex: 1.15;
+  }
+  .cam-crew-acts .cam-btn:disabled,
+  .cam-crew-acts .cam-btn[aria-disabled="true"] {
+    opacity: 0.45;
+  }
+}
+.cam-rcpt-prev {
+  margin: 0 0 12px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--cam-sur, #f3f4f6);
+  aspect-ratio: 4 / 3;
+}
+.cam-rcpt-prev img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }

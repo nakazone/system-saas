@@ -38,6 +38,8 @@
     x: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
     archive: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10h14V9M10 13h4"/></svg>',
     restore: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/></svg>',
+    receipt:
+      '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>',
   };
 
   let jobs = [];
@@ -74,6 +76,7 @@
   let canEditMedia = false;
   /** ObraCrew shell: calendar jobs only, ticket links, no office chrome. */
   let crewMode = false;
+  let showAll = false;
   /** Crew week strip (same shape as Campo Agenda). */
   let crewWeekStart = null;
   let crewSelectedYmd = null;
@@ -589,6 +592,7 @@
       return crewDayJobs.map(mergeAgendaJob).filter(jobHit);
     }
     const hit = jobs.filter(jobHit);
+    if (showAll) return hit;
     return mode === "done" ? hit.filter(isDone) : hit.filter(isActive);
   }
 
@@ -661,6 +665,15 @@
       });
       return [...by.entries()].sort(([a], [b]) => (a === "Sem cliente") - (b === "Sem cliente") || a.localeCompare(b, "pt-BR", { sensitivity: "base" }));
     }
+    if (showAll) {
+      const active = rows.filter((j) => !isDone(j));
+      return [
+        ["Precisa de foto", active.filter((j) => needsPhoto(j) && j.scheduled_start)],
+        ["Em dia", active.filter((j) => !needsPhoto(j))],
+        ["Sem data", active.filter((j) => needsPhoto(j) && !j.scheduled_start)],
+        ["Concluídos", rows.filter(isDone)],
+      ];
+    }
     if (mode === "done") return [["Concluídos", rows]];
     return [
       ["Precisa de foto", rows.filter((j) => needsPhoto(j) && j.scheduled_start)],
@@ -670,17 +683,33 @@
   }
 
   function renderFilters() {
-    const base = baseJobs();
-    const host = $("camFilters");
-    if (!host) return;
-    host.innerHTML = FILTERS.map(([k, l, test]) => {
-      const n = base.filter(test).length;
-      const on = listPref.filter === k;
-      if (!n && !on && k !== "all") return "";
-      return `<button type="button" class="cam-fchip${on ? " is-on" : ""}${k === "need" && n ? " is-hot" : ""}" data-filter="${k}" aria-pressed="${on}">${l} <em>${n}</em></button>`;
-    }).join("");
-    if ($("camGroup")) $("camGroup").value = listPref.group;
-    if ($("camSort")) $("camSort").value = listPref.sort;
+    const sel = $("camFilt");
+    if (sel) {
+      const active = jobs.filter((j) => isActive(j) && jobHit(j));
+      const labels = { all: "Todos", need: "Precisa de foto", today: "Hoje", nogps: "Sem GPS", far: "Longe", done: "Concluídos" };
+      Array.from(sel.options).forEach((opt) => {
+        let n = 0;
+        if (opt.value === "done") n = jobs.filter((j) => isDone(j) && jobHit(j)).length;
+        else if (opt.value === "all") n = active.length;
+        else {
+          const spec = FILTERS.find((x) => x[0] === opt.value);
+          n = spec ? active.filter(spec[2]).length : 0;
+        }
+        const name = labels[opt.value] || opt.textContent;
+        opt.textContent = n ? `${name} · ${n}` : name;
+      });
+      sel.value = showAll ? "all" : mode === "done" ? "done" : listPref.filter;
+      window.OlPick?.paint(sel);
+    }
+    if ($("camGroup")) {
+      $("camGroup").value = listPref.group;
+      window.OlPick?.paint($("camGroup"));
+    }
+    const allBtn = $("camAll");
+    if (allBtn) {
+      allBtn.classList.toggle("is-on", showAll);
+      allBtn.setAttribute("aria-pressed", showAll ? "true" : "false");
+    }
   }
 
   function renderList() {
@@ -741,6 +770,7 @@
                 : "Nenhum job ativo."
       }</p>`;
     if (window.OmGestures) window.OmGestures.bindSwipeRow?.($("camRows"));
+    ensureCrewActs();
   }
 
   /** Abre primeiro um job que tenha fotos (senão o primeiro da lista). */
@@ -926,23 +956,72 @@
           </div>
         </div>
         <div class="cam-dh__acts">
-          <button type="button" class="cam-btn" data-cam-upload="${esc(j.id)}">${SVG.cam}${crewMode ? "Tirar foto" : "Adicionar fotos"}</button>
-          <a class="cam-btn cam-btn--pri" href="${open}">${openLbl}</a>
+          ${
+            crewMode
+              ? `<button type="button" class="cam-btn" data-cam-receipt>${SVG.receipt}Scanner Recibo</button>
+          <button type="button" class="cam-btn cam-btn--pri" data-cam-upload="${esc(j.id)}">${SVG.cam}Tirar foto</button>`
+              : `<button type="button" class="cam-btn" data-cam-upload="${esc(j.id)}">${SVG.cam}Adicionar fotos</button>
+          <a class="cam-btn cam-btn--pri" href="${open}">${openLbl}</a>`
+          }
         </div>
       </div>`;
   }
 
-  function pbarHtml(j) {
-    const open = jobOpenHref(j.id);
-    const openLbl = crewMode ? "Ticket" : "Abrir job";
-    return `<div class="cam-pbar" id="camPbar"><a class="cam-btn" href="${open}">${openLbl}</a><button type="button" class="cam-btn cam-btn--pri" data-cam-upload="${esc(j.id)}">${SVG.cam}Tirar foto</button></div>`;
+  /** Job used by the crew “Tirar foto” CTA (open job, else today’s first). */
+  function photoTargetJob() {
+    if (selId) {
+      const open = jobs.find((x) => String(x.id) === String(selId));
+      if (open) return open;
+    }
+    const day = (crewDayJobs || []).map(mergeAgendaJob);
+    return day.find((j) => j.status === "in_progress") || day[0] || null;
   }
+
+  function crewActionButtonsHtml(jobId) {
+    const id = jobId ? esc(jobId) : "";
+    return `<button type="button" class="cam-btn" data-cam-receipt>${SVG.receipt}<span>Scanner Recibo</span></button>
+      <button type="button" class="cam-btn cam-btn--pri" data-cam-upload="${id}"${id ? "" : " disabled aria-disabled=\"true\""}>${SVG.cam}<span>Tirar foto</span></button>`;
+  }
+
+  function pbarHtml(j) {
+    if (crewMode) {
+      return `<div class="cam-pbar cam-pbar--crew" id="camPbar">${crewActionButtonsHtml(j.id)}</div>`;
+    }
+    const open = jobOpenHref(j.id);
+    return `<div class="cam-pbar" id="camPbar"><a class="cam-btn" href="${open}">Abrir job</a><button type="button" class="cam-btn cam-btn--pri" data-cam-upload="${esc(j.id)}">${SVG.cam}Tirar foto</button></div>`;
+  }
+
+  function ensureCrewActs() {
+    let bar = $("camCrewActs");
+    if (!crewMode) {
+      if (bar) bar.remove();
+      document.body.classList.remove("cam-crew-acts");
+      return;
+    }
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.className = "cam-crew-acts";
+      bar.id = "camCrewActs";
+      bar.setAttribute("aria-label", "Ações rápidas");
+      document.body.appendChild(bar);
+    }
+    const j = photoTargetJob();
+    bar.innerHTML = crewActionButtonsHtml(j && j.id);
+    const detailOpen = document.body.classList.contains("cam-detail-open");
+    bar.hidden = detailOpen;
+    document.body.classList.toggle("cam-crew-acts", !detailOpen);
+  }
+
   function movePbar() {
     document.querySelectorAll("body > .cam-pbar").forEach((x) => x.remove());
     const bar = $("camPbar");
-    if (!bar) return;
+    if (!bar) {
+      ensureCrewActs();
+      return;
+    }
     if (document.body.classList.contains("cam-detail-open")) document.body.appendChild(bar);
     else bar.remove();
+    ensureCrewActs();
   }
 
   async function renderJob() {
@@ -1797,8 +1876,11 @@
   }
 
   function openUploadSheet(jobId) {
-    const j = jobs.find((x) => String(x.id) === String(jobId));
-    if (!j) return;
+    const j = jobs.find((x) => String(x.id) === String(jobId)) || (jobId ? null : photoTargetJob());
+    if (!j) {
+      window.crmToast?.error?.("Escolha um job na agenda para tirar foto.");
+      return;
+    }
     ensureUploadUi();
     const who = listWho(j);
     const same = uploadTarget && String(uploadTarget.id) === String(j.id);
@@ -1813,6 +1895,158 @@
     paintUploadSheet();
     uploadLayer.open();
     if (!people) loadPeople().then(() => uploadLayer.isOpen() && uploadState.kind !== "progress" && paintUploadSheet());
+  }
+
+  // ---------------------------------------------------------------- Scanner Recibo (reembolso do dia)
+  let receiptSheet = null;
+  let receiptLayer = null;
+  let receiptCamera = null;
+  let receiptState = { kind: "idle" }; // idle | form | saving
+
+  function ensureReceiptUi() {
+    if (receiptSheet) return;
+    receiptSheet = sheetShell("cam-up--receipt", "camRcptTitle");
+    receiptLayer = camSheet(receiptSheet, {
+      initialFocus: () =>
+        receiptSheet.querySelector("#camRcptAmt") || receiptSheet.querySelector("[data-cam-rcpt-camera]") || receiptSheet.querySelector("[data-cam-rcpt-close]"),
+    });
+    receiptCamera = document.createElement("input");
+    receiptCamera.type = "file";
+    receiptCamera.accept = "image/*";
+    receiptCamera.setAttribute("capture", "environment");
+    receiptCamera.hidden = true;
+    document.body.appendChild(receiptCamera);
+    receiptCamera.addEventListener("change", () => {
+      const file = receiptCamera.files && receiptCamera.files[0];
+      receiptCamera.value = "";
+      if (file) void onReceiptFile(file);
+    });
+    receiptSheet.addEventListener("click", (e) => {
+      const t = e.target.closest("[data-cam-rcpt-camera],[data-cam-rcpt-close],[data-cam-rcpt-save],[data-cam-rcpt-retake]");
+      if (!t) return;
+      if (t.hasAttribute("data-cam-rcpt-camera") || t.hasAttribute("data-cam-rcpt-retake")) {
+        receiptCamera.click();
+        return;
+      }
+      if (t.hasAttribute("data-cam-rcpt-save")) {
+        void saveReceipt();
+        return;
+      }
+      if (t.hasAttribute("data-cam-rcpt-close")) closeReceiptSheet();
+    });
+  }
+
+  function paintReceiptSheet() {
+    ensureReceiptUi();
+    const body = receiptSheet.querySelector(".cam-up__body");
+    const st = receiptState || { kind: "idle" };
+    if (st.kind === "idle") {
+      body.innerHTML = `<h2 id="camRcptTitle">Scanner Recibo</h2>
+        <p>Gasolina, material ou ferramenta — a foto vai para o reembolso do seu dia.</p>
+        <div class="cam-up__go">
+          <button type="button" data-cam-rcpt-camera>${UP_ICON.cam}Tirar foto do recibo</button>
+        </div>
+        <button type="button" class="cam-up__cancel" data-cam-rcpt-close>Cancelar</button>`;
+      return;
+    }
+    const busy = st.kind === "saving";
+    body.innerHTML = `<h2 id="camRcptTitle">Scanner Recibo</h2>
+      <p>Confira o valor e envie.</p>
+      ${st.preview ? `<div class="cam-rcpt-prev"><img src="${esc(st.preview)}" alt="Prévia do recibo" /></div>` : ""}
+      <label class="cam-up__who"><span>Valor (USD)</span>
+        <input id="camRcptAmt" type="number" inputmode="decimal" min="0.01" step="0.01" placeholder="0.00" value="${esc(st.amount || "")}"${busy ? " disabled" : ""} />
+      </label>
+      <label class="cam-up__who"><span>Descrição <span style="font-weight:500;color:var(--cam-ink2)">opcional</span></span>
+        <input id="camRcptDesc" type="text" maxlength="300" placeholder="Ex.: gasolina, material" value="${esc(st.desc || "")}"${busy ? " disabled" : ""} />
+      </label>
+      ${st.error ? `<div class="cam-up__err" role="alert"><b>${esc(st.error)}</b></div>` : ""}
+      <div class="cam-up__go">
+        <button type="button" data-cam-rcpt-save${busy ? " disabled" : ""}>${busy ? "Enviando…" : "Enviar recibo"}</button>
+        <button type="button" class="is-sec" data-cam-rcpt-retake${busy ? " disabled" : ""}>Outra foto</button>
+      </div>
+      <button type="button" class="cam-up__cancel" data-cam-rcpt-close>${busy ? "Fechar" : "Cancelar"}</button>`;
+  }
+
+  function closeReceiptSheet() {
+    if (receiptLayer) receiptLayer.close();
+    receiptState = { kind: "idle" };
+  }
+
+  function openReceiptSheet() {
+    ensureReceiptUi();
+    receiptState = { kind: "idle" };
+    paintReceiptSheet();
+    receiptLayer.open();
+    // Same tap opens the camera (must stay sync for the browser gesture).
+    receiptCamera.click();
+  }
+
+  async function onReceiptFile(file) {
+    try {
+      const dataUrl = await compressUpload(file);
+      receiptState = {
+        kind: "form",
+        dataUrl,
+        preview: dataUrl,
+        amount: receiptState.amount || "",
+        desc: receiptState.desc || "",
+        error: "",
+      };
+      paintReceiptSheet();
+      receiptSheet.querySelector("#camRcptAmt")?.focus();
+    } catch (e) {
+      window.crmToast?.error?.(friendlyError(e, "o recibo", "ler"));
+    }
+  }
+
+  async function saveReceipt() {
+    if (!receiptState || receiptState.kind === "saving") return;
+    const amtEl = receiptSheet.querySelector("#camRcptAmt");
+    const descEl = receiptSheet.querySelector("#camRcptDesc");
+    const amount = Number(amtEl && amtEl.value);
+    const desc = String((descEl && descEl.value) || "").trim();
+    if (!(amount > 0)) {
+      receiptState = { ...receiptState, kind: "form", amount: amtEl?.value || "", desc, error: "Informe o valor do recibo." };
+      paintReceiptSheet();
+      amtEl?.focus();
+      return;
+    }
+    if (!receiptState.dataUrl) {
+      receiptState = { ...receiptState, kind: "idle" };
+      paintReceiptSheet();
+      return;
+    }
+    receiptState = { ...receiptState, kind: "saving", amount: String(amount), desc, error: "" };
+    paintReceiptSheet();
+    try {
+      const up = await api("/api/campo/dia/recibos", {
+        method: "POST",
+        body: JSON.stringify({ data_url: receiptState.dataUrl }),
+      });
+      const stored = up.data || up;
+      await api("/api/campo/dia/despesas", {
+        method: "POST",
+        body: JSON.stringify({
+          amount: Math.round(amount * 100) / 100,
+          description: desc || null,
+          receipt_url: stored.url || null,
+          receipt_key: stored.key || null,
+        }),
+      });
+      closeReceiptSheet();
+      window.OmUI?.haptic?.("success");
+      window.crmToast?.success?.("Recibo enviado");
+    } catch (e) {
+      const msg =
+        e.code === "NOT_LINKED"
+          ? "Seu usuário ainda não está ligado à folha."
+          : e.code === "NO_OPEN_DAY"
+            ? "Comece o dia em Hoje para lançar o recibo."
+            : friendlyError(e, "o recibo");
+      receiptState = { ...receiptState, kind: "form", error: msg };
+      paintReceiptSheet();
+      window.OmUI?.haptic?.("error");
+    }
   }
 
   // ---------------------------------------------------------------- sticker manager
@@ -2140,7 +2374,30 @@
       }
       const f = e.target.closest("[data-filter]");
       if (!f) return;
+      showAll = false;
+      mode = "active";
       listPref.filter = f.getAttribute("data-filter");
+      relist();
+    });
+    $("camFilt")?.addEventListener("change", (e) => {
+      const v = e.target.value;
+      showAll = false;
+      if (v === "done") {
+        mode = "done";
+        listPref.filter = "all";
+      } else {
+        mode = "active";
+        listPref.filter = v || "all";
+      }
+      relist();
+    });
+    document.querySelector(".cam-list")?.addEventListener("ol-all", () => {
+      if (crewMode) return;
+      window.CrmList?.openAll(document.querySelector(".cam-list"));
+      showAll = true;
+      mode = "active";
+      listPref.filter = "all";
+      savePref();
       relist();
     });
     $("camGroup")?.addEventListener("change", (e) => {
@@ -2154,6 +2411,7 @@
     $("camMode").addEventListener("click", (e) => {
       const b = e.target.closest("[data-mode]");
       if (!b) return;
+      showAll = false;
       mode = b.getAttribute("data-mode");
       stageFilter = "all";
       selId = null;
@@ -2304,9 +2562,19 @@
       if (e.key === "Escape" && selecting && !e.defaultPrevented && !document.querySelector(".cv:not([hidden]), .cam-up:not([hidden])")) stopSelecting();
     });
     document.addEventListener("click", (e) => {
-      const up = e.target.closest(".cam-pbar [data-cam-upload]");
+      const rcpt = e.target.closest("[data-cam-receipt]");
+      if (rcpt) {
+        e.preventDefault();
+        openReceiptSheet();
+        return;
+      }
+      const up = e.target.closest(".cam-pbar [data-cam-upload], #camCrewActs [data-cam-upload]");
       if (!up) return;
       e.preventDefault();
+      if (up.disabled || up.getAttribute("aria-disabled") === "true") {
+        window.crmToast?.error?.("Escolha um job na agenda para tirar foto.");
+        return;
+      }
       openUploadSheet(up.getAttribute("data-cam-upload"));
     });
     window.addEventListener("resize", () => {

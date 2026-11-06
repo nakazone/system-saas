@@ -155,6 +155,48 @@ html body .om-shell-menu__item.om-shell-menu__item {
   text-decoration: none;
   cursor: pointer;
 }
+html body .om-shell-menu__item.is-danger {
+  color: #b42318;
+}
+.om-shell-menu__section { padding: 4px 4px 8px; }
+.om-shell-menu__label {
+  margin: 0 8px 6px;
+  font-size: 11.5px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--om-ink-2);
+}
+.om-shell-menu__langs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+html body .om-shell-menu__lang.om-shell-menu__lang {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--om-r-md);
+  background: transparent;
+  color: var(--om-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+html body .om-shell-menu__lang.is-on {
+  background: var(--om-accent-soft, #fdf0e6);
+  color: var(--om-accent-strong, #b4561a);
+}
+.om-shell-menu__sep {
+  height: 1px;
+  margin: 6px 4px;
+  background: var(--om-line);
+}
 
 /* ---------- barra inferior ---------- */
 html body .om-shell-tabs.om-shell-tabs {

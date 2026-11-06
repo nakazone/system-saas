@@ -30,8 +30,8 @@ const BRANDING_INJECT = [
   '<link rel="stylesheet" href="/om-ui.css?v=20261105-apps3" />',
   '<script src="/om-ui.js?v=20261105-apps3" defer></script>',
   // The same top and bottom bars in every app. Not deferred: the apps' own scripts build their bars with it.
-  '<link rel="stylesheet" href="/om-shell.css?v=20261105-hammer1" />',
-  '<script src="/om-shell.js?v=20261105-hammer1"></script>',
+  '<link rel="stylesheet" href="/om-shell.css?v=20261106-crew-lang1" />',
+  '<script src="/om-shell.js?v=20261106-crew-lang1"></script>',
   '<link rel="stylesheet" href="/api/branding.css" data-saas-branding-css />',
   // App-wide neutral theme (desktop dock, iPhone tab bar, Geist). Loaded last so it wins the cascade.
   '<link rel="preconnect" href="https://fonts.googleapis.com" />',

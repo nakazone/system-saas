@@ -30,6 +30,9 @@
   --cm-font: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
   --cm-safe-b: env(safe-area-inset-bottom, 0px);
   --cm-safe-t: env(safe-area-inset-top, 0px);
+  /* Same gap under the shell top on Hoje / Agenda / Horas / ObraCam */
+  --crew-pad-top: 0.85rem;
+  --om-apptop-h: 56px;
 }
 
 *,
@@ -69,11 +72,21 @@ button {
 .cm-page {
   max-width: 480px;
   margin: 0 auto;
-  /* Same content inset as ObraCam under the shell top (shell already includes safe-area). */
-  padding: 0.85rem 1rem 1.25rem;
+  padding: var(--crew-pad-top) 1rem 1.25rem;
+}
+/* Fixed ObraCrew top — same clearance math as ObraCam (bar + safe-area + content gap). */
+body.cm-app #cmAppTop.om-shell-top {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 58;
+}
+body.cm-app.om-has-apptop .cm-page {
+  padding-top: calc(var(--om-apptop-h) + var(--cm-safe-t) + var(--crew-pad-top));
 }
 body.cm-app:not(.om-has-apptop) .cm-page {
-  padding-top: calc(0.85rem + var(--cm-safe-t));
+  padding-top: calc(var(--crew-pad-top) + var(--cm-safe-t));
 }
 
 /* —— Header (Hoje) —— */

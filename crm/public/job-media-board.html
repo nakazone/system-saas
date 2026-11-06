@@ -25,9 +25,9 @@
   <link rel="stylesheet" href="crm-job-modal.css?v=20261104-ux2" />
   <link rel="stylesheet" href="om-gestures.css?v=20261102-ptr1" />
   <link rel="stylesheet" href="jobs-mobile.css?v=20261105-crew3" />
-  <link rel="stylesheet" href="obracam.css?v=20261105-crewcam9" />
+  <link rel="stylesheet" href="obracam.css?v=20261106-crew-acts1" />
   <link rel="stylesheet" href="cam-viewer.css?v=20261105-apps3" />
-  <link rel="stylesheet" href="crm-list.css?v=20261105-soft2" />
+  <link rel="stylesheet" href="crm-list.css?v=20261106-list" />
 </head>
 <body class="dashboard-app-body om-app sidebar-collapsed cam-app">
   <script>
@@ -99,7 +99,7 @@
           <button type="button" class="cam-btn cam-btn--pri cam-add" id="camAddJob" hidden data-crm-permission="work_orders.manage"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Job</span></button>
         </header>
         <div class="cam-split ol-split" id="camSplit">
-          <section class="cam-list ol-list" aria-label="Jobs">
+          <section class="cam-list ol-list" data-ol-noindex="1" aria-label="Jobs">
             <div class="cam-list__top ol-top">
               <label class="cam-search ol-search">
                 <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
@@ -122,14 +122,29 @@
                 </div>
                 <div class="cam-week-strip" id="camWeekStrip" role="tablist" aria-label="Dias da semana"></div>
               </div>
+              <div class="ol-tools" id="camTools">
+                <button type="button" class="ol-tool ol-tool--all" id="camAll" data-ol-allbtn="1" aria-pressed="false" aria-label="Visualizar todos os jobs">All</button>
+                <label class="ol-sel"><span aria-hidden="true">Filtro</span>
+                  <select id="camFilt" aria-label="Filtro">
+                    <option value="all">Todos</option>
+                    <option value="need">Precisa de foto</option>
+                    <option value="today">Hoje</option>
+                    <option value="nogps">Sem GPS</option>
+                    <option value="far">Longe</option>
+                    <option value="done">Concluídos</option>
+                  </select>
+                </label>
+                <label class="ol-sel"><span aria-hidden="true">Agrupar</span>
+                  <select id="camGroup" aria-label="Agrupar">
+                    <option value="status">Por status</option>
+                    <option value="client">Por cliente</option>
+                  </select>
+                </label>
+                <button type="button" class="ol-tool ol-tool--fold" data-ol-foldall="1" aria-label="Recolher todos os grupos" title="Recolher todos os grupos"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 11 5-5 5 5M7 18l5-5 5 5"/></svg></button>
+              </div>
               <div class="cam-seg ol-seg" id="camMode" role="group" aria-label="Mostrar">
                 <button type="button" data-mode="active" class="is-on">Ativos</button>
                 <button type="button" data-mode="done">Concluídos</button>
-              </div>
-              <div class="cam-filters" id="camFilters" data-ol-filter role="group" aria-label="Filtrar jobs" data-om-no-back-swipe></div>
-              <div class="cam-order ol-bar" data-ol-ignore>
-                <label>Agrupar <select id="camGroup"><option value="status">por status</option><option value="client">por cliente</option></select></label>
-                <label>Ordenar <select id="camSort"><option value="recent">última foto</option><option value="schedule">data agendada</option><option value="name">nome</option></select></label>
               </div>
             </div>
             <div class="cam-rows ol-rows" id="camRows" aria-busy="true"><div class="cam-skel-rows" aria-hidden="true"><div class="cam-skel-row"><i class="cam-skel cam-skel--day"></i><span><i class="cam-skel cam-skel--line" style="width:62%"></i><i class="cam-skel cam-skel--sm" style="width:38%"></i></span></div><div class="cam-skel-row"><i class="cam-skel cam-skel--day"></i><span><i class="cam-skel cam-skel--line" style="width:48%"></i><i class="cam-skel cam-skel--sm" style="width:44%"></i></span></div><div class="cam-skel-row"><i class="cam-skel cam-skel--day"></i><span><i class="cam-skel cam-skel--line" style="width:70%"></i><i class="cam-skel cam-skel--sm" style="width:30%"></i></span></div></div><span class="cam-sr" role="status">Carregando jobs</span></div>
@@ -153,7 +168,7 @@
   <script src="om-gestures.js?v=20261102-ptr1"></script>
   <script src="/photo-exif.js?v=20261104-exif1"></script>
   <script src="cam-viewer.js?v=20261105-apps3"></script>
-  <script src="job-media-board.js?v=20261105-crew-prod1"></script>
-  <script src="crm-list.js?v=20261105-agd1"></script>
+  <script src="job-media-board.js?v=20261106-crew-acts1"></script>
+  <script src="crm-list.js?v=20261106-list"></script>
 </body>
 </html>

@@ -2,7 +2,7 @@
  * Campo tabbar — Hoje / Agenda / ObraCam / Chat / Horas
  */
 (function () {
-  const VER = "20261105-crew-dash1";
+  const VER = "20261106-crew-top1";
 
   function fileName() {
     return (location.pathname || "").split("/").pop() || "";
@@ -25,7 +25,8 @@
   function ensureTop() {
     // Ticket and samples are detail pages: their header with the back button stays in place of this bar.
     if (document.getElementById("cmAppTop") || document.querySelector(".cm-ticket-top, .st-top")) return;
-    document.body.insertBefore(window.OmShell.crewTop("cmAppTop"), document.body.firstChild);
+    document.body.insertBefore(window.OmShell.crewTop("cmAppTop", "om-app-top"), document.body.firstChild);
+    document.body.classList.add("om-has-apptop");
   }
 
   function ensure() {

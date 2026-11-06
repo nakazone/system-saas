@@ -115,18 +115,38 @@
         const menu = document.createElement("div");
         menu.className = "om-shell-menu";
         menu.hidden = true;
+        const langs = act.menu.langs || [];
+        const items = act.menu.items || [];
         menu.innerHTML =
           (act.menu.who ? `<div class="om-shell-menu__who"><strong>${esc(act.menu.who)}</strong>${esc(act.menu.email || "")}</div>` : "") +
-          (act.menu.items || [])
+          (langs.length
+            ? `<div class="om-shell-menu__section"><p class="om-shell-menu__label">${esc(act.menu.langsLabel || "Idioma")}</p>
+                <div class="om-shell-menu__langs" role="group" aria-label="${esc(act.menu.langsLabel || "Idioma")}">${langs
+                  .map(
+                    (lg) =>
+                      `<button type="button" class="om-shell-menu__lang${lg.active ? " is-on" : ""}" data-locale="${esc(lg.code)}" data-no-i18n>${esc(lg.label)}</button>`,
+                  )
+                  .join("")}</div></div>`
+            : "") +
+          (langs.length && items.length ? `<div class="om-shell-menu__sep" role="separator"></div>` : "") +
+          items
             .map((it, i) =>
               it.href
                 ? `<a class="om-shell-menu__item" href="${esc(it.href)}">${esc(it.label)}</a>`
-                : `<button type="button" class="om-shell-menu__item" data-i="${i}">${esc(it.label)}</button>`,
+                : `<button type="button" class="om-shell-menu__item${it.danger ? " is-danger" : ""}" data-i="${i}">${esc(it.label)}</button>`,
             )
             .join("");
         menu.addEventListener("click", (e) => {
+          const lang = e.target.closest("[data-locale]");
+          if (lang) {
+            const code = lang.getAttribute("data-locale");
+            const hit = langs.find((lg) => lg.code === code);
+            if (hit && hit.onClick) hit.onClick();
+            else if (global.CrmI18n && typeof global.CrmI18n.switchTo === "function") global.CrmI18n.switchTo(code);
+            return;
+          }
           const b = e.target.closest("button[data-i]");
-          if (b) (act.menu.items[Number(b.dataset.i)].onClick || (() => {}))();
+          if (b) (items[Number(b.dataset.i)].onClick || (() => {}))();
         });
         actions.appendChild(menu);
         bindMenu(el, menu);
@@ -145,8 +165,31 @@
           location.href = "/login.html?app=obracrew";
         });
     };
-    const build = (name, email) =>
-      top({
+    const switchLang = (code) => {
+      if (global.CrmI18n && typeof global.CrmI18n.switchTo === "function") global.CrmI18n.switchTo(code);
+      else {
+        try {
+          localStorage.setItem("crm_locale", code);
+        } catch (_) {}
+        location.reload();
+      }
+    };
+    const currentLocale = () => {
+      if (global.CrmI18n && typeof global.CrmI18n.getLocale === "function") return global.CrmI18n.getLocale();
+      try {
+        return localStorage.getItem("crm_locale") || "pt";
+      } catch (_) {
+        return "pt";
+      }
+    };
+    const build = (name, email) => {
+      const loc = currentLocale();
+      const labels = (global.CrmI18n && global.CrmI18n.LABELS) || {
+        pt: "Português (Brasil)",
+        en: "English (US)",
+        es: "Español (España)",
+      };
+      return top({
         id,
         className,
         app: "obracrew",
@@ -156,10 +199,21 @@
             kind: "avatar",
             label: "Minha conta",
             text: name ? initials(name) : "—",
-            menu: { who: name || "Minha conta", email: email || "", items: [{ label: "Sair", onClick: logout }] },
+            menu: {
+              who: name || "Minha conta",
+              email: email || "",
+              langsLabel: "Idioma",
+              langs: [
+                { code: "pt", label: labels.pt || "Português", active: loc === "pt", onClick: () => switchLang("pt") },
+                { code: "en", label: labels.en || "English", active: loc === "en", onClick: () => switchLang("en") },
+                { code: "es", label: labels.es || "Español", active: loc === "es", onClick: () => switchLang("es") },
+              ],
+              items: [{ label: "Sair", onClick: logout, danger: true }],
+            },
           },
         ],
       });
+    };
     const el = build("", "");
     fetch("/api/auth/session", { credentials: "include" })
       .then((r) => r.json())
@@ -214,5 +268,5 @@
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => hydrate());
   else hydrate();
 
-  global.OmShell = { VER: "20261105-hammer1", APPS, icons: ICONS, icon, brandHtml, initials, top, crewTop, tabs, searchButton, hydrate };
+  global.OmShell = { VER: "20261106-crew-lang1", APPS, icons: ICONS, icon, brandHtml, initials, top, crewTop, tabs, searchButton, hydrate };
 })(window);

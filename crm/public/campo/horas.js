@@ -1,11 +1,13 @@
 /** Campo · Minhas horas — os dias da semana (status, horas, extra, valor). */
 (function () {
   const $ = (id) => document.getElementById(id);
-  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  const esc = (s) =>
+    String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   const money = (n) => (Number(n) || 0).toLocaleString("en-US", { style: "currency", currency: "USD" });
   const minLabel = (m) => {
     m = Math.max(0, Math.round(m || 0));
-    const h = Math.floor(m / 60), r = m % 60;
+    const h = Math.floor(m / 60);
+    const r = m % 60;
     return !h ? `${r} min` : r ? `${h}h${String(r).padStart(2, "0")}` : `${h}h`;
   };
   let ref = new Date().toISOString().slice(0, 10);
@@ -17,6 +19,15 @@
     load();
   }
   const br = (ymd) => ymd.split("-").reverse().slice(0, 2).join("/");
+
+  function dayParts(label) {
+    const raw = String(label || "").trim();
+    const bits = raw.split(",").map((s) => s.trim()).filter(Boolean);
+    if (bits.length >= 2) return { wd: bits[0], rest: bits.slice(1).join(", ") };
+    const sp = raw.split(/\s+/);
+    if (sp.length >= 2) return { wd: sp[0], rest: sp.slice(1).join(" ") };
+    return { wd: raw || "—", rest: "" };
+  }
 
   async function load() {
     try {
@@ -39,6 +50,41 @@
     }
   }
 
+  function dayCard(d) {
+    const when = dayParts(d.date_label);
+    const jobs = (d.jobs || []).map((j) => j.client || j.title || "Job").filter(Boolean);
+    const hours =
+      d.clock_out_label
+        ? `${d.clock_in_label} – ${d.clock_out_label}`
+        : `${d.clock_in_label} · em andamento`;
+    const pillStyle =
+      d.status === "approved"
+        ? "background:var(--om-ink);color:#fff"
+        : d.status === "in_progress"
+          ? "background:var(--om-bg);color:var(--om-ink-3)"
+          : "";
+    return `<article class="hr-day">
+      <header class="hr-day__hd">
+        <div class="hr-day__when">
+          <b>${esc(when.wd)}</b>
+          ${when.rest ? `<span>${esc(when.rest)}</span>` : ""}
+        </div>
+        <span class="dy-pill dy-pill--${esc(d.status)}" style="${pillStyle}">${esc(d.status_label)}</span>
+      </header>
+      <div class="hr-day__body">
+        <p class="hr-day__hours">${esc(hours)} · ${esc(d.worked_label)}</p>
+        ${d.overtime_minutes ? `<p class="hr-day__ot">+${esc(minLabel(d.overtime_minutes))} extra</p>` : ""}
+        <p class="hr-day__jobs">${esc(jobs.join(" · ") || "Sem job")}</p>
+      </div>
+      <footer class="hr-day__ft">
+        <b class="hr-day__amt">${esc(money(d.amount))}</b>
+        ${d.status === "returned" ? `<a class="dy-btn dy-btn--sm dy-btn--ink" href="hoje.html">Ajustar</a>` : ""}
+      </footer>
+      ${d.review_note ? `<p class="hr-day__note hr-day__note--warn">${esc(d.review_note)}</p>` : ""}
+      ${d.note ? `<p class="hr-day__note">“${esc(d.note)}”</p>` : ""}
+    </article>`;
+  }
+
   function render(w) {
     ref = w.week_start;
     $("hrWeekLbl").textContent = `Semana ${br(w.week_start)} – ${br(w.week_end)}`;
@@ -51,25 +97,7 @@
         <div class="dy-stat"><small>Produção</small><b>${t.sqft ? `${t.sqft} sq ft` : "—"}</b></div>
       </div>`;
     $("hrDays").innerHTML = w.days.length
-      ? w.days
-          .map(
-            (d) => `<div class="dy-job">
-          <div class="dy-job__top">
-            <span class="dy-job__time">${esc(d.date_label.split(", ")[0])}<br><small style="font-weight:600;color:var(--om-ink-2)">${esc(d.date_label.split(", ")[1] || "")}</small></span>
-            <div class="dy-job__main"><b>${esc(d.clock_in_label)}${d.clock_out_label ? ` – ${esc(d.clock_out_label)}` : " · em andamento"} · ${esc(d.worked_label)}${d.overtime_minutes ? ` · <span style="color:var(--om-accent-strong)">+${esc(minLabel(d.overtime_minutes))} extra</span>` : ""}</b>
-              <small>${esc(d.jobs.map((j) => j.client || j.title || "Job").join(" · ") || "Sem job")}</small></div>
-            <span class="dy-pill dy-pill--${d.status}" style="${d.status === "approved" ? "background:var(--om-ink);color:#fff" : d.status === "in_progress" ? "background:var(--om-bg);color:var(--om-ink-3)" : ""}">${esc(d.status_label)}</span>
-          </div>
-          <div class="dy-job__act" style="align-items:center">
-            <span style="font-weight:800;font-size:15px">${esc(money(d.amount))}</span>
-            ${d.status === "returned" ? `<a class="dy-btn dy-btn--sm dy-btn--ink" href="hoje.html">Ajustar</a>` : ""}
-          </div>
-          ${d.review_note ? `<p style="margin:8px 0 0;font-size:13px;color:#b42318;font-weight:600">${esc(d.review_note)}</p>` : ""}
-          ${d.status === "pending" && d.flags.length ? `<p style="margin:8px 0 0;font-size:12.5px;color:#8a8074;font-weight:600">Em conferência: ${esc(d.flags.map((f) => f.label).join(", "))}</p>` : ""}
-          ${d.note ? `<p style="margin:6px 0 0;font-size:13px;color:#4a433d">“${esc(d.note)}”</p>` : ""}
-        </div>`,
-          )
-          .join("")
+      ? w.days.map(dayCard).join("")
       : '<div class="dy-empty">Nenhum dia lançado nesta semana.</div>';
   }
 
