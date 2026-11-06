@@ -71,6 +71,7 @@ import { recordActivity } from "../../lib/activity/record.js";
 import { alertFieldProblem } from "../../lib/mate-ai/alerts.js";
 import { prisma } from "../../lib/prisma.js";
 import { uploadPhotoThumb } from "../../lib/job-media/thumb.js";
+import { safeTimeZone, zonedDateKey, zonedWallTimeToUtc } from "../../lib/time/zoned.js";
 
 export const campoJobsRouter = Router();
 
@@ -84,24 +85,31 @@ async function assertChecklistFeature(organizationId: string) {
   }
 }
 
+/** Calendar YYYY-MM-DD in the org timezone (never the Railway process clock). */
+function ymdInTz(d: Date, tz: string) {
+  return zonedDateKey(d, safeTimeZone(tz));
+}
+
 function ymdLocal(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function startOfWeekMon(d: Date) {
-  const x = new Date(d);
-  x.setHours(12, 0, 0, 0);
-  const day = x.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  x.setDate(x.getDate() + diff);
-  x.setHours(0, 0, 0, 0);
-  return x;
+/** Monday YYYY-MM-DD of the week that contains `at`, in org tz. */
+function mondayYmdInTz(at: Date, tz: string): string {
+  const key = ymdInTz(at, tz);
+  const [y, m, d] = key.split("-").map(Number);
+  const dow = new Date(Date.UTC(y!, m! - 1, d!)).getUTCDay();
+  const diff = dow === 0 ? -6 : 1 - dow;
+  return new Date(Date.UTC(y!, m! - 1, d! + diff)).toISOString().slice(0, 10);
 }
 
-function addDays(d: Date, n: number) {
-  const x = new Date(d);
-  x.setDate(x.getDate() + n);
-  return x;
+function addYmd(ymd: string, days: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(y!, m! - 1, d! + days)).toISOString().slice(0, 10);
+}
+
+function ymdToUtcNoon(ymd: string): Date {
+  return new Date(`${ymd}T12:00:00.000Z`);
 }
 
 function parseDataUrl(dataUrl: string): { contentType: string; body: Buffer } | null {
@@ -314,19 +322,33 @@ campoJobsRouter.get(
         return;
       }
       const weekParam = String(req.query.week || "").trim();
-      let weekStart: Date;
-      if (/^\d{4}-\d{2}-\d{2}$/.test(weekParam)) {
-        weekStart = startOfWeekMon(new Date(weekParam + "T12:00:00"));
-      } else {
-        weekStart = startOfWeekMon(new Date());
-      }
-      const weekEnd = addDays(weekStart, 7);
       const selectedParam = String(req.query.day || "").trim();
-      const selectedYmd = /^\d{4}-\d{2}-\d{2}$/.test(selectedParam)
-        ? selectedParam
-        : ymdLocal(new Date());
 
       const data = await withTenantTransaction(req.organizationId!, async (tx) => {
+        const tz = await orgTimezone(tx, req.organizationId!);
+        const now = new Date();
+        const today = ymdInTz(now, tz);
+        const weekStartYmd = /^\d{4}-\d{2}-\d{2}$/.test(weekParam) ? mondayYmdInTz(ymdToUtcNoon(weekParam), tz) : mondayYmdInTz(now, tz);
+        const weekEndYmd = addYmd(weekStartYmd, 7);
+        const selectedYmd = /^\d{4}-\d{2}-\d{2}$/.test(selectedParam) ? selectedParam : today;
+        // Query window in org wall time so evening Pacific jobs stay on the Pacific day.
+        const weekStart = zonedWallTimeToUtc(
+          safeTimeZone(tz),
+          Number(weekStartYmd.slice(0, 4)),
+          Number(weekStartYmd.slice(5, 7)),
+          Number(weekStartYmd.slice(8, 10)),
+          0,
+          0,
+        );
+        const weekEnd = zonedWallTimeToUtc(
+          safeTimeZone(tz),
+          Number(weekEndYmd.slice(0, 4)),
+          Number(weekEndYmd.slice(5, 7)),
+          Number(weekEndYmd.slice(8, 10)),
+          0,
+          0,
+        );
+
         const fieldSector = await fieldPayrollSector(tx, req.user!.id);
         const rows = await tx.workOrder.findMany({
           where: {
@@ -342,17 +364,17 @@ campoJobsRouter.get(
         for (const wo of rows) {
           const at = fieldAgendaAt(wo, fieldSector);
           if (!at) continue;
-          const key = ymdLocal(at);
+          const key = ymdInTz(at, tz);
           const list = byDay.get(key) || [];
           list.push(wo);
           byDay.set(key, list);
         }
 
-        const today = ymdLocal(new Date());
         const days = [];
         for (let i = 0; i < 7; i++) {
-          const d = addDays(weekStart, i);
-          const ymd = ymdLocal(d);
+          const ymd = addYmd(weekStartYmd, i);
+          const [y, m, d] = ymd.split("-").map(Number);
+          const dow = new Date(Date.UTC(y!, m! - 1, d!)).getUTCDay();
           const jobs = byDay.get(ymd) || [];
           const dots: string[] = [];
           if (jobs.some((j) => j.fieldStatus === "completed" || j.status === "completed")) {
@@ -363,40 +385,26 @@ campoJobsRouter.get(
           }
           days.push({
             ymd,
-            day_num: d.getDate(),
+            day_num: d!,
             is_today: ymd === today,
-            label:
-              ymd === today
-                ? "Hoje"
-                : ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][d.getDay()],
+            label: ymd === today ? "Hoje" : ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"][dow],
             dots,
             count: jobs.length,
           });
         }
 
         const selectedJobs = (byDay.get(selectedYmd) || []).map((j) => mapJobCard(j, { fieldSector }));
-        const end = addDays(weekStart, 6);
-        const monShort = [
-          "jan",
-          "fev",
-          "mar",
-          "abr",
-          "mai",
-          "jun",
-          "jul",
-          "ago",
-          "set",
-          "out",
-          "nov",
-          "dez",
-        ];
-        const range_label = `${weekStart.getDate()} – ${end.getDate()} ${monShort[end.getMonth()]}`;
+        const endYmd = addYmd(weekStartYmd, 6);
+        const monShort = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+        const range_label = `${Number(weekStartYmd.slice(8, 10))} – ${Number(endYmd.slice(8, 10))} ${monShort[Number(endYmd.slice(5, 7)) - 1]}`;
 
         return {
-          week_start: ymdLocal(weekStart),
-          week_end: ymdLocal(end),
+          week_start: weekStartYmd,
+          week_end: endYmd,
           range_label,
           selected_day: selectedYmd,
+          today,
+          timezone: tz,
           days,
           jobs: selectedJobs,
         };

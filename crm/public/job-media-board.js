@@ -79,8 +79,8 @@
   let crewSelectedYmd = null;
   let crewAgendaDays = [];
   let crewRangeLabel = "";
-  /** Job ids for the selected day from /api/campo/agenda — same source as Agenda. */
-  let crewDayJobIds = null;
+  /** Jobs for the selected day from /api/campo/agenda — same list as Campo Agenda. */
+  let crewDayJobs = null;
 
   function jobOpenHref(id, hash) {
     if (crewMode) return `/campo/ticket.html?id=${encodeURIComponent(id)}`;
@@ -153,7 +153,36 @@
     return statusLabel(j.status);
   }
   function isActive(j) {
-    return j.status === "scheduled" || j.status === "in_progress" || j.status === "draft";
+    const s = String(j.status || "");
+    return s === "scheduled" || s === "in_progress" || s === "draft" || s === "on_site" || s === "en_route";
+  }
+
+  /** Map Agenda day jobs into ObraCam row shape; prefer board row when both exist. */
+  function mergeAgendaJob(aj) {
+    const board = jobs.find((x) => String(x.id) === String(aj.id));
+    const ui = String(aj.status || "");
+    const status =
+      aj.raw_status ||
+      (ui === "completed" || ui === "done"
+        ? "completed"
+        : ui === "in_progress" || ui === "on_site" || ui === "en_route"
+          ? "in_progress"
+          : "scheduled");
+    const fromAgenda = {
+      id: aj.id,
+      number: aj.number,
+      title: aj.title,
+      address: aj.address || "",
+      scheduled_start: aj.scheduled_start,
+      sand_scheduled_start: aj.sand_scheduled_start,
+      status,
+      homeowner_name: aj.homeowner_name,
+      client_name: aj.client,
+      client: aj.client,
+      field_status_label: aj.field_status_label,
+      sector: aj.sector,
+    };
+    return board ? { ...board, ...fromAgenda } : fromAgenda;
   }
   function needsPhoto(j) {
     return isActive(j) && !!j.stale;
@@ -275,7 +304,11 @@
 
   /** Same identity line as Jobs; ObraCrew uses homeowner/client only (no nickname). */
   function listWho(j) {
-    if (crewMode && window.JobsInfo?.fieldClient) return window.JobsInfo.fieldClient(j) || "Sem cliente";
+    if (crewMode) {
+      const home = String(j.homeowner_name || j.client_name || j.client || "").trim();
+      if (home) return home;
+      if (window.JobsInfo?.fieldClient) return window.JobsInfo.fieldClient(j) || "Sem cliente";
+    }
     if (window.JobsInfo?.client) return window.JobsInfo.client(j);
     const nick = String(j.builder?.nickname || j.customer?.nickname || "").trim();
     const base = String(
@@ -530,11 +563,11 @@
   }
   /** Jobs in the current tab (Ativos / Concluídos) that match the search, before the quick filter. */
   function baseJobs() {
-    let hit = jobs.filter(jobHit);
-    // Crew day filter: ids from /api/campo/agenda (same bucketing as Agenda), never phone-local dates.
-    if (crewMode && crewSelectedYmd && crewDayJobIds) {
-      hit = hit.filter((j) => crewDayJobIds.has(String(j.id)));
-    }
+    // Crew day list = same appointments as Campo Agenda for the selected day.
+    let hit =
+      crewMode && crewSelectedYmd && Array.isArray(crewDayJobs)
+        ? crewDayJobs.map(mergeAgendaJob).filter(jobHit)
+        : jobs.filter(jobHit);
     return mode === "done" ? hit.filter((j) => j.status === "completed") : hit.filter(isActive);
   }
 
@@ -577,11 +610,7 @@
       crewSelectedYmd = data.selected_day || crewSelectedYmd;
       crewAgendaDays = data.days || [];
       crewRangeLabel = data.range_label || crewRangeLabel;
-      crewDayJobIds = new Set(
-        (data.jobs || [])
-          .map((j) => String(j.id || j.work_order_id || ""))
-          .filter(Boolean),
-      );
+      crewDayJobs = data.jobs || [];
       renderCrewWeek();
       renderList();
     } catch (_) {

@@ -233,31 +233,25 @@
     return SECTOR[sector] || sector || "";
   }
 
-  /** Org calendar day (S.today), not the phone clock — "Quinta-feira, 5 de Novembro". */
+  /** Org calendar day (S.today / S.timezone), never the phone clock — "Quinta-feira, 5 de Novembro". */
   function helloDateText() {
     const cap = (s) => {
       const t = String(s || "").trim();
       return t ? t.charAt(0).toUpperCase() + t.slice(1) : "";
     };
     const ymd = String(S.today || "").trim();
-    let d;
-    let dayNum;
     if (/^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
       const [y, m, day] = ymd.split("-").map(Number);
-      d = new Date(Date.UTC(y, m - 1, day, 12));
-      dayNum = day;
+      const d = new Date(Date.UTC(y, m - 1, day, 12));
       const wd = cap(d.toLocaleDateString("pt-BR", { weekday: "long", timeZone: "UTC" }));
       const mo = cap(d.toLocaleDateString("pt-BR", { month: "long", timeZone: "UTC" }));
-      return `${wd}, ${dayNum} de ${mo}`;
+      return `${wd}, ${day} de ${mo}`;
     }
-    const tz = S.timezone || undefined;
-    const opts = tz ? { timeZone: tz } : {};
-    d = new Date();
-    dayNum = Number(
-      new Intl.DateTimeFormat("en-US", { ...opts, day: "numeric" }).format(d),
-    );
-    const wd = cap(d.toLocaleDateString("pt-BR", { ...opts, weekday: "long" }));
-    const mo = cap(d.toLocaleDateString("pt-BR", { ...opts, month: "long" }));
+    const tz = S.timezone || "America/Los_Angeles";
+    const d = new Date();
+    const dayNum = Number(new Intl.DateTimeFormat("en-US", { timeZone: tz, day: "numeric" }).format(d));
+    const wd = cap(d.toLocaleDateString("pt-BR", { timeZone: tz, weekday: "long" }));
+    const mo = cap(d.toLocaleDateString("pt-BR", { timeZone: tz, month: "long" }));
     return `${wd}, ${dayNum} de ${mo}`;
   }
 

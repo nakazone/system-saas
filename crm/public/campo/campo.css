@@ -69,7 +69,11 @@ button {
 .cm-page {
   max-width: 480px;
   margin: 0 auto;
-  padding: calc(0.85rem + var(--cm-safe-t)) 1rem 1.25rem;
+  /* Same content inset as ObraCam under the shell top (shell already includes safe-area). */
+  padding: 0.85rem 1rem 1.25rem;
+}
+body.cm-app:not(.om-has-apptop) .cm-page {
+  padding-top: calc(0.85rem + var(--cm-safe-t));
 }
 
 /* —— Header (Hoje) —— */

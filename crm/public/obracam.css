@@ -532,6 +532,16 @@ body.om-field-nav.cam-app .dashboard-sidebar,
 body.om-field-nav.cam-app #mobileOverlay {
   display: none !important;
 }
+/* Match Campo Agenda / Hoje content width and side inset */
+body.om-field-nav.cam-app .dashboard-main {
+  padding-left: 1rem !important;
+  padding-right: 1rem !important;
+}
+body.om-field-nav.cam-app .cam {
+  max-width: 480px;
+  margin: 0 auto;
+  padding-top: 0.35rem;
+}
 body.om-field-nav.cam-app .cam-list__top {
   padding: 0 0 10px;
   border: 0;

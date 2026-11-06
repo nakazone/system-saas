@@ -281,6 +281,8 @@ body.dy-lock { overflow: hidden; }
   display: flex;
   flex-direction: column;
   gap: 12px;
+  /* Room for Mate peeking above the hello card — same content inset as Agenda title */
+  padding-top: 28px;
   padding-bottom: 0.5rem;
 }
 .dy-skel--dash {
@@ -300,7 +302,6 @@ body.dy-lock { overflow: hidden; }
   padding: 5px 10px;
   border-radius: 999px;
 }
-
 .dy-hello {
   position: relative;
   display: flex;
@@ -308,7 +309,7 @@ body.dy-lock { overflow: hidden; }
   justify-content: space-between;
   gap: 6px;
   min-height: 128px;
-  margin-top: 40px;
+  margin-top: 0;
   padding: 16px;
   border-radius: 20px;
   background: linear-gradient(120deg, #FFF6EE 0%, #FCE7D5 55%, #F8D4B4 100%);
