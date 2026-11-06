@@ -64,6 +64,7 @@
   display: flex; flex-direction: column; background: var(--cam-card); border-radius: 22px; box-shadow: 0 0 0 1px var(--cam-line); overflow: hidden;
 }
 .cam-list__top { padding: 16px 14px 12px; border-bottom: 1px solid var(--cam-line); }
+.cam-list .jx-day.is-now b { color: #1C1917; }
 body:not(.cam-crew) #camMode { display: none; }
 body.cam-crew #camTools { display: none; }
 /* top bar: the page title and the two views (Jobs | Fotos) sit above the split, so Fotos is a place, not a list filter */
@@ -696,6 +697,63 @@ body.om-field-nav.cam-app .cam-seg button em {
   opacity: 0.72;
   margin-left: 4px;
 }
+/* Jobs list status: calendar color, check when that service is already done. */
+.cam-app .cam-svcs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 auto;
+  margin-right: auto;
+}
+.cam-app .cam-svc {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--cal, #221e1a) 16%, #fff);
+  color: #221e1a;
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+}
+.cam-app .cam-svc > i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cal, #221e1a);
+  flex: none;
+}
+.cam-app .cam-svc svg {
+  width: 12px;
+  height: 12px;
+  color: var(--cal, #3f4f36);
+  stroke: currentColor;
+}
+.cam-app .cam-svc.is-ok {
+  background: #edf1e8;
+  color: #3f4f36;
+}
+.cam-app .cam-svc.is-ok svg { color: #3f4f36; }
+.cam-app .cam-svc.is-hot {
+  background: #fde8e4;
+  color: #b42318;
+}
+.cam-app .cam-svc.is-hot > i { background: #b42318; }
+.cam-app .cam-svc.is-off {
+  background: transparent;
+  color: #667085;
+  box-shadow: inset 0 0 0 1px #e4e7ec;
+}
+.cam-app .cam-dmeta .cam-svcs { flex: none; margin-right: 0; }
+.cam-app .crew-job__meta { flex-wrap: wrap; }
+.cam-app .jx-foot > .cam-svcs { margin-right: auto; }
+
 /* Crew list uses ObraCrew Jobs cards (.crew-job from jobs-mobile.css) */
 body.om-field-nav.cam-app .cam-rows {
   display: flex;

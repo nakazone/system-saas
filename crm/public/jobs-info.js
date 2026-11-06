@@ -441,9 +441,109 @@
   }
 
   /**
-   * Tom do selo de status na lista lateral (crm-list.css .ol-st.is-*).
-   * hot = precisa de ação (atrasado, sem data); act = em andamento; ok = fechado; off = cancelado.
+   * ObraCam Jobs list. One chip for the work happening now, plus a check
+   * when a service on a multi-service job is already finished.
+   * Colors are the calendar colors (cal_install / cal_sand / cal_delivery).
    */
+  function hasSandService(wo) {
+    const s = String(wo?.sector || "");
+    if (s === "sand_finish" || s === "both") return true;
+    return Boolean(wo && wo.sand_scheduled_start);
+  }
+  function hasInstallService(wo) {
+    return String(wo?.sector || "") !== "sand_finish";
+  }
+  function deliveryIsos(wo) {
+    const out = [];
+    if (wo && wo.delivery_scheduled_start) out.push(wo.delivery_scheduled_start);
+    const list = Array.isArray(wo && wo.delivery_starts)
+      ? wo.delivery_starts
+      : Array.isArray(wo && wo.deliveries)
+        ? wo.deliveries
+        : [];
+    list.forEach((row) => {
+      const iso = typeof row === "string" ? row : row && row.scheduled_start;
+      if (iso) out.push(iso);
+    });
+    return out;
+  }
+  function hasDeliveryService(wo) {
+    return Boolean(wo && (wo.needs_delivery || deliveryIsos(wo).length));
+  }
+  function dayStamp(iso) {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  }
+  function todayStamp() {
+    const n = new Date();
+    return new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime();
+  }
+  function calColors(wo) {
+    return {
+      installation: (wo && wo.cal_install) || "#221e1a",
+      sand: (wo && (wo.cal_sand || wo.cal_install)) || "#221e1a",
+      delivery: (wo && wo.cal_delivery) || "#0f766e",
+    };
+  }
+  function inField(wo) {
+    const s = String((wo && wo.status) || "");
+    const f = String((wo && wo.field_status) || "");
+    return s === "in_progress" || s === "on_site" || s === "en_route" || f === "on_site" || f === "en_route";
+  }
+  function camListChips(wo) {
+    if (!wo) return [];
+    if (wo.status === "canceled") return [{ label: "Cancelado", tone: "off", mark: "none", color: null }];
+    if (wo.status === "completed" || wo.status === "done") return [{ label: "Concluído", tone: "ok", mark: "check", color: null }];
+
+    const colors = calColors(wo);
+    const install = hasInstallService(wo);
+    const sand = hasSandService(wo);
+    const both = install && sand;
+    const delivery = hasDeliveryService(wo);
+    const starts = deliveryIsos(wo);
+    const today = todayStamp();
+    const stamps = starts.map(dayStamp).filter((n) => n != null);
+    const deliveryToday = stamps.some((n) => n === today);
+    const deliveryPast = stamps.length > 0 && stamps.every((n) => n < today);
+    const installDone = Boolean(wo.installation_done_at);
+    const sandOpen = sand && !wo.sand_done_at;
+    const installOpen = install && !installDone;
+    const chips = [];
+
+    if (delivery && (install || sand) && deliveryPast) {
+      chips.push({ label: "Delivery concluída", tone: "cal", mark: "check", color: colors.delivery });
+    }
+    if (both && installDone) {
+      chips.push({ label: "Instalação concluída", tone: "cal", mark: "check", color: colors.installation });
+    }
+
+    let active = null;
+    if (inField(wo)) {
+      const sanding = sandOpen && (!install || installDone || listOnSandDay(wo));
+      if (sanding) active = { label: "Lixando", tone: "cal", mark: "dot", color: colors.sand };
+      else if (installOpen) active = { label: "Instalando", tone: "cal", mark: "dot", color: colors.installation };
+      else if (delivery && !deliveryPast) active = { label: "Delivery", tone: "cal", mark: "dot", color: colors.delivery };
+    } else if (deliveryToday) {
+      active = { label: "Delivery", tone: "cal", mark: "dot", color: colors.delivery };
+    } else {
+      const lt = late(wo);
+      const still = installOpen || sandOpen;
+      if (lt && (still || !chips.length)) active = { label: lt.short, tone: "hot", mark: "dot", color: null };
+      else if (!chips.length || still) {
+        const color = !installOpen && sandOpen ? colors.sand : deliveryToday ? colors.delivery : listOnSandDay(wo) ? colors.sand : colors.installation;
+        active = { label: "Agendado", tone: "cal", mark: "dot", color };
+      }
+    }
+
+    if (deliveryToday && active && active.label !== "Delivery" && !chips.some((c) => c.label === "Delivery" || c.label === "Delivery concluída")) {
+      chips.push({ label: "Delivery", tone: "cal", mark: "dot", color: colors.delivery });
+    }
+    if (active) chips.push(active);
+    return chips;
+  }
+
+  /** Tom do selo na lista do CRM. hot = ação; act = em andamento; ok = fechado; off = cancelado. */
   function stageTone(wo) {
     if (!wo) return "wait";
     if (wo.status === "canceled") return "off";
@@ -457,6 +557,6 @@
 
   window.JobsInfo = {
     esc, stageTone, crewStageTone, money, money0, client, fieldClient, builderName, findLine, searchText, displayName, isActive, late, step, STEP_NAMES, STATUS_BY_STEP, STATUS_STEP_MSG,
-    statusForStep, atStatus, stageLabel, crewStageLabel, fieldPhaseLabel, isInFieldStage, progHtml, sectorProgress, nextFinish, fieldHalves, bill, dateRange, listWhen, crewListWhen, listAnchorIso, listOnSandDay, awaitingSand, dayShort, completeLabel, compareNearest, startMs, isToday, initials, team,
+    statusForStep, atStatus, stageLabel, crewStageLabel, fieldPhaseLabel, isInFieldStage, camListChips, progHtml, sectorProgress, nextFinish, fieldHalves, bill, dateRange, listWhen, crewListWhen, listAnchorIso, listOnSandDay, awaitingSand, dayShort, completeLabel, compareNearest, startMs, isToday, initials, team,
   };
 })();

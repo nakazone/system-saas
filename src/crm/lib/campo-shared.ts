@@ -193,7 +193,7 @@ export function ctaLabel(_fieldStatus: string) {
 export const woListInclude = {
   customer: { select: { id: true, name: true, company: true } },
   builder: { select: { id: true, firstName: true, lastName: true, company: true, nickname: true } },
-  crew: { select: { id: true, name: true } },
+  crew: { select: { id: true, name: true, color: true } },
   assignedUser: { select: { id: true, name: true } },
   members: { select: { userId: true, user: { select: { id: true, name: true } } } },
   lineItems: {
