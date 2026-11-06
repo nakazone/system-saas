@@ -238,9 +238,15 @@ body.dy-lock { overflow: hidden; }
 .hr-nav { display: flex; gap: 6px; }
 .hr-nav .dy-x { font-size: 24px; font-weight: 700; }
 
-/* Horas · day cards */
+/* Horas · day cards + Lançar Diária at the bottom */
 .hr-days-hd { margin-top: 4px; }
-.hr-days-hd .dy-btn { flex: none; text-decoration: none; }
+.hr-launch {
+  display: flex;
+  margin-top: 14px;
+  margin-bottom: 4px;
+  text-decoration: none !important;
+  color: #fff !important;
+}
 .hr-day {
   background: #fff;
   border: 1px solid var(--line);

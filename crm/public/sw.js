@@ -28,7 +28,7 @@ const PRECACHE = [
   "/mate-panel.css?v=20261027-m2",
   "/mate-panel.js?v=20261106-quote2",
   "/campo/hoje.html",
-  "/campo/dia.css?v=20261106-horas2",
+  "/campo/dia.css?v=20261106-fix2",
   "/photo-exif.js?v=20261104-exif1",
   "/campo/campo-photo.js?v=20261105-apps3",
   "/campo/campo-media-queue.js?v=20261104-exif1",
