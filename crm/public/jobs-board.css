@@ -35,21 +35,19 @@
 .jx-btn--pri { background: var(--jx-or) !important; box-shadow: none; color: #fff !important; }
 .jx-btn--pri:hover { background: #EF8A44 !important; color: #fff !important; }
 .jx-btn--sq { width: 38px; padding: 0; }
-.jx-lnk {
-  margin-left: auto; border: 0; background: none; padding: 0; cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--jx-ink) !important;
-  text-transform: none; letter-spacing: 0; text-decoration: underline !important; text-decoration-color: var(--jx-or) !important; text-decoration-thickness: 2px !important; text-underline-offset: 3px;
-}
+.jx-lnk { border: 0; background: none; padding: 0; margin-left: auto; font: inherit; font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--jx-ink2); text-decoration: underline; text-decoration-color: #D0D5DD; text-underline-offset: 3px; white-space: nowrap; cursor: pointer; }
 
 /* etapas como filtros */
 .jx-tiles { display: grid; grid-template-columns: repeat(var(--jx-tiles, 8), minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
 .jx-tile {
   border: 0; text-align: left; font: inherit; cursor: pointer; background: #fff; border-radius: 16px; box-shadow: 0 0 0 1px var(--jx-line);
-  padding: 10px 13px; min-width: 0; color: var(--jx-ink);
+  padding: 8px 12px; min-width: 0; color: var(--jx-ink);
+  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; column-gap: 7px;
 }
 .jx-tile:hover { box-shadow: 0 0 0 1px #D0D5DD; }
-.jx-tile span { display: block; font-size: 12.5px; font-weight: 600; color: var(--jx-ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.jx-tile b { display: block; font-size: 20px; font-weight: 700; letter-spacing: -.03em; margin-top: 3px; }
-.jx-tile small { display: block; font-size: 11.5px; color: var(--jx-ink2); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jx-tile span { grid-column: 1 / -1; display: block; font-size: 12.5px; font-weight: 600; color: var(--jx-ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jx-tile b { display: block; font-size: 18px; font-weight: 700; letter-spacing: -.03em; margin-top: 1px; }
+.jx-tile small { display: block; min-width: 0; font-size: 11.5px; color: var(--jx-ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .jx-tile small.is-hot { color: var(--jx-deep); font-weight: 600; }
 .jx-tile.is-on { background: var(--jx-ink); box-shadow: none; color: #fff; }
 .jx-tile.is-on span, .jx-tile.is-on small, .jx-tile.is-on small.is-hot { color: #98A2B3; }
@@ -74,7 +72,7 @@
   flex: none; height: 44px; border: 0; border-radius: 10px; background: #F2F4F7; color: #3E4654;
   font: inherit; font-size: 13px; font-weight: 750; cursor: pointer;
 }
-.jx-tool--all { padding: 0 12px; }
+.jx-tool--all { padding: 0 12px; white-space: nowrap; }
 .jx-tool--all.is-on { background: var(--jx-ink); color: #fff; }
 .jx-tool--all:hover { background: #E6E9EE; }
 .jx-tool--all.is-on:hover { background: #3a342e; }
@@ -346,23 +344,6 @@
 .jx-tabs a.is-on::after,
 .jx-tabs button.is-on::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: -1px; height: 2px; border-radius: 2px; background: var(--jx-or); }
 .jx-tabs em { font-style: normal; font-weight: 650; color: var(--jx-ink3); margin-left: 4px; }
-.jx-box.jx-cash {
-  position: relative; overflow: hidden; background: #221E1A; box-shadow: none; color: #fff;
-}
-.jx-box.jx-cash h3 { color: rgba(255, 255, 255, .62); }
-.jx-box.jx-cash .jx-kv dt { color: rgba(255, 255, 255, .62); }
-.jx-box.jx-cash .jx-kv dd { color: #fff; }
-.jx-box.jx-cash .jx-cash__row { display: flex; align-items: center; gap: 6px; }
-.jx-box.jx-cash .jx-cash__check { width: 14px; height: 14px; color: #E7792C; flex: none; }
-.jx-box.jx-cash .jx-cash__check path { fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
-.jx-box.jx-cash .jx-btn:not(.jx-btn--pri) {
-  background: transparent; color: #fff !important; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .28);
-}
-.jx-box.jx-cash .jx-btn:not(.jx-btn--pri):hover { background: rgba(255, 255, 255, .08); }
-.jx-box.jx-cash .jx-btn--pri { background: #E7792C !important; color: #fff !important; }
-.jx-box--alert { background: #FBF1EA; box-shadow: 0 0 0 1px #F2D9C6; }
-.jx-box--alert b { display: block; font-size: 13.5px; color: #7A3A12; }
-.jx-box--alert p { margin: 4px 0 0; font-size: 13px; color: #8A4A22; overflow-wrap: anywhere; }
 .jx-note { margin: 0; font-size: 13.5px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
 .jx-svc-note { display: block; margin-top: 2px; font-size: 12px; font-weight: 500; color: var(--jx-ink2); }
 .jx-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; }
@@ -469,7 +450,8 @@
   .jx-split { grid-template-columns: 330px minmax(0, 1fr); }
 }
 @media (max-width: 1100px) {
-  .jx-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .jx-tiles { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(136px, 1fr); overflow-x: auto; scrollbar-width: none; padding: 1px; }
+  .jx-tiles::-webkit-scrollbar { display: none; }
 }
 /* iPad em pé: lista OU job */
 @media (max-width: 1024px) {
@@ -487,3 +469,12 @@
 
 /* Totals live in the job header; the action too. This card is the invoice list. */
 .jx-billing .jb-stats, .jx-billing .jb-bar, .jx-billing .jb-actions { display: none; }
+
+.jx-detail .jx-tbl { min-width: 0; }
+
+.jx-box.is-empty h3 { margin: 0; gap: 8px; }
+.jx-hint { min-width: 0; font-size: 12.5px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--jx-ink2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Narrow list column: filters drop to their own line instead of being squeezed. */
+.jx-tools { flex-wrap: wrap; }
+.jx-tools .jx-sel { flex: 1 1 104px; }

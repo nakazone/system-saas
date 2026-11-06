@@ -63,6 +63,7 @@
   }
   function unitLabel(unit) {
     const raw = String(unit || "").trim().toLowerCase().replace(/\s+/g, "_");
+    if (!raw) return "sq ft";
     const map = { sq_ft: "sq ft", sqft: "sq ft", linear_ft: "lin ft", linear_feet: "lin ft", lf: "lin ft", step: "steps", steps: "steps", unit: "un", each: "un", piece: "pç", fixed: "", hour: "h", hours: "h", day: "dias", days: "dias" };
     return raw in map ? map[raw] : String(unit || "").replace(/_/g, " ");
   }
@@ -88,6 +89,7 @@
   function renderHeader() {
     document.title = `${job.title || clientName()} | ObraMate`;
     $("jdHeader").innerHTML = window.JobHeader.html(job, headerCtx());
+    $("jobBillingAll").hidden = !(billing?.data || []).length;
   }
   async function openInvoiceDialog() {
     if (!window.JobBilling) return;
@@ -183,9 +185,11 @@
   function renderNotes() {
     const { code, text } = window.JobHeader.noteParts(job.notes);
     const bodyHtml = typeof window.sfFormatRichTextHtml === "function" ? window.sfFormatRichTextHtml(text) : esc(text);
-    $("jdNotesView").innerHTML = text
-      ? `<div class="jd-note"><p class="crm-rich-html">${bodyHtml}</p></div>`
-      : `<p class="jd-empty">${code ? "Só o código da caixa, que já está no cabeçalho." : `Sem notas.${canManage ? " Use para acesso, código do portão, cuidados com a obra." : ""}`}</p>`;
+    // Nothing to read: the card shrinks to one line with the way to add it.
+    $("jdNotesCard").classList.toggle("is-empty", !text);
+    $("jdNotesHint").textContent = text ? "" : code ? "Só o código da caixa, que está no cabeçalho" : canManage ? "Acesso, portão, cuidados com a obra" : "Sem notas";
+    $("jdNotesEdit").textContent = String(job.notes || "").trim() ? "Editar" : "Adicionar";
+    $("jdNotesView").innerHTML = text ? `<div class="jd-note"><p class="crm-rich-html">${bodyHtml}</p></div>` : "";
     $("jobNotes").value = job.notes || "";
   }
 
@@ -196,9 +200,9 @@
     card.hidden = !show;
     if (!show) return;
     $("jdAfterActions").innerHTML = `
-      <button type="button" class="jd-btn${afterOpen === "review" ? " is-on" : ""}" data-after="review">Pedir review</button>
-      <button type="button" class="jd-btn${afterOpen === "caption" ? " is-on" : ""}" data-after="caption">Antes/depois para redes</button>
-      <button type="button" class="jd-btn" data-goto="fotos" data-scroll="jobReportCard">Relatório com fotos</button>`;
+      <button type="button" class="jd-btn jd-btn--sm${afterOpen === "review" ? " is-on" : ""}" data-after="review">Pedir review</button>
+      <button type="button" class="jd-btn jd-btn--sm${afterOpen === "caption" ? " is-on" : ""}" data-after="caption">Antes/depois para redes</button>
+      <button type="button" class="jd-btn jd-btn--sm" data-goto="fotos" data-scroll="jobReportCard">Relatório com fotos</button>`;
     const body = $("jdAfterBody");
     if (afterOpen === "review") {
       if (!reviewReq) {
@@ -283,7 +287,11 @@
       proposals = [];
     }
     // Fixed-price jobs (Builder / Loja) are billed from the table — no quote.
-    card.hidden = isB2B() && !proposals.length;
+    // A finished job, or one that already came from a quote, has no use for a new proposal.
+    const closed = job.status === "completed" || job.status === "canceled";
+    card.hidden = !proposals.length && (isB2B() || closed || Boolean(job.quote_id));
+    $("btnCreateProposal").hidden = closed;
+    $("btnCreateProposalAi").hidden = closed;
     const body = $("jobProposalBody");
     if (!proposals.length) {
       body.innerHTML = '<p class="jd-empty">Transforme este job num orçamento que o cliente assina online.</p>';
@@ -934,11 +942,14 @@
       $("jdNotesView").hidden = false;
       $("jdNotesEditor").hidden = true;
       $("jdNotesEdit").hidden = false;
+      renderNotes();
     };
     $("jdNotesEdit").addEventListener("click", () => {
       $("jdNotesView").hidden = true;
       $("jdNotesEditor").hidden = false;
       $("jdNotesEdit").hidden = true;
+      $("jdNotesCard").classList.remove("is-empty");
+      $("jdNotesHint").textContent = "";
       $("jobNotes").focus();
     });
     $("jdNotesCancel").addEventListener("click", () => {
