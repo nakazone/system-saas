@@ -227,25 +227,29 @@
     return S.jobs_today || [];
   }
 
-  function helloLine() {
-    const n = (S.jobs_today || []).length;
-    const inDay = S.day && S.day.status === "in_progress";
-    if (inDay) return `${n ? `${n} obra${n === 1 ? "" : "s"} no dia` : "Dia em andamento"} · toque para finalizar quando acabar`;
-    if (S.day) return "Dia já enviado · bom descanso";
-    if (n) return `${n} obra${n === 1 ? "" : "s"} na agenda hoje`;
-    return "Nada na agenda hoje — você ainda pode começar o dia";
+  /** Compact sector chip — shorter than full SECTOR labels. */
+  function sectorShort(sector) {
+    if (sector === "installation") return "Instalação";
+    if (sector === "sand_finish") return "Lixa";
+    return SECTOR[sector] || sector || "";
+  }
+
+  function helloMetaHtml() {
+    const date = String(S.today_label || "").trim();
+    const sector = S.employee && S.employee.sector ? sectorShort(S.employee.sector) : "";
+    if (!date && !sector) return "";
+    return `<p class="dy-eyebrow">${date ? `<span class="dy-hello-date">${esc(date)}</span>` : ""}${
+      sector ? `<span class="dy-hello-sector">${esc(sector)}</span>` : ""
+    }</p>`;
   }
 
   function qaIcon(kind) {
     const paths = {
-      play: ICON.play,
       stop: ICON.stop,
       cam: ICON.cam,
       pin: ICON.pin,
       cal: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
-      chat: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>',
       camBoard: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h1.6l1.4-2h7l1.4 2h1.6A2.5 2.5 0 0 1 21 8.5v9A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5z"/><circle cx="12" cy="13" r="3.6"/></svg>',
-      clock: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
     };
     return paths[kind] || "";
   }
@@ -257,23 +261,28 @@
     const list = todayJobs();
     const hasRoute = list.some((j) => j.address || j.delivery_pickup_address);
     const photoJob = inDay && list.length ? list[list.length - 1] : list[0];
-    const dayAct = !d
-      ? `<button type="button" class="dy-qa" data-act="start" data-om-press><span class="dy-qa-ic">${qaIcon("play")}</span><span><strong>Começar o dia</strong><small>Bater o ponto na obra</small></span></button>`
-      : inDay
-        ? `<button type="button" class="dy-qa" data-act="finish" data-om-press><span class="dy-qa-ic">${qaIcon("stop")}</span><span><strong>Finalizar o dia</strong><small>Enviar horas e fotos</small></span></button>`
-        : `<a class="dy-qa" href="/job-media-board.html"><span class="dy-qa-ic">${qaIcon("camBoard")}</span><span><strong>ObraCam</strong><small>Fotos das obras</small></span></a>`;
-    const foto = photoJob
-      ? `<button type="button" class="dy-qa" data-act="photo" data-job="${esc(photoJob.id)}" data-om-press><span class="dy-qa-ic">${qaIcon("cam")}</span><span><strong>Tirar foto</strong><small>${esc(clientName(photoJob))}</small></span></button>`
-      : `<a class="dy-qa" href="/job-media-board.html"><span class="dy-qa-ic">${qaIcon("cam")}</span><span><strong>Tirar foto</strong><small>Abrir ObraCam</small></span></a>`;
-    const routeOrAgenda = hasRoute
-      ? `<button type="button" class="dy-qa" data-act="day-route" data-om-press><span class="dy-qa-ic">${qaIcon("pin")}</span><span><strong>Rota do dia</strong><small>${list.length} parada${list.length === 1 ? "" : "s"}</small></span></button>`
-      : `<a class="dy-qa" href="agenda.html"><span class="dy-qa-ic">${qaIcon("cal")}</span><span><strong>Agenda</strong><small>Semana na obra</small></span></a>`;
-    return `<section class="dy-qa-grid" aria-label="Ações rápidas">
-      ${dayAct}
-      ${foto}
-      ${routeOrAgenda}
-      <a class="dy-qa" href="/chat.html"><span class="dy-qa-ic">${qaIcon("chat")}</span><span><strong>ObraChat</strong><small>Falar com o escritório</small></span></a>
-    </section>`;
+    const items = [];
+    if (inDay) {
+      items.push(
+        `<button type="button" class="dy-qa" data-act="finish" data-om-press><span class="dy-qa-ic">${qaIcon("stop")}</span><span><strong>Finalizar o dia</strong><small>Enviar horas e fotos</small></span></button>`,
+      );
+    } else if (d) {
+      items.push(
+        `<a class="dy-qa" href="/job-media-board.html"><span class="dy-qa-ic">${qaIcon("camBoard")}</span><span><strong>ObraCam</strong><small>Fotos das obras</small></span></a>`,
+      );
+    }
+    items.push(
+      photoJob
+        ? `<button type="button" class="dy-qa" data-act="photo" data-job="${esc(photoJob.id)}" data-om-press><span class="dy-qa-ic">${qaIcon("cam")}</span><span><strong>Tirar foto</strong><small>${esc(clientName(photoJob))}</small></span></button>`
+        : `<a class="dy-qa" href="/job-media-board.html"><span class="dy-qa-ic">${qaIcon("cam")}</span><span><strong>Tirar foto</strong><small>Abrir ObraCam</small></span></a>`,
+    );
+    items.push(
+      hasRoute
+        ? `<button type="button" class="dy-qa" data-act="day-route" data-om-press><span class="dy-qa-ic">${qaIcon("pin")}</span><span><strong>Rota do dia</strong><small>${list.length} parada${list.length === 1 ? "" : "s"}</small></span></button>`
+        : `<a class="dy-qa" href="agenda.html"><span class="dy-qa-ic">${qaIcon("cal")}</span><span><strong>Agenda</strong><small>Semana na obra</small></span></a>`,
+    );
+    if (!items.length) return "";
+    return `<section class="dy-qa-grid dy-qa-grid--${Math.min(items.length, 3)}" aria-label="Ações rápidas">${items.join("")}</section>`;
   }
 
   function attentionHtml() {
@@ -291,58 +300,6 @@
     }
     if (!items.length) return "";
     return `<section class="dy-tile dy-foryou" aria-labelledby="dyAtt"><h2 id="dyAtt">Precisa de você <span class="dy-badge">${items.length}</span></h2>${items.slice(0, 4).join("")}</section>`;
-  }
-
-  function photoTag(j) {
-    const n = j.photos_today || 0;
-    const q = queued[j.id] || 0;
-    if (q) return `<span class="dy-chip">${q} na fila</span>`;
-    if (n) return `<span class="dy-chip dy-chip--ok">${n} foto${n > 1 ? "s" : ""}</span>`;
-    return `<span class="dy-chip dy-chip--miss">Falta foto</span>`;
-  }
-
-  function nowPanelHtml() {
-    if (!S.linked) return "";
-    const d = S.day;
-    const inDay = d && d.status === "in_progress";
-    const list = todayJobs();
-    const here = inDay && d.jobs.length ? d.jobs[d.jobs.length - 1] : null;
-    const title = inDay ? "Agora na obra" : d ? "Obras do dia" : "Hoje na agenda";
-    if (!list.length) {
-      return `<section class="dy-tile dy-now" aria-label="${esc(title)}">
-        <div class="dy-now-head"><h2>${esc(title)}</h2><a class="dy-link" href="agenda.html">Agenda</a></div>
-        <div class="dy-empty">${inDay ? "Nenhum job no seu dia ainda." : "Sem jobs na agenda de hoje."}</div>
-        ${inDay ? `<button type="button" class="dy-btn dy-btn--line dy-btn--sm" data-act="addjob" style="margin-top:10px">+ Outro job</button>` : ""}
-      </section>`;
-    }
-    const cards = list
-      .map((j) => {
-        const live = here && here.id === j.id;
-        const maps = j.maps_url || (j.address ? `https://maps.google.com/?q=${encodeURIComponent(j.address)}` : "");
-        const time = j.start_label || (j.continuing ? "Em andamento" : "");
-        return `<article class="dy-now-card${live ? " is-live" : ""}">
-          <a class="dy-now-hit" href="ticket.html?id=${encodeURIComponent(j.id)}" aria-label="Abrir ${esc(clientName(j))}"></a>
-          <div class="dy-now-top"><span class="dy-now-time">${esc(time || (live ? "Aqui" : "Hoje"))}</span>${inDay ? photoTag(j) : ""}</div>
-          <strong class="dy-now-title">${esc(clientName(j))}</strong>
-          <small class="dy-now-sub">${esc(j.address || "Sem endereço")}</small>
-          <div class="dy-now-acts">
-            ${maps ? `<a class="dy-now-act" href="${esc(maps)}" target="_blank" rel="noopener">${ICON.pin}<span>Mapa</span></a>` : ""}
-            ${inDay ? `<button type="button" class="dy-now-act is-pri" data-act="photo" data-job="${esc(j.id)}">${ICON.cam}<span>Foto</span></button>` : `<a class="dy-now-act" href="ticket.html?id=${encodeURIComponent(j.id)}"><span>Ticket</span></a>`}
-            ${inDay && here && here.id !== j.id ? `<button type="button" class="dy-now-act" data-act="goto" data-job="${esc(j.id)}"><span>Estou aqui</span></button>` : ""}
-          </div>
-        </article>`;
-      })
-      .join("");
-    return `<section class="dy-tile dy-now" aria-label="${esc(title)}">
-      <div class="dy-now-head">
-        <h2>${esc(title)} <em>${list.length}</em></h2>
-        <span class="dy-now-tools">
-          ${list.some((j) => j.address || j.delivery_pickup_address) ? `<button type="button" class="dy-link" data-act="day-route">Rota</button>` : ""}
-          ${inDay ? `<button type="button" class="dy-link" data-act="addjob">+ Job</button>` : `<a class="dy-link" href="agenda.html">Semana</a>`}
-        </span>
-      </div>
-      <div class="dy-now-row">${cards}<a class="dy-now-card dy-now-more" href="agenda.html">${qaIcon("cal")}<span>Ver a semana</span></a></div>
-    </section>`;
   }
 
   function tilesHtml() {
@@ -458,23 +415,19 @@
     const first = emp ? emp.name.split(/\s+/)[0] : "";
     const h = new Date().getHours();
     const hello = `${h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite"}${first ? `, ${first}` : ""}`;
-    const sectorLbl = emp && emp.sector ? SECTOR[emp.sector] || emp.sector : "";
-    const eyebrow = [S.today_label || "", sectorLbl].filter(Boolean).join(" · ");
     const card = cardHtml();
     const cardBlock = typeof card === "string" ? card : card.html;
     $("dyDash").innerHTML = `
       <header class="dy-hello">
         <div class="dy-hello-txt">
-          <p class="dy-eyebrow">${esc(eyebrow)}</p>
+          ${helloMetaHtml()}
           <h1>${esc(hello)}</h1>
-          <p class="dy-hello-line">${esc(helloLine())}</p>
         </div>
         <img class="dy-hello-mate" src="/assets/img/mascot/mate-helmet.webp?v=1" alt="" width="120" height="156" decoding="async" />
       </header>
       ${attentionHtml()}
       ${quickActionsHtml()}
       ${cardBlock}
-      ${nowPanelHtml()}
       ${tilesHtml()}
     `;
     if (typeof card !== "string" && card.enter) {

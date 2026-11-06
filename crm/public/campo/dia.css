@@ -316,10 +316,28 @@ body.dy-lock { overflow: hidden; }
 }
 .dy-hello-txt { position: relative; z-index: 1; min-width: 0; flex: 1; }
 .dy-eyebrow {
-  margin: 0 0 4px;
+  margin: 0 0 8px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.dy-hello-date {
   font-size: 13px;
-  font-weight: 650;
-  color: var(--muted);
+  font-weight: 700;
+  color: var(--ink-2);
+  letter-spacing: 0.01em;
+}
+.dy-hello-sector {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(34, 30, 26, 0.08);
+  color: var(--ink);
+  font-size: 11.5px;
+  font-weight: 750;
 }
 .dy-hello h1 {
   margin: 0;
@@ -328,13 +346,6 @@ body.dy-lock { overflow: hidden; }
   letter-spacing: -0.03em;
   line-height: 1.15;
   color: var(--ink);
-}
-.dy-hello-line {
-  margin: 6px 0 0;
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--ink-2);
-  line-height: 1.35;
 }
 .dy-hello-mate {
   position: relative;
@@ -351,6 +362,9 @@ body.dy-lock { overflow: hidden; }
   grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
+.dy-qa-grid--1 { grid-template-columns: 1fr; }
+.dy-qa-grid--3 { grid-template-columns: 1fr 1fr; }
+.dy-qa-grid--3 > :last-child { grid-column: 1 / -1; }
 .dy-qa {
   display: flex;
   flex-direction: column;
