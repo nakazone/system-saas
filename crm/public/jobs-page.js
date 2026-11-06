@@ -612,10 +612,37 @@
       const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
       const key = ymd(d);
       const on = dayFilter === key;
-      const dot = counts[key] ? `<span class="jx-daychip__dot"></span>` : `<span class="jx-daychip__dot is-empty"></span>`;
-      return `<button type="button" class="jx-daychip${on ? " is-on" : ""}${key === today ? " is-today" : ""}" data-jx-strip="${key}" role="tab" aria-selected="${on ? "true" : "false"}"><span class="jx-daychip__name">${names[d.getDay()]}</span><b>${d.getDate()}</b>${dot}</button>`;
+      const dot = on
+        ? `<span class="jx-daychip__x" aria-hidden="true">×</span>`
+        : counts[key] ? `<span class="jx-daychip__dot"></span>` : `<span class="jx-daychip__dot is-empty"></span>`;
+      const picked = on ? ` aria-label="${names[d.getDay()]} ${d.getDate()}, selecionado"` : "";
+      return `<button type="button" class="jx-daychip${on ? " is-on" : ""}${key === today ? " is-today" : ""}" data-jx-strip="${key}" role="tab" aria-selected="${on ? "true" : "false"}"${picked}><span class="jx-daychip__name">${names[d.getDay()]}</span><b>${d.getDate()}</b>${dot}</button>`;
     }).join("");
     return `<div class="jx-weekpage">${chips}</div>`;
+  }
+  function clearDay() {
+    if (!dayFilter) return;
+    dayFilter = null;
+    renderList();
+  }
+  function syncDayOff() {
+    const btn = $("jxDayOff");
+    const label = $("jxDayOffLabel");
+    if (!btn || !label) return;
+    if (!dayFilter) {
+      btn.hidden = true;
+      label.textContent = "";
+      btn.removeAttribute("aria-label");
+      return;
+    }
+    const [yy, mm, dd] = dayFilter.split("-").map(Number);
+    const d = new Date(yy, mm - 1, dd);
+    const names = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+    const mo = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+    const text = `${names[d.getDay()]}, ${d.getDate()} ${mo[d.getMonth()]}`;
+    label.textContent = text;
+    btn.hidden = false;
+    btn.setAttribute("aria-label", `Tirar ${text}`);
   }
   function renderWeekStrip() {
     const host = $("jxWeekStrip");
@@ -673,7 +700,9 @@
   function renderList() {
     const list = $("jxRows")?.closest(".ol-list");
     if (list && list.__ol) list.__ol.allOn = showAll;
+    syncAllBtn();
     if (!appliedWeekKey && !showAll) revealWeek(stripWeek());
+    syncDayOff();
     renderWeekStrip();
     let rows = visibleRows();
     if (!showAll && dayFilter) {
@@ -1447,15 +1476,148 @@
       render();
     } catch (_) {}
   });
-  /** Quantos filtros (Status, Origem) estão ligados — aparece no botão Filtros. */
-  function syncFiltBadge() {
-    const n = ["jxStatus", "jxSource"].filter((id) => $(id) && $(id).value).length;
-    const badge = $("jxFiltN");
-    if (badge) {
-      badge.hidden = !n;
-      badge.textContent = n ? String(n) : "";
+  let pickDocBound = false;
+  function closePicks(except) {
+    document.querySelectorAll(".jx-pick__menu").forEach((menu) => {
+      if (menu === except) return;
+      menu.hidden = true;
+      const btn = menu._pickBtn;
+      if (btn) btn.setAttribute("aria-expanded", "false");
+    });
+  }
+  function placePick(menu, btn) {
+    const r = btn.getBoundingClientRect();
+    const width = Math.max(r.width, 196);
+    let left = r.left;
+    if (left + width > window.innerWidth - 8) left = Math.max(8, window.innerWidth - 8 - width);
+    const space = window.innerHeight - r.bottom - 12;
+    menu.style.left = left + "px";
+    menu.style.top = (r.bottom + 6) + "px";
+    menu.style.width = width + "px";
+    menu.style.maxHeight = Math.max(180, Math.min(380, space)) + "px";
+  }
+  function paintPick(sel) {
+    const btn = sel._pickBtn;
+    const menu = sel._pickMenu;
+    if (!btn || !menu) return;
+    const opt = sel.options[sel.selectedIndex];
+    const label = sel.closest(".jx-sel")?.querySelector("span")?.textContent || sel.getAttribute("aria-label") || "";
+    const valueText = opt ? opt.textContent : "";
+    btn.querySelector(".jx-pick__k").textContent = label;
+    btn.querySelector(".jx-pick__v").textContent = valueText;
+    btn.setAttribute("aria-label", label + (valueText ? ", " + valueText : ""));
+    sel.closest(".jx-sel")?.classList.toggle("is-on", !!sel.value);
+    const current = sel.value;
+    menu.querySelectorAll(".jx-pick__opt").forEach((b) => {
+      const on = b.dataset.value === current;
+      b.classList.toggle("is-on", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+      b.querySelector("svg").hidden = !on;
+    });
+  }
+  function openPick(sel) {
+    const menu = sel._pickMenu;
+    const btn = sel._pickBtn;
+    if (!menu || !btn) return;
+    closePicks(menu);
+    placePick(menu, btn);
+    menu.hidden = false;
+    btn.setAttribute("aria-expanded", "true");
+    const current = menu.querySelector('.jx-pick__opt.is-on') || menu.querySelector(".jx-pick__opt");
+    current?.focus();
+  }
+  function choosePick(sel, value) {
+    sel.value = value;
+    sel.dispatchEvent(new Event("change", { bubbles: true }));
+    paintPick(sel);
+    closePicks();
+    sel._pickBtn?.focus();
+  }
+  function bindPick(sel) {
+    const wrap = sel.closest(".jx-sel");
+    if (!wrap || sel._pickBtn) return;
+    sel.classList.add("jx-sel__native");
+    sel.tabIndex = -1;
+    sel.setAttribute("aria-hidden", "true");
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "jx-pick";
+    btn.setAttribute("aria-haspopup", "listbox");
+    btn.setAttribute("aria-expanded", "false");
+    btn.setAttribute("aria-label", sel.getAttribute("aria-label") || "Filtro");
+    btn.innerHTML = '<span class="jx-pick__k"></span><span class="jx-pick__v"></span><svg class="jx-pick__chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
+    const menu = document.createElement("div");
+    menu.className = "jx-pick__menu";
+    menu.hidden = true;
+    menu.setAttribute("role", "listbox");
+    menu.setAttribute("aria-label", sel.getAttribute("aria-label") || "Filtro");
+    Array.from(sel.options).forEach((opt) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "jx-pick__opt";
+      b.setAttribute("role", "option");
+      b.dataset.value = opt.value;
+      b.innerHTML = '<span></span><svg viewBox="0 0 24 24" aria-hidden="true" hidden><path d="m5 12 5 5L20 7"/></svg>';
+      b.querySelector("span").textContent = opt.textContent;
+      b.addEventListener("click", (e) => {
+        e.stopPropagation();
+        choosePick(sel, opt.value);
+      });
+      menu.appendChild(b);
+    });
+    menu._pickBtn = btn;
+    sel._pickBtn = btn;
+    sel._pickMenu = menu;
+    wrap.appendChild(btn);
+    document.body.appendChild(menu);
+    paintPick(sel);
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (btn.getAttribute("aria-expanded") === "true") closePicks();
+      else openPick(sel);
+    });
+    btn.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        openPick(sel);
+      }
+    });
+    menu.addEventListener("keydown", (e) => {
+      const opts = Array.from(menu.querySelectorAll(".jx-pick__opt"));
+      const i = opts.indexOf(document.activeElement);
+      if (e.key === "Escape") { e.preventDefault(); closePicks(); btn.focus(); return; }
+      if (e.key === "ArrowDown") { e.preventDefault(); opts[Math.min(opts.length - 1, i + 1)]?.focus(); return; }
+      if (e.key === "ArrowUp") { e.preventDefault(); opts[Math.max(0, i - 1)]?.focus(); return; }
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        const cur = opts[i] || opts[0];
+        if (cur) choosePick(sel, cur.dataset.value);
+      }
+    });
+    sel.addEventListener("change", () => paintPick(sel));
+    if (!pickDocBound) {
+      pickDocBound = true;
+      document.addEventListener("click", (e) => {
+        if (e.target.closest(".jx-pick, .jx-pick__menu")) return;
+        closePicks();
+      });
+      window.addEventListener("resize", () => closePicks());
+      document.addEventListener("scroll", (e) => {
+        const t = e.target;
+        if (t && t.closest && t.closest(".jx-pick__menu")) return;
+        closePicks();
+      }, true);
     }
-    $("jxFiltBtn")?.classList.toggle("is-set", n > 0);
+  }
+
+  function syncAllBtn() {
+    const b = $("jxAll");
+    if (!b) return;
+    b.classList.toggle("is-on", showAll);
+    b.setAttribute("aria-pressed", showAll ? "true" : "false");
+  }
+  function syncFiltBadge() {
+    syncAllBtn();
   }
   function render() {
     syncFiltBadge();
@@ -1531,6 +1693,7 @@
       if ($("jxStatus") && statusFilter) {
         $("jxStatus").value = statusFilter;
         $("jxStatusWrap")?.classList.toggle("is-on", true);
+        paintPick($("jxStatus"));
       }
       if (qs.get("sort") === "oldest") sortDir = "oldest";
       if (qs.get("id")) {
@@ -1811,20 +1974,15 @@
     $("btnNewJob")?.addEventListener("click", () => {
       window.__crmJobModal.openCreate({ allDay: true }).catch((e) => notify(e.message, "error"));
     });
-    // Status e Origem ficam atrás do botão Filtros (o topo já filtra por status nos blocos);
-    // o filtro ligado aparece como chip acima da lista, e o botão mostra quantos estão ligados.
-    const filtBtn = $("jxFiltBtn");
-    filtBtn?.addEventListener("click", () => {
-      const list = filtBtn.closest(".jx-list");
-      const open = !list.classList.contains("is-filt");
-      list.classList.toggle("is-filt", open);
-      filtBtn.setAttribute("aria-expanded", open ? "true" : "false");
-      if (open) $("jxStatus")?.focus();
+    ["jxStatus", "jxSource"].forEach((id) => {
+      const sel = $(id);
+      if (sel) bindPick(sel);
+      sel?.addEventListener("change", syncFiltBadge);
     });
-    ["jxStatus", "jxSource"].forEach((id) => $(id)?.addEventListener("change", syncFiltBadge));
     syncFiltBadge();
     renderWeekStrip();
     document.querySelector(".jx-list")?.addEventListener("ol-all", () => showEveryJob());
+    $("jxDayOff")?.addEventListener("click", () => clearDay());
     $("jxWeekPrev")?.addEventListener("click", () => shiftWeek(-1));
     $("jxWeekNext")?.addEventListener("click", () => shiftWeek(1));
     $("jxWeekStrip")?.addEventListener("click", (e) => {

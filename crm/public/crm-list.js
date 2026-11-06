@@ -194,7 +194,9 @@
     }
     // Índice dos grupos: a lista inteira num relance, um toque para ir ao grupo.
     // Substitui a linha "Recolher tudo" — o recolher vira o ícone no fim do índice.
-    if (multi && !q) {
+    // Jobs desenha All, Status, Origem e o recolher na própria barra (data-ol-noindex).
+    var noIndex = L.list && L.list.getAttribute("data-ol-noindex") === "1";
+    if (multi && !q && !noIndex) {
       var idx = [];
       var byShort = {};
       var onlyBar = groups.some(function (g) { return g.head && g.head.getAttribute("data-ol-bar") === "1"; });
@@ -222,6 +224,17 @@
         '</nav><button type="button" class="ol-idx__fold" data-ol-foldall="' + (anyOpen ? "1" : "0") + '" aria-label="' + foldLabel +
         '" title="' + foldLabel + '"><svg viewBox="0 0 24 24" aria-hidden="true">' +
         (anyOpen ? '<path d="m7 11 5-5 5 5M7 18l5-5 5 5"/>' : '<path d="m7 6 5 5 5-5M7 13l5 5 5-5"/>') + "</svg></button></div>";
+    }
+    var foldBtn = L.top && L.top.querySelector("[data-ol-foldall]");
+    if (foldBtn) {
+      var foldLabel = anyOpen ? "Recolher todos os grupos" : "Abrir todos os grupos";
+      foldBtn.dataset.olFoldall = anyOpen ? "1" : "0";
+      foldBtn.setAttribute("aria-label", foldLabel);
+      foldBtn.title = foldLabel;
+      var foldSvg = foldBtn.querySelector("svg");
+      if (foldSvg) foldSvg.innerHTML = anyOpen
+        ? '<path d="m7 11 5-5 5 5M7 18l5-5 5 5"/>'
+        : '<path d="m7 6 5 5 5-5M7 13l5 5 5-5"/>';
     }
     L.filters = filters;
     if (host.innerHTML !== html) {
@@ -382,7 +395,13 @@
     if (top) {
       top.addEventListener("input", later);
       top.addEventListener("change", later);
-      top.addEventListener("click", function (e) { if (e.target.closest("button, a")) later(); });
+      top.addEventListener("click", function (e) {
+        if (e.target.closest("[data-ol-allbtn]")) {
+          L.list.dispatchEvent(new CustomEvent("ol-all", { bubbles: true }));
+        }
+        if (onFoldAll(e)) return;
+        if (e.target.closest("button, a")) later();
+      });
     }
 
     lists.push(L);

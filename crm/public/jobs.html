@@ -25,11 +25,11 @@
   <link rel="stylesheet" href="job-comms.css?v=20261008-modulos1" />
   <link rel="stylesheet" href="jobs-customers-mobile.css?v=20261013-jvis1" />
   <link rel="stylesheet" href="om-gestures.css?v=20261102-ptr1" />
-  <link rel="stylesheet" href="jobs-board.css?v=20261105-weekmove" />
+  <link rel="stylesheet" href="jobs-board.css?v=20261105-tools" />
   <link rel="stylesheet" href="job-builder-channel.css?v=20261030-builder1" />
   <link rel="stylesheet" href="partner-requests-shortcut.css?v=20261023-1" />
   <link rel="stylesheet" href="jobs-mobile.css?v=20261105-crew3" />
-  <link rel="stylesheet" href="crm-list.css?v=20261105-listday" />
+  <link rel="stylesheet" href="crm-list.css?v=20261105-tools" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script src="om-device.js?v=20261013-badge1"></script>
   <script src="crm-field-gate.js?v=20261105-crewcam1"></script>
@@ -140,11 +140,10 @@
         </div>
         <div class="jx-tiles" id="jxTiles" role="group" aria-label="Filtrar por etapa"></div>
         <div class="jx-split ol-split" id="jxSplit">
-          <section class="jx-list ol-list" data-ol-all="1" aria-label="Lista de jobs">
+          <section class="jx-list ol-list" data-ol-noindex="1" aria-label="Lista de jobs">
             <div class="jx-list__top ol-top">
               <div class="jx-list__find">
                 <label class="jx-search ol-search"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><input type="search" id="jxQ" placeholder="Builder, endereço, quote ou cliente" autocomplete="off" /></label>
-                <button type="button" class="jx-cal-btn jx-filt-btn" id="jxFiltBtn" aria-label="Filtros: status e origem" title="Filtros" aria-expanded="false" aria-controls="jxBar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><em id="jxFiltN" hidden></em></button>
               </div>
               <div class="jx-weekbar">
                 <button type="button" class="jx-weeknav" id="jxWeekPrev" aria-label="Semana anterior"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
@@ -153,8 +152,13 @@
                 </div>
                 <button type="button" class="jx-weeknav" id="jxWeekNext" aria-label="Próxima semana"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg></button>
               </div>
-              <div class="jx-list__bar ol-bar" id="jxBar">
-                <label class="jx-sel" id="jxStatusWrap"><span>Status</span>
+              <button type="button" class="jx-dayoff" id="jxDayOff" hidden>
+                <span id="jxDayOffLabel"></span>
+                <span class="jx-dayoff__act">Tirar</span>
+              </button>
+              <div class="jx-tools" id="jxBar">
+                <button type="button" class="jx-tool jx-tool--all" id="jxAll" data-ol-allbtn="1" aria-pressed="false" aria-label="Visualizar todos os jobs">All</button>
+                <label class="jx-sel" id="jxStatusWrap"><span aria-hidden="true">Status</span>
                   <select id="jxStatus" aria-label="Status">
                     <option value="">Todos</option>
                     <option value="Rascunho">Rascunho</option>
@@ -167,7 +171,7 @@
                     <option value="Cancelado">Cancelado</option>
                   </select>
                 </label>
-                <label class="jx-sel" id="jxSourceWrap"><span>Origem</span>
+                <label class="jx-sel" id="jxSourceWrap"><span aria-hidden="true">Origem</span>
                   <select id="jxSource" aria-label="Origem">
                     <option value="">Todas</option>
                     <option value="particular">Particular</option>
@@ -176,6 +180,7 @@
                     <option value="other">Outro</option>
                   </select>
                 </label>
+                <button type="button" class="jx-tool jx-tool--fold" id="jxFold" data-ol-foldall="1" aria-label="Recolher todos os grupos" title="Recolher todos os grupos"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 11 5-5 5 5M7 18l5-5 5 5"/></svg></button>
               </div>
             </div>
             <div class="jx-rows ol-rows" id="jxRows"><p class="jx-empty">Carregando…</p></div>
@@ -202,8 +207,8 @@
   <script src="job-chat-comms.js?v=20261104-ux2"></script>
   <script src="job-builder-channel.js?v=20261030-ch1"></script>
 <script src="jobs-info.js?v=20261105-field2"></script>
-  <script src="jobs-page.js?v=20261105-barall"></script>
+  <script src="jobs-page.js?v=20261105-tools"></script>
   <script src="jobs-mobile.js?v=20261105-field1"></script>
-  <script src="crm-list.js?v=20261105-barall"></script>
+  <script src="crm-list.js?v=20261105-tools"></script>
 </body>
 </html>
