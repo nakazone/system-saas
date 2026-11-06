@@ -152,7 +152,17 @@ export type TradePack = {
    * ready for template). The confirmation is recorded as the evidence `requirement` of `phase`,
    * so the company closes that phase without a wasted trip. English: the builder portal.
    */
-  builderGate?: { phase: string; requirement: string; title: string; question: string; done: string };
+  builderGate?: {
+    phase: string;
+    requirement: string;
+    title: string;
+    question: string;
+    done: string;
+    /** Service charged when the crew finds the site not ready (Countertops: return trip). */
+    tripService?: string;
+    /** What the visit was for, in the builder's message ("template"). */
+    visit: string;
+  };
   combinedPhaseKey: string;
   ai: {
     /** How the assistant describes the product's customers, e.g. "flooring installation companies". */

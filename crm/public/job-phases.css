@@ -118,3 +118,6 @@
   .jp-link { min-height: 44px; display: inline-flex; align-items: center; }
   .jp--compact .jp-link { min-height: 48px; }
 }
+/* "Obra não estava pronta" (builder gate): away from Concluir, with what it does next to it */
+.jp-nr { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; margin: 8px 0 2px; }
+.jp-nr .jp-s { margin: 0; }

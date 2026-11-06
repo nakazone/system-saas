@@ -125,3 +125,55 @@ describe.skipIf(!privileged)("confirming on a countertops job", () => {
     expect(r).toEqual({ ok: false, error: "not_yours" });
   });
 });
+
+describe.skipIf(!privileged)("the site was not ready for the visit", () => {
+  const prisma = new PrismaClient();
+  const suffix = `nr${Date.now().toString(36)}`;
+  let org = "";
+  let job = "";
+
+  beforeAll(async () => {
+    const a = await createOrganizationWithAdmin({ organizationName: `NotReady ${suffix}`, slug: `nr-${suffix}`, adminName: "Admin", adminEmail: `nr-${suffix}@example.com`, password: "password12345" });
+    org = a.organization.id;
+    await prisma.organization.update({ where: { id: org }, data: { tradePacks: ["countertops"] } });
+    job = await withTenantTransaction(org, async (tx) => {
+      await tx.pricingItem.create({ data: { organizationId: org, name: "Return Trip – Site Not Ready", unit: "unit", price: 150, priceBuilder: 175 } });
+      const wo = await tx.workOrder.create({ data: { organizationId: org, number: 3, title: "Kitchen", status: "scheduled" } });
+      await ensureJobPhases(tx, org, wo.id, tops);
+      await setBuilderGate(tx, tops, wo.id, true, { name: "Dana", company: "Acme" });
+      return wo.id;
+    });
+  });
+  afterAll(async () => {
+    await prisma.organization.delete({ where: { id: org } }).catch(() => undefined);
+    await prisma.$disconnect();
+  });
+
+  it("clears the builder's confirmation and charges the return trip at the builder price", async () => {
+    const { siteNotReady } = await import("../src/lib/trades/builder-gate.js");
+    const r = await withTenantTransaction(org, (tx) => siteNotReady(tx, tops, org, job, { charge: true }));
+    expect(r).toMatchObject({ ok: true, cleared: { by: "Dana · Acme" }, charged: { name: "Return Trip – Site Not Ready", amount: 175 } });
+    const rows = await withTenantTransaction(org, (tx) => listJobPhases(tx, job));
+    expect((rows.find((x) => x.phaseKey === "site_ready")!.evidence as Record<string, unknown>).ready_checklist).toBeUndefined();
+    const lines = await withTenantTransaction(org, (tx) => tx.workOrderLineItem.findMany({ where: { workOrderId: job } }));
+    expect(lines).toHaveLength(1);
+    expect(Number(lines[0]!.lineTotal)).toBe(175);
+  });
+
+  it("the crew's report clears it without a charge", async () => {
+    const { siteNotReady } = await import("../src/lib/trades/builder-gate.js");
+    await withTenantTransaction(org, (tx) => setBuilderGate(tx, tops, job, true, { name: "Dana", company: "Acme" }));
+    const r = await withTenantTransaction(org, (tx) => siteNotReady(tx, tops, org, job, { charge: false }));
+    expect(r).toMatchObject({ ok: true, charged: null });
+    const lines = await withTenantTransaction(org, (tx) => tx.workOrderLineItem.count({ where: { workOrderId: job } }));
+    expect(lines).toBe(1);
+  });
+
+  it("is wired into the phases page", () => {
+    const js = readFileSync("crm/public/job-phases.js", "utf8");
+    const route = readFileSync("src/crm/routes/job-phases.ts", "utf8");
+    expect(js).toContain("data-not-ready");
+    expect(route).toContain('"/api/work-orders/:id/phases/site-not-ready"');
+    expect(route).toContain("charge: manage");
+  });
+});

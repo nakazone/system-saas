@@ -23,6 +23,8 @@ import { activeVariants, asEvidence, phaseEarliest, readJobPhases, type JobPhase
 import { orgTimezone } from "../../lib/job-media/phases.js";
 import { jobSlabs, useReservedSlabs } from "../../lib/trades/slabs-db.js";
 import { canViewPricing } from "../../lib/pricing/visibility.js";
+import { siteNotReady } from "../../lib/trades/builder-gate.js";
+import { postMessage } from "../../lib/jobs/partner-messages.js";
 import { addPhaseEvidence, closeJobPhase, ensureJobPhases, listJobPhases, setJobVariant } from "../../lib/trades/job-phases-db.js";
 
 export const jobPhasesRouter = Router();
@@ -47,7 +49,7 @@ async function reachJob(tx: TenantPrisma, req: AuthedRequest, jobId: string, wri
   const open = p.manage || (!write && p.view);
   const job = await tx.workOrder.findFirst({
     where: { id: jobId, organizationId: req.organizationId!, status: { not: "canceled" }, ...(open ? {} : myJobAccessWhere(req.user!.id)) },
-    select: { id: true, status: true, sector: true, scheduledStart: true, sandScheduledStart: true, installationDoneAt: true, sandDoneAt: true },
+    select: { id: true, status: true, sector: true, scheduledStart: true, sandScheduledStart: true, installationDoneAt: true, sandDoneAt: true, builderId: true, customerId: true },
   });
   if (!job) throw new PhaseError("Job não encontrado ou sem acesso.", 404, "not_found");
   return job;
@@ -57,6 +59,13 @@ async function reachJob(tx: TenantPrisma, req: AuthedRequest, jobId: string, wri
 async function leadDaysOf(tx: TenantPrisma, organizationId: string): Promise<number | null> {
   const org = await tx.organization.findUnique({ where: { id: organizationId }, select: { featureFlags: true } });
   return shopLeadDays(org?.featureFlags);
+}
+
+/** The job has someone in the builder portal (ObraBuilder or partner portal) to tell. */
+async function hasPortalPartner(tx: TenantPrisma, job: { builderId: string | null; customerId: string | null }): Promise<boolean> {
+  const OR = [...(job.builderId ? [{ builderId: job.builderId }] : []), ...(job.customerId ? [{ customerId: job.customerId }] : [])];
+  if (!OR.length) return false;
+  return (await tx.partnerUser.count({ where: { OR, status: "active" } })) > 0;
 }
 
 async function packOf(tx: TenantPrisma, organizationId: string): Promise<TradePack> {
@@ -90,7 +99,13 @@ async function phasesState(tx: TenantPrisma, req: AuthedRequest, jobId: string) 
   const reworks = pack.rework ? await reworksOf(tx, req, jobId, pack) : null;
   // The slabs held for / used on the job (Countertops yard); the office reserves them in Slabs.
   const slabs = pack.inventory?.slabs ? { can_manage: perms(req).manage, items: await jobSlabs(tx, req.organizationId!, jobId, canViewPricing(req.user)) } : null;
+  const gate = pack.builderGate && pack.phaseStorage === "table" ? pack.builderGate : null;
+  const builderJob = gate ? await hasPortalPartner(tx, job) : false;
   return {
+    // The step the builder confirms in ObraBuilder, and the "site not ready" report on it.
+    builder_gate: gate
+      ? { phase: gate.phase, requirement: gate.requirement, builder_job: builderJob, can_charge: perms(req).manage && Boolean(gate.tripService), trip_service: gate.tripService ?? null }
+      : null,
     slabs,
     // Pieces made again (Countertops remakes); the cost only for the office.
     reworks,
@@ -473,6 +488,44 @@ jobPhasesRouter.post("/api/work-orders/:id/phases/:phase/complete", requireCrmAu
       return phasesState(tx, req, jobId);
     });
     res.json({ success: true, data });
+  } catch (error) {
+    fail(res, next, error);
+  }
+});
+
+const notReadyBody = z.object({ note: z.string().trim().max(600).optional().default(""), at: z.string().datetime({ offset: true }).optional() });
+
+/**
+ * The crew (or the office) found the site not ready for the visit: the builder's confirmation is
+ * cleared, the builder is told in the job's messages, and the office's report adds the return trip.
+ */
+jobPhasesRouter.post("/api/work-orders/:id/phases/site-not-ready", requireCrmAuth, async (req: AuthedRequest, res, next) => {
+  try {
+    const body = notReadyBody.safeParse(req.body || {});
+    if (!body.success) throw new PhaseError("Dados inválidos.", 400, "invalid");
+    const jobId = jobIdOf(req);
+    const manage = perms(req).manage;
+    const out = await withTenantTransaction(req.organizationId!, async (tx) => {
+      const job = await reachJob(tx, req, jobId, true);
+      const pack = await packOf(tx, req.organizationId!);
+      await ensureJobPhases(tx, req.organizationId!, jobId, pack);
+      const r = await siteNotReady(tx, pack, req.organizationId!, jobId, { charge: manage });
+      if (!r.ok) throw new PhaseError(r.error === "phase_done" ? "Esta fase já foi concluída." : "Este ofício não tem esse passo.", 409, r.error);
+      return { r, pack, builderJob: await hasPortalPartner(tx, job), data: await phasesState(tx, req, jobId) };
+    });
+    const g = out.pack.builderGate!;
+    if (out.builderJob) {
+      const who = out.r.cleared?.by ? ` It was confirmed ready by ${out.r.cleared.by}.` : "";
+      const fee = out.r.charged ? ` A charge for \u201c${out.r.charged.name}\u201d was added to the job.` : "";
+      const note = body.data.note ? ` Notes: ${body.data.note}${/[.!?]$/.test(body.data.note) ? "" : "."}` : "";
+      await postMessage({
+        organizationId: req.organizationId!, workOrderId: jobId, side: "company",
+        authorName: req.user?.name || "Office", authorUserId: req.user?.id ?? null, excludeUserId: req.user?.id,
+        body: `Site not ready for ${g.visit}.${who}${note}${fee} Confirm again in ObraBuilder when it is ready and we will reschedule.`,
+        files: [],
+      }).catch(() => undefined);
+    }
+    res.json({ success: true, data: out.data, charged: out.r.charged });
   } catch (error) {
     fail(res, next, error);
   }

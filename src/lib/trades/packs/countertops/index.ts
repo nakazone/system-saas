@@ -150,6 +150,8 @@ export const countertops: TradePack = {
     title: "Ready for template",
     question: "Cabinets set and level (1/8\" in 10 ft), sink, faucet and cooktop on site, cabinets empty.",
     done: "Kitchen ready for template",
+    visit: "template",
+    tripService: "Return Trip – Site Not Ready",
   },
   measurement: { tabs: ["countertops", "floors", "summary"] },
   // Production pay by item: install crews are usually paid per piece of the job.

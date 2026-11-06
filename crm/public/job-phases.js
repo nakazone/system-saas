@@ -75,7 +75,7 @@
     const l = document.createElement("link");
     l.id = CSS_ID;
     l.rel = "stylesheet";
-    l.href = "/job-phases.css?v=20261105-mg3";
+    l.href = "/job-phases.css?v=20261106-nr1";
     document.head.appendChild(l);
   }
 
@@ -210,8 +210,10 @@
         : missing
           ? `Falta${missing > 1 ? "m" : ""} ${missing} prova${missing > 1 ? "s" : ""}`
           : "";
+    const bg = d.builder_gate && d.builder_gate.phase === p.key && st.canAct ? d.builder_gate : null;
     return `<div class="jp-cur">
       ${p.requires.map((r) => reqRow(p, r, st)).join("")}
+      ${bg ? `<div class="jp-nr"><button type="button" class="jp-link" data-not-ready ${st.busy ? "disabled" : ""}>Obra não estava pronta</button><span class="jp-s">${bg.builder_job ? "Avisa a construtora e pede nova confirmação" : "Desfaz a conferência"}${bg.can_charge ? " · cobra a viagem perdida" : ""}</span></div>` : ""}
       <div class="jp-cur__foot">
         ${s.waiting && d.can_force && st.canAct ? `<button type="button" class="jp-link" data-force="${esc(p.key)}" ${st.busy ? "disabled" : ""}>Liberar a espera (escritório)</button>` : `<span class="jp-why">${why}</span>`}
         ${st.canAct ? `<button type="button" class="jp-b jp-b--pri" data-complete="${esc(p.key)}" ${can && !st.busy ? "" : "disabled"}>Concluir fase</button>` : ""}
@@ -560,6 +562,32 @@
       .catch((e) => (box.innerHTML = note(!online() ? "Sem internet e sem cópia das fases neste celular. Abra as fases uma vez com sinal para usar sem internet." : e.message)));
 
     box.onclick = (e) => {
+      if (e.target.closest("[data-not-ready]")) {
+        if (!online()) return notify("Precisa de internet para avisar a construtora.", "error");
+        const bg = data && data.builder_gate;
+        if (!bg) return;
+        const askText = window.crmPrompt;
+        if (!askText) return notify("Atualize a página e tente de novo.", "error");
+        askText({
+          title: "Obra não estava pronta",
+          text: [
+            bg.builder_job ? "A construtora recebe uma mensagem e precisa confirmar de novo no ObraBuilder." : "A conferência desta fase é desfeita.",
+            bg.can_charge ? `\u201c${bg.trip_service}\u201d entra no job com o preço da Tabela de Valores.` : bg.trip_service ? "O escritório decide se cobra a viagem perdida." : "",
+          ].filter(Boolean).join(" "),
+          label: "O que faltava?",
+          placeholder: "Ex.: cabinets da ilha sem nivelar, pia não chegou",
+          type: "textarea",
+          ok: "Registrar",
+          cancel: "Voltar",
+        }).then((note) => {
+          if (note === null || note === undefined) return;
+          run(async () => {
+            const r = await api(`${base}/site-not-ready`, { method: "POST", body: JSON.stringify({ note: String(note || "").trim() }) });
+            took(r, bg.builder_job ? "Registrado. A construtora foi avisada." : "Registrado.");
+          });
+        });
+        return;
+      }
       const req = e.target.closest("[data-req]");
       if (req) {
         const phase = req.getAttribute("data-phase");
