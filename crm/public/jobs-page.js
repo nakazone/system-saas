@@ -38,6 +38,8 @@
   let dayFilter = null;
   /** 1 slides the week strip forward, -1 backward. Cleared after the paint. */
   let weekSlide = 0;
+  /** Sunday ymd to scroll into view after the list paints a week change. */
+  let pendingWeekKey = null;
   let calCursor = new Date();
   let calOpen = false;
   /** Which week blocks inside Próximos jobs stay open. Key is the Sunday ymd. */
@@ -426,9 +428,8 @@
   function groupHead(key, label, count) {
     const bar = BAR_GROUPS.has(key) ? ' data-ol-bar="1"' : "";
     const closed = key === "nodate" ? ' data-ol-closed="1"' : "";
-    const open = key === "field" ? ' data-ol-open="1"' : "";
     const countHtml = key === "nodate" ? `<em class="jx-ping"><i aria-hidden="true"></i>${count}</em>` : `<em>${count}</em>`;
-    return `<p class="jx-grp ol-grp"${bar}${closed}${open}><span>${label}</span>${countHtml}</p>`;
+    return `<p class="jx-grp ol-grp"${bar}${closed}><span>${label}</span>${countHtml}</p>`;
   }
   function weekFoldHtml(weeks) {
     const chev = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>`;
@@ -515,11 +516,49 @@
   function stripWeek() {
     return weekFilter ? weekSunday(weekFilter) : weekSunday(new Date());
   }
+  function foldKey() {
+    const list = $("jxRows")?.closest(".ol-list");
+    if (list && list.__ol && list.__ol.key) return list.__ol.key;
+    return "olFold:" + location.pathname + ":jxRows";
+  }
+  function unfoldGroup(label) {
+    const key = foldKey();
+    let folds = {};
+    try { folds = JSON.parse(localStorage.getItem(key) || "{}"); } catch (e) { folds = {}; }
+    if (!folds || typeof folds !== "object") folds = {};
+    if (folds[label] === false) return;
+    folds[label] = false;
+    try { localStorage.setItem(key, JSON.stringify(folds)); } catch (e) {}
+  }
+  /** Open the week block for the chosen Sunday, and the group that holds those jobs. */
+  function revealWeek(sunday) {
+    const key = ymd(weekSunday(sunday));
+    weekOpen.set(key, true);
+    unfoldGroup("Em Campo");
+    unfoldGroup("Próximos jobs");
+    pendingWeekKey = key;
+  }
+  function scrollWeekIntoView(key) {
+    const rows = $("jxRows");
+    if (!rows) return;
+    const run = () => {
+      const week = rows.querySelector(`details.jx-wk[data-jx-week="${key}"]`);
+      const field = [...rows.querySelectorAll(".ol-grp")].find((h) => (h.querySelector("span") || h).textContent.trim() === "Em Campo");
+      const target = week || field;
+      if (!target) return;
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (rows.scrollHeight <= rows.clientHeight + 4) return;
+      const top = target.getBoundingClientRect().top - rows.getBoundingClientRect().top + rows.scrollTop - 6;
+      rows.scrollTo({ top: Math.max(0, top), behavior: reduce ? "auto" : "smooth" });
+    };
+    setTimeout(run, 48);
+  }
   function shiftWeek(delta) {
     const start = stripWeek();
     weekFilter = new Date(start.getFullYear(), start.getMonth(), start.getDate() + delta * 7);
     dayFilter = null;
     weekSlide = delta > 0 ? 1 : -1;
+    revealWeek(weekFilter);
     renderList();
   }
   function weekPage(start) {
@@ -554,11 +593,23 @@
     }
     const other = new Date(start.getFullYear(), start.getMonth(), start.getDate() - dir * 7);
     const pages = dir > 0 ? weekPage(other) + weekPage(start) : weekPage(start) + weekPage(other);
+    const pageW = host.clientWidth;
+    if (pageW < 8) {
+      host.innerHTML = weekPage(start);
+      return;
+    }
     host.innerHTML = `<div class="jx-weektrack">${pages}</div>`;
     const track = host.querySelector(".jx-weektrack");
-    const fromX = dir > 0 ? "0px" : "-50%";
-    const toX = dir > 0 ? "-50%" : "0px";
-    track.style.transform = `translateX(${fromX})`;
+    track.querySelectorAll(".jx-weekpage").forEach((page) => {
+      page.style.flex = "none";
+      page.style.width = `${pageW}px`;
+    });
+    track.style.width = `${pageW * 2}px`;
+    const from = dir > 0 ? 0 : -pageW;
+    const to = dir > 0 ? -pageW : 0;
+    track.style.transition = "none";
+    track.style.transform = `translate3d(${from}px,0,0)`;
+    track.getBoundingClientRect();
     let done = false;
     const finish = () => {
       if (done) return;
@@ -566,10 +617,8 @@
       if (host.contains(track)) host.innerHTML = weekPage(start);
     };
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        track.style.transition = "transform .46s cubic-bezier(.22, .7, .3, 1)";
-        track.style.transform = `translateX(${toX})`;
-      });
+      track.style.transition = "transform .46s cubic-bezier(.22, .7, .3, 1)";
+      track.style.transform = `translate3d(${to}px,0,0)`;
     });
     track.addEventListener("transitionend", (e) => {
       if (e.target === track && e.propertyName === "transform") finish();
@@ -606,6 +655,7 @@
         !q && !all.length && window.MateFace
           ? window.MateFace.empty({ pose: "point", title: "Nenhum job ainda", text: "Aprove um quote ou crie um job. Posso montar com você.", ask: "criar um job", askLabel: "Criar com o Mate" })
           : `<p class="jx-empty">${empty}</p>`;
+      pendingWeekKey = null;
       return rows;
     }
     let html = "";
@@ -625,6 +675,11 @@
         if (key) weekOpen.set(key, el.open);
       });
     });
+    if (pendingWeekKey) {
+      const key = pendingWeekKey;
+      pendingWeekKey = null;
+      scrollWeekIntoView(key);
+    }
     if (window.OmGestures) window.OmGestures.bindSwipeRow?.(host);
     host.querySelectorAll("[data-jx-start]").forEach((btn) => {
       btn.addEventListener("click", (e) => {
@@ -1731,6 +1786,7 @@
       else {
         dayFilter = key;
         weekFilter = weekSunday(new Date(yy, mm - 1, dd));
+        revealWeek(weekFilter);
       }
       renderList();
     });

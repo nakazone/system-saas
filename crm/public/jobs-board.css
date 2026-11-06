@@ -105,14 +105,14 @@
 }
 .jx-weeknav:hover { background: #e4e7eb; }
 .jx-weeknav svg { width: 16px; height: 16px; }
-.jx-weekclip { flex: 1; min-width: 0; min-height: 62px; overflow: hidden; padding: 2px 1px; box-sizing: border-box; display: flex; }
-.jx-weekstrip { min-width: 0; flex: 1; display: flex; }
-.jx-weekpage { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; width: 100%; align-items: stretch; }
+.jx-weekclip { flex: 1; min-width: 0; min-height: 62px; overflow: hidden; padding: 2px 1px; box-sizing: border-box; }
+.jx-weekstrip { display: block; width: 100%; min-width: 0; }
+.jx-weekpage { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; width: 100%; }
 .jx-weekstrip > .jx-weekpage { width: 100%; }
-.jx-weektrack { display: flex; width: 200%; height: 100%; will-change: transform; }
-.jx-weektrack .jx-weekpage { width: 50%; flex: none; }
+.jx-weektrack { display: flex; width: max-content; flex: none; will-change: transform; }
+.jx-weektrack .jx-weekpage { width: auto; flex: none; }
 .jx-daychip {
-  min-width: 0; min-height: 56px; height: 100%; box-sizing: border-box; border: 0; border-radius: 12px; background: #fff; box-shadow: 0 0 0 1px var(--jx-line);
+  min-width: 0; min-height: 56px; box-sizing: border-box; border: 0; border-radius: 12px; background: #fff; box-shadow: 0 0 0 1px var(--jx-line);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
   padding: 6px 1px 5px; cursor: pointer; color: var(--jx-ink); font: inherit;
 }
