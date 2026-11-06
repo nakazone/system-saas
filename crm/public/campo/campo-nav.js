@@ -2,7 +2,7 @@
  * Campo tabbar — Hoje / Agenda / ObraCam / Chat / Horas
  */
 (function () {
-  const VER = "20261106-crew-top1";
+  const VER = "20261106-crew-sector1";
 
   function fileName() {
     return (location.pathname || "").split("/").pop() || "";
@@ -88,5 +88,41 @@
     return window.__crmDayRoute || null;
   }
 
-  window.__campoNav = { VER, ensure, activeTab, loadDayRoute };
+  /**
+   * Each crew installs ObraCrew with its own Mate: installation keeps the hammer, sanding gets the sander.
+   * The phone reads the icon from the page when "Add to Home Screen" is tapped, so the page points at the
+   * crew's icon and manifest as soon as it knows the sector (remembered on the phone for the next visit).
+   */
+  const CREW_KEY = "om_crew_sector";
+  function applyCrew(sector) {
+    const sand = sector === "sand_finish";
+    const set = (sel, href) => {
+      const el = document.querySelector(sel);
+      if (el && el.getAttribute("href") !== href) el.setAttribute("href", href);
+    };
+    set('link[rel="apple-touch-icon"]', sand ? "/assets/obracrew/lixa/apple-touch-icon.png?v=1" : "/assets/obracrew/apple-touch-icon.png?v=1");
+    set('link[rel="manifest"]', sand ? "/obracrew-lixa.webmanifest?v=1" : "/obracrew.webmanifest?v=1");
+    document.documentElement.dataset.crew = sand ? "sand" : "install";
+  }
+  function crewSector() {
+    let saved = null;
+    try {
+      saved = localStorage.getItem(CREW_KEY);
+    } catch (_) {}
+    if (saved) applyCrew(saved);
+    fetch("/api/campo/setor", { credentials: "include", headers: { Accept: "application/json" } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!j || !j.data) return;
+        const sector = j.data.sector || "installation";
+        try {
+          localStorage.setItem(CREW_KEY, sector);
+        } catch (_) {}
+        applyCrew(sector);
+      })
+      .catch(() => {});
+  }
+  if (document.querySelector('link[rel="manifest"][href^="/obracrew"]')) crewSector();
+
+  window.__campoNav = { VER, ensure, activeTab, loadDayRoute, applyCrew };
 })();
