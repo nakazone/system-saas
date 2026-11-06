@@ -29,6 +29,7 @@ import { findMeasurementForAddress, markMeasurementUsed, measurementPack } from 
 import { pickupForWorkOrder } from "../../lib/builders/pickups.js";
 import { builderGateView, builderPhaseSteps, setBuilderGate } from "../../lib/trades/builder-gate.js";
 import { primaryPack } from "../../lib/trades/index.js";
+import { googleMapsBrowserKey } from "../../lib/maps/browser-key.js";
 import { ensureJobPhases } from "../../lib/trades/job-phases-db.js";
 import { findJobMatch, intakeItemsSchema, isIntakeReaderConfigured, readWorkOrder, type IntakeFile } from "../../lib/partner-intake/extract.js";
 import { parsePartnerPortalSettings } from "../../lib/settings/partner-portal.js";
@@ -459,18 +460,6 @@ partnerPortalRouter.post("/api/partner-auth/exchange", async (req: TenantRequest
     next(error);
   }
 });
-
-function googleMapsBrowserKey() {
-  const mapsKey =
-    process.env.GOOGLE_MAPS_JS_KEY ||
-    process.env.GOOGLE_MAPS_API_KEY ||
-    process.env.GOOGLE_PLACES_JS_KEY ||
-    process.env.Google_Maps_JS_Key ||
-    process.env.GOOGLE_MAPS_KEY ||
-    null;
-  const key = mapsKey && String(mapsKey).trim() ? String(mapsKey).trim() : null;
-  return key;
-}
 
 partnerPortalRouter.get("/api/partner-portal/config", requirePartnerAuth, async (req: PartnerRequest, res, next) => {
   try {

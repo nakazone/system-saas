@@ -43,6 +43,7 @@ import { askMate } from "../../lib/builders/mate.js";
 import { copyPrices, deletePrice, listPrices, savePrice } from "../../lib/builders/prices.js";
 import { parseTakeoffSettings, takeoffSettings } from "../../lib/builders/takeoff.js";
 import { storage } from "../../lib/storage/index.js";
+import { googleMapsBrowserKey } from "../../lib/maps/browser-key.js";
 import { reverseGeocode } from "../../lib/payroll/geocode.js";
 
 function accountView(a: {
@@ -365,6 +366,32 @@ builderAccountRouter.use("/api/partner-portal", async (req: Request, res: Respon
     (req as Request & { builderTenantId?: string; builderLinkId?: string }).builderTenantId = link.organization_id;
     (req as Request & { builderTenantId?: string; builderLinkId?: string }).builderLinkId = link.id;
     next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * Address suggestions in the portal need the maps key and a country before any company is
+ * picked (the builder sees every connected company at once), so answer for the account here.
+ */
+builderAccountRouter.get("/api/partner-portal/config", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!req.session?.builderMemberId) {
+      next();
+      return;
+    }
+    const member = await loadActiveMember(req.session.builderMemberId);
+    if (!member) {
+      next();
+      return;
+    }
+    const picked = (req as Request & { builderTenantId?: string }).builderTenantId;
+    const orgId = picked || (await linksFor(member.builderAccountId)).find((l) => l.status === "active" && l.organization_id)?.organization_id || null;
+    const org = orgId ? await prisma.organization.findUnique({ where: { id: orgId }, select: { country: true } }) : null;
+    const country = String(org?.country || "US").trim().toUpperCase().slice(0, 2) || "US";
+    const key = googleMapsBrowserKey();
+    res.json({ success: true, data: { country, organizationCountry: country, googleMapsJsKey: key, googleMapsConfigured: Boolean(key) } });
   } catch (error) {
     next(error);
   }

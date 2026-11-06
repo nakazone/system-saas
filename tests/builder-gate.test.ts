@@ -237,3 +237,11 @@ describe.skipIf(!privileged)("the site was not ready for the visit", () => {
     expect(js).toContain("sem preço");
   });
 });
+
+describe("address suggestions in ObraBuilder", () => {
+  it("answer the maps config for a builder account before a company is picked", () => {
+    const route = readFileSync("src/modules/builders/routes.ts", "utf8");
+    expect(route).toContain('builderAccountRouter.get("/api/partner-portal/config"');
+    expect(readFileSync("src/crm/routes/partner-portal.ts", "utf8")).toContain('from "../../lib/maps/browser-key.js"');
+  });
+});
