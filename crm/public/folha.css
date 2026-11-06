@@ -896,6 +896,13 @@ body.dashboard-app-body .fo-stat__go:hover { background: #E7792C !important; bor
 .fw-back { display: none; align-items: center; gap: 3px; font-size: 13px; font-weight: 600; color: #667085 !important; margin-bottom: 8px; text-decoration: none !important; }
 
 /* painel da semana (Opção A) */
+.fw-reopen { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-radius: 14px; background: #F7F8FA; box-shadow: 0 0 0 1px #E5E7EB; }
+.fw-reopen p { margin: 0; min-width: 0; font-size: 13px; font-weight: 600; color: #475467; line-height: 1.35; }
+.fw-reopen b { color: #221E1A; font-weight: 700; }
+.fw-reopen .fo-btn { height: 44px; flex: none; }
+.fw-reopen .fo-btn:focus-visible { outline: 2px solid #221E1A; outline-offset: 2px; }
+.fw-main .fw-reopen { margin: 0 0 12px; }
+.fw-emp .fw-reopen { margin-top: 12px; }
 .fw-phead { display: flex; align-items: flex-end; gap: 12px; margin: 2px 0 12px; }
 .fw-phead p { margin: 0; font-size: 12.5px; font-weight: 600; color: #667085; }
 .fw-phead h2 { margin: 2px 0 0; font-size: 26px; font-weight: 700; letter-spacing: -.035em; line-height: 1.1; }
@@ -986,6 +993,8 @@ body.dashboard-app-body .fo-stat__go:hover { background: #E7792C !important; bor
   .fw-list { position: static; height: auto; min-height: 0; background: transparent; box-shadow: none; border-radius: 0; overflow: visible; }
   .fw-list__top { padding: 0 0 6px; border: 0; }
   .fw-list__top .fo-week { background: #fff; border-radius: 16px; box-shadow: 0 0 0 1px #E5E7EB; padding: 6px; }
+  .fw-reopen { flex-wrap: wrap; background: #fff; }
+  .fw-reopen .fo-btn { width: 100%; }
   .fw-seg { background: #fff; box-shadow: 0 0 0 1px #E5E7EB; }
   .fw-sums { display: none; }
   .fw-ph { display: block; }
@@ -1013,6 +1022,9 @@ body.dashboard-app-body .fo-stat__go:hover { background: #E7792C !important; bor
   body.fw-detail-open .fw-main { padding-bottom: 148px; }
   body.fw-detail-open .fw-emp__acts .fo-btn[data-pay] { display: none; }
   .fo-bar { z-index: 61; }
+}
+@media (min-width: 1025px) {
+  .fw-list .fw-reopen { display: none; }
 }
 @media (max-width: 720px) {
   .fo-hd h1 { font-size: 30px; }

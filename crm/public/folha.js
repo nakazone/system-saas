@@ -621,6 +621,13 @@
       ${cur ? "" : '<button type="button" class="fo-btn fo-btn--ghost fo-btn--sm" data-week="today">Hoje</button>'}
     </div>`;
   }
+  function closedWeekBanner() {
+    if (!st.manage || st.week?.period?.status !== "closed") return "";
+    return `<div class="fw-reopen" role="status">
+      <p><b>Semana fechada.</b> Reabra para conferir ou ajustar. Pagamentos já feitos continuam.</p>
+      <button type="button" class="fo-btn" data-reopen-week>Reabrir semana</button>
+    </div>`;
+  }
   // ---------- Semana: lista lateral (B) + painel da semana (A) ou funcionário aberto
   function empPhone(id) {
     const e = ((st.emps && st.emps.employees) || []).find((x) => x.id === id);
@@ -712,7 +719,7 @@
     const w = st.week;
     const cur = w.week.today >= w.week.start && w.week.today <= w.week.end;
     const sec = sectorLabel();
-    const head = `<div class="fw-phead"><div><p>${esc(w.week.label)} · ${cur ? "ciclo atual" : w.period?.status === "closed" ? "ciclo fechado" : "ciclo aberto"}${w.week.pay_on ? ` · paga ${esc(WD[wdOf(w.week.pay_on)])} ${esc(brShort(w.week.pay_on))}` : ""}</p><h2>Semana${sec ? ` · ${esc(sec)}` : ""}</h2></div></div>`;
+    const head = `<div class="fw-phead"><div><p>${esc(w.week.label)} · ${cur ? "ciclo atual" : w.period?.status === "closed" ? "ciclo fechado" : "ciclo aberto"}${w.week.pay_on ? ` · paga ${esc(WD[wdOf(w.week.pay_on)])} ${esc(brShort(w.week.pay_on))}` : ""}</p><h2>Semana${sec ? ` · ${esc(sec)}` : ""}</h2></div></div>${closedWeekBanner()}`;
     const body = rows.length
       ? weekTable(rows)
       : `<div class="fo-card"><div class="fo-empty"><b>${st.q ? "Ninguém com esse nome nesta folha." : sec ? `Nenhum lançamento em ${esc(sec)} neste ciclo.` : "Nenhum lançamento neste ciclo."}</b>${st.manage ? " Lance uma diária acima, ou espere a equipe finalizar o dia no celular." : " A equipe finaliza o dia no celular."}</div></div>`;
@@ -766,6 +773,7 @@
         <div class="fw-emp__t"><div class="fw-chips">${chip}${sectorTag(r.sector)}</div><h2>${esc(r.name)}</h2><p>${rowSub(r)}${r.overtime_rate ? ` · extra ${money0(r.overtime_rate)}/h` : ""}${phFmt ? ` · ${esc(phFmt)}` : ""}</p></div>
         <div class="fw-emp__acts">${ph ? `<a class="fo-btn fo-btn--ghost" href="tel:${esc(ph)}" aria-label="Ligar" title="Ligar"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3.1 19.5 19.5 0 01-6-6A19.8 19.8 0 012.1 4.2 2 2 0 014.1 2h3a2 2 0 012 1.7c.1 1 .4 1.9.7 2.8a2 2 0 01-.5 2.1L8 9.9a16 16 0 006 6l1.3-1.3a2 2 0 012.1-.4c.9.3 1.8.6 2.8.7a2 2 0 011.7 2z"/></svg></a>` : ""}${acts}</div>
       </div>
+      ${closedWeekBanner()}
       ${dayCards(r)}
       ${pend}
       <div class="fw-emp__grid">
@@ -853,6 +861,7 @@
       <aside class="fw-list" aria-label="Equipe da semana">
         <div class="fw-list__top">
           ${renderWeekHead()}
+          ${closedWeekBanner()}
           <div class="fo-seg fo-seg--folha fw-seg" role="group" aria-label="Folha por setor">${segBtn("installation", "Instalação")}${segBtn("sand_finish", "Lixa")}${segBtn("all", "Todos")}</div>
           <dl class="fw-sums"><div><dt>A pagar</dt><dd>${money0(t.to_pay)}</dd></div><div><dt>A conferir</dt><dd class="${t.pending_days ? "is-hot" : ""}">${t.pending_days}</dd></div><div><dt>Diárias</dt><dd>${dayFrac(t.days)}</dd></div></dl>
           <div class="fw-ph">${st.manage ? `<button type="button" class="fo-btn fo-btn--pri fo-qfab" data-q-sheet>+ Lançar${sec ? ` · ${esc(sec)}` : ""}</button>` : ""}${weekStats(rows)}</div>
@@ -1986,6 +1995,39 @@
       <footer class="fo-sheet__ft"><button type="button" class="fo-btn fo-btn--ghost fo-btn--danger" data-void="${esc(p.id)}">Estornar</button><button type="button" class="fo-btn" data-print>Imprimir</button><button type="button" class="fo-btn fo-btn--pri" data-close>Fechar</button></footer>`,
     );
   }
+  let reopening = false;
+  async function reopenWeek() {
+    if (reopening) return;
+    const id = st.week?.period?.id;
+    if (!id) return notify("Ainda não há período de folha nesta semana.", "error");
+    const ok = await window.crmConfirm({
+      title: "Reabrir esta semana?",
+      text: "A semana volta a aceitar conferência e ajustes. Pagamentos já lançados no Financeiro continuam.",
+      ok: "Reabrir semana",
+      cancel: "Cancelar",
+    });
+    if (!ok) return;
+    reopening = true;
+    const buttons = [...document.querySelectorAll("[data-reopen-week]")];
+    buttons.forEach((b) => {
+      b.disabled = true;
+      b.setAttribute("aria-busy", "true");
+      b.textContent = "Reabrindo…";
+    });
+    try {
+      await api(`/api/folha/semana/${encodeURIComponent(id)}/reabrir`, { method: "POST", body: "{}" });
+      notify("Semana reaberta. Dá para conferir e ajustar de novo.", "success");
+      loadWeek();
+    } catch (e) {
+      reopening = false;
+      notify(e.message || "Não foi possível reabrir a semana.", "error");
+      buttons.forEach((b) => {
+        b.disabled = false;
+        b.removeAttribute("aria-busy");
+        b.textContent = "Reabrir semana";
+      });
+    }
+  }
   async function voidPay(id) {
     const okVoid = await window.crmConfirm({
       title: "Estornar este pagamento?",
@@ -2376,6 +2418,7 @@
     if ((b = el("#foTabs [data-tab]"))) return setTab(b.getAttribute("data-tab"));
     if (el("[data-close]") || t.id === "foScrim") return closeSheet();
     if ((b = el("[data-goto]"))) return setTab(b.getAttribute("data-goto"));
+    if (el("[data-reopen-week]")) return reopenWeek();
     if ((b = el("[data-week]"))) {
       const v = b.getAttribute("data-week");
       if (v === "today") st.weekRef = null;
