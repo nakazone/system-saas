@@ -403,9 +403,8 @@ body.dy-lock { overflow: hidden; }
   justify-content: space-between;
   gap: 6px;
   min-height: 128px;
-  margin-top: 0;
+  margin-top: 26px;
   padding: 16px;
-  padding-right: 112px;
   border-radius: 20px;
   background: linear-gradient(120deg, #FFF6EE 0%, #FCE7D5 55%, #F8D4B4 100%);
   border: 1px solid #F3DCC6;
@@ -457,13 +456,13 @@ body.dy-lock { overflow: hidden; }
   color: var(--ink);
 }
 .dy-hello-mate {
-  position: absolute;
+  position: relative;
   z-index: 1;
-  right: -4px;
-  bottom: 0;
+  flex: none;
+  align-self: flex-end;
   width: auto;
-  height: 132px;
-  margin: 0;
+  height: 150px;
+  margin: -54px -6px -16px 0;
   pointer-events: none;
   filter: drop-shadow(0 4px 6px rgba(120, 60, 20, 0.16));
   transform-origin: 60% 100%;
