@@ -1,0 +1,1112 @@
+{
+  "Samples de stain": {
+    "pt": "=",
+    "en": "Stain samples",
+    "es": "Muestras de stain"
+  },
+  "Samples de stain | Campo": {
+    "pt": "=",
+    "en": "Stain samples | Field",
+    "es": "Muestras de stain | Campo"
+  },
+  "{0} · sample #{1}": {
+    "pt": "=",
+    "en": "{0} · sample #{1}",
+    "es": "{0} · muestra #{1}"
+  },
+  "{0} sample{1} · {2} foto{3}": {
+    "pt": "=",
+    "en": "{0} sample{1} · {2} photo{3}",
+    "es": "{0} muestra{1} · {2} foto{3}"
+  },
+  "{0} samples · link vale 14 dias": {
+    "pt": "=",
+    "en": "{0} samples · link valid 14 days",
+    "es": "{0} muestras · enlace válido 14 días"
+  },
+  "{0}STAIN APROVADO E TRAVADO": {
+    "pt": "=",
+    "en": "{0}STAIN APPROVED AND LOCKED",
+    "es": "{0}STAIN APROBADO Y BLOQUEADO"
+  },
+  "{0}Tirar foto do sample #{1}": {
+    "pt": "=",
+    "en": "{0}Take photo of sample #{1}",
+    "es": "{0}Hacer foto de la muestra #{1}"
+  },
+  "+ Adicionar sample": {
+    "pt": "=",
+    "en": "+ Add sample",
+    "es": "+ Añadir muestra"
+  },
+  "+ Mais uma cor": {
+    "pt": "=",
+    "en": "+ One more color",
+    "es": "+ Un color más"
+  },
+  "1 · FOTO DO SAMPLE #{0} NO PISO": {
+    "pt": "=",
+    "en": "1 · SAMPLE #{0} PHOTO ON THE FLOOR",
+    "es": "1 · FOTO DE LA MUESTRA #{0} EN EL PISO"
+  },
+  "2 · QUAL COR É ESSE SAMPLE?": {
+    "pt": "=",
+    "en": "2 · WHAT COLOR IS THIS SAMPLE?",
+    "es": "2 · ¿DE QUÉ COLOR ES ESTA MUESTRA?"
+  },
+  "A cliente pediu outra amostra": {
+    "pt": "=",
+    "en": "The client asked for another sample",
+    "es": "La cliente pidió otra muestra"
+  },
+  "A rodada e todos os samples dela serão apagados.": {
+    "pt": "=",
+    "en": "This round and all its samples will be deleted.",
+    "es": "Esta ronda y todas sus muestras se borrarán."
+  },
+  "Abra pelo job.": {
+    "pt": "=",
+    "en": "Open it from the job.",
+    "es": "Ábrelo desde el trabajo."
+  },
+  "Abra uma nova rodada de samples. A cor atual continua valendo até a cliente assinar a nova.": {
+    "pt": "=",
+    "en": "Open a new sample round. The current color stays until the client signs the new one.",
+    "es": "Abre una nueva ronda de muestras. El color actual sigue valiendo hasta que la cliente firme el nuevo."
+  },
+  "Abrir mudança · nova rodada": {
+    "pt": "=",
+    "en": "Open change · new round",
+    "es": "Abrir cambio · nueva ronda"
+  },
+  "Adicione os samples": {
+    "pt": "=",
+    "en": "Add the samples",
+    "es": "Añade las muestras"
+  },
+  "Aguardando a cliente escolher e assinar{0}. Você recebe o aviso quando ela assinar.": {
+    "pt": "=",
+    "en": "Waiting for the client to choose and sign{0}. You'll get a notice when she signs.",
+    "es": "Esperando a que la cliente elija y firme{0}. Recibirás un aviso cuando firme."
+  },
+  "Ainda não enviado ao builder": {
+    "pt": "=",
+    "en": "Not sent to the builder yet",
+    "es": "Aún no enviado al builder"
+  },
+  "Assinado por {0}": {
+    "pt": "=",
+    "en": "Signed by {0}",
+    "es": "Firmado por {0}"
+  },
+  "Buscar cor": {
+    "pt": "=",
+    "en": "Search color",
+    "es": "Buscar color"
+  },
+  "Buscar entre {0} cores DuraSeal": {
+    "pt": "=",
+    "en": "Search among {0} DuraSeal colors",
+    "es": "Buscar entre {0} colores DuraSeal"
+  },
+  "Cliente aprova agora, neste celular": {
+    "pt": "=",
+    "en": "Client approves now, on this phone",
+    "es": "La cliente aprueba ahora, en este móvil"
+  },
+  "Cliente aprova neste celular": {
+    "pt": "=",
+    "en": "Client approves on this phone",
+    "es": "La cliente aprueba en este móvil"
+  },
+  "Cliente quer mudar?": {
+    "pt": "=",
+    "en": "Client wants to change?",
+    "es": "¿La cliente quiere cambiar?"
+  },
+  "Começar rodada de samples": {
+    "pt": "=",
+    "en": "Start sample round",
+    "es": "Empezar ronda de muestras"
+  },
+  "Comece pelo sample #1: foto primeiro, depois a cor.": {
+    "pt": "=",
+    "en": "Start with sample #1: photo first, then color.",
+    "es": "Empieza por la muestra #1: foto primero, luego el color."
+  },
+  "Comprovante PDF": {
+    "pt": "=",
+    "en": "PDF proof",
+    "es": "Comprobante PDF"
+  },
+  "Cor {0}": {
+    "pt": "=",
+    "en": "Color {0}",
+    "es": "Color {0}"
+  },
+  "Cor {0} da mistura": {
+    "pt": "=",
+    "en": "Mix color {0}",
+    "es": "Color {0} de la mezcla"
+  },
+  "Deixe o número da fita aparecer na foto. A foto entra no ObraCam do job.": {
+    "pt": "=",
+    "en": "Make sure the tape number shows in the photo. It goes to the job's ObraCam.",
+    "es": "Deja que se vea el número de la cinta en la foto. Entra en el ObraCam del trabajo."
+  },
+  "Descartar esta rodada?": {
+    "pt": "=",
+    "en": "Discard this round?",
+    "es": "¿Descartar esta ronda?"
+  },
+  "Descartar rodada": {
+    "pt": "=",
+    "en": "Discard round",
+    "es": "Descartar ronda"
+  },
+  "Digite o e-mail da cliente ou use “Cliente aprova agora”.": {
+    "pt": "=",
+    "en": "Enter the client's email or use “Client approves now”.",
+    "es": "Escribe el correo de la cliente o usa “La cliente aprueba ahora”."
+  },
+  "E-mail da cliente": {
+    "pt": "=",
+    "en": "Client email",
+    "es": "Correo de la cliente"
+  },
+  "Enviado ao builder {0}": {
+    "pt": "=",
+    "en": "Sent to builder {0}",
+    "es": "Enviado al builder {0}"
+  },
+  "Enviado para a cliente": {
+    "pt": "=",
+    "en": "Sent to the client",
+    "es": "Enviado a la cliente"
+  },
+  "Enviar para a cliente": {
+    "pt": "=",
+    "en": "Send to the client",
+    "es": "Enviar a la cliente"
+  },
+  "Escolha a cor do sample.": {
+    "pt": "=",
+    "en": "Choose the sample color.",
+    "es": "Elige el color de la muestra."
+  },
+  "Espécie da madeira": {
+    "pt": "=",
+    "en": "Wood species",
+    "es": "Especie de madera"
+  },
+  "Ex.: Bona, Minwax": {
+    "pt": "=",
+    "en": "E.g. Bona, Minwax",
+    "es": "Ej.: Bona, Minwax"
+  },
+  "Ex.: Hickory": {
+    "pt": "=",
+    "en": "E.g. Hickory",
+    "es": "Ej.: Hickory"
+  },
+  "Ex.: sala, perto da janela": {
+    "pt": "=",
+    "en": "E.g. living room, near the window",
+    "es": "Ej.: salón, cerca de la ventana"
+  },
+  "Excluir o sample #{0}?": {
+    "pt": "=",
+    "en": "Delete sample #{0}?",
+    "es": "¿Eliminar la muestra #{0}?"
+  },
+  "Excluir sample": {
+    "pt": "=",
+    "en": "Delete sample",
+    "es": "Eliminar muestra"
+  },
+  "falta a foto": {
+    "pt": "=",
+    "en": "photo missing",
+    "es": "falta la foto"
+  },
+  "Falta foto em algum sample": {
+    "pt": "=",
+    "en": "A sample is missing its photo",
+    "es": "Falta foto en alguna muestra"
+  },
+  "Foto do conjunto salva": {
+    "pt": "=",
+    "en": "Group photo saved",
+    "es": "Foto del conjunto guardada"
+  },
+  "Foto do conjunto{0}": {
+    "pt": "=",
+    "en": "Group photo{0}",
+    "es": "Foto del conjunto{0}"
+  },
+  "Foto do sample #{0}": {
+    "pt": "=",
+    "en": "Sample #{0} photo",
+    "es": "Foto de la muestra #{0}"
+  },
+  "Foto do sample aprovado": {
+    "pt": "=",
+    "en": "Approved sample photo",
+    "es": "Foto de la muestra aprobada"
+  },
+  "Foto, cor e PDF entram no job dele no ObraBuilder, com aviso no celular.": {
+    "pt": "=",
+    "en": "Photo, color and PDF go to their job in ObraBuilder, with a phone notice.",
+    "es": "Foto, color y PDF entran en su trabajo en ObraBuilder, con aviso en el móvil."
+  },
+  "JOB DE BUILDER{0}": {
+    "pt": "=",
+    "en": "BUILDER JOB{0}",
+    "es": "TRABAJO DE BUILDER{0}"
+  },
+  "Link criado": {
+    "pt": "=",
+    "en": "Link created",
+    "es": "Enlace creado"
+  },
+  "Madeira": {
+    "pt": "=",
+    "en": "Wood",
+    "es": "Madera"
+  },
+  "Mais uma foto": {
+    "pt": "=",
+    "en": "One more photo",
+    "es": "Una foto más"
+  },
+  "Mais usadas": {
+    "pt": "=",
+    "en": "Most used",
+    "es": "Más usadas"
+  },
+  "Mandar a aprovação ao builder": {
+    "pt": "=",
+    "en": "Send approval to the builder",
+    "es": "Enviar la aprobación al builder"
+  },
+  "Marca": {
+    "pt": "=",
+    "en": "Brand",
+    "es": "Marca"
+  },
+  "Mistura": {
+    "pt": "=",
+    "en": "Mix",
+    "es": "Mezcla"
+  },
+  "Não consegui ler a foto. Tente de novo.": {
+    "pt": "=",
+    "en": "Couldn't read the photo. Try again.",
+    "es": "No se pudo leer la foto. Inténtalo de nuevo."
+  },
+  "Nenhum sample registrado": {
+    "pt": "=",
+    "en": "No samples logged",
+    "es": "Ninguna muestra registrada"
+  },
+  "Nenhuma cor com esse nome. Use “Outra” para cores de outra marca.": {
+    "pt": "=",
+    "en": "No color with that name. Use “Other” for another brand.",
+    "es": "Ningún color con ese nombre. Usa “Otra” para colores de otra marca."
+  },
+  "Nome da cor": {
+    "pt": "=",
+    "en": "Color name",
+    "es": "Nombre del color"
+  },
+  "O sample e as fotos dele saem desta rodada.": {
+    "pt": "=",
+    "en": "The sample and its photos leave this round.",
+    "es": "La muestra y sus fotos salen de esta ronda."
+  },
+  "Onde os samples foram feitos": {
+    "pt": "=",
+    "en": "Where the samples were made",
+    "es": "Dónde se hicieron las muestras"
+  },
+  "Outra": {
+    "pt": "=",
+    "en": "Other",
+    "es": "Otra"
+  },
+  "Para cada sample: tire a foto no piso, com o número da fita aparecendo, e escolha a cor. Depois mande o link para a cliente escolher e assinar.": {
+    "pt": "=",
+    "en": "For each sample: take the floor photo with the tape number visible, then pick the color. Then send the link for the client to choose and sign.",
+    "es": "Por cada muestra: haz la foto en el piso con el número de la cinta visible y elige el color. Luego envía el enlace para que la cliente elija y firme."
+  },
+  "Porcentagem da cor {0}": {
+    "pt": "=",
+    "en": "Color {0} percentage",
+    "es": "Porcentaje del color {0}"
+  },
+  "PRÉVIA DO E-MAIL (INGLÊS)": {
+    "pt": "=",
+    "en": "EMAIL PREVIEW (ENGLISH)",
+    "es": "VISTA PREVIA DEL CORREO (INGLÉS)"
+  },
+  "Proporção em %, como foi misturado no balde.": {
+    "pt": "=",
+    "en": "Percentage mix, as blended in the bucket.",
+    "es": "Proporción en %, como se mezcló en el cubo."
+  },
+  "Qual madeira?": {
+    "pt": "=",
+    "en": "Which wood?",
+    "es": "¿Qué madera?"
+  },
+  "Revisar e enviar à cliente": {
+    "pt": "=",
+    "en": "Review and send to client",
+    "es": "Revisar y enviar a la cliente"
+  },
+  "Rodada {0}": {
+    "pt": "=",
+    "en": "Round {0}",
+    "es": "Ronda {0}"
+  },
+  "Salvar sample #{0}": {
+    "pt": "=",
+    "en": "Save sample #{0}",
+    "es": "Guardar muestra #{0}"
+  },
+  "Salvar sample #{0} · {1}": {
+    "pt": "=",
+    "en": "Save sample #{0} · {1}",
+    "es": "Guardar muestra #{0} · {1}"
+  },
+  "Sample #{0} salvo": {
+    "pt": "=",
+    "en": "Sample #{0} saved",
+    "es": "Muestra #{0} guardada"
+  },
+  "Samples no piso": {
+    "pt": "=",
+    "en": "Samples on the floor",
+    "es": "Muestras en el piso"
+  },
+  "Sem conexão. Tente de novo quando o sinal voltar.": {
+    "pt": "=",
+    "en": "No connection. Try again when the signal returns.",
+    "es": "Sin conexión. Inténtalo de nuevo cuando vuelva la señal."
+  },
+  "Sem stain, só o acabamento.": {
+    "pt": "=",
+    "en": "No stain, finish only.",
+    "es": "Sin stain, solo el acabado."
+  },
+  "Só o escritório abre uma mudança. A cor atual continua valendo até a cliente assinar uma nova.": {
+    "pt": "=",
+    "en": "Only the office can open a change. The current color stays until the client signs a new one.",
+    "es": "Solo la oficina abre un cambio. El color actual sigue valiendo hasta que la cliente firme uno nuevo."
+  },
+  "Tipo de sample": {
+    "pt": "=",
+    "en": "Sample type",
+    "es": "Tipo de muestra"
+  },
+  "Tire a foto do sample #{0}.": {
+    "pt": "=",
+    "en": "Take the photo of sample #{0}.",
+    "es": "Haz la foto de la muestra #{0}."
+  },
+  "Todos os samples lado a lado no piso. Abre o e-mail da cliente.": {
+    "pt": "=",
+    "en": "All samples side by side on the floor. Opens the client email.",
+    "es": "Todas las muestras lado a lado en el piso. Abre el correo de la cliente."
+  },
+  "Usar madeira": {
+    "pt": "=",
+    "en": "Use wood",
+    "es": "Usar madera"
+  },
+  "Vem do cliente do job. Mudar aqui não altera o cadastro.": {
+    "pt": "=",
+    "en": "Comes from the job client. Changing it here doesn't update the record.",
+    "es": "Viene del cliente del trabajo. Cambiarlo aquí no altera el registro."
+  },
+  "Vista pela cliente": {
+    "pt": "=",
+    "en": "Client view",
+    "es": "Vista de la cliente"
+  },
+  "Enviar agora": {
+    "pt": "=",
+    "en": "Send now",
+    "es": "Enviar ahora"
+  },
+  "Fase": {
+    "pt": "=",
+    "en": "Phase",
+    "es": "Fase"
+  },
+  "Fase da obra": {
+    "pt": "=",
+    "en": "Job phase",
+    "es": "Fase de la obra"
+  },
+  "Foto de cada sample e aprovação da cliente": {
+    "pt": "=",
+    "en": "Each sample photo and client approval",
+    "es": "Foto de cada muestra y aprobación de la cliente"
+  },
+  "Nota do escritório": {
+    "pt": "=",
+    "en": "Office note",
+    "es": "Nota de la oficina"
+  },
+  "Salvar anotações": {
+    "pt": "=",
+    "en": "Save notes",
+    "es": "Guardar anotaciones"
+  },
+  "Tirar Foto": {
+    "pt": "=",
+    "en": "Take photo",
+    "es": "Hacer foto"
+  },
+  "(Automática)": {
+    "pt": "=",
+    "en": "(Automatic)",
+    "es": "(Automática)"
+  },
+  "{0} fotos na fila para enviar": {
+    "pt": "=",
+    "en": "{0} photos queued to upload",
+    "es": "{0} fotos en cola para enviar"
+  },
+  "1 foto na fila para enviar": {
+    "pt": "=",
+    "en": "1 photo queued to upload",
+    "es": "1 foto en cola para enviar"
+  },
+  "Adicionar {0} ite{1} ao checklist?": {
+    "pt": "=",
+    "en": "Add {0} item{1} to the checklist?",
+    "es": "¿Añadir {0} elemento{1} a la checklist?"
+  },
+  "Adicionar itens": {
+    "pt": "=",
+    "en": "Add items",
+    "es": "Añadir elementos"
+  },
+  "Adicionar texto": {
+    "pt": "=",
+    "en": "Add text",
+    "es": "Añadir texto"
+  },
+  "Ainda não foi possível enviar. Tentamos de novo quando a conexão melhorar.": {
+    "pt": "=",
+    "en": "Couldn't send yet. We'll retry when the connection improves.",
+    "es": "Aún no se pudo enviar. Lo intentaremos de nuevo cuando mejore la conexión."
+  },
+  "Anotações salvas": {
+    "pt": "=",
+    "en": "Notes saved",
+    "es": "Anotaciones guardadas"
+  },
+  "Aprovado: {0}": {
+    "pt": "=",
+    "en": "Approved: {0}",
+    "es": "Aprobado: {0}"
+  },
+  "Área de “{0}”": {
+    "pt": "=",
+    "en": "“{0}” area",
+    "es": "Área de “{0}”"
+  },
+  "Áudio muito curto": {
+    "pt": "=",
+    "en": "Audio too short",
+    "es": "Audio demasiado corto"
+  },
+  "Ela sai do job e não pode ser recuperada.": {
+    "pt": "=",
+    "en": "It leaves the job and can't be recovered.",
+    "es": "Sale del trabajo y no se puede recuperar."
+  },
+  "Enviando foto": {
+    "pt": "=",
+    "en": "Uploading photo",
+    "es": "Enviando foto"
+  },
+  "Enviando vistoria…": {
+    "pt": "=",
+    "en": "Uploading walkthrough…",
+    "es": "Enviando inspección…"
+  },
+  "Escolha o template": {
+    "pt": "=",
+    "en": "Choose the template",
+    "es": "Elige la plantilla"
+  },
+  "Ex.: 350": {
+    "pt": "=",
+    "en": "E.g. 350",
+    "es": "Ej.: 350"
+  },
+  "Ex.: Proteger rodapé, tirar foto do subfloor": {
+    "pt": "=",
+    "en": "E.g. Protect baseboard, photo the subfloor",
+    "es": "Ej.: Proteger rodapié, hacer foto del subfloor"
+  },
+  "Ex.: Subfloor nivelado na sala": {
+    "pt": "=",
+    "en": "E.g. Level subfloor in the living room",
+    "es": "Ej.: Subfloor nivelado en el salón"
+  },
+  "Ex.: Trinca aqui": {
+    "pt": "=",
+    "en": "E.g. Crack here",
+    "es": "Ej.: Grieta aquí"
+  },
+  "Falha ao ler o áudio": {
+    "pt": "=",
+    "en": "Failed to read the audio",
+    "es": "Error al leer el audio"
+  },
+  "Falha ao salvar": {
+    "pt": "=",
+    "en": "Failed to save",
+    "es": "Error al guardar"
+  },
+  "Falha ao salvar a vistoria": {
+    "pt": "=",
+    "en": "Failed to save the walkthrough",
+    "es": "Error al guardar la inspección"
+  },
+  "Fase automática": {
+    "pt": "=",
+    "en": "Automatic phase",
+    "es": "Fase automática"
+  },
+  "Gravação de áudio não disponível neste navegador": {
+    "pt": "=",
+    "en": "Audio recording isn't available in this browser",
+    "es": "La grabación de audio no está disponible en este navegador"
+  },
+  "Gravando vistoria — tire fotos para marcar no áudio": {
+    "pt": "=",
+    "en": "Recording walkthrough — take photos to mark in the audio",
+    "es": "Grabando inspección — haz fotos para marcar en el audio"
+  },
+  "Gravando vistoria · {0}s · {1} marca(s) · toque no botão para parar": {
+    "pt": "=",
+    "en": "Recording walkthrough · {0}s · {1} mark(s) · tap the button to stop",
+    "es": "Grabando inspección · {0}s · {1} marca(s) · toca el botón para parar"
+  },
+  "Horário": {
+    "pt": "=",
+    "en": "Time",
+    "es": "Horario"
+  },
+  "Itens do checklist": {
+    "pt": "=",
+    "en": "Checklist items",
+    "es": "Elementos de la checklist"
+  },
+  "Legenda da foto": {
+    "pt": "=",
+    "en": "Photo caption",
+    "es": "Leyenda de la foto"
+  },
+  "Lendo etiqueta…": {
+    "pt": "=",
+    "en": "Reading label…",
+    "es": "Leyendo etiqueta…"
+  },
+  "LockBox {0}": {
+    "pt": "=",
+    "en": "LockBox {0}",
+    "es": "LockBox {0}"
+  },
+  "Medição salva": {
+    "pt": "=",
+    "en": "Measurement saved",
+    "es": "Medición guardada"
+  },
+  "Não deu para enviar agora. A foto ficou na fila.": {
+    "pt": "=",
+    "en": "Couldn't send now. The photo stayed in the queue.",
+    "es": "No se pudo enviar ahora. La foto quedó en la cola."
+  },
+  "Nenhum template disponível": {
+    "pt": "=",
+    "en": "No template available",
+    "es": "Ninguna plantilla disponible"
+  },
+  "Nenhuma foto nesta fase.": {
+    "pt": "=",
+    "en": "No photos in this phase.",
+    "es": "Ninguna foto en esta fase."
+  },
+  "Nova medição": {
+    "pt": "=",
+    "en": "New measurement",
+    "es": "Nueva medición"
+  },
+  "Os itens atuais do checklist serão trocados pelos do template.": {
+    "pt": "=",
+    "en": "Current checklist items will be replaced by the template's.",
+    "es": "Los elementos actuales de la checklist se cambiarán por los de la plantilla."
+  },
+  "Propor itens": {
+    "pt": "=",
+    "en": "Suggest items",
+    "es": "Proponer elementos"
+  },
+  "Reconhecimento de voz não disponível neste navegador": {
+    "pt": "=",
+    "en": "Speech recognition isn't available in this browser",
+    "es": "El reconocimiento de voz no está disponible en este navegador"
+  },
+  "Rodada {0} · {1}": {
+    "pt": "=",
+    "en": "Round {0} · {1}",
+    "es": "Ronda {0} · {1}"
+  },
+  "Salvar fase": {
+    "pt": "=",
+    "en": "Save phase",
+    "es": "Guardar fase"
+  },
+  "Salvar legenda": {
+    "pt": "=",
+    "en": "Save caption",
+    "es": "Guardar leyenda"
+  },
+  "Salvar medição": {
+    "pt": "=",
+    "en": "Save measurement",
+    "es": "Guardar medición"
+  },
+  "Salvo sem sinal — enviamos quando a conexão voltar.": {
+    "pt": "=",
+    "en": "Saved offline — we'll send when connection returns.",
+    "es": "Guardado sin señal: lo enviaremos cuando vuelva la conexión."
+  },
+  "Sem rede. A foto ficou na fila e sobe quando a conexão voltar.": {
+    "pt": "=",
+    "en": "No network. The photo stayed queued and uploads when connection returns.",
+    "es": "Sin red. La foto quedó en cola y sube cuando vuelva la conexión."
+  },
+  "Substituir checklist": {
+    "pt": "=",
+    "en": "Replace checklist",
+    "es": "Sustituir checklist"
+  },
+  "Tem nota do escritório": {
+    "pt": "=",
+    "en": "Has an office note",
+    "es": "Tiene nota de la oficina"
+  },
+  "Vistoria salva": {
+    "pt": "=",
+    "en": "Walkthrough saved",
+    "es": "Inspección guardada"
+  },
+  "Vistoria salva ({0} marca{1})": {
+    "pt": "=",
+    "en": "Walkthrough saved ({0} mark{1})",
+    "es": "Inspección guardada ({0} marca{1})"
+  },
+  "· {0} job{1}": {
+    "pt": "=",
+    "en": "· {0} job{1}",
+    "es": "· {0} trabajo{1}"
+  },
+  "“{0}” arquivada. As fotos que já têm continuam com ela.": {
+    "pt": "=",
+    "en": "“{0}” archived. Photos that already have it keep it.",
+    "es": "“{0}” archivada. Las fotos que ya la tienen la conservan."
+  },
+  "“{0}” criada": {
+    "pt": "=",
+    "en": "“{0}” created",
+    "es": "“{0}” creada"
+  },
+  "“{0}” restaurada": {
+    "pt": "=",
+    "en": "“{0}” restored",
+    "es": "“{0}” restaurada"
+  },
+  "(você)": {
+    "pt": "=",
+    "en": "(you)",
+    "es": "(tú)"
+  },
+  "{0} · abrir no mapa": {
+    "pt": "=",
+    "en": "{0} · open in maps",
+    "es": "{0} · abrir en el mapa"
+  },
+  "{0} arquivadas": {
+    "pt": "=",
+    "en": "{0} archived",
+    "es": "{0} archivadas"
+  },
+  "{0} com “{1}”": {
+    "pt": "=",
+    "en": "{0} with “{1}”",
+    "es": "{0} con “{1}”"
+  },
+  "{0} de {1} enviada{2}. {3}": {
+    "pt": "=",
+    "en": "{0} of {1} uploaded{2}. {3}",
+    "es": "{0} de {1} enviada{2}. {3}"
+  },
+  "{0} foto: {1}": {
+    "pt": "=",
+    "en": "{0} photo: {1}",
+    "es": "{0} foto: {1}"
+  },
+  "{0} foto{1} apagada{2}": {
+    "pt": "=",
+    "en": "{0} photo{1} deleted{2}",
+    "es": "{0} foto{1} borrada{2}"
+  },
+  "{0} foto{1} baixada{2}": {
+    "pt": "=",
+    "en": "{0} photo{1} downloaded{2}",
+    "es": "{0} foto{1} descargada{2}"
+  },
+  "{0} foto{1} em {2}": {
+    "pt": "=",
+    "en": "{0} photo{1} in {2}",
+    "es": "{0} foto{1} en {2}"
+  },
+  "{0} fotos enviadas": {
+    "pt": "=",
+    "en": "{0} photos uploaded",
+    "es": "{0} fotos enviadas"
+  },
+  "{0} longe": {
+    "pt": "=",
+    "en": "{0} far",
+    "es": "{0} lejos"
+  },
+  "{0}Câmera": {
+    "pt": "=",
+    "en": "{0}Camera",
+    "es": "{0}Cámara"
+  },
+  "{0}Com nota": {
+    "pt": "=",
+    "en": "{0}With note",
+    "es": "{0}Con nota"
+  },
+  "{0}Galeria": {
+    "pt": "=",
+    "en": "{0}Gallery",
+    "es": "{0}Galería"
+  },
+  "{0}Scanner Recibo": {
+    "pt": "=",
+    "en": "{0}Receipt scan",
+    "es": "{0}Escanear recibo"
+  },
+  "{0}Selecionar": {
+    "pt": "=",
+    "en": "{0}Select",
+    "es": "{0}Seleccionar"
+  },
+  "{0}Tirar foto do recibo": {
+    "pt": "=",
+    "en": "{0}Take receipt photo",
+    "es": "{0}Hacer foto del recibo"
+  },
+  "A equipe tira as fotos pelo Campo (ticket do job). Você também pode adicionar aqui.": {
+    "pt": "=",
+    "en": "The crew takes photos in Field (job ticket). You can also add them here.",
+    "es": "El equipo hace las fotos en Campo (ticket del trabajo). También puedes añadirlas aquí."
+  },
+  "A fase é automática.": {
+    "pt": "=",
+    "en": "The phase is automatic.",
+    "es": "La fase es automática."
+  },
+  "a foto": {
+    "pt": "=",
+    "en": "the photo",
+    "es": "la foto"
+  },
+  "A foto é grande demais (máximo 12 MB).": {
+    "pt": "=",
+    "en": "The photo is too large (12 MB max).",
+    "es": "La foto es demasiado grande (máximo 12 MB)."
+  },
+  "A foto não foi enviada.": {
+    "pt": "=",
+    "en": "The photo wasn't uploaded.",
+    "es": "La foto no se envió."
+  },
+  "Apagando": {
+    "pt": "=",
+    "en": "Deleting",
+    "es": "Borrando"
+  },
+  "Apagar {0} foto{1}?": {
+    "pt": "=",
+    "en": "Delete {0} photo{1}?",
+    "es": "¿Borrar {0} foto{1}?"
+  },
+  "Aplicado sozinho nas fotos de samples": {
+    "pt": "=",
+    "en": "Applied automatically on sample photos",
+    "es": "Aplicado solo en las fotos de muestras"
+  },
+  "As {0} fotos não foram enviadas.": {
+    "pt": "=",
+    "en": "The {0} photos weren't uploaded.",
+    "es": "Las {0} fotos no se enviaron."
+  },
+  "Automático (pela data)": {
+    "pt": "=",
+    "en": "Automatic (by date)",
+    "es": "Automático (por fecha)"
+  },
+  "Baixando {0} fotos, uma por vez. No celular o navegador pode salvar só a primeira; para todas, baixe pelo computador.": {
+    "pt": "=",
+    "en": "Downloading {0} photos one by one. On phone the browser may save only the first; for all, download on a computer.",
+    "es": "Descargando {0} fotos, una a una. En el móvil el navegador puede guardar solo la primera; para todas, descarga en el ordenador."
+  },
+  "Baixando {0} fotos, uma por vez. Se o navegador perguntar, permita vários downloads.": {
+    "pt": "=",
+    "en": "Downloading {0} photos one by one. If the browser asks, allow multiple downloads.",
+    "es": "Descargando {0} fotos, una a una. Si el navegador pregunta, permite varias descargas."
+  },
+  "Buscar job, etapa ou quem tirou": {
+    "pt": "=",
+    "en": "Search job, phase or who took it",
+    "es": "Buscar trabajo, fase o quién la hizo"
+  },
+  "com marcações": {
+    "pt": "=",
+    "en": "with markup",
+    "es": "con marcas"
+  },
+  "com nota": {
+    "pt": "=",
+    "en": "with note",
+    "es": "con nota"
+  },
+  "Cor atualizada": {
+    "pt": "=",
+    "en": "Color updated",
+    "es": "Color actualizado"
+  },
+  "Cor da nova etiqueta": {
+    "pt": "=",
+    "en": "New label color",
+    "es": "Color de la nueva etiqueta"
+  },
+  "Cor de {0}": {
+    "pt": "=",
+    "en": "Color of {0}",
+    "es": "Color de {0}"
+  },
+  "Elas saem dos jobs e do ObraCam.": {
+    "pt": "=",
+    "en": "They leave the jobs and ObraCam.",
+    "es": "Salen de los trabajos y de ObraCam."
+  },
+  "Entrega, Medição, Instalação, Lixa e acabamento ou Vistoria final, pela data de cada foto e as datas do job. Dá para corrigir depois.": {
+    "pt": "=",
+    "en": "Delivery, Scan, Installation, Sand & finish or Final walkthrough, from each photo date and the job dates. You can correct later.",
+    "es": "Entrega, Medición, Instalación, Lija y acabado o Inspección final, por la fecha de cada foto y las fechas del trabajo. Se puede corregir después."
+  },
+  "Enviando {0} de {1}…": {
+    "pt": "=",
+    "en": "Uploading {0} of {1}…",
+    "es": "Enviando {0} de {1}…"
+  },
+  "Escreva um nome para a etiqueta.": {
+    "pt": "=",
+    "en": "Enter a name for the label.",
+    "es": "Escribe un nombre para la etiqueta."
+  },
+  "esta foto": {
+    "pt": "=",
+    "en": "this photo",
+    "es": "esta foto"
+  },
+  "Esta foto está em HEIC. Use JPG ou PNG (no iPhone: Ajustes > Câmera > Formatos > Mais compatível).": {
+    "pt": "=",
+    "en": "This photo is HEIC. Use JPG or PNG (on iPhone: Settings > Camera > Formats > Most Compatible).",
+    "es": "Esta foto está en HEIC. Usa JPG o PNG (en iPhone: Ajustes > Cámara > Formatos > Más compatible)."
+  },
+  "Este job não existe mais ou foi cancelado.": {
+    "pt": "=",
+    "en": "This job no longer exists or was canceled.",
+    "es": "Este trabajo ya no existe o fue cancelado."
+  },
+  "Etiqueta posta nas fotos": {
+    "pt": "=",
+    "en": "Label applied to photos",
+    "es": "Etiqueta puesta en las fotos"
+  },
+  "Etiqueta tirada das fotos": {
+    "pt": "=",
+    "en": "Label removed from photos",
+    "es": "Etiqueta quitada de las fotos"
+  },
+  "Etiquetas em {0} foto{1}": {
+    "pt": "=",
+    "en": "Labels on {0} photo{1}",
+    "es": "Etiquetas en {0} foto{1}"
+  },
+  "Etiquetas para organizar as fotos. Uma foto pode ter várias.": {
+    "pt": "=",
+    "en": "Labels to organize photos. One photo can have several.",
+    "es": "Etiquetas para organizar las fotos. Una foto puede tener varias."
+  },
+  "Excluir o job “{0}”?": {
+    "pt": "=",
+    "en": "Delete job “{0}”?",
+    "es": "¿Eliminar el trabajo “{0}”?"
+  },
+  "Falta 1.": {
+    "pt": "=",
+    "en": "1 left.",
+    "es": "Falta 1."
+  },
+  "Faltam {0}.": {
+    "pt": "=",
+    "en": "{0} left.",
+    "es": "Faltan {0}."
+  },
+  "fase automática": {
+    "pt": "=",
+    "en": "automatic phase",
+    "es": "fase automática"
+  },
+  "Fase de {0} foto{1}": {
+    "pt": "=",
+    "en": "Phase of {0} photo{1}",
+    "es": "Fase de {0} foto{1}"
+  },
+  "Fechar (o envio continua)": {
+    "pt": "=",
+    "en": "Close (upload continues)",
+    "es": "Cerrar (el envío continúa)"
+  },
+  "Foto apagada.": {
+    "pt": "=",
+    "en": "Photo deleted.",
+    "es": "Foto borrada."
+  },
+  "Mudando": {
+    "pt": "=",
+    "en": "Changing",
+    "es": "Cambiando"
+  },
+  "Não foi possível {0} {1}. Tente de novo.": {
+    "pt": "=",
+    "en": "Couldn't {0} {1}. Try again.",
+    "es": "No se pudo {0} {1}. Inténtalo de nuevo."
+  },
+  "Não foi possível criar": {
+    "pt": "=",
+    "en": "Couldn't create",
+    "es": "No se pudo crear"
+  },
+  "Não foi possível ler esta imagem. Use JPG ou PNG.": {
+    "pt": "=",
+    "en": "Couldn't read this image. Use JPG or PNG.",
+    "es": "No se pudo leer esta imagen. Usa JPG o PNG."
+  },
+  "Nenhum job em “{0}”.": {
+    "pt": "=",
+    "en": "No jobs in “{0}”.",
+    "es": "Ningún trabajo en “{0}”."
+  },
+  "Nenhuma etiqueta ainda. Crie a primeira acima.": {
+    "pt": "=",
+    "en": "No labels yet. Create the first one above.",
+    "es": "Ninguna etiqueta aún. Crea la primera arriba."
+  },
+  "Nenhuma foto {0} ainda.": {
+    "pt": "=",
+    "en": "No {0} photos yet.",
+    "es": "Ninguna foto {0} aún."
+  },
+  "Nenhuma foto nos últimos {0} dias.": {
+    "pt": "=",
+    "en": "No photos in the last {0} days.",
+    "es": "Ninguna foto en los últimos {0} días."
+  },
+  "Nome atualizado": {
+    "pt": "=",
+    "en": "Name updated",
+    "es": "Nombre actualizado"
+  },
+  "Nome da etiqueta": {
+    "pt": "=",
+    "en": "Label name",
+    "es": "Nombre de la etiqueta"
+  },
+  "Nome da nova etiqueta": {
+    "pt": "=",
+    "en": "New label name",
+    "es": "Nombre de la nueva etiqueta"
+  },
+  "Nova etiqueta, ex.: Rodapé": {
+    "pt": "=",
+    "en": "New label, e.g. Baseboard",
+    "es": "Nueva etiqueta, ej.: Rodapié"
+  },
+  "O job será cancelado e sai da lista ativa.": {
+    "pt": "=",
+    "en": "The job will be canceled and leave the active list.",
+    "es": "El trabajo se cancelará y saldrá de la lista activa."
+  },
+  "O limite de fotos do mês do seu plano acabou. Fale com o administrador da empresa.": {
+    "pt": "=",
+    "en": "Your plan's monthly photo limit is used up. Talk to your company admin.",
+    "es": "Se acabó el límite mensual de fotos de tu plan. Habla con el administrador de la empresa."
+  },
+  "o recibo": {
+    "pt": "=",
+    "en": "the receipt",
+    "es": "el recibo"
+  },
+  "O servidor recusou {0}. Tente outra foto, em JPG ou PNG.": {
+    "pt": "=",
+    "en": "The server rejected {0}. Try another photo, JPG or PNG.",
+    "es": "El servidor rechazó {0}. Prueba otra foto, en JPG o PNG."
+  },
+  "Pondo em": {
+    "pt": "=",
+    "en": "Putting on",
+    "es": "Poniendo en"
+  },
+  "Tirando de": {
+    "pt": "=",
+    "en": "Taking off",
+    "es": "Quitando de"
+  },
+  "Tire a primeira foto desta obra.": {
+    "pt": "=",
+    "en": "Take the first photo of this job.",
+    "es": "Haz la primera foto de esta obra."
+  },
+  "Toque para pôr em todas as fotos; toque de novo para tirar de todas.": {
+    "pt": "=",
+    "en": "Tap to apply to all photos; tap again to remove from all.",
+    "es": "Toca para poner en todas las fotos; toca de nuevo para quitar de todas."
+  },
+  "Últimos {0} dias · {1} foto{2} de todos os jobs": {
+    "pt": "=",
+    "en": "Last {0} days · {1} photo{2} from all jobs",
+    "es": "Últimos {0} días · {1} foto{2} de todos los trabajos"
+  },
+  "Você não tem permissão para {0} {1} neste job.": {
+    "pt": "=",
+    "en": "You don't have permission to {0} {1} on this job.",
+    "es": "No tienes permiso para {0} {1} en este trabajo."
+  }
+}
