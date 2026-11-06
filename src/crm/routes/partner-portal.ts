@@ -573,6 +573,7 @@ partnerPortalRouter.get("/api/partner-portal/overview", requirePartnerAuth, asyn
             address: true,
             scheduledStart: true,
             scheduledEnd: true,
+            allDay: true,
             updatedAt: true,
           },
           orderBy: [{ scheduledStart: "desc" }, { updatedAt: "desc" }],

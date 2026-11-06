@@ -404,23 +404,6 @@ dl.pp-dl dd { margin: 0; text-align: right; font-weight: 500; }
 .pp-req p { margin: 0; font-size: 13px; color: var(--pp-muted); }
 .pp-req .pp-reply { color: var(--pp-ink); background: var(--pp-bg); border-radius: 10px; padding: 8px 10px; margin-top: 4px; }
 
-/* ── Calendar ────────────────────────────────────────── */
-.pp-cal { padding: 16px; }
-.pp-cal-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
-.pp-cal-head strong { font-size: 18px; text-transform: capitalize; }
-.pp-cal-ctrl { display: flex; gap: 6px; }
-.pp-cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
-.pp-cal-wd { font-size: 12px; color: var(--pp-muted); font-weight: 600; text-align: center; padding: 4px 0; }
-.pp-cal-day {
-  min-height: 96px; border-radius: 12px; border: 1px solid var(--pp-border); background: #FFFFFF; padding: 6px; display: flex;
-  flex-direction: column; gap: 4px; cursor: pointer; text-align: left; min-width: 0;
-}
-.pp-cal-day.is-out { background: var(--pp-bg); color: #98A2B3; }
-.pp-cal-day.is-sel { border-color: var(--pp-ink); box-shadow: inset 0 0 0 1px var(--pp-ink); }
-.pp-cal-num { font-size: 13px; font-weight: 600; width: 26px; height: 26px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; }
-.pp-cal-day.is-today .pp-cal-num { background: var(--pp-ink); color: #FFFFFF; }
-.pp-cal-ev { font-size: 12px; font-weight: 500; background: var(--pp-surface); border-radius: 6px; padding: 2px 6px; box-shadow: inset 3px 0 0 var(--pp-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pp-cal-more { font-size: 11px; color: var(--pp-muted); }
 
 /* ── Documents ───────────────────────────────────────── */
 .pp-doc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
@@ -504,18 +487,6 @@ dl.pp-dl dd { margin: 0; text-align: right; font-weight: 500; }
   .tk-hero, .tk-sec { border: 0; }
   .tk-hero { padding: 16px; }
   .tk-time { font-size: 34px; }
-  .pp-cal-day { min-height: 54px; padding: 4px; }
-  .pp-cal-ev { display: none; }
-  .pp-cal-day.has-ev::after { content: ""; width: 6px; height: 6px; border-radius: 999px; background: var(--pp-ink); margin: auto auto 2px; }
-  .pp-original iframe { height: 380px; }
-  .pp-steps { display: none; }
-  .pp-tab .pp-count { top: 2px; right: calc(50% - 22px); }
-  body.pp-focus .pp-wrap > .pp-head, body.pp-focus .pp-wrap > .pp-nums, body.pp-focus .pp-wrap > .pp-stages { display: none; }
-  .pp-bar-labels { font-size: 11px; }
-  .pp-fixbar {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 31; padding: 12px 16px max(16px, env(safe-area-inset-bottom));
-    background: rgba(255, 255, 255, .94); border-top: 1px solid var(--pp-border); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;
-  }
   .pp-fixbar .pp-btn { min-height: 50px; }
   .pp-search-sheet { position: fixed; inset: 0; z-index: 50; background: rgba(242, 243, 245, .98); padding: max(16px, env(safe-area-inset-top)) 16px 16px; display: flex; flex-direction: column; gap: 12px; }
   .pp-search-sheet .pp-search { display: flex; margin: 0; max-width: none; flex: none; height: 48px; background: #FFFFFF; }
@@ -1166,16 +1137,6 @@ dl.pp-dl dd { margin: 0; text-align: right; font-weight: 500; }
   .pp-bento .pp-head-actions { display: none; }
 }
 
-/* ── Calendar list (agenda) ─────────────────────────── */
-.pp-cal-mode button { min-height: 36px; }
-.pp-agenda { display: grid; gap: 14px; max-width: 900px; }
-.pp-agenda-day { display: grid; grid-template-columns: 56px 1fr; gap: 12px; align-items: start; }
-.pp-agenda-date { text-align: center; padding-top: 6px; }
-.pp-agenda-date b { display: block; font-size: 24px; line-height: 1; }
-.pp-agenda-date span { display: block; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-top: 4px; }
-.pp-agenda-date small { display: block; font-size: 11px; color: var(--pp-muted); }
-.pp-agenda-day.is-today .pp-agenda-date { color: var(--pp-late-ink); }
-.pp-agenda-jobs { overflow: hidden; }
 
 /* ── Sheet (bottom sheet on phones, dialog on desktop) ── */
 .pp-sheet { position: fixed; inset: 0; z-index: 95; display: flex; align-items: center; justify-content: center; padding: 24px; }
@@ -2914,8 +2875,6 @@ a.pp-lb-btn, a.pp-lb-btn:visited { color: #fff; }
   .pp-stages { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; overflow: visible; margin: 0; padding: 0; }
   .pp-stage { min-width: 0; padding: 10px; }
   .pp-stage b { font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  /* Calendar list: titles may take two lines */
-  .pp-agenda-jobs strong, .pp-agenda-jobs .pp-today-main strong { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   /* Measurements: denser cards */
   .pp-mcard { gap: 10px; padding: 12px 12px; }
   .pp-mcard-ic { width: 34px; height: 34px; border-radius: 10px; }
@@ -3312,4 +3271,30 @@ html body .pp-tabs.om-shell-tabs, html body .pp-search-fab.om-shell-search { dis
     .pp-stair-measurements::details-content, .pp-stair-secondary::details-content { transition-property: opacity, content-visibility; }
     .pp-stair-measurements[open]::details-content, .pp-stair-secondary[open]::details-content { block-size: auto; }
   }
+}
+
+/* ═══════════ Calendar: the ObraMate calendar (agenda.css) inside the portal shell ═══════════ */
+body.pp .ag, body.pp .ag-sheet, body.pp .ag-menu, body.pp .ag-results { font-family: inherit; }
+.ag-mcal[hidden], .pp-cal-cobtn[hidden] { display: none !important; }
+#ppView:has(> .ag) { max-width: none; padding-bottom: 0; }
+@media (min-width: 768px) {
+  /* The card fills the window between the top bar and the floating dock. */
+  html body #ppView > .ag:not(.is-phone) {
+    height: calc(100dvh - var(--pp-top-h, 73px) - 128px);
+    min-height: 520px;
+    margin: 0;
+    width: auto;
+    background: #FFFFFF;
+  }
+}
+@media (max-width: 767px) {
+  #ppView:has(> .ag) { padding: 0; }
+  #ppView > .ag {
+    height: calc(100dvh - var(--pp-top-h, 61px));
+    background: var(--pp-bg);
+  }
+  #ppView > .ag .ag-mscroll, #ppView > .ag .ag-mday__scroll, #ppView > .ag .ag-year { padding-bottom: 96px; }
+  /* Three months per row: the days shrink with the column so months don't run into each other. */
+  #ppView > .ag .ag-mini--year .ag-mini__g { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  #ppView > .ag .ag-mini--year .ag-mini__d { width: 100%; min-width: 0; height: 24px; min-height: 24px; font-size: 11px; }
 }
