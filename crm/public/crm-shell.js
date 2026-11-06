@@ -1179,10 +1179,10 @@
     }
     if (!window.__mateAiPanel && !document.querySelector('script[src*="mate-panel.js"]')) {
       ensureStylesheet("mate-panel.css?v=20261027-m2");
-      jobs.push(ensureScript("mate-panel.js?v=20261104-ux2").catch(() => {}));
+      jobs.push(ensureScript("mate-panel.js?v=20261106-quote1").catch(() => {}));
     }
     if (!document.querySelector('script[src*="saas-branding.js"]')) {
-      jobs.push(ensureScript("saas-branding.js?v=20261002-branddoc1").catch(() => {}));
+      jobs.push(ensureScript("saas-branding.js?v=20261106-quote1").catch(() => {}));
     }
     const wantMobileNav =
       typeof window.__omDevice?.isMobile === "function"
@@ -1200,7 +1200,7 @@
         }
       })();
     if (wantMobileNav) {
-      if (!window.__omMobileNav && !document.querySelector('script[src*="om-mobile-nav.js?v=20261105-hammer1"]')) {
+      if (!window.__omMobileNav && !document.querySelector('script[src*="om-mobile-nav.js?v=20261106-quote1"]')) {
         ensureStylesheet(`om-mobile-nav.css?v=${SHELL_VER}`);
         ensureStylesheet(`om-native-app.css?v=${SHELL_VER}`);
         ensureStylesheet(`om-gestures.css?v=20261102-ptr1`);

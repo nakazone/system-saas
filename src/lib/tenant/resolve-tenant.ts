@@ -252,7 +252,7 @@ export async function resolveTenant(
       return;
     }
 
-    if (req.path === "/obracalendar" || req.path === "/obracam" || req.path === "/obracrew") {
+    if (req.path === "/obracalendar" || req.path === "/obracam" || req.path === "/obracrew" || req.path === "/obraquote") {
       res.redirect(`/login.html?app=${req.path.slice(1)}`);
       return;
     }

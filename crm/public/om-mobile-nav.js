@@ -584,19 +584,21 @@
     top.id = "omAppTop";
     top.className = "om-app-top om-shell-top";
     top.setAttribute("aria-label", "Barra superior");
+    // ObraQuote (the Field Quote visit as its own app): its own name, back to its own list, no shortcuts out of the app.
+    const quoteApp = !!window.__OM_QUOTE_APP;
     const brandInner = window.OmShell
-      ? window.OmShell.brandHtml("obramate")
+      ? window.OmShell.brandHtml(quoteApp ? "obraquote" : "obramate")
       : `<img class="om-shell-mark" src="/assets/favicon-192.png?v=20260924-pwa" alt="" width="36" height="36" /><span class="om-shell-name">ObraMate</span>`;
     top.innerHTML = `
-      <a class="om-app-top__brand om-shell-brand" href="${escapeHtml(phoneHref("home"))}" aria-label="ObraMate — início">${brandInner}</a>
+      <a class="om-app-top__brand om-shell-brand" href="${quoteApp ? "/obraquote" : escapeHtml(phoneHref("home"))}" aria-label="${quoteApp ? "ObraQuote — visitas" : "ObraMate — início"}">${brandInner}</a>
       <div class="om-app-top__actions om-shell-actions">
-        <button type="button" class="om-app-top__plus om-shell-btn" id="omTopPlus" aria-label="Criar" aria-haspopup="menu" aria-expanded="false">
+        ${quoteApp ? "" : `<button type="button" class="om-app-top__plus om-shell-btn" id="omTopPlus" aria-label="Criar" aria-haspopup="menu" aria-expanded="false">
           ${ICONS.plus}
         </button>
         <button type="button" class="om-app-top__bell home-bell om-shell-btn" id="homeBell" aria-label="Atenção">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
           <span class="om-app-top__bell-dot home-bell__dot" aria-hidden="true"></span>
-        </button>
+        </button>`}
         <a class="om-app-top__avatar home-avatar om-shell-avatar" id="homeAvatar" href="configuracoes.html#mp-perfil" aria-label="Meu perfil">—</a>
       </div>`;
     document.body.insertBefore(top, document.body.firstChild);
@@ -878,7 +880,7 @@
     ensureCss();
     ensureAppleChrome();
 
-    if (/^field-quote\.html$/i.test(fileName())) {
+    if (window.__OM_QUOTE_APP || /^field-quote\.html$/i.test(fileName())) {
       ensureAppTop();
       return;
     }

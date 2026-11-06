@@ -31,14 +31,14 @@ const BRANDING_INJECT = [
   '<script src="/om-ui.js?v=20261105-apps3" defer></script>',
   // The same top and bottom bars in every app. Not deferred: the apps' own scripts build their bars with it.
   '<link rel="stylesheet" href="/om-shell.css?v=20261105-hammer1" />',
-  '<script src="/om-shell.js?v=20261105-hammer1"></script>',
+  '<script src="/om-shell.js?v=20261106-quote1"></script>',
   '<link rel="stylesheet" href="/api/branding.css" data-saas-branding-css />',
   // App-wide neutral theme (desktop dock, iPhone tab bar, Geist). Loaded last so it wins the cascade.
   '<link rel="preconnect" href="https://fonts.googleapis.com" />',
   '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />',
   '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" />',
   '<link rel="stylesheet" href="/om-theme.css?v=20261105-shell9" data-om-theme />',
-  '<script src="/saas-branding.js?v=20261104-crew1" defer data-saas-branding-js></script>',
+  '<script src="/saas-branding.js?v=20261106-quote1" defer data-saas-branding-js></script>',
   // Shared feedback on every page: toasts (with "Desfazer"), confirm/prompt dialogs and
   // loading skeletons. Each script guards against a second copy loaded by the page itself.
   '<link rel="stylesheet" href="/crm-toast.css?v=20261105-apps3" />',
@@ -172,6 +172,28 @@ export function obraCamHtml(html: string): string {
     .replace(/<\/body>/i, '  <script src="/obracam-app.js?v=20261105-shell9"></script>\n</body>');
 }
 
+/** Same rule as the Field Quote API (`can(req, "view")` in routes/field-quotes.ts): who may quote, may use ObraQuote. */
+export function canUseObraQuote(user: { roleKey?: string | null; permissions?: string[] } | null | undefined): boolean {
+  if (!user) return false;
+  if (user.roleKey === "admin") return true;
+  const p = user.permissions || [];
+  return p.includes("quotes.view") || p.includes("quotes.create") || p.includes("leads.edit");
+}
+
+/** The Field Quote page dressed as the ObraQuote app; the visit, Mate and presentation are shared with field-quote.html. */
+export function obraQuoteHtml(html: string): string {
+  const head = [
+    '<link rel="manifest" href="/obraquote.webmanifest?v=1" />',
+    '<meta name="apple-mobile-web-app-title" content="ObraQuote" />',
+    '<meta name="apple-mobile-web-app-capable" content="yes" />',
+    "<script>window.__OM_QUOTE_APP=true</script>",
+  ].join("\n    ");
+  return html
+    .replace(/<title>[^<]*<\/title>/i, "<title>ObraQuote</title>")
+    .replace(/<link rel="apple-touch-icon"[^>]*>/i, '<link rel="apple-touch-icon" href="/assets/obraquote/apple-touch-icon.png?v=1" />')
+    .replace(/<\/head>/i, `    ${head}\n</head>`);
+}
+
 async function sendCrmHtml(req: Request, res: Response, filename: string) {
   const full = path.join(CRM_PUBLIC_DIR, filename);
   const html = await renderCrmHtml(req, full);
@@ -260,6 +282,25 @@ export function createCrmRouter(): Router {
       }
       const html = await renderCrmHtml(req, path.join(CRM_PUBLIC_DIR, "job-media-board.html"));
       res.type("html").send(obraCamHtml(html));
+    } catch (e) {
+      next(e);
+    }
+  });
+
+  // ObraQuote: whoever may quote gets the Field Quote visit as its own app; other roles see a short explanation.
+  router.get("/obraquote", async (req: AuthedRequest, res, next) => {
+    try {
+      if (!req.user) {
+        res.redirect("/login.html?app=obraquote");
+        return;
+      }
+      res.setHeader("Cache-Control", "no-store, max-age=0");
+      if (!canUseObraQuote(req.user)) {
+        res.type("html").send(fs.readFileSync(path.join(CRM_PUBLIC_DIR, "obraquote-sem-acesso.html"), "utf8"));
+        return;
+      }
+      const html = await renderCrmHtml(req, path.join(CRM_PUBLIC_DIR, "field-quote.html"));
+      res.type("html").send(obraQuoteHtml(html));
     } catch (e) {
       next(e);
     }

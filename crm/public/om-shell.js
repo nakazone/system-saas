@@ -36,6 +36,7 @@
     obrabuilder: { name: "ObraBuilder", icon: "/assets/obrabuilder/icon-192.png?v=1" },
     obracrew: { name: "ObraCrew", icon: "/assets/obracrew/icon-192.png?v=1" },
     obracam: { name: "ObraCam", icon: "/assets/obracam/icon-192.png?v=1" },
+    obraquote: { name: "ObraQuote", icon: "/assets/obraquote/icon-192.png?v=1" },
   };
 
   const esc = (s) =>

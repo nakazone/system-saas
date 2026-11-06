@@ -2725,8 +2725,8 @@
   var milestoneBusy = false;
 
   function checkMilestones() {
-    // Focused apps (ObraCam, ObraCalendar) stay on their one task, like the welcome below.
-    if (window.__OM_CAL_APP || window.__OM_FOCUS_APP) return;
+    // Focused apps (ObraCam, ObraCalendar, ObraQuote) stay on their one task, like the welcome below.
+    if (window.__OM_CAL_APP || window.__OM_FOCUS_APP || window.__OM_QUOTE_APP) return;
     if (agentMode || milestoneBusy || !window.MateFace) return;
     milestoneBusy = true;
     api('GET', '/api/mate-ai/milestones')
@@ -2762,7 +2762,7 @@
 
   /** First access: the Mate introduces himself once per person (14 days after joining). */
   function showWelcome(w) {
-    if (window.__OM_CAL_APP || window.__OM_FOCUS_APP) return false;
+    if (window.__OM_CAL_APP || window.__OM_FOCUS_APP || window.__OM_QUOTE_APP) return false;
     var key = 'welcome:' + location.hostname.split('.')[0] + ':' + (w.since || '');
     if (window.MateFace.wasSeen(key)) return false;
     return window.MateFace.celebrate({
