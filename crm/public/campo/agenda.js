@@ -66,7 +66,8 @@
 
   /** Same ObraCam / ObraCrew Jobs card: day · client · address · status/hora · mapa. */
   function crewCardHtml(j) {
-    const who = j.homeowner_name || (j.client && j.client !== "—" ? j.client : "") || j.title || "Job";
+    // Builder jobs: API client is the builder — never prefer homeowner over that.
+    const who = (j.client && j.client !== "—" ? j.client : "") || j.homeowner_name || j.title || "Job";
     const iso = j.scheduled_start || null;
     const finished =
       j.status === "completed" || j.status === "done" || j.status === "canceled" || j.field_status === "completed";

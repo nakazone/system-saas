@@ -203,10 +203,10 @@
   // ------------------------------------------------------------ render (ObraBuilder-style dashboard, adapted for ObraCrew)
   function clientName(j) {
     if (!j) return "Job";
-    const homeowner = String(j.homeowner_name || "").trim();
-    if (homeowner) return homeowner;
     const client = String(j.client || "").trim();
     if (client && client !== "—") return client;
+    const homeowner = String(j.homeowner_name || "").trim();
+    if (homeowner) return homeowner;
     return "Job";
   }
   /** Field-facing label: client only (no job # / admin title). */

@@ -77,17 +77,22 @@ function firstName(name: string) {
 function clientLabel(wo: {
   homeownerName?: string | null;
   customer?: { name?: string | null; company?: string | null } | null;
-  builder?: { company?: string | null; firstName?: string | null; lastName?: string | null } | null;
+  builder?: { company?: string | null; firstName?: string | null; lastName?: string | null; nickname?: string | null } | null;
   sourceName?: string | null;
 }) {
+  if (wo.builder) {
+    const company = String(wo.builder.company || "").trim();
+    if (company) return company;
+    const nick = String(wo.builder.nickname || "").trim();
+    if (nick) return nick;
+    if (wo.builder.firstName) {
+      return `${wo.builder.firstName}${wo.builder.lastName ? ` ${wo.builder.lastName}` : ""}`.trim();
+    }
+  }
   const homeowner = String(wo.homeownerName || "").trim();
   if (homeowner) return homeowner;
   const customer = String(wo.customer?.name || wo.customer?.company || "").trim();
   if (customer) return customer;
-  if (wo.builder?.company) return wo.builder.company;
-  if (wo.builder?.firstName) {
-    return `${wo.builder.firstName}${wo.builder.lastName ? ` ${wo.builder.lastName}` : ""}`.trim();
-  }
   return wo.sourceName || "—";
 }
 
@@ -128,7 +133,7 @@ function paidMsFromSegments(
 
 const woInclude = {
   customer: { select: { id: true, name: true, company: true } },
-  builder: { select: { id: true, firstName: true, lastName: true, company: true } },
+  builder: { select: { id: true, firstName: true, lastName: true, company: true, nickname: true } },
   crew: { select: { id: true, name: true } },
   assignedUser: { select: { id: true, name: true } },
   members: { select: { userId: true, user: { select: { id: true, name: true } } } },

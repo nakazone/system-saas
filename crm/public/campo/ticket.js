@@ -250,7 +250,7 @@
 
   function renderHero() {
     const t = ticket;
-    const who = t.homeowner_name || (t.client && t.client !== "—" ? t.client : "") || "Job";
+    const who = (t.client && t.client !== "—" ? t.client : "") || t.homeowner_name || "Job";
     $("cmTicketTitle").textContent = who;
     $("cmTicketWhen").textContent = t.when_label || "—";
     $("cmTicketBadge").textContent = t.field_status_label || "—";
