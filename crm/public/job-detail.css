@@ -335,21 +335,32 @@
   .jd-main .jd-grid { grid-template-columns: minmax(0, 1fr); }
   .jd-main .jd-side { position: static; }
 }
-@media (max-height: 860px) {
-  .jd-rail .ja-week { display: none; }
-}
+/* Tablet lying down: the rail stays beside the job, a little narrower. */
 @media (max-width: 1100px) {
-  .jd-layout { grid-template-columns: minmax(0, 1fr); }
-  .jd-rail { position: static; max-height: none; overflow: visible; }
+  .jd-layout { grid-template-columns: minmax(0, 1fr) 288px; }
+}
+/* Tablet standing up: no room beside it, so the rail opens the overview, right under the tabs. */
+@media (max-width: 900px) {
+  .jd-layout { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .jd-main { display: contents; }
+  .jd-main > * { min-width: 0; }
+  #jdHeader { order: 1; }
+  .jd-tabs { order: 2; }
+  .jd-rail { order: 3; position: static; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto 1fr; align-items: start; margin-top: 14px; max-height: none; overflow: visible; }
+  .jd-panel { order: 4; }
+  #jobAgendaCard { grid-row: span 2; }
   .jd-layout:not([data-tab="geral"]) .jd-rail { display: none; }
-  .jd-rail .ja-week { display: grid; }
+}
+@media (max-width: 640px) {
+  .jd-rail { order: 5; grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
+  #jobAgendaCard { grid-row: auto; }
 }
 
 /* The page already leaves room for the bottom bar; extra space let the rail scroll out of view. */
 #jobDetailRoot.jd { padding-bottom: 0; }
 
 /* With the rail beside it, the card keeps client, site and team; the dates live in the rail. */
-@media (min-width: 1101px) {
+@media (min-width: 901px) {
   #jdHeader .jh-fact--when { display: none; }
 }
 #jdHeader .jh { margin-bottom: 0; }

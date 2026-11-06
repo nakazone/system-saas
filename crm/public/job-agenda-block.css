@@ -1,29 +1,49 @@
 /* Calendar block inside a job (panel, page and phone). */
-.ja-main { margin: 0; font-size: 15px; font-weight: 650; line-height: 1.3; color: #221E1A; }
+.ja-main { margin: 0 0 8px; font-size: 15px; font-weight: 650; line-height: 1.3; color: #221E1A; }
 .ja-mu { color: #667085; }
-.ja-sub { margin: 2px 0 0; font-size: 12.5px; line-height: 1.35; color: #667085; }
-.ja-rows { list-style: none; display: grid; gap: 8px; margin: 0; padding: 0; }
-.ja-rows li { min-width: 0; }
-.ja-rows span { display: block; font-size: 11.5px; font-weight: 600; color: #667085; }
-.ja-rows b { display: block; font-size: 14px; font-weight: 650; line-height: 1.3; color: #221E1A; }
-.ja-rows small { display: block; font-size: 12.5px; color: #667085; overflow-wrap: anywhere; }
-.ja-rows + .ja-rows { margin-top: 10px; padding-top: 10px; border-top: 1px solid #F1F3F5; }
-.ja-week { list-style: none; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; margin: 10px 0 0; padding: 0; }
-.ja-day { display: grid; justify-items: center; gap: 1px; padding: 4px 0; border-radius: 8px; background: #F7F8FA; color: #667085; }
-.ja-day small { font-size: 10.5px; font-weight: 600; }
-.ja-day b { font-size: 13px; font-weight: 650; }
-.ja-day.is-on { background: #221E1A; color: #fff; }
-.ja-day.is-today { box-shadow: inset 0 0 0 2px #E7792C; }
-.ja-conflict { margin-top: 10px; padding: 8px 10px; border-radius: 10px; background: #FDF0E6; font-size: 12.5px; line-height: 1.4; color: #7A3A12; }
-.ja-conflict p { margin: 0; overflow-wrap: anywhere; }
-.ja-conflict b { font-weight: 700; }
-.ja-conflict ul { list-style: none; margin: 3px 0 0; padding: 0; }
-.ja-conflict li { overflow-wrap: anywhere; }
-.ja-conflict a { color: inherit !important; text-decoration: underline !important; text-underline-offset: 3px; }
+.ja-sub { margin: -6px 0 8px; font-size: 12.5px; line-height: 1.35; color: #667085; }
+
+.ja-month__h { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 4px; }
+.ja-month__h b { font-size: 13.5px; font-weight: 650; color: #221E1A; }
+.ja-nav { display: inline-grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 8px; background: none; color: #475467; font: inherit; font-size: 18px; line-height: 1; cursor: pointer; }
+.ja-nav:hover { background: #F1F3F5; color: #221E1A; }
+.ja-wd, .ja-grid { list-style: none; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); margin: 0; padding: 0; }
+.ja-wd { margin-bottom: 2px; }
+.ja-wd li { text-align: center; font-size: 11px; font-weight: 600; color: #98A2B3; }
+.ja-grid { gap: 2px; }
+.ja-cell { min-width: 0; }
+.ja-cell > span, .ja-cell > a { display: grid; place-items: center; aspect-ratio: 1; max-height: 36px; width: 100%; border-radius: 8px; font-size: 12.5px; font-weight: 500; font-variant-numeric: tabular-nums; color: #475467; text-decoration: none !important; }
+.ja-cell.is-out > span { color: #D0D5DD; }
+.ja-cell.is-on > span, .ja-cell.is-on > a { font-weight: 700; }
+.ja-cell.is-out.is-on > span, .ja-cell.is-out.is-on > a { opacity: .45; }
+.ja-cell > a:hover { filter: brightness(1.12); }
+.ja-cell > a:focus-visible { outline: 2px solid #E7792C; outline-offset: 1px; }
+/* Today reads with or without a job on it. */
+.ja-cell.is-today > span, .ja-cell.is-today > a { box-shadow: inset 0 0 0 2px #E7792C; }
+
+.ja-key { list-style: none; display: grid; gap: 7px; margin: 10px 0 0; padding: 10px 0 0; border-top: 1px solid #F1F3F5; }
+.ja-key li { display: flex; gap: 8px; min-width: 0; }
+.ja-key i { flex: none; width: 10px; height: 10px; margin-top: 3px; border-radius: 3px; }
+.ja-key i.is-empty { box-shadow: inset 0 0 0 1.5px #D0D5DD; }
+.ja-key span { min-width: 0; }
+.ja-key small { display: block; font-size: 11.5px; font-weight: 600; color: #667085; }
+.ja-key b { display: block; font-size: 13.5px; font-weight: 650; line-height: 1.3; color: #221E1A; overflow-wrap: anywhere; }
+.ja-key em { display: block; font-style: normal; font-size: 12px; color: #667085; }
+
+/* Good to know, not an error: one person can have two jobs on a day. */
+.ja-others { margin-top: 10px; padding: 8px 10px; border-radius: 10px; background: #F7F8FA; font-size: 12.5px; line-height: 1.4; color: #475467; }
+.ja-others p { margin: 0; overflow-wrap: anywhere; }
+.ja-others b { font-weight: 650; color: #221E1A; }
+.ja-others ul { list-style: none; margin: 3px 0 0; padding: 0; }
+.ja-others li { overflow-wrap: anywhere; }
+.ja-others a { color: inherit !important; text-decoration: underline !important; text-decoration-color: #D0D5DD !important; text-underline-offset: 3px; }
+
 .ja-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin-top: 10px; }
 .ja-act { min-height: 32px; display: inline-flex; align-items: center; padding: 0; border: 0; background: none; font: inherit; font-size: 12.5px; font-weight: 600; color: #221E1A !important; text-decoration: underline !important; text-decoration-color: #D0D5DD !important; text-underline-offset: 3px; white-space: nowrap; cursor: pointer; }
 .ja-act:hover { text-decoration-color: #E7792C !important; }
 .ja-act--main { min-height: 36px; padding: 0 12px; border-radius: 10px; background: #fff; box-shadow: 0 0 0 1px #D0D5DD; text-decoration: none !important; }
 @media (pointer: coarse) {
   .ja-act, .ja-act--main { min-height: 44px; }
+  .ja-nav { width: 44px; height: 44px; }
+  .ja-cell > span, .ja-cell > a { max-height: none; }
 }

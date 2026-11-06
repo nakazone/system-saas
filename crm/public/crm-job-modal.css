@@ -1172,3 +1172,5 @@ body.om-device-mobile .jm-lockbox__input { height: 46px; font-size: 16px; }
 .jm-start__panel .jm-field { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; font-size: 13px; font-weight: 650; }
 .jm-start__panel .jm-field[hidden] { display: none !important; }
 .jm-start__acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
+.jm-delivery__when { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 8px; }

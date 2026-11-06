@@ -10,7 +10,7 @@
 (function () {
   if (window.__crmJobModal) return;
 
-  const CSS_HREF = "crm-job-modal.css?v=20261104-ux2";
+  const CSS_HREF = "crm-job-modal.css?v=20261106-cal1";
   const QPE_CSS = "quote-services-popup.css?v=20261102-svc2";
   const QPE_JS = "quote-services-popup.js?v=20261102-qfix";
   const PAPER_CSS = "quote-paper.css?v=20261027-om1";
@@ -2226,6 +2226,7 @@
     return {
       id: `d_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
       date: "",
+      time: "",
       pickup: "",
       locationId: null,
       locationName: "",
@@ -2261,10 +2262,19 @@
     st.deliveryNotes = first.notes || "";
   }
 
+  /** Local date plus the optional time; without a time it stays at midnight, as before. */
+  function deliveryStartIso(d) {
+    const day = dayFromYmd(d.date);
+    if (!day) return null;
+    const m = /^(\d{2}):(\d{2})$/.exec(String(d.time || ""));
+    if (m) day.setHours(Number(m[1]), Number(m[2]), 0, 0);
+    return day.toISOString();
+  }
+
   function deliveriesPayload() {
     return (st.deliveries || []).map((d) => ({
       id: d.id,
-      scheduled_start: dayFromYmd(d.date) ? dayFromYmd(d.date).toISOString() : null,
+      scheduled_start: deliveryStartIso(d),
       pickup_address: String(d.pickup || "").trim() || null,
       location_id: d.locationId || null,
       location_name: String(d.locationName || "").trim() || null,
@@ -2497,9 +2507,14 @@
             <b>Delivery ${stops.length > 1 ? i + 1 : ""}</b>
             ${stops.length > 1 ? `<button type="button" class="jm-link" data-act="delivery-del" data-i="${i}">Remover</button>` : ""}
           </div>
-          <label class="jm-field">Data
-            <input type="date" class="jm-in" data-del-f="date" data-i="${i}" value="${esc(d.date || "")}" />
-          </label>
+          <div class="jm-delivery__when">
+            <label class="jm-field">Data
+              <input type="date" class="jm-in" data-del-f="date" data-i="${i}" value="${esc(d.date || "")}" />
+            </label>
+            <label class="jm-field">Hora
+              <input type="time" class="jm-in" data-del-f="time" data-i="${i}" value="${esc(d.time || "")}" />
+            </label>
+          </div>
           <div class="jm-field">
             <span>Local / endereço de retirada</span>
             <div class="jm-delivery__loc${open ? " is-open" : ""}">
@@ -3406,6 +3421,7 @@
             return {
               id: d.id || blankDeliveryStop().id,
               date: at && !Number.isNaN(at.getTime()) ? ymd(at) : "",
+              time: at && !Number.isNaN(at.getTime()) && (at.getHours() || at.getMinutes()) ? hm(at) : "",
               pickup: d.pickup_address || "",
               locationId: d.location_id || null,
               locationName: d.location_name || "",
@@ -3653,7 +3669,7 @@
       // Agenda conflicts only matter when the edit touched when/who.
       const touchesAgenda = ["all", "schedule", "team"].includes(st.section);
       if (touchesAgenda && j.conflicts && j.conflicts.length) {
-        notify(`Job ${n} salvo — atenção: conflito de agenda com a equipe.`, "warning");
+        notify(`Job ${n} salvo. A equipe também tem outro trabalho nessa data.`, "info");
       } else if (tempsFail) {
         notify(
           `Job ${n} criado, mas ${tempsFail} funcionário${tempsFail > 1 ? "s" : ""} extra não ${tempsFail > 1 ? "foram cadastrados" : "foi cadastrado"}. Abra o job e tente de novo.`,
@@ -4137,6 +4153,7 @@
       if (!stop) return;
       const f = t.getAttribute("data-del-f");
       if (f === "date") stop.date = t.value || "";
+      if (f === "time") stop.time = t.value || "";
       if (f === "pickup") {
         stop.pickup = t.value;
         stop.locationId = null;

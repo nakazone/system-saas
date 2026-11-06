@@ -90,6 +90,7 @@
 .jh-alerts li { display: flex; gap: 10px; min-width: 0; }
 .jh-alerts b { flex: 0 0 150px; font-weight: 650; color: var(--jh-ink2); }
 .jh-alerts span { min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.jh-alerts strong { font-weight: 650; }
 .jh-alerts a { text-decoration: underline; text-decoration-color: var(--jh-terra); text-underline-offset: 3px; }
 .jh-alerts li.is-problem b, .jh-alerts li.is-problem span { color: var(--jh-deep); font-weight: 650; }
 
