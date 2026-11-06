@@ -40,6 +40,10 @@
   let weekSlide = 0;
   /** Sunday ymd to scroll into view after the list paints a week change. */
   let pendingWeekKey = null;
+  /** Group that the week change opened. */
+  let pendingWeekLabel = null;
+  /** Last Sunday whose collapses were applied. Null until the first list paint. */
+  let appliedWeekKey = null;
   let calCursor = new Date();
   let calOpen = false;
   /** Which week blocks inside Próximos jobs stay open. Key is the Sunday ymd. */
@@ -516,35 +520,62 @@
   function stripWeek() {
     return weekFilter ? weekSunday(weekFilter) : weekSunday(new Date());
   }
+  const FOLD_LABELS = ["Sem data", "Do portal", "Em Campo", "Próximos jobs", "Concluídos", "Cancelados"];
   function foldKey() {
     const list = $("jxRows")?.closest(".ol-list");
     if (list && list.__ol && list.__ol.key) return list.__ol.key;
     return "olFold:" + location.pathname + ":jxRows";
   }
-  function unfoldGroup(label) {
+  function setGroupFolds(openLabel) {
     const key = foldKey();
     let folds = {};
     try { folds = JSON.parse(localStorage.getItem(key) || "{}"); } catch (e) { folds = {}; }
     if (!folds || typeof folds !== "object") folds = {};
-    if (folds[label] === false) return;
-    folds[label] = false;
+    FOLD_LABELS.forEach((label) => { folds[label] = label !== openLabel; });
     try { localStorage.setItem(key, JSON.stringify(folds)); } catch (e) {}
   }
-  /** Open the week block for the chosen Sunday, and the group that holds those jobs. */
-  function revealWeek(sunday) {
-    const key = ymd(weekSunday(sunday));
-    weekOpen.set(key, true);
-    unfoldGroup("Em Campo");
-    unfoldGroup("Próximos jobs");
-    pendingWeekKey = key;
+  /** Past week still has work in Em Campo: em andamento, atrasado ou agendado naquela semana. */
+  function weekHasFieldWork(sunday) {
+    const t0 = sod(new Date()).getTime();
+    return visibleRows().some((wo) => {
+      if (wo.status === "completed" || wo.status === "canceled") return false;
+      const d = jobAnchor(wo);
+      if (!d || !sameWeek(d, sunday)) return false;
+      if (wo.status === "in_progress") return true;
+      const t = sod(d).getTime();
+      return t < t0 || !!(I().late && I().late(wo));
+    });
   }
-  function scrollWeekIntoView(key) {
+  /**
+   * Semana atual: só Em Campo. Passada: Em Campo se ainda há job em andamento, senão só Concluídos.
+   * Seguinte: só Próximos jobs. A mesma semana não mexe no que a pessoa abriu na mão.
+   */
+  function revealWeek(sunday) {
+    const sun = weekSunday(sunday);
+    const key = ymd(sun);
+    if (appliedWeekKey === key) return;
+    const first = !appliedWeekKey;
+    appliedWeekKey = key;
+    const now = weekSunday(new Date()).getTime();
+    const selected = sun.getTime();
+    let open = "Em Campo";
+    if (selected > now) open = "Próximos jobs";
+    else if (selected < now) open = weekHasFieldWork(sun) ? "Em Campo" : "Concluídos";
+    setGroupFolds(open);
+    weekOpen.forEach((_, k) => { if (k !== key) weekOpen.set(k, false); });
+    weekOpen.set(key, open === "Próximos jobs");
+    if (!first) {
+      pendingWeekKey = key;
+      pendingWeekLabel = open;
+    }
+  }
+  function scrollWeekIntoView(key, label) {
     const rows = $("jxRows");
     if (!rows) return;
     const run = () => {
-      const week = rows.querySelector(`details.jx-wk[data-jx-week="${key}"]`);
-      const field = [...rows.querySelectorAll(".ol-grp")].find((h) => (h.querySelector("span") || h).textContent.trim() === "Em Campo");
-      const target = week || field;
+      const week = label === "Próximos jobs" ? rows.querySelector(`details.jx-wk[data-jx-week="${key}"]`) : null;
+      const head = [...rows.querySelectorAll(".ol-grp")].find((h) => (h.querySelector("span") || h).textContent.trim() === label);
+      const target = week || head;
       if (!target) return;
       const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       if (rows.scrollHeight <= rows.clientHeight + 4) return;
@@ -626,6 +657,7 @@
     setTimeout(finish, 520);
   }
   function renderList() {
+    if (!appliedWeekKey) revealWeek(stripWeek());
     renderWeekStrip();
     let rows = visibleRows();
     if (dayFilter) {
@@ -677,8 +709,10 @@
     });
     if (pendingWeekKey) {
       const key = pendingWeekKey;
+      const label = pendingWeekLabel;
       pendingWeekKey = null;
-      scrollWeekIntoView(key);
+      pendingWeekLabel = null;
+      scrollWeekIntoView(key, label);
     }
     if (window.OmGestures) window.OmGestures.bindSwipeRow?.(host);
     host.querySelectorAll("[data-jx-start]").forEach((btn) => {
