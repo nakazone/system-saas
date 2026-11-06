@@ -38,8 +38,13 @@ describe("what the builder sees of the phases", () => {
     expect(office!.can_undo).toBe(false);
   });
 
-  it("has nothing to confirm for trades without a gate, or hardwood", () => {
-    expect(builderGateView(tile, tile.phases.map((p, i) => row(p.key, i)))).toBeNull();
+  it("asks Tile builders about plumbing and blocking before the crew goes out", () => {
+    const g = builderGateView(tile, tile.phases.map((p, i) => row(p.key, i)));
+    expect(g).toMatchObject({ phase: "site_ready", title: "Ready for tile", confirmed: null });
+    expect(g!.question).toMatch(/Plumbing roughed in/);
+  });
+
+  it("has nothing to confirm for hardwood", () => {
     expect(builderGateView(getPack("hardwood"), [])).toBeNull();
     expect(builderPhaseSteps(getPack("hardwood"), [])).toEqual([]);
   });

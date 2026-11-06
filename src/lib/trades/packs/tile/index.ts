@@ -120,6 +120,14 @@ export const tile: TradePack = {
       words: ["marble", "travertine", "limestone", "slate", "granite tile", "quartzite", "natural stone", "onyx", "mármore", "marmore", "travertino", "pedra natural", "ardósia", "ardosia"],
     },
   ],
+  // The builder confirms the site before the crew goes out (ObraBuilder): proof of "Site ready".
+  builderGate: {
+    phase: "site_ready",
+    requirement: "ready_checklist",
+    title: "Ready for tile",
+    question: "Plumbing roughed in and inspected, shower valve and drain at height, blocking in for grab bars and niches, walls boarded.",
+    done: "Site ready for tile",
+  },
   combinedPhaseKey: "all",
   phaseStorage: "table",
   takeoff: {
