@@ -1,5 +1,5 @@
 /**
- * Campo · Meu dia — começar o dia, jobs, fotos do dia, finalizar com nota.
+ * ObraCrew · Hoje — dashboard no padrão do ObraBuilder (mobile), com ponto e fotos.
  * API: /api/campo/dia (see src/crm/routes/campo-dia.ts). Photos go through the offline queue.
  */
 (function () {
@@ -186,9 +186,8 @@
         openManual(null);
       }
     } catch (e) {
-      $("dyCard").className = "dy-card";
-      $("dyCard").innerHTML = `<div class="dy-card__lbl">Meu dia</div><h2>Não foi possível carregar</h2><p class="dy-card__sub">${esc(e.message)}</p>
-        <div style="margin-top:14px"><button class="dy-btn dy-btn--white dy-btn--full" data-act="reload">Tentar de novo</button></div>`;
+      $("dyDash").innerHTML = `<section class="dy-card"><div class="dy-card__lbl">Meu dia</div><h2>Não foi possível carregar</h2><p class="dy-card__sub">${esc(e.message)}</p>
+        <div style="margin-top:14px"><button class="dy-btn dy-btn--white dy-btn--full" data-act="reload">Tentar de novo</button></div></section>`;
     } finally {
       $("dyRoot").setAttribute("aria-busy", "false");
     }
@@ -202,35 +201,7 @@
     } catch (_) {}
   }
 
-  // ------------------------------------------------------------ render
-  function render() {
-    const emp = S.employee;
-    const first = emp ? emp.name.split(/\s+/)[0] : "";
-    const h = new Date().getHours();
-    $("dyHello").textContent = `${h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite"}${first ? `, ${first}` : ""}`;
-    const dateEl = $("dyDate");
-    const sectorLbl = emp && emp.sector ? SECTOR[emp.sector] || emp.sector : "";
-    dateEl.innerHTML = sectorLbl
-      ? `<span class="dy-hd__date">${esc(S.today_label || "")}</span><span class="dy-hd__dot" aria-hidden="true"></span><span class="dy-hd__sector">${esc(sectorLbl)}</span>`
-      : `<span class="dy-hd__date">${esc(S.today_label || "")}</span>`;
-    $("dyAv").textContent = emp ? initials(emp.name) : "·";
-    renderReturned();
-    renderCard();
-    renderJobs();
-    renderPay();
-    clearInterval(tick);
-    if (S.day && S.day.status === "in_progress") tick = setInterval(renderCard, 30000);
-  }
-
-  function renderReturned() {
-    $("dyReturned").innerHTML = (S.returned || [])
-      .map(
-        (d) => `<div class="dy-ret"><div><b>Dia ${esc(d.date_label)} voltou para ajuste</b><p>${esc(d.review_note || "O escritório pediu para conferir este dia.")}</p></div>
-        <button class="dy-btn dy-btn--sm dy-btn--ink" data-act="fix" data-id="${esc(d.id)}">Ajustar</button></div>`,
-      )
-      .join("");
-  }
-
+  // ------------------------------------------------------------ render (ObraBuilder-style dashboard, adapted for ObraCrew)
   function clientName(j) {
     if (!j) return "Job";
     const homeowner = String(j.homeowner_name || "").trim();
@@ -244,41 +215,184 @@
     return clientName(j);
   }
 
-  // The Mate (fox) greets before the day starts and thanks at the end. Plain <img>: no dependency on the panel.
   const MATE_V = "20261027-m2";
   function mateLine(pose, title, text) {
     return `<div class="dy-mate"><img class="dy-mate__art" src="/assets/img/mascot/mate-${pose}.webp?v=${MATE_V}" alt="" height="64" decoding="async"><div><b>${esc(title)}</b>${text ? `<span>${esc(text)}</span>` : ""}</div></div>`;
   }
 
-  function renderCard() {
-    const box = $("dyCard");
-    box.className = "dy-card";
+  function todayJobs() {
+    const d = S.day;
+    if (d && d.status === "in_progress") return d.jobs || [];
+    if (d) return d.jobs || [];
+    return S.jobs_today || [];
+  }
+
+  function helloLine() {
+    const n = (S.jobs_today || []).length;
+    const inDay = S.day && S.day.status === "in_progress";
+    if (inDay) return `${n ? `${n} obra${n === 1 ? "" : "s"} no dia` : "Dia em andamento"} · toque para finalizar quando acabar`;
+    if (S.day) return "Dia já enviado · bom descanso";
+    if (n) return `${n} obra${n === 1 ? "" : "s"} na agenda hoje`;
+    return "Nada na agenda hoje — você ainda pode começar o dia";
+  }
+
+  function qaIcon(kind) {
+    const paths = {
+      play: ICON.play,
+      stop: ICON.stop,
+      cam: ICON.cam,
+      pin: ICON.pin,
+      cal: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
+      chat: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>',
+      camBoard: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h1.6l1.4-2h7l1.4 2h1.6A2.5 2.5 0 0 1 21 8.5v9A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5z"/><circle cx="12" cy="13" r="3.6"/></svg>',
+      clock: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+    };
+    return paths[kind] || "";
+  }
+
+  function quickActionsHtml() {
+    if (!S.linked) return "";
+    const d = S.day;
+    const inDay = d && d.status === "in_progress";
+    const list = todayJobs();
+    const hasRoute = list.some((j) => j.address || j.delivery_pickup_address);
+    const photoJob = inDay && list.length ? list[list.length - 1] : list[0];
+    const dayAct = !d
+      ? `<button type="button" class="dy-qa" data-act="start" data-om-press><span class="dy-qa-ic">${qaIcon("play")}</span><span><strong>Começar o dia</strong><small>Bater o ponto na obra</small></span></button>`
+      : inDay
+        ? `<button type="button" class="dy-qa" data-act="finish" data-om-press><span class="dy-qa-ic">${qaIcon("stop")}</span><span><strong>Finalizar o dia</strong><small>Enviar horas e fotos</small></span></button>`
+        : `<a class="dy-qa" href="/job-media-board.html"><span class="dy-qa-ic">${qaIcon("camBoard")}</span><span><strong>ObraCam</strong><small>Fotos das obras</small></span></a>`;
+    const foto = photoJob
+      ? `<button type="button" class="dy-qa" data-act="photo" data-job="${esc(photoJob.id)}" data-om-press><span class="dy-qa-ic">${qaIcon("cam")}</span><span><strong>Tirar foto</strong><small>${esc(clientName(photoJob))}</small></span></button>`
+      : `<a class="dy-qa" href="/job-media-board.html"><span class="dy-qa-ic">${qaIcon("cam")}</span><span><strong>Tirar foto</strong><small>Abrir ObraCam</small></span></a>`;
+    const routeOrAgenda = hasRoute
+      ? `<button type="button" class="dy-qa" data-act="day-route" data-om-press><span class="dy-qa-ic">${qaIcon("pin")}</span><span><strong>Rota do dia</strong><small>${list.length} parada${list.length === 1 ? "" : "s"}</small></span></button>`
+      : `<a class="dy-qa" href="agenda.html"><span class="dy-qa-ic">${qaIcon("cal")}</span><span><strong>Agenda</strong><small>Semana na obra</small></span></a>`;
+    return `<section class="dy-qa-grid" aria-label="Ações rápidas">
+      ${dayAct}
+      ${foto}
+      ${routeOrAgenda}
+      <a class="dy-qa" href="/chat.html"><span class="dy-qa-ic">${qaIcon("chat")}</span><span><strong>ObraChat</strong><small>Falar com o escritório</small></span></a>
+    </section>`;
+  }
+
+  function attentionHtml() {
+    const items = [];
+    (S.returned || []).forEach((d) => {
+      items.push(`<div class="dy-att"><div class="dy-att-main"><strong>Dia ${esc(d.date_label)} voltou</strong><span>${esc(d.review_note || "O escritório pediu para conferir este dia.")}</span></div><button type="button" class="dy-btn dy-btn--sm dy-btn--ink" data-act="fix" data-id="${esc(d.id)}">Ajustar</button></div>`);
+    });
+    const inDay = S.day && S.day.status === "in_progress";
+    if (inDay) {
+      (S.day.jobs || [])
+        .filter((j) => !(j.photos_today || 0) && !(queued[j.id] || 0))
+        .forEach((j) => {
+          items.push(`<div class="dy-att"><div class="dy-att-main"><strong>Falta foto · ${esc(clientName(j))}</strong><span>${esc(j.address || "Sem endereço")}</span></div><button type="button" class="dy-btn dy-btn--sm dy-btn--terra" data-act="photo" data-job="${esc(j.id)}">${ICON.cam} Foto</button></div>`);
+        });
+    }
+    if (!items.length) return "";
+    return `<section class="dy-tile dy-foryou" aria-labelledby="dyAtt"><h2 id="dyAtt">Precisa de você <span class="dy-badge">${items.length}</span></h2>${items.slice(0, 4).join("")}</section>`;
+  }
+
+  function photoTag(j) {
+    const n = j.photos_today || 0;
+    const q = queued[j.id] || 0;
+    if (q) return `<span class="dy-chip">${q} na fila</span>`;
+    if (n) return `<span class="dy-chip dy-chip--ok">${n} foto${n > 1 ? "s" : ""}</span>`;
+    return `<span class="dy-chip dy-chip--miss">Falta foto</span>`;
+  }
+
+  function nowPanelHtml() {
+    if (!S.linked) return "";
+    const d = S.day;
+    const inDay = d && d.status === "in_progress";
+    const list = todayJobs();
+    const here = inDay && d.jobs.length ? d.jobs[d.jobs.length - 1] : null;
+    const title = inDay ? "Agora na obra" : d ? "Obras do dia" : "Hoje na agenda";
+    if (!list.length) {
+      return `<section class="dy-tile dy-now" aria-label="${esc(title)}">
+        <div class="dy-now-head"><h2>${esc(title)}</h2><a class="dy-link" href="agenda.html">Agenda</a></div>
+        <div class="dy-empty">${inDay ? "Nenhum job no seu dia ainda." : "Sem jobs na agenda de hoje."}</div>
+        ${inDay ? `<button type="button" class="dy-btn dy-btn--line dy-btn--sm" data-act="addjob" style="margin-top:10px">+ Outro job</button>` : ""}
+      </section>`;
+    }
+    const cards = list
+      .map((j) => {
+        const live = here && here.id === j.id;
+        const maps = j.maps_url || (j.address ? `https://maps.google.com/?q=${encodeURIComponent(j.address)}` : "");
+        const time = j.start_label || (j.continuing ? "Em andamento" : "");
+        return `<article class="dy-now-card${live ? " is-live" : ""}">
+          <a class="dy-now-hit" href="ticket.html?id=${encodeURIComponent(j.id)}" aria-label="Abrir ${esc(clientName(j))}"></a>
+          <div class="dy-now-top"><span class="dy-now-time">${esc(time || (live ? "Aqui" : "Hoje"))}</span>${inDay ? photoTag(j) : ""}</div>
+          <strong class="dy-now-title">${esc(clientName(j))}</strong>
+          <small class="dy-now-sub">${esc(j.address || "Sem endereço")}</small>
+          <div class="dy-now-acts">
+            ${maps ? `<a class="dy-now-act" href="${esc(maps)}" target="_blank" rel="noopener">${ICON.pin}<span>Mapa</span></a>` : ""}
+            ${inDay ? `<button type="button" class="dy-now-act is-pri" data-act="photo" data-job="${esc(j.id)}">${ICON.cam}<span>Foto</span></button>` : `<a class="dy-now-act" href="ticket.html?id=${encodeURIComponent(j.id)}"><span>Ticket</span></a>`}
+            ${inDay && here && here.id !== j.id ? `<button type="button" class="dy-now-act" data-act="goto" data-job="${esc(j.id)}"><span>Estou aqui</span></button>` : ""}
+          </div>
+        </article>`;
+      })
+      .join("");
+    return `<section class="dy-tile dy-now" aria-label="${esc(title)}">
+      <div class="dy-now-head">
+        <h2>${esc(title)} <em>${list.length}</em></h2>
+        <span class="dy-now-tools">
+          ${list.some((j) => j.address || j.delivery_pickup_address) ? `<button type="button" class="dy-link" data-act="day-route">Rota</button>` : ""}
+          ${inDay ? `<button type="button" class="dy-link" data-act="addjob">+ Job</button>` : `<a class="dy-link" href="agenda.html">Semana</a>`}
+        </span>
+      </div>
+      <div class="dy-now-row">${cards}<a class="dy-now-card dy-now-more" href="agenda.html">${qaIcon("cal")}<span>Ver a semana</span></a></div>
+    </section>`;
+  }
+
+  function tilesHtml() {
+    if (!S.linked) return "";
+    const todayN = (S.jobs_today || []).length;
+    const dayN = S.day && S.day.jobs ? S.day.jobs.length : todayN;
+    const pay = (S.payments || [])[0];
+    const payBits = pay
+      ? `<div class="dy-lbl">${esc(pay.label.replace(/^Semana /, "Semana "))}</div>
+         <div class="dy-big dy-big--sm">${esc(money(pay.status === "paid" && pay.paid_amount != null ? pay.paid_amount : pay.amount))}</div>
+         <div class="dy-sub">${esc(pay.status_label)}</div>
+         <a class="dy-tile-link" href="horas.html">Minhas horas →</a>`
+      : `<div class="dy-lbl">Horas</div>
+         <div class="dy-big dy-big--sm">—</div>
+         <div class="dy-sub">Semana e pagamentos</div>
+         <a class="dy-tile-link" href="horas.html">Abrir horas →</a>`;
+    return `<div class="dy-tiles">
+      <a class="dy-tile dy-tile--orange" href="/job-media-board.html" aria-label="Em produção">
+        <div class="dy-lbl">Em produção</div>
+        <div class="dy-big">${dayN}</div>
+        <div class="dy-sub">${todayN ? `${todayN} na agenda hoje` : "Fotos e obras ativas"}</div>
+        <span class="dy-tile-link">Abrir ObraCam →</span>
+      </a>
+      <section class="dy-tile dy-tile--dark" aria-label="Horas e pagamentos">${payBits}</section>
+    </div>`;
+  }
+
+  function cardHtml() {
     if (!S.linked) {
-      box.innerHTML = `<div class="dy-card__lbl">Meu dia</div><h2>Seu acesso ainda não está ligado à folha</h2>
-        <p class="dy-card__sub">Peça ao escritório para ligar seu usuário ao seu cadastro de funcionário. Depois disso você começa e finaliza o dia por aqui.</p>`;
-      return;
+      return `<section class="dy-card" id="dyCard"><div class="dy-card__lbl">Meu dia</div><h2>Seu acesso ainda não está ligado à folha</h2>
+        <p class="dy-card__sub">Peça ao escritório para ligar seu usuário ao seu cadastro de funcionário. Depois disso você começa e finaliza o dia por aqui.</p></section>`;
     }
     const emp = S.employee;
     const d = S.day;
     const endLbl = emp.schedule.end_time;
     if (!d) {
       const j = S.jobs_today[0];
-      box.innerHTML = `${mateLine("wave", "Bora começar?", "Quando chegar, toque em Começar o dia. Precisa de algo? É só me chamar.")}<div class="dy-card__lbl"><span>Seu dia</span></div>
+      return `<section class="dy-card" id="dyCard">${mateLine("wave", "Bora começar?", "Quando chegar, toque em Começar o dia.")}<div class="dy-card__lbl"><span>Seu dia</span></div>
         <h2>${j ? esc(clientName(j)) : "Nenhum job na agenda hoje"}</h2>
         <p class="dy-card__sub">${j ? esc(j.address || "Sem endereço") : "Você pode começar e escolher o job."}</p>
         <div style="margin-top:16px"><button type="button" class="dy-btn dy-btn--terra dy-btn--full" data-act="start" data-om-press>${ICON.play} Começar o dia</button></div>
-        <p class="dy-card__hint"><button type="button" data-act="manual">Esqueci de bater o ponto</button></p>`;
-      return;
+        <p class="dy-card__hint"><button type="button" data-act="manual">Esqueci de bater o ponto</button></p></section>`;
     }
     if (d.status === "in_progress") {
-      // live numbers from the server snapshot + time passed since load
       const since = new Date(d.clock_in).getTime();
       const elapsed = Math.max(0, Math.round((Date.now() - since) / 60000));
       const endAt = d.expected_end_label;
       const here = d.jobs[d.jobs.length - 1];
       const startH = new Date(d.clock_in);
       const pctBase = (() => {
-        // fraction of the normal day done (start → expected end)
         const [eh, em] = String(endAt || "17:00").split(":").map(Number);
         const end = new Date(startH);
         end.setHours(eh, em, 0, 0);
@@ -286,7 +400,7 @@
         return Math.min(1, elapsed / total);
       })();
       const otNow = Math.max(d.overtime_minutes, 0);
-      box.innerHTML = `<div class="dy-card__lbl"><span>Dia em andamento</span><span class="dy-pill dy-pill--in_progress">desde ${esc(d.clock_in_label)}${d.pending_sync ? " · aguardando sinal" : ""}</span></div>
+      return `<section class="dy-card" id="dyCard"><div class="dy-card__lbl"><span>Dia em andamento</span><span class="dy-pill dy-pill--in_progress">desde ${esc(d.clock_in_label)}${d.pending_sync ? " · aguardando sinal" : ""}</span></div>
         <div class="dy-time"><b>${esc(minLabel(elapsed))}</b><span>trabalhando</span></div>
         <div class="dy-bar" aria-hidden="true"><i style="width:${(pctBase * 100).toFixed(1)}%"></i></div>
         <div class="dy-bar__lbl"><span>${esc(d.clock_in_label)}</span><span>${esc(endAt || endLbl)}</span></div>
@@ -295,15 +409,13 @@
           <div class="dy-stat"><small>Jobs</small><b>${d.jobs.length}</b></div>
           <div class="dy-stat"><small>${emp.pay_type === "production" ? "Produção" : "Hoje"}</small><b>${emp.pay_type === "production" ? `${d.sqft || 0} sq ft` : esc(money(d.amount))}</b></div>
         </div>
-        ${here ? `<div class="dy-now"><span class="dy-now__dot" aria-hidden="true"></span><div><small>Onde você está</small><b>${esc(clientName(here))}</b>${here.address ? `<span>${esc(here.address)}</span>` : ""}</div></div>` : ""}
-        <div style="margin-top:14px"><button type="button" class="dy-btn dy-btn--terra dy-btn--full" data-act="finish" data-om-press>${ICON.stop} Finalizar o dia</button></div>`;
-      return;
+        ${here ? `<div class="dy-here"><span class="dy-here__dot" aria-hidden="true"></span><div><small>Onde você está</small><b>${esc(clientName(here))}</b>${here.address ? `<span>${esc(here.address)}</span>` : ""}</div></div>` : ""}
+        <div style="margin-top:14px"><button type="button" class="dy-btn dy-btn--terra dy-btn--full" data-act="finish" data-om-press>${ICON.stop} Finalizar o dia</button></div></section>`;
     }
-    // finished — the mascot enters once, right after this phone sent the day (not on every load)
     const pillCls = d.status;
     const enter = justSent;
     justSent = false;
-    box.innerHTML = `${mateLine("thumbs", "Dia enviado. Bom trabalho!", d.status === "approved" ? "Já está na folha da semana." : "Descansa que o resto é com o escritório.")}<div class="dy-card__lbl"><span>Dia enviado</span><span class="dy-pill dy-pill--${pillCls}">${esc(d.status_label)}</span></div>
+    const html = `<section class="dy-card" id="dyCard">${mateLine("thumbs", "Dia enviado. Bom trabalho!", d.status === "approved" ? "Já está na folha da semana." : "Descansa que o resto é com o escritório.")}<div class="dy-card__lbl"><span>Dia enviado</span><span class="dy-pill dy-pill--${pillCls}">${esc(d.status_label)}</span></div>
       <div class="dy-time"><b>${esc(d.worked_label)}</b><span>${esc(d.clock_in_label)} – ${esc(d.clock_out_label || "")}</span></div>
       <div class="dy-stats">
         <div class="dy-stat dy-stat--ot"><small>Extra</small><b>${d.overtime_minutes ? esc(minLabel(d.overtime_minutes)) : "—"}</b></div>
@@ -324,76 +436,52 @@
               .join("")}</ul>`
           : ""
       }
-      ${d.note ? `<p class="dy-card__hint" style="text-align:left">Nota: ${esc(d.note)}</p>` : ""}`;
-    if (enter) box.querySelector(".dy-mate")?.classList.add("dy-mate--enter");
+      ${d.note ? `<p class="dy-card__hint" style="text-align:left">Nota: ${esc(d.note)}</p>` : ""}</section>`;
+    return { html, enter };
   }
 
-  function photoTag(j) {
-    const n = j.photos_today || 0;
-    const q = queued[j.id] || 0;
-    if (q) return `<span class="dy-job__ph">${q} na fila</span>`;
-    if (n) return `<span class="dy-job__ph dy-job__ph--ok">${n} foto${n > 1 ? "s" : ""} hoje</span>`;
-    return `<span class="dy-job__ph dy-job__ph--miss">Falta foto</span>`;
-  }
-
-  function renderJobs() {
-    const box = $("dyJobs");
-    if (!S.linked) {
-      box.innerHTML = "";
+  function renderCard() {
+    const box = $("dyCard");
+    if (!box || !S) return;
+    const out = cardHtml();
+    if (typeof out === "string") {
+      box.outerHTML = out;
       return;
     }
-    const d = S.day;
-    const inDay = d && d.status === "in_progress";
-    const list = inDay ? d.jobs : d ? d.jobs : S.jobs_today;
-    const here = inDay ? d.jobs[d.jobs.length - 1] : null;
-    const title = inDay ? "Jobs do seu dia" : d ? "Jobs do dia" : "Agenda de hoje";
-    box.className = "dy-sec";
-    box.innerHTML = `<div class="dy-sec__hd"><h3>${title}</h3><span class="dy-sec__acts">${
-      (list || []).some((j) => j.address || j.delivery_pickup_address)
-        ? `<button type="button" class="dy-link" data-act="day-route">Ver rota</button>`
-        : ""
-    }${inDay ? `<button type="button" data-act="addjob">+ Outro job</button>` : `<a href="agenda.html">Semana</a>`}</span></div>
-      ${
-        list.length
-          ? list
-              .map(
-                (j) => `<div class="dy-job${here && here.id === j.id ? " dy-job--here" : ""}">
-            <a class="dy-job__body" href="ticket.html?id=${encodeURIComponent(j.id)}">
-              <span class="dy-job__head">
-                <b class="dy-job__name">${esc(clientName(j))}</b>
-                ${inDay ? photoTag(j) : ""}
-              </span>
-              <span class="dy-job__addr">${esc(j.address || "Sem endereço")}</span>
-            </a>
-            <div class="dy-job__act">
-              ${inDay ? `<button class="dy-btn dy-btn--sm dy-btn--ink" data-act="photo" data-job="${esc(j.id)}">${ICON.cam} Foto</button>` : ""}
-              ${inDay && here && here.id !== j.id ? `<button class="dy-btn dy-btn--sm dy-btn--line" data-act="goto" data-job="${esc(j.id)}">Estou aqui</button>` : ""}
-              <a class="dy-btn dy-btn--sm dy-btn--line" href="ticket.html?id=${encodeURIComponent(j.id)}">Ticket</a>
-              ${j.maps_url && !inDay ? `<a class="dy-btn dy-btn--sm dy-btn--line" href="${esc(j.maps_url)}" target="_blank" rel="noopener">${ICON.pin} Mapa</a>` : ""}
-            </div>
-          </div>`,
-              )
-              .join("")
-          : `<div class="dy-empty">${inDay ? "Nenhum job no seu dia ainda." : "Sem jobs na agenda de hoje."}</div>`
-      }`;
+    box.outerHTML = out.html;
+    if (out.enter) $("dyCard")?.querySelector(".dy-mate")?.classList.add("dy-mate--enter");
   }
 
-  function renderPay() {
-    const box = $("dyPay");
-    if (!S.linked || !S.payments.length) {
-      box.innerHTML = "";
-      return;
+  function render() {
+    if (!S) return;
+    const emp = S.employee;
+    const first = emp ? emp.name.split(/\s+/)[0] : "";
+    const h = new Date().getHours();
+    const hello = `${h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite"}${first ? `, ${first}` : ""}`;
+    const sectorLbl = emp && emp.sector ? SECTOR[emp.sector] || emp.sector : "";
+    const eyebrow = [S.today_label || "", sectorLbl].filter(Boolean).join(" · ");
+    const card = cardHtml();
+    const cardBlock = typeof card === "string" ? card : card.html;
+    $("dyDash").innerHTML = `
+      <header class="dy-hello">
+        <div class="dy-hello-txt">
+          <p class="dy-eyebrow">${esc(eyebrow)}</p>
+          <h1>${esc(hello)}</h1>
+          <p class="dy-hello-line">${esc(helloLine())}</p>
+        </div>
+        <img class="dy-hello-mate" src="/assets/img/mascot/mate-helmet.webp?v=1" alt="" width="120" height="156" decoding="async" />
+      </header>
+      ${attentionHtml()}
+      ${quickActionsHtml()}
+      ${cardBlock}
+      ${nowPanelHtml()}
+      ${tilesHtml()}
+    `;
+    if (typeof card !== "string" && card.enter) {
+      $("dyCard")?.querySelector(".dy-mate")?.classList.add("dy-mate--enter");
     }
-    box.className = "dy-sec";
-    box.innerHTML = `<div class="dy-sec__hd"><h3>Pagamentos</h3><a href="horas.html">Minhas horas</a></div>
-      <div class="dy-pay">${S.payments
-        .slice(0, 4)
-        .map(
-          (p) => `<div class="dy-pay__row"><div><b>${esc(p.label.replace(/^Semana /, "Semana "))}</b>
-          <small>${p.status === "paid" ? `Pago em ${esc(p.paid_on.split("-").reverse().slice(0, 2).join("/"))}${p.method_label ? ` · ${esc(p.method_label)}` : ""}` : p.status === "due" ? "Semana fechada" : "Semana em andamento"}</small></div>
-          <div class="dy-pay__amt"><b>${esc(money(p.status === "paid" && p.paid_amount != null ? p.paid_amount : p.amount))}</b><br><span class="dy-tag dy-tag--${p.status}">${esc(p.status_label)}</span></div></div>`,
-        )
-        .join("")}</div>`;
+    clearInterval(tick);
+    if (S.day && S.day.status === "in_progress") tick = setInterval(renderCard, 30000);
   }
 
   // ------------------------------------------------------------ actions
@@ -1076,7 +1164,7 @@
       const list = inDay ? d.jobs : d ? d.jobs : S.jobs_today;
       route.open({
         title: "Rota do dia",
-        subtitle: $("dyDate")?.textContent || "",
+        subtitle: S.today_label || "",
         origin: routeStart || "",
         stops: route.stopsFromCampoJobs(list || []),
         onSaveOrigin: (addr) => {

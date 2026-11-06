@@ -2,7 +2,7 @@
  * Campo tabbar — Hoje / Agenda / ObraCam / Chat / Horas
  */
 (function () {
-  const VER = "20261105-crewcam1";
+  const VER = "20261105-crew-dash1";
 
   function fileName() {
     return (location.pathname || "").split("/").pop() || "";

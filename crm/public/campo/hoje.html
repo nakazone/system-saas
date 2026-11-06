@@ -6,13 +6,15 @@
   <meta name="theme-color" content="#F7F8FA" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <title>Meu dia | Campo</title>
+  <title>Hoje | ObraCrew</title>
   <link rel="icon" type="image/png" href="/assets/favicon-192.png?v=20260924-pwa" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="campo.css?v=20261105-field1" />
-  <link rel="stylesheet" href="dia.css?v=20261105-home1" />
+  <link rel="stylesheet" href="/om-tokens.css?v=20261105-apps3" />
+  <link rel="stylesheet" href="/om-ui.css?v=20261105-apps3" />
+  <link rel="stylesheet" href="campo.css?v=20261105-crew-dash1" />
+  <link rel="stylesheet" href="dia.css?v=20261105-crew-dash1" />
   <script src="/om-device.js?v=20261013-badge1"></script>
   <link rel="stylesheet" href="/om-stable-viewport.css?v=20261007-stable1" id="om-stable-viewport-css" />
   <link rel="manifest" href="/obracrew.webmanifest?v=1" />
@@ -21,21 +23,12 @@
 </head>
 <body class="cm-app cm-hoje">
   <main class="cm-page dy" id="dyRoot" aria-busy="true">
-    <header class="dy-hd">
-      <div class="dy-av" id="dyAv" aria-hidden="true">·</div>
-      <div class="dy-hd__t">
-        <h1 id="dyHello">Meu dia</h1>
-        <p id="dyDate">&nbsp;</p>
-      </div>
-      <span class="dy-net" id="dyNet" hidden>Sem sinal</span>
-    </header>
-
-    <div id="dyReturned"></div>
-    <section id="dyCard" class="dy-card dy-card--load" aria-live="polite">
-      <div class="dy-skel"></div><div class="dy-skel dy-skel--s"></div>
-    </section>
-    <section id="dyJobs"></section>
-    <section id="dyPay"></section>
+    <span class="dy-net" id="dyNet" hidden>Sem sinal</span>
+    <div class="dy-bento" id="dyDash" aria-live="polite">
+      <div class="dy-skel dy-skel--dash" aria-hidden="true"></div>
+      <div class="dy-skel dy-skel--dash dy-skel--s" aria-hidden="true"></div>
+      <div class="dy-skel dy-skel--dash" aria-hidden="true"></div>
+    </div>
   </main>
 
   <!-- Sheets -->
@@ -55,11 +48,12 @@
   <div class="dy-toast" id="dyToast" role="status" hidden></div>
 
   <script src="/om-offline.js?v=20261105-apps3"></script>
+  <script src="/om-ui.js?v=20261105-apps3"></script>
   <script src="/photo-exif.js?v=20261104-exif1"></script>
   <script src="campo-photo.js?v=20261105-apps3"></script>
   <script src="campo-media-queue.js?v=20261104-exif1"></script>
-  <script src="campo-nav.js?v=20261105-crewcam1"></script>
-  <script src="dia.js?v=20261105-field2"></script>
+  <script src="campo-nav.js?v=20261105-crew-dash1"></script>
+  <script src="dia.js?v=20261105-crew-dash1"></script>
   <link rel="stylesheet" href="/mate-panel.css?v=20261027-m2" />
   <script src="/mate-panel.js?v=20261104-ux2"></script>
 </body>
