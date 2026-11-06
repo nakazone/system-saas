@@ -2,7 +2,7 @@
  * Campo tabbar — Hoje / Agenda / ObraCam / Chat / Horas
  */
 (function () {
-  const VER = "20261106-crew-sector1";
+  const VER = "20261106-crewtop1";
 
   function fileName() {
     return (location.pathname || "").split("/").pop() || "";
@@ -103,6 +103,10 @@
     set('link[rel="apple-touch-icon"]', sand ? "/assets/obracrew/lixa/apple-touch-icon.png?v=1" : "/assets/obracrew/apple-touch-icon.png?v=1");
     set('link[rel="manifest"]', sand ? "/obracrew-lixa.webmanifest?v=1" : "/obracrew.webmanifest?v=1");
     document.documentElement.dataset.crew = sand ? "sand" : "install";
+    const mark = sand ? "/assets/obracrew/lixa/icon-192.png?v=1" : "/assets/obracrew/icon-192.png?v=1";
+    document.querySelectorAll('img.om-shell-mark[src^="/assets/obracrew/"]').forEach((img) => {
+      if (img.getAttribute("src") !== mark) img.setAttribute("src", mark);
+    });
   }
   function crewSector() {
     let saved = null;

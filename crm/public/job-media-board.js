@@ -146,8 +146,12 @@
   function statusLabel(s) {
     return { draft: "Rascunho", scheduled: "Agendado", in_progress: "Em campo", completed: "Concluído", canceled: "Cancelado" }[s] || s || "—";
   }
-  /** ObraCrew production label (Agendado / Installing|Sanding / Concluído) — never billing. */
+  /** ObraCam list: Instalando / Lixando / serviço concluído, nas cores do calendário. */
   function jobStageLabel(j) {
+    if (window.JobsInfo?.camListChips) {
+      const chips = window.JobsInfo.camListChips(j);
+      if (chips.length) return chips.map((c) => c.label).join(" · ");
+    }
     if (crewMode && window.JobsInfo?.crewStageLabel) return window.JobsInfo.crewStageLabel(j);
     if (crewMode && j.field_status_label) return j.field_status_label;
     if (window.JobsInfo?.stageLabel) return window.JobsInfo.stageLabel(j);
@@ -204,7 +208,14 @@
       client_name: aj.client,
       client: aj.client,
       field_status_label: aj.field_status_label,
+      field_status: aj.field_status,
       sector: aj.sector,
+      needs_delivery: aj.needs_delivery,
+      delivery_scheduled_start: aj.delivery_scheduled_start,
+      delivery_starts: aj.delivery_starts,
+      cal_install: aj.cal_install,
+      cal_sand: aj.cal_sand,
+      cal_delivery: aj.cal_delivery,
     };
     return board ? { ...board, ...fromAgenda } : fromAgenda;
   }
@@ -368,8 +379,7 @@
     const wd = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"][d.getDay()];
     const mo = MO[d.getMonth()];
     const today = sod(d).getTime() === sod(new Date()).getTime();
-    const late = J && J.late ? J.late(j) : null;
-    const tone = today ? " is-today" : !finished && late ? " is-late" : finished ? " is-done" : "";
+    const tone = !finished && (today || j.status === "in_progress") ? " is-now" : finished ? " is-done" : "";
     return `<span class="ol-lead jx-day${tone}" aria-label="${today ? "Hoje" : `${wd} ${d.getDate()} ${mo}`}"><small>${today ? "hoje" : wd}</small><b>${d.getDate()}</b><small>${mo}</small></span>`;
   }
 
@@ -397,16 +407,28 @@
     return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   }
 
+  const CHIP_CHECK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.2 8.2 6.4 11.4 12.8 4.6"/></svg>';
+  function chipHtml(c) {
+    const style = c.color ? ` style="--cal:${esc(c.color)}"` : "";
+    const mark = c.mark === "check" ? CHIP_CHECK : c.mark === "none" ? "" : "<i></i>";
+    return `<span class="cam-svc is-${esc(c.tone || "wait")}${c.mark === "check" ? " is-check" : ""}"${style}>${mark}${esc(c.label)}</span>`;
+  }
+  /** Status chips for the Jobs list and the open job. Color comes from the calendar. */
+  function statusChipsHtml(j) {
+    const chips = window.JobsInfo?.camListChips ? window.JobsInfo.camListChips(j) : [];
+    if (!chips.length) {
+      const t = jobStageLabel(j);
+      return t && t !== "—" ? `<span class="cam-svcs"><span class="cam-svc is-wait"><i></i>${esc(t)}</span></span>` : "";
+    }
+    return `<span class="cam-svcs">${chips.map(chipHtml).join("")}</span>`;
+  }
+
   /** ObraCrew Jobs card: day · client · address · status/hora · mapa. */
   function crewRowHtml(j) {
-    const J = window.JobsInfo;
     const who = listWho(j);
     const head = who && who !== "Sem cliente" ? who : j.title || "Job";
     const href = `#cam-${encodeURIComponent(j.id)}`;
     const maps = j.address ? `https://maps.google.com/?q=${encodeURIComponent(j.address)}` : "";
-    const listed = J && J.crewListWhen ? J.crewListWhen(j) : J && J.listWhen ? J.listWhen(j) : null;
-    const stText = listed?.status || jobStageLabel(j);
-    const tone = J && J.crewStageTone ? J.crewStageTone(j) : J && J.stageTone ? J.stageTone(j) : "wait";
     const time = timeText(j);
     const on = String(j.id) === String(selId) && mode !== "photos" ? " is-on" : "";
     const id = esc(j.id);
@@ -419,7 +441,7 @@
           <b class="crew-job__title">${esc(head)}</b>
           ${j.address ? `<span class="crew-job__addr">${esc(j.address)}</span>` : `<span class="crew-job__addr">Sem endereço</span>`}
           <span class="crew-job__meta">
-            ${stText ? `<span class="ol-st is-${tone}">${esc(stText)}</span>` : ""}
+            ${statusChipsHtml(j)}
             ${time ? `<span class="crew-job__clock">${esc(time)}</span>` : ""}
           </span>
         </div>
@@ -444,9 +466,6 @@
       ? `<span class="ol-m jx-row__addr" title="${esc(j.address)}">${SVG.pin}<span>${esc(j.address)}</span></span>`
       : `<span class="ol-m"><span>Sem endereço</span></span>`;
     const stale = needsPhoto(j);
-    const lt = window.JobsInfo?.late ? window.JobsInfo.late(j) : null;
-    const tone = window.JobsInfo?.stageTone ? window.JobsInfo.stageTone(j) : "wait";
-    const stText = lt ? lt.short : jobStageLabel(j);
     const maps = j.address ? `https://maps.google.com/?q=${encodeURIComponent(j.address)}` : "";
     const time = timeText(j);
     const prog = window.JobsInfo?.progHtml ? window.JobsInfo.progHtml(j) : "";
@@ -463,7 +482,7 @@
       ${prog}
     </a>
     <div class="jmx-card__r3 jx-foot" data-cam-id="${id}">
-      ${stText ? `<span class="ol-st is-${tone}" title="${esc(stText)}">${esc(stText)}</span>` : ""}
+      ${statusChipsHtml(j)}
       ${maps ? `<a class="jmx-b jmx-b--sq" href="${maps}" target="_blank" rel="noopener" aria-label="Abrir mapa" title="Abrir mapa">${SVG.pin}</a>` : ""}
       <a class="${ctaCls}" href="${href}" data-cam-id="${id}">${esc(ctaLbl)}</a>
     </div>
@@ -592,8 +611,8 @@
       return crewDayJobs.map(mergeAgendaJob).filter(jobHit);
     }
     const hit = jobs.filter(jobHit);
-    if (showAll) return hit;
-    return mode === "done" ? hit.filter(isDone) : hit.filter(isActive);
+    if (mode === "done") return hit.filter(isDone);
+    return hit.filter((j) => j.status !== "canceled");
   }
 
   function renderCrewWeek() {
@@ -651,35 +670,65 @@
     void loadCrewAgenda();
   }
 
+  function anchorDate(j) {
+    const iso = jobAnchorIso(j) || (isDone(j) ? j.updated_at || j.scheduled_end : null);
+    if (!iso) return null;
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  /** Newest date first. Jobs without a date stay at the bottom. */
+  function byRecent(a, b) {
+    const ta = anchorDate(a);
+    const tb = anchorDate(b);
+    if (!ta && !tb) return listWho(a).localeCompare(listWho(b), "pt-BR", { sensitivity: "base" });
+    if (!ta) return 1;
+    if (!tb) return -1;
+    return tb.getTime() - ta.getTime();
+  }
+  /**
+   * Same reading as Jobs, in three collapses:
+   * Em Progresso (open), Concluídos and Próximos (start closed).
+   */
+  function timelineGroups(rows) {
+    const today = sod(new Date()).getTime();
+    const progress = [];
+    const next = [];
+    const done = [];
+    rows.forEach((j) => {
+      if (j.status === "canceled") return;
+      if (j.status === "completed" || j.status === "done") return done.push(j);
+      if (j.status === "in_progress") return progress.push(j);
+      const d = anchorDate(j);
+      if (!d || sod(d).getTime() <= today) return progress.push(j);
+      next.push(j);
+    });
+    progress.sort(byRecent);
+    done.sort(byRecent);
+    next.sort(byRecent);
+    const onlyDone = rows.length > 0 && done.length === rows.length;
+    const onlyNext = rows.length > 0 && next.length === rows.length;
+    return [
+      ["Em Progresso", progress, false],
+      ["Concluídos", done, !onlyDone],
+      ["Próximos", next, !onlyNext],
+    ].filter(([, list]) => list.length);
+  }
   function groups() {
     const f = FILTERS.find(([k]) => k === listPref.filter) || FILTERS[0];
-    const rows = baseJobs().filter(f[2]).sort(cmpJobs);
-    // ObraCrew: one flat list — no office buckets.
-    if (crewMode) return [["", rows]];
-    if (listPref.group === "client") {
+    const rows = baseJobs().filter(f[2]);
+    if (!crewMode && listPref.group === "client") {
+      const sorted = rows.slice().sort(cmpJobs);
       const by = new Map();
-      rows.forEach((j) => {
+      sorted.forEach((j) => {
         const k = clientKey(j);
         if (!by.has(k)) by.set(k, []);
         by.get(k).push(j);
       });
-      return [...by.entries()].sort(([a], [b]) => (a === "Sem cliente") - (b === "Sem cliente") || a.localeCompare(b, "pt-BR", { sensitivity: "base" }));
+      return [...by.entries()]
+        .sort(([a], [b]) => (a === "Sem cliente") - (b === "Sem cliente") || a.localeCompare(b, "pt-BR", { sensitivity: "base" }))
+        .map(([label, list]) => [label, list, false]);
     }
-    if (showAll) {
-      const active = rows.filter((j) => !isDone(j));
-      return [
-        ["Precisa de foto", active.filter((j) => needsPhoto(j) && j.scheduled_start)],
-        ["Em dia", active.filter((j) => !needsPhoto(j))],
-        ["Sem data", active.filter((j) => needsPhoto(j) && !j.scheduled_start)],
-        ["Concluídos", rows.filter(isDone)],
-      ];
-    }
-    if (mode === "done") return [["Concluídos", rows]];
-    return [
-      ["Precisa de foto", rows.filter((j) => needsPhoto(j) && j.scheduled_start)],
-      ["Em dia", rows.filter((j) => !needsPhoto(j))],
-      ["Sem data", rows.filter((j) => needsPhoto(j) && !j.scheduled_start)],
-    ];
+    return timelineGroups(rows);
   }
 
   function renderFilters() {
@@ -745,8 +794,9 @@
     if (!loaded) return;
     const html = groups()
       .filter(([, rows]) => rows.length)
-      .map(([label, rows]) => {
-        const head = label ? `<p class="cam-grp ol-grp"><span>${esc(label)}</span><em>${rows.length}</em></p>` : "";
+      .map(([label, rows, closed]) => {
+        const shut = closed ? ' data-ol-closed="1"' : "";
+        const head = label ? `<p class="cam-grp ol-grp"${shut}><span>${esc(label)}</span><em>${rows.length}</em></p>` : "";
         return head + rows.map(rowHtml).join("");
       })
       .join("");
@@ -919,18 +969,10 @@
   function mapsHref(address) {
     return `https://maps.google.com/?q=${encodeURIComponent(address)}`;
   }
-  function stagePillCls(label) {
-    const s = String(label || "");
-    if (window.JobsInfo?.isInFieldStage?.(s) || s === "Em campo" || s === "Lixa" || s === "Installing" || s === "Sanding") return "dk";
-    if (s === "Concluído" || s === "Faturado" || s === "Pago") return "ol";
-    return "";
-  }
 
   function headHtml(j, list) {
     const n = list ? list.length : j.photo_count || 0;
     const authors = list ? [...new Set(list.map((p) => p.author_name).filter(Boolean))] : [];
-    const stage = jobStageLabel(j);
-    const st = stagePillCls(stage);
     const lastTxt = j.last_photo ? `Última foto ${ago(j.last_photo.created_at)}` : "Nenhuma foto";
     const who = listWho(j);
     const hasWho = who && who !== "Sem cliente";
@@ -949,7 +991,7 @@
           <h2><a href="${open}" title="${esc(name)}">${esc(name)}</a></h2>
           ${sub && !crewMode ? `<p class="cam-dsub" title="${esc(sub)}">${esc(sub)}</p>` : ""}
           <div class="cam-dmeta">
-            <span class="cam-pill${st ? ` cam-pill--${st}` : ""}">${esc(stage)}</span>
+            ${statusChipsHtml(j)}
             <span class="cam-pill${needsPhoto(j) ? " cam-pill--hot" : ""}">${esc(lastTxt)}</span>
             ${crewMode ? "" : facts.map((x) => `<span class="cam-dfact">${x}</span>`).join("")}
             ${addr}
@@ -2623,6 +2665,12 @@
       sand_scheduled_start: wo.sand_scheduled_start || null,
       installation_done_at: wo.installation_done_at || null,
       sand_done_at: wo.sand_done_at || null,
+      needs_delivery: Boolean(wo.needs_delivery),
+      delivery_scheduled_start: wo.delivery_scheduled_start || null,
+      delivery_starts: wo.delivery_starts || null,
+      cal_install: wo.cal_install || null,
+      cal_sand: wo.cal_sand || null,
+      cal_delivery: wo.cal_delivery || null,
       billing: wo.billing || null,
       geo_lat: null,
       geo_lng: null,

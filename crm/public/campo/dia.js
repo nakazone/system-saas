@@ -402,7 +402,7 @@
           ${helloMetaHtml()}
           <h1>${esc(hello)}</h1>
         </div>
-        <img class="dy-hello-mate" src="${S.employee && S.employee.sector === "sand_finish" ? "/assets/img/mascot/mate-crew-lixa.webp?v=1" : "/assets/img/mascot/mate-crew.webp?v=1"}" alt="" width="167" height="220" decoding="async" fetchpriority="high" />
+        <img class="dy-hello-mate" src="${S.employee && S.employee.sector === "sand_finish" ? "/assets/img/mascot/mate-crew-lixa.webp?v=2" : "/assets/img/mascot/mate-crew.webp?v=1"}" alt="" width="167" height="220" decoding="async" fetchpriority="high" />
       </header>
       ${attentionHtml()}
       ${quickActionsHtml()}

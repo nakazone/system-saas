@@ -23,6 +23,8 @@ import { fieldJobDateWindowWhere, fieldPayrollSector, myFieldJobsWhere } from ".
 import { prisma } from "../../lib/prisma.js";
 import { recordActivity } from "../../lib/activity/record.js";
 import { jobBilling, jobBillingLabel } from "../../lib/invoices/job.js";
+import { parseScheduleSettings, serviceCalendarColors } from "../../lib/settings/schedule.js";
+import { resolveDeliveryStops } from "../../lib/work-orders/deliveries.js";
 
 export const jobFieldExtrasRouter = Router();
 
@@ -126,6 +128,11 @@ jobFieldExtrasRouter.get(
       since.setDate(since.getDate() - days);
       const data = await withTenantTransaction(req.organizationId!, async (tx) => {
         const tz = await orgTimezone(tx, req.organizationId!);
+        const orgRow = await tx.organization.findFirst({
+          where: { id: req.organizationId! },
+          select: { scheduleSettings: true },
+        });
+        const sched = parseScheduleSettings(orgRow?.scheduleSettings);
         const scope = await fieldBoardScope(tx, req);
         const rows = await tx.workOrder.findMany({
           where: { status: { in: ["draft", "scheduled", "in_progress", "completed"] }, ...scope },
@@ -145,6 +152,9 @@ jobFieldExtrasRouter.get(
             deliveryScheduledStart: true,
             needsDelivery: true,
             deliveries: true,
+            deliveryPickupAddress: true,
+            deliveryNotes: true,
+            crew: { select: { color: true } },
             geoLat: true,
             geoLng: true,
             sourceName: true,
@@ -236,6 +246,8 @@ jobFieldExtrasRouter.get(
             const billing = jobBilling(servicesTotal, wo.invoices || []);
             const clientCode =
               wo.customer?.clientCode != null ? String(wo.customer.clientCode).trim() || null : null;
+            const colors = serviceCalendarColors(sched, wo.crew?.color, wo.sector);
+            const stops = resolveDeliveryStops(wo);
             return {
               id: wo.id,
               number: wo.number,
@@ -274,6 +286,12 @@ jobFieldExtrasRouter.get(
               sand_scheduled_start: wo.sandScheduledStart?.toISOString() ?? null,
               installation_done_at: wo.installationDoneAt?.toISOString() ?? null,
               sand_done_at: wo.sandDoneAt?.toISOString() ?? null,
+              needs_delivery: Boolean(wo.needsDelivery) || stops.length > 0,
+              delivery_scheduled_start: wo.deliveryScheduledStart?.toISOString() ?? stops[0]?.scheduled_start ?? null,
+              delivery_starts: stops.map((s) => s.scheduled_start).filter((s): s is string => Boolean(s)),
+              cal_install: colors.installation,
+              cal_sand: colors.sand,
+              cal_delivery: colors.delivery,
               billing: { ...billing, billing_status_label: jobBillingLabel(billing.billing_status) },
               geo_lat: jobGeo?.lat ?? null,
               geo_lng: jobGeo?.lng ?? null,

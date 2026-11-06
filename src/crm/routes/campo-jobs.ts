@@ -49,6 +49,7 @@ import {
 } from "../../lib/job-media/phases.js";
 import { isJobChecklistEnabled } from "../../lib/settings/jobs.js";
 import { resolveDeliveryStops } from "../../lib/work-orders/deliveries.js";
+import { parseScheduleSettings, serviceCalendarColors } from "../../lib/settings/schedule.js";
 import { sectorFinishPatch } from "../../lib/work-orders/sector-finish.js";
 import {
   JOB_REPORT_TEMPLATES,
@@ -350,6 +351,11 @@ campoJobsRouter.get(
         );
 
         const fieldSector = await fieldPayrollSector(tx, req.user!.id);
+        const orgRow = await tx.organization.findFirst({
+          where: { id: req.organizationId! },
+          select: { scheduleSettings: true },
+        });
+        const sched = parseScheduleSettings(orgRow?.scheduleSettings);
         const rows = await tx.workOrder.findMany({
           where: {
             status: { not: "canceled" },
@@ -393,7 +399,19 @@ campoJobsRouter.get(
           });
         }
 
-        const selectedJobs = (byDay.get(selectedYmd) || []).map((j) => mapJobCard(j, { fieldSector }));
+        const selectedJobs = (byDay.get(selectedYmd) || []).map((j) => {
+          const stops = resolveDeliveryStops(j);
+          const colors = serviceCalendarColors(sched, j.crew?.color, j.sector);
+          return {
+            ...mapJobCard(j, { fieldSector }),
+            needs_delivery: Boolean(j.needsDelivery) || stops.length > 0,
+            delivery_scheduled_start: j.deliveryScheduledStart?.toISOString() ?? stops[0]?.scheduled_start ?? null,
+            delivery_starts: stops.map((s) => s.scheduled_start).filter((s): s is string => Boolean(s)),
+            cal_install: colors.installation,
+            cal_sand: colors.sand,
+            cal_delivery: colors.delivery,
+          };
+        });
         const endYmd = addYmd(weekStartYmd, 6);
         const monShort = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
         const range_label = `${Number(weekStartYmd.slice(8, 10))} – ${Number(endYmd.slice(8, 10))} ${monShort[Number(endYmd.slice(5, 7)) - 1]}`;

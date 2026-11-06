@@ -352,3 +352,17 @@ export function resolveDeliveryCalendar(settings: ScheduleSettings): ScheduleCal
 export function resolveDeliveryColor(settings: ScheduleSettings): string {
   return resolveDeliveryCalendar(settings).color;
 }
+
+/** Colors the calendar paints for this job's Installation, Lixa and Delivery events. */
+export function serviceCalendarColors(
+  settings: ScheduleSettings,
+  crewColor: string | null | undefined,
+  sector?: string | null,
+): { installation: string; sand: string; delivery: string } {
+  const installSector = sector === "sand_finish" ? "installation" : sector === "both" ? "installation" : sector || "installation";
+  return {
+    installation: resolveJobColor(settings, crewColor, installSector),
+    sand: resolveJobColor(settings, crewColor, "sand_finish"),
+    delivery: resolveDeliveryColor(settings),
+  };
+}

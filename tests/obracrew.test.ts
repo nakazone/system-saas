@@ -110,6 +110,8 @@ describe.skipIf(!privileged)("GET /obracrew", () => {
 
 describe("crew icon", () => {
   it("points the sanding crew at its own icon and manifest", () => {
+    const shell = readFileSync("crm/public/om-shell.js", "utf8");
+    expect(shell).toContain("/assets/obracrew/lixa/icon-192.png");
     const js = readFileSync("crm/public/campo/campo-nav.js", "utf8");
     expect(js).toContain("/api/campo/setor");
     expect(js).toContain("/assets/obracrew/lixa/apple-touch-icon.png");
