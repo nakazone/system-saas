@@ -14,6 +14,8 @@ import express, { type Request, type Response, type Router } from "express";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { crmAuthRouter } from "./auth-api.js";
 import { hasFeature } from "../lib/features/index.js";
+import { withTenantTransaction } from "../lib/tenant/prisma-tenant.js";
+import { isFieldQuoteEnabled } from "./routes/field-quotes.js";
 import { crmApiRouter } from "./api.js";
 import { i18nCrmRouter } from "../lib/i18n/routes.js";
 import { i18nVersion, orgDefaultUiLocale } from "../lib/i18n/index.js";
@@ -180,6 +182,13 @@ export function canUseObraQuote(user: { roleKey?: string | null; permissions?: s
   return p.includes("quotes.view") || p.includes("quotes.create") || p.includes("leads.edit");
 }
 
+/** The no-access page, worded for a company that turned Field Quote off. */
+export function obraQuoteOffHtml(noAccess: string): string {
+  return noAccess
+    .replace(/<h1>[\s\S]*?<\/h1>/, "<h1>O Field Quote está desligado na sua empresa</h1>")
+    .replace(/<p>[\s\S]*?<\/p>/, "<p>O ObraQuote é o app do Field Quote. Para usar, um administrador precisa ligar o Field Quote nas configurações da empresa.</p>");
+}
+
 /** The Field Quote page dressed as the ObraQuote app; the visit, Mate and presentation are shared with field-quote.html. */
 export function obraQuoteHtml(html: string): string {
   const head = [
@@ -295,8 +304,17 @@ export function createCrmRouter(): Router {
         return;
       }
       res.setHeader("Cache-Control", "no-store, max-age=0");
+      const noAccess = fs.readFileSync(path.join(CRM_PUBLIC_DIR, "obraquote-sem-acesso.html"), "utf8");
       if (!canUseObraQuote(req.user)) {
-        res.type("html").send(fs.readFileSync(path.join(CRM_PUBLIC_DIR, "obraquote-sem-acesso.html"), "utf8"));
+        res.type("html").send(noAccess);
+        return;
+      }
+      // ObraQuote is only the Field Quote: when the company turned Field Quote off, the app says so.
+      const org = await withTenantTransaction(req.user.organizationId, (tx) =>
+        tx.organization.findFirst({ where: { id: req.user!.organizationId }, select: { featureFlags: true } }),
+      );
+      if (!isFieldQuoteEnabled(org?.featureFlags)) {
+        res.type("html").send(obraQuoteOffHtml(noAccess));
         return;
       }
       const html = await renderCrmHtml(req, path.join(CRM_PUBLIC_DIR, "field-quote.html"));

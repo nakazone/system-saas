@@ -49,6 +49,7 @@ describe.skipIf(!privileged)("GET /obraquote", () => {
   let adminCookie = "";
   let salesCookie = "";
   let installerCookie = "";
+  let orgIdForFlags = "";
   const suffix = `oqt${Date.now().toString(36)}`;
 
   async function login(email: string, organizationId: string) {
@@ -68,6 +69,7 @@ describe.skipIf(!privileged)("GET /obraquote", () => {
     const adminEmail = `admin-${suffix}@example.com`;
     const a = await createOrganizationWithAdmin({ organizationName: `Quote ${suffix}`, slug: `quote-${suffix}`, adminName: "Admin", adminEmail, password: "password12345" });
     const orgId = a.organization.id;
+    orgIdForFlags = orgId;
     for (const key of ["sales", "installer"]) {
       const role = await prisma.role.findFirst({ where: { organizationId: orgId, key } });
       await prisma.user.create({ data: { organizationId: orgId, email: `${key}-${suffix}@example.com`, name: key, passwordHash: await hashPassword("password12345"), roleId: role!.id, status: "active" } });
@@ -107,8 +109,20 @@ describe.skipIf(!privileged)("GET /obraquote", () => {
     const r = await fetch(`${base}/obraquote`, { headers: { Cookie: installerCookie } });
     const html = await r.text();
     expect(r.status).toBe(200);
-    expect(html).toContain("O ObraQuote é para quem faz orçamentos");
+    expect(html).toContain("O ObraQuote é o app do Field Quote");
     expect(html).not.toContain("field-quote.js");
+  });
+
+  it("says so when the company turned Field Quote off", async () => {
+    await prisma.organization.update({ where: { id: orgIdForFlags }, data: { featureFlags: { field_quote: false } } });
+    try {
+      const r = await fetch(`${base}/obraquote`, { headers: { Cookie: adminCookie } });
+      const html = await r.text();
+      expect(html).toContain("O Field Quote está desligado na sua empresa");
+      expect(html).not.toContain("field-quote.js");
+    } finally {
+      await prisma.organization.update({ where: { id: orgIdForFlags }, data: { featureFlags: {} } });
+    }
   });
 
   it("serves the manifest", async () => {

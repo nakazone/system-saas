@@ -1,7 +1,7 @@
 {
   "name": "ObraQuote",
   "short_name": "ObraQuote",
-  "description": "Orçamentos na casa do cliente, com o Mate, no ObraMate.",
+  "description": "O Field Quote do ObraMate: medir, orçar e apresentar na casa do cliente, com o Mate.",
   "id": "/obraquote",
   "start_url": "/obraquote?source=pwa",
   "scope": "/obraquote",
