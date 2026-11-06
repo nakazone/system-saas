@@ -156,3 +156,31 @@ html body .jb-actions .btn, html body .jb-dialog .btn {
 }
 html body .jb-actions .btn-primary, html body .jb-dialog .btn-primary { background: #E7792C !important; box-shadow: none !important; color: #fff !important; }
 html body .jb-actions .btn-primary:hover, html body .jb-dialog .btn-primary:hover { background: #EF8A44 !important; }
+
+/* Invoices block inside a job: each invoice carries its own actions. */
+.jb-row { display: grid; gap: 0; border-radius: 12px; box-shadow: 0 0 0 1px #E5E7EB; overflow: hidden; }
+.jb-row .jb-inv { box-shadow: none; border-radius: 0; }
+.jb-row__acts { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 2px 12px 6px; }
+.jb-act { min-height: 32px; padding: 0; border: 0; background: none; font: inherit; font-size: 12.5px; font-weight: 600; color: #221E1A; text-decoration: underline; text-decoration-color: #D0D5DD; text-underline-offset: 3px; white-space: nowrap; cursor: pointer; }
+.jb-act:hover { text-decoration-color: #E7792C; }
+.jb-act:disabled { opacity: .55; cursor: progress; }
+.jb-act--main { min-height: 36px; padding: 0 12px; border-radius: 10px; background: #fff; box-shadow: 0 0 0 1px #D0D5DD; text-decoration: none; }
+.jb-act--main:hover { background: #F7F8FA; }
+.jb-actions { align-items: center; justify-content: space-between; }
+.jb-actions__left { font-size: 12.5px; color: #667085; }
+.jb-chip--overdue { background: #FDF0E6; color: #B4561A; }
+.jb-dialog .jb-field select { padding: 0.55rem 0.65rem; border: 1px solid #E5E7EB; border-radius: 10px; font: inherit; font-weight: 500; background: #fff; }
+.jb-check { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 0.9rem; font-size: 0.84rem; color: #475467; overflow-wrap: anywhere; }
+.jb-check input { margin-top: 2px; accent-color: #221E1A; flex: none; }
+.jb-dialog__more { margin: 0 0 0.9rem; font-size: 0.8rem; }
+.jb-dialog__more a { color: #475467; text-decoration: underline; text-underline-offset: 3px; }
+@media (pointer: coarse) {
+  .jb-act { min-height: 44px; }
+  .jb-act--main { min-height: 44px; }
+}
+.jb-sum { margin-bottom: 10px; }
+.jb-sum small { display: block; font-size: 11.5px; font-weight: 600; color: #667085; }
+.jb-sum b { display: block; font-size: 19px; font-weight: 700; letter-spacing: -.02em; color: #221E1A; font-variant-numeric: tabular-nums; }
+.jb-sum p { margin: 0; font-size: 12px; line-height: 1.35; color: #667085; font-variant-numeric: tabular-nums; }
+.jb-bar.jb-sum__bar { margin: 5px 0 4px; height: 5px; }
+.jb-more { margin: 6px 0 0; font-size: 12px; color: #667085; }

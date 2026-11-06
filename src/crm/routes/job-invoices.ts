@@ -81,6 +81,8 @@ jobInvoicesRouter.get(
             remaining_amount: m.balance,
             due_date: inv.dueDate,
             days_overdue: m.daysOverdue,
+            sent_to: inv.sentTo ?? null,
+            email_sent_at: inv.sentTo ? inv.issuedAt : null,
             created_at: inv.createdAt,
             url: `invoices.html?id=${encodeURIComponent(inv.id)}`,
           };

@@ -82,7 +82,6 @@
       billing: billing?.billing || null,
       invoices: billing?.data || null,
       field,
-      photos: media?.length || 0,
       partnerPortal: hasPartnerPortal(),
     };
   }
@@ -98,7 +97,7 @@
       const j = await window.JobBilling.load(jobId);
       billing = { billing: j.billing, data: j.data || [] };
     } catch (_) {}
-    return window.JobBilling.openDialog({ jobId, billing: billing?.billing, jobStatus: job.status });
+    return window.JobBilling.openDialog({ jobId, billing: billing?.billing, jobStatus: job.status, stay: true });
   }
   async function deleteJob() {
     const okDel = await window.crmConfirm({
@@ -114,6 +113,12 @@
   }
   async function runHeaderAct(act) {
     if (act === "invoice") return openInvoiceDialog();
+    if (act === "pay") return window.JobBilling.payNext(jobId);
+    if (act === "agenda") {
+      if (!railShown()) setTab("geral");
+      setTimeout(() => $("jobAgendaCard")?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 60);
+      return;
+    }
     if (act === "edit") return openSection("all");
     if (act === "services") return openSection("services");
     if (act === "schedule") return openSection("schedule");
@@ -123,10 +128,6 @@
     if (act === "reopen") return setStatus("draft", "Job reaberto.");
     if (act === "delete") return deleteJob();
     if (act === "chat") return window.JobChatComms.openJobChannel(jobId);
-    if (act === "lixa") {
-      if (!window.__crmJobModal) throw new Error("Editor de job indisponível.");
-      return window.__crmJobModal.openScheduleLixa(job);
-    }
   }
   async function setStatus(status, msg) {
     const j = await api(`/api/work-orders/${jobId}`, { method: "PUT", body: JSON.stringify({ status }) });
@@ -158,7 +159,7 @@
       return;
     }
     if (idx === 3 && canBill && window.JobBilling) {
-      window.JobBilling.openDialog({ jobId, billing: billing?.billing, jobStatus: job.status });
+      window.JobBilling.openDialog({ jobId, billing: billing?.billing, jobStatus: job.status, stay: true });
       return;
     }
     if (idx === 4) notify("Registre o pagamento nas faturas do job.", "info");
@@ -266,6 +267,45 @@
       billingCtl.setJobStatus(job.status);
       billingCtl.refresh().catch(() => {});
     }
+  }
+
+  /** The rail stays with the job on every tab; on narrow screens it shows under the overview. */
+  function renderRail() {
+    renderAgendaBlock();
+    renderBillingTab();
+    renderCamBlock();
+  }
+  const railShown = () => getComputedStyle($("jdRail")).display !== "none";
+
+  let agendaCtl = null;
+  function renderAgendaBlock() {
+    if (window.__omDevice?.isMobile?.()) return;
+    if (agendaCtl) {
+      agendaCtl.update(job);
+      return;
+    }
+    agendaCtl = window.JobAgendaBlock.mount($("jobAgendaBody"), {
+      job,
+      canManage,
+      canViewCalendar: sessionRole === "admin" || sessionPerms.includes("schedule.view"),
+    });
+  }
+
+  let camCtl = null;
+  function renderCamBlock() {
+    // The phone screen mounts its own.
+    if (camCtl || window.__omDevice?.isMobile?.()) return;
+    $("jobCamOpen").href = `job-media-board.html?id=${encodeURIComponent(jobId)}`;
+    camCtl = window.JobCamBlock.mount($("jobCamBody"), {
+      job,
+      canAdd: canManage,
+      canManage,
+      onViewAll: () => {
+        setTab("fotos");
+        const top = $("jdTabs").getBoundingClientRect().top + window.scrollY - 12;
+        if (window.scrollY > top) window.scrollTo({ top, behavior: "smooth" });
+      },
+    });
   }
 
   function isB2B() {
@@ -457,70 +497,19 @@
       : `<p class="jd-empty">${aiEnabled ? "Gere um relatório com as fotos do job para mandar ao cliente." : "Relatório com IA indisponível neste servidor."}</p>`;
   }
 
-  function compressImage(file, maxEdge, quality) {
-    return new Promise((resolve, reject) => {
-      const url = URL.createObjectURL(file);
-      const img = new Image();
-      img.onload = () => {
-        try {
-          const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
-          const canvas = document.createElement("canvas");
-          canvas.width = Math.round(img.width * scale);
-          canvas.height = Math.round(img.height * scale);
-          canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
-          URL.revokeObjectURL(url);
-          resolve(canvas.toDataURL("image/jpeg", quality));
-        } catch (e) {
-          URL.revokeObjectURL(url);
-          reject(e);
-        }
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        reject(new Error("Não foi possível ler a imagem. Use JPG ou PNG."));
-      };
-      img.src = url;
-    });
-  }
   async function uploadPhotos(files) {
     const btn = $("btnAddJobPhoto");
     btn.disabled = true;
-    const stage = $("jobPhotoStage").value || null;
-    let ok = 0;
-    try {
-      for (const file of files) {
-        const type = String(file.type || "").toLowerCase();
-        if (type.includes("heic") || type.includes("heif")) {
-          notify("Foto HEIC não suportada — exporte como JPG.", "error");
-          continue;
-        }
-        btn.textContent = `Enviando ${ok + 1}/${files.length}…`;
-        const dataUrl = await compressImage(file, 1600, 0.75);
-        const j = await api(`/api/work-orders/${jobId}/media`, {
-          method: "POST",
-          body: JSON.stringify({
-            data_url: dataUrl,
-            stage,
-            taken_at_device: new Date(file.lastModified || Date.now()).toISOString(),
-            address: job.address || null,
-            client_upload_id: window.crypto?.randomUUID ? crypto.randomUUID() : `office-${Date.now()}-${ok}`,
-            device_label: "Office web",
-            is_public: false,
-          }),
-        });
-        media = [j.data, ...(media || []).filter((p) => p.id !== j.data.id)];
-        ok += 1;
-      }
-      if (ok) notify(ok === 1 ? "Foto adicionada." : `${ok} fotos adicionadas.`, "success");
-    } catch (e) {
-      notify(e.message || "Falha no envio", "error");
-    } finally {
-      btn.disabled = false;
-      btn.textContent = "+ Adicionar fotos";
-      $("jdTabFotos").textContent = media?.length ? String(media.length) : "";
-      renderPhotos();
-      renderAfter();
-    }
+    const out = await window.JobCamBlock.uploadFiles(job, files, {
+      stage: $("jobPhotoStage").value || null,
+      onProgress: (i, n) => {
+        btn.textContent = `Enviando ${i}/${n}…`;
+      },
+    });
+    btn.disabled = false;
+    btn.textContent = "+ Adicionar fotos";
+    if (out.added.length) notify(out.added.length === 1 ? "Foto adicionada." : `${out.added.length} fotos adicionadas.`, "success");
+    if (out.failed.length) notify(out.failed.join(" "), "error");
   }
 
   // ---------------------------------------------------------------- campo
@@ -631,6 +620,7 @@
   function setTab(next, opts) {
     // Old links to "Serviços e faturas" land on the overview, where that content now lives.
     tab = TABS.includes(next) ? next : "geral";
+    $("jdLayout").setAttribute("data-tab", tab);
     document.querySelectorAll("#jdTabs [data-tab]").forEach((b) => {
       const on = b.getAttribute("data-tab") === tab;
       b.classList.toggle("is-on", on);
@@ -645,7 +635,6 @@
       } catch (_) {}
     }
     if (tab === "geral") {
-      renderBillingTab();
       if (proposals === null) loadProposals();
     }
     if (tab === "fotos") {
@@ -689,7 +678,7 @@
     renderServices();
     renderNotes();
     renderAfter();
-    if (tab === "geral") renderBillingTab();
+    renderRail();
     if (tab === "campo" && field) renderField();
     if (!canManage) {
       document.querySelectorAll('#jobDetailRoot [data-crm-permission="work_orders.manage"]').forEach((el) => (el.style.display = "none"));
@@ -992,6 +981,24 @@
     $("btnCreateProposal").addEventListener("click", () => createProposal(false).catch((e) => notify(e.message, "error")));
     $("btnCreateProposalAi").addEventListener("click", () => createProposal(true).catch((e) => notify(e.message, "error")));
 
+    // Photos added or edited from any block: the gallery, tab count and after-job card follow.
+    window.addEventListener("jobcam:changed", (e) => {
+      if (String(e.detail?.jobId) !== String(jobId)) return;
+      loadMedia()
+        .then(() => {
+          if (tab === "fotos") renderPhotos();
+          renderAfter();
+        })
+        .catch(() => {});
+    });
+    // Issued, paid or sent from the invoices block: the rest of the job follows.
+    window.addEventListener("jobbilling:changed", (e) => {
+      if (String(e.detail?.jobId) !== String(jobId)) return;
+      refreshBilling().then(() => {
+        job = { ...job, billing: billing?.billing || job.billing };
+        renderHeader();
+      });
+    });
     window.__crmJobModal.onSaved((data) => {
       if (!data) {
         location.href = "jobs.html";
@@ -1047,7 +1054,7 @@
 
       // Deep link from the Jobs list ("Faturar"): open the billing dialog straight away.
       if (new URLSearchParams(location.search).get("faturar") === "1" && canInvoice && billing?.billing?.remaining_to_invoice > 0.004) {
-        window.JobBilling.openDialog({ jobId, billing: billing.billing, jobStatus: job.status });
+        window.JobBilling.openDialog({ jobId, billing: billing.billing, jobStatus: job.status, stay: true });
       }
     } catch (err) {
       notify(err.message || "Falha ao carregar o job", "error");
