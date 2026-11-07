@@ -27,7 +27,7 @@ import { publishAppNotification } from "../../lib/notifications/publish.js";
 import { applyBuilderJobEdit, jobEditSchema, JobEditError } from "../../lib/builders/job-edit.js";
 import { findMeasurementForAddress, markMeasurementUsed, measurementPack } from "../../lib/builders/measurements.js";
 import { pickupForWorkOrder } from "../../lib/builders/pickups.js";
-import { builderGateView, builderPhaseSteps, setBuilderGate } from "../../lib/trades/builder-gate.js";
+import { builderGateView, builderPhaseSteps, gateAskState, setBuilderGate } from "../../lib/trades/builder-gate.js";
 import { primaryPack } from "../../lib/trades/index.js";
 import { googleMapsBrowserKey } from "../../lib/maps/browser-key.js";
 import { ensureJobPhases } from "../../lib/trades/job-phases-db.js";
@@ -580,9 +580,20 @@ partnerPortalRouter.get("/api/partner-portal/overview", requirePartnerAuth, asyn
         : [];
       const totalByJob = new Map(totals.map((row) => [row.workOrderId, Number(row._sum.lineTotal) || 0]));
       const money = partnerCan(req, "money.view");
+      // Jobs waiting on the builder's site check (Countertops: kitchen ready for template).
+      const asks = new Set<string>();
+      if (req.builderMember && canConfirmGate(req) && jobs.length) {
+        const org = await tx.organization.findFirst({ where: { id: user.organizationId }, select: { tradePacks: true } });
+        const pack = primaryPack(org?.tradePacks);
+        const open = jobs.filter((j) => !["completed", "needs_invoicing", "canceled"].includes(j.status)).map((j) => j.id);
+        if (pack.builderGate && pack.phaseStorage === "table" && open.length) {
+          const rows = await tx.jobPhase.findMany({ where: { workOrderId: { in: open } }, select: { workOrderId: true, phaseKey: true, sortOrder: true, status: true, evidence: true } });
+          for (const id of open) if (gateAskState(pack, rows.filter((r) => r.workOrderId === id)) === "ask") asks.add(id);
+        }
+      }
       return {
         projects,
-        jobs: jobs.map((job) => ({ ...job, total: money ? totalByJob.get(job.id) || 0 : null })),
+        jobs: jobs.map((job) => ({ ...job, total: money ? totalByJob.get(job.id) || 0 : null, needs_confirm: asks.has(job.id) })),
         permissions: permissionsFor(req.portalRole || "legacy"),
       };
     });

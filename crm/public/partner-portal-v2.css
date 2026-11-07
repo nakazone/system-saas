@@ -2403,6 +2403,10 @@ button.pp-mkpi:active { transform: scale(.98); }
 .pp-jstat--late { background: #FEECEB; color: #B42318; }
 .pp-jstat--done { background: #EEF3EA; color: #3F6B35; }
 .pp-jstat--wait { background: #F4F1EC; color: #6B5E4E; }
+.pp-jstat--ask { background: #C2581A; color: #fff; }
+.pp-jstat--ask::before { content: none; }
+.pp-jstat--ask svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2.6; }
+.pp-jmeta:has(.pp-jstat--ask) { flex-wrap: wrap; row-gap: 6px; }
 .pp-jrow[aria-current="true"] { box-shadow: inset 3px 0 0 #E7792C; }
 /* Job detail */
 .tk-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-top: 16px; }
@@ -2454,7 +2458,7 @@ button.tk-fact:hover { border-color: #E7792C; }
 .pp-nic { flex: none; width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; background: #F2F4F7; color: #344054; }
 .pp-nic svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .pp-nrow.is-accepted .pp-nic, .pp-nrow.is-completed .pp-nic { background: #EEF3EA; color: #3F6B35; }
-.pp-nrow.is-scheduled .pp-nic, .pp-nrow.is-rescheduled .pp-nic, .pp-nrow.is-started .pp-nic { background: #FFF4EB; color: #C2581A; }
+.pp-nrow.is-scheduled .pp-nic, .pp-nrow.is-rescheduled .pp-nic, .pp-nrow.is-started .pp-nic, .pp-nrow.is-confirm .pp-nic { background: #FFF4EB; color: #C2581A; }
 .pp-nrow.is-declined .pp-nic { background: #FEECEB; color: #B42318; }
 .pp-nmain { flex: 1; min-width: 0; display: grid; gap: 2px; }
 .pp-nmain strong { font-size: 15px; }

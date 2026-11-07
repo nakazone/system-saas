@@ -13,8 +13,10 @@ import { ensureWebPushConfigured, getVapidKeys } from "../push/vapid.js";
 import { withTenantTransaction } from "../tenant/prisma-tenant.js";
 import { registerJob, trackRun } from "../ops/jobs.js";
 import { safeTimeZone } from "../time/zoned.js";
+import { primaryPack } from "../trades/index.js";
+import { gateAskState, shouldAskBuilder, type GateAsk } from "../trades/builder-gate.js";
 
-export type NotificationKind = "accepted" | "declined" | "scheduled" | "rescheduled" | "started" | "photos" | "report" | "completed" | "message";
+export type NotificationKind = "accepted" | "declined" | "scheduled" | "rescheduled" | "started" | "photos" | "report" | "completed" | "message" | "confirm";
 
 type Draft = {
   kind: NotificationKind;
@@ -128,10 +130,10 @@ export async function sweepAccount(accountId: string): Promise<number> {
     const orgId = link.organizationId!;
     const builderId = link.tenantBuilderId!;
     const snap = await withTenantTransaction(orgId, async (tx) => {
-      const org = await tx.organization.findUnique({ where: { id: orgId }, select: { timezone: true, name: true } });
+      const org = await tx.organization.findUnique({ where: { id: orgId }, select: { timezone: true, name: true, tradePacks: true } });
       const jobs = await tx.workOrder.findMany({
         where: { organizationId: orgId, builderId, status: { not: "canceled" }, updatedAt: { gte: since } },
-        select: { id: true, number: true, title: true, address: true, status: true, scheduledStart: true, allDay: true },
+        select: { id: true, number: true, title: true, address: true, status: true, scheduledStart: true, allDay: true, createdAt: true },
         take: 300,
       });
       const ids = jobs.map((j) => j.id);
@@ -144,11 +146,24 @@ export async function sweepAccount(accountId: string): Promise<number> {
           take: 300,
         }),
       ]);
-      return { tz: safeTimeZone(org?.timezone), company: link.companyName || org?.name || "The company", jobs, media, reports, requests };
+      // The step the builder confirms (Countertops: kitchen ready for template), on open jobs.
+      const pack = primaryPack(org?.tradePacks);
+      const open = jobs.filter((j) => !DONE.has(j.status)).map((j) => j.id);
+      const phaseRows = pack.builderGate && pack.phaseStorage === "table" && open.length
+        ? await tx.jobPhase.findMany({ where: { workOrderId: { in: open } }, select: { workOrderId: true, phaseKey: true, sortOrder: true, status: true, evidence: true } })
+        : [];
+      const gates = new Map<string, GateAsk>();
+      if (pack.builderGate && pack.phaseStorage === "table") {
+        for (const id of open) {
+          const st = gateAskState(pack, phaseRows.filter((r) => r.workOrderId === id));
+          if (st) gates.set(id, st);
+        }
+      }
+      return { tz: safeTimeZone(org?.timezone), company: link.companyName || org?.name || "The company", jobs, media, reports, requests, gates, gate: pack.builderGate || null };
     });
     const mediaBy = new Map(snap.media.map((m) => [m.workOrderId as string, m._count._all]));
     const reportBy = new Map(snap.reports.map((r) => [r.workOrderId as string, r._count._all]));
-    const keys = [...snap.jobs.map((j) => `job:${j.id}`), ...snap.requests.map((r) => `req:${r.id}`)];
+    const keys = [...snap.jobs.map((j) => `job:${j.id}`), ...snap.requests.map((r) => `req:${r.id}`), ...[...snap.gates.keys()].map((id) => `gate:${id}`)];
     const watches = keys.length ? await prisma.builderJobWatch.findMany({ where: { builderAccountId: accountId, key: { in: keys } } }) : [];
     const watchBy = new Map(watches.map((w) => [w.key, w]));
     const drafts: Draft[] = [];
@@ -190,12 +205,26 @@ export async function sweepAccount(accountId: string): Promise<number> {
         if (c === "completed") drafts.push({ kind: c, companyName: snap.company, organizationId: orgId, workOrderId: j.id, url, title: `Job completed · ${label}`, body: `${snap.company} finished the job${j.address ? ` at ${j.address}` : ""}` });
       }
     }
+    // the site check the builder owes: once, when it becomes the job's open step
+    const fresh = Date.now() - 3 * 86400e3;
+    for (const [id, st] of snap.gates) {
+      const j = jobById.get(id);
+      if (!j || !snap.gate) continue;
+      const newJob = justAccepted.has(id) || (!watchBy.has(`job:${id}`) && j.createdAt.getTime() >= fresh);
+      if (!shouldAskBuilder(watchBy.get(`gate:${id}`)?.status, st, newJob)) continue;
+      drafts.push({
+        kind: "confirm", companyName: snap.company, organizationId: orgId, workOrderId: id, url: `#jobs/${id}`,
+        title: `${snap.gate.title}? · ${jobLabel(j)}`,
+        body: `${snap.company} asks you to confirm before they go out: ${snap.gate.question}`,
+      });
+    }
     await record(accountId, drafts);
     total += drafts.length;
     // remember what we saw
     const upserts = [
       ...snap.jobs.map((j) => ({ key: `job:${j.id}`, status: j.status, scheduledStart: j.scheduledStart, photos: mediaBy.get(j.id) || 0, reports: reportBy.get(j.id) || 0 })),
       ...snap.requests.map((r) => ({ key: `req:${r.id}`, status: r.status, scheduledStart: null, photos: 0, reports: 0 })),
+      ...[...snap.gates].map(([id, st]) => ({ key: `gate:${id}`, status: st as string, scheduledStart: null, photos: 0, reports: 0 })),
     ];
     for (const u of upserts) {
       const w = watchBy.get(u.key);

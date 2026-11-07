@@ -7,7 +7,7 @@
  */
 import type { Prisma } from "@prisma/client";
 import type { TenantPrisma } from "../tenant/prisma-tenant.js";
-import { asEvidence, type JobPhaseRow } from "./job-phases.js";
+import { asEvidence, planJobPhases, type JobPhaseRow } from "./job-phases.js";
 import type { TradePack } from "./types.js";
 
 type Tx = TenantPrisma;
@@ -196,4 +196,34 @@ export function jobPhaseSummary(pack: TradePack, rows: readonly JobPhaseRow[]): 
     done,
     builder_ready: Boolean(cur && gate && gate.phase === cur.key && gate.confirmed?.by_builder && !gate.phase_done),
   };
+}
+
+/**
+ * Where the builder's step stands, for the ObraBuilder bell: "ask" when the phase they confirm is
+ * the job's open phase and nobody confirmed it yet. A job whose phases were never opened reads as
+ * the pack's plan (nothing done), so the builder is asked even before anyone opens the job.
+ */
+export type GateAsk = "idle" | "ask" | "confirmed" | "done";
+
+export function gateAskState(pack: TradePack, rows: readonly JobPhaseRow[]): GateAsk | null {
+  const g = pack.builderGate;
+  if (!g || pack.phaseStorage !== "table") return null;
+  const list: readonly JobPhaseRow[] = rows.length ? rows : planJobPhases(pack, []);
+  const view = builderGateView(pack, list);
+  if (!view) return null;
+  if (view.phase_done) return "done";
+  if (view.confirmed) return "confirmed";
+  const cur = builderPhaseSteps(pack, list).find((s) => s.status === "current");
+  return cur && cur.key === g.phase ? "ask" : "idle";
+}
+
+/**
+ * Whether to tell the builder "confirm the site". Only on the way in to "ask": the phase before it
+ * closed, or a job seen for the first time. Not when a confirmation was taken back ("not ready" already
+ * sends its own message) and not for jobs that were already waiting before the watch knew them.
+ */
+export function shouldAskBuilder(prev: string | null | undefined, now: GateAsk | null, newJob: boolean): boolean {
+  if (now !== "ask") return false;
+  if (prev == null) return newJob;
+  return prev === "idle";
 }

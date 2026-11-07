@@ -800,7 +800,7 @@
 
   /* ─────────────────────────── notifications (bell + push) ─────────────────────────── */
 
-  const NOTE_IC = { message: 'chat', accepted: 'check', declined: 'back', scheduled: 'cal', rescheduled: 'cal', started: 'pin', photos: 'camera', report: 'text', completed: 'check' };
+  const NOTE_IC = { message: 'chat', accepted: 'check', declined: 'back', scheduled: 'cal', rescheduled: 'cal', started: 'pin', photos: 'camera', report: 'text', completed: 'check', confirm: 'check' };
   async function loadNotes(fresh) {
     if (!state.builder) return null;
     try {
@@ -940,7 +940,7 @@
         <span class="pp-row-main">
           <span class="pp-row-top"><strong>${esc(shortTitle(j))}</strong><span>${j.number ? `#${esc(j.number)}` : ''}</span></span>
           <span class="pp-row-sub">${esc(j.address || 'No address')}${state.builder && multiCo() && j._coName && !state.coFilter ? ` · ${esc(j._coName)}` : ''}</span>
-          <span class="pp-jmeta"><span class="pp-jstat pp-jstat--${stKey}">${stLabel}</span><span class="pp-jwhen">${jobWhen(j).replace(/^(On site · |Completed · )/, '')}</span>${j.total && canDo('money.view') ? `<b>${moneyShort(j.total)}</b>` : ''}</span>
+          <span class="pp-jmeta"><span class="pp-jstat pp-jstat--${stKey}">${stLabel}</span>${j.needs_confirm ? `<span class="pp-jstat pp-jstat--ask">${icon('check')}Confirm site</span>` : ''}<span class="pp-jwhen">${jobWhen(j).replace(/^(On site · |Completed · )/, '')}</span>${j.total && canDo('money.view') ? `<b>${moneyShort(j.total)}</b>` : ''}</span>
         </span>
       </button>`;
     };
