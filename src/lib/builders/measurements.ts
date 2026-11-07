@@ -24,7 +24,7 @@ const photoKey = z.string().trim().max(300);
 
 export const OPEN_SIDES = ["none", "left", "right", "both"] as const;
 export const RETURNS = ["45", "flat", "bullnose"] as const;
-export const VENT_TYPES = ["flush", "self_rimming", "return_air"] as const;
+export const VENT_TYPES = ["flush", "metal", "self_rimming", "return_air"] as const;
 
 const stepSchema = z.object({
   id,
@@ -54,6 +54,20 @@ const landingSchema = z.object({
   enabled: z.boolean().optional().default(false),
   width: inches,
   depth: inches,
+  /** Measured in square feet; width and depth are worked out from it for the drawings. */
+  sqft: z.number().min(0).max(2000).nullable().optional().default(null),
+  /** Which way the next flight leaves, kept here until that flight exists. */
+  direction: z.enum(["straight", "left", "right", "u_left", "u_right"]).optional().default("straight"),
+});
+
+/** The sizes and sides new steps of a flight start with, kept even while the flight has no steps. */
+const flightSpecSchema = z.object({
+  tread_w: inches,
+  tread_d: inches,
+  riser_w: inches,
+  riser_h: inches,
+  open: z.enum(OPEN_SIDES).optional().default("none"),
+  ret: z.enum(RETURNS).optional().default("45"),
 });
 
 const stairSchema = z.object({
@@ -67,11 +81,17 @@ const stairSchema = z.object({
   starts_on_landing_of: z.string().trim().max(40).nullable().optional().default(null),
   /** Which way this flight leaves the lower flight's landing, as seen walking up the lower flight. */
   turn: z.enum(["straight", "left", "right", "u_left", "u_right"]).optional().default("straight"),
-  landing: landingSchema.optional().default({ enabled: false, width: null, depth: null }),
+  landing: landingSchema.optional().default({ enabled: false, width: null, depth: null, sqft: null, direction: "straight" }),
+  spec: flightSpecSchema.optional(),
   species: text(60),
   finish: text(60),
   color: text(80),
   riser_material: z.enum(["same", "primed", "paint_grade", "none"]).optional().default("same"),
+  /** Risers of their own: empty means the same wood or finish as the treads, null the side of each tread. */
+  riser_species: text(60),
+  riser_finish: text(60),
+  riser_open: z.enum(OPEN_SIDES).nullable().optional().default(null),
+  riser_ret: z.enum(RETURNS).nullable().optional().default(null),
   steps: z.array(stepSchema).max(60).optional().default([]),
   nosings: z.array(nosingSchema).max(40).optional().default([]),
   photos: z.array(photoKey).max(12).optional().default([]),
@@ -161,7 +181,7 @@ const OPEN_LABEL: Record<string, string> = {
 };
 const RET_LABEL: Record<string, string> = { "45": "45° return", flat: "flat return", bullnose: "bullnose" };
 const OPEN_EN: Record<string, string> = { none: "", left: "left return", right: "right return", both: "double returns" };
-export const VENT_LABEL: Record<string, string> = { flush: "flush mount", self_rimming: "self-rimming (drop-in)", return_air: "return air" };
+export const VENT_LABEL: Record<string, string> = { flush: "flush mount", metal: "metal", self_rimming: "self-rimming (drop-in)", return_air: "return air" };
 
 export function openLabel(open: string, ret: string): string {
   if (open === "none") return OPEN_LABEL.none!;
@@ -182,6 +202,29 @@ function nosingPosition(stair: Stair, nosing: z.infer<typeof nosingSchema>): str
   return treads.length ? `tread ${treads.length}` : "top of stair";
 }
 
+function riserWoodText(stair: Stair, treadWood: string): string {
+  if (stair.riser_species || stair.riser_finish) {
+    if (stair.riser_species === "Paint grade") return "paint grade";
+    return [stair.riser_species || stair.species, stair.riser_finish || stair.finish, stair.riser_species ? "" : stair.color].filter(Boolean).join(" · ");
+  }
+  return stair.riser_material === "primed" ? "primed" : stair.riser_material === "paint_grade" ? "paint grade" : treadWood;
+}
+
+/** What still needs a size: a counted piece without one would leave the work order short. */
+export function measurementGaps(data: MeasurementData): string[] {
+  const out: string[] = [];
+  data.stairs.forEach((stair, index) => {
+    const name = stair.name || `Stair ${index + 1}`;
+    if (!stair.steps.length) { out.push(`${name}: how many treads?`); return; }
+    const noTread = stair.steps.filter((x) => x.kind !== "riser" && (!x.tread_w || !x.tread_d)).length;
+    if (noTread) out.push(`${name}: ${noTread} ${noTread === 1 ? "tread needs" : "treads need"} a size`);
+    const noRiser = stair.riser_material === "none" ? 0 : stair.steps.filter((x) => (x.kind === "riser" || !x.no_riser) && (!x.riser_w || !x.riser_h)).length;
+    if (noRiser) out.push(`${name}: ${noRiser} ${noRiser === 1 ? "riser needs" : "risers need"} a size`);
+    if (stair.landing.enabled && !stair.landing.sqft && !(stair.landing.width && stair.landing.depth)) out.push(`${name}: landing needs a size`);
+  });
+  return out;
+}
+
 /** Groups equal pieces: "Tread White Oak 48 × 11¼ · both sides open · 45° return — 8 EA". */
 export function summarize(data: MeasurementData): SummaryLine[] {
   const out: SummaryLine[] = [];
@@ -196,15 +239,17 @@ export function summarize(data: MeasurementData): SummaryLine[] {
         treads.set(k, (treads.get(k) || 0) + 1);
       }
       if (st.kind !== "riser" && !st.no_riser && stair.riser_material !== "none" && (st.riser_w || st.riser_h)) {
-        const k = `${fmtInches(st.riser_w)} × ${fmtInches(st.riser_h)}${st.open !== "none" ? ` · ${OPEN_LABEL[st.open]}` : ""}`;
+        const side = stair.riser_open ?? st.open;
+        const k = `${fmtInches(st.riser_w)} × ${fmtInches(st.riser_h)}${side !== "none" ? ` · ${stair.riser_open ? openLabel(side, stair.riser_ret || "45") : OPEN_LABEL[side]}` : ""}`;
         risers.set(k, (risers.get(k) || 0) + 1);
       } else if (st.kind === "riser" && stair.riser_material !== "none" && (st.riser_w || st.riser_h)) {
-        const k = `${fmtInches(st.riser_w)} × ${fmtInches(st.riser_h)}`;
+        const side = stair.riser_open || "none";
+        const k = `${fmtInches(st.riser_w)} × ${fmtInches(st.riser_h)}${side !== "none" ? ` · ${openLabel(side, stair.riser_ret || "45")}` : ""}`;
         risers.set(k, (risers.get(k) || 0) + 1);
       }
     }
     for (const [k, n] of treads) out.push({ kind: "tread", qty: n, uom: "EA", text: `${label} · Tread${wood ? ` ${wood}` : ""} ${k}` });
-    const riserWood = stair.riser_material === "primed" ? "primed" : stair.riser_material === "paint_grade" ? "paint grade" : wood;
+    const riserWood = riserWoodText(stair, wood);
     for (const [k, n] of risers) out.push({ kind: "riser", qty: n, uom: "EA", text: `${label} · Riser${riserWood ? ` ${riserWood}` : ""} ${k}` });
     for (const ns of stair.nosings) {
       if (!ns.length) continue;
@@ -212,7 +257,8 @@ export function summarize(data: MeasurementData): SummaryLine[] {
       out.push({ kind: "nosing", qty: ns.qty || 1, uom: "EA", text: `${label} · Nosing ${type}${wood ? ` ${wood}` : ""} ${fmtInches(ns.length)}" · ${nosingPosition(stair, ns)}${ns.note ? ` · ${ns.note}` : ""}` });
     }
     if (stair.landing.enabled) {
-      out.push({ kind: "landing", qty: 1, uom: "EA", text: `${label} · Landing ${wood ? `${wood} ` : ""}${fmtInches(stair.landing.width)} × ${fmtInches(stair.landing.depth)}"` });
+      const size = stair.landing.sqft ? `${fmtInches(stair.landing.sqft)} SF` : `${fmtInches(stair.landing.width)} × ${fmtInches(stair.landing.depth)}"`;
+      out.push({ kind: "landing", qty: 1, uom: "EA", text: `${label} · Landing ${wood ? `${wood} ` : ""}${size}` });
     }
   }
   const vents = new Map<string, number>();
@@ -435,6 +481,8 @@ export async function completeMeasurement(member: ActiveMember, measurementId: s
   if (row.status === "used") throw new BuilderError(409, "This measurement was already sent with a job.");
   const data = parseData(row.data);
   if (done && !data.stairs.length && !data.vents.length && !planTotals(data.plan).some((t) => t.include)) throw new BuilderError(400, "Measure at least one stair, vent or floor.");
+  const gaps = done ? measurementGaps(data) : [];
+  if (gaps.length) throw new BuilderError(400, `Finish these first: ${gaps.slice(0, 3).join("; ")}.`);
   await prisma.builderMeasurement.update({
     where: { id: row.id },
     data: done
@@ -787,7 +835,7 @@ function drawVent(doc: MeasurementPdfDocument, v: { size: string; type: string; 
   const vw = Math.max(A, B); const vh = Math.min(A, B);
   const scale = Math.min((w - 40) / vw, (h - 34) / vh);
   const dw = vw * scale; const dh = vh * scale; const x0 = x + (w - dw) / 2; const y0 = y + 16 + (h - 34 - dh) / 2;
-  const tone = WOOD_TONE[String(v.species || "").toLowerCase()] || "#D6B488";
+  const tone = v.type === "metal" ? "#A7ABAF" : WOOD_TONE[String(v.species || "").toLowerCase()] || "#D6B488";
   if (v.type === "self_rimming") doc.roundedRect(x0 - 2, y0 + 2, dw + 4, dh + 4, 4).fill("#E4DED6");
   doc.roundedRect(x0, y0, dw, dh, v.type === "self_rimming" ? 4 : 1.5).fillAndStroke(tone, "#4A3726");
   const lip = (v.type === "self_rimming" ? 0.9 : 0.55) * scale;

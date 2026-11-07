@@ -442,7 +442,7 @@
    * job, the 3D presentation and "measure from plans": they load the first time one of those needs them.
    * Never throws — the callers already fall back to the 2D drawings when window.ObPlan3D is missing.
    */
-  const MEAS_TOOLS = [['ObTakeoff', 'partner-portal-takeoff.js?v=20261102-split1'], ['ObPlan3D', 'partner-portal-3d.js?v=20261105-dock1']];
+  const MEAS_TOOLS = [['ObTakeoff', 'partner-portal-takeoff.js?v=20261102-split1'], ['ObPlan3D', 'partner-portal-3d.js?v=20261106-meas3']];
   let measToolsP = null;
   function ensureMeasureTools() {
     if (window.ObTakeoff && window.ObPlan3D) return Promise.resolve(true);
@@ -2275,7 +2275,7 @@
       if (!qty) return;
       if (/vent|register|grill/i.test(t)) {
         const sz = t.match(/(\d{1,2})\s*[xX×]\s*(\d{1,2})/);
-        vents.push({ size: sz ? `${sz[1]}x${sz[2]}` : '4x10', type: /self.?rim|drop.?in/i.test(t) ? 'self_rimming' : /return/i.test(t) ? 'return_air' : 'flush', qty, species: species(t), color: (it.detail && !/\d\s*x\s*\d/i.test(it.detail) ? it.detail : '').slice(0, 80) });
+        vents.push({ size: sz ? `${sz[1]}x${sz[2]}` : '4x10', type: /\bmetal\b/i.test(t) ? 'metal' : /self.?rim|drop.?in/i.test(t) ? 'self_rimming' : /return/i.test(t) ? 'return_air' : 'flush', qty, species: species(t), color: (it.detail && !/\d\s*x\s*\d/i.test(it.detail) ? it.detail : '').slice(0, 80) });
         return;
       }
       if (/sand|finish|coat|stain|paint|demo|remov/i.test(t)) return;
@@ -4172,7 +4172,9 @@
   const VENT_SIZES = ['2x10', '2x12', '3x10', '3x12', '4x10', '4x12', '4x14', '6x10', '6x12'];
   const OPEN_OPTS = [['none', 'Closed'], ['left', 'Left open'], ['right', 'Right open'], ['both', 'Both open']];
   const RET_OPTS = [['45', '45° (mitered)'], ['flat', 'Flat'], ['bullnose', 'Bullnose']];
-  const VENT_TYPES = [['flush', 'Flush mount'], ['self_rimming', 'Self-rimming (drop-in)'], ['return_air', 'Return air']];
+  const VENT_TYPES = [['flush', 'Flush mount'], ['metal', 'Metal'], ['self_rimming', 'Self-rimming (drop-in)'], ['return_air', 'Return air']];
+  /** The types offered when adding vents; older measurements may still show the others. */
+  const VENT_PICK = VENT_TYPES.slice(0, 2);
   const RISER_OPTS = [['same', 'Same wood'], ['primed', 'White (primed)'], ['paint_grade', 'Paint grade'], ['none', 'No riser']];
   const FRAC = { '¼': 0.25, '½': 0.5, '¾': 0.75, '⅛': 0.125, '⅜': 0.375, '⅝': 0.625, '⅞': 0.875 };
 
@@ -4224,13 +4226,15 @@
       (s.steps || []).forEach((st) => {
         if (st.kind !== 'riser' && (st.tread_w || st.tread_d)) { const k = `${fmtIn(st.tread_w) || '?'}" × ${fmtIn(st.tread_d) || '?'}" · ${openText(st.open, st.ret)}`; tr.set(k, (tr.get(k) || 0) + 1); }
         const hasRiser = st.kind === 'riser' ? s.riser_material !== 'none' : !st.no_riser && s.riser_material !== 'none';
-        if (hasRiser && (st.riser_w || st.riser_h)) { const k = `${fmtIn(st.riser_w) || '?'}" × ${fmtIn(st.riser_h) || '?'}"`; ri.set(k, (ri.get(k) || 0) + 1); }
+        if (hasRiser && (st.riser_w || st.riser_h)) { const k = `${fmtIn(st.riser_w) || '?'}" × ${fmtIn(st.riser_h) || '?'}"${s.riser_open && s.riser_open !== 'none' ? ` · ${openText(s.riser_open, s.riser_ret || '45')}` : ''}`; ri.set(k, (ri.get(k) || 0) + 1); }
       });
       tr.forEach((n, k) => out.push({ kind: 'Tread', group: label, text: `${wood ? `${wood} · ` : ''}${k}`, qty: n }));
-      const rw = s.riser_material === 'primed' ? 'White (primed)' : s.riser_material === 'paint_grade' ? 'Paint grade' : wood;
+      const rw = s.riser_species || s.riser_finish
+        ? (s.riser_species === 'Paint grade' ? 'Paint grade' : [s.riser_species || s.species, s.riser_finish || s.finish, s.riser_species ? '' : s.color].filter(Boolean).join(' · '))
+        : s.riser_material === 'primed' ? 'White (primed)' : s.riser_material === 'paint_grade' ? 'Paint grade' : wood;
       ri.forEach((n, k) => out.push({ kind: 'Riser', group: label, text: `${rw ? `${rw} · ` : ''}${k}`, qty: n }));
       (s.nosings || []).forEach((ns) => { if (ns.length) out.push({ kind: 'Nosing', group: label, text: `${fmtIn(ns.length)}" · ${{ flush: 'flush', overlap: 'overlap', stair_nose: 'stair nose' }[ns.type] || ns.type} · ${nosingPositionLabel(s, ns)}`, qty: ns.qty || 1 }); });
-      if (s.landing && s.landing.enabled) out.push({ kind: 'Landing', group: label, text: `${fmtIn(s.landing.width) || '?'}" × ${fmtIn(s.landing.depth) || '?'}" · after final riser`, qty: 1 });
+      if (s.landing && s.landing.enabled) out.push({ kind: 'Landing', group: label, text: `${s.landing.sqft ? `${fmtIn(s.landing.sqft)} SF` : `${fmtIn(s.landing.width) || '?'}" × ${fmtIn(s.landing.depth) || '?'}"`} · after final riser`, qty: 1 });
     });
     const vm = new Map();
     (data.vents || []).forEach((v) => {
@@ -4289,7 +4293,7 @@
     return '<span class="pp-chip pp-chip--late">In progress</span>';
   }
   function newStair(n) {
-    return { id: uid(), name: n ? `Stair ${n}` : 'Main stair', layout: 'straight', round_diameter: null, round_center_diameter: null, round_sweep: '270', starts_on_landing_of: null, turn: 'straight', landing: { enabled: false, width: null, depth: null }, species: 'White Oak', finish: FINISHES[0], color: '', riser_material: 'same', steps: [], nosings: [], photos: [], note: '' };
+    return { id: uid(), name: n ? `Stair ${n}` : 'Main stair', layout: 'straight', round_diameter: null, round_center_diameter: null, round_sweep: '270', starts_on_landing_of: null, turn: 'straight', landing: { enabled: false, width: null, depth: null, sqft: null, direction: 'straight' }, species: 'White Oak', finish: FINISHES[0], color: '', riser_material: 'same', riser_species: '', riser_finish: '', riser_open: null, riser_ret: null, steps: [], nosings: [], photos: [], note: '' };
   }
   function newStep(prev, kind) {
     const componentKind = kind || 'step';
@@ -4301,7 +4305,7 @@
       : { id: uid(), kind: componentKind, tread_w: null, tread_d: null, riser_w: null, riser_h: null, open: 'none', ret: '45', no_riser: false, note: '' };
   }
   function newVent(prev) {
-    return prev ? { ...prev, id: uid(), room: '', photos: [], note: '' } : { id: uid(), room: '', size: '4x10', type: 'flush', species: 'White Oak', finish: FINISHES[0], color: '', qty: 1, photos: [], note: '' };
+    return prev ? { ...prev, id: uid(), room: '', color: '', photos: [], note: '' } : { id: uid(), room: '', size: '4x10', type: 'flush', species: 'White Oak', finish: FINISHES[0], color: '', qty: 1, photos: [], note: '' };
   }
 
   const MEAS_FILTERS = [['all', 'All'], ['draft', 'In progress'], ['done', 'Complete'], ['used', 'Sent with job']];
@@ -5043,7 +5047,7 @@
     const w = Math.max(A, B);
     const h = Math.min(A, B);
     const id = `pv${(vizSeq += 1)}`;
-    const tone = woodTone(v.species, v.color, false);
+    const tone = v.type === 'metal' ? { base: '#A7ABAF', paint: true } : woodTone(v.species, v.color, false);
     const lip = v.type === 'self_rimming' ? 0.9 : 0.55;
     const slots = Math.max(3, Math.round(w / 1.1));
     const louvers = Array.from({ length: slots }, (_, i) => {
@@ -5058,16 +5062,14 @@
       ${louvers}
       ${dimLine(0, -2.2, w, -2.2, `${fmtIn(w)}"`)}
       ${dimLine(w + 1.8, 0, w + 1.8, h, `${fmtIn(h)}"`)}
-      <text class="pp-viz-note" x="${w / 2}" y="${h + 2.6}" text-anchor="middle">${v.type === 'self_rimming' ? 'self-rimming (with lip)' : v.type === 'return_air' ? 'return air' : 'flush mount'}</text>
+      <text class="pp-viz-note" x="${w / 2}" y="${h + 2.6}" text-anchor="middle">${v.type === 'self_rimming' ? 'self-rimming (with lip)' : v.type === 'return_air' ? 'return air' : v.type === 'metal' ? 'metal' : 'flush mount'}</text>
     </svg>`;
   }
 
   /** Flight buttons and one button per step, from the bottom of the stair to the top. */
   function stepStripHtml(m, s, si, selStep) {
     const steps = s.steps || [];
-    const chain = stairChainFor(m.data, s.id);
-    const flights = chain.length > 1 ? `<div class="pp-fly" role="group" aria-label="Flights">${chain.map((f, k) => `<button type="button" data-stair-activate="${esc(f.id)}" data-fly-bottom aria-pressed="${f.id === s.id}">Fly ${k + 1}<small>${treadSteps(f).length} treads</small></button>`).join('')}</div>` : '';
-    if (!steps.length) return flights;
+    if (!steps.length) return '';
     let tread = 0;
     const btns = steps.map((st, i) => {
       const riser = st.kind === 'riser';
@@ -5075,23 +5077,7 @@
       const done = riser ? (st.riser_w && st.riser_h) : (st.tread_w && st.tread_d && st.riser_h);
       return `<button type="button" class="pp-sstep${i === selStep ? ' is-on' : ''}${done ? ' is-done' : ''}${riser ? ' is-riser' : ''}" data-step-select="${si}:${i}" aria-pressed="${i === selStep}" title="${riser ? `Riser only ${i + 1}` : `Tread ${tread}`}${done ? '' : ' · sizes missing'}"><b>${riser ? 'R' : tread}</b></button>`;
     }).join('');
-    return `${flights}<div class="pp-sstrip"><span class="pp-sstrip-end">Bottom</span><div class="pp-sstrip-row" role="group" aria-label="Steps from the bottom">${btns}</div><span class="pp-sstrip-end">Top</span></div>`;
-  }
-
-  /** The selected tread up close in 3D, with the wood, finish and returns to pick. */
-  function treadDetailHtml(m, s, si, i) {
-    const st = s.steps[i]; const locked = m.status === 'used';
-    const chip = (path, v, label, on) => `<button type="button" data-tf="${path}" data-v="${esc(v)}" aria-pressed="${on}" ${locked ? 'disabled' : ''}>${esc(label)}</button>`;
-    const open = st.open || 'none';
-    return `<div class="pp-tread3d pp-tread3d--opts">
-      <div class="pp-tread3d-opts">
-        <div class="pp-tf-row"><span>1 · Open side</span><div class="pp-tf">${OPEN_OPTS.map(([k, l]) => chip(`stairs.${si}.steps.${i}.open`, k, l, open === k)).join('')}</div></div>
-        <div class="pp-tf-row"><span>2 · Return</span>${open !== 'none' ? `<div class="pp-tf">${RET_OPTS.map(([k, l]) => chip(`stairs.${si}.steps.${i}.ret`, k, l, (st.ret || '45') === k)).join('')}</div>` : '<p class="pp-tf-none">Closed on both sides — no return.</p>'}</div>
-        <div class="pp-tf-row"><span>3 · Wood</span><div class="pp-tf">${SPECIES.map((w) => chip(`stairs.${si}.species`, w, w, s.species === w)).join('')}</div></div>
-        <div class="pp-tf-row"><span>4 · Finish</span><div class="pp-tf">${FINISHES.map((f) => chip(`stairs.${si}.finish`, f, f.replace(' (site finished)', ' · site finished'), s.finish === f)).join('')}</div></div>
-        <div class="pp-tf-row"><span>5 · Riser</span><div class="pp-tf">${chip(`stairs.${si}.riser_material`, 'same', 'Wood', !s.riser_material || s.riser_material === 'same')}${chip(`stairs.${si}.riser_material`, 'primed', 'White', s.riser_material === 'primed' || s.riser_material === 'paint_grade')}</div></div>
-      </div>
-    </div>`;
+    return `<div class="pp-sstrip"><span class="pp-sstrip-end">Bottom</span><div class="pp-sstrip-row" role="group" aria-label="Steps from the bottom">${btns}</div><span class="pp-sstrip-end">Top</span></div>`;
   }
 
   /** The selected tread in 3D (right column). */
@@ -5121,19 +5107,11 @@
     const drawingHint = connected
       ? 'Both flights and the connecting landing stay visible. Select a tread or riser to edit it.'
       : s.layout === 'round' ? 'The plan places each tread around the selected stair sweep.' : 'Select any tread or riser to edit its measurements.';
-    // how each upper flight leaves its landing (L or U stairs)
-    const locked = m.status === 'used';
-    const turnPick = connected && !mixedLayout ? chain.slice(1).map((flight) => {
-      const fi = m.data.stairs.findIndex((x) => x.id === flight.id);
-      const cur = STAIR_TURNS.includes(flight.turn) ? flight.turn : 'straight';
-      return `<div class="pp-turn" role="group" aria-label="${esc(flight.name || 'Upper flight')} leaves the landing"><span>${chain.length > 2 ? esc(flight.name || 'Upper flight') : 'From the landing'}</span>${TURN_OPTS.map(([k, l, ic]) => `<button type="button" data-turn="${fi}:${k}" aria-pressed="${cur === k}" title="${esc(l)}" ${locked ? 'disabled' : ''}>${ic}<span>${esc(l)}</span></button>`).join('')}</div>`;
-    }).join('') : '';
     return `<div class="pp-viz" data-viz-stair="${si}">
       <div class="pp-viz-3d">
         <div class="pp-viz-bar"><span class="pp-step-lbl pp-viz-lbl">${drawingTitle}</span>${mixedLayout ? '' : mirrorButton}</div>
-        ${turnPick}
         <div class="pp-viz-box" data-viz-box="3d">${s.layout === 'round' || mixedLayout || !window.ObPlan3D ? drawing : `<div class="pp-stair3d" data-stair3d="${si}"><div class="pp-viz-fallback">${drawing}</div></div>`}</div>
-        <p class="pp-viz-hint">${s.layout === 'round' || mixedLayout || !window.ObPlan3D ? drawingHint + (s.layout === 'round' || mixedLayout ? '' : ' <span class="pp-viz-turnhint">Drag the drawing to turn it · double-click to reset.</span>') : 'Drag to turn the stair · tap a tread or riser to edit it · double-click to reset.'}</p>
+        <p class="pp-viz-hint">${s.layout === 'round' || mixedLayout || !window.ObPlan3D ? drawingHint + (s.layout === 'round' || mixedLayout ? '' : ' <span class="pp-viz-turnhint">Drag the drawing to turn it · double-click to reset.</span>') : 'Drag to turn the stair · tap a tread to adjust just that one · double-click to reset.'}</p>
       </div>
     </div>`;
   }
@@ -5153,11 +5131,11 @@
       const chain = stairChainFor(m.data, root.id);
       const flights = chain.length ? chain : [root];
       const on = flights.some((f) => f.id === activeId);
-      const c = flights.reduce((a, f) => { const x = measCounts({ stairs: [f], vents: [] }); return { t: a.t + x.treads, r: a.r + x.risers }; }, { t: 0, r: 0 });
+      const c = flights.reduce((a, f) => { const x = window.PpStairs.counts(f); return { t: a.t + x.treads, r: a.r + x.risers }; }, { t: 0, r: 0 });
       const plan = flights.some((f) => f.plan_ref && m.data.plan && (m.data.plan.stairs || []).some((x) => x.id === f.plan_ref || x.stair_id === f.id));
       const landing = flights.find((f) => f.landing && f.landing.enabled);
       const title = flights.length > 1 ? `Stair ${k + 1}` : (root.name || `Stair ${k + 1}`);
-      const sub = [flights.length > 1 ? `${flights.length} flights` : '', `${c.t} treads · ${c.r} risers`, landing ? `landing ${fmtIn(landing.landing.width) || '—'}×${fmtIn(landing.landing.depth) || '—'}` : '', plan ? 'on the plan' : ''].filter(Boolean).join(' · ');
+      const sub = [flights.length > 1 ? `${flights.length} flights` : '', `${c.t} treads · ${c.r} risers`, landing ? (landing.landing.sqft ? `landing ${fmtIn(landing.landing.sqft)} SF` : `landing ${fmtIn(landing.landing.width) || '—'}×${fmtIn(landing.landing.depth) || '—'}`) : '', plan ? 'on the plan' : ''].filter(Boolean).join(' · ');
       return '<button type="button" class="pp-flight-tab' + (on ? ' is-active' : '') + '" data-stair-activate="' + esc(on ? activeId : flights[0].id) + '" role="tab" aria-selected="' + on + '">'
         + '<span class="pp-flight-tab-index">' + String(k + 1).padStart(2, '0') + '</span><span class="pp-flight-tab-copy"><strong>' + esc(title) + '</strong><small>' + esc(sub) + '</small></span></button>';
     }).join('');
@@ -5165,6 +5143,7 @@
   }
 
   function stairHtml(m, s, si) {
+    window.PpStairs.normalize(s);
     const locked = m.status === 'used';
     const p = 'stairs.' + si;
     const selStep = Math.min(Math.max(0, (m.vizSel && m.vizSel[si]) || 0), Math.max(0, (s.steps || []).length - 1));
@@ -5229,97 +5208,124 @@
         ${locked ? '' : '<button type="button" class="pp-q-ic pp-q-ic--del" data-nos-rm="' + si + ':' + i + '" aria-label="Remove nosing ' + (i + 1) + '">×</button>'}
       </div>`;
     }).join('');
-    const counts = measCounts({ stairs: [s], vents: [] });
-    const expandedMeasurements = Boolean(m.stairMeasurementsExpanded && m.stairMeasurementsExpanded[s.id]);
+    const c = window.PpStairs.counts(s);
+    const spec = window.PpStairs.readSpec(s);
     const upperFlight = m.data.stairs.find((flight) => flight.starts_on_landing_of === s.id);
     const lowerFlight = s.starts_on_landing_of ? m.data.stairs.find((flight) => flight.id === s.starts_on_landing_of) : null;
-    const layoutOptions = [
-      ['straight', 'Straight', 'One straight flight'],
-      ['round', 'Round / spiral', 'Curved steps around a center opening'],
-    ];
-    const layoutButtons = '<div class="pp-stair-layout" role="group" aria-label="Stair shape">'
-      + '<span class="pp-step-lbl">Stair shape</span>'
-      + layoutOptions.map(([value, title, hint]) => '<button type="button" class="pp-layout-choice' + (s.layout === value ? ' is-selected' : '') + '" data-layout="' + p + '.layout" data-value="' + value + '" aria-pressed="' + (s.layout === value) + '"' + (locked ? ' disabled' : '') + '>'
+    const dis = locked ? ' disabled' : '';
+    const open = (k) => Boolean(m.stairPanelExpanded && m.stairPanelExpanded[`${s.id}:${k}`]);
+    const panel = (k, title, note, body) => `<details class="pp-stair-secondary" data-stair-panel="${esc(s.id)}:${k}" ${open(k) ? 'open' : ''}><summary><span>${title}</span><small>${esc(note)}</small><i aria-hidden="true"></i></summary><div class="pp-stair-secondary-body">${body}</div></details>`;
+    const stepper = (part, n, name) => `<div class="pp-sb-stepper" role="group" aria-label="Number of ${name}">
+        <button type="button" data-sb-count="${part}:${si}:-1" aria-label="One less" ${locked || n <= 0 ? 'disabled' : ''}>−</button>
+        <input type="number" inputmode="numeric" min="0" max="${window.PpStairs.MAX_STEPS}" data-sb-qty="${part}:${si}" value="${n}" aria-label="Number of ${name}"${dis} />
+        <button type="button" data-sb-count="${part}:${si}:1" aria-label="One more" ${locked || (s.steps || []).length >= window.PpStairs.MAX_STEPS ? 'disabled' : ''}>+</button>
+      </div>`;
+    const size = (part, key, label, name) => `<label class="pp-sb-field"><span>${label}</span><span class="pp-sb-in"><input class="pp-in" inputmode="decimal" data-sb-size="${part}:${key}:${si}" value="${esc(fmtIn(spec[key].value))}" placeholder="${spec[key].mixed ? 'Mixed' : ''}" aria-label="${name} in inches"${dis} /><em>in</em></span></label>`;
+    const pick = (opts, cur, attrs) => (cur.mixed ? `<select ${attrs}><option value="" selected>Mixed</option>${opts.map(([v, l]) => `<option value="${esc(v)}">${esc(l)}</option>`).join('')}</select>` : sel(opts, cur.value, attrs));
+    const other = (path, value, list) => (value && !list.includes(value) ? `<input data-txt="${path}" value="${esc(String(value).trim())}" maxlength="60" aria-label="Other"${dis} />` : '');
+    const applies = (n, name) => (n ? `Applies to all ${n} ${name}.` : `New ${name} start with this size.`);
+    const sideText = (k) => (OPEN_OPTS.find((x) => x[0] === k) || [0, 'Mixed'])[1];
+    const retText = (k) => (RET_OPTS.find((x) => x[0] === k) || [0, ''])[1].replace(' (mitered)', '');
+    // treads
+    const tOpen = spec.open;
+    const treadNote = [tOpen.mixed ? 'Mixed sides' : sideText(tOpen.value), !tOpen.mixed && tOpen.value !== 'none' && !spec.ret.mixed ? retText(spec.ret.value) : '', s.species, s.finish].filter(Boolean).join(' · ');
+    const treadOpts = `<div class="pp-sb-grid">
+        <label class="pp-sb-field"><span>Open side</span>${pick(OPEN_OPTS, spec.open, `data-sb-opt="tread:open:${si}"${dis}`)}</label>
+        <label class="pp-sb-field"><span>Return</span>${pick(RET_OPTS, spec.ret, `data-sb-opt="tread:ret:${si}"${locked || spec.open.value === 'none' ? ' disabled' : ''}`)}</label>
+        <label class="pp-sb-field"><span>Wood</span>${selFree(SPECIES, s.species, `data-free="${p}.species"${dis}`)}${other(`${p}.species`, s.species, SPECIES)}</label>
+        <label class="pp-sb-field"><span>Finish</span>${selFree(FINISHES, s.finish, `data-free="${p}.finish"${dis}`)}${other(`${p}.finish`, s.finish, FINISHES)}</label>
+      </div>`;
+    // risers: same wood and finish as the treads until someone picks otherwise
+    const riserWoods = [...SPECIES, 'Paint grade'];
+    const rSide = s.riser_open || 'none';
+    const riserNote = c.risers ? [sideText(rSide), rSide !== 'none' ? retText(s.riser_ret || '45') : '', s.riser_species ? s.riser_species.trim() : 'Same wood', s.riser_finish ? s.riser_finish.trim() : 'Same finish'].filter(Boolean).join(' · ') : 'No risers';
+    const sameOr = (list, value, attrs, sameLabel) => `<select ${attrs}><option value="" ${!value ? 'selected' : ''}>${sameLabel}</option>${list.map((v) => `<option ${v === value ? 'selected' : ''}>${esc(v)}</option>`).join('')}<option value="__other" ${value && !list.includes(value) ? 'selected' : ''}>Other…</option></select>`;
+    const riserOpts = `<div class="pp-sb-grid">
+        <label class="pp-sb-field"><span>Open side</span>${sel(OPEN_OPTS, rSide, `data-sb-opt="riser:riser_open:${si}"${dis}`)}</label>
+        <label class="pp-sb-field"><span>Return</span>${sel(RET_OPTS, s.riser_ret || '45', `data-sb-opt="riser:riser_ret:${si}"${locked || rSide === 'none' ? ' disabled' : ''}`)}</label>
+        <label class="pp-sb-field"><span>Wood</span>${sameOr(riserWoods, s.riser_species, `data-free="${p}.riser_species"${dis}`, 'Same as treads')}${other(`${p}.riser_species`, s.riser_species, riserWoods)}</label>
+        <label class="pp-sb-field"><span>Finish</span>${sameOr(FINISHES, s.riser_finish, `data-free="${p}.riser_finish"${dis}`, 'Same as treads')}${other(`${p}.riser_finish`, s.riser_finish, FINISHES)}</label>
+      </div>`;
+    // the next flight
+    const hasLanding = s.landing && s.landing.enabled;
+    const sf = hasLanding ? (s.landing.sqft || (s.landing.width && s.landing.depth ? Math.round((s.landing.width * s.landing.depth) / 144 * 100) / 100 : '')) : '';
+    const dir = upperFlight ? upperFlight.turn || 'straight' : (hasLanding && s.landing.direction) || 'straight';
+    const chain = stairChainFor(m.data, s.id);
+    const flightNo = chain.findIndex((f) => f.id === s.id) + 1 || 1;
+    const fly = hasLanding ? `<section class="pp-sb-part" data-sb-part="landing" aria-label="Landing">
+        <div class="pp-sb-top"><h3>Landing</h3>${upperFlight || locked ? '' : `<button type="button" class="pp-link pp-late" data-landing-rm="${si}">Remove landing</button>`}</div>
+        <div class="pp-sb-sizes"><label class="pp-sb-field"><span>Size</span><span class="pp-sb-in"><input class="pp-in" inputmode="decimal" data-landing-sf="${si}" value="${esc(sf)}" aria-label="Landing size in square feet" aria-describedby="ppSfHelp${si}"${dis} /><em>sq ft</em></span></label></div>
+        <p class="pp-sb-note" id="ppSfHelp${si}">Type the area, like 16, or the sides in feet, like 4x4.</p>
+        <p class="pp-error" data-sb-err role="alert" hidden></p>
+        <div class="pp-turn" role="group" aria-label="Direction of the landing"><span>Direction</span>${TURN_OPTS.map(([k, l, ic]) => `<button type="button" data-landing-dir="${si}:${k}" aria-pressed="${dir === k}" title="${esc(l)}"${dis}>${ic}<span>${esc(l)}</span></button>`).join('')}</div>
+        ${upperFlight ? `<button type="button" class="pp-btn pp-btn--sec pp-sb-next" data-stair-focus="${esc(upperFlight.id)}">Go to flight ${flightNo + 1}</button>` : locked ? '' : `<button type="button" class="pp-btn pp-btn--dark pp-sb-next" data-fly-next="${si}">Start flight ${flightNo + 1}</button>`}
+      </section>` : locked ? '' : `<section class="pp-sb-part pp-sb-part--ask" data-sb-part="fly" aria-label="Another flight">
+        <div><h3>Another flight?</h3><p class="pp-sb-note">Adds a landing, then starts again from the treads.</p></div>
+        <button type="button" class="pp-btn pp-btn--sec" data-fly-add="${si}">+ Add flight</button>
+      </section>`;
+    // flights and landings of this stair, in order
+    const flow = chain.length > 1 ? `<ol class="pp-flow" aria-label="Flights of this stair">${chain.map((f, k) => {
+      const n = window.PpStairs.counts(f);
+      const turn = (TURN_OPTS.find((x) => x[0] === (chain[k + 1] && chain[k + 1].turn)) || [0, ''])[1];
+      return `<li><button type="button" data-stair-activate="${esc(f.id)}" aria-current="${f.id === s.id ? 'step' : 'false'}"><strong>Flight ${k + 1}</strong><small>${n.treads} treads · ${n.risers} risers</small></button></li>${f.landing && f.landing.enabled && chain[k + 1] ? `<li class="pp-flow-land" aria-label="Landing"><span>Landing</span><small>${esc([f.landing.sqft ? `${fmtIn(f.landing.sqft)} SF` : '', turn].filter(Boolean).join(' · '))}</small></li>` : ''}`;
+    }).join('')}</ol>` : '';
+    // Shape and stain are rare; each piece on its own only when a stair isn't uniform.
+    const layoutButtons = '<div class="pp-stair-layout" role="group" aria-label="Stair shape"><span class="pp-step-lbl">Stair shape</span>'
+      + [['straight', 'Straight', 'One straight flight'], ['round', 'Round / spiral', 'Curved steps around a center opening']].map(([value, title, hint]) => '<button type="button" class="pp-layout-choice' + (s.layout === value ? ' is-selected' : '') + '" data-layout="' + p + '.layout" data-value="' + value + '" aria-pressed="' + (s.layout === value) + '"' + dis + '>'
         + (value === 'round' ? '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 4v5M20 12h-5M12 20v-5M4 12h5"/></svg>' : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4v-4h4v-4h4V8h4"/></svg>')
-        + '<span><strong>' + title + '</strong><small>' + hint + '</small></span></button>').join('')
-      + '</div>';
+        + '<span><strong>' + title + '</strong><small>' + hint + '</small></span></button>').join('') + '</div>';
     const roundFields = s.layout === 'round'
       ? `<div class="pp-stair-shape-fields">
           <label><span>Outside diameter</span>${inch(p + '.round_diameter', s.round_diameter, 'Round stair outside diameter', locked)}</label>
           <label><span>Center opening</span>${inch(p + '.round_center_diameter', s.round_center_diameter, 'Round stair center opening diameter', locked)}</label>
-          <label><span>Stair sweep</span>${sel([['180', '180°'], ['270', '270°'], ['360', '360°']], s.round_sweep || '270', 'data-set="' + p + '.round_sweep"' + (locked ? ' disabled' : ''))}</label>
-        </div><p class="pp-meas-help">The plan divides the selected sweep across measured treads.</p>`
-      : '';
-    const landingFields = s.landing && s.landing.enabled
-      ? `<div class="pp-stair-shape-fields pp-stair-landing-fields">
-          <label><span>Landing width</span>${inch(p + '.landing.width', s.landing.width, 'Landing width', locked)}</label>
-          <label><span>Landing depth</span>${inch(p + '.landing.depth', s.landing.depth, 'Landing depth', locked)}</label>
+          <label><span>Stair sweep</span>${sel([['180', '180°'], ['270', '270°'], ['360', '360°']], s.round_sweep || '270', 'data-set="' + p + '.round_sweep"' + dis)}</label>
         </div>`
       : '';
-    const landingAction = s.landing && s.landing.enabled
-      ? upperFlight
-        ? '<div class="pp-stair-connection"><span>Upper flight: <strong>' + esc(upperFlight.name || 'Stair') + '</strong></span><button type="button" class="pp-link" data-stair-focus="' + esc(upperFlight.id) + '">Edit upper flight</button></div>'
-        : '<button type="button" class="pp-btn pp-btn--sec pp-btn--sm pp-stair-add-upper" data-stair-above="' + si + '"' + (locked ? ' disabled' : '') + '>+ Add upper flight on this landing</button>'
-      : '';
-    const landingLocked = locked || Boolean(upperFlight);
-    // The shape follows the landing: a flight above it that turns makes an L or a U.
-    const turnTo = upperFlight && upperFlight.turn;
-    const shape = s.layout === 'round' ? 'Round stair'
-      : turnTo === 'left' || turnTo === 'right' ? `L-shaped · turns ${turnTo} at the landing`
-        : turnTo === 'u_left' || turnTo === 'u_right' ? `U-shaped · turns ${turnTo === 'u_left' ? 'left' : 'right'} at the landing`
-          : upperFlight ? 'Straight · continues past the landing' : 'Straight flight';
-    const setupSummary = shape
-      + ' · ' + (s.species || 'Wood not selected')
-      + (s.landing && s.landing.enabled ? ' · Landing enabled' : '');
+    const eachBody = `<div class="pp-stair-measure-card">
+        <div class="pp-component-editor-head"><div><strong>${esc(selectedLabel)}</strong></div>
+          <div class="pp-component-nav"><button type="button" class="pp-q-ic" data-viz-prev="${si}" aria-label="Previous piece" ${(s.steps || []).length < 2 || selStep <= 0 ? 'disabled' : ''}>‹</button><button type="button" class="pp-q-ic" data-viz-next="${si}" aria-label="Next piece" ${selStep >= (s.steps || []).length - 1 ? 'disabled' : ''}>›</button></div></div>
+        ${stepStripHtml(m, s, si, selStep)}
+        <div class="pp-selected-editor">${selectedRow || '<p class="pp-q-empty">Set the number of treads first.</p>'}</div>
+        <details class="pp-stair-measurements" data-stair-measures="${esc(s.id)}" ${m.stairMeasurementsExpanded && m.stairMeasurementsExpanded[s.id] ? 'open' : ''}>
+          <summary class="pp-stair-measures-head"><span>All pieces · ${(s.steps || []).length}</span><i aria-hidden="true"></i></summary>
+          <div class="pp-stair-step-index" role="group" aria-label="Select a piece">${stepOptions || '<p class="pp-q-empty">No pieces yet.</p>'}</div>
+        </details>
+      </div>`;
     return `<section class="pp-card pp-stair" aria-label="${esc(s.name || 'Stair')}">
       <div class="pp-stair-head">
         <div class="pp-stair-title-group"><input class="pp-stair-name" data-txt="${p}.name" value="${esc(s.name)}" maxlength="80" aria-label="Stair name" ${locked ? 'disabled' : ''} />
-        <span class="pp-muted">${counts.treads} treads · ${counts.risers} risers${lowerFlight ? ' · Starts at landing' : ''}</span></div>
-        ${locked ? '' : '<button type="button" class="pp-q-ic pp-q-ic--del" data-stair-rm="' + si + '" aria-label="Remove ' + esc(s.name || 'stair') + '">×</button>'}
+        <span class="pp-muted">${chain.length > 1 ? `Flight ${flightNo} of ${chain.length} · ` : ''}${plural(c.treads, 'tread', 'treads')} · ${plural(c.risers, 'riser', 'risers')}${lowerFlight ? ' · starts at the landing' : ''}</span></div>
+        ${locked ? '' : `<button type="button" class="pp-q-ic pp-q-ic--del" data-stair-rm="${si}" aria-label="Remove ${chain.length > 1 ? `flight ${flightNo}` : esc(s.name || 'stair')}">×</button>`}
       </div>
-      <details class="pp-stair-setup" data-stair-setup="${esc(s.id)}" ${m.stairSetupExpanded && m.stairSetupExpanded[s.id] ? 'open' : ''}>
-        <summary><span>Stair setup</span><small>${esc(setupSummary)}</small><i aria-hidden="true"></i></summary>
-        <div class="pp-stair-setup-body"><div class="pp-stair-spec">
-          <label><span>Wood</span>${selFree(SPECIES, s.species, 'data-free="' + p + '.species"' + (locked ? ' disabled' : ''))}${SPECIES.includes(s.species) || !s.species ? '' : '<input data-txt="' + p + '.species" value="' + esc(s.species) + '" maxlength="60"' + (locked ? ' disabled' : '') + ' />'}</label>
-          <label><span>Finish</span>${selFree(FINISHES, s.finish, 'data-free="' + p + '.finish"' + (locked ? ' disabled' : ''))}${FINISHES.includes(s.finish) || !s.finish ? '' : '<input data-txt="' + p + '.finish" value="' + esc(s.finish) + '" maxlength="60"' + (locked ? ' disabled' : '') + ' />'}</label>
-          <label><span>Color / stain</span><input data-txt="${p}.color" value="${esc(s.color)}" maxlength="80" placeholder="e.g. Natural, Jacobean" ${locked ? 'disabled' : ''} /></label>
-          <label><span>Risers</span>${sel(RISER_OPTS, s.riser_material, 'data-set="' + p + '.riser_material"' + (locked ? ' disabled' : ''))}</label>
-        </div>
-        <div class="pp-stair-options">${layoutButtons}${roundFields}
-        <div class="pp-stair-landing">
-          <label class="pp-stair-toggle"><input type="checkbox" data-bool="${p}.landing.enabled" ${s.landing && s.landing.enabled ? 'checked' : ''} ${landingLocked ? 'disabled' : ''} /><span><strong>Add a landing after the stair</strong><small>${upperFlight ? 'Remove the upper flight before removing this landing.' : 'The landing can connect to another flight above it.'}</small></span></label>
-          ${landingFields}
-          ${landingAction}
-        </div>
-        ${lowerFlight ? '<p class="pp-stair-from-landing">Starts from the landing on <strong>' + esc(lowerFlight.name || 'Stair') + '</strong>.</p>' : ''}
-        </div></div>
-      </details>
+      ${flow}
       <div class="pp-stair-split">
       <div class="pp-stair-info">
-      <div class="pp-stair-workspace" role="group" aria-label="Stair measurements">
-        <div class="pp-stair-workspace-measures">
-          <div class="pp-stair-measure-card">
-            <div class="pp-component-editor-head"><div><small>COMPONENT ${selectedStep ? String(selStep + 1).padStart(2, '0') : '—'} OF ${(s.steps || []).length}</small><strong>${esc(selectedLabel)}</strong><span>${esc(s.name || 'Stair')} · ${esc(s.species || 'Wood not selected')}${s.finish ? ' · ' + esc(s.finish) : ''}</span></div>
-              <div class="pp-component-nav"><button type="button" class="pp-q-ic" data-viz-prev="${si}" aria-label="Previous component" ${(s.steps || []).length < 2 || selStep <= 0 ? 'disabled' : ''}>‹</button><button type="button" class="pp-q-ic" data-viz-next="${si}" aria-label="Next component" ${selStep >= (s.steps || []).length - 1 ? 'disabled' : ''}>›</button></div></div>
-            ${stepStripHtml(m, s, si, selStep)}
-            ${selectedStep && selectedStep.kind !== 'riser' ? treadDetailHtml(m, s, si, selStep) : ''}
-            <div class="pp-selected-editor">${selectedRow || '<p class="pp-q-empty">Add a tread or riser to start measuring this flight.</p>'}</div>
-            ${locked ? '' : '<div class="pp-stair-add"><button type="button" class="pp-q-add" data-step-add="' + si + '">+ Step (tread + riser)</button><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-riser-add="' + si + '"' + (s.riser_material === 'none' ? ' disabled' : '') + '>+ Riser only</button>'
-            + ((s.steps || []).length ? '<span class="pp-stair-many"><label for="ppMany-' + si + '">Add</label><input id="ppMany-' + si + '" type="number" min="1" max="40" value="5" /><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-step-many="' + si + '">equal steps</button></span>' : '') + '</div>'}
-            <details class="pp-stair-measurements" data-stair-measures="${esc(s.id)}" aria-label="${esc(s.name || 'Stair')} components" ${expandedMeasurements ? 'open' : ''}>
-              <summary class="pp-stair-measures-head"><span>All measurements · ${plural((s.steps || []).length, 'component', 'components')}</span><i aria-hidden="true"></i></summary>
-              <div class="pp-stair-step-index" role="group" aria-label="Select a stair component">${stepOptions || '<p class="pp-q-empty">No components yet.</p>'}</div>
-            </details>
-          </div>
+        <section class="pp-sb-part" data-sb-part="treads" aria-label="Treads">
+          <div class="pp-sb-top"><h3>Treads</h3>${stepper('treads', c.treads, 'treads')}</div>
+          <div class="pp-sb-sizes">${size('treads', 'tread_w', 'Width', 'Tread width')}<em class="pp-sb-x">×</em>${size('treads', 'tread_d', 'Depth', 'Tread depth')}</div>
+          <p class="pp-sb-note">${spec.tread_w.mixed || spec.tread_d.mixed ? 'These treads have different sizes. A size typed here replaces them all.' : applies(c.treads, 'treads')}</p>
+          <p class="pp-error" data-sb-err role="alert" hidden></p>
+          ${panel('treadopts', 'Options', treadNote, treadOpts)}
+        </section>
+        <section class="pp-sb-part" data-sb-part="risers" aria-label="Risers">
+          <div class="pp-sb-top"><h3>Risers</h3>${stepper('risers', c.risers, 'risers')}</div>
+          <div class="pp-sb-sizes">${size('risers', 'riser_w', 'Width', 'Riser width')}<em class="pp-sb-x">×</em>${size('risers', 'riser_h', 'Height', 'Riser height')}</div>
+          <p class="pp-sb-note">${spec.riser_w.mixed || spec.riser_h.mixed ? 'These risers have different sizes. A size typed here replaces them all.' : applies(c.risers, 'risers')}</p>
+          <p class="pp-error" data-sb-err role="alert" hidden></p>
+          ${panel('riseropts', 'Options', riserNote, riserOpts)}
+        </section>
+        ${fly}
+        <div class="pp-sb-more">
+          ${panel('each', 'Adjust one piece', (s.steps || []).length ? 'For a tread or riser that differs' : 'No pieces yet', eachBody)}
+          ${panel('shape', 'Shape and stain', [s.layout === 'round' ? 'Round' : 'Straight', s.color].filter(Boolean).join(' · '), `${layoutButtons}${roundFields}<label class="pp-sb-field"><span>Color / stain</span><input data-txt="${p}.color" value="${esc(s.color)}" maxlength="80" placeholder="e.g. Natural, Jacobean"${dis} /></label>`)}
+          ${panel('nosings', 'Nosings', String((s.nosings || []).length), `${nos || '<p class="pp-muted" style="margin:0;font-size:13px">Add a nosing and choose the tread or landing edge it belongs to.</p>'}${locked ? '' : `<button type="button" class="pp-link" data-nos-add="${si}">+ Nosing</button>`}`)}
+          ${panel('photos', 'Photos', String((s.photos || []).length), photoStrip(m, s.photos, `${p}.photos`))}
+          ${panel('notes', 'Notes', s.note ? 'Added' : 'Optional', `<textarea data-txt="${p}.note" maxlength="500" placeholder="e.g. right wall out of square, existing skirt board" aria-label="Flight notes"${dis}>${esc(s.note)}</textarea>`)}
         </div>
-      </div>
-      <details class="pp-stair-secondary" data-stair-panel="${esc(s.id)}:nosings" ${m.stairPanelExpanded && m.stairPanelExpanded[s.id + ':nosings'] ? 'open' : ''}><summary><span>Nosings</span><small>${(s.nosings || []).length}</small><i aria-hidden="true"></i></summary><div class="pp-stair-secondary-body">${nos || '<p class="pp-muted" style="margin:0;font-size:13px">Add a nosing and choose the tread or landing edge it belongs to.</p>'}${locked ? '' : '<button type="button" class="pp-link" data-nos-add="' + si + '">+ Nosing</button>'}</div></details>
-      <details class="pp-stair-secondary" data-stair-panel="${esc(s.id)}:photos" ${m.stairPanelExpanded && m.stairPanelExpanded[s.id + ':photos'] ? 'open' : ''}><summary><span>Photos</span><small>${(s.photos || []).length}</small><i aria-hidden="true"></i></summary><div class="pp-stair-secondary-body">${photoStrip(m, s.photos, p + '.photos')}</div></details>
-      <details class="pp-stair-secondary" data-stair-panel="${esc(s.id)}:notes" ${m.stairPanelExpanded && m.stairPanelExpanded[s.id + ':notes'] ? 'open' : ''}><summary><span>Flight notes</span><small>${s.note ? 'Added' : 'Optional'}</small><i aria-hidden="true"></i></summary><div class="pp-stair-secondary-body"><textarea data-txt="${p}.note" maxlength="500" placeholder="e.g. right wall out of square, existing skirt board" ${locked ? 'disabled' : ''}>${esc(s.note)}</textarea></div></details>
       </div>
       <aside class="pp-stair-3dcol" aria-label="Stair in 3D">
         <section class="pp-3dcard pp-3dcard--stair">${stairVizHtml(m, s, si)}</section>
-        ${treadStageHtml(s, si, selStep)}
+        ${open('each') ? treadStageHtml(s, si, selStep) : ''}
       </aside>
       </div>
     </section>`;
@@ -5348,7 +5354,7 @@
       m.data.vents[i].qty = Math.max(1, (Number(m.data.vents[i].qty) || 1) + d);
       after();
     }));
-    root.querySelectorAll('[data-rv-open]').forEach((b) => b.addEventListener('click', () => openVentSheet(Number(b.getAttribute('data-rv-open')), false)));
+    root.querySelectorAll('[data-rv-open]').forEach((b) => b.addEventListener('click', () => openVentsPopup({ focus: m.data.vents[Number(b.getAttribute('data-rv-open'))].id })));
     const add = root.querySelector('[data-rv-add]');
     if (add) add.addEventListener('click', () => {
       m.data.vents = m.data.vents || [];
@@ -5358,42 +5364,33 @@
       const at = idx.length ? idx[idx.length - 1] + 1 : m.data.vents.length;
       m.data.vents.splice(at, 0, v);
       measSaveSoon();
-      openVentSheet(at, true);
+      openVentsPopup({ focus: v.id });
     });
-  }
-  /** Vents grouped by room, in the order the rooms were first measured; vents without a room last. */
-  function ventGroups(vents) {
-    const groups = [];
-    const byKey = new Map();
-    vents.forEach((v, i) => {
-      const name = (v.room || '').trim();
-      const k = name.toLowerCase();
-      if (!byKey.has(k)) { const g = { key: k, name, items: [] }; byKey.set(k, g); groups.push(g); }
-      byKey.get(k).items.push(i);
-    });
-    return groups.sort((a, b) => (a.key ? 0 : 1) - (b.key ? 0 : 1));
   }
   function ventsHtml(m) {
     const locked = m.status === 'used';
     const vents = m.data.vents || [];
     const total = vents.reduce((n, v) => n + (Number(v.qty) || 1), 0);
-    const rooms = new Set(vents.map((v) => (v.room || '').trim().toLowerCase()).filter(Boolean)).size;
-    const rows = vents.map((v, i) => `<div class="pp-vrow" role="listitem">
-        <button type="button" class="pp-vrow-main" data-vent-open="${i}" aria-label="Edit vent ${i + 1}${v.room ? `, ${esc(v.room)}` : ''}">
+    const rows = vents.map((v, i) => {
+      const n = Number(v.qty) || 1;
+      const sub = [VENT_TYPE_LABEL[v.type] || '', v.type === 'metal' ? '' : [v.species, v.finish].filter((x) => x && x.trim()).join(' · '), (v.room || '').trim(), (v.photos || []).length ? plural(v.photos.length, 'photo', 'photos') : ''].filter(Boolean).join(' · ');
+      return `<div class="pp-vrow" role="listitem">
+        <button type="button" class="pp-vrow-main" data-vent-open="${esc(v.id)}" aria-label="Edit ${esc(String(v.size || 'vent').replace('x', ' by '))} vent">
           <span class="pp-vrow-thumb" aria-hidden="true">${ventSvg(v)}</span>
-          <span class="pp-vrow-text"><strong>${esc(v.room || `Vent ${i + 1}`)}</strong><small>${esc([String(v.size || '').replace('x', '×'), VENT_TYPE_LABEL[v.type] || '', [v.species, v.finish].filter((x) => x && x.trim()).join(' · ')].filter(Boolean).join(' · '))}${(v.photos || []).length ? ` · ${(v.photos || []).length} photo${(v.photos || []).length > 1 ? 's' : ''}` : ''}</small></span>
+          <span class="pp-vrow-text"><strong>${esc(String(v.size || 'Vent').trim().replace('x', '×'))}</strong><small>${esc(sub)}</small></span>
         </button>
         <span class="pp-stepper" role="group" aria-label="Quantity">
-          ${locked ? '' : `<button type="button" data-vent-qty="${i}:-1" aria-label="One less" ${(Number(v.qty) || 1) <= 1 ? 'disabled' : ''}>−</button>`}
-          <b aria-live="polite">${Number(v.qty) || 1}</b>
+          ${locked ? '' : `<button type="button" data-vent-qty="${i}:-1" aria-label="One less" ${n <= 1 ? 'disabled' : ''}>−</button>`}
+          <b aria-live="polite">${n}</b>
           ${locked ? '' : `<button type="button" data-vent-qty="${i}:1" aria-label="One more">+</button>`}
         </span>
-      </div>`).join('');
+      </div>`;
+    }).join('');
     return `<section class="pp-card pp-vents" aria-labelledby="ppVentsT">
-        <div class="pp-vents-head"><div><h3 id="ppVentsT">Vents</h3><small>${vents.length ? `${total} vent${total === 1 ? '' : 's'}${rooms ? ` in ${rooms} room${rooms === 1 ? '' : 's'}` : ''}` : 'Each size and room once — use the count for repeats'}</small></div>${locked ? '' : `<div class="pp-vents-acts"><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" id="ppVentCount" title="Tap once for each vent as you walk the house">${icon('tally')}Count</button><button type="button" class="pp-btn pp-btn--pri pp-btn--sm" id="ppVentAdd">+ Vent</button></div>`}</div>
-        ${vents.length && window.ObPlan3D ? '<div class="pp-vents3d" data-vents3d></div>' : ''}
+        <div class="pp-vents-head"><div><h3 id="ppVentsT">Vents</h3><small>${vents.length ? plural(total, 'vent', 'vents') : 'Add every size in one go'}</small></div>${locked ? '' : `<div class="pp-vents-acts"><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" id="ppVentCount" title="Tap once for each vent as you walk the house">${icon('tally')}Count</button><button type="button" class="pp-btn pp-btn--pri pp-btn--sm" id="ppVentAdd">+ Add vents</button></div>`}</div>
         ${vents.length ? `<div class="pp-vsum" aria-label="Vents by size">${ventKinds(vents).map((k) => `<span><b>${k.n}</b> ${esc(k.label)}</span>`).join('')}</div>` : ''}
-        ${vents.length ? `<div class="pp-vlist" role="list">${rows}</div>` : `<div class="pp-empty" style="padding:22px 8px">${mate('head-thinking', 56)}<strong>No vents measured</strong>Add each vent with its size, type and finish.</div>`}
+        ${vents.length ? `<div class="pp-vlist" role="list">${rows}</div>` : `<div class="pp-empty" style="padding:22px 8px">${mate('head-thinking', 56)}<strong>No vents measured</strong>Add the sizes, how many of each and the type.<button type="button" class="pp-link" data-vent-add-empty>+ Add vents</button></div>`}
+        ${vents.length && window.ObPlan3D ? (m.vents3d ? '<div class="pp-vents3d" data-vents3d></div>' : '<button type="button" class="pp-link pp-vents-3dbtn" data-vents-3d>See them in 3D</button>') : ''}
       </section>`;
   }
 
@@ -5428,8 +5425,19 @@
       return list;
     };
     const total = () => m.data.vents.reduce((n, v) => n + (Number(v.qty) || 1), 0);
-    const back = () => { measSaveSoon(); const y = window.scrollY; paintMeasurement(); window.scrollTo(0, y); };
-    const roomsKnown = () => Array.from(new Set(m.data.vents.map((v) => (v.room || '').trim()).filter(Boolean)));
+    // The list behind the sheet is redrawn once, when the sheet closes: each tap stays instant.
+    const back = () => measSaveSoon();
+    let watching = false;
+    const repaintOnClose = (root) => {
+      if (watching) return;
+      watching = true;
+      const obs = new MutationObserver(() => {
+        if (document.body.contains(root)) return;
+        obs.disconnect();
+        if (state.meas === m && route().name === 'measurements') { const y = window.scrollY; paintMeasurement(); window.scrollTo(0, y); }
+      });
+      obs.observe(document.body, { childList: true });
+    };
     function paint() {
       const list = kinds();
       if (!c.kind || !list.some((k) => k.key === c.kind)) c.kind = list[0].key;
@@ -5443,13 +5451,12 @@
           <div class="pp-vcount-kinds" role="group" aria-label="Vent kind">${list.map((k) => `<button type="button" data-vc-kind="${esc(k.key)}" aria-pressed="${k.key === c.kind}"><span>${esc(k.label)}</span><b>${k.n}</b></button>`).join('')}<button type="button" class="pp-vcount-new" data-vc-new aria-expanded="${c.adding}">+ Size</button></div>
           ${c.adding ? `<div class="pp-vcount-add">
             <select data-vc-size aria-label="Size">${VENT_SIZES.map((sz) => `<option ${sz === c.newSize ? 'selected' : ''}>${sz}</option>`).join('')}</select>
-            <div class="pp-seg" role="group" aria-label="Type">${VENT_TYPES.map(([k, l]) => `<button type="button" data-vc-type="${k}" aria-pressed="${c.newType === k}">${esc(l)}</button>`).join('')}</div>
+            <div class="pp-seg" role="group" aria-label="Type">${VENT_PICK.map(([k, l]) => `<button type="button" data-vc-type="${k}" aria-pressed="${c.newType === k}">${esc(l)}</button>`).join('')}</div>
             <button type="button" class="pp-btn pp-btn--pri pp-btn--sm" data-vc-addkind>Use this size</button>
           </div>` : ''}
-          <label class="pp-vcount-room"><span>Room <small>(optional)</small></span><input data-vc-room list="ppVcRooms" value="${esc(c.room)}" maxlength="60" placeholder="e.g. Kitchen" autocomplete="off" /><datalist id="ppVcRooms">${roomsKnown().map((r) => `<option value="${esc(r)}"></option>`).join('')}</datalist></label>
           <button type="button" class="pp-vcount-tap" data-vc-tap aria-label="Add one ${esc(cur.label)} vent">
             <span class="pp-vcount-n" aria-live="polite">${here ? Number(here.qty) || 1 : 0}</span>
-            <span class="pp-vcount-l">${esc(cur.label)}${c.room.trim() ? ` · ${esc(c.room.trim())}` : ''}</span>
+            <span class="pp-vcount-l">${esc(cur.label)}</span>
             <span class="pp-vcount-hint">Tap once for each vent</span>
           </button>
           <div class="pp-vcount-foot">
@@ -5461,29 +5468,21 @@
       let root;
       if (open) { open.querySelector('.pp-sheet-body').innerHTML = html; root = open; }
       else root = openSheet('Count vents', html, { noFocus: true });
+      repaintOnClose(root);
       root.querySelectorAll('[data-vc-kind]').forEach((b) => b.addEventListener('click', () => { c.kind = b.getAttribute('data-vc-kind'); c.adding = false; paint(); }));
       root.querySelector('[data-vc-new]').addEventListener('click', () => { c.adding = !c.adding; paint(); });
       const sz = root.querySelector('[data-vc-size]'); if (sz) sz.addEventListener('change', () => { c.newSize = sz.value; });
       root.querySelectorAll('[data-vc-type]').forEach((b) => b.addEventListener('click', () => { c.newType = b.getAttribute('data-vc-type'); paint(); }));
       const ak = root.querySelector('[data-vc-addkind]'); if (ak) ak.addEventListener('click', () => { c.kind = `${c.newSize}|${c.newType}`; c.adding = false; paint(); });
-      const room = root.querySelector('[data-vc-room]');
-      room.addEventListener('input', () => {
-        c.room = room.value.slice(0, 60);
-        const l = root.querySelector('.pp-vcount-l'); if (l) l.textContent = cur.label + (c.room.trim() ? ` · ${c.room.trim()}` : '');
-        const rk = roomKey(c.room); const [sz0, ty0] = c.kind.split('|');
-        const here = m.data.vents.find((x) => String(x.size || '').trim() === sz0 && (x.type || 'flush') === ty0 && roomKey(x.room) === rk);
-        const n = root.querySelector('.pp-vcount-n'); if (n) n.textContent = String(here ? Number(here.qty) || 1 : 0);
-      });
       root.querySelector('[data-vc-tap]').addEventListener('click', () => {
-        c.room = room.value.slice(0, 60);
         const [size, type] = c.kind.split('|');
-        const rk = roomKey(c.room);
-        let v = m.data.vents.find((x) => String(x.size || '').trim() === size && (x.type || 'flush') === type && roomKey(x.room) === rk);
+        let v = m.data.vents.find((x) => String(x.size || '').trim() === size && (x.type || 'flush') === type);
         let created = false;
         if (v) v.qty = (Number(v.qty) || 1) + 1;
         else {
           const like = m.data.vents.filter((x) => String(x.size || '').trim() === size && (x.type || 'flush') === type).pop() || m.data.vents[m.data.vents.length - 1];
-          v = { ...newVent(like || null), size, type, room: c.room.trim(), qty: 1 };
+          v = { ...newVent(like || null), size, type, qty: 1 };
+          if (type === 'metal') { v.species = ''; v.finish = ''; }
           m.data.vents.push(v); created = true;
         }
         c.taps.push({ id: v.id, created });
@@ -5505,157 +5504,353 @@
     paint();
   }
 
-  /** Vent editor in a sheet: drawing on top, fields below; the list updates when it closes. */
-  function openVentSheet(i, isNew) {
+  /**
+   * All vents in one popup: a row per size with how many and the type, wood and finish once for all.
+   * Edits save as they happen. A row just added counts once it is touched or the person taps Done,
+   * so closing the popup never invents a vent. Nothing here draws in 3D, so it opens and types instantly.
+   */
+  function openVentsPopup(opts) {
+    const o = opts || {};
     const m = state.meas;
-    const v = m.data.vents[i];
-    if (!v) return;
+    m.data.vents = m.data.vents || [];
     const locked = m.status === 'used';
-    const p = `vents.${i}`;
-    const dis = locked ? 'disabled' : '';
-    const knownSize = VENT_SIZES.includes(v.size);
-    const root = openSheet(isNew ? 'New vent' : (v.room || `Vent ${i + 1}`), `
-      <div class="pp-vsheet">
-        <div class="pp-vent-viz ${window.ObPlan3D ? 'is-3d' : ''}" id="ppVentViz">${window.ObPlan3D ? '' : ventSvg(v)}</div>
-        <div class="pp-fields pp-vsheet-fields">
-          <div class="pp-field pp-field--wide"><label for="ppVRoom">Room</label><input id="ppVRoom" data-txt="${p}.room" value="${esc(v.room)}" maxlength="80" placeholder="e.g. Master bedroom" ${dis} /></div>
-          <div class="pp-field"><label for="ppVSize">Size</label><select id="ppVSize" data-vsize="${p}" ${dis}>${VENT_SIZES.map((sz) => `<option ${sz === v.size ? 'selected' : ''}>${sz}</option>`).join('')}<option value="__other" ${knownSize ? '' : 'selected'}>Other…</option></select>${knownSize ? '' : `<input data-txt="${p}.size" value="${esc(String(v.size || '').trim())}" maxlength="20" placeholder="e.g. 4x16" aria-label="Other size" ${dis} />`}</div>
-          <div class="pp-field"><label for="ppVQty">How many</label><input id="ppVQty" type="number" inputmode="numeric" min="1" max="500" data-num="${p}.qty" value="${esc(v.qty || 1)}" ${dis} /></div>
-          <div class="pp-field pp-field--wide"><span class="pp-flabel">Type</span><div class="pp-seg pp-seg--wrap" role="group" aria-label="Vent type">${VENT_TYPES.map(([k, l]) => `<button type="button" data-vtype="${k}" aria-pressed="${v.type === k}" ${dis}>${esc(l)}</button>`).join('')}</div></div>
-          <div class="pp-field"><label for="ppVWood">Wood</label>${selFree(SPECIES, v.species, `id="ppVWood" data-free="${p}.species" ${dis}`)}${SPECIES.includes(v.species) || !v.species ? '' : `<input data-txt="${p}.species" value="${esc(v.species.trim())}" maxlength="60" aria-label="Other wood" ${dis} />`}</div>
-          <div class="pp-field"><label for="ppVFinish">Finish</label>${selFree(FINISHES, v.finish, `id="ppVFinish" data-free="${p}.finish" ${dis}`)}${FINISHES.includes(v.finish) || !v.finish ? '' : `<input data-txt="${p}.finish" value="${esc(v.finish.trim())}" maxlength="60" aria-label="Other finish" ${dis} />`}</div>
-          <div class="pp-field"><label for="ppVColor">Color / stain</label><input id="ppVColor" data-txt="${p}.color" value="${esc(v.color)}" maxlength="80" ${dis} /></div>
-          <div class="pp-field"><label for="ppVNote">Note</label><input id="ppVNote" data-txt="${p}.note" value="${esc(v.note)}" maxlength="300" ${dis} /></div>
-          <div class="pp-field pp-field--wide"><span class="pp-flabel">Photos</span>${photoStrip(m, v.photos, `${p}.photos`)}</div>
-        </div>
-        <div class="pp-sheet-actions">
-          ${locked ? '' : `<button type="button" class="pp-btn pp-btn--sec pp-late" data-vs-rm>Remove</button><button type="button" class="pp-btn pp-btn--sec" data-vs-dup>Duplicate</button>`}
-          <button type="button" class="pp-btn pp-btn--pri" data-sheet-close>Done</button>
-        </div>
-      </div>`, { noFocus: !isNew });
-    let vent3d = null; let ventT = 0;
-    const repaint = () => {
-      const box = root.querySelector('#ppVentViz'); if (!box) return;
-      if (!window.ObPlan3D) { box.innerHTML = ventSvg(m.data.vents[i]); return; }
-      clearTimeout(ventT);
-      ventT = setTimeout(async () => { if (vent3d) vent3d.destroy(); vent3d = null; box.innerHTML = ''; try { vent3d = await window.ObPlan3D.mountVent(box, m.data.vents[i]); } catch (_) { box.innerHTML = ventSvg(m.data.vents[i]); } }, 120);
+    const dis = locked ? ' disabled' : '';
+    const sizeAfter = (size) => VENT_SIZES[(VENT_SIZES.indexOf(String(size || '').trim()) + 1) % VENT_SIZES.length];
+    const seedRow = (prev) => {
+      const v = { ...newVent(prev || null), size: prev ? sizeAfter(prev.size) : '4x10', qty: 1 };
+      return { v, seed: true };
     };
-    repaint();
-    const reopen = () => { closeSheet(); openVentSheet(i, isNew); };
-    root.querySelectorAll('[data-txt]').forEach((el) => el.addEventListener('input', () => { const { obj, key } = measAt(el.getAttribute('data-txt')); obj[key] = el.value; measSaveSoon(); repaint(); }));
-    root.querySelectorAll('[data-num]').forEach((el) => el.addEventListener('input', () => { const { obj, key } = measAt(el.getAttribute('data-num')); obj[key] = Math.max(1, Math.round(Number(el.value) || 1)); measSaveSoon(); }));
-    root.querySelectorAll('[data-free]').forEach((el) => el.addEventListener('change', () => {
-      const { obj, key } = measAt(el.getAttribute('data-free'));
-      obj[key] = el.value === '__other' ? ' ' : el.value;
-      measSaveSoon();
-      reopen();
-      if (el.value === '__other') { const inp = $('ppSheet') && $('ppSheet').querySelector(`[data-txt="${el.getAttribute('data-free')}"]`); if (inp) { inp.value = ''; inp.focus(); } }
-    }));
-    root.querySelectorAll('[data-vsize]').forEach((el) => el.addEventListener('change', () => {
-      m.data.vents[i].size = el.value === '__other' ? ' ' : el.value;
-      measSaveSoon();
-      reopen();
-      if (el.value === '__other') { const inp = $('ppSheet') && $('ppSheet').querySelector(`[data-txt="${p}.size"]`); if (inp) { inp.value = ''; inp.focus(); } }
-    }));
-    root.querySelectorAll('[data-vtype]').forEach((b) => b.addEventListener('click', () => {
-      m.data.vents[i].type = b.getAttribute('data-vtype');
-      root.querySelectorAll('[data-vtype]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
-      measSaveSoon();
-      repaint();
-    }));
-    root.querySelectorAll('[data-ph-add]').forEach((inp) => inp.addEventListener('change', async () => {
-      const file = inp.files && inp.files[0];
-      if (!file) return;
-      const label = inp.closest('.pp-meas-addph');
-      if (label) label.classList.add('is-busy');
-      try {
-        const dataUrl = (await compressImage(file)) || (await readAsDataUrl(file));
-        const r = await postJson(`/api/builder/measurements/${encodeURIComponent(m.id)}/photos`, { data_url: dataUrl });
-        m.data.vents[i].photos = (m.data.vents[i].photos || []).concat(r.data.key);
+    const rows = m.data.vents.map((v) => ({ v, seed: false }));
+    if (!locked && (o.add || !rows.length)) rows.push(seedRow(m.data.vents[m.data.vents.length - 1]));
+    const opened = new Set();
+    const at = (id) => rows.find((r) => r.v.id === id);
+    const commit = (r) => { if (r && r.seed) { r.seed = false; m.data.vents.push(r.v); } measSaveSoon(); };
+    const woodRows = () => rows.filter((r) => r.v.type !== 'metal');
+    const together = (key) => { const seen = [...new Set(woodRows().map((r) => r.v[key] || ''))]; return seen.length === 1 ? { value: seen[0], mixed: false } : { value: '', mixed: true }; };
+    const shared = (list, cur, attr) => `<select ${attr}${dis}>${cur.mixed ? '<option value="" selected>Mixed</option>' : ''}${list.map((x) => `<option ${x === cur.value ? 'selected' : ''}>${esc(x)}</option>`).join('')}<option value="__other" ${!cur.mixed && cur.value && !list.includes(cur.value) ? 'selected' : ''}>Other…</option></select>${!cur.mixed && cur.value && !list.includes(cur.value) ? `<input ${attr}-text value="${esc(cur.value.trim())}" maxlength="60" aria-label="Other"${dis} />` : ''}`;
+    const total = () => rows.reduce((a, r) => a + (Number(r.v.qty) || 1), 0);
+    const rowHtml = (r) => {
+      const v = r.v;
+      const id = esc(v.id);
+      const known = VENT_SIZES.includes(v.size);
+      const n = Number(v.qty) || 1;
+      const types = VENT_PICK.some(([k]) => k === v.type) ? VENT_PICK : [...VENT_PICK, [v.type, VENT_TYPE_LABEL[v.type] || v.type]];
+      const index = m.data.vents.indexOf(v);
+      return `<li class="pp-vp-row" data-vp-row="${id}">
+        <label class="pp-sb-field pp-vp-size"><span>Size</span><select data-vp-size="${id}"${dis}>${VENT_SIZES.map((sz) => `<option ${sz === v.size ? 'selected' : ''}>${sz}</option>`).join('')}<option value="__other" ${known ? '' : 'selected'}>Other…</option></select>${known ? '' : `<input data-vp-size-text="${id}" value="${esc(String(v.size || '').trim())}" maxlength="20" placeholder="e.g. 4x16" aria-label="Other size"${dis} />`}</label>
+        <div class="pp-sb-field pp-vp-qty"><span>How many</span><div class="pp-sb-stepper pp-sb-stepper--sm" role="group" aria-label="How many"><button type="button" data-vp-step="${id}:-1" aria-label="One less" ${locked || n <= 1 ? 'disabled' : ''}>−</button><input type="number" inputmode="numeric" min="1" max="500" data-vp-qty="${id}" value="${n}" aria-label="How many"${dis} /><button type="button" data-vp-step="${id}:1" aria-label="One more"${dis}>+</button></div></div>
+        <div class="pp-sb-field pp-vp-type"><span>Type</span><div class="pp-seg" role="group" aria-label="Type">${types.map(([k, l]) => `<button type="button" data-vp-type="${id}:${esc(k)}" aria-pressed="${v.type === k}"${dis}>${esc(l)}</button>`).join('')}</div></div>
+        ${locked ? '' : `<button type="button" class="pp-q-ic pp-q-ic--del pp-vp-rm" data-vp-rm="${id}" aria-label="Remove this size">×</button>`}
+        ${index >= 0 ? `<details class="pp-vp-extra" data-vp-extra="${id}" ${opened.has(v.id) ? 'open' : ''}><summary>Photo and note${(v.photos || []).length || v.note ? ' · added' : ''}</summary><input data-vp-note="${id}" value="${esc(v.note)}" maxlength="300" placeholder="Note" aria-label="Note"${dis} />${photoStrip(m, v.photos, `vents.${index}.photos`)}</details>` : ''}
+      </li>`;
+    };
+    const bodyHtml = () => `<div class="pp-vp">
+        <ul class="pp-vp-rows">${rows.map(rowHtml).join('')}</ul>
+        ${locked || rows.length >= 80 ? '' : '<button type="button" class="pp-q-add pp-q-add--block" data-vp-add>+ Another size</button>'}
+        ${woodRows().length ? `<div class="pp-vp-wood"><label class="pp-sb-field"><span>Wood</span>${shared(SPECIES, together('species'), 'data-vp-wood')}</label><label class="pp-sb-field"><span>Finish</span>${shared(FINISHES, together('finish'), 'data-vp-finish')}</label><p class="pp-sb-note">For all flush mount vents. Metal vents have neither.</p></div>` : ''}
+        <div class="pp-sheet-actions pp-vp-foot"><span class="pp-vp-total" aria-live="polite">${plural(total(), 'vent', 'vents')}</span><button type="button" class="pp-btn pp-btn--pri" data-vp-done>Done</button></div>
+      </div>`;
+    const root = openSheet('Vents', bodyHtml(), { noFocus: true });
+    const body = root.querySelector('.pp-sheet-body');
+    const repaint = (focusSel) => {
+      const y = body.scrollTop;
+      body.innerHTML = bodyHtml();
+      body.scrollTop = y;
+      if (focusSel) { const el = body.querySelector(focusSel); if (el) el.focus(); }
+    };
+    const paintTotal = () => { const t = body.querySelector('.pp-vp-total'); if (t) t.textContent = plural(total(), 'vent', 'vents'); };
+    const setQty = (r, n) => {
+      r.v.qty = Math.min(500, Math.max(1, Math.round(Number(n) || 1)));
+      commit(r);
+      const row = body.querySelector(`[data-vp-row="${CSS.escape(r.v.id)}"]`);
+      if (row) {
+        row.querySelector('[data-vp-qty]').value = r.v.qty;
+        row.querySelector('[data-vp-step$=":-1"]').disabled = r.v.qty <= 1;
+      }
+      paintTotal();
+    };
+    body.addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b || b.disabled) return;
+      if (b.hasAttribute('data-vp-add')) {
+        const prev = rows[rows.length - 1];
+        const r = seedRow(prev && prev.v);
+        rows.push(r);
+        repaint(`[data-vp-size="${CSS.escape(r.v.id)}"]`);
+      } else if (b.hasAttribute('data-vp-step')) {
+        const [id, d] = b.getAttribute('data-vp-step').split(':');
+        const r = at(id);
+        if (r) setQty(r, (Number(r.v.qty) || 1) + Number(d));
+      } else if (b.hasAttribute('data-vp-type')) {
+        const [id, type] = b.getAttribute('data-vp-type').split(':');
+        const r = at(id);
+        if (!r) return;
+        r.v.type = type;
+        if (type === 'metal') { r.v.species = ''; r.v.finish = ''; r.v.color = ''; }
+        else if (!r.v.species) { const like = woodRows().find((x) => x !== r && x.v.species); r.v.species = like ? like.v.species : SPECIES[0]; r.v.finish = like ? like.v.finish : FINISHES[0]; }
+        commit(r);
+        repaint(`[data-vp-type="${CSS.escape(b.getAttribute('data-vp-type'))}"]`);
+      } else if (b.hasAttribute('data-vp-rm')) {
+        const id = b.getAttribute('data-vp-rm');
+        const r = at(id);
+        rows.splice(rows.indexOf(r), 1);
+        const i = m.data.vents.indexOf(r.v);
+        if (i >= 0) { m.data.vents.splice(i, 1); measSaveSoon(); }
+        repaint('[data-vp-add]');
+      } else if (b.hasAttribute('data-vp-done')) {
+        rows.filter((r) => r.seed).forEach(commit);
+        finish();
+      } else if (b.hasAttribute('data-ph-rm')) {
+        const { obj, key } = measAt(b.getAttribute('data-ph-rm'));
+        obj[key].splice(Number(b.getAttribute('data-ph-i')), 1);
         measSaveSoon();
-        await measSaveNow();
-        reopen();
-      } catch (e) {
-        ppNotice(e.message || 'Could not upload the photo.');
-        if (label) label.classList.remove('is-busy');
-      }
-    }));
-    root.querySelectorAll('[data-ph-rm]').forEach((b) => b.addEventListener('click', () => {
-      m.data.vents[i].photos.splice(Number(b.getAttribute('data-ph-i')), 1);
-      measSaveSoon();
-      reopen();
-    }));
-    const rm = root.querySelector('[data-vs-rm]');
-    if (rm) rm.addEventListener('click', () => {
-      if (rm.dataset.armed !== '1') { rm.dataset.armed = '1'; rm.textContent = 'Tap again to remove'; return; }
-      m.data.vents.splice(i, 1);
-      measSaveSoon();
-      closeSheet();
-    });
-    const dup = root.querySelector('[data-vs-dup]');
-    if (dup) dup.addEventListener('click', () => {
-      m.data.vents.splice(i + 1, 0, { ...m.data.vents[i], id: uid(), photos: [], note: '' });
-      measSaveSoon();
-      closeSheet();
-      openVentSheet(i + 1, true);
-    });
-    // The list behind the sheet shows the new values once it closes.
-    const obs = new MutationObserver(() => {
-      if (!document.body.contains(root)) {
-        obs.disconnect();
-        if (state.meas === m && route().name === 'measurements') { const y = window.scrollY; paintMeasurement(); window.scrollTo(0, y); }
+        repaint();
       }
     });
+    body.addEventListener('toggle', (e) => {
+      const id = e.target.getAttribute && e.target.getAttribute('data-vp-extra');
+      if (id) { if (e.target.open) opened.add(id); else opened.delete(id); }
+    }, true);
+    const applyAll = (key, value) => { woodRows().forEach((r) => { r.v[key] = value; if (!r.seed) measSaveSoon(); }); };
+    body.addEventListener('change', async (e) => {
+      const el = e.target;
+      if (el.hasAttribute('data-vp-size')) {
+        const r = at(el.getAttribute('data-vp-size'));
+        r.v.size = el.value === '__other' ? ' ' : el.value;
+        commit(r);
+        if (el.value === '__other') repaint(`[data-vp-size-text="${CSS.escape(r.v.id)}"]`);
+        else repaint(`[data-vp-size="${CSS.escape(r.v.id)}"]`);
+      } else if (el.hasAttribute('data-vp-qty')) {
+        setQty(at(el.getAttribute('data-vp-qty')), el.value);
+      } else if (el.hasAttribute('data-vp-wood') || el.hasAttribute('data-vp-finish')) {
+        const attr = el.hasAttribute('data-vp-wood') ? 'data-vp-wood' : 'data-vp-finish';
+        if (!el.value) return;
+        applyAll(attr === 'data-vp-wood' ? 'species' : 'finish', el.value === '__other' ? ' ' : el.value);
+        repaint(el.value === '__other' ? `[${attr}-text]` : `[${attr}]`);
+      } else if (el.hasAttribute('data-ph-add')) {
+        const file = el.files && el.files[0];
+        if (!file) return;
+        const label = el.closest('.pp-meas-addph');
+        if (label) label.classList.add('is-busy');
+        try {
+          const dataUrl = (await compressImage(file)) || (await readAsDataUrl(file));
+          const res = await postJson(`/api/builder/measurements/${encodeURIComponent(m.id)}/photos`, { data_url: dataUrl });
+          const { obj, key } = measAt(el.getAttribute('data-ph-add'));
+          obj[key] = (obj[key] || []).concat(res.data.key);
+          measSaveSoon();
+          await measSaveNow();
+          repaint();
+        } catch (ex) {
+          ppNotice(ex.message || 'Could not upload the photo.');
+          if (label) label.classList.remove('is-busy');
+        }
+      }
+    });
+    body.addEventListener('input', (e) => {
+      const el = e.target;
+      if (el.hasAttribute('data-vp-size-text')) { const r = at(el.getAttribute('data-vp-size-text')); r.v.size = el.value.replace(/\s*[×X]\s*/g, 'x'); commit(r); }
+      else if (el.hasAttribute('data-vp-note')) { const r = at(el.getAttribute('data-vp-note')); r.v.note = el.value; commit(r); }
+      else if (el.hasAttribute('data-vp-wood-text')) applyAll('species', el.value);
+      else if (el.hasAttribute('data-vp-finish-text')) applyAll('finish', el.value);
+    });
+    let painted = false;
+    const paintBehind = () => {
+      if (painted) return;
+      painted = true;
+      if (state.meas === m && route().name === 'measurements') { const y = window.scrollY; paintMeasurement(); window.scrollTo(0, y); }
+    };
+    const finish = () => { closeSheet(); paintBehind(); };
+    // Closed some other way (×, Esc, tapping outside): what was edited is already saved.
+    const obs = new MutationObserver(() => { if (!document.body.contains(root)) { obs.disconnect(); paintBehind(); } });
     obs.observe(document.body, { childList: true });
+    if (o.focus) { const el = body.querySelector(`[data-vp-row="${CSS.escape(o.focus)}"]`); if (el) { el.scrollIntoView({ block: 'center' }); const f = el.querySelector('select'); if (f) f.focus(); } }
   }
 
-  function measSummaryHtml(m) {
-    const lines = measSummary(m.data);
-    return `<h3>Summary</h3>${lines.length ? `<ul class="pp-meas-sum">${lines.map((l) => `<li><span><b>${esc(l.kind)}</b> ${esc(l.text)}<small>${esc(l.group)}</small></span><em>${Number(l.qty).toLocaleString('en-US')} ${l.uom || 'EA'}</em></li>`).join('')}</ul>` : '<p class="pp-muted" style="margin:0">Pieces show up here grouped by size, like on the Work Order.</p>'}`;
+  /** What's left before this can be completed. */
+  function sumFixHtml(m) {
+    if (m.status === 'used') return '';
+    const gaps = window.PpStairs.gaps(m.data);
+    if (!gaps.length) return '';
+    return `<section class="pp-card pp-sfix" aria-labelledby="ppSfixT"><h3 id="ppSfixT">${gaps.length === 1 ? '1 thing' : `${gaps.length} things`} to finish</h3>
+      <ul>${gaps.map((g) => `<li><span>${esc(g.text)}</span><button type="button" class="pp-btn pp-btn--sec pp-btn--sm" data-sum-go="stairs:${esc(g.id)}:${esc(g.part)}">Fix</button></li>`).join('')}</ul></section>`;
   }
-
-  function measLogHtml(m) {
-    const log = (m.log || []).slice(-8).reverse();
-    return `<ul class="pp-meas-log">${log.map((l) => `<li><b>${esc(l.name || '')}</b> ${esc(LOG_EN[l.action] || l.action || '')}<small>${esc(fmtDayEn(l.at, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }))}</small></li>`).join('') || '<li class="pp-muted">—</li>'}</ul>`;
+  function sumTilesHtml(m) {
+    const f = m.sumFilter || '';
+    const ft = planTotals(m.data.plan).filter((t) => t.include).reduce((a, t) => a + t.area, 0);
+    const st = (m.data.stairs || []).reduce((a, s) => { const c = window.PpStairs.counts(s); return { t: a.t + c.treads, r: a.r + c.risers, l: a.l + (s.landing && s.landing.enabled ? 1 : 0) }; }, { t: 0, r: 0, l: 0 });
+    const vents = measCounts(m.data).vents;
+    const tile = (k, big, label, sub) => `<button type="button" class="pp-mkpi ${big ? '' : 'is-zero'}" data-sum-filter="${k}" aria-pressed="${f === k}"><b>${big}</b><span>${label}</span>${sub ? `<small>${esc(sub)}</small>` : ''}</button>`;
+    return `${tile('stairs', st.t, st.t === 1 ? 'Tread' : 'Treads', [plural(st.r, 'riser', 'risers'), st.l ? plural(st.l, 'landing', 'landings') : ''].filter(Boolean).join(' · '))}${tile('vents', vents, vents === 1 ? 'Vent' : 'Vents', ventKinds(m.data.vents || []).length > 1 ? `${ventKinds(m.data.vents).length} sizes` : '')}${tile('floors', ft ? fmtSf(ft) : 0, 'Floor Plan', '')}`;
   }
-
-  /** Work Order sections on the Summary tab: floors, stairs and vents room by room, each with a way back to edit. */
+  /** Sections of the Summary: stairs, vents and floors. Counts can be changed right here. */
   function measSummarySectionsHtml(m) {
     const locked = m.status === 'used';
     const d = m.data;
-    const totals = planTotals(d.plan).filter((t) => t.include);
-    const lines = measSummary(d);
-    const sec = (tab, title, sub, body, empty) => `<section class="pp-card pp-ssec" aria-label="${esc(title)}">
-        <div class="pp-ssec-head"><div><h3>${esc(title)}</h3>${sub ? `<small>${sub}</small>` : ''}</div><button type="button" class="pp-link" data-mtab-go="${tab}">${body ? (locked ? 'View' : 'Edit') : (locked ? 'View' : 'Add')}</button></div>
-        ${body || `<p class="pp-ssec-empty">${empty}</p>`}
+    const closed = m.sumClosed || {};
+    const f = m.sumFilter || '';
+    const sec = (k, tab, title, sub, body, empty) => `<section class="pp-card pp-ssec" data-sum-sec="${k}" aria-label="${esc(title)}" ${f && f !== k ? 'hidden' : ''}>
+        <div class="pp-ssec-head"><button type="button" class="pp-ssec-toggle" data-sum-toggle="${k}" aria-expanded="${!closed[k]}"><i aria-hidden="true"></i><span><span class="pp-ssec-title">${esc(title)}</span>${sub ? `<small>${sub}</small>` : ''}</span></button><button type="button" class="pp-link" data-mtab-go="${tab}">${locked ? 'View' : body ? 'Edit' : 'Add'}</button></div>
+        <div class="pp-ssec-body" ${closed[k] ? 'hidden' : ''}>${body || `<p class="pp-ssec-empty">${empty}</p>`}</div>
       </section>`;
-    const row = (lead, main, sub, qty) => `<li>${lead}<span class="pp-srow-t"><b>${main}</b>${sub ? `<small>${sub}</small>` : ''}</span><em>${qty}</em></li>`;
+    const stepper = (attr, n, name) => (locked ? `<b class="pp-sum-n">${n}</b>` : `<span class="pp-stepper" role="group" aria-label="${name}"><button type="button" ${attr}:-1" aria-label="One less ${name}" ${n <= 0 ? 'disabled' : ''}>−</button><b>${n}</b><button type="button" ${attr}:1" aria-label="One more ${name}">+</button></span>`);
+    // stairs: one block per stair, each flight with its counts
+    const stairs = d.stairs || [];
+    const lines = measSummary(d);
+    const roots = stairs.filter((st) => !st.starts_on_landing_of || !stairs.some((x) => x.id === st.starts_on_landing_of));
+    const stairBody = roots.map((root, rk) => {
+      const chain = stairChainFor(d, root.id);
+      const flights = chain.length ? chain : [root];
+      const rows = flights.map((fl, k) => {
+        const si = stairs.indexOf(fl);
+        const c = window.PpStairs.counts(fl);
+        const sp = window.PpStairs.readSpec(fl);
+        const sz = sp.tread_w.mixed || sp.tread_d.mixed ? 'Mixed sizes' : sp.tread_w.value && sp.tread_d.value ? `${fmtIn(sp.tread_w.value)}" × ${fmtIn(sp.tread_d.value)}"` : 'No size yet';
+        const pieces = lines.filter((l) => l.group === (fl.name || 'Stair') && l.kind !== 'Vent' && l.kind !== 'Floor');
+        const wood = [fl.species, fl.finish, fl.color].filter(Boolean).join(' · ');
+        const turn = (TURN_OPTS.find((x) => x[0] === (flights[k + 1] && flights[k + 1].turn)) || [0, ''])[1];
+        return `<div class="pp-sflight">
+          <div class="pp-sflight-top"><button type="button" class="pp-sflight-name" data-sum-go="stairs:${esc(fl.id)}:treads"><strong>${flights.length > 1 ? `Flight ${k + 1}` : esc(fl.name || 'Stair')}</strong><small>${esc([sz, sp.open.mixed ? '' : (OPEN_OPTS.find((x) => x[0] === sp.open.value) || [0, ''])[1], wood].filter(Boolean).join(' · '))}</small></button></div>
+          <div class="pp-sflight-counts"><div><span>Treads</span>${stepper(`data-sum-count="treads:${si}`, c.treads, 'tread')}</div><div><span>Risers</span>${stepper(`data-sum-count="risers:${si}`, c.risers, 'riser')}</div></div>
+          ${fl.landing && fl.landing.enabled ? `<button type="button" class="pp-sflight-land" data-sum-go="stairs:${esc(fl.id)}:landing"><strong>Landing</strong><small>${esc([fl.landing.sqft ? `${fmtIn(fl.landing.sqft)} SF` : fl.landing.width && fl.landing.depth ? `${fmtIn(fl.landing.width)}" × ${fmtIn(fl.landing.depth)}"` : 'No size yet', turn].filter(Boolean).join(' · '))}</small></button>` : ''}
+          ${pieces.length ? `<details class="pp-spieces"><summary>On the Work Order · ${plural(pieces.reduce((a, l) => a + Number(l.qty || 0), 0), 'piece', 'pieces')}</summary><ul class="pp-srows">${pieces.map((l) => `<li><span class="pp-skind">${esc(l.kind)}</span><span class="pp-srow-t"><b>${esc(wood && l.text.startsWith(`${wood} · `) ? l.text.slice(wood.length + 3) : l.text)}</b></span><em>${l.qty}<small>EA</small></em></li>`).join('')}</ul></details>` : ''}
+        </div>`;
+      }).join('');
+      return `<div class="pp-schain">${window.ObPlan3D ? `<button type="button" class="pp-schain-thumb" data-sum-go="stairs:${esc(root.id)}:treads" data-sum-thumb="${rk}" aria-label="Open ${esc(root.name || 'stair')}"></button>` : ''}<div class="pp-schain-rows">${roots.length > 1 ? `<p class="pp-schain-name">${esc(root.name || `Stair ${rk + 1}`)}</p>` : ''}${rows}</div></div>`;
+    }).join('');
+    // vents
+    const vents = d.vents || [];
+    const ventBody = vents.length ? `<ul class="pp-srows">${vents.map((v, i) => `<li><button type="button" class="pp-sum-rowbtn" data-sum-vent-open="${esc(v.id)}"><span class="pp-sthumb" aria-hidden="true">${ventSvg(v)}</span><span class="pp-srow-t"><b>${esc(String(v.size || '?').trim().replace('x', '×'))} ${esc(VENT_TYPE_LABEL[v.type] || '')}</b><small>${esc([v.type === 'metal' ? '' : [v.species, v.finish].filter((x) => x && x.trim()).join(' · '), (v.room || '').trim()].filter(Boolean).join(' · '))}</small></span></button>${stepper(`data-sum-vent="${i}`, Number(v.qty) || 1, 'vent')}</li>`).join('')}</ul>` : '';
     // floors
+    const totals = planTotals(d.plan).filter((t) => t.include);
     const ft = totals.reduce((a, t) => a + t.area, 0);
     const floors = totals.length ? `<ul class="pp-srows">${totals.map((t) => {
-      const o = orderQty(t);
-      return row(`<i class="pp-swatch pp-swatch--lg" style="background:${esc(t.color || '#C9B79C')}" aria-hidden="true"></i>`, esc(t.label), esc([specText(t), t.kind === 'hardwood' && t.sand_finish ? 'sand & finish' : '', t.levels.map((l) => `${l.name} ${fmtSf(l.area)}`).join(' · ')].filter(Boolean).join(' · ')), `${fmtSf(t.area)}<small>${o.waste ? `${o.sf.toLocaleString('en-US')} SF w/ ${o.waste}% waste` : ''}</small>`);
+      const q = orderQty(t);
+      return `<li><button type="button" class="pp-sum-rowbtn" data-mtab-go="floors"><i class="pp-swatch pp-swatch--lg" style="background:${esc(t.color || '#C9B79C')}" aria-hidden="true"></i><span class="pp-srow-t"><b>${esc(t.label)}</b><small>${esc([specText(t), t.kind === 'hardwood' && t.sand_finish ? 'sand & finish' : '', t.levels.map((l) => `${l.name} ${fmtSf(l.area)}`).join(' · ')].filter(Boolean).join(' · '))}</small></span></button><em>${fmtSf(t.area)}<small>${q.waste ? `${q.sf.toLocaleString('en-US')} SF w/ ${q.waste}% waste` : ''}</small></em></li>`;
     }).join('')}</ul>` : '';
-    // stairs
-    const stairs = (d.stairs || []).map((st) => {
-      const ls = lines.filter((l) => l.group === (st.name || 'Stair') && l.kind !== 'Vent' && l.kind !== 'Floor');
-      if (!ls.length) return '';
-      const wood = [st.species, st.finish, st.color].filter(Boolean).join(' · ');
-      return `<div class="pp-sgroup"><div class="pp-sgroup-h">${esc(st.name || 'Stair')}<small>${esc(wood)}</small></div><ul class="pp-srows">${ls.map((l) => row(`<span class="pp-skind">${esc(l.kind)}</span>`, esc(wood && l.text.startsWith(`${wood} · `) ? l.text.slice(wood.length + 3) : l.text), '', `${l.qty}<small>EA</small>`)).join('')}</ul></div>`;
-    }).join('');
-    // vents by room
-    const vents = d.vents || [];
-    const vg = ventGroups(vents);
-    const ventBody = vents.length ? vg.map((g) => {
-      const n = g.items.reduce((a, i) => a + (Number(vents[i].qty) || 1), 0);
-      return `<div class="pp-sgroup"><div class="pp-sgroup-h">${esc(g.name || 'No room yet')}<small>${n} vent${n === 1 ? '' : 's'}</small></div><ul class="pp-srows">${g.items.map((i) => { const v = vents[i]; return row(`<span class="pp-sthumb" aria-hidden="true">${ventSvg(v)}</span>`, `${esc(String(v.size || '?').trim().replace('x', '×'))} ${esc(VENT_TYPE_LABEL[v.type] || '')}`, esc([v.species, v.finish, v.color].filter((x) => x && x.trim()).join(' · ')), `${Number(v.qty) || 1}<small>EA</small>`); }).join('')}</ul></div>`;
-    }).join('') : '';
+    const st = stairs.reduce((a, s) => { const c = window.PpStairs.counts(s); return { t: a.t + c.treads, r: a.r + c.risers }; }, { t: 0, r: 0 });
     const c = measCounts(d);
-    return `${sec('floors', 'Floor Plan', ft ? `${fmtSf(ft)} · ${totals.length} type${totals.length === 1 ? '' : 's'}` : '', floors, 'No floors yet — upload the house plans in Floor Plan to measure every room.')}
-      ${sec('stairs', 'Stairs', c.stairs ? `${c.stairs} stair${c.stairs === 1 ? '' : 's'} · ${c.treads} treads · ${c.risers} risers${c.nosings ? ` · ${c.nosings} nosings` : ''}` : '', stairs, 'No stairs measured.')}
-      ${sec('vents', 'Vents', c.vents ? `${c.vents} vent${c.vents === 1 ? '' : 's'}${vg.filter((g) => g.key).length ? ` in ${vg.filter((g) => g.key).length} room${vg.filter((g) => g.key).length === 1 ? '' : 's'}` : ''}` : '', ventBody, 'No vents measured.')}`;
+    return `${sec('stairs', 'stairs', 'Stairs', roots.length ? `${plural(roots.length, 'stair', 'stairs')} · ${plural(st.t, 'tread', 'treads')} · ${plural(st.r, 'riser', 'risers')}` : '', stairBody, 'No stairs measured.')}
+      ${sec('vents', 'vents', 'Vents', c.vents ? plural(c.vents, 'vent', 'vents') : '', ventBody, 'No vents measured.')}
+      ${sec('floors', 'floors', 'Floor Plan', ft ? `${fmtSf(ft)} · ${plural(totals.length, 'type', 'types')}` : '', floors, 'No floors yet. Upload the house plans in Floor Plan to measure every room.')}`;
   }
   function measSummaryHtml(m) { return measSummarySectionsHtml(m); }
+
+  /** A picture of each stair on the Summary: rendered off screen once per shape, so nothing stays live. */
+  let sumThumbT = 0;
+  function paintSumThumbs(m) {
+    clearTimeout(sumThumbT);
+    sumThumbT = setTimeout(() => {
+      if (!window.ObPlan3D || !window.ObPlan3D.stairThumb) return;
+      const stairs = m.data.stairs || [];
+      const roots = stairs.filter((st) => !st.starts_on_landing_of || !stairs.some((x) => x.id === st.starts_on_landing_of));
+      view.querySelectorAll('[data-sum-thumb]').forEach(async (slot) => {
+        const root = roots[Number(slot.getAttribute('data-sum-thumb'))];
+        if (!root) return;
+        const chain = stairChainFor(m.data, root.id);
+        const flights = chain.length ? chain : [root];
+        const key = `sum:${root.id}:${JSON.stringify(flights.map((f) => [f.turn, f.landing, f.species, f.finish, f.color, f.riser_species, f.riser_finish, (f.steps || []).map((x) => [x.kind, x.tread_w, x.tread_d, x.riser_h, x.open, x.no_riser])]))}`;
+        try {
+          const url = await window.ObPlan3D.stairThumb(key, flights, 320, 240);
+          if (url && slot.isConnected) slot.innerHTML = `<img src="${url}" alt="" width="160" height="120" decoding="async" />`;
+        } catch (_) { /* no picture, the rows still work */ }
+      });
+    }, 180);
+  }
+
+  /** Redraws what changes on the Summary and leaves the notes and names being typed alone. */
+  function repaintSummary(m, focusSel) {
+    const box = $('ppMeasSum');
+    if (!box) return;
+    box.innerHTML = measSummarySectionsHtml(m);
+    const fix = $('ppSumFix'); if (fix) fix.innerHTML = sumFixHtml(m);
+    const tiles = $('ppSumTiles'); if (tiles) tiles.innerHTML = sumTilesHtml(m);
+    paintSumThumbs(m);
+    const sub = view.querySelector('[data-mtab="stairs"] .pp-mtab-n');
+    if (sub) { const st = (m.data.stairs || []).reduce((a, s) => { const c = window.PpStairs.counts(s); return { t: a.t + c.treads, r: a.r + c.risers }; }, { t: 0, r: 0 }); sub.textContent = `${st.t}·${st.r}`; }
+    if (focusSel) { const el = view.querySelector(focusSel); if (el) el.focus(); }
+  }
+  /** Copies the list of pieces, ready to paste in a message or an order. */
+  async function copySummary(m, b) {
+    const lines = measSummary(m.data).map((l) => `${l.kind} · ${l.group && l.kind !== 'Vent' ? `${l.group} · ` : ''}${l.text} — ${Number(l.qty).toLocaleString('en-US')} ${l.uom || 'EA'}`);
+    const text = [m.address, ...lines].join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      const was = b.innerHTML; b.textContent = 'Copied'; setTimeout(() => { if (b.isConnected) b.innerHTML = was; }, 1400);
+    } catch (_) { ppNotice('Your browser blocked copying. Use the PDF instead.'); }
+  }
+  /** One listener for the whole Summary, so redrawing its rows never needs rebinding. */
+  function bindSummary(m) {
+    const box = view.querySelector('.pp-msum');
+    if (!box) return;
+    paintSumThumbs(m);
+    box.addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b || b.disabled) return;
+      if (b.hasAttribute('data-sum-filter')) {
+        const k = b.getAttribute('data-sum-filter');
+        m.sumFilter = m.sumFilter === k ? '' : k;
+        box.querySelectorAll('[data-sum-filter]').forEach((x) => x.setAttribute('aria-pressed', String(x.getAttribute('data-sum-filter') === m.sumFilter)));
+        box.querySelectorAll('[data-sum-sec]').forEach((x) => { x.hidden = Boolean(m.sumFilter) && x.getAttribute('data-sum-sec') !== m.sumFilter; });
+      } else if (b.hasAttribute('data-sum-toggle')) {
+        const k = b.getAttribute('data-sum-toggle');
+        m.sumClosed = m.sumClosed || {};
+        m.sumClosed[k] = !m.sumClosed[k];
+        b.setAttribute('aria-expanded', String(!m.sumClosed[k]));
+        b.closest('.pp-ssec').querySelector('.pp-ssec-body').hidden = m.sumClosed[k];
+      } else if (b.hasAttribute('data-sum-count')) {
+        const raw = b.getAttribute('data-sum-count');
+        const [part, si, d] = raw.split(':');
+        const s = m.data.stairs[Number(si)];
+        const c = window.PpStairs.counts(s);
+        if (part === 'treads') window.PpStairs.setTreads(s, c.treads + Number(d)); else window.PpStairs.setRisers(s, c.risers + Number(d));
+        measSaveSoon();
+        repaintSummary(m, `[data-sum-count="${raw}"]:not([disabled])`);
+      } else if (b.hasAttribute('data-sum-vent')) {
+        const raw = b.getAttribute('data-sum-vent');
+        const [i, d] = raw.split(':').map(Number);
+        const v = m.data.vents[i];
+        v.qty = Math.max(1, (Number(v.qty) || 1) + d);
+        measSaveSoon();
+        repaintSummary(m, `[data-sum-vent="${raw}"]:not([disabled])`);
+      } else if (b.hasAttribute('data-sum-vent-open')) {
+        openVentsPopup({ focus: b.getAttribute('data-sum-vent-open') });
+      } else if (b.hasAttribute('data-sum-go')) {
+        const [tab, id, part] = b.getAttribute('data-sum-go').split(':');
+        goToStairPart(m, tab, id, part);
+      } else if (b.hasAttribute('data-mtab-go')) {
+        m.tab = b.getAttribute('data-mtab-go');
+        paintMeasurement();
+        window.scrollTo(0, 0);
+      } else if (b.hasAttribute('data-sum-copy')) {
+        copySummary(m, b);
+      }
+    });
+  }
+  /** Opens a flight on the Stairs tab, at the part that needs attention. */
+  function goToStairPart(m, tab, id, part) {
+    m.tab = tab;
+    m.activeStairId = id;
+    paintMeasurement();
+    const el = view.querySelector(`[data-sb-part="${part}"]`) || view.querySelector('.pp-stair');
+    if (el) {
+      el.scrollIntoView({ block: 'start', behavior: 'auto' });
+      window.scrollBy(0, -80);
+      // the first empty size is what's missing; otherwise the first field of that part
+      const fields = [...el.querySelectorAll('input.pp-in:not([disabled])')];
+      const f = fields.find((x) => !x.value.trim()) || fields[0] || el.querySelector('input:not([disabled])');
+      if (f && !phoneSheet()) f.focus();
+    }
+  }
+  /** Stops Complete and Send while a counted piece has no size, and shows what's missing. */
+  function stopForGaps(m) {
+    if (!window.PpStairs.gaps(m.data).length) return false;
+    m.tab = 'summary';
+    m.sumFilter = '';
+    paintMeasurement();
+    const fix = $('ppSumFix');
+    if (fix) { fix.scrollIntoView({ block: 'center' }); const b = fix.querySelector('button'); if (b) b.focus(); }
+    return true;
+  }
 
   function measLogHtml(m) {
     const log = (m.log || []).slice(-8).reverse();
@@ -5718,15 +5913,15 @@
     const c = measCounts(d);
     const ft = planTotals(d.plan).filter((t) => t.include).reduce((a, t) => a + t.area, 0);
     const plan = d.plan;
-    const tile = (n, label, tab) => `<button type="button" class="pp-mkpi ${n ? '' : 'is-zero'}" data-mtab-go="${tab}"><b>${n}</b><span>${label}</span></button>`;
     const photos = [];
     (d.stairs || []).forEach((st) => (st.photos || []).forEach((k) => photos.push({ k, label: st.name || 'Stair', tab: 'stairs' })));
-    (d.vents || []).forEach((v) => (v.photos || []).forEach((k) => photos.push({ k, label: v.room ? `Vent · ${v.room}` : 'Vent', tab: 'vents' })));
-    const empty = !ft && !c.treads && !c.risers && !c.vents;
+    (d.vents || []).forEach((v) => (v.photos || []).forEach((k) => photos.push({ k, label: `Vent · ${String(v.size || '').trim().replace('x', '×')}`, tab: 'vents' })));
+    const flightsCounted = (d.stairs || []).some((st) => (st.steps || []).length);
+    const empty = !ft && !flightsCounted && !c.vents;
     const status = m.status === 'used' ? ['Sent with the Work Order', 'It’s part of the job now.']
       : m.status === 'done' ? ['Complete — ready to send', 'Send it with a Work Order, or reopen it to change something.']
       : empty ? ['Nothing measured yet', 'Start with Floors, Stairs or Vents — it all comes together here.']
-      : ['In progress', 'Check what goes on the Work Order, then complete it.'];
+      : ['In progress', window.PpStairs.gaps(d).length ? 'A few sizes are missing. They’re listed below.' : 'Check what goes on the Work Order, then complete it.'];
     const quotePdf = plan && plan.quote_link_id && canDo('money.view') ? `/api/builder/measurements/${encodeURIComponent(m.id)}/quote-pdf?company=${encodeURIComponent(plan.quote_link_id)}` : '';
     return `<div class="pp-msum">
         <section class="pp-shero is-${esc(m.status)}${empty ? ' is-empty' : ''}">
@@ -5735,11 +5930,13 @@
             <a class="pp-btn pp-btn--sec" href="/api/builder/measurements/${encodeURIComponent(m.id)}/pdf" target="_blank" rel="noopener">${icon('download')}Measurement PDF</a>
             ${empty ? '' : `<button type="button" class="pp-btn pp-btn--sec" data-present-pdf>${icon('download')}Presentation PDF</button>`}
             ${quotePdf ? `<a class="pp-btn pp-btn--sec" href="${quotePdf}" target="_blank" rel="noopener">${icon('download')}Quote PDF</a>` : ''}
+            ${empty ? '' : '<button type="button" class="pp-btn pp-btn--sec" data-sum-copy>Copy list</button>'}
             ${locked || !canDo('jobs.send') || empty ? '' : `<button type="button" class="pp-btn ${m.status === 'done' ? 'pp-btn--pri' : 'pp-btn--sec'}" data-send-wo>${icon('send')}Send work order</button>`}
             ${locked || m.status === 'done' || empty ? '' : '<button type="button" class="pp-btn pp-btn--pri" data-sum-done>Complete</button>'}
           </div>
         </section>
-        <div class="pp-mkpis pp-mkpis--6">${tile(ft ? fmtSf(ft) : 0, 'Floor Plan', 'floors')}${tile(c.treads, 'Treads', 'stairs')}${tile(c.risers, 'Risers', 'stairs')}${tile(c.nosings, 'Nosings', 'stairs')}${tile(c.landings, 'Landings', 'stairs')}${tile(c.vents, 'Vents', 'vents')}</div>
+        <div id="ppSumFix">${sumFixHtml(m)}</div>
+        <div class="pp-mkpis pp-mkpis--3" id="ppSumTiles" role="group" aria-label="Show only">${sumTilesHtml(m)}</div>
         <div class="pp-msum-grid">
           <div class="pp-msum-main" id="ppMeasSum">${measSummarySectionsHtml(m)}</div>
           <div class="pp-msum-side">
@@ -7029,6 +7226,7 @@
     const c = measCounts(m.data);
     if (!['stairs', 'vents', 'floors', 'summary'].includes(m.tab)) m.tab = 'stairs';
     const ft = planTotals(m.data.plan).filter((t) => t.include).reduce((a, t) => a + t.area, 0);
+    const stairTotal = (m.data.stairs || []).reduce((a, s) => { const x = window.PpStairs.counts(s); return { t: a.t + x.treads, r: a.r + x.risers }; }, { t: 0, r: 0 });
     const tab = (k, label, n) => `<button type="button" role="tab" data-mtab="${k}" aria-selected="${m.tab === k}" aria-pressed="${m.tab === k}">${label}${n != null ? `<span class="pp-mtab-n">${n}</span>` : ''}</button>`;
     view.innerHTML = `
       <div class="pp-mhead ${m.tab === 'summary' ? 'is-summary' : ''}">
@@ -7048,7 +7246,7 @@
       ${state.send && state.send.phase === 'review' && state.send.measurement && state.send.measurement.id === m.id ? `<div class="pp-wz-back"><span>${mate('head-happy', 28)}You’re sending a work order with this measurement.</span><a class="pp-btn pp-btn--pri pp-btn--sm" href="#send">Back to the work order</a></div>` : ''}
       ${locked ? `<div class="pp-match"><strong>This measurement was already sent with the Work Order</strong><span class="pp-muted" style="font-size:14px">${m.work_order_id ? `<a class="pp-link" href="#jobs/${encodeURIComponent(m.work_order_id)}">Open the job</a> · ` : ''}To measure again, start a new measurement for this address.</span></div>` : ''}
       <div class="pp-mtabs" role="tablist" aria-label="Measurement sections">
-        ${tab('stairs', 'Stairs', c.treads + c.risers ? `${c.treads}·${c.risers}` : null)}${tab('vents', 'Vents', c.vents || null)}${tab('floors', '<span><span class="pp-hide-phone">Floor </span>Plan</span>', ft ? (ft >= 1000 ? `${(Math.round(ft / 100) / 10).toLocaleString('en-US')}k sf` : `${Math.round(ft)} sf`) : null)}${tab('summary', 'Summary', null)}
+        ${tab('stairs', 'Stairs', stairTotal.t + stairTotal.r ? `${stairTotal.t}·${stairTotal.r}` : null)}${tab('vents', 'Vents', c.vents || null)}${tab('floors', '<span><span class="pp-hide-phone">Floor </span>Plan</span>', ft ? (ft >= 1000 ? `${(Math.round(ft / 100) / 10).toLocaleString('en-US')}k sf` : `${Math.round(ft)} sf`) : null)}${tab('summary', 'Summary', null)}
       </div>
       <div class="pp-mpanel" role="tabpanel">
         ${m.tab === 'stairs'
@@ -7061,7 +7259,8 @@
     bindMeasuredBy(m);
     bindMeasurement();
     bindVoice();
-    view.querySelectorAll('.pp-mhead [data-send-wo], .pp-msum [data-send-wo]').forEach((b) => b.addEventListener('click', () => sendFromMeasurement(m)));
+    view.querySelectorAll('.pp-mhead [data-send-wo], .pp-msum [data-send-wo]').forEach((b) => b.addEventListener('click', () => { if (!stopForGaps(m)) sendFromMeasurement(m); }));
+    if (m.tab === 'summary') bindSummary(m);
     if (m.tab === 'floors') bindFloors();
     else if (plan3d) { try { plan3d.destroy(); } catch (_) { /* gone */ } plan3d = null; }
   }
@@ -7073,8 +7272,7 @@
     return { obj, key: parts[parts.length - 1] };
   }
   function measRefreshSide() {
-    const box = $('ppMeasSum');
-    if (box) box.innerHTML = measSummaryHtml(state.meas);
+    if ($('ppMeasSum')) repaintSummary(state.meas);
   }
 
   /** Redraws only the drawings of one stair (keeps focus in the inputs). */
@@ -7096,13 +7294,6 @@
     });
     mountMeas3d(m);
   }
-  function repaintVent(i) {
-    const m = state.meas;
-    const card = view.querySelectorAll('.pp-vent')[i];
-    const box = card && card.querySelector('.pp-vent-viz');
-    if (box && m.data.vents[i]) box.innerHTML = ventSvg(m.data.vents[i]);
-  }
-
   /**
    * 3D on the measurement: the whole stair, the selected tread up close, and the vents. The viewers
    * live across redraws: each one moves into the new box and updates in place (no reload, no spin).
@@ -7134,7 +7325,8 @@
       const si = Number(el.getAttribute('data-stair3d')); const s = m.data.stairs[si]; if (!s) return;
       const chain = stairChainFor(m.data, s.id);
       const flights = chain.length ? chain : [s];
-      const sel = (s.steps || [])[(m.vizSel && m.vizSel[si]) || 0];
+      const openEach = m.stairPanelExpanded && m.stairPanelExpanded[`${s.id}:each`];
+      const sel = openEach ? (s.steps || [])[(m.vizSel && m.vizSel[si]) || 0] : null; // lit only while editing one piece
       const key = `stair:${flights[0].id}`;
       const sig = JSON.stringify([flights, sel && sel.id]);
       if (seen.has(key)) return;
@@ -7144,6 +7336,7 @@
           const fi = m.data.stairs.findIndex((x) => x.id === stairId); if (fi < 0) return;
           const idx = (m.data.stairs[fi].steps || []).findIndex((x) => x.id === stepId); if (idx < 0) return;
           m.vizSel[fi] = idx; m.activeStairId = stairId;
+          m.stairPanelExpanded[`${stairId}:each`] = true; // tapping a piece opens it for adjusting
           const y = window.scrollY; paintMeasurement(); window.scrollTo(0, y);
         },
       }), (a) => a.update(flights, sel && sel.id));
@@ -7173,17 +7366,10 @@
     if (/^#measurements\/[^/]+$/.test(location.hash)) return;
     meas3d.forEach((r) => { if (r.api) r.api.destroy(); }); meas3d.clear();
   });
-  /** The finish picker: change the data, then only the chips and the 3D (no page redraw). */
-  function applyTreadFinish(m, b) {
-    if (m.status === 'used') return;
-    const path = b.getAttribute('data-tf').split('.'); let o = m.data;
-    for (let k = 0; k < path.length - 1; k++) { o = o[/^\d+$/.test(path[k]) ? Number(path[k]) : path[k]]; if (!o) return; }
-    const field = path[path.length - 1];
-    o[field] = b.getAttribute('data-v');
-    measSaveSoon();
-    if (field === 'open') { const y = window.scrollY; paintMeasurement(); window.scrollTo(0, y); return; } // the Return row appears/disappears
-    b.closest('.pp-tf').querySelectorAll('[data-tf]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
-    mountMeas3d(m);
+  /** The sizes and sides a new flight starts with, taken from the one below it. */
+  function specFrom(stair) {
+    const sp = window.PpStairs.readSpec(stair);
+    return { tread_w: sp.tread_w.value, tread_d: sp.tread_d.value, riser_w: sp.riser_w.value, riser_h: sp.riser_h.value, open: sp.open.value || 'none', ret: sp.ret.value || '45' };
   }
 
   function bindMeasurement() {
@@ -7198,7 +7384,10 @@
       m.stairSetupExpanded[details.getAttribute('data-stair-setup')] = details.open;
     }));
     view.querySelectorAll('[data-stair-panel]').forEach((details) => details.addEventListener('toggle', () => {
-      m.stairPanelExpanded[details.getAttribute('data-stair-panel')] = details.open;
+      const k = details.getAttribute('data-stair-panel');
+      const was = Boolean(m.stairPanelExpanded[k]);
+      m.stairPanelExpanded[k] = details.open;
+      if (was !== details.open && k.endsWith(':each')) redraw(); // the close-up 3D only exists while this is open
     }));
     view.querySelectorAll('[data-stair-measures]').forEach((details) => details.addEventListener('toggle', () => {
       const stairId = details.getAttribute('data-stair-measures');
@@ -7216,7 +7405,6 @@
       m.vizSel[si] = i;
       repaintViz(si);
     }));
-    view.querySelectorAll('[data-tf]').forEach((b) => b.addEventListener('click', () => applyTreadFinish(m, b)));
     mountMeas3d(m);
     view.querySelectorAll('[data-viz-stair]').forEach((box) => box.addEventListener('click', (e) => {
       const si = Number(box.getAttribute('data-viz-stair'));
@@ -7229,7 +7417,12 @@
         if (m.status === 'used') return;
         const [fi, k] = t.getAttribute('data-turn').split(':');
         const fl = m.data.stairs[Number(fi)];
-        if (fl && STAIR_TURNS.includes(k)) { fl.turn = k; measSaveSoon(); redraw(); }
+        if (fl && STAIR_TURNS.includes(k)) {
+          fl.turn = k;
+          const lower = m.data.stairs.find((x) => x.id === fl.starts_on_landing_of);
+          if (lower && lower.landing) { lower.landing.direction = k; window.PpStairs.syncLanding(lower, fl); }
+          measSaveSoon(); redraw();
+        }
         return;
       }
       if (t.hasAttribute('data-viz-step')) {
@@ -7310,10 +7503,8 @@
       const { obj, key } = measAt(path);
       obj[key] = el.value;
       measSaveSoon();
-      const ms = /^stairs\.(\d+)\.color$/.exec(path);
+      const ms = /^stairs\.(\d+)\.(?:color|species|finish|riser_species|riser_finish)$/.exec(path);
       if (ms) repaintViz(Number(ms[1]));
-      const mv = /^vents\.(\d+)\.(size|color)$/.exec(path);
-      if (mv) repaintVent(Number(mv[1]));
     }));
     view.querySelectorAll('[data-txt]').forEach((el) => el.addEventListener('blur', measRefreshSide));
     view.querySelectorAll('[data-num]').forEach((el) => el.addEventListener('input', () => { const { obj, key } = measAt(el.getAttribute('data-num')); obj[key] = Math.max(1, Math.round(Number(el.value) || 1)); measSaveSoon(); measRefreshSide(); }));
@@ -7332,11 +7523,14 @@
       redraw();
     }));
     view.querySelectorAll('[data-free]').forEach((el) => el.addEventListener('change', () => {
-      const { obj, key } = measAt(el.getAttribute('data-free'));
+      const path = el.getAttribute('data-free');
+      const { obj, key } = measAt(path);
       obj[key] = el.value === '__other' ? ' ' : el.value;
+      if (/^riser_/.test(key)) window.PpStairs.syncRiserMaterial(obj);
       measSaveSoon();
       redraw();
-      if (el.value === '__other') { const inp = view.querySelector(`[data-txt="${el.getAttribute('data-free')}"]`); if (inp) { inp.value = ''; inp.focus(); } }
+      const inp = el.value === '__other' && view.querySelector(`[data-txt="${path}"]`);
+      if (inp) { inp.value = ''; inp.focus(); } else { const same = view.querySelector(`[data-free="${path}"]`); if (same) same.focus(); }
     }));
     view.querySelectorAll('[data-vsize]').forEach((el) => el.addEventListener('change', () => {
       const p = el.getAttribute('data-vsize');
@@ -7353,36 +7547,14 @@
       const prev = m.data.stairs[m.data.stairs.length - 1];
       const s = newStair(m.data.stairs.length ? m.data.stairs.length + 1 : 0);
       if (prev) Object.assign(s, { species: prev.species, finish: prev.finish, color: prev.color, riser_material: prev.riser_material });
-      s.steps.push(newStep());
+      if (prev) s.spec = { ...specFrom(prev) };
       m.data.stairs.push(s);
       m.activeStairId = s.id;
       measSaveSoon();
       redraw();
-      const ins = view.querySelectorAll(`[data-in^="stairs.${m.data.stairs.length - 1}.steps.0"]`);
-      if (ins[0]) ins[0].focus();
+      const plus = view.querySelector(`[data-sb-count="treads:${m.data.stairs.length - 1}:1"]`);
+      if (plus) plus.focus();
     });
-    view.querySelectorAll('[data-stair-above]').forEach((button) => button.addEventListener('click', () => {
-      const parentIndex = Number(button.getAttribute('data-stair-above'));
-      const parent = m.data.stairs[parentIndex];
-      if (!parent || !parent.landing || !parent.landing.enabled || m.status === 'used') return;
-      if (m.data.stairs.some((flight) => flight.starts_on_landing_of === parent.id)) return;
-      const upper = newStair(m.data.stairs.length + 1);
-      upper.name = (parent.name || 'Stair') + ' · Upper flight';
-      upper.starts_on_landing_of = parent.id;
-      upper.species = parent.species;
-      upper.finish = parent.finish;
-      upper.color = parent.color;
-      upper.riser_material = parent.riser_material;
-      upper.steps.push(newStep());
-      m.data.stairs.splice(parentIndex + 1, 0, upper);
-      m.activeStairId = upper.id;
-      m.vizSel[m.data.stairs.indexOf(upper)] = 0;
-      measSaveSoon();
-      redraw();
-      const upperIndex = m.data.stairs.findIndex((flight) => flight.id === upper.id);
-      const firstTread = view.querySelector('[data-in="stairs.' + upperIndex + '.steps.0.tread_w"]');
-      if (firstTread) firstTread.focus();
-    }));
     view.querySelectorAll('[data-stair-focus]').forEach((button) => button.addEventListener('click', () => {
       const targetId = button.getAttribute('data-stair-focus');
       if (!m.data.stairs.some((flight) => flight.id === targetId)) return;
@@ -7393,42 +7565,171 @@
       if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Remove?'; b.classList.add('is-armed'); return; }
       const removeIndex = Number(b.getAttribute('data-stair-rm'));
       const removed = m.data.stairs[removeIndex];
-      if (removed) m.data.stairs.forEach((flight) => { if (flight.starts_on_landing_of === removed.id) flight.starts_on_landing_of = null; });
+      // the flights above stay attached to the stair: they now start where this one started
+      if (removed) m.data.stairs.forEach((flight) => { if (flight.starts_on_landing_of === removed.id) { flight.starts_on_landing_of = removed.starts_on_landing_of || null; if (!removed.starts_on_landing_of) flight.turn = 'straight'; } });
+      if (removed && m.activeStairId === removed.id) m.activeStairId = removed.starts_on_landing_of || null;
       m.data.stairs.splice(removeIndex, 1);
       measSaveSoon();
       redraw();
     }));
-    view.querySelectorAll('[data-step-add]').forEach((b) => b.addEventListener('click', () => {
-      const s = m.data.stairs[Number(b.getAttribute('data-step-add'))];
-      const previousTread = [...s.steps].reverse().find((step) => step.kind !== 'riser') || null;
-      s.steps.push(newStep(previousTread, 'step'));
-      const si = Number(b.getAttribute('data-step-add'));
-      m.vizSel[si] = s.steps.length - 1;
+    // ── the builder: counts, one size for all, options, the next flight
+    const PS = window.PpStairs;
+    const upperOf = (s) => m.data.stairs.find((f) => f.starts_on_landing_of === s.id);
+    const afterFlight = (si) => {
+      const s = m.data.stairs[si];
+      PS.syncLanding(s, upperOf(s));
+      const lower = s.starts_on_landing_of && m.data.stairs.find((f) => f.id === s.starts_on_landing_of);
+      if (lower) PS.syncLanding(lower, s);
+      m.vizSel[si] = Math.max(0, Math.min(m.vizSel[si] || 0, (s.steps || []).length - 1));
+      measSaveSoon();
+    };
+    const setCount = (part, si, n, focusSel) => {
+      if (m.status === 'used') return;
+      const s = m.data.stairs[si];
+      if (part === 'treads') PS.setTreads(s, n); else PS.setRisers(s, n);
+      afterFlight(si);
+      redraw();
+      const el = focusSel && view.querySelector(`${focusSel}:not([disabled])`);
+      if (el) el.focus();
+      else { const q = view.querySelector(`[data-sb-qty="${part}:${si}"]`); if (q) q.focus(); }
+    };
+    view.querySelectorAll('[data-sb-count]').forEach((b) => b.addEventListener('click', () => {
+      const raw = b.getAttribute('data-sb-count');
+      const [part, si, d] = raw.split(':');
+      const c = PS.counts(m.data.stairs[Number(si)]);
+      setCount(part, Number(si), c[part] + Number(d), `[data-sb-count="${raw}"]`);
+    }));
+    view.querySelectorAll('[data-sb-qty]').forEach((el) => {
+      el.addEventListener('focus', () => el.select());
+      el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); el.blur(); } });
+      el.addEventListener('change', () => {
+        const [part, si] = el.getAttribute('data-sb-qty').split(':');
+        const c = PS.counts(m.data.stairs[Number(si)]);
+        if (el.value.trim() === '' || !Number.isFinite(Number(el.value))) { el.value = c[part]; return; }
+        setCount(part, Number(si), Number(el.value));
+      });
+    });
+    let sb3dT = 0;
+    const soon3d = () => { clearTimeout(sb3dT); sb3dT = setTimeout(() => { if (state.meas === m) mountMeas3d(m); }, 140); };
+    const fieldError = (el, on, text) => {
+      el.classList.toggle('is-bad', on);
+      el.setAttribute('aria-invalid', String(on));
+      const err = el.closest('.pp-sb-part').querySelector('[data-sb-err]');
+      if (err) { err.hidden = !on; err.textContent = on ? text : ''; }
+    };
+    view.querySelectorAll('[data-sb-size]').forEach((el) => {
+      const [part, key, siRaw] = el.getAttribute('data-sb-size').split(':');
+      const si = Number(siRaw);
+      el.addEventListener('focus', () => el.select());
+      el.addEventListener('input', () => {
+        const s = m.data.stairs[si];
+        const value = el.value.trim() ? parseIn(el.value) : null;
+        if (el.value.trim() && value == null) return; // still typing; checked on leaving the field
+        if (part === 'treads') PS.applyTread(s, key, value); else PS.applyRiser(s, key, value);
+        if (el.classList.contains('is-bad')) fieldError(el, false);
+        const w = key === 'tread_w' && view.querySelector(`[data-sb-size="risers:riser_w:${si}"]`);
+        if (w) w.value = fmtIn(PS.readSpec(s).riser_w.value);
+        afterFlight(si);
+        soon3d();
+      });
+      el.addEventListener('blur', () => {
+        const bad = Boolean(el.value.trim()) && parseIn(el.value) == null;
+        fieldError(el, bad, 'Use a number like 36 or 11 1/4.');
+        if (!bad) el.value = fmtIn(el.value.trim() ? parseIn(el.value) : null);
+      });
+      el.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const all = [...view.querySelectorAll('[data-sb-size]:not([disabled])')];
+        const next = all[all.indexOf(el) + 1];
+        if (next) next.focus(); else el.blur();
+      });
+    });
+    view.querySelectorAll('[data-sb-opt]').forEach((el) => el.addEventListener('change', () => {
+      if (!el.value) return;
+      const raw = el.getAttribute('data-sb-opt');
+      const [part, key, si] = raw.split(':');
+      const s = m.data.stairs[Number(si)];
+      if (part === 'tread') PS.applyTread(s, key, el.value);
+      else s[key] = el.value;
       measSaveSoon();
       redraw();
-      const el = view.querySelector(`[data-in="stairs.${si}.steps.${s.steps.length - 1}.tread_w"]`);
+      const same = view.querySelector(`[data-sb-opt="${raw}"]`);
+      if (same) same.focus();
+    }));
+    view.querySelectorAll('[data-fly-add]').forEach((b) => b.addEventListener('click', () => {
+      const s = m.data.stairs[Number(b.getAttribute('data-fly-add'))];
+      s.landing = { ...(s.landing || {}), enabled: true, direction: (s.landing && s.landing.direction) || 'straight' };
+      measSaveSoon();
+      redraw();
+      const el = view.querySelector(`[data-landing-sf="${b.getAttribute('data-fly-add')}"]`);
       if (el) el.focus();
     }));
-    view.querySelectorAll('[data-riser-add]').forEach((b) => b.addEventListener('click', () => {
-      const si = Number(b.getAttribute('data-riser-add'));
-      const s = m.data.stairs[si];
-      const previous = [...s.steps].reverse().find((step) => step.kind === 'riser' || step.riser_h != null) || s.steps[s.steps.length - 1] || null;
-      s.steps.push(newStep(previous, 'riser'));
-      m.vizSel[si] = s.steps.length - 1;
+    view.querySelectorAll('[data-landing-rm]').forEach((b) => b.addEventListener('click', () => {
+      const s = m.data.stairs[Number(b.getAttribute('data-landing-rm'))];
+      s.landing = { enabled: false, width: null, depth: null, sqft: null, direction: 'straight' };
       measSaveSoon();
       redraw();
+      const add = view.querySelector('[data-fly-add]');
+      if (add) add.focus();
     }));
-    view.querySelectorAll('[data-step-many]').forEach((b) => b.addEventListener('click', () => {
-      const si = Number(b.getAttribute('data-step-many'));
-      const s = m.data.stairs[si];
-      const n = Math.min(40, Math.max(1, Number(($(`ppMany-${si}`) || {}).value) || 1));
-      for (let i = 0; i < n && s.steps.length < 60; i += 1) {
-        const previousTread = [...s.steps].reverse().find((step) => step.kind !== 'riser') || null;
-        s.steps.push(newStep(previousTread, 'step'));
-      }
-      m.vizSel[si] = Math.max(0, s.steps.length - 1);
-      measSaveSoon();
+    view.querySelectorAll('[data-landing-sf]').forEach((el) => {
+      const si = Number(el.getAttribute('data-landing-sf'));
+      el.addEventListener('focus', () => el.select());
+      el.addEventListener('input', () => {
+        const v = window.PpStairs.parseSqft(el.value);
+        if (v == null) return;
+        const s = m.data.stairs[si];
+        s.landing.sqft = v;
+        if (el.classList.contains('is-bad')) fieldError(el, false);
+        afterFlight(si);
+        soon3d();
+      });
+      el.addEventListener('blur', () => {
+        const s = m.data.stairs[si];
+        const v = window.PpStairs.parseSqft(el.value);
+        const bad = Boolean(el.value.trim()) && v == null;
+        fieldError(el, bad, 'Use square feet like 16, or the sides like 4x4.');
+        if (bad) return;
+        s.landing.sqft = v;
+        if (v) el.value = v;
+        afterFlight(si);
+      });
+      el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); el.blur(); } });
+    });
+    view.querySelectorAll('[data-landing-dir]').forEach((b) => b.addEventListener('click', () => {
+      const raw = b.getAttribute('data-landing-dir');
+      const [si, k] = raw.split(':');
+      const s = m.data.stairs[Number(si)];
+      s.landing.direction = k;
+      const up = upperOf(s);
+      if (up) up.turn = k;
+      afterFlight(Number(si));
       redraw();
+      const same = view.querySelector(`[data-landing-dir="${raw}"]`);
+      if (same) same.focus();
+    }));
+    view.querySelectorAll('[data-fly-next]').forEach((b) => b.addEventListener('click', () => {
+      const si = Number(b.getAttribute('data-fly-next'));
+      const parent = m.data.stairs[si];
+      if (!parent || upperOf(parent)) return;
+      const n = stairChainFor(m.data, parent.id).length + 1;
+      const rootName = (stairChainFor(m.data, parent.id)[0] || parent).name || 'Stair';
+      const upper = newStair(m.data.stairs.length + 1);
+      Object.assign(upper, {
+        name: `${rootName} · Flight ${n}`, starts_on_landing_of: parent.id, turn: parent.landing.direction || 'straight',
+        species: parent.species, finish: parent.finish, color: parent.color, riser_material: parent.riser_material,
+        riser_species: parent.riser_species, riser_finish: parent.riser_finish, riser_open: parent.riser_open, riser_ret: parent.riser_ret,
+        spec: specFrom(parent),
+      });
+      m.data.stairs.splice(si + 1, 0, upper);
+      m.activeStairId = upper.id;
+      afterFlight(si);
+      paintMeasurement();
+      const plus = view.querySelector(`[data-sb-count="treads:${si + 1}:1"]`);
+      const card = view.querySelector('.pp-stair');
+      if (card) { card.scrollIntoView({ block: 'start' }); window.scrollBy(0, -80); }
+      if (plus) plus.focus();
     }));
     view.querySelectorAll('[data-step-down]').forEach((b) => b.addEventListener('click', () => {
       const [si, i] = b.getAttribute('data-step-down').split(':').map(Number);
@@ -7466,27 +7767,30 @@
     const ventCount = $('ppVentCount');
     if (ventCount) ventCount.addEventListener('click', openVentCounter);
     const ventAdd = $('ppVentAdd');
-    if (ventAdd) ventAdd.addEventListener('click', () => {
-      m.data.vents.push(newVent(m.data.vents[m.data.vents.length - 1]));
-      measSaveSoon();
-      redraw();
-      openVentSheet(m.data.vents.length - 1, true);
-    });
-    view.querySelectorAll('[data-vent-open]').forEach((b) => b.addEventListener('click', () => openVentSheet(Number(b.getAttribute('data-vent-open')), false)));
+    if (ventAdd) ventAdd.addEventListener('click', () => openVentsPopup({ add: true }));
+    view.querySelectorAll('[data-vent-add-empty]').forEach((b) => b.addEventListener('click', () => openVentsPopup({ add: true })));
+    view.querySelectorAll('[data-vent-open]').forEach((b) => b.addEventListener('click', () => openVentsPopup({ focus: b.getAttribute('data-vent-open') })));
+    view.querySelectorAll('[data-vents-3d]').forEach((b) => b.addEventListener('click', () => { m.vents3d = true; redraw(); }));
     view.querySelectorAll('[data-vent-qty]').forEach((b) => b.addEventListener('click', () => {
       const [i, d] = b.getAttribute('data-vent-qty').split(':').map(Number);
       const v = m.data.vents[i];
       if (!v) return;
       v.qty = Math.max(1, (Number(v.qty) || 1) + d);
       measSaveSoon();
-      redraw();
+      // only this row and the totals change: the list isn't redrawn on each tap
+      const row = b.closest('.pp-vrow');
+      row.querySelector('.pp-stepper b').textContent = v.qty;
+      const less = row.querySelector('[data-vent-qty$=":-1"]');
+      if (less) less.disabled = v.qty <= 1;
+      const list = view.querySelector('.pp-vsum');
+      if (list) list.innerHTML = ventKinds(m.data.vents).map((k) => `<span><b>${k.n}</b> ${esc(k.label)}</span>`).join('');
+      const total = m.data.vents.reduce((n, x) => n + (Number(x.qty) || 1), 0);
+      const sub = view.querySelector('.pp-vents-head small');
+      if (sub) sub.textContent = plural(total, 'vent', 'vents');
+      const pill = view.querySelector('[data-mtab="vents"] .pp-mtab-n');
+      if (pill) pill.textContent = total;
     }));
-    view.querySelectorAll('[data-mtab-go]').forEach((b) => b.addEventListener('click', () => { m.tab = b.getAttribute('data-mtab-go'); redraw(); }));
-    view.querySelectorAll('[data-vent-rm]').forEach((b) => b.addEventListener('click', () => {
-      m.data.vents.splice(Number(b.getAttribute('data-vent-rm')), 1);
-      measSaveSoon();
-      redraw();
-    }));
+    view.querySelectorAll('[data-mtab-go]').forEach((b) => { if (!b.closest('.pp-msum')) b.addEventListener('click', () => { m.tab = b.getAttribute('data-mtab-go'); redraw(); }); });
     view.querySelectorAll('[data-ph-add]').forEach((inp) => inp.addEventListener('change', async () => {
       const file = inp.files && inp.files[0];
       if (!file) return;
@@ -7514,6 +7818,7 @@
     view.querySelectorAll('[data-sum-done]').forEach((b) => b.addEventListener('click', () => { const top = $('ppMeasDone'); if (top) top.click(); }));
     const done = $('ppMeasDone');
     if (done) done.addEventListener('click', async () => {
+      if (stopForGaps(m)) return;
       done.disabled = true;
       try {
         await measSaveNow();
