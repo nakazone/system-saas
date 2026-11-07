@@ -272,6 +272,8 @@
   /* ───────────── stairs ───────────── */
 
   const IN = 1 / 12;
+  /** How far a stair wall rises above the steps, in feet. */
+  const WALL_ABOVE = 3.5;
   /** Flights that belong together: a root flight and the ones that start on its landing, in order. */
   function stairChains(stairs) {
     const byId = new Map(stairs.map((s) => [s.id, s]));
@@ -306,6 +308,25 @@
       grp.add(mesh);
       return mesh;
     };
+    /**
+     * A side wall panel: floor up to a top that follows the stair. It only faces the stair, so from
+     * outside the camera looks straight through it and the stair is never hidden.
+     */
+    const wallPanel = (grp, p0, p1, top0, top1, inward) => {
+      if (!kit.wall) return;
+      const o = grp.position;
+      const verts = [p0.x - o.x, -o.y, p0.z - o.z, p1.x - o.x, -o.y, p1.z - o.z, p1.x - o.x, top1 - o.y, p1.z - o.z, p0.x - o.x, top0 - o.y, p0.z - o.z];
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+      // the winding decides which way it faces: toward the stair
+      const nx = (p1.z - p0.z); const nz = -(p1.x - p0.x);
+      g.setIndex(nx * inward.x + nz * inward.z < 0 ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2]);
+      g.computeVertexNormals();
+      const m = new THREE.Mesh(g, kit.wall);
+      m.receiveShadow = true;
+      m.userData.wall = true;
+      grp.add(m);
+    };
     const beam = (grp, a, b, r, mat) => {
       const A = new THREE.Vector3(a.x - grp.position.x, a.y - grp.position.y, a.z - grp.position.z);
       const B = new THREE.Vector3(b.x - grp.position.x, b.y - grp.position.y, b.z - grp.position.z);
@@ -317,7 +338,8 @@
     };
 
     chain.forEach(({ stair: st, parent }) => {
-      const comps = (st.steps || []).filter((c) => c.kind === 'riser' ? (c.riser_h || c.riser_w) : (c.tread_w || c.tread_d || c.riser_h));
+      // Counted pieces show up right away; typical sizes stand in until they are measured.
+      const comps = st.steps || [];
       if (!comps.length) return;
       const w = ((Number(comps.find((c) => c.tread_w)?.tread_w) || Number(comps[0].riser_w) || 36)) * IN;
       let d = { x: 0, z: -1 }; let start = { x: 0, z: 0 }; let e = 0;
@@ -340,7 +362,9 @@
         } else { d = ps.d; start = ps.end; }
       }
       const L = left(d);
-      const wood = kit.wood(st); const riserMat = st.riser_material === 'primed' || st.riser_material === 'paint_grade' ? kit.paint : wood;
+      const wood = kit.wood(st);
+      const riserMat = st.riser_material === 'primed' || st.riser_material === 'paint_grade' ? kit.paint
+        : st.riser_species || st.riser_finish ? kit.wood({ ...st, species: st.riser_species || st.species, finish: st.riser_finish || st.finish }) : wood;
       let a = 0; let first = true; const railPts = { l: [], r: [] };
       const flightSteps = [];
       comps.forEach((c, ci) => {
@@ -366,6 +390,13 @@
           // the mass under the step, down to the floor
           const mc = { x: start.x + d.x * (a + run / 2), z: start.z + d.z * (a + run / 2) };
           addBox(grp, w - 0.06, Math.max(0.05, e + rise - T), run, mc, 0, d, kit.mass, { noShadow: false });
+          // closed sides have a wall, rising with the stair
+          [[1, open === 'left' || open === 'both'], [-1, open === 'right' || open === 'both']].forEach(([s, isOpen]) => {
+            if (isOpen || run <= 0) return;
+            const off = w / 2 + 0.03;
+            const at = (k) => ({ x: start.x + d.x * k + L.x * off * s, z: start.z + d.z * k + L.z * off * s });
+            wallPanel(grp, at(a), at(a + run), e + WALL_ABOVE, e + rise + WALL_ABOVE, { x: -L.x * s, z: -L.z * s });
+          });
           // rail posts (two balusters per tread) on open sides
           [['l', 1, open === 'left' || open === 'both'], ['r', -1, open === 'right' || open === 'both']].forEach(([k, s, on]) => {
             if (!on) return;
@@ -396,10 +427,17 @@
         landing = { depth: ld, width: lw, shift };
         const lc = { x: end.x + d.x * ld / 2 + L.x * shift, z: end.z + d.z * ld / 2 + L.z * shift };
         const grp = new THREE.Group(); grp.position.set(lc.x, e, lc.z); root.add(grp);
-        const top = addBox(grp, lw, 1 * IN, ld, lc, e - 1 * IN, d, wood);
-        top.userData = { pick: true, stair: st, counted: true, landing: true };
-        picks.push(top);
+        const deck = addBox(grp, lw, 1 * IN, ld, lc, e - 1 * IN, d, wood);
+        deck.userData = { pick: true, stair: st, counted: true, landing: true };
+        picks.push(deck);
         addBox(grp, lw - 0.06, Math.max(0.05, e - 1 * IN), ld - 0.04, lc, 0, d, kit.mass);
+        // walls around the landing, except where a flight arrives or leaves
+        const leaves = kid ? (kid.turn || 'straight') : (st.landing.direction || 'straight');
+        const corner = (ka, kb) => ({ x: lc.x + d.x * ka + L.x * kb, z: lc.z + d.z * ka + L.z * kb });
+        const top = e + WALL_ABOVE; const hd = ld / 2 + 0.03; const hw = lw / 2 + 0.03;
+        if (leaves !== 'straight') wallPanel(grp, corner(hd, hw), corner(hd, -hw), top, top, { x: -d.x, z: -d.z });
+        if (leaves !== 'left') wallPanel(grp, corner(-hd, hw), corner(hd, hw), top, top, { x: -L.x, z: -L.z });
+        if (leaves !== 'right') wallPanel(grp, corner(-hd, -hw), corner(hd, -hw), top, top, { x: L.x, z: L.z });
         grp.userData.kind = 'landing';
         steps.push(grp); landings += 1;
       }
@@ -557,6 +595,8 @@
       paint: new THREE.MeshStandardMaterial({ color: 0xf7f4ef, roughness: 0.55 }),
       mass: new THREE.MeshStandardMaterial({ color: 0xe9e4dc, roughness: 0.92 }),
       rail: new THREE.MeshStandardMaterial({ color: 0x3a2a1e, roughness: 0.35 }),
+      // a house has its own walls; a stair shown on its own gets them from the stair
+      wall: !noHouse ? null : new THREE.MeshStandardMaterial({ color: 0xf1ece4, roughness: 0.95, side: THREE.FrontSide }),
     };
     const groups = [];
     const pickables = [];
@@ -855,7 +895,7 @@
         placeTip(x, y); return;
       }
       if (d.vent) {
-        tip.innerHTML = `<strong>Vent · ${escHtml(String(d.vent.size || '').replace('x', '×'))}</strong><span><i style="background:${escHtml(woodColor(d.vent.species, '#8C8781'))}"></i>${escHtml({ flush: 'Flush mount', self_rimming: 'Self-rimming', return_air: 'Return air' }[d.vent.type] || d.vent.type || '')}</span><small>${escHtml([r && r.name, d.vent.species].filter(Boolean).join(' · '))}</small>`;
+        tip.innerHTML = `<strong>Vent · ${escHtml(String(d.vent.size || '').replace('x', '×'))}</strong><span><i style="background:${escHtml(woodColor(d.vent.species, '#8C8781'))}"></i>${escHtml({ flush: 'Flush mount', metal: 'Metal', self_rimming: 'Self-rimming', return_air: 'Return air' }[d.vent.type] || d.vent.type || '')}</span><small>${escHtml([r && r.name, d.vent.species].filter(Boolean).join(' · '))}</small>`;
         placeTip(x, y); return;
       }
       const area = r ? r.area_sf : null;
@@ -1371,6 +1411,7 @@
       paint: new THREE.MeshStandardMaterial({ color: 0xf7f4ef, roughness: 0.55 }),
       mass: new THREE.MeshStandardMaterial({ color: 0xe9e4dc, roughness: 0.92 }),
       rail: new THREE.MeshStandardMaterial({ color: 0x3a2a1e, roughness: 0.35 }),
+      wall: new THREE.MeshStandardMaterial({ color: 0xf1ece4, roughness: 0.95, side: THREE.FrontSide }),
       dispose() { cache.forEach((m) => m.dispose()); grain.forEach((t) => t.dispose()); cache.clear(); grain.clear(); },
     };
   }
@@ -1644,9 +1685,10 @@
     list.forEach((v) => {
       const m = /^(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)/i.exec(String(v.size || '4x10'));
       const a = (m ? Number(m[1]) : 4) * IN; const b = (m ? Number(m[2]) : 10) * IN;
-      const base = woodColor([v.species, v.color].join(' '), '#C49C6E');
-      const fin = finishLook(v.finish);
-      const floorTex = new THREE.CanvasTexture(plankCanvas(base, 5, 31)); floorTex.colorSpace = THREE.SRGBColorSpace; floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping;
+      const metal = v.type === 'metal';
+      const base = metal ? '#A7ABAF' : woodColor([v.species, v.color].join(' '), '#C49C6E');
+      const fin = metal ? { rough: 0.32, tint: 0xffffff } : finishLook(v.finish);
+      const floorTex = new THREE.CanvasTexture(plankCanvas(metal ? '#C49C6E' : base, 5, 31)); floorTex.colorSpace = THREE.SRGBColorSpace; floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping;
       const pw = b + 0.9; const pd = a + 0.9;
       floorTex.repeat.set(pw / 4, pd / 4);
       const floor = new THREE.Mesh(new THREE.BoxGeometry(pw, 0.06, pd), new THREE.MeshStandardMaterial({ map: floorTex, color: 0xe8dccf, roughness: 0.45 }));
@@ -1660,15 +1702,13 @@
         new THREE.MeshStandardMaterial({ color: fin.paint ? 0xf2efe9 : base }), new THREE.MeshStandardMaterial({ color: fin.paint ? 0xf2efe9 : base }),
       ]);
       reg.position.set(x + pw / 2, (lip + 0.01) / 2, 0); reg.castShadow = true; grp.add(reg);
-      const lab = dimLabel(THREE, `${String(v.size || '4x10').replace('x', '×')}${v.type === 'return_air' ? ' return' : v.type === 'self_rimming' ? ' drop-in' : ' flush'}`);
+      const lab = dimLabel(THREE, `${String(v.size || '4x10').replace('x', '×')}${v.type === 'return_air' ? ' return' : v.type === 'self_rimming' ? ' drop-in' : metal ? ' metal' : ' flush'}`);
       lab.position.set(x + pw / 2, 0.22, pd / 2 + 0.05); grp.add(lab);
       x += pw + 0.25;
     });
     grp.position.x = -x / 2;
     const box = new THREE.Box3().setFromObject(grp);
     c.orbit(-0.5, 0.75); c.frameBox(box, 1.35);
-    let spin = !opts.still; const t0 = performance.now(); c.cv.addEventListener('pointerdown', () => { spin = false; });
-    c.onFrame.push(() => { if (!spin || performance.now() - t0 > 6000) return false; c.orbit(c.view.theta + 0.002, c.view.phi); return true; });
     c.need();
     const api = {
       destroy: c.destroy, attach: (n) => { c.attach(n); n.__ob3d = api; },

@@ -81,7 +81,7 @@ export const voiceActionSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("add_vent"),
     size: z.string().max(20),
-    vent_type: z.enum(["flush", "self_rimming", "return_air"]).optional(),
+    vent_type: z.enum(["flush", "metal", "self_rimming", "return_air"]).optional(),
     qty: z.number().int().min(1).max(500).optional(),
     room: z.string().max(80).optional(),
     species: z.string().max(60).optional(),
@@ -109,7 +109,7 @@ Open side: "left side open"/"open left" = left, "right open" = right, "both side
 Return: "45"/"mitered" = "45", "flat"/"square" = "flat", "bullnose"/"round" = "bullnose".
 Steps are numbered from the bottom, starting at 1. "Steps 1 to 8" means from 1 to 8. "Same for the rest"/"all the others" means up to the last step. "Add 6 more the same" = add_steps with count 6 and no sizes.
 Stairs are referred to by index (0-based) from the list given; "this stair"/no stair named = the current stair. "New stair"/"another stair" = add_stair (then later actions use the new index = number of stairs).
-Vents: size like "4 by 10" = "4x10"; "flush mount" = flush, "self rimming"/"drop in" = self_rimming, "return air" = return_air.
+Vents: size like "4 by 10" = "4x10"; "flush mount" = flush, "metal" = metal, "self rimming"/"drop in" = self_rimming, "return air" = return_air.
 Return ONLY JSON: {"actions":[...], "reply": "<one short sentence in English confirming what you understood>", "unclear": "<what was not understood, or empty>"}.
 Action types:
 {"type":"set_steps","stair":0,"from":3,"to":3,"tread_w":48,"tread_d":11.25,"riser_w":48,"riser_h":7.5,"open":"both","ret":"45"}
